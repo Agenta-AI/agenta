@@ -1,22 +1,115 @@
-import {useCallback, useEffect, useRef} from "react"
+import {useCallback, useMemo, useRef} from "react"
 
+import {
+    legacyAppRevisionMolecule,
+    newestRevisionForVariantAtomFamily,
+    stripAgentaMetadataDeep,
+} from "@agenta/entities/legacyAppRevision"
+import {formatLocalDraftLabel, getVersionLabel, isLocalDraftId} from "@agenta/entities/shared"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Checkbox, Input, Radio, RadioChangeEvent, Select, Tooltip, Typography} from "antd"
+import {
+    Checkbox,
+    Input,
+    Radio,
+    RadioChangeEvent,
+    Select,
+    Skeleton,
+    Tag,
+    Tooltip,
+    Typography,
+} from "antd"
 import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 
-import DiffView from "@/oss/components/Editor/DiffView"
+import EnvironmentTagLabel, {deploymentStatusColors} from "@/oss/components/EnvironmentTagLabel"
 import CommitNote from "@/oss/components/Playground/assets/CommitNote"
 import Version from "@/oss/components/Playground/assets/Version"
-import EnvironmentTagLabel, {deploymentStatusColors} from "@/oss/components/EnvironmentTagLabel"
-import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
-import {newestRevisionForVariantIdAtomFamily} from "@/oss/components/Playground/state/atoms"
-import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
-import {transformedPromptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 
 import {CommitVariantChangesModalContentProps} from "../types"
-import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
 
+const DiffView = dynamic(() => import("@agenta/ui/editor").then((module) => module.DiffView), {
+    ssr: false,
+})
 const {Text} = Typography
+
+// ============================================================================
+// Diff computation helpers (pure functions, no React)
+// ============================================================================
+
+const LEGACY_KEYS = new Set([
+    "system_prompt",
+    "user_prompt",
+    "prompt_template",
+    "temperature",
+    "model",
+    "max_tokens",
+    "top_p",
+    "frequency_penalty",
+    "presence_penalty",
+    "template_format",
+])
+
+function stripLegacyFields(params: Record<string, any> | undefined): any {
+    if (!params || typeof params !== "object") return params
+    if (Array.isArray(params)) return params.map(stripLegacyFields)
+
+    const result = {...params}
+    const hasStructuredPrompt = result.messages || result.llm_config
+
+    if (hasStructuredPrompt) {
+        for (const key of LEGACY_KEYS) {
+            delete result[key]
+        }
+    }
+
+    for (const [key, value] of Object.entries(result)) {
+        if (value && typeof value === "object") {
+            result[key] = stripLegacyFields(value)
+        }
+    }
+
+    return result
+}
+
+interface DiffData {
+    original: string
+    modified: string
+}
+
+/** Recursively sort object keys so JSON.stringify produces a canonical form. */
+function sortKeysDeep(obj: unknown): unknown {
+    if (Array.isArray(obj)) return obj.map(sortKeysDeep)
+    if (obj && typeof obj === "object") {
+        return Object.keys(obj as Record<string, unknown>)
+            .sort()
+            .reduce(
+                (acc, key) => {
+                    acc[key] = sortKeysDeep((obj as Record<string, unknown>)[key])
+                    return acc
+                },
+                {} as Record<string, unknown>,
+            )
+    }
+    return obj
+}
+
+function computeDiffStrings(originalParams: any, modifiedParams: any): DiffData {
+    const strippedOriginal = stripAgentaMetadataDeep(originalParams)
+    const strippedModified = stripAgentaMetadataDeep(modifiedParams)
+
+    const sanitizedOriginal = stripLegacyFields(strippedOriginal as any)
+    const sanitizedModified = stripLegacyFields(strippedModified as any)
+
+    return {
+        original: JSON.stringify(sortKeysDeep(sanitizedOriginal) ?? {}),
+        modified: JSON.stringify(sortKeysDeep(sanitizedModified) ?? {}),
+    }
+}
+
+// ============================================================================
+// Component
+// ============================================================================
 
 const CommitVariantChangesModalContent = ({
     variantId,
@@ -24,51 +117,27 @@ const CommitVariantChangesModalContent = ({
     setNote,
     selectedCommitType,
     setSelectedCommitType,
-    commitType,
     shouldDeploy,
     onToggleDeploy,
     selectedEnvironment,
     onSelectEnvironment,
     isDeploymentPending,
 }: CommitVariantChangesModalContentProps) => {
-    // Get variant metadata and derived prompts (prefers local cache, falls back to spec)
-    const variant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
-    // const prompts = useAtomValue(promptsAtomFamily(variantId)) || []
-
-    // Guard against undefined variant during commit invalidation (after hooks)
-    if (!variant) {
-        return (
-            <div className="flex gap-4">
-                <section className="flex flex-col gap-4">
-                    <Text>Loading variant data...</Text>
-                </section>
-            </div>
-        )
-    }
-
-    // Extract values from the variant object (safe now)
-    const variantName = variant.variantName
-    const revision = variant.revision
-    // Determine target revision based on the latest revision number for this variant, not the base
-    const latestRevisionForVariant = useAtomValue(
-        newestRevisionForVariantIdAtomFamily(variant?.variantId || ""),
+    // Use molecule-backed variant for single source of truth (merged data = serverData + draft)
+    const variant = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId)) as any
+    // Get serverData (initial state) - this is the baseline before any edits
+    const serverData = useAtomValue(
+        useMemo(() => legacyAppRevisionMolecule.atoms.serverData(variantId), [variantId]),
     ) as any
-    const targetRevision = Number(latestRevisionForVariant?.revision ?? 0) + 1
+    const latestRevisionForVariant = useAtomValue(
+        newestRevisionForVariantAtomFamily(variant?.variantId || ""),
+    ) as any
+    // Get current (modified) ag_config - entity-native conversion from enhanced → raw params
+    const currentAgConfig = useAtomValue(legacyAppRevisionMolecule.atoms.draftParameters(variantId))
 
-    // Compose a minimal EnhancedVariant-like object using current prompts
-    // const composedVariant = {
-    //     ...variant,
-    //     prompts,
-    // } as any
-    // Read both sources: prompt-derived params and any JSON override from the editor
-    const derivedAgConfig = useAtomValue(transformedPromptsAtomFamily(variantId))?.ag_config
-    const jsonOverride = useAtomValue(parametersOverrideAtomFamily(variantId))
-    const params = commitType === "parameters" && jsonOverride ? jsonOverride : derivedAgConfig
-    // const params =
-    // transformToRequestBody({variant: composedVariant})?.ag_config
-    const oldParams = variant.parameters
-    const sanitizedOldParams = stripAgentaMetadataDeep(oldParams)
-    const sanitizedParams = stripAgentaMetadataDeep(params)
+    const revisionLabel = isLocalDraftId(variantId)
+        ? formatLocalDraftLabel((variant as any)?._sourceRevision ?? null)
+        : getVersionLabel(variant?.revision)
 
     const onChange = useCallback(
         (e: RadioChangeEvent) => {
@@ -77,40 +146,45 @@ const CommitVariantChangesModalContent = ({
         [selectedCommitType, setSelectedCommitType],
     )
 
-    // Snapshot diff content using refs (no re-renders, computed on first mount)
-    const initialOriginalRef = useRef<string | null>(null)
-    const initialModifiedRef = useRef<string | null>(null)
+    // Snapshot target revision on first render so it doesn't shift while the modal is open
+    const settledTargetRevisionRef = useRef<number | null>(null)
 
-    // Reset refs when the target variant changes
-    useEffect(() => {
-        initialOriginalRef.current = null
-        initialModifiedRef.current = null
-    }, [variantId])
+    // For diff: compare serverData.parameters (original) vs currentAgConfig (current with edits)
+    const modifiedParams = currentAgConfig
+    // Use serverData.parameters as the original (initial state before edits)
+    // Unwrap ag_config if present (serverData.parameters may have { ag_config: {...} })
+    const rawOriginalParams = serverData?.parameters
+    const originalParams = rawOriginalParams?.ag_config ?? rawOriginalParams
 
-    // Compute snapshot lazily on first render after mount
-    if (variant && initialOriginalRef.current === null && initialModifiedRef.current === null) {
-        try {
-            initialOriginalRef.current = JSON.stringify(sanitizedOldParams)
-            // Use the same transformed local prompts ag_config that drives dirty-state
-            if (params !== undefined) {
-                initialModifiedRef.current = JSON.stringify(sanitizedParams)
-            }
-        } catch {
-            // Keep refs null; we will fall back to live values below
-        }
+    // Compute diff strings as a derived value — StrictMode-safe.
+    const diffData = useMemo<DiffData | null>(() => {
+        if (!originalParams || !modifiedParams) return null
+        return computeDiffStrings(originalParams, modifiedParams)
+    }, [originalParams, modifiedParams])
+
+    // Guard against undefined variant during commit invalidation
+    if (!variant) {
+        return (
+            <div className="flex p-4">
+                <Text>Loading variant data...</Text>
+            </div>
+        )
     }
 
+    const variantName = variant.variantName
+
+    // Settle the target revision on first render so it stays stable while the modal is open
+    if (settledTargetRevisionRef.current === null) {
+        settledTargetRevisionRef.current = Number(latestRevisionForVariant?.revision ?? 0) + 1
+    }
+    const targetRevision = settledTargetRevisionRef.current
+
     const environmentOptions = (
-        Object.keys(deploymentStatusColors) as Array<keyof typeof deploymentStatusColors>
+        Object.keys(deploymentStatusColors) as (keyof typeof deploymentStatusColors)[]
     ).map((env) => ({
         value: env,
         label: <EnvironmentTagLabel environment={env} />,
     }))
-
-    // Ensure DiffView gets strings even when params are undefined
-    const originalForDiff = initialOriginalRef.current ?? JSON.stringify(sanitizedOldParams ?? {})
-    const modifiedForDiff =
-        initialModifiedRef.current ?? JSON.stringify(sanitizedParams ?? sanitizedOldParams ?? {})
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-6 md:flex-row">
@@ -128,7 +202,7 @@ const CommitVariantChangesModalContent = ({
                             >
                                 <span className="inline-flex items-center gap-1">
                                     As a new version
-                                    <Tooltip title="Creates a new version within this variant’s history.">
+                                    <Tooltip title="Creates a new version within this variant's history.">
                                         <span className="text-[#64748B]">ⓘ</span>
                                     </Tooltip>
                                 </span>
@@ -136,7 +210,14 @@ const CommitVariantChangesModalContent = ({
                             <div className="mt-2 flex flex-wrap items-center gap-2 pl-6 text-sm text-[#475569]">
                                 <Text className="font-medium text-[#0F172A]">{variantName}</Text>
                                 <div className="flex items-center gap-2">
-                                    <Version revision={revision} />
+                                    {/* Use revision label API for proper local draft display */}
+                                    <Tag
+                                        color="default"
+                                        bordered={false}
+                                        className="bg-[rgba(5,23,41,0.06)]"
+                                    >
+                                        {revisionLabel}
+                                    </Tag>
                                     <ArrowRight size={14} />
                                     <Version revision={targetRevision} />
                                 </div>
@@ -162,6 +243,13 @@ const CommitVariantChangesModalContent = ({
                                     className="w-full max-w-xs"
                                     value={selectedCommitType?.name}
                                     disabled={selectedCommitType?.type !== "variant"}
+                                    status={
+                                        selectedCommitType?.type === "variant" &&
+                                        selectedCommitType?.name &&
+                                        !isVariantNameInputValid(selectedCommitType.name)
+                                            ? "error"
+                                            : undefined
+                                    }
                                     onChange={(e) =>
                                         setSelectedCommitType((prev) => {
                                             const prevType = prev?.type
@@ -177,6 +265,14 @@ const CommitVariantChangesModalContent = ({
                                     }
                                     suffix={<Version revision={1} />}
                                 />
+                                {selectedCommitType?.type === "variant" &&
+                                    selectedCommitType?.name &&
+                                    !isVariantNameInputValid(selectedCommitType.name) && (
+                                        <Text className="text-xs text-[#EF4444]">
+                                            Variant name must contain only letters, numbers,
+                                            underscore, or dash
+                                        </Text>
+                                    )}
                             </div>
                         </div>
                     </div>
@@ -230,15 +326,21 @@ const CommitVariantChangesModalContent = ({
                     <Text className="text-sm font-medium text-[#0F172A]">Changes preview</Text>
                 </div>
                 <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3">
-                    <DiffView
-                        original={originalForDiff}
-                        modified={modifiedForDiff}
-                        language="json"
-                        className="h-full min-h-0 rounded-lg border border-[#E2E8F0]"
-                        computeOnMountOnly
-                        showErrors={true}
-                        enableFolding
-                    />
+                    {diffData ? (
+                        <DiffView
+                            original={diffData.original}
+                            modified={diffData.modified}
+                            language="json"
+                            className="h-full min-h-0 rounded-lg border border-[#E2E8F0]"
+                            computeOnMountOnly
+                            showErrors={true}
+                            enableFolding
+                        />
+                    ) : (
+                        <div className="p-4">
+                            <Skeleton active paragraph={{rows: 8}} />
+                        </div>
+                    )}
                 </div>
             </section>
         </div>

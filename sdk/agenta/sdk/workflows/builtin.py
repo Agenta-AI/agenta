@@ -1,6 +1,5 @@
-from typing import Optional, Union, Dict
+from typing import Optional, Dict
 
-from agenta.sdk.models.workflows import Reference
 from agenta.sdk.decorators.running import workflow, Workflow, application, evaluator
 from agenta.sdk.workflows.handlers import SinglePromptConfig
 
@@ -166,11 +165,13 @@ def auto_custom_code_run(
     #
     correct_answer_key: Optional[str] = "correct_answer",
     threshold: Optional[float] = 0.5,
+    runtime: Optional[str] = "python",
 ) -> Workflow:
     parameters = dict(
         code=code,
         correct_answer_key=correct_answer_key,
         threshold=threshold,
+        runtime=runtime,
     )
 
     return evaluator(
@@ -535,6 +536,34 @@ def auto_semantic_similarity(
         variant_slug=variant_slug,
         #
         uri="auto_semantic_similarity",
+        #
+        parameters=parameters,
+    )()
+
+
+def hook(
+    *,
+    slug: Optional[str] = None,
+    #
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    #
+    variant_slug: Optional[str] = None,
+    #
+    url: str,
+    #
+    parameters: Optional[Dict] = None,
+) -> Workflow:
+    return application(
+        slug=slug,
+        #
+        name=name,
+        description=description,
+        #
+        variant_slug=variant_slug,
+        #
+        uri="hook",
+        url=url,
         #
         parameters=parameters,
     )()

@@ -1,24 +1,23 @@
-import {memo, useMemo} from "react"
+import {memo, useCallback, useMemo} from "react"
 
+import {runnableBridge} from "@agenta/entities/runnable"
+import {isLocalDraftId} from "@agenta/entities/shared"
+import {
+    executionController,
+    executionItemController,
+    playgroundController,
+} from "@agenta/playground"
+import {DraftTag} from "@agenta/ui/components"
 import {useSortable} from "@dnd-kit/sortable"
 import {CSS} from "@dnd-kit/utilities"
 import {PlusCircle, Timer, X} from "@phosphor-icons/react"
-import {Button, Tag, Typography} from "antd"
+import {Button, Modal, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
-import {removeVariantFromSelectionMutationAtom} from "@/oss/components/Playground/state/atoms/variantCrudMutations"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
-import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {generationLogicalTurnIdsAtom as compatRowIdsAtom} from "@/oss/state/generation/compat"
-import {logicalTurnIndexAtom, runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
 
 import Version from "../../../../../assets/Version"
-import {
-    variantByRevisionIdAtomFamily,
-    generationResultAtomFamily,
-    appChatModeAtom,
-} from "../../../../../state/atoms"
 
 import {useStyles} from "./styles"
 import type {VariantNavigationCardProps} from "./types"
@@ -33,45 +32,63 @@ const VariantNavigationCard = ({
 }: VariantNavigationCardProps) => {
     const classes = useStyles()
 
-    // Read only the specific variant by revisionId
-    const variant = useAtomValue(variantByRevisionIdAtomFamily(revisionId)) as any
-    const removeVariantFromSelection = useSetAtom(removeVariantFromSelectionMutationAtom)
+    // Use runnableBridge for entity-type-aware data access
+    const runnableData = useAtomValue(runnableBridge.data(revisionId))
+    const removeVariantFromSelection = useSetAtom(playgroundController.actions.removeEntity)
+    const isDirty = useAtomValue(runnableBridge.isDirty(revisionId))
+    const isLocalDraftVariant = isLocalDraftId(revisionId)
+
+    // Map RunnableData fields to display values
+    const variantName = runnableData?.name ?? ""
+    const variantVersion = runnableData?.version as number | undefined
+
+    // Handle close with confirmation only if there are actual committable changes
+    // A local draft without changes (isDirty === false) should close without confirmation
+    const handleClose = useCallback(() => {
+        if (isDirty) {
+            Modal.confirm({
+                title: "Discard unsaved changes?",
+                content: isLocalDraftVariant
+                    ? "This draft has uncommitted changes. Closing it will discard all changes."
+                    : "You have unsaved changes in this variant. Closing it will discard these changes.",
+                okText: "Discard",
+                okButtonProps: {danger: true},
+                cancelText: "Cancel",
+                onOk: () => {
+                    removeVariantFromSelection(revisionId)
+                },
+            })
+        } else {
+            removeVariantFromSelection(revisionId)
+        }
+    }, [isDirty, isLocalDraftVariant, removeVariantFromSelection, revisionId])
 
     // Aggregate visible trace results for this revision across current rows
     const metricsAtom = useMemo(
         () =>
             atom((get) => {
-                const isChat = Boolean(get(appChatModeAtom))
-                const rowIds = (get(compatRowIdsAtom) as string[]) || []
+                // Subscribe to chat mode and run status so changes trigger recompute
+                get(executionController.selectors.isChatMode)
+                const rowIds =
+                    (get(executionItemController.selectors.generationRowIds) as string[]) || []
                 const results: any[] = []
-                // Read run status map up-front so changes trigger recompute even if other deps don't
-                const statusMap = get(runStatusByRowRevisionAtom) || {}
+                get(executionItemController.selectors.runStatusByRowEntity)
+
                 for (const rowId of rowIds) {
-                    if (isChat) {
-                        const key = `${rowId}:${revisionId}`
-                        const {resultHash} = (statusMap as any)[key] || {}
-                        const res = getResponseLazy(resultHash)
-                        if (res) results.push(res)
-                        continue
-                    }
-
-                    // Completion: use canonical selector
-                    const {resultHash} = get(
-                        generationResultAtomFamily({variantId: revisionId, rowId}),
+                    // Read full result from package store
+                    const fullResult = get(
+                        executionItemController.selectors.fullResult({rowId, entityId: revisionId}),
                     )
-                    const res = getResponseLazy(resultHash)
-                    if (res) {
-                        results.push(res)
-                        continue
+                    if (fullResult?.output) {
+                        const output = fullResult.output
+                        if (Array.isArray(output)) {
+                            // Take the last result for metrics (most recent)
+                            const last = output[output.length - 1]
+                            if (last) results.push(last)
+                        } else {
+                            results.push(output)
+                        }
                     }
-
-                    // // Last-resort: use run-status map resultHash
-                    // const key = `${rowId}:${revisionId}`
-                    // const hash = (statusMap as any)[key]?.resultHash
-                    // if (hash) {
-                    //     const rs = getResponseLazy(hash)
-                    //     if (rs) results.push(rs)
-                    // }
                 }
 
                 // Reduce metrics across results (prefer acc, fallback to unit)
@@ -153,18 +170,35 @@ const VariantNavigationCard = ({
             >
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1">
-                        <Text>{variant?.variantName}</Text>
-                        <Version revision={variant?.revision as number} />
+                        {isLocalDraftVariant ? (
+                            // Local draft: show Draft tag then source revision info
+                            <>
+                                <DraftTag />
+                                <Text className="text-gray-500">
+                                    from {String(variantName).replace(/\s*\(Draft\)$/, "")}
+                                    {variantVersion != null ? ` v${variantVersion}` : ""}
+                                </Text>
+                            </>
+                        ) : (
+                            // Regular revision: show name and version tag, with Draft tag if dirty
+                            <>
+                                <Text>{variantName}</Text>
+                                {variantVersion != null && <Version revision={variantVersion} />}
+                                {isDirty && <DraftTag />}
+                            </>
+                        )}
                     </div>
                     <Button
                         type="text"
                         className="relative z-[2]"
+                        onPointerDown={(e) => {
+                            // Prevent drag activation when clicking the close button
+                            e.stopPropagation()
+                        }}
                         onClick={(e) => {
                             e.preventDefault()
                             e.stopPropagation()
-
-                            // Use atom-based mutation for better performance and consistency
-                            removeVariantFromSelection(revisionId)
+                            handleClose()
                         }}
                     >
                         <X size={14} />
@@ -172,13 +206,13 @@ const VariantNavigationCard = ({
                 </div>
                 <div className="flex items-center justify-between">
                     <Text>Average Latency</Text>
-                    <Tag color="default" bordered={false} className="flex items-center gap-1">
+                    <Tag color="default" variant="filled" className="flex items-center gap-1">
                         <Timer size={14} /> {avgLatency}
                     </Tag>
                 </div>
                 <div className="flex items-center justify-between">
                     <Text>Average Cost</Text>
-                    <Tag color="default" bordered={false} className="flex items-center gap-1">
+                    <Tag color="default" variant="filled" className="flex items-center gap-1">
                         <PlusCircle size={14} /> {avgTokens} / {avgCost}
                     </Tag>
                 </div>

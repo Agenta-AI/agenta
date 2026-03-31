@@ -1,0 +1,44 @@
+{
+    "name": "@agenta/shared",
+    "version": "0.80.0",
+    "private": true,
+    "sideEffects": false,
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "scripts": {
+        "build": "pnpm run types:check",
+        "types:check": "tsc --noEmit",
+        "lint": "eslint --config ../eslint.config.mjs src/ --max-warnings 0",
+        "lint:fix": "eslint --config ../eslint.config.mjs src/ --max-warnings 0 --fix"
+    },
+    "exports": {
+        ".": "./src/index.ts",
+        "./api": "./src/api/index.ts",
+        "./api/env": "./src/api/env.ts",
+        "./state": "./src/state/index.ts",
+        "./utils": "./src/utils/index.ts",
+        "./hooks": "./src/hooks/index.ts",
+        "./schemas": "./src/schemas/index.ts",
+        "./types": "./src/types/index.ts"
+    },
+    "dependencies": {
+        "@scalar/openapi-parser": "^0.24.13",
+        "dayjs": "^1.11.10",
+        "json5": "^2.2.3",
+        "jsonrepair": "^3.13.2",
+        "uuid": "^11.1.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.8.10",
+        "@types/react": "^19.0.10",
+        "@types/uuid": "^9.0.8",
+        "typescript": "5.8.3"
+    },
+    "peerDependencies": {
+        "@tanstack/react-query": ">=5.0.0",
+        "axios": ">=1.0.0",
+        "jotai": ">=2.0.0",
+        "jotai-tanstack-query": ">=0.9.0",
+        "react": ">=18.0.0"
+    }
+}

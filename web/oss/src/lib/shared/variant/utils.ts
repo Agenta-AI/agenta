@@ -2,9 +2,8 @@
 
 import {CamelCaseEnvironment} from "../../Types"
 
-import {Enhanced} from "./genericTransformer/types"
-import {EnhancedVariant} from "./transformer/types/transformedVariant"
-import {RevisionObject, ParentVariantObject} from "./transformer/types/variant"
+import {EnhancedVariant} from "./types/enhancedVariant"
+import {RevisionObject, ParentVariantObject} from "./types/variantConfig"
 
 /**
  * Remove trailing slash from a URI
@@ -36,19 +35,6 @@ export const findRevisionDeployment = (
     return environments.filter((env) => {
         return env.deployedAppVariantRevisionId === revisionId
     })
-}
-
-/** Enhanced property utilities */
-export const getEnhancedProperties = (obj: Record<string, any> | undefined, exclude?: string[]) => {
-    if (!obj) return []
-    return Object.entries(obj)
-        .filter(([key]) => !exclude?.includes(key))
-        .reduce((acc, [_, value]) => {
-            if (value && typeof value === "object" && "__id" in value) {
-                acc.push(value)
-            }
-            return acc
-        }, [] as Enhanced<unknown>[])
 }
 
 /**
@@ -103,45 +89,4 @@ export const adaptRevisionToVariant = (
         // Parent reference by ID only; consumers must use selector-family atoms
         _parentVariant: parentId,
     }
-}
-
-// TODO: DEPRECATE @ardaerzin
-export const setVariant = (variant: any, uri): EnhancedVariant => {
-    // TEMPORARY FIX FOR PREVIOUSLY CREATED AGENTA_CONFIG
-    // TODO: REMOVE THIS BEFORE RELEASE.
-    if (variant.parameters?.agenta_config) {
-        variant.parameters = variant.parameters.agenta_config
-        delete variant.parameters.agenta_config
-    }
-
-    // Source priority: variant.parameters, variant.config?.parameters
-    const rawParameters = variant.parameters ?? variant.config?.parameters ?? {}
-    const parameters = rawParameters.ag_config ?? rawParameters.agConfig ?? rawParameters
-
-    if (variant.variantId) {
-        variant.id = variant.variantId
-        variant.parameters = parameters ?? {}
-
-        return variant
-    }
-
-    return {
-        id: variant.variant_id,
-        uri: uri || uriFixer(variant.uri),
-        appId: variant.app_id,
-        baseId: variant.base_id,
-        baseName: variant.base_name,
-        variantName: variant.variant_name,
-        templateVariantName: variant.template_variant_name,
-        revision: variant.revision,
-        configName: variant.config_name,
-        projectId: variant.project_id,
-        appName: variant.app_name,
-        parameters: {
-            ...parameters,
-        },
-        isChat: false,
-        name: "",
-        updatedAt: variant.updated_at,
-    } as EnhancedVariant
 }

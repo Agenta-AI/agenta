@@ -1,5 +1,3 @@
-import {SnakeToCamelCase, SnakeToCamelCaseKeys} from "@/oss/lib/Types"
-
 interface AnnotationLink {
     trace_id?: string
     span_id?: string
@@ -15,6 +13,7 @@ interface AnnotationReference {
 
 interface AnnotationReferences {
     evaluator: AnnotationReference
+    evaluator_revision?: AnnotationReference
     testset?: AnnotationReference
     testcase?: AnnotationReference
 }
@@ -26,8 +25,8 @@ interface AnnotationMetadata {
 }
 
 // OLD STUFF
-type LegacyAnnotationKind = "custom" | "human" | "auto"
-type LegacyAnnotationSource = "web" | "sdk" | "api"
+type _LegacyAnnotationKind = "custom" | "human" | "auto"
+type _LegacyAnnotationSource = "web" | "sdk" | "api"
 // NEW STUFF
 type AnnotationKind = "adhoc" | "eval"
 type AnnotationChannel = "web" | "sdk" | "api"

@@ -1,7 +1,8 @@
+import {publishMutationAtom} from "@agenta/entities/runnable"
 import {atom} from "jotai"
 import {atomWithImmer} from "jotai-immer"
 
-import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
+import {routerAppIdAtom} from "@/oss/state/app"
 
 interface DeployVariantModalState {
     open: boolean
@@ -69,6 +70,7 @@ export const deploySubmitAtom = atom(
         }
         const selectedEnvName = get(deploySelectedEnvAtom)
         const note = get(deployNoteAtom)
+        const appId = get(routerAppIdAtom)
         const {mutateAsync: publish} = get(publishMutationAtom)
 
         // Debug current state before proceeding
@@ -115,6 +117,7 @@ export const deploySubmitAtom = atom(
                           type: "revision" as const,
                           revision_id: state.revisionId as string,
                           environment_ref: env,
+                          application_id: appId || undefined,
                           note,
                       },
             )

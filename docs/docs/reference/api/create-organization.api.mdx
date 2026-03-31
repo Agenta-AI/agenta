@@ -1,0 +1,71 @@
+---
+id: create-organization
+title: "Create Organization"
+description: "Create a new organization."
+sidebar_label: "Create Organization"
+hide_title: true
+hide_table_of_contents: true
+api: eJydVU1v2zAM/SsBz17SFTv5tGwt0KDbErTZLkEwMDYbq5MlVZLbeob/+0Apie1kLbrlEn08PkmPj3QDObnMCuOFVpDCZ0voaYQjRU8jbbeoxG/kvTEkoA3ZMJnlkEIWoD/7IEjA0kNFzn/SeQ1pA5lWnpTnIRojRRZwk3vHpzXgsoJK5JGxzO4FOZ4pLCnEqHp+B+mqAV8bghSct0JtoU0OK6qSEtp1Al54yQvfOLZNhg/7P6qLHkXbJnuc3txT5qHDRdXmPSUWWEuNObQcxpoISzmk3lYUFpzRysW3np+d8d8wD7dVlpFzd5Uc3ezAkLxZzTYc++H8/JT4B0qRh7DRpbXa/gPrUY5y8igkj4Sn0p0CpM4Gu2/IgFCetmShXXdqo7VY98T+ouMFOcel2zLzkK+DfiXncBvcECEvQ4MYoyXvtgkIZaogyH57FhbaBDL/3KM5dQJr+ez/6pbOBqugTbz+DtdzXZeimKGXpbiIKXjNmlfL5eKEMPqjJF9ormSjHYcY9AWkMOlXtIMEHNlHsi5krrKSIWhESFucFt4bl04mVI0zqat8jFtSHscoInDNHFllha8DyXQxu6b6ijAnC+lq3Qfcstuif4awg+ZoxDWxCrFJwLTyhbZdBxJs8yJG8TPZxzddV7p8xtJI6rpM54VhpRzcCULd6b4ZpuF5o+liBgmwNDHgbPx+fHZCMwBzqWHme4fHbUiOpDwoCAlQGeoMPGH5sdvgt3HmSlQ9vl0Dnw+78lEvPFT86/1+JzgbemIkilBy4Z7NziwrGJplnUDBZkpX0DQbdPTdyrbl5YeKLGd/ncAjWoEbVnLFZV7sfdDAL6r3NaT8u1CMDJdVzPtRb2IDxohplpHxr2LXPb8v5rdLSGCz+0aVOucYi09cpPgEKYSPXXxS2sS1BiSqbcXtJIXIyb8/umF9xA==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create Organization"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Create a new organization.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"}},"type":"object","title":"CreateOrganizationPayload"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

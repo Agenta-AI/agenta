@@ -9,6 +9,7 @@ from agenta.sdk.workflows.handlers import (
     auto_exact_match_v0,
     auto_regex_test_v0,
     field_match_test_v0,
+    json_multi_field_match_v0,
     auto_webhook_test_v0,
     auto_custom_code_run_v0,
     auto_ai_critique_v0,
@@ -22,6 +23,7 @@ from agenta.sdk.workflows.handlers import (
     auto_levenshtein_distance_v0,
     auto_similarity_match_v0,
     auto_semantic_similarity_v0,
+    hook_v0,
     completion_v0,
     chat_v0,
 )
@@ -31,6 +33,7 @@ from agenta.sdk.workflows.interfaces import (
     auto_exact_match_v0_interface,
     auto_regex_test_v0_interface,
     field_match_test_v0_interface,
+    json_multi_field_match_v0_interface,
     auto_webhook_test_v0_interface,
     auto_custom_code_run_v0_interface,
     auto_ai_critique_v0_interface,
@@ -44,6 +47,7 @@ from agenta.sdk.workflows.interfaces import (
     auto_levenshtein_distance_v0_interface,
     auto_similarity_match_v0_interface,
     auto_semantic_similarity_v0_interface,
+    hook_v0_interface,
     completion_v0_interface,
     chat_v0_interface,
 )
@@ -54,6 +58,7 @@ from agenta.sdk.workflows.configurations import (
     auto_exact_match_v0_configuration,
     auto_regex_test_v0_configuration,
     field_match_test_v0_configuration,
+    json_multi_field_match_v0_configuration,
     auto_webhook_test_v0_configuration,
     auto_custom_code_run_v0_configuration,
     auto_ai_critique_v0_configuration,
@@ -67,17 +72,19 @@ from agenta.sdk.workflows.configurations import (
     auto_levenshtein_distance_v0_configuration,
     auto_similarity_match_v0_configuration,
     auto_semantic_similarity_v0_configuration,
+    hook_v0_configuration,
     completion_v0_configuration,
     chat_v0_configuration,
 )
 
 INTERFACE_REGISTRY: dict = dict(
-    agenta={
-        "built-in": dict(
+    agenta=dict(
+        builtin=dict(
             echo=dict(v0=echo_v0_interface),
             auto_exact_match=dict(v0=auto_exact_match_v0_interface),
             auto_regex_test=dict(v0=auto_regex_test_v0_interface),
             field_match_test=dict(v0=field_match_test_v0_interface),
+            json_multi_field_match=dict(v0=json_multi_field_match_v0_interface),
             auto_webhook_test=dict(v0=auto_webhook_test_v0_interface),
             auto_custom_code_run=dict(v0=auto_custom_code_run_v0_interface),
             auto_ai_critique=dict(v0=auto_ai_critique_v0_interface),
@@ -91,19 +98,21 @@ INTERFACE_REGISTRY: dict = dict(
             auto_levenshtein_distance=dict(v0=auto_levenshtein_distance_v0_interface),
             auto_similarity_match=dict(v0=auto_similarity_match_v0_interface),
             auto_semantic_similarity=dict(v0=auto_semantic_similarity_v0_interface),
+            hook=dict(v0=hook_v0_interface),
             completion=dict(v0=completion_v0_interface),
             chat=dict(v0=chat_v0_interface),
         ),
-    },
+    ),
 )
 
 CONFIGURATION_REGISTRY: dict = dict(
-    agenta={
-        "built-in": dict(
+    agenta=dict(
+        builtin=dict(
             echo=dict(v0=echo_v0_configuration),
             auto_exact_match=dict(v0=auto_exact_match_v0_configuration),
             auto_regex_test=dict(v0=auto_regex_test_v0_configuration),
             field_match_test=dict(v0=field_match_test_v0_configuration),
+            json_multi_field_match=dict(v0=json_multi_field_match_v0_configuration),
             auto_webhook_test=dict(v0=auto_webhook_test_v0_configuration),
             auto_custom_code_run=dict(v0=auto_custom_code_run_v0_configuration),
             auto_ai_critique=dict(v0=auto_ai_critique_v0_configuration),
@@ -119,10 +128,11 @@ CONFIGURATION_REGISTRY: dict = dict(
             ),
             auto_similarity_match=dict(v0=auto_similarity_match_v0_configuration),
             auto_semantic_similarity=dict(v0=auto_semantic_similarity_v0_configuration),
+            hook=dict(v0=hook_v0_configuration),
             completion=dict(v0=completion_v0_configuration),
             chat=dict(v0=chat_v0_configuration),
         ),
-    },
+    ),
 )
 
 # Global registry for workflow handlers organized by URI structure.
@@ -134,13 +144,13 @@ CONFIGURATION_REGISTRY: dict = dict(
 #
 # Components:
 #   - provider: The source/namespace of the handler (e.g., "agenta", "user")
-#   - kind: The category/type of handler (e.g., "built-in", "custom")
+#   - kind: The category/type of handler (e.g., "builtin", "custom")
 #   - key: The unique identifier for the handler (e.g., "echo", "auto_exact_match", "module.function_name")
 #   - version: The version identifier (e.g., "v0", "v1", "latest")
 #
 # Examples:
-#   - URI: "agenta:built-in:echo:v0"
-#     Access: HANDLER_REGISTRY["agenta"]["built-in"]["echo"]["v0"]
+#   - URI: "agenta:builtin:echo:v0"
+#     Access: HANDLER_REGISTRY["agenta"]["builtin"]["echo"]["v0"]
 #
 #   - URI: "user:custom:mymodule.my_workflow:latest"
 #     Access: HANDLER_REGISTRY["user"]["custom"]["mymodule.my_workflow"]["latest"]
@@ -154,12 +164,13 @@ CONFIGURATION_REGISTRY: dict = dict(
 # The registry supports automatic URI generation for user-defined workflows:
 #   If no URI is provided, register_handler() generates: "user:custom:{module}.{name}:latest"
 HANDLER_REGISTRY: dict = dict(
-    agenta={
-        "built-in": dict(
+    agenta=dict(
+        builtin=dict(
             echo=dict(v0=echo_v0),
             auto_exact_match=dict(v0=auto_exact_match_v0),
             auto_regex_test=dict(v0=auto_regex_test_v0),
             field_match_test=dict(v0=field_match_test_v0),
+            json_multi_field_match=dict(v0=json_multi_field_match_v0),
             auto_webhook_test=dict(v0=auto_webhook_test_v0),
             auto_custom_code_run=dict(v0=auto_custom_code_run_v0),
             auto_ai_critique=dict(v0=auto_ai_critique_v0),
@@ -173,10 +184,11 @@ HANDLER_REGISTRY: dict = dict(
             auto_levenshtein_distance=dict(v0=auto_levenshtein_distance_v0),
             auto_similarity_match=dict(v0=auto_similarity_match_v0),
             auto_semantic_similarity=dict(v0=auto_semantic_similarity_v0),
+            hook=dict(v0=hook_v0),
             completion=dict(v0=completion_v0),
             chat=dict(v0=chat_v0),
         ),
-    },
+    ),
 )
 
 
@@ -193,7 +205,7 @@ def parse_uri(
     # 3 → provider:kind:key
     # 4 → provider:kind:key:version
     if len(parts) == 1:
-        provider, kind, key, version = "agenta", "built-in", parts[0], "latest"
+        provider, kind, key, version = "agenta", "builtin", parts[0], "latest"
     elif len(parts) == 2:
         provider, kind, key, version = "agenta", parts[0], parts[1], "latest"
     elif len(parts) == 3:

@@ -1,16 +1,13 @@
 import {useCallback} from "react"
 
+import {playgroundController} from "@agenta/playground"
+import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
 import {DndContext, closestCenter, PointerSensor, useSensor, useSensors} from "@dnd-kit/core"
 import {restrictToParentElement} from "@dnd-kit/modifiers"
 import {arrayMove, SortableContext, verticalListSortingStrategy} from "@dnd-kit/sortable"
 import {Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
-
-import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
-
-import {usePlaygroundLayout} from "../../../hooks/usePlaygroundLayout"
-import {selectedVariantsAtom} from "../../../state/atoms"
+import {useSetAtom} from "jotai"
 
 import VariantNavigationCard from "./assets/VariantNavigationCard"
 import type {PromptComparisonVariantNavigationProps} from "./types"
@@ -20,8 +17,8 @@ const PromptComparisonVariantNavigation = ({
     handleScroll,
     ...props
 }: PromptComparisonVariantNavigationProps) => {
-    const {displayedVariants} = usePlaygroundLayout()
-    const selectedVariants = useAtomValue(selectedVariantsAtom)
+    const {displayedEntities} = usePlaygroundLayout()
+    const setSelectedVariants = useSetAtom(playgroundController.actions.setEntityIds)
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -38,21 +35,21 @@ const PromptComparisonVariantNavigation = ({
             const {active, over} = event
 
             if (over?.id && active.id && active.id !== over?.id) {
-                // Get current revision IDs from selectedVariants (which is a string array)
-                const currentRevisionIds = selectedVariants || []
+                // Use displayedEntities for indices since that's what SortableContext uses
+                const currentRevisionIds = displayedEntities || []
 
-                const oldIndex = currentRevisionIds.indexOf(active.id)
-                const newIndex = currentRevisionIds.indexOf(over.id)
+                const oldIndex = currentRevisionIds.indexOf(active.id as string)
+                const newIndex = currentRevisionIds.indexOf(over.id as string)
 
                 if (oldIndex !== -1 && newIndex !== -1) {
-                    // Reorder the array
+                    // Reorder the array and update atom directly
+                    // This preserves local drafts (writePlaygroundSelectionToQuery filters them out)
                     const reorderedRevisions = arrayMove(currentRevisionIds, oldIndex, newIndex)
-
-                    void writePlaygroundSelectionToQuery(reorderedRevisions)
+                    setSelectedVariants(reorderedRevisions)
                 }
             }
         },
-        [selectedVariants],
+        [displayedEntities, setSelectedVariants],
     )
 
     return (
@@ -69,10 +66,10 @@ const PromptComparisonVariantNavigation = ({
                     modifiers={[restrictToParentElement]}
                 >
                     <SortableContext
-                        items={displayedVariants || []}
+                        items={displayedEntities || []}
                         strategy={verticalListSortingStrategy}
                     >
-                        {displayedVariants?.map((variantId, idx) => (
+                        {displayedEntities?.map((variantId, idx) => (
                             <VariantNavigationCard
                                 key={variantId}
                                 id={variantId}

@@ -4,9 +4,9 @@ import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import {getColumnViewportVisibilityAtom} from "@/oss/components/InfiniteVirtualTable/atoms/columnVisibility"
-
 import {evaluatorReferenceAtomFamily} from "@/oss/components/References/atoms/entityReferences"
 import type {EvaluatorReference} from "@/oss/components/References/atoms/entityReferences"
+
 import {evaluationRunsColumnVisibilityContextAtom} from "../atoms/view"
 
 const nullEvaluatorAtom = atom(null)

@@ -1,0 +1,71 @@
+---
+id: unarchive-query-variant
+title: "Unarchive Query Variant"
+description: "Unarchive Query Variant"
+sidebar_label: "Unarchive Query Variant"
+hide_title: true
+hide_table_of_contents: true
+api: eJzlV01v20YQ/SvCnBJgI6lGTzxVtRvETVursZyLIBgjciRtuiLp/TCiEvzvxewuJZKSHcdQTj2JIt+8mXkzOxxWYHFtIJnD3460JAMLAUVJGq0s8usMEnA56nQjH+n+wZHe3T+ilphbEFCixi1Z0kxQQY5bggQ6qHuZgQCZQwIl2g0I0PTgpKYMEqsdCTDphrYISQV2V7K9sVrmaxCwKvQWLUfgPIuVVjGAI90NPgcHg+sM6nrBvKYsckOGqS7GY/7JyKRalpwKJHDr0pSMWTk1+BTBICAtcku5ZTiWpZKpz3z0xbBN1Qqv1KyLlcFDWrhgFKOWuaU16VaYlx4hIKMVOmUhGdeiK473me9uVl6+Ln8AyqyLeV6iWuwRuVMKWJauaCyWANRWrjC1Z6SfRMroYaV8V7W5McskK4tq2kn0yPuyKBRh3nYXA+I7p2kglTp1CvWbP3BJ6ndT5O9unC2dfcsVCSzF8gulthN2H82x99DPJP3eZ8km/4dsZzHZLVl8ZbKtzHrHpuN4u+zeaWv0LUXeO/UNQUQF0tL2hVaoNe6e74Ku7feJ+ieLWYs4O18k2RHHX2xbi+60ex3VVYuiFpBqQkvZPdoXzokMLb2z0sfztJfLQDuYeLFcmf0IJ3eBNjrJSNEPcHIVaKOTRq7lOQd3I9avzfRu9Dqrl0atvZdGsLN6aeTaezHKrV/bq7dsWws4X3h+leif3t4rNK4dJ3hearrfPeqaTX6+uDheVT6jkplfRAa/aV3o1+8pGVmUiq/i0OsDVJF2nn7P0F7UvTnZetcUIUD/xjDrU/vdYQYag2s6DM6noV6MwYyfcuVznrcMbwqYxwGc2q8tmqNyXLKWX+3Jah/207nXJoQfca1mOZQoVOhpKa5CCZ7rjw+z2fSIMPRHtzHummV80NmCwb+WNwXv62VhwnJuN5DA6CHs9aO4c5pR1V/Q69F+xQcBhvRjs9E7rZgCS+nLH/5urC1NMhqRG6aqcNkQ15RbHKIMwAVzpE5Lu/Mkk+n1R9p9IMxIQzJftAG33LWhD7uwfe2wlB+J1YxfFxNnN4WW/4bmip8Wm2BV+55YFe2WmPjgBpPpNQjgxIKO4+FPwzH01e2A+cBh6vur8e0fg+gJsc8fBNDWnzawhNtfDg84Mq7LFvMW39PF7L3Koxbcs6NSofSnygdRxTrPIdaZs4yVBgHJiY+xQ7EXAjbcLMkcqmqJhu60qmu+7c24WJFtyVrOK8ik4esMkhUqQ0eB7ocUvPkUz9HbwWGZ6ibQVDjf+aCV438g4B/anfqM9NNm07RRFWGTNKXStgiOhiP32/5wTG9uZ1DX/wGGcx9B
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Unarchive Query Variant"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/queries/variants/{query_variant_id}/unarchive"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Unarchive Query Variant
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"query_variant_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Query Variant Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"query_variant":{"anyOf":[{"properties":{"query_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Query Id"},"artifact_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Artifact Id"},"flags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Flags"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"QueryVariant"},{"type":"null"}]}},"type":"object","title":"QueryVariantResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from oss.src.core.shared.dtos import (
     Windowing,
+    Reference,
 )
 from oss.src.core.testcases.dtos import (
     Testcase,
@@ -19,6 +20,10 @@ class TestcasesQueryRequest(BaseModel):
     #
     testset_id: Optional[UUID] = None
     #
+    testset_ref: Optional[Reference] = None
+    testset_variant_ref: Optional[Reference] = None
+    testset_revision_ref: Optional[Reference] = None
+    #
     windowing: Optional[Windowing] = None
 
 
@@ -30,3 +35,4 @@ class TestcaseResponse(BaseModel):
 class TestcasesResponse(BaseModel):
     count: int = 0
     testcases: List[Testcase] = []
+    windowing: Optional[Windowing] = None

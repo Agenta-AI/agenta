@@ -30,9 +30,12 @@ export const useCrispChat = () => {
         }
     }, [isVisible, updateVisibility, isCrispEnabled])
 
+    // Hide Crisp chat on mount (state is already initialized to false)
     useEffect(() => {
-        updateVisibility(false)
-    }, [updateVisibility])
+        if (isCrispEnabled) {
+            Crisp.chat.hide()
+        }
+    }, [isCrispEnabled])
 
     return {
         isVisible,

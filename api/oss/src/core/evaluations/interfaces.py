@@ -273,6 +273,16 @@ class EvaluationsDAOInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def query_scenario_ids(
+        self,
+        *,
+        project_id: UUID,
+        #
+        scenario: Optional[EvaluationScenarioQuery] = None,
+    ) -> List[UUID]:
+        raise NotImplementedError
+
+    @abstractmethod
     async def query_scenarios(
         self,
         *,

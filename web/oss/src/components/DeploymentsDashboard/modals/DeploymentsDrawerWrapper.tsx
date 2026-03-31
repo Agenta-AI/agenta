@@ -19,6 +19,7 @@ const DeploymentsDrawerWrapper = () => {
             drawerVariantId={state.revisionId}
             selectedRevisionId={state.deploymentRevisionId}
             envName={state.envName}
+            mode={state.mode}
         />
     )
 }

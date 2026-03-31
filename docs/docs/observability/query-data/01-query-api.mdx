@@ -18,7 +18,7 @@ The Agenta API lets you query trace and span data programmatically. You can filt
 ## API Endpoint
 
 ```
-POST /api/preview/tracing/spans/query
+POST /api/tracing/spans/query
 ```
 
 Send queries as JSON in the request body. This approach works best for complex filters with nested conditions.
@@ -304,6 +304,10 @@ For nested attributes, use dot notation:
 
 **`btwn`**: Between (inclusive, provide array `[min, max]`)
 
+`gt`, `gte`, `lt`, and `lte` can also be used for lexicographic comparisons on string values (for example `span_name`, `status_message`, or string attributes).
+
+For datetime strings, use a consistent ISO 8601 format (for example `2024-01-15T10:30:00Z`) so ordering is reliable.
+
 Example filtering by duration:
 
 ```json
@@ -323,6 +327,30 @@ Example using between:
   "key": "ag.metrics.unit.duration",
   "operator": "btwn",
   "value": [500, 2000]
+}
+```
+
+Example filtering a string datetime attribute:
+
+```json
+{
+  "filter": {
+    "operator": "and",
+    "conditions": [
+      {
+        "field": "attributes",
+        "key": "tags.created_at",
+        "operator": "gte",
+        "value": "2024-01-15T00:00:00Z"
+      },
+      {
+        "field": "attributes",
+        "key": "tags.created_at",
+        "operator": "lt",
+        "value": "2024-01-20T00:00:00Z"
+      }
+    ]
+  }
 }
 ```
 
@@ -646,7 +674,7 @@ query = {
 }
 
 response = requests.post(
-    f"{AGENTA_HOST}/api/preview/tracing/spans/query",
+    f"{AGENTA_HOST}/api/tracing/spans/query",
     headers={
         "Authorization": f"ApiKey {API_KEY}",
         "Content-Type": "application/json"
@@ -692,7 +720,7 @@ const query = {
 };
 
 const response = await fetch(
-    `${AGENTA_HOST}/api/preview/tracing/spans/query`,
+    `${AGENTA_HOST}/api/tracing/spans/query`,
     {
         method: "POST",
         headers: {

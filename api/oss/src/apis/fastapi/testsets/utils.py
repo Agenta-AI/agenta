@@ -1,31 +1,35 @@
-from typing import Optional, Literal, List
+from typing import Dict, Any, Optional, Literal, List
 from uuid import UUID
 from datetime import datetime
+from json import dumps
+from hashlib import blake2b as digest
+from copy import deepcopy
 
-from fastapi import Query
+import csv
+from io import StringIO
+
+import orjson as oj
+
+from fastapi import HTTPException, Query
 
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.core.shared.dtos import (
-    Windowing,
-    Reference,
+from oss.src.apis.fastapi.shared.utils import parse_metadata
+from oss.src.apis.fastapi.testsets.models import (
+    TestsetQueryRequest,
+    TestsetVariantQueryRequest,
+    TestsetRevisionQueryRequest,
+    TestsetRevisionRetrieveRequest,
 )
+
+from oss.src.core.blobs.utils import compute_blob_id
+from oss.src.core.shared.dtos import Windowing, Reference
 from oss.src.core.testsets.dtos import (
     TestsetFlags,
     #
     TestsetQuery,
     TestsetVariantQuery,
     TestsetRevisionQuery,
-)
-
-from oss.src.apis.fastapi.shared.utils import (
-    parse_metadata,
-)
-from oss.src.apis.fastapi.testsets.models import (
-    TestsetQueryRequest,
-    TestsetVariantQueryRequest,
-    TestsetRevisionQueryRequest,
-    TestsetRevisionRetrieveRequest,
 )
 
 
@@ -141,7 +145,7 @@ def parse_testset_query_request_from_body(
             #
             windowing=windowing,
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         testset_query_request = TestsetQueryRequest()
 
     return testset_query_request
@@ -164,8 +168,11 @@ def merge_testset_query_requests(
             testset_refs=query_request_body.testset_refs
             or query_request_params.testset_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )
@@ -317,7 +324,7 @@ def parse_testset_variant_query_request_from_body(
             #
             windowing=windowing,
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         testset_variant_query_request = TestsetVariantQueryRequest()
 
     return testset_variant_query_request
@@ -343,8 +350,11 @@ def merge_testset_variant_query_requests(
             testset_variant_refs=query_request_body.testset_variant_refs
             or query_request_params.testset_variant_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )
@@ -558,8 +568,11 @@ def merge_testset_revision_query_requests(
             testset_revision_refs=query_request_body.testset_revision_refs
             or query_request_params.testset_revision_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )
@@ -577,6 +590,8 @@ def parse_testset_revision_retrieve_request_from_params(
     testset_revision_id: Optional[UUID] = Query(None),
     testset_revision_slug: Optional[str] = Query(None),
     testset_revision_version: Optional[str] = Query(None),
+    #
+    include_testcases: Optional[bool] = Query(None),
 ):
     testset_ref = (
         Reference(
@@ -610,6 +625,7 @@ def parse_testset_revision_retrieve_request_from_params(
         testset_ref=testset_ref,
         testset_variant_ref=testset_variant_ref,
         testset_revision_ref=testset_revision_ref,
+        include_testcases=include_testcases,
     )
 
 
@@ -617,28 +633,17 @@ def parse_testset_revision_retrieve_request_from_body(
     testset_ref: Optional[Reference] = None,
     testset_variant_ref: Optional[Reference] = None,
     testset_revision_ref: Optional[Reference] = None,
+    include_testcases: Optional[bool] = None,
 ) -> TestsetRevisionRetrieveRequest:
     return TestsetRevisionRetrieveRequest(
         testset_ref=testset_ref,
         testset_variant_ref=testset_variant_ref,
         testset_revision_ref=testset_revision_ref,
+        include_testcases=include_testcases,
     )
 
 
 # ---------------------------------------------------------------------------- #
-
-from typing import Dict, Any
-from uuid import uuid4
-from json import loads, dumps
-from io import BytesIO
-from hashlib import blake2b as digest
-
-import orjson
-import pandas
-
-from fastapi import HTTPException
-
-from oss.src.core.blobs.utils import compute_blob_id
 
 
 TESTSETS_COUNT_LIMIT = 10 * 1_000  # 10,000 testcases per testset
@@ -690,14 +695,14 @@ async def json_file_to_json_array(
     try:
         if hasattr(json_file, "read"):  # Covers UploadFile or similar
             content = await json_file.read()  # Read async
-            return orjson.loads(content)
+            return oj.loads(content)
         else:
             raise TypeError("Unsupported file type")
-    except orjson.JSONDecodeError as e:
-        print(f"Error: Invalid JSON format - {e}")
+    except oj.JSONDecodeError as e:
+        log.error("[TESTSETS] Invalid JSON format", exc_info=True)
         raise e
     except Exception as e:
-        print(f"Error: Unexpected issue - {e}")
+        log.error("[TESTSETS] Unexpected issue", exc_info=True)
         raise e
 
 
@@ -709,13 +714,13 @@ def json_array_to_json_file(
     try:
         with open(json_file, "wb") as f:
             f.write(
-                orjson.dumps(
+                oj.dumps(
                     data,
-                    option=orjson.OPT_INDENT_2,
+                    option=oj.OPT_INDENT_2,
                 )
             )  # Pretty-print JSON
     except Exception as e:
-        print(f"Error: Could not write to file - {e}")
+        log.error("[TESTSETS] Could not write to file", exc_info=True)
         raise e
 
 
@@ -737,7 +742,7 @@ def json_array_to_json_object(
         dict: Dictionary with `testcase_id` as keys.
     """
     if not isinstance(data, list):
-        print("Error: Expected a list of objects.")
+        log.warning("[TESTSETS] Expected a list.")
         return None
 
     transformed_data = {}
@@ -785,7 +790,7 @@ def json_object_to_json_array(
         list: List of JSON objects with `testcase_id` reintroduced.
     """
     if not isinstance(data, dict):
-        print("Error: Expected a dictionary.")
+        log.warning("[TESTSETS] Expected a dict.")
         return None
 
     return [
@@ -811,16 +816,32 @@ async def csv_file_to_json_array(
         list: A list of dictionaries representing the CSV rows.
     """
     try:
-        try:
-            data = await csv_file.read()
-            df = pandas.read_csv(BytesIO(data), dtype=str)
-            return df.to_dict(orient="records")
-        except Exception as e:
-            print(f"Error: Could not read CSV file - {e}")
-            raise e
+        data = await csv_file.read()
+        text = data.decode("utf-8-sig")
+        reader = csv.DictReader(StringIO(text))
+        rows = list(reader)
 
+        # Apply type conversion if specified, preserving original values on failure
+        if column_types:
+            for row in rows:
+                for col, dtype in column_types.items():
+                    if col in row:
+                        value = row[col]
+                        if value is None or value == "":
+                            continue
+                        try:
+                            row[col] = dtype(value)
+                        except (ValueError, TypeError):
+                            log.warning(
+                                "[TESTSETS] Failed to cast column '%s' value '%s' using %s",
+                                col,
+                                value,
+                                getattr(dtype, "__name__", str(dtype)),
+                            )
+
+        return rows
     except Exception as e:
-        print(f"Error: Could not read CSV file - {e}")
+        log.error("[TESTSETS] Could not read CSV file", exc_info=True)
         raise e
 
 
@@ -839,23 +860,44 @@ def json_array_to_csv_file(
         column_types (dict, optional): Dictionary mapping column names to types (e.g., {"age": str, "active": int}).
     """
     if not json_array:
-        print("Error: JSON array is empty, nothing to write.")
+        log.warning("[TESTSETS] JSON array is empty, nothing to write.")
         return None
 
     try:
-        df = pandas.DataFrame(json_array)
+        # Create a deep copy to avoid mutating the original input
+        processed_array = deepcopy(json_array)
 
         # Apply type conversion if specified
         if column_types:
-            for col, dtype in column_types.items():
-                if col in df.columns:
-                    df[col] = df[col].astype(dtype)
+            for row in processed_array:
+                for col, dtype in column_types.items():
+                    if col in row:
+                        value = row[col]
+                        if value is None or value == "":
+                            continue
+                        try:
+                            row[col] = dtype(value)
+                        except (ValueError, TypeError):
+                            log.warning(
+                                "[TESTSETS] Failed to cast column '%s' value '%s' using %s",
+                                col,
+                                value,
+                                getattr(dtype, "__name__", str(dtype)),
+                            )
 
-        # Write directly to CSV using Pandas
-        df.to_csv(output_csv_file, index=False)
+        # Collect all unique keys from all rows to handle heterogeneous data
+        all_keys = set()
+        for row in processed_array:
+            all_keys.update(row.keys())
+        fieldnames = sorted(all_keys)  # Sort for consistent column order
+
+        with open(output_csv_file, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(processed_array)
 
     except Exception as e:
-        print(f"Error: Could not convert JSON array to CSV file - {e}")
+        log.error("[TESTSETS] Could not convert JSON array to CSV file", exc_info=True)
         raise e
 
 
@@ -876,7 +918,7 @@ def csv_data_to_json_array(
     if not isinstance(csv_data, list) or not all(
         isinstance(row, dict) for row in csv_data
     ):
-        print("Error: Expected a list of dictionaries (CSV-like structure).")
+        log.warning("[TESTSETS] Expected a list of dictionaries (CSV-like structure).")
         return []
 
     # Convert column types if specified
@@ -887,8 +929,8 @@ def csv_data_to_json_array(
                     try:
                         row[col] = dtype(row[col])  # Cast to the specified type
                     except (ValueError, TypeError):
-                        print(
-                            f"Warning: Could not convert column '{col}' to {dtype}, keeping original value."
+                        log.warning(
+                            f"[TESTSETS] Could not convert column '{col}' to {dtype}, keeping original value."
                         )
 
     return csv_data

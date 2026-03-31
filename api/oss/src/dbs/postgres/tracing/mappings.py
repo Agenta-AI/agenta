@@ -1,11 +1,10 @@
-from typing import Optional, List, Tuple
+from typing import Optional, List
 from uuid import UUID
 from datetime import datetime, timezone
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.dbs.postgres.tracing.dbes import SpanDBE
 from oss.src.core.tracing.dtos import (
-    OTelReference,
     OTelLink,
     OTelHash,
     OTelReference,
@@ -19,7 +18,7 @@ from oss.src.core.tracing.dtos import (
     Bucket,
     Analytics,
 )
-from oss.src.core.tracing.utils import marshall, unmarshall
+from oss.src.core.tracing.utils.attributes import marshall, unmarshall
 
 
 log = get_module_logger(__name__)
@@ -71,6 +70,7 @@ def map_span_dbe_to_span_dto(
         OTelReference(
             id=_reference.get("id"),
             slug=_reference.get("slug"),
+            version=_reference.get("version"),
             attributes=_reference.get("attributes"),
         ).model_dump(mode="json", exclude_none=True)
         for _reference in _references

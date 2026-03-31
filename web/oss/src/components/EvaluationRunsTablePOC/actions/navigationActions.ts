@@ -1,9 +1,9 @@
 import type {MouseEvent} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {getDefaultStore} from "jotai"
 import Router from "next/router"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 // import {, buildEvaluationNavigationUrl} from "@/oss/pages/evaluations/utils"
 import {routerAppIdAtom} from "@/oss/state/app"
@@ -113,7 +113,7 @@ export const navigateToVariant = async ({revisionId, appId}: NavigateToVariantPa
     })
 }
 
-export const navigateToTestset = (testsetId: string) => {
+export const navigateToTestset = (testsetId: string, revisionId?: string | null) => {
     const {projectURL} = getUrlState()
 
     if (!testsetId) {
@@ -126,5 +126,7 @@ export const navigateToTestset = (testsetId: string) => {
         return
     }
 
-    void Router.push(`${projectURL}/testsets/${encodeURIComponent(testsetId)}`)
+    // Use revision ID for URL if available, otherwise fall back to testset ID
+    const targetId = revisionId ?? testsetId
+    void Router.push(`${projectURL}/testsets/${encodeURIComponent(targetId)}`)
 }

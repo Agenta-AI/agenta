@@ -117,10 +117,14 @@ const TableSettingsDropdown = <RowType extends object>({
 
     return (
         <Popover
-            trigger={[]}
+            trigger="click"
             placement="bottomRight"
             open={columnVisibilityOpen}
-            onOpenChange={setColumnVisibilityOpen}
+            onOpenChange={(open) => {
+                if (!open) {
+                    setColumnVisibilityOpen(false)
+                }
+            }}
             content={renderColumnVisibilityContent(controls, handleCloseColumnVisibility)}
             destroyOnHidden
         >
@@ -134,7 +138,11 @@ const TableSettingsDropdown = <RowType extends object>({
                     setDropdownOpen(open)
                 }}
                 menu={{items: menuItems}}
-                overlayStyle={{minWidth: 180}}
+                styles={{
+                    root: {
+                        minWidth: 180,
+                    },
+                }}
             >
                 <Tooltip title="Table settings">
                     <Button

@@ -8,8 +8,8 @@ from oss.src.models.shared_models import ConfigDB
 
 
 class TimestampModel(BaseModel):
-    created_at: str = Field(str(datetime.now(timezone.utc)))
-    updated_at: str = Field(str(datetime.now(timezone.utc)))
+    created_at: str = Field(default_factory=lambda: str(datetime.now(timezone.utc)))
+    updated_at: str = Field(default_factory=lambda: str(datetime.now(timezone.utc)))
 
 
 class PaginationParam(BaseModel):
@@ -59,6 +59,7 @@ class CreateApp(BaseModel):
     template_key: Optional[str] = None
     project_id: Optional[str] = None
     workspace_id: Optional[str] = None
+    folder_id: Optional[str] = None
 
 
 class CreateAppOutput(BaseModel):
@@ -67,10 +68,12 @@ class CreateAppOutput(BaseModel):
     app_type: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    folder_id: Optional[str] = None
 
 
 class UpdateApp(BaseModel):
-    app_name: str
+    app_name: Optional[str] = None
+    folder_id: Optional[str] = None
 
 
 class UpdateAppOutput(CreateAppOutput):
@@ -125,8 +128,9 @@ class AppVariantResponse(BaseModel):
 
 class AppVariantRevision(BaseModel):
     id: Optional[str] = None
+    variant_id: Optional[str] = None
     revision: int
-    modified_by: str
+    modified_by: Optional[str] = None
     config: ConfigDB
     created_at: str
     commit_message: Optional[str] = None
@@ -210,7 +214,8 @@ class App(BaseModel):
     app_id: str
     app_name: str
     app_type: Optional[str] = None
-    updated_at: str
+    folder_id: Optional[str] = None
+    updated_at: Optional[str] = None
 
 
 class RemoveApp(BaseModel):

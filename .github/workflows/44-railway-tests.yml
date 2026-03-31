@@ -1,0 +1,703 @@
+name: "44 - railway tests"
+
+on:
+  workflow_call:
+    inputs:
+      agenta_web_url:
+        description: "AGENTA_WEB_URL for the deployment to test against"
+        required: true
+        type: string
+      agenta_api_url:
+        description: "Optional AGENTA_API_URL override"
+        required: false
+        type: string
+        default: ""
+      agenta_services_url:
+        description: "Optional AGENTA_SERVICES_URL override"
+        required: false
+        type: string
+        default: ""
+      packages:
+        description: "Packages to test"
+        required: false
+        type: string
+        default: "all"
+      layers:
+        description: "Comma-separated test layers (all, unit, integration, acceptance)"
+        required: false
+        type: string
+        default: "all"
+      coverage:
+        description: "Coverage"
+        required: false
+        type: string
+        default: ""
+      lens:
+        description: "Lens"
+        required: false
+        type: string
+        default: ""
+      path:
+        description: "Path"
+        required: false
+        type: string
+        default: ""
+      case:
+        description: "Case"
+        required: false
+        type: string
+        default: ""
+      speed:
+        description: "Speed"
+        required: false
+        type: string
+        default: ""
+      scope:
+        description: "Scope"
+        required: false
+        type: string
+        default: ""
+      cost:
+        description: "Cost"
+        required: false
+        type: string
+        default: ""
+      role:
+        description: "Role"
+        required: false
+        type: string
+        default: ""
+      plan:
+        description: "Plan"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      AGENTA_TEST_OSS_AUTH_KEY:
+        required: true
+      AGENTA_TEST_OSS_OWNER_EMAIL:
+        required: false
+      AGENTA_TEST_OSS_OWNER_PASSWORD:
+        required: false
+      TESTMAIL_API_KEY:
+        required: false
+      TESTMAIL_NAMESPACE:
+        required: false
+  workflow_dispatch:
+    inputs:
+      agenta_web_url:
+        description: "AGENTA_WEB_URL for the deployment to test against"
+        required: true
+        type: string
+        default: "https://gateway-production-99ee.up.railway.app/w"
+      agenta_api_url:
+        description: "Optional AGENTA_API_URL override"
+        required: false
+        type: string
+      agenta_services_url:
+        description: "Optional AGENTA_SERVICES_URL override"
+        required: false
+        type: string
+      packages:
+        description: "Packages to test"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - all-but-web
+          - api-only
+          - sdk-only
+          - services-only
+          - web-only
+          - none
+      layers:
+        description: "Test layers (all or comma-separated: acceptance,integration,unit)"
+        required: false
+        type: string
+        default: "all"
+      coverage:
+        description: "Coverage (smoke, full)"
+        required: false
+        type: string
+      lens:
+        description: "Lens (functional, performance, security)"
+        required: false
+        type: string
+      path:
+        description: "Path (happy, grumpy)"
+        required: false
+        type: string
+      case:
+        description: "Case (typical, edge)"
+        required: false
+        type: string
+      speed:
+        description: "Speed (fast, slow)"
+        required: false
+        type: string
+      scope:
+        description: "Scope [free-text]"
+        required: false
+        type: string
+      cost:
+        description: "Cost (free, paid)"
+        required: false
+        type: string
+      role:
+        description: "Role (owner, admin, manager, developer, annotator, viewer)"
+        required: false
+        type: string
+      plan:
+        description: "Plan (hobby, pro, business, enterprise)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: railway-preview-tests-${{ inputs.agenta_web_url }}-${{ inputs.packages }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      base_url: ${{ steps.urls.outputs.base_url }}
+      agenta_web_url: ${{ steps.urls.outputs.agenta_web_url }}
+      agenta_api_url: ${{ steps.urls.outputs.agenta_api_url }}
+      agenta_services_url: ${{ steps.urls.outputs.agenta_services_url }}
+      layers_json: ${{ steps.layers.outputs.layers_json }}
+      needs_deployment: ${{ steps.layers.outputs.needs_deployment }}
+    steps:
+      - name: Derive deployment URLs
+        id: urls
+        run: |
+          AGENTA_WEB_URL_INPUT="${{ inputs.agenta_web_url }}"
+          AGENTA_API_URL_INPUT="${{ inputs.agenta_api_url }}"
+          AGENTA_SERVICES_URL_INPUT="${{ inputs.agenta_services_url }}"
+
+          BASE_URL="$(printf "%s" "$AGENTA_WEB_URL_INPUT" | sed 's|/[^/]*$||; s|/$||')"
+          if ! printf "%s" "$BASE_URL" | grep -q '://'; then
+            BASE_URL="$AGENTA_WEB_URL_INPUT"
+          fi
+
+          AGENTA_API_URL="${AGENTA_API_URL_INPUT:-${BASE_URL}/api}"
+          AGENTA_SERVICES_URL="${AGENTA_SERVICES_URL_INPUT:-${BASE_URL}/services}"
+
+          echo "agenta_web_url=${AGENTA_WEB_URL_INPUT}" >> "$GITHUB_OUTPUT"
+          echo "base_url=${BASE_URL}" >> "$GITHUB_OUTPUT"
+          echo "agenta_api_url=${AGENTA_API_URL}" >> "$GITHUB_OUTPUT"
+          echo "agenta_services_url=${AGENTA_SERVICES_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve test layers
+        id: layers
+        run: |
+          RAW_LAYERS="$(printf "%s" "${{ inputs.layers }}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+          RAW_LAYERS="$RAW_LAYERS" python - <<'PY'
+          import json
+          import os
+
+          raw = os.environ["RAW_LAYERS"]
+          if raw in ("", "all"):
+              layers = ["unit", "integration", "acceptance"]
+          elif raw == "unit":
+              layers = ["unit"]
+          else:
+              layers = [value for value in raw.split(",") if value]
+
+          needs_deployment = any(layer in {"acceptance", "integration"} for layer in layers)
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"layers_json={json.dumps(layers)}\n")
+              output.write(f"needs_deployment={'true' if needs_deployment else 'false'}\n")
+          PY
+
+      - name: Summary
+        run: |
+          {
+            echo "## Railway Preview Test Inputs"
+            echo
+            echo "| Item | Value |"
+            echo "| --- | --- |"
+            echo "| AGENTA_WEB_URL | \`${{ steps.urls.outputs.agenta_web_url }}\` |"
+            echo "| AGENTA_API_URL | \`${{ steps.urls.outputs.agenta_api_url }}\` |"
+            echo "| AGENTA_SERVICES_URL | \`${{ steps.urls.outputs.agenta_services_url }}\` |"
+            echo "| Packages | \`${{ inputs.packages }}\` |"
+            echo "| Layers | \`${{ inputs.layers }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  wait-for-readiness:
+    needs: prepare
+    if: needs.prepare.outputs.needs_deployment == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for deployed web and API
+        env:
+          AGENTA_WEB_URL: ${{ needs.prepare.outputs.agenta_web_url }}
+          API_HEALTH_URL: ${{ needs.prepare.outputs.agenta_api_url }}/health
+        run: |
+          wait_for() {
+            local label="$1"
+            local url="$2"
+
+            echo "Waiting for ${label}: ${url}"
+            for attempt in $(seq 1 30); do
+              if curl -sfL -o /dev/null "$url" 2>/dev/null; then
+                echo "${label} is ready."
+                return 0
+              fi
+              echo "Attempt ${attempt}/30: ${label} not ready, waiting 10s..."
+              sleep 10
+            done
+
+            echo "${label} did not become ready within 5 minutes."
+            return 1
+          }
+
+          wait_for "API" "$API_HEALTH_URL"
+          wait_for "Web" "$AGENTA_WEB_URL"
+
+      - name: Determine auth bootstrap availability
+        id: auth_bootstrap
+        env:
+          AGENTA_TEST_OSS_OWNER_EMAIL: ${{ secrets.AGENTA_TEST_OSS_OWNER_EMAIL }}
+          AGENTA_TEST_OSS_OWNER_PASSWORD: ${{ secrets.AGENTA_TEST_OSS_OWNER_PASSWORD }}
+        run: |
+          if [ -n "${AGENTA_TEST_OSS_OWNER_EMAIL}" ] && [ -n "${AGENTA_TEST_OSS_OWNER_PASSWORD}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.auth_bootstrap.outputs.enabled == 'true'
+
+      - name: Setup Node.js
+        if: steps.auth_bootstrap.outputs.enabled == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        if: steps.auth_bootstrap.outputs.enabled == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install auth bootstrap dependencies
+        if: steps.auth_bootstrap.outputs.enabled == 'true'
+        working-directory: web
+        run: pnpm install --no-frozen-lockfile --filter agenta-web-tests...
+
+      - name: Install Playwright browser
+        if: steps.auth_bootstrap.outputs.enabled == 'true'
+        working-directory: web/tests
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Bootstrap auth with global setup
+        if: steps.auth_bootstrap.outputs.enabled == 'true'
+        env:
+          AGENTA_WEB_URL: ${{ needs.prepare.outputs.agenta_web_url }}
+          AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
+          AGENTA_LICENSE: oss
+          AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
+          AGENTA_TEST_OSS_OWNER_EMAIL: ${{ secrets.AGENTA_TEST_OSS_OWNER_EMAIL }}
+          AGENTA_TEST_OSS_OWNER_PASSWORD: ${{ secrets.AGENTA_TEST_OSS_OWNER_PASSWORD }}
+          AGENTA_TEST_EPHEMERAL_PROJECT: "false"
+        working-directory: web/tests
+        run: pnpm exec tsx playwright/scripts/bootstrap-auth.ts
+
+  run-api-tests:
+    name: run-api-tests (${{ matrix.layer }})
+    needs: [prepare, wait-for-readiness]
+    if: >-
+      ${{
+        contains(fromJSON('["all","all-but-web","api-only"]'), inputs.packages) &&
+        (needs.prepare.outputs.needs_deployment != 'true' || needs.wait-for-readiness.result == 'success')
+      }}
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        layer: ${{ fromJson(needs.prepare.outputs.layers_json) }}
+    env:
+      AGENTA_LICENSE: oss
+      AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
+      AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-railway-api-pip-${{ hashFiles('api/pyproject.toml', 'api/poetry.lock', 'api/*/tests/requirements.txt', 'sdk/pyproject.toml', 'sdk/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-railway-api-pip-
+
+      - name: Install API dependencies
+        run: |
+          pip install "poetry==2.3.1" "poetry-plugin-export"
+          cd api
+          poetry export --without-hashes --format requirements.txt --output /tmp/api-requirements.txt
+          pip install -r /tmp/api-requirements.txt
+          pip install -r oss/tests/requirements.txt
+          pip install -e ../sdk/
+
+      - name: Run API tests
+        run: |
+          cd api
+
+          case "${{ matrix.layer }}" in
+            acceptance) TARGET_PATH="oss/tests/pytest/acceptance" ;;
+            integration) TARGET_PATH="oss/tests/pytest/integration" ;;
+            unit) TARGET_PATH="oss/tests/pytest/unit" ;;
+            *)
+              echo "Unsupported API test layer: ${{ matrix.layer }}"
+              exit 1
+              ;;
+          esac
+
+          if [ ! -d "$TARGET_PATH" ]; then
+            echo "Skipping missing API layer path: $TARGET_PATH"
+            exit 0
+          fi
+
+          if ! find "$TARGET_PATH" -type f ! -name '.gitkeep' | grep -q .; then
+            echo "Skipping empty API layer path: $TARGET_PATH"
+            exit 0
+          fi
+
+          CMD=(python run-tests.py --license oss)
+
+          if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
+          if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
+          if [ -n "${{ inputs.path }}" ]; then CMD+=(--path "${{ inputs.path }}"); fi
+          if [ -n "${{ inputs.case }}" ]; then CMD+=(--case "${{ inputs.case }}"); fi
+          if [ -n "${{ inputs.scope }}" ]; then CMD+=(--scope "${{ inputs.scope }}"); fi
+          if [ -n "${{ inputs.speed }}" ]; then CMD+=(--speed "${{ inputs.speed }}"); fi
+          if [ -n "${{ inputs.cost }}" ]; then CMD+=(--cost "${{ inputs.cost }}"); fi
+          if [ -n "${{ inputs.role }}" ]; then CMD+=(--role "${{ inputs.role }}"); fi
+          if [ -n "${{ inputs.plan }}" ]; then CMD+=(--plan "${{ inputs.plan }}"); fi
+
+          CMD+=(-- "$TARGET_PATH")
+          "${CMD[@]}"
+
+      - name: Publish API test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: api/oss/tests/results/junit.xml
+          check_name: Railway API Test Results
+          comment_mode: off
+
+      - name: Upload API test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: railway-api-test-results-${{ matrix.layer }}
+          path: |
+            api/oss/tests/results/
+            api/pytest*.log
+          retention-days: 14
+
+  run-sdk-tests:
+    name: run-sdk-tests (${{ matrix.layer }})
+    needs: [prepare, wait-for-readiness]
+    if: >-
+      ${{
+        contains(fromJSON('["all","all-but-web","sdk-only"]'), inputs.packages) &&
+        (needs.prepare.outputs.needs_deployment != 'true' || needs.wait-for-readiness.result == 'success')
+      }}
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        layer: ${{ fromJson(needs.prepare.outputs.layers_json) }}
+    env:
+      AGENTA_LICENSE: oss
+      AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
+      AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-railway-sdk-pip-${{ hashFiles('sdk/pyproject.toml', 'sdk/poetry.lock', 'sdk/*/tests/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-railway-sdk-pip-
+
+      - name: Install SDK dependencies
+        run: |
+          pip install -r sdk/oss/tests/requirements.txt
+          pip install -e sdk/
+
+      - name: Run SDK tests
+        run: |
+          cd sdk
+
+          case "${{ matrix.layer }}" in
+            acceptance) TARGET_PATH="oss/tests/pytest/acceptance" ;;
+            integration) TARGET_PATH="oss/tests/pytest/integration" ;;
+            unit) TARGET_PATH="oss/tests/pytest/unit" ;;
+            *)
+              echo "Unsupported SDK test layer: ${{ matrix.layer }}"
+              exit 1
+              ;;
+          esac
+
+          if [ ! -d "$TARGET_PATH" ]; then
+            echo "Skipping missing SDK layer path: $TARGET_PATH"
+            exit 0
+          fi
+
+          if ! find "$TARGET_PATH" -type f ! -name '.gitkeep' | grep -q .; then
+            echo "Skipping empty SDK layer path: $TARGET_PATH"
+            exit 0
+          fi
+
+          CMD=(python run-tests.py --license oss)
+
+          if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
+          if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
+          if [ -n "${{ inputs.path }}" ]; then CMD+=(--path "${{ inputs.path }}"); fi
+          if [ -n "${{ inputs.case }}" ]; then CMD+=(--case "${{ inputs.case }}"); fi
+          if [ -n "${{ inputs.scope }}" ]; then CMD+=(--scope "${{ inputs.scope }}"); fi
+          if [ -n "${{ inputs.speed }}" ]; then CMD+=(--speed "${{ inputs.speed }}"); fi
+          if [ -n "${{ inputs.cost }}" ]; then CMD+=(--cost "${{ inputs.cost }}"); fi
+          if [ -n "${{ inputs.role }}" ]; then CMD+=(--role "${{ inputs.role }}"); fi
+          if [ -n "${{ inputs.plan }}" ]; then CMD+=(--plan "${{ inputs.plan }}"); fi
+
+          CMD+=(-- "$TARGET_PATH")
+          "${CMD[@]}"
+
+      - name: Publish SDK test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: sdk/oss/tests/results/junit.xml
+          check_name: Railway SDK Test Results
+          comment_mode: off
+
+      - name: Upload SDK test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: railway-sdk-test-results-${{ matrix.layer }}
+          path: |
+            sdk/oss/tests/results/
+            sdk/pytest*.log
+          retention-days: 14
+
+  run-services-tests:
+    name: run-services-tests (${{ matrix.layer }})
+    needs: [prepare, wait-for-readiness]
+    if: >-
+      ${{
+        contains(fromJSON('["all","all-but-web","services-only"]'), inputs.packages) &&
+        (needs.prepare.outputs.needs_deployment != 'true' || needs.wait-for-readiness.result == 'success')
+      }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        layer: ${{ fromJson(needs.prepare.outputs.layers_json) }}
+    env:
+      AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
+      AGENTA_SERVICES_URL: ${{ needs.prepare.outputs.agenta_services_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install services test dependencies
+        run: pip install click python-dotenv
+
+      - name: Run services smoke checks
+        run: |
+          if [ "${{ matrix.layer }}" != "acceptance" ]; then
+            if [ ! -d "services/oss/tests/pytest/${{ matrix.layer }}" ]; then
+              echo "Skipping services layer ${{ matrix.layer }}: no path"
+              exit 0
+            fi
+
+            if ! find "services/oss/tests/pytest/${{ matrix.layer }}" -type f ! -name '.gitkeep' | grep -q .; then
+              echo "Skipping services layer ${{ matrix.layer }}: no tests"
+              exit 0
+            fi
+
+            echo "Services ${{
+              matrix.layer
+            }} tests exist but no dedicated runner is wired yet."
+            exit 1
+          fi
+
+          if [ ! -d "services/oss/tests/pytest/acceptance" ]; then
+            echo "Skipping services acceptance layer: no path"
+            exit 0
+          fi
+
+          if ! find "services/oss/tests/pytest/acceptance" -type f ! -name '.gitkeep' | grep -q .; then
+            echo "Skipping services acceptance layer: no tests"
+            exit 0
+          fi
+
+          echo "Services acceptance tests exist but no dedicated runner is wired yet."
+          exit 1
+
+      - name: Write services summary
+        if: always()
+        run: |
+          {
+            echo "## Railway Services Smoke Summary"
+            echo
+            echo "| Item | Value |"
+            echo "| --- | --- |"
+            echo "| AGENTA_SERVICES_URL | \`${{ env.AGENTA_SERVICES_URL }}\` |"
+            echo "| Status | \`${{ job.status }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  run-web-tests:
+    name: run-web-tests (${{ matrix.layer }})
+    needs: [prepare, wait-for-readiness]
+    if: >-
+      ${{
+        contains(fromJSON('["all","web-only"]'), inputs.packages) &&
+        (needs.prepare.outputs.needs_deployment != 'true' || needs.wait-for-readiness.result == 'success')
+      }}
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        layer: ${{ fromJson(needs.prepare.outputs.layers_json) }}
+    env:
+      AGENTA_LICENSE: oss
+      AGENTA_WEB_URL: ${{ needs.prepare.outputs.agenta_web_url }}
+      AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
+      AGENTA_SERVICES_URL: ${{ needs.prepare.outputs.agenta_services_url }}
+      AGENTA_TEST_OSS_OWNER_EMAIL: ${{ secrets.AGENTA_TEST_OSS_OWNER_EMAIL }}
+      AGENTA_TEST_OSS_OWNER_PASSWORD: ${{ secrets.AGENTA_TEST_OSS_OWNER_PASSWORD }}
+      AGENTA_TEST_LLM_PROVIDER: mock
+      AGENTA_TEST_EPHEMERAL_PROJECT: "true"
+      TESTMAIL_API_KEY: ${{ secrets.TESTMAIL_API_KEY }}
+      TESTMAIL_NAMESPACE: ${{ secrets.TESTMAIL_NAMESPACE }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        working-directory: web
+        run: pnpm install --no-frozen-lockfile --filter agenta-web-tests...
+
+      - name: Install Playwright browsers
+        working-directory: web/tests
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run web tests
+        working-directory: web/tests
+        run: |
+          TARGET_PATH="../oss/tests/playwright/${{ matrix.layer }}"
+
+          if [ ! -d "$TARGET_PATH" ]; then
+            echo "Skipping missing web layer path: $TARGET_PATH"
+            exit 0
+          fi
+
+          if ! find "$TARGET_PATH" -type f ! -name '.gitkeep' | grep -q .; then
+            echo "Skipping empty web layer path: $TARGET_PATH"
+            exit 0
+          fi
+
+          CMD=(pnpm exec tsx playwright/scripts/run-tests.ts --reporter=html,github)
+
+          if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
+          if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
+          if [ -n "${{ inputs.path }}" ]; then CMD+=(--path "${{ inputs.path }}"); fi
+          if [ -n "${{ inputs.case }}" ]; then CMD+=(--case "${{ inputs.case }}"); fi
+          if [ -n "${{ inputs.scope }}" ]; then CMD+=(--scope "${{ inputs.scope }}"); fi
+          if [ -n "${{ inputs.speed }}" ]; then CMD+=(--speed "${{ inputs.speed }}"); fi
+          if [ -n "${{ inputs.cost }}" ]; then CMD+=(--cost "${{ inputs.cost }}"); fi
+          if [ -n "${{ inputs.role }}" ]; then CMD+=(--role "${{ inputs.role }}"); fi
+          if [ -n "${{ inputs.plan }}" ]; then CMD+=(--plan "${{ inputs.plan }}"); fi
+
+          CMD+=(-- "$TARGET_PATH")
+          "${CMD[@]}"
+
+      - name: Upload test report
+        id: upload_report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-${{ matrix.layer }}
+          path: web/tests/reports/oss/
+          retention-days: 14
+
+      - name: Upload test results
+        id: upload_results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results-${{ matrix.layer }}
+          path: web/tests/results/oss/
+          retention-days: 7
+
+      - name: Write job summary
+        if: always()
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          REPORT_URL="${{ steps.upload_report.outputs.artifact-url }}"
+          RESULTS_URL="${{ steps.upload_results.outputs.artifact-url }}"
+          JOB_STATUS="${{ job.status }}"
+
+          {
+            echo "## Playwright Test Summary"
+            echo
+            echo "| Item | Link | Notes |"
+            echo "| --- | --- | --- |"
+            echo "| Workflow run | [Open run](${RUN_URL}) | Current run |"
+            echo "| Playwright report | ${REPORT_URL:+[Artifact](${REPORT_URL})} | Layer: \`${{ matrix.layer }}\` |"
+            echo "| Playwright results | ${RESULTS_URL:+[Artifact](${RESULTS_URL})} | Uploaded on failures only |"
+            echo "| AGENTA_WEB_URL | \`${AGENTA_WEB_URL}\` | |"
+            echo "| AGENTA_API_URL | \`${AGENTA_API_URL}\` | |"
+            echo "| AGENTA_SERVICES_URL | \`${AGENTA_SERVICES_URL}\` | |"
+            echo "| Status | \`${JOB_STATUS}\` | |"
+          } >> "$GITHUB_STEP_SUMMARY"

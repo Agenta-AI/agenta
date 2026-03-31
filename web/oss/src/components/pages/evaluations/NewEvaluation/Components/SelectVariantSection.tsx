@@ -1,38 +1,49 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {
+    variantsListAtomFamily,
+    variantsListQueryStateAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {Input} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import {useVariants} from "@/oss/lib/hooks/useVariants"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {currentAppAtom} from "@/oss/state/app"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
+import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 
 import type {SelectVariantSectionProps} from "../types"
 
 const VariantsTable = dynamic(() => import("@/oss/components/VariantsComponents/Table"), {
     ssr: false,
 })
-const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
-    ssr: false,
-})
+const NoResultsFound = dynamic(
+    () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
+    {
+        ssr: false,
+    },
+)
 
 const SelectVariantSection = ({
     selectedVariantRevisionIds,
-    selectedTestsetId,
     className,
     setSelectedVariantRevisionIds,
     handlePanelChange,
     evaluationType,
     variants: propsVariants,
     isVariantLoading: propsVariantLoading,
-    ...props
 }: SelectVariantSectionProps) => {
-    const currentApp = useAtomValue(currentAppAtom)
-
-    const {data, isLoading: fallbackLoading} = useVariants(currentApp)
-    const variants = useMemo(() => propsVariants || data, [propsVariants, data])
+    const appId = useAtomValue(selectedAppIdAtom) || ""
+    const fallbackVariants = useAtomValue(
+        useMemo(() => variantsListAtomFamily(appId), [appId]),
+    ) as unknown as EnhancedVariant[]
+    const fallbackLoading = useAtomValue(
+        useMemo(() => variantsListQueryStateAtomFamily(appId), [appId]),
+    ).isPending
+    const variants = useMemo(
+        () => propsVariants || fallbackVariants,
+        [propsVariants, fallbackVariants],
+    )
     const isVariantLoading = propsVariantLoading ?? fallbackLoading
 
     const [searchTerm, setSearchTerm] = useState("")
@@ -46,6 +57,10 @@ const SelectVariantSection = ({
 
     const onSelectVariant = useCallback(
         (selectedRowKeys: React.Key[]) => {
+            if (evaluationType === "auto") {
+                setSelectedVariantRevisionIds(selectedRowKeys as string[])
+                return
+            }
             const selectedId = selectedRowKeys[0] as string | undefined
             if (selectedId) {
                 setSelectedVariantRevisionIds([selectedId])
@@ -54,7 +69,7 @@ const SelectVariantSection = ({
                 setSelectedVariantRevisionIds([])
             }
         },
-        [setSelectedVariantRevisionIds, handlePanelChange],
+        [evaluationType, handlePanelChange, setSelectedVariantRevisionIds],
     )
 
     const onRowClick = useCallback(
@@ -62,15 +77,27 @@ const SelectVariantSection = ({
             const _record = record as EnhancedVariant & {
                 children: EnhancedVariant[]
             }
+            if (evaluationType === "auto") {
+                const nextSelected = selectedVariantRevisionIds.includes(_record.id)
+                    ? selectedVariantRevisionIds.filter((id) => id !== _record.id)
+                    : [...selectedVariantRevisionIds, _record.id]
+                setSelectedVariantRevisionIds(nextSelected)
+                return
+            }
             onSelectVariant([_record.id])
         },
-        [selectedVariantRevisionIds, onSelectVariant],
+        [
+            evaluationType,
+            onSelectVariant,
+            selectedVariantRevisionIds,
+            setSelectedVariantRevisionIds,
+        ],
     )
 
     const variantsNonNull = (filteredVariant || []) as EnhancedVariant[]
 
     return (
-        <div className={clsx(className)} {...props}>
+        <div className={clsx(className)}>
             <div className="flex items-start justify-between mb-2 gap-4">
                 <Input.Search
                     placeholder="Search"
@@ -82,7 +109,7 @@ const SelectVariantSection = ({
             <VariantsTable
                 showStableName
                 rowSelection={{
-                    type: "radio",
+                    type: evaluationType === "auto" ? "checkbox" : "radio",
                     selectedRowKeys: selectedVariantRevisionIds,
                     onChange: (selectedRowKeys) => {
                         onSelectVariant(selectedRowKeys)

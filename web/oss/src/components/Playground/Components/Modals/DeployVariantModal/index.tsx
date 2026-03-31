@@ -1,14 +1,15 @@
-import {useCallback, useEffect} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
+import {publishMutationAtom} from "@agenta/entities/runnable"
+import {runnableBridge} from "@agenta/entities/runnable"
+import {message} from "@agenta/ui/app-message"
 import {Rocket} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
-import router from "next/router"
 
-import {message} from "@/oss/components/AppMessageContext"
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 
 import {
     deploySelectedEnvAtom,
@@ -37,9 +38,14 @@ const DeployVariantModal = ({
     const resetDeploy = useSetAtom(deployResetAtom)
     const submitDeploy = useSetAtom(deploySubmitAtom)
     const setModalState = useSetAtom(deployVariantModalAtom)
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const {isPending: isLoading} = useAtomValue(publishMutationAtom)
 
-    const appId = router.query.app_id as string
+    // Derive appId from the revision's entity data (for analytics only)
+    const revisionData = useAtomValue(
+        useMemo(() => runnableBridge.data(revisionId ?? ""), [revisionId]),
+    ) as {appId?: string; workflow_id?: string} | null
+    const appId = revisionData?.appId ?? revisionData?.workflow_id ?? null
 
     // Ensure Jotai store has the necessary identifiers when this modal is used directly
     useEffect(() => {
@@ -56,7 +62,7 @@ const DeployVariantModal = ({
     const onClose = useCallback(() => {
         props.onCancel?.({} as any)
         resetDeploy()
-    }, [resetDeploy, props])
+    }, [resetDeploy, props.onCancel])
 
     const deployVariants = useCallback(async () => {
         // Ensure latest props are in the store before submitting
@@ -82,7 +88,8 @@ const DeployVariantModal = ({
         onClose()
         message.success(`Published ${variantName} to ${env}`)
         posthog?.capture?.("app_deployed", {app_id: appId, environment: env})
-    }, [submitDeploy, onClose, variantName, appId, posthog])
+        recordWidgetEvent("variant_deployed")
+    }, [submitDeploy, onClose, variantName, appId, posthog, recordWidgetEvent])
 
     return (
         <EnhancedModal
@@ -96,6 +103,10 @@ const DeployVariantModal = ({
             okButtonProps={{
                 icon: <Rocket size={14} className="mt-0.5" />,
                 disabled: !selectedEnvName.length,
+                "data-tour": "deploy-variant-modal-deploy-button",
+            }}
+            cancelButtonProps={{
+                "data-tour": "deploy-variant-modal-cancel-button",
             }}
             classNames={{footer: "flex items-center justify-end"}}
             afterClose={() => onClose()}

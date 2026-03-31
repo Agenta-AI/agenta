@@ -1,15 +1,11 @@
-import {useMemo} from "react"
-
 import {Typography} from "antd"
-import {useAtomValue} from "jotai"
 import {createUseStyles} from "react-jss"
 
 import {NewVariantParametersView} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/assets/Parameters"
 import {filterVariantParameters} from "@/oss/lib/helpers/utils"
-import {useVariants} from "@/oss/lib/hooks/useVariants"
+import type {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {JSSTheme, Variant} from "@/oss/lib/Types"
 import {DeploymentRevisionConfig} from "@/oss/lib/types_ee"
-import {currentAppAtom} from "@/oss/state/app"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -61,15 +57,6 @@ interface HistoryConfigProps {
 const HistoryConfig = ({depRevisionConfig, variant: propsVariant}: HistoryConfigProps) => {
     const classes = useStyles()
 
-    const currentApp = useAtomValue(currentAppAtom)
-    // @ts-ignore
-    const {data, isLoading} = useVariants(currentApp, [propsVariant])
-    const variant = useMemo(
-        // @ts-ignore
-        () => data?.variants.find((v) => v.id === propsVariant.id),
-        [data?.variants, propsVariant.id],
-    )
-
     return (
         <div className="flex flex-col gap-4 grow h-full">
             <Typography.Text className={classes.title}>Configuration</Typography.Text>
@@ -77,10 +64,9 @@ const HistoryConfig = ({depRevisionConfig, variant: propsVariant}: HistoryConfig
             {Object.keys(depRevisionConfig.parameters).length ? (
                 <div className="flex flex-col gap-6 grow">
                     <div className="flex flex-col gap-2 grow">
-                        {!isLoading && !!variant ? (
+                        {propsVariant ? (
                             <NewVariantParametersView
-                                selectedVariant={variant}
-                                parameters={depRevisionConfig.parameters}
+                                selectedVariant={propsVariant as unknown as EnhancedVariant}
                             />
                         ) : null}
                     </div>

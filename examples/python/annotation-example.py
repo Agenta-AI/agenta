@@ -82,13 +82,13 @@ def generate(topic="witches", genre="comedy"):
     Returns:
         The OpenAI response
     """
-    client = OpenAI()
+    client = OpenAI()  # noqa: F841
 
     # Instrument OpenAI library to capture traces
     OpenAIInstrumentor().instrument()
 
     response = openai.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-5",
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {

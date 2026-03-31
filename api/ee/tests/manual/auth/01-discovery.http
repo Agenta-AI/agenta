@@ -1,0 +1,105 @@
+###
+# Auth Discovery Tests
+# Tests the /auth/discover endpoint which determines available authentication methods
+#
+# Setup:
+# 1. Start backend: cd vibes/api && uvicorn main:app --reload
+# 2. Run migrations: alembic upgrade head
+# 3. Update @apiUrl if needed
+###
+
+@baseUrl = http://localhost
+@apiUrl = {{baseUrl}}/api
+@contentType = application/json
+
+### Test 1: New User Discovery (No Account)
+# Expected: Returns available auth methods (email:[...], social:[...], oidc:[...])
+# Should show: exists=false, all globally enabled methods
+POST {{apiUrl}}/auth/discover
+Content-Type: {{contentType}}
+
+{
+  "email": "newuser@example.com"
+}
+
+### Test 2: Existing User Discovery (Email OTP)
+# Prerequisites: User exists with email:otp identity
+# Expected: Returns exists=true, methods based on their org policies
+POST {{apiUrl}}/auth/discover
+Content-Type: {{contentType}}
+
+{
+  "email": "existing@example.com"
+}
+
+### Test 3: SSO Required Organization Member
+# Prerequisites:
+# - User exists and is member of org with sso_only policy
+# - Organization has verified domain
+# - OIDC provider configured
+# Expected: sso_required_by_some=true, shows SSO providers
+POST {{apiUrl}}/auth/discover
+Content-Type: {{contentType}}
+
+{
+  "email": "user@acme.com"
+}
+
+### Test 4: Multi-Org User Discovery
+# Prerequisites: User is member of multiple orgs with different policies
+# Expected: Returns union of all allowed methods across all orgs
+POST {{apiUrl}}/auth/discover
+Content-Type: {{contentType}}
+
+{
+  "email": "multiorg@example.com"
+}
+
+### Test 5: Domain with SSO Provider
+# Prerequisites:
+# - Domain "verified.com" is verified in organization_domains
+# - SSO provider linked to this domain
+# Expected: Returns SSO provider information
+POST {{apiUrl}}/auth/discover
+Content-Type: {{contentType}}
+
+{
+  "email": "user@verified.com"
+}
+
+### Test 6: Invalid Email Format
+# Expected: 400 Bad Request or validation error
+POST {{apiUrl}}/auth/discover
+Content-Type: {{contentType}}
+
+{
+  "email": "notanemail"
+}
+
+### Test 7: Empty Email
+# Expected: 422 Validation error
+POST {{apiUrl}}/auth/discover
+Content-Type: {{contentType}}
+
+{
+  "email": ""
+}
+
+###
+# Expected Response Structure:
+# {
+#   "exists": boolean,
+#   "methods": {
+#     "email:otp": boolean,
+#     "email:password": boolean,
+#     "social:google": boolean,
+#     "social:github": boolean,
+#     "sso": [
+#        {
+#           "slug": string,
+#           "name": string,
+#         }
+#      ]
+#   }
+# }
+###

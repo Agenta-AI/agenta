@@ -1,498 +1,531 @@
+from typing import Optional, List
 from uuid import UUID, uuid4
-from typing import Optional, Dict, Any
 
-from pydantic import ValidationError
-
-from oss.src.services import db_manager
 from oss.src.utils.logging import get_module_logger
-from oss.src.core.shared.dtos import Reference
-from oss.src.core.workflows.dtos import WorkflowRevisionData
+from oss.src.core.workflows.dtos import (
+    WorkflowCreate,
+    WorkflowEdit,
+    WorkflowQuery,
+    WorkflowFork,
+    #
+    WorkflowVariantCreate,
+    WorkflowVariantEdit,
+    WorkflowVariantQuery,
+    #
+    WorkflowRevisionCreate,
+    WorkflowRevisionEdit,
+    WorkflowRevisionCommit,
+    WorkflowRevisionQuery,
+    WorkflowRevisionsLog,
+    #
+)
+from oss.src.core.shared.dtos import Windowing, Reference
+from oss.src.core.workflows.service import WorkflowsService
+
+# Resolution is now handled by EmbedsService
+from oss.src.core.embeds.dtos import ResolutionInfo, ErrorPolicy
 from oss.src.core.applications.dtos import (
-    LegacyApplicationFlags,
-    #
-    LegacyApplication,
-    LegacyApplicationCreate,
-    LegacyApplicationEdit,
-    LegacyApplicationData,
-    #
+    SimpleApplicationData,
+    SimpleApplication,
+    SimpleApplicationCreate,
+    SimpleApplicationEdit,
+    SimpleApplicationQuery,
+    SimpleApplicationFlags,
     ApplicationFlags,
-    #
     Application,
+    ApplicationQuery,
+    ApplicationRevisionsLog,
     ApplicationCreate,
     ApplicationEdit,
+    ApplicationFork,
     #
     ApplicationVariant,
     ApplicationVariantCreate,
+    ApplicationVariantEdit,
+    ApplicationVariantQuery,
     #
     ApplicationRevision,
+    ApplicationRevisionCreate,
     ApplicationRevisionData,
+    ApplicationRevisionEdit,
     ApplicationRevisionCommit,
+    ApplicationRevisionQuery,
 )
-from oss.src.services import db_manager
-
-from oss.src.models.shared_models import AppType
-from oss.src.utils.helpers import get_slug_from_name_and_id
 
 
 log = get_module_logger(__name__)
 
-# Constants
-WORKFLOW_MARKER_KEY = "__workflow__"
 
+class ApplicationsService:
+    def __init__(
+        self,
+        workflows_service: WorkflowsService,
+    ):
+        self.embeds_service = None  # Will be set later
+        self.workflows_service = workflows_service
 
-class LegacyApplicationsService:
-    async def create(
+    # applications -------------------------------------------------------------
+
+    async def create_application(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        legacy_application_create: LegacyApplicationCreate,
-    ) -> Optional[LegacyApplication]:
-        # ------------------------------------------------------------------
-        # Application
-        # ------------------------------------------------------------------
-        application_create = ApplicationCreate(
-            slug=legacy_application_create.slug,
-            #
-            name=legacy_application_create.name,
-            #
-            flags=(
-                ApplicationFlags(
-                    **legacy_application_create.flags.model_dump(
-                        mode="json", exclude_none=True
-                    )
-                )
-                if legacy_application_create.flags
-                else ApplicationFlags()
-            ),
-        )
-
-        user = await db_manager.get_user_with_id(
-            user_id=str(user_id),
-        )
-
-        if not user:
-            return None
-
-        # Create app and initialize environments
-        app_db = await db_manager.create_app_and_envs(
-            project_id=str(project_id),
-            #
-            app_name=application_create.slug
-            or application_create.name
-            or uuid4().hex[-12:],
-            #
-            template_key=AppType.SDK_CUSTOM,
-            #
-            user_id=str(user_id),
-        )
-
-        # Create variant config
-        config_db = await db_manager.create_new_config(
-            config_name="default",
-            #
-            parameters={},
-        )
-
-        # Create variant base
-        db_base = await db_manager.create_new_variant_base(
-            project_id=str(project_id),
-            #
-            base_name="app",
-            #
-            app=app_db,
-        )
-
-        # ------------------------------------------------------------------
-        # Application variant
-        # ------------------------------------------------------------------
-        application_variant_slug = uuid4().hex[-12:]
-
-        application_variant_create = ApplicationVariantCreate(
-            slug=application_variant_slug,
-            #
-            name=application_create.name or uuid4().hex[-12:],
-            #
-            flags=application_create.flags,
-            #
-            application_id=app_db.id,  # type: ignore[arg-type]
-        )
-
-        # Create default app variant
-        app_variant_db = await db_manager.create_new_app_variant(
-            project_id=str(project_id),
-            #
-            variant_name="default",  # type: ignore
-            #
-            base_name=db_base.base_name,  # type: ignore
-            commit_message="initial commit",
-            #
-            user=user,
-            base=db_base,
-            config=config_db,
-            app=app_db,
-        )
-
-        # -----------------------------------------------------------------
-        # Second revision commit
-        # ------------------------------------------------------------------
-        application_revision_slug = uuid4().hex[-12:]
-
-        application_revision_commit = ApplicationRevisionCommit(
-            slug=application_revision_slug,
-            #
-            # name=application_create.name or uuid4().hex[-12:],
-            #
-            flags=application_create.flags,
-            #
-            data=ApplicationRevisionData(
-                **(
-                    legacy_application_create.data.model_dump(mode="json")
-                    if legacy_application_create.data
-                    else {}
-                ),
-            ),
-            #
-            application_id=app_db.id,  # type: ignore
-            application_variant_id=app_variant_db.id,  # type: ignore
-        )
-
-        # Serialize application revision data with marker
-        serialized_data = {}
-
-        if application_revision_commit.data:
-            serialized_data = self._serialize_workflow_data(
-                workflow_data=application_revision_commit.data,
-            )
-
-        # Create deployment
-        url = application_revision_commit.data.url
-
-        deployment = await db_manager.create_deployment(
-            project_id=str(project_id),
-            #
-            app_id=str(app_variant_db.app.id),
-            uri="" if app_db.app_type == AppType.SDK_CUSTOM else url,  # type: ignore
-        )
-
-        # Update variant base
-        await db_manager.update_base(
-            str(app_variant_db.base_id),
-            #
-            deployment_id=deployment.id,  # type: ignore
-        )
-
-        # Update variant parameters (creates a new revision)
-        app_variant_db = await db_manager.update_variant_parameters(
-            project_id=str(project_id),
-            user_uid=str(user.id),
-            #
-            app_variant_id=str(app_variant_db.id),
-            #
-            parameters=serialized_data,
-            # commit_message="...",
-        )
-
-        # Deserialize the data back to return application revision
-        application_revision_data = None
-
-        if serialized_data and WORKFLOW_MARKER_KEY in serialized_data:
-            data_copy = serialized_data.copy()
-            del data_copy[WORKFLOW_MARKER_KEY]
-
-            try:
-                application_revision_data = LegacyApplicationData(**data_copy)
-                application_revision_data.version = str(app_variant_db.revision)  # type: ignore
-
-            except ValidationError as e:
-                log.warning(f"Failed to deserialize application data: {e}")
-
-        legacy_application = LegacyApplication(
-            id=app_db.id,  # type: ignore
-            slug=app_db.app_name,  # type: ignore
-            #
-            name=app_db.app_name,  # type: ignore
-            #
-            created_at=app_db.created_at,  # type: ignore
-            updated_at=app_db.updated_at,  # type: ignore
-            created_by_id=app_db.modified_by_id,  # type: ignore
-            #
-            flags={"is_custom": True},  # type: ignore
-            #
-            data=application_revision_data,
-        )
-
-        return legacy_application
-
-    async def fetch(
-        self,
-        *,
-        project_id: UUID,
+        application_create: ApplicationCreate,
         #
-        application_id: UUID,
-    ) -> Optional[LegacyApplication]:
-        # Fetch application details ----------------------------------------------------------
-        app_db = await db_manager.fetch_app_by_id(
-            app_id=str(application_id),
+        application_id: Optional[UUID] = None,
+    ) -> Optional[Application]:
+        workflow_create = WorkflowCreate(
+            **application_create.model_dump(
+                mode="json",
+            ),
         )
+
+        workflow = await self.workflows_service.create_workflow(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_create=workflow_create,
+            #
+            workflow_id=application_id,
+        )
+
+        if not workflow:
+            return None
 
         application = Application(
-            id=app_db.id,  # type: ignore
-            slug=app_db.app_name,  # type: ignore
-            #
-            name=app_db.app_name,  # type: ignore
-            #
-            created_at=app_db.created_at,  # type: ignore
-            updated_at=app_db.updated_at,  # type: ignore
-            created_by_id=app_db.modified_by_id,  # type: ignore
-        )
-
-        # Fetch application variant details --------------------------------------------------
-        app_variant_db = await db_manager.fetch_latest_app_variant(
-            app_id=str(app_db.id)
-        )
-        if not app_variant_db:
-            return None
-
-        application_variant_slug = get_slug_from_name_and_id(
-            str(app_variant_db.variant_name),
-            UUID(str(app_variant_db.id)),
-        )
-
-        application_variant = ApplicationVariant(
-            id=app_variant_db.id,  # type: ignore
-            slug=application_variant_slug,  # type: ignore
-            #
-            name=app_variant_db.variant_name,  # type:ignore
-            #
-            created_at=app_variant_db.created_at,  # type: ignore
-            updated_at=app_variant_db.updated_at,  # type: ignore
-            deleted_at=app_variant_db.updated_at if app_variant_db.hidden else None,  # type: ignore
-            created_by_id=app_variant_db.modified_by_id,  # type: ignore
-            updated_by_id=(
-                app_variant_db.modified_by_id  # type: ignore
-                if app_variant_db.updated_at  # type: ignore
-                else None
-            ),
-            deleted_by_id=(
-                app_variant_db.modified_by_id  # type: ignore
-                if app_variant_db.hidden  # type: ignore
-                else None
-            ),
-            #
-            flags=application.flags,
-            #
-            application_id=application.id,
-        )
-
-        # Fetch application variant revision details ------------------------------------------
-        variant_revision_db = await db_manager.fetch_app_variant_revision(
-            app_variant=str(app_variant_db.id),
-            revision_number=app_variant_db.revision,  # type: ignore
-        )
-
-        if not variant_revision_db:
-            return None
-
-        # Deserialize data if marked as workflow ----------------------------------------------
-        application_revision_data: Optional[LegacyApplicationData] = None
-
-        if isinstance(variant_revision_db.config_parameters, dict):
-            wf_data = self._deserialize_workflow_data(
-                variant_revision_db.config_parameters
+            **workflow.model_dump(
+                mode="json",
             )
-            if wf_data is not None:
-                try:
-                    application_revision_data = LegacyApplicationData(
-                        **wf_data.model_dump(mode="json")
-                    )
-                    application_revision_data.version = str(app_variant_db.revision)  # type: ignore
-                except ValidationError as e:
-                    log.warning(
-                        f"Failed to cast workflow data to LegacyApplicationData: {e}"
-                    )
-
-        application_revision_slug = get_slug_from_name_and_id(
-            str(variant_revision_db.config_name),
-            UUID(str(variant_revision_db.id)),
         )
 
-        application_revision = ApplicationRevision(
-            id=variant_revision_db.id,  # type: ignore
-            slug=application_revision_slug,  # type: ignore
+        return application
+
+    async def fetch_application(
+        self,
+        *,
+        project_id: UUID,
+        #
+        application_ref: Reference,
+        #
+        include_archived: Optional[bool] = True,
+    ) -> Optional[Application]:
+        workflow = await self.workflows_service.fetch_workflow(
+            project_id=project_id,
             #
-            name=variant_revision_db.config_name,  # type: ignore
+            workflow_ref=application_ref,
             #
-            created_at=variant_revision_db.created_at,  # type: ignore
-            updated_at=variant_revision_db.updated_at,  # type: ignore
-            deleted_at=(
-                variant_revision_db.updated_at  # type: ignore
-                if variant_revision_db.hidden  # type: ignore
-                else None
-            ),
-            created_by_id=variant_revision_db.modified_by_id,  # type: ignore
-            updated_by_id=(
-                variant_revision_db.modified_by_id  # type: ignore
-                if variant_revision_db.updated_at  # type: ignore
-                else None
-            ),
-            deleted_by_id=(
-                variant_revision_db.modified_by_id  # type: ignore
-                if variant_revision_db.hidden  # type: ignore
-                else None
-            ),
-            #
-            flags=application_variant.flags,
-            #
-            data=ApplicationRevisionData(
-                **(
-                    application_revision_data.model_dump(mode="json")
-                    if application_revision_data
-                    else {}
-                ),
-            ),
-            #
-            application_id=application.id,
-            application_variant_id=application_variant.id,
+            include_archived=include_archived,
         )
 
-        legacy_application = LegacyApplication(
-            id=application.id,
-            slug=application.slug,
-            #
-            name=application.name,
-            #
-            created_at=application.created_at,
-            updated_at=application.updated_at,
-            created_by_id=application.created_by_id,
-            #
-            flags={"is_custom": True},  # type: ignore
-            #
-            data=LegacyApplicationData(
-                **(
-                    application_revision_data.model_dump(mode="json")
-                    if application_revision_data
-                    else {}
-                ),
-            ),
+        if not workflow:
+            return None
+
+        application = Application(
+            **workflow.model_dump(
+                mode="json",
+            )
         )
 
-        return legacy_application
+        return application
 
-    async def edit(
+    async def edit_application(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        legacy_application_edit: LegacyApplicationEdit,
-    ) -> Optional[LegacyApplication]:
-        # Ensure user (for commit) --------------------------------------------
-        user = await db_manager.get_user_with_id(user_id=str(user_id))
-
-        if not user:
-            return None
-
-        # Edit application (name, etc.) ---------------------------------------
-        application_edit = ApplicationEdit(
-            id=legacy_application_edit.id,
-            #
-            name=legacy_application_edit.name,
-        )
-
-        app_db = await db_manager.update_app(
-            app_id=str(application_edit.id),
-            values_to_update=application_edit.model_dump(
+        application_edit: ApplicationEdit,
+    ) -> Optional[Application]:
+        workflow_edit = WorkflowEdit(
+            **application_edit.model_dump(
                 mode="json",
-                exclude_none=True,
-                exclude={
-                    "flags",
-                    "meta",
-                    "tags",
-                    "id",
-                },
             ),
         )
-        if app_db is None:
-            return None
 
-        app_variant_db = await db_manager.fetch_latest_app_variant(
-            app_id=str(app_db.id)
+        workflow = await self.workflows_service.edit_workflow(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_edit=workflow_edit,
         )
-        if not app_variant_db:
+
+        if not workflow:
             return None
 
-        # -----------------------------------------------------------------
-        # Second revision commit
-        # ------------------------------------------------------------------
-        application_revision_slug = uuid4().hex[-12:]
+        application = Application(
+            **workflow.model_dump(
+                mode="json",
+            )
+        )
 
-        application_revision_commit = ApplicationRevisionCommit(
-            slug=application_revision_slug,
+        return application
+
+    async def archive_application(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        application_id: UUID,
+    ) -> Optional[Application]:
+        workflow = await self.workflows_service.archive_workflow(
+            project_id=project_id,
+            user_id=user_id,
             #
-            name=application_edit.name,
+            workflow_id=application_id,
+        )
+
+        if not workflow:
+            return None
+
+        application = Application(
+            **workflow.model_dump(
+                mode="json",
+            )
+        )
+
+        return application
+
+    async def unarchive_application(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        application_id: UUID,
+    ) -> Optional[Application]:
+        workflow = await self.workflows_service.unarchive_workflow(
+            project_id=project_id,
+            user_id=user_id,
             #
-            data=ApplicationRevisionData(
-                **(
-                    legacy_application_edit.data.model_dump()
-                    if legacy_application_edit.data
-                    else {}
+            workflow_id=application_id,
+        )
+
+        if not workflow:
+            return None
+
+        application = Application(
+            **workflow.model_dump(
+                mode="json",
+            )
+        )
+
+        return application
+
+    async def query_applications(
+        self,
+        *,
+        project_id: UUID,
+        #
+        application_query: Optional[ApplicationQuery] = None,
+        #
+        application_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[Application]:
+        workflow_query = (
+            WorkflowQuery(
+                **application_query.model_dump(
+                    mode="json",
+                ),
+            )
+            if application_query
+            else WorkflowQuery()
+        )
+
+        workflows = await self.workflows_service.query_workflows(
+            project_id=project_id,
+            #
+            workflow_query=workflow_query,
+            #
+            workflow_refs=application_refs,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
+        )
+
+        applications = [
+            Application(
+                **workflow.model_dump(
+                    mode="json",
+                ),
+            )
+            for workflow in workflows
+        ]
+
+        return applications
+
+    # application variants -----------------------------------------------------
+
+    async def create_application_variant(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        application_variant_create: ApplicationVariantCreate,
+    ) -> Optional[ApplicationVariant]:
+        workflow_variant_create = WorkflowVariantCreate(
+            **application_variant_create.model_dump(
+                mode="json",
+            ),
+        )
+
+        workflow_variant = await self.workflows_service.create_workflow_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_variant_create=workflow_variant_create,
+        )
+
+        if not workflow_variant:
+            return None
+
+        application_variant = ApplicationVariant(
+            **workflow_variant.model_dump(
+                mode="json",
+            )
+        )
+
+        return application_variant
+
+    async def fetch_application_variant(
+        self,
+        *,
+        project_id: UUID,
+        #
+        application_ref: Optional[Reference] = None,
+        application_variant_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
+    ) -> Optional[ApplicationVariant]:
+        workflow_variant = await self.workflows_service.fetch_workflow_variant(
+            project_id=project_id,
+            #
+            workflow_ref=application_ref,
+            workflow_variant_ref=application_variant_ref,
+            #
+            include_archived=include_archived,
+        )
+
+        if not workflow_variant:
+            return None
+
+        application_variant = ApplicationVariant(
+            **workflow_variant.model_dump(
+                mode="json",
+            )
+        )
+
+        return application_variant
+
+    async def edit_application_variant(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        application_variant_edit: ApplicationVariantEdit,
+    ) -> Optional[ApplicationVariant]:
+        workflow_variant_edit = WorkflowVariantEdit(
+            **application_variant_edit.model_dump(
+                mode="json",
+            )
+        )
+
+        application_variant = await self.workflows_service.edit_workflow_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_variant_edit=workflow_variant_edit,
+        )
+
+        if not application_variant:
+            return None
+
+        application_variant = ApplicationVariant(
+            **application_variant.model_dump(
+                mode="json",
+            )
+        )
+
+        return application_variant
+
+    async def archive_application_variant(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        application_variant_id: UUID,
+    ) -> Optional[ApplicationVariant]:
+        workflow_variant = await self.workflows_service.archive_workflow_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_variant_id=application_variant_id,
+        )
+
+        if not workflow_variant:
+            return None
+
+        application_variant = ApplicationVariant(
+            **workflow_variant.model_dump(
+                mode="json",
+            )
+        )
+
+        return application_variant
+
+    async def unarchive_application_variant(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        application_variant_id: UUID,
+    ) -> Optional[ApplicationVariant]:
+        workflow_variant = await self.workflows_service.unarchive_workflow_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_variant_id=application_variant_id,
+        )
+
+        if not workflow_variant:
+            return None
+
+        application_variant = ApplicationVariant(
+            **workflow_variant.model_dump(
+                mode="json",
+            )
+        )
+
+        return application_variant
+
+    async def query_application_variants(
+        self,
+        *,
+        project_id: UUID,
+        #
+        application_variant_query: Optional[ApplicationVariantQuery] = None,
+        #
+        application_refs: Optional[List[Reference]] = None,
+        application_variant_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[ApplicationVariant]:
+        workflow_variant_query = (
+            WorkflowVariantQuery(
+                **application_variant_query.model_dump(
+                    mode="json",
                 )
-            ),
-            #
-            application_id=app_db.id,  # type: ignore
-            application_variant_id=app_variant_db.id,  # type: ignore
+            )
+            if application_variant_query
+            else WorkflowVariantQuery()
         )
 
-        # Serialize application revision data with marker
-        serialized_data = {}
-
-        if application_revision_commit.data:
-            serialized_data = application_revision_commit.data.model_dump(mode="json")
-            serialized_data[WORKFLOW_MARKER_KEY] = True
-
-        # Update variant parameters (creates a new revision)
-        app_variant_db = await db_manager.update_variant_parameters(
-            project_id=str(project_id),
-            user_uid=str(user.id),
+        workflow_variants = await self.workflows_service.query_workflow_variants(
+            project_id=project_id,
             #
-            app_variant_id=str(app_variant_db.id),
+            workflow_variant_query=workflow_variant_query,
             #
-            parameters=serialized_data,
-            # commit_message="...",
+            workflow_refs=application_refs,
+            workflow_variant_refs=application_variant_refs,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
         )
 
-        # Deserialize the data back to return application revision
-        application_revision_data = None
+        if not workflow_variants:
+            return []
 
-        if serialized_data and WORKFLOW_MARKER_KEY in serialized_data:
-            data_copy = serialized_data.copy()
-            del data_copy[WORKFLOW_MARKER_KEY]
-            try:
-                application_revision_data = LegacyApplicationData(**data_copy)
-                application_revision_data.version = str(app_variant_db.revision)  # type: ignore
-            except ValidationError as e:
-                log.warning(f"Failed to deserialize application data: {e}")
+        application_variants = [
+            ApplicationVariant(
+                **workflow_variant.model_dump(
+                    mode="json",
+                )
+            )
+            for workflow_variant in workflow_variants
+        ]
 
-        legacy_application = LegacyApplication(
-            id=app_db.id,  # type: ignore
-            slug=app_db.app_name,  # type: ignore
-            #
-            name=app_db.app_name,  # type: ignore
-            #
-            created_at=app_db.created_at,  # type: ignore
-            updated_at=app_db.updated_at,  # type: ignore
-            created_by_id=app_db.modified_by_id,  # type: ignore
-            #
-            flags={"is_custom": True},  # type: ignore
-            #
-            data=application_revision_data,
+        return application_variants
+
+    async def fork_application_variant(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        application_fork: ApplicationFork,
+    ) -> Optional[ApplicationVariant]:
+        workflow_fork = WorkflowFork(
+            **application_fork.model_dump(
+                mode="json",
+            )
         )
 
-        return legacy_application
+        workflow_variant = await self.workflows_service.fork_workflow_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_fork=workflow_fork,
+        )
 
-    async def retrieve(
+        if not workflow_variant:
+            return None
+
+        application_variant = ApplicationVariant(
+            **workflow_variant.model_dump(
+                mode="json",
+            )
+        )
+
+        return application_variant
+
+    # application revisions ----------------------------------------------------
+
+    async def create_application_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        application_revision_create: ApplicationRevisionCreate,
+    ) -> Optional[ApplicationRevision]:
+        workflow_revision_create = WorkflowRevisionCreate(
+            **application_revision_create.model_dump(
+                mode="json",
+            )
+        )
+
+        workflow_revision = await self.workflows_service.create_workflow_revision(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_revision_create=workflow_revision_create,
+        )
+
+        if not workflow_revision:
+            return None
+
+        application_revision = ApplicationRevision(
+            **workflow_revision.model_dump(
+                mode="json",
+            )
+        )
+
+        return application_revision
+
+    async def fetch_application_revision(
         self,
         *,
         project_id: UUID,
@@ -500,245 +533,807 @@ class LegacyApplicationsService:
         application_ref: Optional[Reference] = None,
         application_variant_ref: Optional[Reference] = None,
         application_revision_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[ApplicationRevision]:
-        if (
-            application_variant_ref
-            and not application_variant_ref.id
-            or application_revision_ref
-            and not application_revision_ref.id
-        ):
+        workflow_revision = await self.workflows_service.fetch_workflow_revision(
+            project_id=project_id,
+            #
+            workflow_ref=application_ref,
+            workflow_variant_ref=application_variant_ref,
+            workflow_revision_ref=application_revision_ref,
+            #
+            include_archived=include_archived,
+        )
+
+        if not workflow_revision:
             return None
 
-        if application_revision_ref:
-            if application_revision_ref.id:
-                # Fetch application revision details --------------------------------------------------
-                variant_revision_db = await db_manager.fetch_app_variant_revision_by_id(
-                    variant_revision_id=str(application_revision_ref.id)
-                )
-                if not variant_revision_db:
-                    return None
-
-                # Fetch application variant details ---------------------------------------------------
-                app_variant_db = await db_manager.fetch_app_variant_by_id(
-                    app_variant_id=str(variant_revision_db.variant_id)
-                )
-                if not app_variant_db:
-                    return None
-
-                # Fetch application details ----------------------------------------------------------
-                app_db = await db_manager.fetch_app_by_id(
-                    app_id=str(app_variant_db.app_id)
-                )
-                if not app_db:
-                    return None
-
-        elif application_ref:
-            if application_ref.id:
-                # Fetch application details ----------------------------------------------------------
-                app_db = await db_manager.fetch_app_by_id(
-                    app_id=str(application_ref.id)
-                )
-                if not app_db:
-                    return None
-
-                # Fetch application variant details ---------------------------------------------------
-                app_variant_db = await db_manager.fetch_latest_app_variant(
-                    app_id=str(app_db.id)
-                )
-                if not app_variant_db:
-                    return None
-
-                # Fetch application revision details --------------------------------------------------
-                variant_revision_db = await db_manager.fetch_app_variant_revision(
-                    app_variant=str(app_variant_db.id),
-                    revision_number=app_variant_db.revision,  # type: ignore
-                )
-                if not variant_revision_db:
-                    return None
-            elif application_ref.slug:
-                # Fetch application details ----------------------------------------------------------
-                app_db = await db_manager.fetch_app_by_name(
-                    project_id=str(project_id),
-                    app_name=application_ref.slug,
-                )
-                if not app_db:
-                    return None
-
-                # Fetch application variant details ---------------------------------------------------
-                app_variant_db = await db_manager.fetch_latest_app_variant(
-                    app_id=str(app_db.id)
-                )
-                if not app_variant_db:
-                    return None
-
-                # Fetch application revision details --------------------------------------------------
-                variant_revision_db = await db_manager.fetch_app_variant_revision(
-                    app_variant=str(app_variant_db.id),
-                    revision_number=app_variant_db.revision,  # type: ignore
-                )
-                if not variant_revision_db:
-                    return None
-
-        elif application_variant_ref and application_variant_ref.id:
-            # Fetch application variant details ---------------------------------------------------
-            app_variant_db = await db_manager.fetch_app_variant_by_id(
-                app_variant_id=str(application_variant_ref.id)
+        application_revision = ApplicationRevision(
+            **workflow_revision.model_dump(
+                mode="json",
             )
-            if not app_variant_db:
-                return None
-
-            # Fetch application details ----------------------------------------------------------
-            app_db = await db_manager.fetch_app_by_id(app_id=str(app_variant_db.app_id))
-            if not app_db:
-                return None
-
-            # Fetch application revision details -------------------------------------------------
-            variant_revision_db = await db_manager.fetch_app_variant_revision(
-                app_variant=str(app_variant_db.id),
-                revision_number=app_variant_db.revision,  # type: ignore
-            )
-            if not variant_revision_db:
-                return None
-
-        application = Application(
-            id=app_db.id,  # type: ignore
-            slug=app_db.app_name,  # type: ignore
-            name=app_db.app_name,  # type: ignore
-            created_at=app_db.created_at,  # type: ignore
-            updated_at=app_db.updated_at,  # type: ignore
-            created_by_id=app_db.modified_by_id,  # type: ignore
-            flags={"is_custom": True},  # type: ignore
         )
 
-        application_variant_slug = get_slug_from_name_and_id(
-            str(app_variant_db.variant_name),
-            UUID(str(app_variant_db.id)),
+        return application_revision
+
+    async def edit_application_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        application_revision_edit: ApplicationRevisionEdit,
+    ) -> Optional[ApplicationRevision]:
+        workflow_revision_edit = WorkflowRevisionEdit(
+            **application_revision_edit.model_dump(
+                mode="json",
+            )
         )
 
-        application_variant = ApplicationVariant(
-            id=app_variant_db.id,  # type: ignore
-            slug=application_variant_slug,  # type: ignore
-            name=app_variant_db.variant_name,
-            created_at=app_variant_db.created_at,  # type: ignore
-            updated_at=app_variant_db.updated_at,  # type: ignore
-            deleted_at=app_variant_db.updated_at if app_variant_db.hidden else None,  # type: ignore
-            created_by_id=app_variant_db.modified_by_id,  # type: ignore
-            updated_by_id=(
-                app_variant_db.modified_by_id  # type: ignore
-                if app_variant_db.updated_at  # type: ignore
-                else None
+        workflow_revision = await self.workflows_service.edit_workflow_revision(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_revision_edit=workflow_revision_edit,
+        )
+
+        if not workflow_revision:
+            return None
+
+        application_revision = ApplicationRevision(
+            **workflow_revision.model_dump(
+                mode="json",
+            )
+        )
+
+        return application_revision
+
+    async def archive_application_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        application_revision_id: UUID,
+    ) -> Optional[ApplicationRevision]:
+        workflow_revision = await self.workflows_service.archive_workflow_revision(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_revision_id=application_revision_id,
+        )
+
+        if not workflow_revision:
+            return None
+
+        application_revision = ApplicationRevision(
+            **workflow_revision.model_dump(
+                mode="json",
+            )
+        )
+
+        return application_revision
+
+    async def unarchive_application_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        application_revision_id: UUID,
+    ) -> Optional[ApplicationRevision]:
+        workflow_revision = await self.workflows_service.unarchive_workflow_revision(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_revision_id=application_revision_id,
+        )
+
+        if not workflow_revision:
+            return None
+
+        application_revision = ApplicationRevision(
+            **workflow_revision.model_dump(
+                mode="json",
+            )
+        )
+
+        return application_revision
+
+    async def query_application_revisions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        application_revision_query: Optional[ApplicationRevisionQuery] = None,
+        #
+        application_refs: Optional[List[Reference]] = None,
+        application_variant_refs: Optional[List[Reference]] = None,
+        application_revision_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[ApplicationRevision]:
+        workflow_revision_query = (
+            WorkflowRevisionQuery(
+                **application_revision_query.model_dump(
+                    mode="json",
+                )
+            )
+            if application_revision_query
+            else WorkflowRevisionQuery()
+        )
+
+        workflow_revisions = await self.workflows_service.query_workflow_revisions(
+            project_id=project_id,
+            #
+            workflow_revision_query=workflow_revision_query,
+            #
+            workflow_refs=application_refs,
+            workflow_variant_refs=application_variant_refs,
+            workflow_revision_refs=application_revision_refs,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
+        )
+
+        if not workflow_revisions:
+            return []
+
+        application_revisions = [
+            ApplicationRevision(
+                **revision.model_dump(
+                    mode="json",
+                )
+            )
+            for revision in workflow_revisions
+        ]
+
+        return application_revisions
+
+    async def commit_application_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        application_revision_commit: ApplicationRevisionCommit,
+    ) -> Optional[ApplicationRevision]:
+        workflow_revision_commit = WorkflowRevisionCommit(
+            **application_revision_commit.model_dump(
+                mode="json",
+            )
+        )
+
+        workflow_revision = await self.workflows_service.commit_workflow_revision(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_revision_commit=workflow_revision_commit,
+        )
+
+        if not workflow_revision:
+            return None
+
+        application_revision = ApplicationRevision(
+            **workflow_revision.model_dump(
+                mode="json",
+            )
+        )
+
+        return application_revision
+
+    async def log_application_revisions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        application_revisions_log: ApplicationRevisionsLog,
+        #
+        include_archived: bool = False,
+    ) -> List[ApplicationRevision]:
+        workflow_revisions_log = WorkflowRevisionsLog(
+            **application_revisions_log.model_dump(
+                mode="json",
+            )
+        )
+
+        workflow_revisions = await self.workflows_service.log_workflow_revisions(
+            project_id=project_id,
+            #
+            workflow_revisions_log=workflow_revisions_log,
+            #
+            include_archived=include_archived,
+        )
+
+        if not workflow_revisions:
+            return []
+
+        application_revisions = [
+            ApplicationRevision(
+                **revision.model_dump(
+                    mode="json",
+                )
+            )
+            for revision in workflow_revisions
+        ]
+
+        return application_revisions
+
+    async def resolve_application_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        application_ref: Optional[Reference] = None,
+        application_variant_ref: Optional[Reference] = None,
+        application_revision_ref: Optional[Reference] = None,
+        #
+        max_depth: int = 10,
+        max_embeds: int = 100,
+        error_policy: str = "exception",
+        #
+        include_archived: Optional[bool] = True,
+    ) -> Optional[tuple["ApplicationRevision", "ResolutionInfo"]]:
+        """
+        Fetch and resolve an application revision with embedded references.
+
+        Applications are workflows with is_evaluator=False. This method
+        delegates to WorkflowsService.resolve_workflow_revision and converts
+        the result to Application types for backward compatibility.
+
+        Args:
+            project_id: Project scope
+            user_id: User performing resolution
+            application_ref: Application reference
+            application_variant_ref: Variant reference
+            application_revision_ref: Revision reference
+            max_depth: Maximum nesting depth for embeds
+            max_embeds: Maximum total embeds allowed
+            error_policy: How to handle errors (exception, placeholder, keep)
+            include_archived: Include archived entities
+
+        Returns:
+            Tuple of (ApplicationRevision with resolved configuration, ResolutionInfo metadata)
+        """
+        # Fetch the application revision
+        revision = await self.fetch_application_revision(
+            project_id=project_id,
+            #
+            application_ref=application_ref,
+            application_variant_ref=application_variant_ref,
+            application_revision_ref=application_revision_ref,
+            #
+            include_archived=include_archived,
+        )
+
+        if not revision or not revision.data:
+            return None
+
+        # Use embeds service for resolution
+        if not self.embeds_service:
+            raise RuntimeError("EmbedsService not initialized")
+
+        (
+            revision_data,
+            resolution_info,
+        ) = await self.embeds_service.resolve_configuration(
+            project_id=project_id,
+            configuration=revision.data.model_dump(mode="json"),
+            max_depth=max_depth,
+            max_embeds=max_embeds,
+            error_policy=ErrorPolicy(error_policy),
+            include_archived=include_archived,
+        )
+
+        # Update revision with resolved configuration
+        revision.data = ApplicationRevisionData(**revision_data)
+
+        return (revision, resolution_info)
+
+    # --------------------------------------------------------------------------
+
+
+class SimpleApplicationsService:
+    def __init__(
+        self,
+        *,
+        applications_service: ApplicationsService,
+    ):
+        self.applications_service = applications_service
+
+    # public -------------------------------------------------------------------
+
+    async def create(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        simple_application_create: SimpleApplicationCreate,
+        #
+        application_id: Optional[UUID] = None,
+    ) -> Optional[SimpleApplication]:
+        simple_application_flags = (
+            SimpleApplicationFlags(
+                **(
+                    simple_application_create.flags.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                        exclude_unset=True,
+                        exclude={"is_evaluator"},
+                    )
+                ),
+                is_evaluator=False,
+            )
+            if simple_application_create.flags
+            else SimpleApplicationFlags(
+                is_evaluator=False,
+            )
+        )
+
+        application_flags = ApplicationFlags(
+            **simple_application_flags.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude_unset=True,
             ),
-            deleted_by_id=(
-                app_variant_db.modified_by_id  # type: ignore
-                if app_variant_db.hidden  # type: ignore
-                else None
-            ),
-            flags=application.flags,
+        )
+
+        application_create = ApplicationCreate(
+            slug=simple_application_create.slug,
+            #
+            name=simple_application_create.name,
+            description=simple_application_create.description,
+            #
+            flags=application_flags,
+            meta=simple_application_create.meta,
+            tags=simple_application_create.tags,
+        )
+
+        application: Optional[
+            Application
+        ] = await self.applications_service.create_application(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            application_create=application_create,
+            #
+            application_id=application_id,
+        )
+
+        if application is None:
+            return None
+
+        application_variant_slug = uuid4().hex[-12:]
+
+        application_variant_create = ApplicationVariantCreate(
+            slug=application_variant_slug,
+            #
+            name=application_create.name,
+            description=application_create.description,
+            #
+            flags=application_flags,
+            tags=application_create.tags,
+            meta=application_create.meta,
+            #
             application_id=application.id,
         )
 
-        application_revision_slug = get_slug_from_name_and_id(
-            str(variant_revision_db.config_name),
-            UUID(str(variant_revision_db.id)),
+        application_variant: Optional[
+            ApplicationVariant
+        ] = await self.applications_service.create_application_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            application_variant_create=application_variant_create,
         )
 
-        application_revision = ApplicationRevision(
-            id=variant_revision_db.id,  # type: ignore
-            slug=application_revision_slug,  # type: ignore
-            name=variant_revision_db.config_name,  # type: ignore
-            created_at=variant_revision_db.created_at,  # type: ignore
-            updated_at=variant_revision_db.updated_at,  # type: ignore
-            deleted_at=(
-                variant_revision_db.updated_at  # type: ignore
-                if variant_revision_db.hidden  # type: ignore
-                else None
-            ),
-            created_by_id=variant_revision_db.modified_by_id,  # type: ignore
-            updated_by_id=(
-                variant_revision_db.modified_by_id  # type: ignore
-                if variant_revision_db.updated_at  # type: ignore
-                else None
-            ),
-            deleted_by_id=(
-                variant_revision_db.modified_by_id  # type: ignore
-                if variant_revision_db.hidden  # type: ignore
-                else None
-            ),
-            flags=application_variant.flags,
+        if application_variant is None:
+            return None
+
+        application_revision_slug = uuid4().hex[-12:]
+
+        application_revision_commit = ApplicationRevisionCommit(
+            slug=application_revision_slug,
+            #
+            name=application_create.name,
+            description=application_create.description,
+            #
+            flags=application_flags,
+            tags=application_create.tags,
+            meta=application_create.meta,
+            #
+            data=None,
+            #
+            message="Initial commit",
+            #
             application_id=application.id,
             application_variant_id=application_variant.id,
         )
 
-        # Deserialize data if marked as workflow
-        application_revision_data: Optional[ApplicationRevisionData] = None
-
-        if isinstance(variant_revision_db.config_parameters, dict):
-            wf_data = self._deserialize_workflow_data(
-                variant_revision_db.config_parameters
-            )
-            if wf_data is not None:
-                try:
-                    application_revision_data = ApplicationRevisionData(
-                        **wf_data.model_dump(mode="json")
-                    )
-                    application_revision_data.version = str(app_variant_db.revision)  # type: ignore
-                except ValidationError as e:
-                    log.warning(
-                        f"Failed to cast workflow data to ApplicationRevisionData: {e}"
-                    )
-
-        # Set the data field if we have deserialized data
-        if application_revision_data:
-            application_revision.data = application_revision_data
-        else:
-            application_revision.data = ApplicationRevisionData()
-
-        return application_revision
-
-    def _is_workflow_data(
-        self,
-        config_parameters: Dict[str, Any],
-    ) -> bool:
-        """
-        Check if the config_parameters contains workflow data (has marker key).
-        """
-
-        return (
-            isinstance(config_parameters, dict)
-            and config_parameters.get(WORKFLOW_MARKER_KEY) is True
+        application_revision: Optional[
+            ApplicationRevision
+        ] = await self.applications_service.commit_application_revision(
+            project_id=project_id,
+            user_id=user_id,
+            application_revision_commit=application_revision_commit,
         )
 
-    def _serialize_workflow_data(
-        self,
-        workflow_data: WorkflowRevisionData,
-    ) -> Dict[str, Any]:
-        """
-        Serialize workflow revision data with marker for legacy storage.
-        """
-
-        serialized = workflow_data.model_dump(mode="json")
-        serialized[WORKFLOW_MARKER_KEY] = True
-
-        return serialized
-
-    def _deserialize_workflow_data(
-        self,
-        config_parameters: Dict[str, Any],
-    ) -> Optional[WorkflowRevisionData]:
-        """
-        Deserialize workflow revision data from legacy storage.
-        Returns None if not workflow data or if deserialization fails.
-        """
-
-        if not self._is_workflow_data(config_parameters):
+        if application_revision is None:
             return None
 
-        try:
-            data_copy = config_parameters.copy()
-            del data_copy[WORKFLOW_MARKER_KEY]
+        application_revision_slug = uuid4().hex[-12:]
 
-            return WorkflowRevisionData(**data_copy)
+        application_revision_commit = ApplicationRevisionCommit(
+            slug=application_revision_slug,
+            #
+            name=application_create.name,
+            description=application_create.description,
+            #
+            flags=application_flags,
+            tags=application_create.tags,
+            meta=application_create.meta,
+            #
+            data=simple_application_create.data,
+            #
+            application_id=application.id,
+            application_variant_id=application_variant.id,
+        )
 
-        except ValidationError as e:
-            log.warning(f"Failed to deserialize workflow data: {e}")
+        application_revision = (
+            await self.applications_service.commit_application_revision(
+                project_id=project_id,
+                user_id=user_id,
+                application_revision_commit=application_revision_commit,
+            )
+        )
+
+        if application_revision is None:
             return None
+
+        simple_application = SimpleApplication(
+            id=application.id,
+            slug=application.slug,
+            #
+            name=application.name,
+            description=application.description,
+            #
+            created_at=application.created_at,
+            updated_at=application.updated_at,
+            deleted_at=application.deleted_at,
+            created_by_id=application.created_by_id,
+            updated_by_id=application.updated_by_id,
+            deleted_by_id=application.deleted_by_id,
+            #
+            flags=simple_application_flags,
+            meta=application.meta,
+            tags=application.tags,
+            #
+            data=SimpleApplicationData(
+                **(
+                    application_revision.data.model_dump(mode="json")
+                    if application_revision.data
+                    else {}
+                ),
+            ),
+        )
+
+        return simple_application
+
+    async def fetch(
+        self,
+        *,
+        project_id: UUID,
+        #
+        application_id: UUID,
+    ) -> Optional[SimpleApplication]:
+        application = await self.applications_service.fetch_application(
+            project_id=project_id,
+            #
+            application_ref=Reference(id=application_id),
+        )
+
+        if application is None:
+            return None
+
+        application_variant = await self.applications_service.fetch_application_variant(
+            project_id=project_id,
+            #
+            application_ref=Reference(id=application.id),
+        )
+
+        if application_variant is None:
+            return None
+
+        application_revision = (
+            await self.applications_service.fetch_application_revision(
+                project_id=project_id,
+                #
+                application_variant_ref=Reference(id=application_variant.id),
+            )
+        )
+
+        if application_revision is None:
+            return None
+
+        simple_application_flags = (
+            SimpleApplicationFlags(
+                **application.flags.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude_unset=True,
+                ),
+            )
+            if application.flags
+            else SimpleApplicationFlags()
+        )
+
+        simple_application = SimpleApplication(
+            id=application.id,
+            slug=application.slug,
+            #
+            name=application.name,
+            description=application.description,
+            #
+            created_at=application.created_at,
+            updated_at=application.updated_at,
+            deleted_at=application.deleted_at,
+            created_by_id=application.created_by_id,
+            updated_by_id=application.updated_by_id,
+            deleted_by_id=application.deleted_by_id,
+            #
+            flags=simple_application_flags,
+            meta=application.meta,
+            tags=application.tags,
+            #
+            data=SimpleApplicationData(
+                **(
+                    application_revision.data.model_dump(mode="json")
+                    if application_revision.data
+                    else {}
+                ),
+            ),
+        )
+
+        return simple_application
+
+    async def edit(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        simple_application_edit: SimpleApplicationEdit,
+    ) -> Optional[SimpleApplication]:
+        application = await self.applications_service.fetch_application(
+            project_id=project_id,
+            #
+            application_ref=Reference(id=simple_application_edit.id),
+        )
+
+        if application is None:
+            return None
+
+        application_edit = ApplicationEdit(
+            id=simple_application_edit.id,
+            #
+            name=simple_application_edit.name,
+            description=simple_application_edit.description,
+            #
+            flags=(
+                ApplicationFlags(
+                    **simple_application_edit.flags.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                        exclude_unset=True,
+                    ),
+                )
+                if simple_application_edit.flags
+                else application.flags
+            ),
+            meta=simple_application_edit.meta
+            if simple_application_edit.meta is not None
+            else application.meta,
+            tags=simple_application_edit.tags
+            if simple_application_edit.tags is not None
+            else application.tags,
+        )
+
+        application = await self.applications_service.edit_application(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            application_edit=application_edit,
+        )
+
+        if application is None:
+            return None
+
+        application_variant = await self.applications_service.fetch_application_variant(
+            project_id=project_id,
+            #
+            application_ref=Reference(id=application.id),
+        )
+
+        if application_variant is None:
+            return None
+
+        if simple_application_edit.data:
+            application_revision_slug = uuid4().hex[-12:]
+
+            application_revision_commit = ApplicationRevisionCommit(
+                slug=application_revision_slug,
+                #
+                name=application_edit.name,
+                description=application_edit.description,
+                #
+                flags=application_edit.flags,
+                tags=application_edit.tags,
+                meta=application_edit.meta,
+                #
+                data=ApplicationRevisionData(
+                    **simple_application_edit.data.model_dump(mode="json"),
+                ),
+                #
+                application_id=application.id,
+                application_variant_id=application_variant.id,
+            )
+
+            application_revision = (
+                await self.applications_service.commit_application_revision(
+                    project_id=project_id,
+                    user_id=user_id,
+                    application_revision_commit=application_revision_commit,
+                )
+            )
+        else:
+            application_revision = (
+                await self.applications_service.fetch_application_revision(
+                    project_id=project_id,
+                    #
+                    application_variant_ref=Reference(id=application_variant.id),
+                )
+            )
+
+        if application_revision is None:
+            return None
+
+        simple_application_flags = (
+            SimpleApplicationFlags(
+                **application.flags.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude_unset=True,
+                ),
+            )
+            if application.flags
+            else SimpleApplicationFlags()
+        )
+
+        simple_application = SimpleApplication(
+            id=application.id,
+            slug=application.slug,
+            #
+            name=application.name,
+            description=application.description,
+            #
+            created_at=application.created_at,
+            updated_at=application.updated_at,
+            deleted_at=application.deleted_at,
+            created_by_id=application.created_by_id,
+            updated_by_id=application.updated_by_id,
+            deleted_by_id=application.deleted_by_id,
+            #
+            flags=simple_application_flags,
+            meta=application.meta,
+            tags=application.tags,
+            #
+            data=SimpleApplicationData(
+                **(
+                    application_revision.data.model_dump(mode="json")
+                    if application_revision.data
+                    else {}
+                ),
+            ),
+        )
+
+        return simple_application
+
+    async def archive(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        application_id: UUID,
+    ) -> Optional[SimpleApplication]:
+        application = await self.applications_service.archive_application(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            application_id=application_id,
+        )
+
+        if application is None:
+            return None
+
+        return await self.fetch(
+            project_id=project_id,
+            application_id=application_id,
+        )
+
+    async def unarchive(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        application_id: UUID,
+    ) -> Optional[SimpleApplication]:
+        application = await self.applications_service.unarchive_application(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            application_id=application_id,
+        )
+
+        if application is None:
+            return None
+
+        return await self.fetch(
+            project_id=project_id,
+            application_id=application_id,
+        )
+
+    async def query(
+        self,
+        *,
+        project_id: UUID,
+        #
+        simple_application_query: Optional[SimpleApplicationQuery] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[SimpleApplication]:
+        query_data = (
+            simple_application_query.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude_unset=True,
+            )
+            if simple_application_query
+            else {}
+        )
+        query_data.setdefault("flags", {})
+        application_query = ApplicationQuery(**query_data)
+
+        applications = await self.applications_service.query_applications(
+            project_id=project_id,
+            #
+            application_query=application_query,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
+        )
+
+        simple_applications = []
+
+        for application in applications:
+            simple_application = await self.fetch(
+                project_id=project_id,
+                application_id=application.id,  # type: ignore
+            )
+
+            if simple_application:
+                simple_applications.append(simple_application)
+
+        return simple_applications
+
+    # --------------------------------------------------------------------------

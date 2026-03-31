@@ -1,6 +1,8 @@
+import type {CSSProperties, Key, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useState} from "react"
-import type {Key, ReactNode} from "react"
 
+import {TrashIcon} from "@phosphor-icons/react"
+import {Button, Grid, Tabs, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import clsx from "clsx"
 
@@ -31,6 +33,10 @@ export interface TableScopeConfig {
     columnVisibilityStorageKey?: string | null
     columnVisibilityDefaults?: Key[]
     viewportTrackingEnabled?: boolean
+    /** Margin around viewport for preloading columns (e.g., "0px 200px" to preload 200px on left/right) */
+    viewportMargin?: string
+    /** Debounce time in ms before marking a column as hidden after it exits viewport (default: 150) */
+    viewportExitDebounceMs?: number
 }
 
 export interface TableFeaturePagination<Row extends InfiniteTableRowBase> {
@@ -41,14 +47,71 @@ export interface TableFeaturePagination<Row extends InfiniteTableRowBase> {
 
 export type TableFeatureExportOptions<Row extends InfiniteTableRowBase> = TableExportOptions<Row>
 
+export interface TableTabItem {
+    key: string
+    label: string
+}
+
+export interface TableTabsConfig {
+    /** Tab items to render */
+    items: TableTabItem[]
+    /** Currently active tab key */
+    activeKey: string
+    /** Callback when tab changes */
+    onChange: (key: string) => void
+    /** Optional CSS variable for tab indicator color */
+    indicatorColor?: string
+    /** Optional className for the tabs container */
+    className?: string
+}
+
+/** Configuration for the built-in delete action */
+export interface TableDeleteConfig {
+    /** Callback when delete is triggered */
+    onDelete: () => void
+    /** Whether the delete action is disabled */
+    disabled?: boolean
+    /** Tooltip to show when disabled */
+    disabledTooltip?: string
+    /** Button label (default: "Delete") */
+    label?: string
+}
+
+/** Configuration for the built-in export action */
+export interface TableExportConfig {
+    /** Whether the export action is disabled */
+    disabled?: boolean
+    /** Tooltip to show when disabled */
+    disabledTooltip?: string
+    /** Button label (default: "Export CSV") */
+    label?: string
+}
+
 export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBase> {
     datasetStore: InfiniteDatasetStore<Row, any, any>
     tableScope: TableScopeConfig
     columns: InfiniteVirtualTableProps<Row>["columns"]
     rowKey: InfiniteVirtualTableProps<Row>["rowKey"]
     title?: ReactNode
+    /** Tabs configuration for the header */
+    tabs?: TableTabsConfig
+    /** @deprecated Use tabs prop instead. Additional content to render in the header row */
+    headerExtra?: ReactNode
     filters?: ReactNode
     primaryActions?: ReactNode
+    /**
+     * Built-in delete action configuration.
+     * When provided, the shell renders a standard delete button.
+     * On narrow screens, this moves to the settings dropdown.
+     */
+    deleteAction?: TableDeleteConfig
+    /**
+     * Built-in export action configuration.
+     * When provided along with enableExport, the shell renders a standard export button.
+     * On narrow screens, export moves to the settings dropdown.
+     */
+    exportAction?: TableExportConfig
+    /** @deprecated Use deleteAction instead. Custom secondary actions to render */
     secondaryActions?: ReactNode
     className?: string
     containerClassName?: string
@@ -69,6 +132,7 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
     pagination?: TableFeaturePagination<Row>
     enableExport?: boolean
     exportFilename?: string
+    /** @deprecated Use exportAction instead for button customization */
     renderExportButton?: (props: {onExport: () => void; loading: boolean}) => ReactNode
     exportOptions?: TableFeatureExportOptions<Row>
     /**
@@ -78,6 +142,7 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      */
     useSettingsDropdown?: boolean
     /**
+     * @deprecated Use deleteAction instead.
      * Delete action configuration for the settings dropdown.
      * Only used when useSettingsDropdown is true.
      */
@@ -92,6 +157,27 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      */
     settingsDropdownMenuItems?: MenuProps["items"]
     keyboardShortcuts?: InfiniteVirtualTableProps<Row>["keyboardShortcuts"]
+    /**
+     * Configuration for expandable rows.
+     * When provided, rows can be expanded to show child content (e.g., variants, revisions).
+     */
+    expandable?: InfiniteVirtualTableProps<Row>["expandable"]
+    /**
+     * Override the dataSource from pagination.
+     * Useful when you need to transform rows (e.g., add children for tree data).
+     */
+    dataSource?: Row[]
+    /**
+     * Jotai store to use for the table. When provided, the table will use this store
+     * instead of creating an isolated one. Useful when cells need to read from
+     * atoms in a shared store (e.g., entity atoms).
+     */
+    store?: InfiniteVirtualTableProps<Row>["store"]
+    /**
+     * Ref to access the underlying Ant Design Table instance.
+     * Useful for programmatic scrolling via `tableRef.current?.scrollTo({ index })`.
+     */
+    tableRef?: InfiniteVirtualTableProps<Row>["tableRef"]
 }
 
 const DEFAULT_ROW_HEIGHT = 48
@@ -133,8 +219,12 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         columns,
         rowKey,
         title,
+        tabs,
+        headerExtra,
         filters,
         primaryActions,
+        deleteAction,
+        exportAction,
         secondaryActions,
         className,
         containerClassName,
@@ -161,8 +251,17 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         settingsDropdownDelete,
         settingsDropdownMenuItems,
         keyboardShortcuts,
+        expandable,
+        dataSource,
+        tableRef,
+        store,
     } = props
     const {scopeId, pageSize, enableInfiniteScroll = true} = tableScope
+    const exportEnabled = enableExport
+
+    // Responsive breakpoints for built-in action buttons
+    const screens = Grid.useBreakpoint()
+    const isNarrowScreen = !screens.lg
 
     useEffect(() => {
         onPaginationStateChange?.({
@@ -176,7 +275,9 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
     }, [onRowsChange, pagination.rows])
 
     const handleLoadMore = useCallback(() => {
-        if (!enableInfiniteScroll) return
+        if (!enableInfiniteScroll) {
+            return
+        }
         pagination.loadNextPage()
     }, [enableInfiniteScroll, pagination.loadNextPage])
 
@@ -204,10 +305,11 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         beforeExport,
         resolveValue,
         resolveColumnLabel,
+        columnsOverride: exportColumnsOverride,
     } = exportOptions ?? {}
     const resolvedExportFilename = exportOptionsFilename ?? exportFilename ?? "table-export.csv"
     const exportHandler = useCallback(async () => {
-        if (isExporting) return
+        if (!exportEnabled || isExporting) return
         setIsExporting(true)
         try {
             // If rows are selected, export only selected rows; otherwise export all rows
@@ -221,7 +323,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                       })
                     : pagination.rows
             await tableExport({
-                columns,
+                columns: exportColumnsOverride ?? columns,
                 rows: rowsToExport,
                 filename: resolvedExportFilename,
                 isColumnExportable,
@@ -249,32 +351,109 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         resolveValue,
         resolveColumnLabel,
         resolvedExportFilename,
+        exportEnabled,
         rowKey,
         rowSelection?.selectedRowKeys,
         tableExport,
     ])
 
     const exportButtonNode = useMemo(() => {
-        if (!enableExport) return null
+        if (!exportEnabled) return null
         if (renderExportButton) {
             return renderExportButton({onExport: exportHandler, loading: isExporting})
         }
         // Export button is now rendered inside the column visibility popover
         return null
-    }, [enableExport, exportHandler, isExporting, renderExportButton])
+    }, [exportEnabled, exportHandler, isExporting, renderExportButton])
+
+    // Built-in delete button (wide screens only)
+    const builtInDeleteButton = useMemo(() => {
+        if (!deleteAction || isNarrowScreen) return null
+        const {onDelete, disabled, disabledTooltip, label = "Delete"} = deleteAction
+        const button = (
+            <Button
+                danger
+                type="text"
+                icon={<TrashIcon size={14} className="mt-0.5" />}
+                className="flex items-center"
+                disabled={disabled}
+                onClick={onDelete}
+            >
+                {label}
+            </Button>
+        )
+        if (disabled && disabledTooltip) {
+            return <Tooltip title={disabledTooltip}>{button}</Tooltip>
+        }
+        return button
+    }, [deleteAction, isNarrowScreen])
+
+    // Built-in export button (wide screens only, when exportAction is provided)
+    const builtInExportButton = useMemo(() => {
+        if (!exportEnabled || !exportAction || isNarrowScreen) return null
+        const {disabled, disabledTooltip, label = "Export CSV"} = exportAction
+        const button = (
+            <Button disabled={disabled} onClick={exportHandler} type="text" loading={isExporting}>
+                {label}
+            </Button>
+        )
+        if (disabled && disabledTooltip) {
+            return (
+                <Tooltip title={disabledTooltip}>
+                    <span>{button}</span>
+                </Tooltip>
+            )
+        }
+        return button
+    }, [exportEnabled, exportAction, exportHandler, isExporting, isNarrowScreen])
+
+    // Resolve settings dropdown delete config (prefer deleteAction over legacy prop)
+    const resolvedSettingsDropdownDelete = useMemo(() => {
+        if (deleteAction && isNarrowScreen) {
+            return {
+                onDelete: deleteAction.onDelete,
+                disabled: deleteAction.disabled,
+                label: deleteAction.label ? `${deleteAction.label} selected` : "Delete selected",
+            }
+        }
+        return settingsDropdownDelete
+    }, [deleteAction, isNarrowScreen, settingsDropdownDelete])
+
+    // Combine secondary actions: built-in buttons + custom secondaryActions + export button
+    const resolvedSecondaryActions = useMemo(() => {
+        const actions = [
+            builtInDeleteButton,
+            builtInExportButton,
+            secondaryActions,
+            exportButtonNode,
+        ]
+        const filtered = actions.filter(Boolean)
+        if (filtered.length === 0) return undefined
+        if (filtered.length === 1) return filtered[0]
+        return (
+            <div className="flex items-center gap-2">
+                {filtered.map((action, i) => (
+                    <span key={i}>{action}</span>
+                ))}
+            </div>
+        )
+    }, [builtInDeleteButton, builtInExportButton, secondaryActions, exportButtonNode])
+
+    // Only show export in settings when enableExport is true AND no custom renderExportButton is provided
+    const showExportInSettings = exportEnabled && !renderExportButton
 
     const columnVisibilityRenderer = useMemo(
         () =>
             resolveColumnVisibilityRenderer(columnVisibilityMenuRenderer, columnVisibility, {
                 scopeId,
-                onExport: enableExport ? exportHandler : undefined,
+                onExport: showExportInSettings ? exportHandler : undefined,
                 isExporting,
             }),
         [
             columnVisibilityMenuRenderer,
             columnVisibility,
             scopeId,
-            enableExport,
+            showExportInSettings,
             exportHandler,
             isExporting,
         ],
@@ -290,16 +469,16 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         (controls: ColumnVisibilityState<Row>) => (
             <TableSettingsDropdown
                 controls={controls}
-                onExport={enableExport ? exportHandler : undefined}
+                onExport={showExportInSettings ? exportHandler : undefined}
                 isExporting={isExporting}
-                onDelete={settingsDropdownDelete?.onDelete}
-                deleteDisabled={settingsDropdownDelete?.disabled}
-                deleteLabel={settingsDropdownDelete?.label}
+                onDelete={resolvedSettingsDropdownDelete?.onDelete}
+                deleteDisabled={resolvedSettingsDropdownDelete?.disabled}
+                deleteLabel={resolvedSettingsDropdownDelete?.label}
                 additionalMenuItems={settingsDropdownMenuItems}
                 renderColumnVisibilityContent={(ctrls, close) =>
                     columnVisibilityRenderer(ctrls, close, {
                         scopeId,
-                        onExport: enableExport ? exportHandler : undefined,
+                        onExport: showExportInSettings ? exportHandler : undefined,
                         isExporting,
                     })
                 }
@@ -307,11 +486,11 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         ),
         [
             columnVisibilityRenderer,
-            enableExport,
+            showExportInSettings,
             exportHandler,
             isExporting,
             scopeId,
-            settingsDropdownDelete,
+            resolvedSettingsDropdownDelete,
             settingsDropdownMenuItems,
         ],
     )
@@ -321,6 +500,8 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             storageKey: tableScope.columnVisibilityStorageKey ?? undefined,
             defaultHiddenKeys: tableScope.columnVisibilityDefaults,
             viewportTrackingEnabled,
+            viewportMargin: tableScope.viewportMargin,
+            viewportExitDebounceMs: tableScope.viewportExitDebounceMs,
             renderMenuContent: columnVisibilityRenderer,
             renderMenuTrigger: useSettingsDropdown ? settingsDropdownRenderer : undefined,
         }),
@@ -329,10 +510,43 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             settingsDropdownRenderer,
             tableScope.columnVisibilityDefaults,
             tableScope.columnVisibilityStorageKey,
+            tableScope.viewportExitDebounceMs,
+            tableScope.viewportMargin,
             useSettingsDropdown,
             viewportTrackingEnabled,
         ],
     )
+
+    // Render tabs if configured
+    const tabsNode = useMemo(() => {
+        if (!tabs) return headerExtra // Fall back to headerExtra for backwards compatibility
+        return (
+            <div
+                className={clsx(
+                    "infinite-table-tabs min-w-[320px] [&_.ant-tabs-nav]:mb-0",
+                    tabs.className,
+                )}
+                style={
+                    tabs.indicatorColor
+                        ? ({"--tab-indicator-color": tabs.indicatorColor} as CSSProperties)
+                        : undefined
+                }
+            >
+                <Tabs
+                    className="min-w-[320px]"
+                    activeKey={tabs.activeKey}
+                    items={tabs.items.map((item) => ({
+                        key: item.key,
+                        label: item.label,
+                    }))}
+                    onChange={tabs.onChange}
+                    destroyOnHidden
+                />
+            </div>
+        )
+    }, [tabs, headerExtra])
+
+    const effectiveDataSource = dataSource ?? pagination.rows
 
     return (
         <div
@@ -341,24 +555,19 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         >
             <TableShell
                 title={title}
+                headerExtra={tabsNode}
                 filters={filters}
                 primaryActions={primaryActions}
-                secondaryActions={
-                    secondaryActions || exportButtonNode ? (
-                        <div className="flex items-center gap-2">
-                            {secondaryActions}
-                            {exportButtonNode}
-                        </div>
-                    ) : undefined
-                }
+                secondaryActions={resolvedSecondaryActions}
                 onHeaderHeightChange={setControlsHeight}
                 className="flex flex-1 min-h-0 flex-col"
             >
                 {beforeTable}
                 <InfiniteVirtualTable<Row>
-                    useIsolatedStore
+                    useIsolatedStore={!store}
+                    store={store}
                     columns={columns}
-                    dataSource={pagination.rows}
+                    dataSource={effectiveDataSource}
                     loadMore={handleLoadMore}
                     rowKey={rowKey}
                     rowSelection={rowSelection}
@@ -370,7 +579,9 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                     tableClassName={tableClassName}
                     tableProps={tableProps}
                     keyboardShortcuts={keyboardShortcuts}
+                    expandable={expandable}
                     onHeaderHeightChange={setTableHeaderHeight}
+                    tableRef={tableRef}
                 />
                 {afterTable}
             </TableShell>

@@ -1,11 +1,12 @@
-import {cloneElement, isValidElement, useEffect, useState} from "react"
+import {cloneElement, isValidElement, useCallback, useState} from "react"
 
+import {runnableBridge} from "@agenta/entities/runnable"
 import {FloppyDiskBack} from "@phosphor-icons/react"
 import {Button} from "antd"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 
 import {CommitVariantChangesButtonProps} from "../types"
 const CommitVariantChangesModal = dynamic(() => import("../.."), {ssr: false})
@@ -16,11 +17,19 @@ const CommitVariantChangesButton = ({
     icon = true,
     children,
     onSuccess,
-    commitType,
     ...props
 }: CommitVariantChangesButtonProps) => {
     const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
-    const disabled = !useAtomValue(variantIsDirtyAtomFamily(variantId || ""))
+    const hasChanges = useAtomValue(runnableBridge.isDirty(variantId || ""))
+    const disabled = !variantId || !hasChanges
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
+    const handleSuccess = useCallback(
+        (payload?: {revisionId?: string; variantId?: string}) => {
+            recordWidgetEvent("playground_committed_change")
+            onSuccess?.(payload ?? {})
+        },
+        [recordWidgetEvent, onSuccess],
+    )
 
     return (
         <>
@@ -51,8 +60,7 @@ const CommitVariantChangesButton = ({
                 open={isDeployModalOpen}
                 onCancel={() => setIsDeployModalOpen(false)}
                 variantId={variantId}
-                onSuccess={onSuccess}
-                commitType={commitType}
+                onSuccess={handleSuccess}
             />
         </>
     )

@@ -1,0 +1,71 @@
+---
+id: query-environments
+title: "Query Environments"
+description: "Query Environments"
+sidebar_label: "Query Environments"
+hide_title: true
+hide_table_of_contents: true
+api: eJzFWE1zIjcQ/StUn5IqrXFcOc0pxF5nyTprJ/bm4qIoMWpAG83H6sO7LDX/PdXSDGgA41kMyYkCWv2eXre6W1qC5TMDySO8zZ+kLvIMc2tgxKAoUXMri3woIIHPDvVijLENg5JrnqFFTQ6WkPMMIYHIaCwFMJB54wAYaPzspEYByZQrgwxMOseMQ7IEni9up96TXZTkyVgt8xkwmBY64xYScE4KqNjKIndKQTViYKVV9EO0i95QQEW2O3mZ1xDjWnNaIy1mhixeINydsXmWslFudgQxu1K5J7h9XE4pYGfB7j2RmKb/OK1MHwgixhRoUi1LOiwnhr6KkGIG/hCfFvqBbyidoeUnxvyDIGJMmafKCRxznc7lE76qukyKQiHP9xIYBrzeoMFrpRp+tf9xeftAkG0OX9AcmYXgFt9YSUm+l4pHjskUSvxPZG4DckxGyUy+iovMLc5Q78W98SAtDbRAfRAs5i6jRsxNirkIMlBlqb8QaueDc+tZVPSTRlMWuUFfZi/Oz+kjLlgJ3Ls0RWOmTvX+qo2BQVrkFnPrOZalkqkfBvqfDK1ZRjsoNY0KVgaEtHBh0YaKa26X3oL2NuVOWUjOKwatySJZrhtD2/uUUkzTWHGkA3XtHfpRgcFU+Vko9tyGl2Y8c1wLFNEOmzoSVQ3T+602i7bpQ19VqzAWk0+YWtjZ2K49k23itHqLIxdCUmy4umux7VLxolza7QZSqVOnuP7hhk9Q/W6K/M2ts6WzP8LmVlonY8Matjb+crNhocccttntU7LzQGeT9i+xRi8pcu3UC4KwVSZ3WRWmor3p2l77faKGbsrqSvWa2Ye1K8gRZhkGqUZuUYy5PWpnuAxuewMvlivFKUA+Brc1iECFJwC5Cm5rkEauyeKI1bAR69dFXREbvY6K0qi1QmkEOypKI9cKxV+gDszVcBticDx64XLapRdEh7y5Nu2wMnGreRx19G1WDb+qaMnPFxfb88HfXEnhu3/vrdaFPnw4EGi5VHv6uyrS1r/fU9VHz+t0UwSCvqWY2a4b+7pIGsNnuBb9eVMvRu+B/qXUyKkgk/nq7lBX6NR+jdxsheOStAxj/ZbNenB89NoE+rVdlE3rEIUIPS/FVQjBvvx49/Bwt+Uw5Ec7Mf6k8ba3kYQZ2nlBT0Zl4e8CJbdzSKBfanyS+KUfT3r9ZkA2qJ+aZySnFdnzUvowh69za0uT9PvozlJVOHHGZ5hbfsZlMByRj9RpaRfeyeBu+B4X75DTHEznITK4p+wM+dY2Wz9PlPI9Eq96qB84Oy+0/MbjK/48rKp87KdFHPqBJ9cb3A2BAW0s6HV+9tPZOWyq2DKmg8VTn0cNtv8b2IYQq/0DA8z8qQKLPPtl/QcxoyBkPI/87QzaRjuvZaC07JeKS39wPP6yjucj1PGEjdmd1ZeeEYM5JUDyCMvlhBv8qFVV0c/hfwqSkIZPVHQt+gcXux4Qn7hyxMfnQ6dF5oBV9QPbIcu6wtWPU11M229KXVbUb0BdTOunmy6mO15cOu00vI10M62fMLoYr54Yuhg3TwCdHNf39rXtiL5oSca+grDmxFPqhkWDNMUyRthqhuRlVRHvbu8foKr+BanW+Ec=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Query Environments"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/preview/environments/query"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Query Environments
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"environment_id","in":"query","required":false,"schema":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Environment Id"}},{"name":"environment_ids","in":"query","required":false,"schema":{"anyOf":[{"type":"array","items":{"type":"string","format":"uuid"}},{"type":"null"}],"title":"Environment Ids"}},{"name":"environment_slug","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Environment Slug"}},{"name":"environment_slugs","in":"query","required":false,"schema":{"anyOf":[{"type":"array","items":{"type":"string"}},{"type":"null"}],"title":"Environment Slugs"}},{"name":"name","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"}},{"name":"description","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"}},{"name":"tags","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Tags"}},{"name":"meta","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Meta"}},{"name":"include_archived","in":"query","required":false,"schema":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Include Archived"}},{"name":"next","in":"query","required":false,"schema":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Next"}},{"name":"newest","in":"query","required":false,"schema":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Newest"}},{"name":"oldest","in":"query","required":false,"schema":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Oldest"}},{"name":"limit","in":"query","required":false,"schema":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Limit"}},{"name":"order","in":"query","required":false,"schema":{"anyOf":[{"enum":["ascending","descending"],"type":"string"},{"type":"null"}],"title":"Order"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"environments":{"items":{"properties":{"folder_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Folder Id"},"flags":{"anyOf":[{"properties":{"is_guarded":{"type":"boolean","title":"Is Guarded","default":false}},"type":"object","title":"EnvironmentFlags"},{"type":"null"}]},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"Environment"},"type":"array","title":"Environments","default":[]}},"type":"object","title":"EnvironmentsResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

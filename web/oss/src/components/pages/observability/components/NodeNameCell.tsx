@@ -3,10 +3,10 @@ import {memo} from "react"
 import {Space, Tooltip, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
+import {SpanCategory} from "@/oss/services/tracing/types"
 import {nodeDisplayNameAtomFamily} from "@/oss/state/newObservability"
 
 import {spanTypeStyles} from "../assets/constants"
-import {SpanCategory} from "@/oss/services/tracing/types"
 
 interface Props {
     name: string

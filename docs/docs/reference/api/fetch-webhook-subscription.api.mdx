@@ -1,0 +1,71 @@
+---
+id: fetch-webhook-subscription
+title: "Fetch Subscription"
+description: "Fetch Subscription"
+sidebar_label: "Fetch Subscription"
+hide_title: true
+hide_table_of_contents: true
+api: eJzlWMFy20YM/ZUdnJIZRnLcHjo8RY3jxk3SeGI5PTgazYqExE3IXWYXVKxqONOP6Bf2SzrYpSRSkmXF45x6kkQCD8ADFsBqCSRnDuIb+BMnmTFfHIwiMCVaScroixRimCIl2fhbeD921cQlVpX8GiIopZUFEloGWYKWBUIMbaGxSiECpSGGUlIGEVj8WimLKcRkK4zAJRkWEuIl0KL06mSVnkEEU2MLSRBDVXkUUpSzwFULX1ykUNcjhnWl0Q4dI52enPBHihtnWS1J0LlplYsPjTBEkBhNqInFZVnmKvGh9z871lm2vCstE0MqWEhMFZQap5UmnKFtefnSS0SQ4lRWOUF8UkcdarxJvXg/9dx14ae5T0xbQKapYjWZX3ZENxKNKxNjcpQa6mibUn6yHwYSZZMql/bJWznB/Hdn9LP3FZUVPeWQAoqZfMaEgNleBbktDfWO9MYLXeV5R/vcR8kq/4doh02wBZJ8YLCtyLbqrmO4mHSftDm6j5HzKr+HkGgJirA4UktaKxeHq6Cr+32kvmMy66hpPUdRtoPxB+vWUbddPAzqrAVRR5BYlITpWNIhwFanSyXhM1Len7utvAywYuDJqsr0Rxi5DrCNkRRz/AFGzgJsY2RF12TBY+M4O342HEPWrws/KzZ8PaqVFVtrKyvCHtXKiq61lceDbryWtGfYVTbfN58LefsW9YwyiE9PfvkpgkLp1YPnbdtWtebitc3ZUoYy9XvDMY1w+wB+R4N43dipeVtZ5Eam46nCPD3KcthQjjd2GSyI82ChjkBWlI0Lkx5sThGgrgrew5yaaUmV5c2EVY1Vf/mFBEaH7A4qysQ7tlJHgHPUNGbRrRibrn23ddRzZY0uUJPrWZwrp4x2vcQUhSJC3sGaRdD12puM6xE6ft9yqdkoX7EzQ7YX7axjHmAiJzkK77PwPot///5HSMHOJSTYDJIwU7FG6n3Sn/RHmVfohLQoUrRqjqmYWlNspIQzgjIUIUgnHMmFUFq4hU56n/TQCJmmQgqN34Tb70okFImiciSmyjoSeKscMcbGlVYt3j/ovJoY+sTUO0Xc3oxv/JHbZbO9+Z7JMPkcJhbpEZvMlQdsGkxAf+g4DFD3Buu7zuFo95jZh3oAYb3z1zVr/nx6untF+ChzlfrzJl5Za+zD7wcpklS+a65PXVcgN0nn7ffseqPtqmutqCY46BdNN9t32jerk3NyhpsSvlvUk+Er1w8dzWsai69mh272toRuWzA7WXnJXN7eXw/MTXC/kWvVxiZFIUN3U3EWUnCoTF4Ph5c7gKE+uoVxzrdgcdW9/RZImeE78gzJX4Z58EF/1SL7nRbZX25di2vg02Xnq8uzH7LQl6XyOQ8/M6LSxf0+Vr0kN1XakzPUJHtSBcGRP6GVVbTwIIPLize4CDMP4ptRW+CKSzUUX1dsnTBZqjfIFDYX+UFnAjXX+DC4Pa1KT027DgbeOTG4vIAIOLBA3knvee9kp/93hPmUycQX1cq2fw3RFhHr+HlsFf6IAaEsXmxesGelcVRI3cLbm8Gtjb+hgWu0X+ZS+VPULD8huzfrAQjdyzz/jrf/+BhFkBlHrLZcTqTDa5vXNT/+WqHljI0imEurePD4/KXK8fcU4qnMHe54uO5G8ORDc2Ceis1lq+v5KquaUzrngQkxQARfcLHnXxrfVbJV5SwbqUGSYEkt/Z0myCW2Pgm/vRpCXf8Hz8ZSnw==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Subscription"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/webhooks/subscriptions/{subscription_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch Subscription
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"subscription_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Subscription Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"subscription":{"anyOf":[{"properties":{"flags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Flags"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"},"data":{"properties":{"url":{"type":"string","maxLength":2083,"minLength":1,"format":"uri","title":"Url"},"headers":{"anyOf":[{"additionalProperties":{"type":"string"},"type":"object"},{"type":"null"}],"title":"Headers"},"payload_fields":{"anyOf":[{"additionalProperties":true,"type":"object"},{"type":"null"}],"title":"Payload Fields"},"auth_mode":{"anyOf":[{"type":"string","enum":["signature","authorization"]},{"type":"null"}],"title":"Auth Mode"},"event_types":{"anyOf":[{"items":{"type":"string","enum":["environments.revisions.committed","webhooks.subscriptions.tested"],"title":"WebhookEventType","description":"Subscribable event types — a strict subset of EventType.\n\nValues are derived from EventType so the strings stay in sync.\nTo add a new subscribable event type, it must first exist in EventType."},"type":"array"},{"type":"null"}],"title":"Event Types"}},"type":"object","required":["url"],"title":"WebhookSubscriptionData"},"secret_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Secret Id"},"secret":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Secret"}},"type":"object","required":["data"],"title":"WebhookSubscription"},{"type":"null"}]}},"type":"object","title":"WebhookSubscriptionResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

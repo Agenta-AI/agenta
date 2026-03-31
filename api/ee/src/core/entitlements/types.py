@@ -9,12 +9,16 @@ class Tracker(str, Enum):
     FLAGS = "flags"
     COUNTERS = "counters"
     GAUGES = "gauges"
+    THROTTLES = "throttles"
 
 
 class Flag(str, Enum):
     # HISTORY = "history"
     HOOKS = "hooks"
     RBAC = "rbac"
+    ACCESS = "access"
+    DOMAINS = "domains"
+    SSO = "sso"
 
 
 class Counter(str, Enum):
@@ -35,16 +39,98 @@ class Constraint(str, Enum):
     READ_ONLY = "read_only"
 
 
+class Periods(str, Enum):
+    EPHEMERAL = 0  # instant
+    HOURLY = 60  # 1 hour = 60 minutes
+    DAILY = 1440  # 24 hours = 1 day = 1440 minutes
+    MONTHLY = 44640  # 31 days = 744 hours = 44640 minutes
+    QUARTERLY = 131040  # 91 days = 2184 hours = 131040 minutes
+    YEARLY = 525600  # 365 days = 8760 hours = 525600 minutes
+
+
 class Quota(BaseModel):
     free: Optional[int] = None
     limit: Optional[int] = None
     monthly: Optional[bool] = None
     strict: Optional[bool] = False
+    retention: Optional[int] = None
 
 
 class Probe(BaseModel):
     monthly: Optional[bool] = False
     delta: Optional[bool] = False
+
+
+class Bucket(BaseModel):
+    capacity: Optional[int] = None  # max tokens in the bucket
+    rate: Optional[int] = None  # tokens added per minute
+    algorithm: Optional[str] = None
+
+
+class Category(str, Enum):
+    STANDARD = "standard"
+    CORE_FAST = "core_fast"
+    CORE_SLOW = "core_slow"
+    TRACING_FAST = "tracing_fast"
+    TRACING_SLOW = "tracing_slow"
+    SERVICES_FAST = "services_fast"
+    SERVICES_SLOW = "services_slow"
+    AI_SERVICES = "ai_services"
+
+
+class Method(str, Enum):
+    POST = "post"
+    GET = "get"
+    PUT = "put"
+    PATCH = "patch"
+    DELETE = "delete"
+    QUERY = "query"
+    MUTATION = "mutation"
+    ANY = "any"
+
+
+class Mode(str, Enum):
+    INCLUDE = "include"
+    EXCLUDE = "exclude"
+
+
+class Throttle(BaseModel):
+    bucket: Bucket
+    mode: Mode
+    categories: list[Category] | None = None
+    endpoints: list[tuple[Method, str]] | None = None
+
+
+ENDPOINTS = {
+    Category.CORE_FAST: [
+        (Method.POST, "*/retrieve"),
+        (Method.POST, "/variants/configs/fetch"),
+    ],
+    Category.CORE_SLOW: [
+        # None defined yet
+    ],
+    Category.TRACING_FAST: [
+        (Method.POST, "/otlp/v1/traces"),
+    ],
+    Category.TRACING_SLOW: [
+        (Method.POST, "/tracing/*/query"),
+        #
+        (Method.POST, "/tracing/spans/analytics"),  # LEGACY
+    ],
+    Category.SERVICES_FAST: [
+        (Method.ANY, "/permissions/verify"),
+    ],
+    Category.SERVICES_SLOW: [
+        # None defined yet
+    ],
+    Category.AI_SERVICES: [
+        (Method.POST, "/ai/services/tools/call"),
+    ],
+    Category.STANDARD: [
+        # None defined yet
+        # CATCH ALL
+    ],
+}
 
 
 CATALOG = [
@@ -53,6 +139,7 @@ CATALOG = [
         "description": "Great for hobby projects and POCs.",
         "type": "standard",
         "plan": Plan.CLOUD_V0_HOBBY.value,
+        "retention": Periods.MONTHLY.value,
         "price": {
             "base": {
                 "type": "flat",
@@ -64,7 +151,9 @@ CATALOG = [
             "Unlimited prompts",
             "20 evaluations/month",
             "5k traces/month",
-            "2 seats",
+            "2 seats included",
+            "30 days retention period",
+            "Community support via Github",
         ],
     },
     {
@@ -72,6 +161,7 @@ CATALOG = [
         "description": "For production projects.",
         "type": "standard",
         "plan": Plan.CLOUD_V0_PRO.value,
+        "retention": Periods.QUARTERLY.value,
         "price": {
             "base": {
                 "type": "flat",
@@ -111,9 +201,10 @@ CATALOG = [
         "features": [
             "Unlimited prompts",
             "Unlimited evaluations",
-            "10k free traces/month",
-            "3 free seats",
-            "Up to 10 seats",
+            "10k traces / month included then $5 for every 10k",
+            "3 seats included then $20 per seat",
+            "90 days retention period",
+            "In-app support",
         ],
     },
     {
@@ -121,6 +212,7 @@ CATALOG = [
         "description": "For scale, security, and support.",
         "type": "standard",
         "plan": Plan.CLOUD_V0_BUSINESS.value,
+        "retention": Periods.YEARLY.value,
         "price": {
             "base": {
                 "type": "flat",
@@ -145,14 +237,15 @@ CATALOG = [
         "features": [
             "Everything in Pro",
             "Unlimited seats",
-            "1M free traces/month",
-            "Multiple workspaces [soon]",
+            "1M traces / month included then $5 for every 10k",
+            "Multiple workspaces",
             "Roles and RBAC",
-            "SSO and MFA [soon]",
+            "Enterprise SSO",
             "SOC 2 reports",
             "HIPAA BAA [soon]",
             "Private Slack Channel",
             "Business SLA",
+            "365 days retention period",
         ],
     },
     {
@@ -206,83 +299,317 @@ ENTITLEMENTS = {
         Tracker.FLAGS: {
             Flag.HOOKS: False,
             Flag.RBAC: False,
+            Flag.ACCESS: False,
+            Flag.DOMAINS: False,
+            Flag.SSO: False,
         },
         Tracker.COUNTERS: {
-            Counter.TRACES: Quota(limit=5_000, monthly=True, free=5_000),
-            Counter.EVALUATIONS: Quota(limit=20, monthly=True, free=20, strict=True),
-            Counter.CREDITS: Quota(limit=100, monthly=True, free=100, strict=True),
+            Counter.TRACES: Quota(
+                limit=5_000,
+                monthly=True,
+                free=5_000,
+                retention=Periods.MONTHLY.value,
+            ),
+            Counter.EVALUATIONS: Quota(
+                limit=20,
+                monthly=True,
+                free=20,
+                strict=True,
+            ),
+            Counter.CREDITS: Quota(
+                limit=100,
+                monthly=True,
+                free=100,
+                strict=True,
+            ),
         },
         Tracker.GAUGES: {
-            Gauge.USERS: Quota(limit=2, strict=True, free=2),
-            Gauge.APPLICATIONS: Quota(strict=True),
+            Gauge.USERS: Quota(
+                limit=2,
+                strict=True,
+                free=2,
+            ),
+            Gauge.APPLICATIONS: Quota(
+                strict=True,
+            ),
         },
+        Tracker.THROTTLES: [
+            Throttle(
+                categories=[
+                    Category.STANDARD,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=480,
+                    rate=480,
+                ),
+            ),
+            Throttle(
+                categories=[
+                    Category.CORE_FAST,
+                    Category.TRACING_FAST,
+                    Category.SERVICES_FAST,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=1200,
+                    rate=1200,
+                ),
+            ),
+            Throttle(
+                categories=[
+                    Category.CORE_SLOW,
+                    Category.TRACING_SLOW,
+                    Category.SERVICES_SLOW,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=120,
+                    rate=1,
+                ),
+            ),
+            Throttle(
+                categories=[
+                    Category.AI_SERVICES,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=10,
+                    rate=30,
+                ),
+            ),
+        ],
     },
     Plan.CLOUD_V0_PRO: {
         Tracker.FLAGS: {
             Flag.HOOKS: True,
             Flag.RBAC: False,
+            Flag.ACCESS: False,
+            Flag.DOMAINS: False,
+            Flag.SSO: False,
         },
         Tracker.COUNTERS: {
-            Counter.TRACES: Quota(monthly=True, free=10_000),
-            Counter.EVALUATIONS: Quota(monthly=True, strict=True),
-            Counter.CREDITS: Quota(limit=100, monthly=True, free=100, strict=True),
+            Counter.TRACES: Quota(
+                monthly=True,
+                free=10_000,
+                retention=Periods.QUARTERLY.value,
+            ),
+            Counter.EVALUATIONS: Quota(
+                monthly=True,
+                strict=True,
+            ),
+            Counter.CREDITS: Quota(
+                limit=100,
+                monthly=True,
+                free=100,
+                strict=True,
+            ),
         },
         Tracker.GAUGES: {
-            Gauge.USERS: Quota(limit=10, strict=True, free=3),
-            Gauge.APPLICATIONS: Quota(strict=True),
+            Gauge.USERS: Quota(
+                limit=10,
+                strict=True,
+                free=3,
+            ),
+            Gauge.APPLICATIONS: Quota(
+                strict=True,
+            ),
         },
+        Tracker.THROTTLES: [
+            Throttle(
+                categories=[
+                    Category.STANDARD,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=1440,
+                    rate=1440,
+                ),
+            ),
+            Throttle(
+                categories=[
+                    Category.CORE_FAST,
+                    Category.TRACING_FAST,
+                    Category.SERVICES_FAST,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=3600,
+                    rate=3600,
+                ),
+            ),
+            Throttle(
+                categories=[
+                    Category.CORE_SLOW,
+                    Category.TRACING_SLOW,
+                    Category.SERVICES_SLOW,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=180,
+                    rate=1,
+                ),
+            ),
+            Throttle(
+                categories=[
+                    Category.AI_SERVICES,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=30,
+                    rate=90,
+                ),
+            ),
+        ],
     },
     Plan.CLOUD_V0_BUSINESS: {
         Tracker.FLAGS: {
             Flag.HOOKS: True,
             Flag.RBAC: True,
+            Flag.ACCESS: True,
+            Flag.DOMAINS: True,
+            Flag.SSO: True,
         },
         Tracker.COUNTERS: {
-            Counter.TRACES: Quota(monthly=True, free=1_000_000),
-            Counter.EVALUATIONS: Quota(monthly=True, strict=True),
-            Counter.CREDITS: Quota(limit=100, monthly=True, free=100, strict=True),
+            Counter.TRACES: Quota(
+                monthly=True,
+                free=1_000_000,
+                retention=Periods.YEARLY.value,
+            ),
+            Counter.EVALUATIONS: Quota(
+                monthly=True,
+                strict=True,
+            ),
+            Counter.CREDITS: Quota(
+                limit=100,
+                monthly=True,
+                free=100,
+                strict=True,
+            ),
         },
         Tracker.GAUGES: {
-            Gauge.USERS: Quota(strict=True),
-            Gauge.APPLICATIONS: Quota(strict=True),
+            Gauge.USERS: Quota(
+                strict=True,
+            ),
+            Gauge.APPLICATIONS: Quota(
+                strict=True,
+            ),
         },
+        Tracker.THROTTLES: [
+            Throttle(
+                categories=[
+                    Category.STANDARD,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=3600,
+                    rate=3600,
+                ),
+            ),
+            Throttle(
+                categories=[
+                    Category.CORE_FAST,
+                    Category.TRACING_FAST,
+                    Category.SERVICES_FAST,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=36000,
+                    rate=36000,
+                ),
+            ),
+            Throttle(
+                categories=[
+                    Category.CORE_SLOW,
+                    Category.TRACING_SLOW,
+                    Category.SERVICES_SLOW,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=1800,
+                    rate=1,
+                ),
+            ),
+            Throttle(
+                categories=[
+                    Category.AI_SERVICES,
+                ],
+                mode=Mode.INCLUDE,
+                bucket=Bucket(
+                    capacity=300,
+                    rate=900,
+                ),
+            ),
+        ],
     },
     Plan.CLOUD_V0_HUMANITY_LABS: {
         Tracker.FLAGS: {
             Flag.HOOKS: True,
             Flag.RBAC: True,
+            Flag.ACCESS: True,
+            Flag.DOMAINS: True,
+            Flag.SSO: True,
         },
         Tracker.COUNTERS: {
-            Counter.TRACES: Quota(monthly=True),
-            Counter.EVALUATIONS: Quota(monthly=True, strict=True),
+            Counter.TRACES: Quota(
+                monthly=True,
+            ),
+            Counter.EVALUATIONS: Quota(
+                monthly=True,
+                strict=True,
+            ),
         },
         Tracker.GAUGES: {
-            Gauge.USERS: Quota(strict=True),
-            Gauge.APPLICATIONS: Quota(strict=True),
+            Gauge.USERS: Quota(
+                strict=True,
+            ),
+            Gauge.APPLICATIONS: Quota(
+                strict=True,
+            ),
         },
     },
     Plan.CLOUD_V0_X_LABS: {
         Tracker.FLAGS: {
             Flag.HOOKS: False,
             Flag.RBAC: False,
+            Flag.ACCESS: False,
+            Flag.DOMAINS: False,
+            Flag.SSO: False,
         },
         Tracker.COUNTERS: {
-            Counter.TRACES: Quota(monthly=True),
-            Counter.EVALUATIONS: Quota(monthly=True, strict=True),
+            Counter.TRACES: Quota(
+                monthly=True,
+            ),
+            Counter.EVALUATIONS: Quota(
+                monthly=True,
+                strict=True,
+            ),
         },
         Tracker.GAUGES: {
-            Gauge.USERS: Quota(strict=True),
-            Gauge.APPLICATIONS: Quota(strict=True),
+            Gauge.USERS: Quota(
+                strict=True,
+            ),
+            Gauge.APPLICATIONS: Quota(
+                strict=True,
+            ),
         },
     },
     Plan.CLOUD_V0_AGENTA_AI: {
         Tracker.FLAGS: {
             Flag.HOOKS: True,
             Flag.RBAC: True,
+            Flag.ACCESS: True,
+            Flag.DOMAINS: True,
+            Flag.SSO: True,
         },
         Tracker.COUNTERS: {
-            Counter.TRACES: Quota(monthly=True),
-            Counter.EVALUATIONS: Quota(monthly=True, strict=True),
+            Counter.TRACES: Quota(
+                monthly=True,
+            ),
+            Counter.EVALUATIONS: Quota(
+                monthly=True,
+                strict=True,
+            ),
             Counter.CREDITS: Quota(
                 limit=100_000,
                 monthly=True,
@@ -291,8 +618,36 @@ ENTITLEMENTS = {
             ),
         },
         Tracker.GAUGES: {
-            Gauge.USERS: Quota(strict=True),
-            Gauge.APPLICATIONS: Quota(strict=True),
+            Gauge.USERS: Quota(
+                strict=True,
+            ),
+            Gauge.APPLICATIONS: Quota(
+                strict=True,
+            ),
+        },
+    },
+    Plan.SELF_HOSTED_ENTERPRISE: {
+        Tracker.FLAGS: {
+            Flag.HOOKS: True,
+            Flag.RBAC: True,
+            Flag.ACCESS: True,
+            Flag.DOMAINS: True,
+            Flag.SSO: True,
+        },
+        Tracker.COUNTERS: {
+            Counter.TRACES: Quota(
+                monthly=True,
+            ),
+            Counter.EVALUATIONS: Quota(
+                monthly=True,
+            ),
+            Counter.CREDITS: Quota(
+                monthly=True,
+            ),
+        },
+        Tracker.GAUGES: {
+            Gauge.USERS: Quota(),
+            Gauge.APPLICATIONS: Quota(),
         },
     },
 }

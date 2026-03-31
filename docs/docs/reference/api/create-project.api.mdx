@@ -1,0 +1,71 @@
+---
+id: create-project
+title: "Create Project"
+description: "Create Project"
+sidebar_label: "Create Project"
+hide_title: true
+hide_table_of_contents: true
+api: eJytVk1v2zgQ/SvGnFU7DXrSqd5tgRr9iJGkuwfDCMbS2GZDiSw/mngN/ffFkKIk241TpPXFEjkznHlv3lB7cLixkC/gplCaLCwzUJoMOqHqWQk5FIbQ0Z026hsVDjIw9N2TdX+pcgf5HgpVO6odP6LWUhTBdfLNqprXbLGlCvlJGw7sBFl+q7Ei/nc7TZCDdUbUG8jACSd54QvvNxlUeE93Ja3RSzewXyklCeuBw2e8p9G71jCDzmWN0lLTZMlTrQZ1CEMlFx+yWfbB/g5Fz2PN17FgaDhK7+WMp7BgtaptrOry4jX/lWQLIzQDATnc+KIga9dejq5bY8heipsyG6zFf8H4TpTBvd5drSFfnIK5VqZCBzl4L0poss6i9lJCMyj4ahB2NGPbw5MSXU+d9cuxE68PytxbjQX9wSL+TTHbCvozfif9PmrKvdVCm/n5fPs4bTe1uaUYz+kgeaWzhU1q6CR5ThUzmzQxmncKPtJGBt6SuTNKvhijr5bM6JoDpBQr9dNYKcNzwULOlYLnRDug4QjP5Ql+tlNeE2T85vLyVKj/oBRlbNP3xijzcpWW5FBIfhKOKntqIFVxsPsLoIva0YYMNMseFzQGdwO6P6mYYJicdnOusT6TtbgJhEWTp00DGKNb3mV6a+1j0yW+wkKTQeEeB2E6zrqhylg+umd5ZWxi+q3dgM6eosjQ01C8ixT87LBk8uH2dn4SMPbHYWPE62CgoIrcVvHtqJXld41uCzlM2i60kIEl84OMDZx6I3kXtQiExtetc9rmkwn5cSGVL8e4odrhGEU0XHKMwhvhdiHIdD77SLsPhCUZyBfLocEN92HsrEOzjg3U4iMxPnHgwNS7rTLtVAZmlVOKXgwAd/h1f9O/f8RKx/nQBui65PCGTiNF1Gs1bJJpKG40nc8gAwYmInsxfj2+gGO8D4xZghjHXMo9bEN2BGSHH2RAVdAfOMLqbb/BlTFlFdaDeCf0HmTTQcjNO9ESRZBXOHvfMt8No/ABteWmyBew36/Q0lcjm4aXv3syTOUygx9oBK4YmAWreZtI3cM97ZJUavcqaI7NpY8kHo0g7qboMS0K0u6s7XLQt/Orm1vIYNV+xFWqZB+DD6xFfIAcgD8E2Tt0VVjbg8R643lq5BBj8u9/6M6EWA==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create Project"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/projects"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Create Project
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"name":{"type":"string","title":"Name"},"make_default":{"type":"boolean","title":"Make Default","default":false}},"type":"object","required":["name"],"title":"CreateProjectRequest"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"201":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"organization_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Organization Id"},"organization_name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Organization Name"},"workspace_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Workspace Id"},"workspace_name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Workspace Name"},"project_id":{"type":"string","format":"uuid","title":"Project Id"},"project_name":{"type":"string","title":"Project Name"},"is_default_project":{"type":"boolean","title":"Is Default Project","default":false},"user_role":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"User Role"},"is_demo":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Is Demo"}},"type":"object","required":["project_id","project_name"],"title":"ProjectsResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

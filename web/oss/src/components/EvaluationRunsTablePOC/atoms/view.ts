@@ -600,9 +600,9 @@ export const evaluationRunsFilterOptionsAtom = atom((get) => {
             : []
     const evaluatorLoading = Boolean(
         isActive &&
-            (evaluatorQueries?.isLoading ||
-                evaluatorQueries?.isPending ||
-                evaluatorQueries?.isFetching),
+        (evaluatorQueries?.isLoading ||
+            evaluatorQueries?.isPending ||
+            evaluatorQueries?.isFetching),
     )
 
     const evaluatorOptions =

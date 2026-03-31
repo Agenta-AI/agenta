@@ -1,0 +1,184 @@
+/**
+ * Runnable Module
+ *
+ * State management for runnable entities (app revisions, evaluators).
+ *
+ * ## Bridge API (Recommended for UI)
+ *
+ * ```typescript
+ * import { runnableBridge } from '@agenta/entities/runnable'
+ * import { useAtomValue } from 'jotai'
+ * import { useMemo } from 'react'
+ *
+ * // Flattened API (preferred) - memoize atoms for stability
+ * const dataAtom = useMemo(() => runnableBridge.data(runnableId), [runnableId])
+ * const data = useAtomValue(dataAtom)
+ *
+ * const inputPortsAtom = useMemo(() => runnableBridge.inputPorts(runnableId), [runnableId])
+ * const inputPorts = useAtomValue(inputPortsAtom)
+ *
+ * const outputPortsAtom = useMemo(() => runnableBridge.outputPorts(runnableId), [runnableId])
+ * const outputPorts = useAtomValue(outputPortsAtom)
+ *
+ * const configAtom = useMemo(() => runnableBridge.config(runnableId), [runnableId])
+ * const config = useAtomValue(configAtom)
+ *
+ * // Evaluator-specific features
+ * const evalController = runnableBridge.runnable('evaluatorRevision')
+ * const presetsAtom = useMemo(() => evalController.selectors.presets(evaluatorId), [evaluatorId])
+ * const presets = useAtomValue(presetsAtom)
+ * ```
+ */
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+export type {
+    // Entity types
+    EntityType,
+    RunnableType,
+    RunnableExecutionMode,
+    EntitySelection,
+    EntitySelectorConfig,
+    // Connection types
+    InputMappingStatus,
+    InputMapping,
+    OutputConnection,
+    // Testset types
+    TestsetRow,
+    TestsetColumn,
+    // Execution types
+    ExecutionStatus,
+    TraceInfo,
+    ExecutionMetrics,
+    ExecutionResult,
+    StageExecutionResult,
+    ChainProgress,
+    ChainExecutionProgress,
+    RowExecutionResult,
+    // Runnable types
+    RunnableInputPort,
+    RunnableOutputPort,
+    RunnableData,
+    EvaluatorRevisionData,
+    // Path types
+    PathInfo,
+    ExtendedPathInfo,
+    PathItem,
+    // Request payload
+    RequestPayloadData,
+    // State types
+    PlaygroundState,
+    PlaygroundAction,
+    // Node types
+    PlaygroundNode,
+    ExtraColumn,
+    ConnectedTestset,
+} from "./types"
+
+// ============================================================================
+// LOADABLE RE-EXPORTS (convenience)
+// ============================================================================
+
+export {loadableController, testsetLoadable} from "../loadable"
+export type {ConnectedSource} from "../loadable"
+
+// Loadable atoms (pure state)
+export {
+    loadableStateAtomFamily,
+    loadableColumnsAtomFamily,
+    loadableModeAtomFamily,
+    loadableExecutionResultsAtomFamily,
+    loadableDataAtomFamily,
+    loadableConnectedSourceAtomFamily,
+    loadableLinkedRunnableAtomFamily,
+} from "../loadable"
+
+// ============================================================================
+// BRIDGE (Recommended for UI)
+// ============================================================================
+
+export {runnableBridge, loadableColumnsFromRunnableAtomFamily, getRunnableRootItems} from "./bridge"
+export {extractInputPortsFromSchema, extractOutputPortsFromSchema, formatKeyAsName} from "./bridge"
+
+// Re-export loadable bridge for convenience
+export {loadableBridge, createLoadableBridge} from "../loadable"
+
+// Bridge factories for custom configurations
+export {createRunnableBridge} from "../shared"
+
+// Bridge types
+export type {
+    RunnableBridge,
+    RunnableBridgeSelectors,
+    RunnableTypeConfig,
+    CreateRunnableBridgeConfig,
+    RunnablePort,
+    RunnableData as BridgeRunnableData,
+} from "../shared"
+
+// ============================================================================
+// UTILITIES
+// ============================================================================
+
+export {
+    computeTopologicalOrder,
+    computeTopologicalLevels,
+    resolveChainInputs,
+    resolveInputsFromMappings,
+    autoMapInputs,
+    executeRunnable,
+    buildEvaluatorExecutionInputs,
+    validateEvaluatorInputs,
+    // Template variable extraction
+    extractTemplateVariables,
+    extractTemplateVariablesFromJson,
+    extractVariablesFromPrompts,
+    extractVariablesFromConfig,
+    extractVariablesFromEnhancedPrompts,
+} from "./utils"
+export type {ExecuteRunnableOptions} from "./utils"
+
+// ============================================================================
+// DEPLOYMENT
+// ============================================================================
+
+export {publishMutationAtom} from "./deploy"
+export type {PublishPayload, PublishRevisionPayload, PublishVariantPayload} from "./deploy"
+
+// ============================================================================
+// SNAPSHOT ADAPTER
+// ============================================================================
+
+export {snapshotAdapterRegistry} from "./snapshotAdapter"
+export type {
+    RunnableSnapshotAdapter,
+    RunnableDraftPatch,
+    BuildDraftPatchResult,
+} from "./snapshotAdapter"
+
+export {computeShallowDiff, applyShallowPatch} from "./snapshotDiff"
+export type {ShallowDiffOptions} from "./snapshotDiff"
+
+// ============================================================================
+// PROVIDER TYPES (for playground entity injection)
+// ============================================================================
+
+export type {
+    PlaygroundEntityProviders,
+    EntityRevisionSelectors,
+    EvaluatorSelectors,
+    EvaluatorRevisionSelectors,
+    EvaluatorRevisionActions,
+    EntityQueryState,
+    SettingsPreset,
+    AppRevisionRawData,
+    EvaluatorRawData,
+    EvaluatorRevisionRawData,
+    AppRevisionListSelectors,
+    AppRevisionActions,
+    AppRevisionCreateVariantPayload,
+    AppRevisionCommitPayload,
+    AppRevisionCrudResult,
+} from "./providerTypes"

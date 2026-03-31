@@ -1,9 +1,17 @@
+import {LastInputMessageCell, SmartCellContent} from "@agenta/ui/cell-renderers"
+import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
+import {Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 
-import ResultTag from "@/oss/components/ResultTag/ResultTag"
-import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
-import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
+import {sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
+import {
+    getCost,
+    getLatency,
+    getTokens,
+    getTraceInputs,
+    getTraceOutputs,
+} from "@/oss/state/newObservability"
 
 import CostCell from "../components/CostCell"
 import DurationCell from "../components/DurationCell"
@@ -12,13 +20,6 @@ import NodeNameCell from "../components/NodeNameCell"
 import StatusRenderer from "../components/StatusRenderer"
 import TimestampCell from "../components/TimestampCell"
 import UsageCell from "../components/UsageCell"
-import {
-    getCost,
-    getLatency,
-    getTokens,
-    getTraceInputs,
-    getTraceOutputs,
-} from "@/oss/state/newObservability"
 
 interface ObservabilityColumnsProps {
     evaluatorSlugs: string[]
@@ -37,7 +38,15 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             defaultHidden: true,
             fixed: "left",
             render: (_, record) => {
-                return <ResultTag value1={`# ${record.span_id.split("-")[0]}`} />
+                const spanId = record.span_id || ""
+                const shortId = spanId ? spanId.split("-")[0] : "-"
+                return (
+                    <TooltipWithCopyAction copyText={spanId || ""} title="Copy span id">
+                        <Tag className="font-mono bg-[#0517290F]" bordered={false}>
+                            # {shortId}
+                        </Tag>
+                    </TooltipWithCopyAction>
+                )
             },
         },
         {
@@ -48,6 +57,9 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             width: 200,
             onHeaderCell: () => ({
                 style: {minWidth: 200},
+            }),
+            onCell: () => ({
+                style: {verticalAlign: "middle"},
             }),
             fixed: "left",
             render: (_, record) => <NodeNameCell name={record.span_name} type={record.span_type} />,
@@ -74,9 +86,10 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
                 const inputs = getTraceInputs(record)
                 const {data: sanitizedInputs} = sanitizeDataWithBlobUrls(inputs)
                 return (
-                    <TruncatedTooltipTag
-                        children={inputs ? getStringOrJson(sanitizedInputs) : ""}
-                        placement="bottom"
+                    <LastInputMessageCell
+                        value={sanitizedInputs}
+                        keyPrefix={`trace-input-${record.span_id}`}
+                        className="h-[112px] overflow-hidden"
                     />
                 )
             },
@@ -88,10 +101,14 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]",
             render: (_, record) => {
                 const outputs = getTraceOutputs(record)
+                const {data: sanitizedOutputs} = sanitizeDataWithBlobUrls(outputs)
                 return (
-                    <TruncatedTooltipTag
-                        children={outputs ? getStringOrJson(outputs) : ""}
-                        placement="bottom"
+                    <SmartCellContent
+                        value={sanitizedOutputs}
+                        keyPrefix={`trace-output-${record.span_id}`}
+                        maxLines={4}
+                        chatPreference="output"
+                        className="h-[112px] overflow-hidden"
                     />
                 )
             },

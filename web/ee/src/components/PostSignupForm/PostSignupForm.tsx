@@ -7,15 +7,12 @@ import {useRouter} from "next/router"
 import {MultipleSurveyQuestion, SurveyQuestion, SurveyQuestionType} from "posthog-js"
 
 import ListOfOrgs from "@/oss/components/Sidebar/components/ListOfOrgs"
-import useURL from "@/oss/hooks/useURL"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {useSurvey} from "@/oss/lib/helpers/analytics/hooks/useSurvey"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
-import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 import {useStyles} from "./assets/styles"
-import {OnboardingScreen} from "./OnboardingScreen"
 
 // Fisher-Yates shuffle algorithm
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -65,13 +62,14 @@ type AnySurveyQuestion = SurveyQuestion & {
     originalQuestionIndex?: number
 }
 
-type QuestionMeta = {
+interface QuestionMeta {
     question: AnySurveyQuestion
     index: number
     originalIndex: number
 }
 
 const PostSignupForm = () => {
+    console.log("[post-signup] form mount")
     const [form] = Form.useForm()
     const router = useRouter()
     const posthog = usePostHogAg()
@@ -80,64 +78,30 @@ const PostSignupForm = () => {
     const {orgs} = useOrgData()
     const formData = Form.useWatch([], form)
     const [currentStep, setCurrentStep] = useState(0)
-    const [showOnboarding, setShowOnboarding] = useState(false)
     const {survey, loading, error} = useSurvey("Signup 2")
-    const {baseAppURL} = useURL()
     const [autoRedirectAttempted, setAutoRedirectAttempted] = useState(false)
 
-    // Safely handle redirect query as string | string[]
-    const redirectParam = useMemo(() => {
-        const r = router.query.redirect
-        if (Array.isArray(r)) return r[0] || ""
-        return (r as string) || ""
-    }, [router.query.redirect])
-
-    const redirect = useCallback(
-        async (target: string | null | undefined) => {
-            if (!target) return false
-
-            try {
-                const normalizedTarget = target.split("?")[0]
-                const latestPath = router.asPath.split("?")[0]
-
-                if (normalizedTarget === latestPath) return false
-
-                await router.replace(target)
-                return true
-            } catch (error) {
-                console.error("post-signup redirect failed", error)
-                return false
-            }
-        },
-        [router],
-    )
-
-    const navigateToPostSignupDestination = useCallback(async () => {
-        if (await redirect(redirectParam)) return
-        if (await redirect(baseAppURL)) return
-
-        try {
-            const context = await waitForWorkspaceContext({
-                timeoutMs: 1500,
-                requireProjectId: false,
-                requireOrgData: true,
-            })
-            const fallbackPath = buildPostLoginPath(context)
-
-            if (await redirect(fallbackPath)) return
-        } catch (error) {
-            console.error("post-signup fallback redirect failed", error)
-        }
-
-        await redirect("/w")
-    }, [baseAppURL, redirect, redirectParam])
+    useEffect(() => {
+        console.log("[post-signup] survey state", {
+            hasSurvey: Boolean(survey),
+            questionCount: survey?.questions?.length ?? 0,
+            loading,
+            error: error ? {code: (error as any).code, message: error.message} : null,
+        })
+    }, [error, loading, survey])
 
     useEffect(() => {
         if (!error || autoRedirectAttempted) return
+        const errorCode = (error as any).code as string | undefined
+        const shouldRedirect =
+            errorCode === "survey-unavailable" || errorCode === "posthog-not-configured"
+        if (!shouldRedirect) {
+            return
+        }
 
         setAutoRedirectAttempted(true)
-        void navigateToPostSignupDestination()
-    }, [autoRedirectAttempted, error, navigateToPostSignupDestination])
+        void router.push("/get-started")
+    }, [autoRedirectAttempted, error, router])
 
     /**
      * Wrap all survey questions with their array index and a stable "originalIndex".
@@ -260,18 +224,10 @@ const PostSignupForm = () => {
             } catch (error) {
                 console.error("Error submitting form:", error)
             } finally {
-                setShowOnboarding(true)
+                router.push("/get-started")
             }
         },
-        [
-            allQuestions,
-            form,
-            navigateToPostSignupDestination,
-            posthog,
-            survey?.id,
-            survey?.name,
-            user?.email,
-        ],
+        [allQuestions, form, router, posthog, survey?.id, survey?.name, user?.email],
     )
 
     // Memoize shuffled choices keyed by the stable question index
@@ -400,7 +356,7 @@ const PostSignupForm = () => {
                 >
                     {isMultiple ? (
                         <Checkbox.Group>
-                            <Space direction="vertical">
+                            <Space orientation="vertical">
                                 {choices.map((choice: string) => (
                                     <Checkbox key={choice} value={choice}>
                                         {choice}
@@ -410,7 +366,7 @@ const PostSignupForm = () => {
                         </Checkbox.Group>
                     ) : (
                         <Radio.Group>
-                            <Space direction="vertical" className="w-full">
+                            <Space orientation="vertical" className="w-full">
                                 {choices.map((choice: string) => (
                                     <Radio key={choice} value={choice}>
                                         {choice}
@@ -467,61 +423,53 @@ const PostSignupForm = () => {
                     src="/assets/Agenta-logo-full-light.png"
                     alt="agenta-ai"
                     width={114}
-                    height={40}
+                    height={39}
                 />
 
                 <ListOfOrgs
                     collapsed={false}
                     interactive={true}
                     orgSelectionEnabled={false}
-                    buttonProps={{className: "w-[186px] !p-1 !h-10 rounded"}}
+                    buttonProps={{className: "w-[236px] !p-1 !h-10 rounded"}}
                     overrideOrgId={orgs && orgs.length > 0 ? orgs[0]?.id : undefined}
                 />
             </section>
 
-            {showOnboarding ? (
-                <OnboardingScreen />
-            ) : (
-                <Spin spinning={isSurveyLoading}>
-                    {showSurveyForm && (
-                        <Form
-                            layout="vertical"
-                            form={form}
-                            onFinish={handleSubmitFormData}
-                            className={classes.mainContainer}
-                        >
-                            <div className={classes.container}>
-                                <div className="space-y-1">
-                                    <Typography.Paragraph>
-                                        {currentStep + 1}/{totalSteps || 1}
-                                    </Typography.Paragraph>
-                                    <Typography.Title level={3}>
-                                        {currentStep === 0
-                                            ? "Tell us about yourself"
-                                            : "Almost done"}
-                                    </Typography.Title>
-                                </div>
-
-                                <div>{currentQuestions.map((meta) => renderQuestion(meta))}</div>
+            <Spin spinning={isSurveyLoading}>
+                {showSurveyForm && (
+                    <Form
+                        layout="vertical"
+                        form={form}
+                        onFinish={handleSubmitFormData}
+                        className={classes.mainContainer}
+                    >
+                        <div className={classes.container}>
+                            <div className="space-y-1">
+                                <Typography.Paragraph>
+                                    {currentStep + 1}/{totalSteps || 1}
+                                </Typography.Paragraph>
+                                <Typography.Title level={3}>
+                                    {currentStep === 0 ? "Tell us about yourself" : "Almost done"}
+                                </Typography.Title>
                             </div>
 
-                            <Button
-                                size="large"
-                                type="primary"
-                                onClick={
-                                    currentStep < totalSteps - 1 ? handleNextStep : form.submit
-                                }
-                                className="w-full"
-                                iconPosition="end"
-                                icon={<ArrowRight className="mt-[3px]" />}
-                                disabled={!isCurrentStepValid}
-                            >
-                                {currentStep < totalSteps - 1 ? "Continue" : "Submit"}
-                            </Button>
-                        </Form>
-                    )}
-                </Spin>
-            )}
+                            <div>{currentQuestions.map((meta) => renderQuestion(meta))}</div>
+                        </div>
+
+                        <Button
+                            size="large"
+                            type="primary"
+                            onClick={currentStep < totalSteps - 1 ? handleNextStep : form.submit}
+                            className="w-full min-h-[32px] mt-2"
+                            iconPlacement="end"
+                            icon={<ArrowRight className="mt-[3px]" />}
+                            disabled={!isCurrentStepValid}
+                        >
+                            {currentStep < totalSteps - 1 ? "Continue" : "Submit"}
+                        </Button>
+                    </Form>
+                )}
+            </Spin>
         </>
     )
 }

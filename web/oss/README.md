@@ -26,6 +26,7 @@ To ensure ESLint functions properly, add the following configuration:
 }
 ```
 
+
 #### Prettier
 
 To ensure Prettier functions properly, add the following configuration:

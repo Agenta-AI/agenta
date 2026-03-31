@@ -5,7 +5,6 @@ import {
     variantDrawerAtom,
     drawerVariantIdAtom,
 } from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/store/variantDrawerStore"
-import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
 import {isVariantSupportedRoute} from "./routeMatchers"
 
@@ -25,7 +24,13 @@ export const clearVariantDrawerState = () => {
     }
 }
 
-const resolveDrawerTypeForPath = (pathname: string): "variant" | "deployment" => {
+const resolveDrawerTypeForPath = (
+    pathname: string,
+    tab?: string | null,
+): "variant" | "deployment" => {
+    if (tab === "deployments") {
+        return "deployment"
+    }
     if (pathname.includes("/deployments")) {
         return "deployment"
     }
@@ -41,6 +46,7 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
         const revisionParam = url.searchParams.get("revisionId")
         const resolvedRevisionId = revisionParam?.trim() || undefined
         const drawerTypeParam = url.searchParams.get("drawerType")
+        const tabParam = url.searchParams.get("tab")
         const routeSupportsVariant = isVariantSupportedRoute(url.pathname)
         const currentState = store.get(variantDrawerAtom)
 
@@ -54,10 +60,8 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
 
         const ensureUrlClean = () => {
             let mutated = false
-            if (url.searchParams.has("revisions")) {
-                url.searchParams.delete("revisions")
-                mutated = true
-            }
+            // Note: "revisions" param is owned by the playground URL sync
+            // (syncPlaygroundStateFromUrl), not the variant drawer. Don't touch it here.
             if (url.searchParams.has("drawerType")) {
                 const sanitized = sanitizeDrawerType(url.searchParams.get("drawerType"))
                 if (!sanitized) {
@@ -77,13 +81,10 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
         }
 
         if (!routeSupportsVariant) {
-            if (
-                (revisionParam && revisionParam.trim()) ||
-                url.searchParams.has("revisions") ||
-                url.searchParams.has("drawerType")
-            ) {
+            // Note: "revisions" param is owned by the playground URL sync
+            // (syncPlaygroundStateFromUrl), not the variant drawer. Don't touch it here.
+            if ((revisionParam && revisionParam.trim()) || url.searchParams.has("drawerType")) {
                 url.searchParams.delete("revisionId")
-                url.searchParams.delete("revisions")
                 url.searchParams.delete("drawerType")
                 const newPath = `${url.pathname}${url.search}${url.hash}`
                 void Router.replace(newPath, undefined, {shallow: true}).catch((error) => {
@@ -107,7 +108,7 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
         ensureUrlClean()
 
         const desiredType =
-            sanitizeDrawerType(drawerTypeParam) ?? resolveDrawerTypeForPath(url.pathname)
+            sanitizeDrawerType(drawerTypeParam) ?? resolveDrawerTypeForPath(url.pathname, tabParam)
 
         if (
             currentState.selectedVariantId === resolvedRevisionId &&
@@ -120,7 +121,7 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
 
         store.set(variantDrawerAtom, (draft) => {
             if (!draft.variantsAtom) {
-                draft.variantsAtom = revisionListAtom
+                draft.variantsAtom = undefined
             }
             draft.type = desiredType
             draft.open = true

@@ -28,9 +28,15 @@ const extractPreviewTestsetReference = (
 
         const directMatch = refs.testset ?? refs.test_set ?? refs.testsetVariant
         if (directMatch && directMatch.id === testsetId) {
+            // Extract testsetRevision ID if available (camelCase from snakeToCamelCaseKeys)
+            const revisionRef = refs.testsetRevision ?? refs.testset_revision
+            const revisionId =
+                revisionRef && typeof revisionRef.id === "string" ? revisionRef.id : null
+
             return {
                 id: testsetId,
                 name: directMatch.name ?? null,
+                revisionId,
             }
         }
 
@@ -38,9 +44,15 @@ const extractPreviewTestsetReference = (
         if (Array.isArray(arrayRefs)) {
             for (const entry of arrayRefs) {
                 if (entry && entry.id === testsetId) {
+                    // Extract testsetRevision ID if available (camelCase from snakeToCamelCaseKeys)
+                    const revisionRef = refs.testsetRevision ?? refs.testset_revision
+                    const revisionId =
+                        revisionRef && typeof revisionRef.id === "string" ? revisionRef.id : null
+
                     return {
                         id: testsetId,
                         name: entry.name ?? null,
+                        revisionId,
                     }
                 }
             }
@@ -94,15 +106,25 @@ export const usePreviewTestsetReference = (
         [stepReferences, testsetId],
     )
 
-    // Return cached value if query is still loading
-    const reference = queryReference ?? cachedReference ?? embeddedReference
+    // Merge references: use queryReference for name but preserve revisionId from embeddedReference
+    // since the API doesn't return revision info but stepReferences contains it
+    const reference = useMemo(() => {
+        const base = queryReference ?? cachedReference ?? embeddedReference
+        if (!base) return null
+        // If we have embedded reference with revisionId, merge it with the base
+        const revisionId = embeddedReference?.revisionId ?? base.revisionId ?? null
+        return {
+            ...base,
+            revisionId,
+        }
+    }, [queryReference, cachedReference, embeddedReference])
     const hasReference = Boolean(reference)
     const isLoading = Boolean(
         enabled &&
-            effectiveProjectId &&
-            testsetId &&
-            !hasReference &&
-            (query?.isLoading || query?.isFetching || query?.isPending),
+        effectiveProjectId &&
+        testsetId &&
+        !hasReference &&
+        (query?.isLoading || query?.isFetching || query?.isPending),
     )
 
     return {reference, isLoading}

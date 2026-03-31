@@ -17,9 +17,10 @@ yarn-error.log*
 next-env.d.ts
 
 # test output
-/test-results/
-/playwright-report/
+/results/
+/reports/
 /blob-report/
 /playwright/.cache/
 
 state.json
+test-project.json

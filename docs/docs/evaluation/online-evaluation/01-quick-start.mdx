@@ -1,0 +1,38 @@
+---
+title: "Online Evaluation"
+sidebar_label: "Quick Start"
+description: "Run continuous evaluations on production traces with Online Evaluation"
+sidebar_position: 1
+---
+import { Stream } from '@cloudflare/stream-react';
+
+Online Evaluation allows you to continuously evaluate your LLM application on production traces. Instead of running evaluations on static test sets, you can automatically sample and evaluate real traffic.
+
+<Stream controls src="0cba3038f5459793ab3c3f488ee232e8" height="400px" />
+
+## Setting Up Online Evaluation
+
+Navigate to the **Evaluations** page and select the **Online Evaluation** tab.
+
+Click **Create Online Evaluation** to set up a new evaluation:
+
+1. **Name**: Provide a descriptive name for your online evaluation.
+2. **Evaluator**: Select one or more evaluators to run on sampled traces.
+3. **Trace Filter**: Define which traces to evaluate (e.g., filter by application, variant, or metadata).
+4. **Sampling Rate**: Set the percentage of matching traces to evaluate (e.g., 10% to sample 1 in 10 traces).
+
+Click **Create** to start the online evaluation. Results will appear as traces are processed.
+
+## Viewing Results
+
+Online evaluation results are displayed in real-time as traces are sampled and evaluated. You can:
+
+- View aggregated metrics over time
+- Drill down into individual evaluated traces
+- Compare performance across different time periods
+
+## Use Cases
+
+- **Production Monitoring**: Continuously monitor model quality on real user inputs
+- **Regression Detection**: Catch performance degradation early
+- **A/B Testing**: Compare different model versions on live traffic

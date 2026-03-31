@@ -1,14 +1,14 @@
-import {type ComponentProps, useMemo, useState} from "react"
+import {type ComponentProps, useEffect, useMemo, useState} from "react"
 
 import {Spin, Table, TableColumnType} from "antd"
 import {TableRowSelection} from "antd/es/table/interface"
 import {atom, useAtom} from "jotai"
 
 import useURL from "@/oss/hooks/useURL"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {variantTableSelectionAtomFamily} from "@/oss/state/variant/atoms/selection"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 
 import ResizableTitle from "../../ResizableTitle"
+import {variantTableSelectionAtomFamily} from "../store/selectionAtoms"
 
 import {getColumns} from "./assets/getVariantColumns"
 
@@ -25,6 +25,7 @@ type VariantsTableProps = {
     showRevisionsAsChildren?: boolean
     selectionScope?: string
     showStableName?: boolean
+    showUpdatedOn?: boolean
 } & ComponentProps<typeof Table>
 
 const VariantsTable = ({
@@ -40,10 +41,21 @@ const VariantsTable = ({
     showRevisionsAsChildren = false,
     selectionScope,
     showStableName = false,
+    showUpdatedOn = false,
     ...props
 }: VariantsTableProps) => {
     const {appURL} = useURL()
-    const initialColumns = useMemo(
+    // Always call hooks in a stable order; create a stable atom depending on selectionScope
+    const selectionAtom = useMemo(
+        () =>
+            selectionScope
+                ? variantTableSelectionAtomFamily(selectionScope)
+                : atom<React.Key[]>([]),
+        [selectionScope],
+    )
+    const [scopedSelectedKeys, setScopedSelectedKeys] = useAtom(selectionAtom)
+
+    const baseColumns = useMemo(
         () =>
             getColumns({
                 showEnvBadges,
@@ -51,7 +63,9 @@ const VariantsTable = ({
                 handleOpenInPlayground,
                 showActionsDropdown,
                 showStableName,
+                showUpdatedOn,
                 appURL,
+                selectedRowKeys: selectionScope ? scopedSelectedKeys : undefined,
             }),
         [
             handleOpenDetails,
@@ -59,11 +73,23 @@ const VariantsTable = ({
             showEnvBadges,
             showActionsDropdown,
             showStableName,
+            showUpdatedOn,
             appURL,
+            selectionScope,
+            scopedSelectedKeys,
         ],
     )
 
-    const [columns, setColumns] = useState(initialColumns)
+    const [columns, setColumns] = useState(baseColumns)
+
+    useEffect(() => {
+        setColumns((prev) => {
+            return baseColumns.map((col) => {
+                const prevCol = prev.find((p) => p.key === col.key)
+                return prevCol ? {...col, width: prevCol.width ?? col.width} : col
+            })
+        })
+    }, [baseColumns])
 
     const handleResize =
         (key: string) =>
@@ -87,16 +113,6 @@ const VariantsTable = ({
         }))
     }, [columns])
 
-    // Always call hooks in a stable order; create a stable atom depending on selectionScope
-    const selectionAtom = useMemo(
-        () =>
-            selectionScope
-                ? variantTableSelectionAtomFamily(selectionScope)
-                : atom<React.Key[]>([]),
-        [selectionScope],
-    )
-    const [scopedSelectedKeys, setScopedSelectedKeys] = useAtom(selectionAtom)
-
     return (
         <Spin spinning={isLoading}>
             <Table
@@ -118,7 +134,7 @@ const VariantsTable = ({
                 }
                 className="ph-no-capture"
                 rowKey={(props as any)?.rowKey || "id"}
-                columns={(enableColumnResize ? mergedColumns : initialColumns) as any}
+                columns={(enableColumnResize ? mergedColumns : baseColumns) as any}
                 dataSource={variants as EnhancedVariant[]}
                 scroll={{x: "max-content"}}
                 bordered
@@ -128,9 +144,10 @@ const VariantsTable = ({
                     },
                 }}
                 pagination={false}
-                onRow={(record: any) => ({
+                onRow={(record: any, index) => ({
                     className: "variant-table-row",
                     style: {cursor: "pointer"},
+                    "data-tour": index === 0 ? "version-row" : undefined,
                     onClick: () => {
                         onRowClick(record)
                     },

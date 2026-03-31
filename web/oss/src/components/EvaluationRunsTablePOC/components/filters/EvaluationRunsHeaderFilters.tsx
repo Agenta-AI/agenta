@@ -9,9 +9,8 @@ import {
     getReferenceToneColors,
     type ReferenceTone,
 } from "@/oss/components/References/referenceColors"
-import {useTestsetsData} from "@/oss/state/testset"
+import {testsetsListQueryAtomFamily} from "@/oss/state/entities/testset"
 
-import {evaluationRunsTableComponentSliceAtom} from "../../atoms/context"
 import {
     evaluationRunsFilterOptionsAtom,
     evaluationRunsFiltersSummaryAtom,
@@ -100,10 +99,9 @@ const isReferenceChipPending = (payload: {label?: string; value: string; loading
 
 const FiltersSummary = () => {
     const summary = useAtomValue(evaluationRunsFiltersSummaryAtom)
-    const {projectId} = useAtomValue(evaluationRunsTableComponentSliceAtom)
-    const {testsets, isLoading: testsetsLoading} = useTestsetsData({
-        enabled: Boolean(projectId && summary.testsetFilters.length > 0),
-    })
+    const testsetsQuery = useAtomValue(testsetsListQueryAtomFamily(null))
+    const testsets = testsetsQuery.data?.testsets ?? []
+    const testsetsLoading = testsetsQuery.isPending
     const hasEvaluatorFilters = summary.evaluatorFilters.length > 0
     const hasAppFilters = summary.appFilters.length > 0
     const hasVariantFilters = summary.variantFilters.length > 0
@@ -289,7 +287,7 @@ const FiltersSummary = () => {
             variantOptions.isLoading,
         )
         push(
-            "Testsets",
+            "Test sets",
             summary.testsetFilters,
             "testset",
             testsetLabels,
@@ -442,11 +440,6 @@ const EvaluationRunsHeaderFilters = () => {
                 buttonType={filtersButtonState.buttonType as "default" | "primary"}
                 onOpenChange={handleFiltersOpenChange}
                 popoverProps={{
-                    overlayStyle: {
-                        backgroundColor: "transparent",
-                        boxShadow: "none",
-                        padding: 0,
-                    },
                     arrow: false,
                     styles: {
                         body: {
@@ -454,6 +447,11 @@ const EvaluationRunsHeaderFilters = () => {
                             backgroundColor: "transparent",
                             boxShadow: "none",
                             border: "none",
+                        },
+                        root: {
+                            backgroundColor: "transparent",
+                            boxShadow: "none",
+                            padding: 0,
                         },
                     },
                 }}

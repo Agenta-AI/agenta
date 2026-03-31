@@ -1,6 +1,40 @@
 import enum
 from pydantic import BaseModel, Field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Final, Literal, Optional, TypeAlias
+
+
+CANONICAL_WORKSPACE_ROLES: Final[tuple[str, ...]] = (
+    "owner",
+    "admin",
+    "developer",
+    "editor",
+    "annotator",
+    "viewer",
+)
+CANONICAL_ROLE_DESCRIPTIONS: Final[dict[str, str]] = {
+    "owner": "Can fully manage the workspace, including adding and removing members.",
+    "admin": "Can manage workspace settings and members but cannot delete the workspace.",
+    "developer": "Can deploy, export, and manage API keys and environments.",
+    "editor": "Can edit prompts, testsets, evaluators, and workflows.",
+    "annotator": "Can run evaluations and annotate traces.",
+    "viewer": "Can view the workspace content but cannot make changes.",
+}
+CanonicalWorkspaceRole: TypeAlias = Literal[
+    "owner",
+    "admin",
+    "developer",
+    "editor",
+    "annotator",
+    "viewer",
+]
+
+
+class OrganizationFlags(BaseModel):
+    is_demo: bool = False
+
+
+class OrganizationQueryFlags(BaseModel):
+    is_demo: Optional[bool] = None
 
 
 class ConfigDB(BaseModel):
@@ -53,16 +87,6 @@ class EvaluationScenarioOutput(BaseModel):
     result: Result
     cost: Optional[float] = None
     latency: Optional[float] = None
-
-
-class HumanEvaluationScenarioInput(BaseModel):
-    input_name: str
-    input_value: Any
-
-
-class HumanEvaluationScenarioOutput(BaseModel):
-    variant_id: str
-    variant_output: Any
 
 
 class AppType(str, enum.Enum):

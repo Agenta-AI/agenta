@@ -1,5 +1,9 @@
-from typing import Optional, List, Tuple, Union
+from typing import Optional, List, Union, TYPE_CHECKING
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from oss.src.core.environments.service import EnvironmentsService
+    from oss.src.core.embeds.service import EmbedsService
 
 from oss.src.utils.logging import get_module_logger
 
@@ -39,15 +43,17 @@ from oss.src.core.workflows.dtos import (
     WorkflowRevisionEdit,
     WorkflowRevisionQuery,
     WorkflowRevisionCommit,
+    WorkflowRevisionData,
     #
-    WorkflowServiceInterface,
     WorkflowServiceRequest,
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
-    #
-    WorkflowRevisionData,
-    WorkflowServiceRequestData,
-    WorkflowServiceResponseData,
+)
+
+# Resolution is now handled by EmbedsService
+from oss.src.core.embeds.dtos import (
+    ErrorPolicy,
+    ResolutionInfo,
 )
 
 from oss.src.services.auth_service import sign_secret_token
@@ -58,9 +64,9 @@ from agenta.sdk.decorators.running import (
     inspect_workflow as _inspect_workflow,
 )
 from agenta.sdk.models.workflows import (
-    WorkflowServiceRequest,
-    WorkflowServiceBatchResponse,
-    WorkflowServiceStreamResponse,
+    WorkflowServiceRequest,  # noqa: F811
+    WorkflowServiceBatchResponse,  # noqa: F811
+    WorkflowServiceStreamResponse,  # noqa: F811
 )
 
 log = get_module_logger(__name__)
@@ -74,8 +80,13 @@ class WorkflowsService:
         self,
         *,
         workflows_dao: GitDAOInterface,
+        #
+        environments_service: Optional["EnvironmentsService"] = None,  # type: ignore
+        embeds_service: Optional["EmbedsService"] = None,  # type: ignore
     ):
         self.workflows_dao = workflows_dao
+        self.environments_service = environments_service
+        self.embeds_service = embeds_service
 
     # workflows ----------------------------------------------------------------
 
@@ -115,11 +126,15 @@ class WorkflowsService:
         project_id: UUID,
         #
         workflow_ref: Reference,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[Workflow]:
         artifact = await self.workflows_dao.fetch_artifact(
             project_id=project_id,
             #
             artifact_ref=workflow_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not artifact:
@@ -278,12 +293,16 @@ class WorkflowsService:
         #
         workflow_ref: Optional[Reference] = None,
         workflow_variant_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[WorkflowVariant]:
         variant = await self.workflows_dao.fetch_variant(
             project_id=project_id,
             #
             artifact_ref=workflow_ref,
             variant_ref=workflow_variant_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not variant:
@@ -481,6 +500,8 @@ class WorkflowsService:
         workflow_ref: Optional[Reference] = None,
         workflow_variant_ref: Optional[Reference] = None,
         workflow_revision_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[WorkflowRevision]:
         if not workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
             return None
@@ -490,6 +511,8 @@ class WorkflowsService:
                 project_id=project_id,
                 #
                 workflow_ref=workflow_ref,
+                #
+                include_archived=include_archived,
             )
 
             if not workflow:
@@ -504,6 +527,8 @@ class WorkflowsService:
                 project_id=project_id,
                 #
                 workflow_ref=workflow_ref,
+                #
+                include_archived=include_archived,
             )
 
             if not workflow_variant:
@@ -519,6 +544,8 @@ class WorkflowsService:
             #
             variant_ref=workflow_variant_ref,
             revision_ref=workflow_revision_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not revision:
@@ -653,6 +680,8 @@ class WorkflowsService:
         project_id: UUID,
         #
         workflow_revisions_log: WorkflowRevisionsLog,
+        #
+        include_archived: bool = False,
     ) -> List[WorkflowRevision]:
         _revisions_log = RevisionsLog(
             **workflow_revisions_log.model_dump(mode="json"),
@@ -662,6 +691,8 @@ class WorkflowsService:
             project_id=project_id,
             #
             revisions_log=_revisions_log,
+            #
+            include_archived=include_archived,
         )
 
         _workflow_revisions = [
@@ -768,5 +799,103 @@ class WorkflowsService:
         return await _inspect_workflow(
             request=request,
         )
+
+    async def resolve_workflow_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        workflow_ref: Optional[Reference] = None,
+        workflow_variant_ref: Optional[Reference] = None,
+        workflow_revision_ref: Optional[Reference] = None,
+        #
+        workflow_revision: Optional["WorkflowRevision"] = None,
+        #
+        max_depth: int = 10,
+        max_embeds: int = 100,
+        error_policy: str = "exception",
+        #
+        include_archived: Optional[bool] = True,
+    ) -> Optional[tuple["WorkflowRevision", "ResolutionInfo"]]:
+        """
+        Fetch and resolve a workflow revision with embedded references.
+
+        Resolves embedded workflow and environment references within the
+        workflow revision's configuration data.
+
+        When `workflow_revision` is provided, skips the fetch step and resolves
+        its data inline. Only revision.data is used — id and other metadata are
+        ignored. Use this when the caller already holds the revision (e.g. SDK).
+
+        Args:
+            project_id: Project scope
+            user_id: User performing resolution
+            workflow_ref: Workflow reference (mutually exclusive with workflow_revision)
+            workflow_variant_ref: Variant reference (mutually exclusive with workflow_revision)
+            workflow_revision_ref: Revision reference (mutually exclusive with workflow_revision)
+            workflow_revision: Revision to resolve inline (skips fetch when set)
+            max_depth: Maximum nesting depth for embeds
+            max_embeds: Maximum total embeds allowed
+            error_policy: How to handle errors (exception, placeholder, keep)
+            include_archived: Include archived entities
+
+        Returns:
+            Tuple of (WorkflowRevision with resolved configuration, ResolutionInfo metadata)
+
+        Raises:
+            Various embed resolution errors based on error_policy
+        """
+        if not self.embeds_service:
+            raise RuntimeError("EmbedsService not initialized")
+
+        if workflow_revision is not None:
+            # Inline mode: resolve the provided revision's data without fetching
+            if not workflow_revision.data:
+                return None
+            (
+                resolved_data,
+                resolution_info,
+            ) = await self.embeds_service.resolve_configuration(
+                project_id=project_id,
+                configuration=workflow_revision.data.model_dump(mode="json"),
+                max_depth=max_depth,
+                max_embeds=max_embeds,
+                error_policy=ErrorPolicy(error_policy),
+                include_archived=include_archived,
+            )
+            workflow_revision.data = WorkflowRevisionData(**resolved_data)
+            return (workflow_revision, resolution_info)
+
+        # Stored-revision mode: fetch by reference then resolve
+        revision = await self.fetch_workflow_revision(
+            project_id=project_id,
+            #
+            workflow_ref=workflow_ref,
+            workflow_variant_ref=workflow_variant_ref,
+            workflow_revision_ref=workflow_revision_ref,
+            #
+            include_archived=include_archived,
+        )
+
+        if not revision or not revision.data:
+            return None
+
+        (
+            revision_data,
+            resolution_info,
+        ) = await self.embeds_service.resolve_configuration(
+            project_id=project_id,
+            configuration=revision.data.model_dump(mode="json"),
+            max_depth=max_depth,
+            max_embeds=max_embeds,
+            error_policy=ErrorPolicy(error_policy),
+            include_archived=include_archived,
+        )
+
+        # Update revision with resolved configuration
+        revision.data = WorkflowRevisionData(**revision_data)
+
+        return (revision, resolution_info)
 
     # --------------------------------------------------------------------------

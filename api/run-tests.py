@@ -9,14 +9,22 @@ from dotenv import load_dotenv
 
 TYPES = {
     "license": ["ee", "oss"],
-    "coverage": ["smoke"],
+    "coverage": ["smoke", "full"],
     "lens": ["functional", "performance", "security"],
     "plan": ["hobby", "pro", "business", "enterprise"],
-    "role": ["owner", "admin", "editor", "viewer"],
+    "role": ["owner", "admin", "developer", "editor", "annotator", "viewer"],
     "path": ["happy", "grumpy"],
     "case": ["typical", "edge"],
     "speed": ["fast", "slow"],
+    "cost": ["free", "paid"],
 }
+
+
+def _has_pytest_option(pytest_args: Optional[tuple], option: str) -> bool:
+    if not pytest_args:
+        return False
+
+    return any(arg == option or arg.startswith(f"{option}=") for arg in pytest_args)
 
 
 @click.command()
@@ -42,12 +50,13 @@ TYPES = {
     default="oss",
     type=click.Choice(TYPES["license"]),
     help="License [oss|ee]",
+    envvar="AGENTA_LICENSE",
     show_default=True,
 )
 @click.option(
     "--coverage",
     type=click.Choice(TYPES["coverage"]),
-    help="Coverage [smoke]",
+    help="Coverage [smoke|full] (full = no coverage marker filter)",
     show_default=True,
 )
 @click.option(
@@ -64,7 +73,7 @@ TYPES = {
 @click.option(
     "--role",
     type=click.Choice(TYPES["role"]),
-    help="Role [owner|admin|editor|viewer]",
+    help="Role [owner|admin|developer|editor|annotator|viewer]",
 )
 @click.option(
     "--path",
@@ -80,6 +89,11 @@ TYPES = {
     "--speed",
     type=click.Choice(TYPES["speed"]),
     help="Speed [fast|slow]",
+)
+@click.option(
+    "--cost",
+    type=click.Choice(TYPES["cost"]),
+    help="Cost [free|paid]",
 )
 @click.option(
     "--scope",
@@ -102,6 +116,7 @@ def run_tests(
     path: Optional[str] = None,
     case: Optional[str] = None,
     speed: Optional[str] = None,
+    cost: Optional[str] = None,
     scope: Optional[str] = None,
     pytest_args: Optional[tuple] = None,
 ):
@@ -142,9 +157,14 @@ def run_tests(
         ("PATH", path),
         ("CASE", case),
         ("SPEED", speed),
+        ("COST", cost),
         ("SCOPE", scope),
     ]:
         if value:
+            if name == "COVERAGE" and value == "full":
+                os.environ.pop("COVERAGE", None)
+                click.echo("COVERAGE=full (coverage markers disabled)")
+                continue
             os.environ[name] = value
             click.echo(f"{name}={value}")
             marker_args.append(f"{name.lower()}_{value}")
@@ -154,13 +174,25 @@ def run_tests(
     else:
         test_dirs = [f"{license}/tests/pytest"]
 
-    cmd = ["pytest"] + test_dirs
+    # If pytest_args contains test paths, use them instead of test_dirs
+    extra_paths = [a for a in (pytest_args or []) if not a.startswith("-")]
+    cmd = ["pytest"] + (extra_paths if extra_paths else test_dirs)
 
     if marker_args:
         marker_expr = " and ".join(marker_args)
         cmd += ["-m", marker_expr]
+
+    results_dir = os.path.join(license, "tests", "results")
+    os.makedirs(results_dir, exist_ok=True)
+
+    if not _has_pytest_option(pytest_args, "--junit-xml"):
+        cmd.append(f"--junit-xml={results_dir}/junit.xml")
+    if not _has_pytest_option(pytest_args, "--html"):
+        cmd.append(f"--html={results_dir}/report.html")
+
     if pytest_args:
-        cmd += list(pytest_args)
+        flags_only = [a for a in pytest_args if a.startswith("-")]
+        cmd += flags_only
 
     click.echo(f"Executing: {' '.join(cmd)}")
 

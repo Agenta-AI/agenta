@@ -44,6 +44,7 @@ def compute_next_windowing(
     entities: List[Any],
     attribute: str,
     windowing: Optional[Windowing],
+    order: str = "ascending",
 ) -> Optional[Windowing]:
     if not windowing or not windowing.limit or not entities:
         return None
@@ -68,20 +69,46 @@ def compute_next_windowing(
 
     order_attribute_name = attribute.lower()
 
-    if not time_attribute_value or not id_attribute_value:
+    if not id_attribute_value:
         return None
 
+    # Determine effective order (windowing.order overrides default)
+    effective_order = (windowing.order or order).lower()
+
+    # For ID-based ordering (UUID7), just use the ID as cursor
     if order_attribute_name in id_attributes:
-        next_value = id_attribute_value
-    elif order_attribute_name in time_attributes:
-        next_value = time_attribute_value
-    else:
-        return None
+        return Windowing(
+            newest=windowing.newest,
+            oldest=windowing.oldest,
+            next=id_attribute_value,
+            limit=windowing.limit,
+            order=windowing.order,
+        )
 
-    return Windowing(
-        newest=windowing.newest,
-        oldest=windowing.oldest,
-        next=next_value,
-        limit=windowing.limit,
-        order=windowing.order,
-    )
+    # For time-based ordering (UUID5/content-hashed IDs), we need both:
+    # - next: the ID for tie-breaking when timestamps are equal
+    # - oldest/newest: the timestamp boundary for the cursor
+    if order_attribute_name in time_attributes:
+        if not time_attribute_value:
+            return None
+
+        if effective_order == "ascending":
+            # Ascending: set oldest to last record's timestamp
+            return Windowing(
+                newest=windowing.newest,
+                oldest=time_attribute_value,
+                next=id_attribute_value,
+                limit=windowing.limit,
+                order=windowing.order,
+            )
+        else:
+            # Descending: set newest to last record's timestamp
+            return Windowing(
+                newest=time_attribute_value,
+                oldest=windowing.oldest,
+                next=id_attribute_value,
+                limit=windowing.limit,
+                order=windowing.order,
+            )
+
+    return None

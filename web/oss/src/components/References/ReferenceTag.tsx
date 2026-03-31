@@ -1,9 +1,8 @@
+import {message} from "@agenta/ui/app-message"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Tag, type TagProps, Tooltip} from "antd"
 import clsx from "clsx"
 import {useRouter} from "next/router"
-
-import {message} from "@/oss/components/AppMessageContext"
 
 import {getReferenceToneColors, type ReferenceTone} from "./referenceColors"
 
@@ -14,6 +13,7 @@ interface ReferenceTagProps extends TagProps {
     tooltip?: string
     copyValue?: string
     tone?: ReferenceTone
+    openExternally?: boolean
 }
 
 const ReferenceTag = ({
@@ -24,6 +24,7 @@ const ReferenceTag = ({
     tooltip,
     copyValue,
     tone,
+    openExternally = false,
     ...props
 }: ReferenceTagProps) => {
     const router = useRouter()
@@ -74,11 +75,17 @@ const ReferenceTag = ({
                     aria-label="Open link"
                     size={14}
                     className="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 cursor-pointer"
-                    style={{color: toneColors?.text ?? "#2563eb"}}
+                    style={{color: toneColors?.text ?? "currentColor"}}
                     onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
-                        if (href) void router.push(href)
+                        if (href) {
+                            if (openExternally) {
+                                window.open(href, "_blank", "noreferrer")
+                            } else {
+                                void router.push(href)
+                            }
+                        }
                     }}
                 />
             ) : null}

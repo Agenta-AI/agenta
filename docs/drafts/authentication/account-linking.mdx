@@ -1,0 +1,251 @@
+---
+title: Account Linking
+description: Understanding how Agenta links multiple authentication methods to a single user account
+---
+
+# Account Linking
+
+Account linking allows users to authenticate with multiple methods (email, Google, GitHub, SSO) while maintaining a single user identity and seamless access across your organizations.
+
+## What is Account Linking?
+
+Account linking enables a user who initially signed up with one authentication method (e.g., email + password) to later authenticate using a different method (e.g., Google OAuth) and have both methods associated with the same user account.
+
+### Example Scenario
+
+1. Alice signs up to Agenta using her email address `alice@acme.com` with a password
+2. A week later, she clicks "Continue with Google" using the same email `alice@acme.com`
+3. With account linking enabled, these two authentication methods are linked to the same user account
+4. Alice can now sign in using either email + password OR Google OAuth
+
+## How It Works
+
+### Session Identity Accumulation
+
+Agenta tracks authentication methods in your session as **identities**. Each time you successfully authenticate with a new method, that identity is added to your session:
+
+```json
+{
+  "user_id": "abc123",
+  "identities": [
+    "email:password",    // First login: email + password
+    "social:google",     // Later: authenticated with Google
+    "sso:acme:okta"      // Later still: authenticated with Okta SSO
+  ]
+}
+```
+
+### Identity Formats
+
+| Authentication Method | Identity Format |
+|-----------------------|-----------------|
+| Email + Password | `email:password` |
+| Email + OTP | `email:otp` |
+| Generic Email | `email:*` (any email method) |
+| Google OAuth | `social:google` |
+| GitHub OAuth | `social:github` |
+| Microsoft OAuth | `social:azure-ad` |
+| SSO Provider | `sso:{organization_slug}:{provider_slug}` |
+
+## Benefits of Account Linking
+
+### Seamless Multi-Organization Access
+
+Different organizations may have different authentication requirements:
+
+- **Personal workspace**: Allows email + password
+- **Company workspace**: Requires Google social login
+- **Enterprise client**: Requires Okta SSO
+
+With account linking, once you've authenticated with each required method at least once, those authentication proofs (identities) remain in your session. When switching between organizations, Agenta checks if your existing session identities match the organization's requirements. If they match, you can switch immediately. If they don't match, you'll need to authenticate with a method that organization accepts.
+
+### Flexible Authentication
+
+Users can choose their preferred sign-in method each time:
+- Use email when on a personal device
+- Use Google for quick access
+- Use SSO when accessing enterprise workspaces
+
+## Security Considerations
+
+:::warning[Security Risk: Account Takeover]
+Account linking can create security vulnerabilities if not implemented carefully. **Only link accounts when email addresses are verified (OTP).**
+:::
+
+### The Attack Scenario
+
+Without proper email verification (OTP), an attacker could:
+
+1. Attacker knows victim's email: `victim@company.com`
+2. Attacker creates account with Google using `attacker@gmail.com`
+3. Attacker changes Google account email to `victim@company.com` (unverified)
+4. Attacker signs into Agenta with Google OAuth
+5. **If account linking is enabled without verification**: Attacker's account is now linked to victim's account
+6. Attacker gains access to victim's data
+
+### Protection Mechanisms
+
+Agenta protects against this attack by:
+
+1. **Email + Password Trust**: Email + password authentication does NOT require email verification. Setting a password is considered sufficient proof of ownership.
+2. **Email Verification for OTP**: Email + OTP (`email:otp`) requires verified email before linking (OTP itself verifies the email)
+3. **Social OAuth Email Verification**: Social providers (Google, GitHub, etc.) verify the email on their side
+4. **SSO Email Verification**: SSO identity providers verify the email
+5. **Audit Trail**: All account linking events are logged
+
+### Why Email + Password Doesn't Require Verification
+
+Email + password authentication **never requires email verification** in Agenta.
+
+**Why this exists:**
+- Development and testing convenience
+- Allows quick local testing without email service setup
+- Simpler setup for development environments
+
+**Security Consideration:**
+- No email verification means anyone can sign up with any email address
+- Account takeover is possible if using email:password
+- No proof that user controls the email address
+
+**For Production Deployments:**
+- Consider using email:otp (which requires email verification)
+- Or use social OAuth / SSO providers (which verify emails)
+- Disable email:password if email verification is required for your security policy
+
+## Configuration
+
+Account linking happens **automatically** in Agenta - there is no opt-in or opt-out.
+
+### How It Works
+
+When you sign in with a new authentication method using an email that matches an existing account:
+
+1. System detects matching email address
+2. Account linking happens automatically
+3. New identity is added to your session
+4. You can now use either method to sign in
+
+**No user action required** - linking is seamless and automatic.
+
+### Email Verification Behavior
+
+| Authentication Method | Email Verification Required | Notes |
+|----------------------|----------------------------|-------|
+| Email + Password | ❌ No | No email verification |
+| Email + OTP | ✅ Yes | OTP verifies email ownership |
+| Social OAuth (Google, GitHub, etc.) | ✅ Yes | Provider verifies email |
+| SSO (OIDC) | ✅ Yes | IdP verifies email |
+
+:::info[Email Verification]
+Email + password does not verify email ownership. For production deployments requiring verified emails, use email:otp or social/SSO providers.
+:::
+
+## When Account Linking Happens
+
+### Automatic Linking (Always On)
+
+Account linking happens automatically and seamlessly when you sign in with a new method using an email that matches an existing account:
+
+**Example Flow:**
+
+1. User has existing account with `alice@acme.com` (created with email + password)
+2. User clicks "Continue with Google"
+3. Google returns email `alice@acme.com` (verified by Google)
+4. System detects matching email
+5. **Accounts are automatically linked** (no prompt, no confirmation needed)
+6. Identity `social:google` is added to user's session
+7. User can now sign in with either email + password OR Google
+
+**No user confirmation required** - linking is instant and automatic.
+
+### What Triggers Automatic Linking
+
+Account linking happens when:
+
+- ✅ Same email address across authentication methods
+- ✅ Email is verified (or trusted, in the case of password auth)
+- ✅ User successfully completes authentication flow
+
+Account linking does **not** happen when:
+
+- ❌ Email addresses don't match
+- ❌ Email is unverified (for OTP-based linking)
+- ❌ Authentication fails
+
+## Unlinking Accounts
+
+:::info[Unlinking Not Currently Supported]
+Agenta does not currently provide a way to unlink authentication methods once they are linked. All linked authentication methods remain associated with your account.
+:::
+
+**Workaround**: If you need to separate authentication methods:
+- Create a new account with a different email address
+- Do not use the same email across multiple authentication methods
+
+## Organization Access Control
+
+Even with account linking enabled, each organization controls which authentication methods are allowed:
+
+### Example: Email-Only Organization
+
+- Organization flags: `allow_email=true`, `allow_social=false`, `allow_sso=false`
+- Your session identities: `["email:password", "social:google"]`
+- **Result**: You can access this organization (have `email:password` identity)
+
+### Example: SSO-Only Organization
+
+- Organization flags: `allow_email=false`, `allow_social=false`, `allow_sso=true`
+- Your session identities: `["email:password", "social:google"]`
+- **Result**: You get `AUTH_UPGRADE_REQUIRED` error and must authenticate with SSO
+
+## Troubleshooting
+
+### Can't Access Organization After Linking
+
+**Cause**: Organization may not allow the authentication method you used
+- **Solution**: Use an allowed authentication method for that organization
+- **Check**: Organization settings → Security → Allowed authentication methods
+
+## Best Practices for Administrators
+
+1. ✅ Educate users that account linking is automatic
+2. ✅ Advise users to use different emails if they want separate accounts
+3. ✅ Monitor audit logs for account linking events
+4. ✅ Be aware that unlinking is not currently supported
+5. ✅ Consider email:otp for production if email verification is required
+6. ✅ Email:password is suitable for development/testing environments
+5. ✅ Enable MFA on your OAuth providers (Google, GitHub, etc.)
+
+## Related Documentation
+
+- [Session Identities](/docs/concepts/authentication/session-identities) - Understanding how authentication methods are tracked
+- [Multiple Organizations](/docs/concepts/authentication/multi-organization) - How users access multiple organizations
+- [Authentication Upgrade Flow](/docs/concepts/authentication/auth-upgrade-flow) - What happens when additional authentication is required
+- [Self-Hosting: Social OAuth](/docs/self-host/authentication/social-oauth) - Configuring OAuth providers
+- [Enterprise: SSO Providers](/docs/security/sso-providers) - Enterprise SSO configuration
+
+## FAQ
+
+### Is account linking required?
+
+Account linking is **automatic** when using the same email address across different authentication methods. There is no way to disable it.
+
+If you want separate accounts, you must use different email addresses for each account.
+
+### Can I link unlimited authentication methods?
+
+Yes, you can link as many authentication methods as your organization supports.
+
+### What happens if I delete a linked provider?
+
+If you delete a linked OAuth provider (e.g., delete your Google account), that authentication method will no longer work. However, you can still sign in with your other linked methods.
+
+**Note**: The identity remains in your session history but cannot be used for future authentication.
+
+### Does account linking sync data across providers?
+
+No, account linking only associates authentication methods with your Agenta account. It doesn't sync data between your Google account, GitHub account, etc.
+
+### Can different organizations require different authentication methods?
+
+Yes! Each organization sets its own authentication policies. Account linking allows you to accumulate multiple authentication methods so you can access organizations with different requirements.

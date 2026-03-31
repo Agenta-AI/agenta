@@ -1,0 +1,71 @@
+---
+id: get-tool-connection
+title: "Get Connection"
+description: "Get a connection by ID."
+sidebar_label: "Get Connection"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWEtz20YM/isanJIZRnI9PfFU1c7DddN4bLkXj0YDkZC06ZLL7GLdqBr+9w52KZGUbMXxOKf2ZJMEPgAfHrvQBhiXDtI7mBijHUwTyMllVlWsTAkpvCce4CAzZUmZvBrM14OL8yEkYCqyKK8uckhhSTxjY/SsFYUEKrRYEJMVExsosSBIoRWZqRwSUGKoQl5BApa+eGUph5StpwRctqICId0ArytRdmxVuYQEFsYWyJCC9wGFFWsROGt9vcihrqcC6ipTOnKCc3pyIn/6Yd74LCPnFl4PrhthSMRRppJFHKtKqyzEO/rsRGfT8a2ywgaraCEzPio1LquSaUm256NICNcL9JohPamTDi3BYLn+tAis9cEXOiSsK4B5rkQN9VVPtJVoHJkbowlLqJN9OuXNwzCQKZt5jfbV7zgn/Zsz5ZtPnivPryWgiGLmnyljEK63Ie5LQ30g3XpReq172u9ClKLyX4h20gRbEOMzg+1Etld1PcPFvP+my9G3GHnn9TcISTagmIonaqG1uD5eBX3d7yP1o5ApbWUJmfIZ8jHiOvMkR6Y3rAo6Cn8WYQfj4Jav8h9h5DbCNkZy0vQDjJxH2MbIlq75Wobz0+yECfwUsn5dh5nc8vWiVrZs7axsCXtRK1u6dlbiqfaknjwA+wNDcvqn0fOgzjsQdQJO++VzoW5Et07g5UiLTFXW3Kuc7OwvWj90pFPpC7mLZKaojFMGEsAllYzQHZbGyIAKQJeqDMBh1sXbyGPYO09a0cElrQP5+P/YfbGxe45x7DpG9u7YTcZSrixlPPNWP7dSrxuMwa3VUB842q+a9mZ4E507RH4Ior2S3vUr+LDupo8ZfKKph5V3N9K6FqWfT08PL7B/olZ5rOq31hr7/NtrTowqJKQpqn0BbbLe1+9pimm9V4edK5SJDoaLkFse6+GP5BwuqS3Mx0UDGYOJfA1zQupZxHfToCnwjL92YA4SciZcfuUHS6xbH8JNdL+R61REm6KYocepOI8pOFYhHyaTqwPAWB8F8co0O1nYwXgFKYwqS/eK/h7JluZG7bLhRpveQlZDAo7s/XZpC90JI6xUyGh8XDFXLh2NyA8zbXw+jHN6iCoKTgUj81bxOoCMry4uaf2BMCcL6d20K3AjhRhLqy+2SwdW6jL0W7NAjj2vjFX/YLNmhgVyFbXqkOaF6WZ5HJwbjK8uIAEJLPbMyfCn4Qnsb7w9YekhzELJbG3HAynZI2IXvxxjRWggYMLil/aDeFYZxwWWHTxZsM+6O/PeVWDXxUdW8YYmqdBRpVGFHmqmaky/TK6QfpEOm35335SntL+VTxNYGceiudnM0dGt1XUtr794spLUaQL3aBXOheK7DeTKyf85pAvUjo4E8uq66ZjXg8ec3ya+lKzfo/byBAmEw33vB4QwVFbb0to0MuMso4o72gczUGpw1yvv306grv8FfrXZHQ==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get Connection"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/preview/tools/connections/{connection_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Get a connection by ID.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"connection_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Connection Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"connection":{"anyOf":[{"properties":{"flags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Flags"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"},"provider_key":{"type":"string","enum":["composio","agenta"],"title":"ToolProviderKind"},"integration_key":{"type":"string","title":"Integration Key"},"data":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Data"},"status":{"anyOf":[{"properties":{"redirect_url":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Redirect Url"}},"type":"object","title":"ToolConnectionStatus"},{"type":"null"}]}},"type":"object","required":["provider_key","integration_key"],"title":"ToolConnection"},{"type":"null"}]}},"type":"object","title":"ToolConnectionResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

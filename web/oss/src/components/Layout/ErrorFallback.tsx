@@ -5,8 +5,8 @@ import Link from "next/link"
 import {useRouter} from "next/router"
 import {FallbackProps} from "react-error-boundary"
 
-import {getErrorMessage} from "@/oss/lib/helpers/errorHandler"
 import useURL from "@/oss/hooks/useURL"
+import {getErrorMessage} from "@/oss/lib/helpers/errorHandler"
 
 const ErrorFallback: React.FC<FallbackProps> = ({error, resetErrorBoundary}) => {
     const router = useRouter()

@@ -36,11 +36,8 @@ if is_ee():
         WorkspaceMembershipRequest,
         ProjectMembershipRequest,
         #
-        OrganizationRole,
-        WorkspaceRole,
         ProjectRole,
         #
-        Tier,
         Credentials,
         #
         check_user,
@@ -77,11 +74,8 @@ else:
         WorkspaceRequest,
         ProjectRequest,
         #
-        OrganizationRole,
-        WorkspaceRole,
         ProjectRole,
         #
-        Tier,
         Credentials,
         #
         check_user,
@@ -288,7 +282,7 @@ async def create_accounts(
                 # GET WORKSPACE AND ORGANIZATION
                 project = entities.projects[request.project_ref.slug]
                 workspace = entities.workspaces[project.workspace_ref.slug]
-                organization = entities.organizations[workspace.organization_ref.slug]
+                _organization = entities.organizations[workspace.organization_ref.slug]
                 # CREATE PROJECT SCOPE
                 scope = ProjectScope(
                     credentials=credentials,
@@ -314,7 +308,7 @@ async def create_accounts(
 
         return scopes
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         print_exc()
 
         return JSONResponse(
@@ -435,9 +429,11 @@ async def create_account(
         user = LegacyUserResponse(id=str(user_db.id))
 
         create_org_payload = CreateOrganization(
-            name=account.scope.name,
-            owner=str(user.id),
-            type="default",
+            name="Organization",
+            #
+            is_demo=False,
+            #
+            owner_id=UUID(str(user_db.id)),
         )
 
         organization_db, workspace_db, project_db = await legacy_create_organization(
@@ -521,7 +517,7 @@ async def create_account(
 
         return account
 
-    except:  # pylint: disable=bare-except
+    except Exception:  # pylint: disable=bare-except
         print_exc()
 
         return JSONResponse(

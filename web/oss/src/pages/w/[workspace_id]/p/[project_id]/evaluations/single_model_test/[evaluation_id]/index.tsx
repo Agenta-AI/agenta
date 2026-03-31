@@ -1,4 +1,4 @@
-import EvalRunDetailsPage from "@/oss/components/EvalRunDetails2/test"
+import EvalRunDetailsPage from "@/oss/components/EvalRunDetails/test"
 
 const ProjectHumanEvaluationPage = () => {
     return <EvalRunDetailsPage type="human" />

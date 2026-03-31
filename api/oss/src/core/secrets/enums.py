@@ -4,6 +4,8 @@ from enum import Enum
 class SecretKind(str, Enum):
     PROVIDER_KEY = "provider_key"
     CUSTOM_PROVIDER = "custom_provider"
+    SSO_PROVIDER = "sso_provider"
+    WEBHOOK_PROVIDER = "webhook_provider"
 
 
 class StandardProviderKind(str, Enum):

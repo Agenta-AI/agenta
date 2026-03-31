@@ -49,7 +49,7 @@ const DefaultVisibilityContent = <Row extends object>({
         })
 
     return (
-        <Space direction="vertical" size="middle" className="min-w-[220px]">
+        <Space orientation="vertical" size="middle" className="min-w-[220px]">
             <div className="text-xs text-gray-500">Toggle columns</div>
             <div className="max-h-64 overflow-auto pr-1">{renderNodes(nodes)}</div>
             <Divider className="my-1" />

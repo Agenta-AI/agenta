@@ -1,12 +1,11 @@
 import {memo, useMemo} from "react"
 
+import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {Tag, type TagProps} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
-import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
-
-import {variantConfigAtomFamily, previewTestsetReferenceAtomFamily} from "./atoms/entityReferences"
+import {previewTestsetReferenceAtomFamily, variantConfigAtomFamily} from "./atoms/entityReferences"
 
 type ChipTone = "variant" | "testset"
 

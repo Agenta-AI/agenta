@@ -1,0 +1,71 @@
+---
+id: configs-query
+title: "Configs Query"
+description: "Configs Query"
+sidebar_label: "Configs Query"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWdtu2zgQ/RVjnpXYzcXd1dO6F6BBU8R1Li+GEdDUyGaXElWSSqMa+vfFkJIt2YkSpFi0AZyXWOTMET3nDMkZr8CyhYFwCjdMC5ZaA7MAVIaaWaHSswhC4CqNxcLcfs9RFxCAxu85GvtORQWEK5q2mFr6yLJMCu48+9+MSmnM8CUmjD5lmnCtQENPd/59txpj98zS4iKGcLoCYTExuw5G5ou2oS0yhBCM1SJdQBmsR9JcSihnAVhhJQ1ckm8ZwB1qI/y6dmBEanGBuhPnpvIvA+AqSYS9TdAYtsCXLuy9Q+l9qVDKAETUhRVArHTCLISQ5yLqxD6LoCyDelrNvyG3sJmeYIwaU44Tz+cXFaGEjQPTmhXd0fAU9iZEYRk06Sda299jT+bvIHMbsAvjvc/zr5TmbRjyoqwXGiMIrc7RDZhMpcbzeTQY0L8IDdcis44WuMw5R2PiXPYmlTEEL90vuMq90xbDzfWTRQARxiyXFsKBY9Z9KXJ8ZF/JmGZ+nEWRoLUwOW5Y0Nd9PGhj710GkGv5UuFca7nPn9+SPxtVT+llswcy6sPVxUOJFIBBfSc47qn686lqXDb2VP3ZVGF6J7RKE9zT9Rroap5ZUsTICy6xizSukVmMbpl9cYQ8Qm9k3bGbRb+Id+0RtvDmxW134J8D+a7oUcybqL8O2XkRPMcF48V5zcSTh9ees9fDWX2K7Tl7PZw1j7M9b6+FtycOyapkbJ3aVGZ6tHYDZae+blao0+cU5HXtvC7GywBOjo526+0bJkXkjuLeR62VfnmxHaFlQnYUzVLx1uwzGFvfpmaPh+hc+QVSFBOzaJT769tObdq4IHmTx01dMHpXNEvXqTTLfSOhvhW5AbrA2fsGzEN0WLy3T16hKDZ++ZVdq2VWU+QZejwUHzwFXfr4dHU13gH0+mgLoxJS72vVwU3QLhW1djNlCDBjdgkh9KsDxvSrrkm/bvnSbQG1cQS7Pgf0WSYcu/5xaW1mwn4f80MuVR4dsgWmlh0y4Q1nhMFzLWzhQEbjs89YfEIWoXZp0DC4JFF6mbXN1tSwTHxGWlfKEnoe5XaptPjptUMU05K8F0WD5D7ZdK0/3rMk87twuws9rWuKjYbW9cFg94K/saKdEI5j9tdpPDw5OH375u3Byenw6GB+HPODI/738DgeDlnMhi4SD/R5/vfXOuHHqqn7kaOoNxqfNV8Ig8M3hwPYllDLmHYVxl0S1Qy4aQi25LBWAQSAidtSwCJL/tlM0MpIhglLG3jbim0tZq0DSsd+JplIGw04L+ZpTa2BTRMwAC/oWQBLUn44hdVqzgxea1mWNOznw+msum3NKVJT2rGWtVZX8C8W9XaQ2gO3r5C5zL02t7ZZShLvMeIcM9tpO2sk5/ji8goCmFe/syQqIh/NftB+w35ACEA/1ZC3SxY3tgLJ0kXuheIx6e8/qfXRzg==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Configs Query"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/variants/configs/query"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Configs Query
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"variant_refs":{"anyOf":[{"items":{"properties":{"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"version":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Version"},"commit_message":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Commit Message"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"ReferenceRequestModel"},"type":"array"},{"type":"null"}],"title":"Variant Refs"},"application_ref":{"anyOf":[{"properties":{"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"version":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Version"},"commit_message":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Commit Message"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"ReferenceRequestModel"},{"type":"null"}]}},"type":"object","title":"ConfigsQueryRequestModel"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"configs":{"items":{"properties":{"params":{"additionalProperties":true,"type":"object","title":"Params"},"url":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Url"},"application_ref":{"anyOf":[{"properties":{"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"version":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Version"},"commit_message":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Commit Message"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","required":["id"],"title":"ReferenceDTO"},{"type":"null"}]},"service_ref":{"anyOf":[{"properties":{"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"version":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Version"},"commit_message":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Commit Message"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","required":["id"],"title":"ReferenceDTO"},{"type":"null"}]},"variant_ref":{"anyOf":[{"properties":{"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"version":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Version"},"commit_message":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Commit Message"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","required":["id"],"title":"ReferenceDTO"},{"type":"null"}]},"environment_ref":{"anyOf":[{"properties":{"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"version":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Version"},"commit_message":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Commit Message"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","required":["id"],"title":"ReferenceDTO"},{"type":"null"}]},"application_lifecycle":{"anyOf":[{"properties":{"created_at":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Updated At"},"updated_by_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Updated By Id"},"updated_by":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Updated By"}},"type":"object","title":"LegacyLifecycleDTO"},{"type":"null"}]},"service_lifecycle":{"anyOf":[{"properties":{"created_at":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Updated At"},"updated_by_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Updated By Id"},"updated_by":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Updated By"}},"type":"object","title":"LegacyLifecycleDTO"},{"type":"null"}]},"variant_lifecycle":{"anyOf":[{"properties":{"created_at":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Updated At"},"updated_by_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Updated By Id"},"updated_by":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Updated By"}},"type":"object","title":"LegacyLifecycleDTO"},{"type":"null"}]},"environment_lifecycle":{"anyOf":[{"properties":{"created_at":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Updated At"},"updated_by_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Updated By Id"},"updated_by":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Updated By"}},"type":"object","title":"LegacyLifecycleDTO"},{"type":"null"}]}},"type":"object","required":["params"],"title":"ConfigDTO"},"type":"array","title":"Configs","default":[]}},"type":"object","title":"ConfigsResponseModel"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

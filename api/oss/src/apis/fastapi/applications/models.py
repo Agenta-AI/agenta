@@ -11,6 +11,8 @@ from oss.src.core.applications.dtos import (
     ApplicationCreate,
     ApplicationEdit,
     ApplicationQuery,
+    ApplicationFork,
+    ApplicationRevisionsLog,
     #
     ApplicationVariant,
     ApplicationVariantCreate,
@@ -23,9 +25,14 @@ from oss.src.core.applications.dtos import (
     ApplicationRevisionQuery,
     ApplicationRevisionCommit,
     #
-    LegacyApplication,
-    LegacyApplicationCreate,
-    LegacyApplicationEdit,
+    SimpleApplication,
+    SimpleApplicationCreate,
+    SimpleApplicationEdit,
+    SimpleApplicationQuery,
+)
+from oss.src.core.embeds.dtos import (
+    ErrorPolicy,
+    ResolutionInfo,
 )
 
 # APPLICATIONS -----------------------------------------------------------------
@@ -57,6 +64,14 @@ class ApplicationResponse(BaseModel):
 class ApplicationsResponse(BaseModel):
     count: int = 0
     applications: List[Application] = []
+
+
+class ApplicationForkRequest(BaseModel):
+    application: ApplicationFork
+
+
+class ApplicationRevisionsLogRequest(BaseModel):
+    application: ApplicationRevisionsLog
 
 
 # APPLICATION VARIANTS ---------------------------------------------------------
@@ -112,6 +127,7 @@ class ApplicationRevisionQueryRequest(BaseModel):
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
+    resolve: bool = False  # Optionally resolve embeds on query
 
 
 class ApplicationRevisionCommitRequest(BaseModel):
@@ -122,11 +138,13 @@ class ApplicationRevisionRetrieveRequest(BaseModel):
     application_ref: Optional[Reference] = None
     application_variant_ref: Optional[Reference] = None
     application_revision_ref: Optional[Reference] = None
+    resolve: bool = False  # Optionally resolve embeds on retrieve
 
 
 class ApplicationRevisionResponse(BaseModel):
     count: int = 0
     application_revision: Optional[ApplicationRevision] = None
+    resolution_info: Optional[ResolutionInfo] = None  # Included when resolve=True
 
 
 class ApplicationRevisionsResponse(BaseModel):
@@ -134,22 +152,51 @@ class ApplicationRevisionsResponse(BaseModel):
     application_revisions: List[ApplicationRevision] = []
 
 
-# LEGACY APPLICATIONS ----------------------------------------------------------
+# SIMPLE APPLICATIONS ----------------------------------------------------------
 
 
-class LegacyApplicationCreateRequest(BaseModel):
-    application: LegacyApplicationCreate
+class SimpleApplicationCreateRequest(BaseModel):
+    application: SimpleApplicationCreate
 
 
-class LegacyApplicationEditRequest(BaseModel):
-    application: LegacyApplicationEdit
+class SimpleApplicationEditRequest(BaseModel):
+    application: SimpleApplicationEdit
 
 
-class LegacyApplicationResponse(BaseModel):
+class SimpleApplicationQueryRequest(BaseModel):
+    application: Optional[SimpleApplicationQuery] = None
+    #
+    application_refs: Optional[List[Reference]] = None
+    #
+    include_archived: Optional[bool] = False
+    #
+    windowing: Optional[Windowing] = None
+
+
+class SimpleApplicationResponse(BaseModel):
     count: int = 0
-    application: Optional[LegacyApplication] = None
+    application: Optional[SimpleApplication] = None
 
 
-class LegacyApplicationsResponse(BaseModel):
+class SimpleApplicationsResponse(BaseModel):
     count: int = 0
-    applications: List[LegacyApplication] = []
+    applications: List[SimpleApplication] = []
+
+
+# APPLICATION REVISION RESOLUTION ----------------------------------------------
+
+
+class ApplicationRevisionResolveRequest(BaseModel):
+    application_ref: Optional[Reference] = None
+    application_variant_ref: Optional[Reference] = None
+    application_revision_ref: Optional[Reference] = None
+    #
+    max_depth: Optional[int] = 10
+    max_embeds: Optional[int] = 100
+    error_policy: Optional[ErrorPolicy] = ErrorPolicy.EXCEPTION
+
+
+class ApplicationRevisionResolveResponse(BaseModel):
+    count: int = 0
+    application_revision: Optional[ApplicationRevision] = None
+    resolution_info: Optional[ResolutionInfo] = None

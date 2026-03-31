@@ -15,32 +15,38 @@ class SecretsDAOInterface:
     async def create(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         create_secret_dto: CreateSecretDTO,
     ) -> SecretResponseDTO:
         raise NotImplementedError
 
     async def get(
         self,
-        project_id: UUID,
         secret_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
     ) -> Optional[SecretResponseDTO]:
         raise NotImplementedError
 
-    async def list(self, project_id: UUID) -> List[SecretResponseDTO]:
+    async def list(
+        self, project_id: Optional[UUID] = None, organization_id: Optional[UUID] = None
+    ) -> List[SecretResponseDTO]:
         raise NotImplementedError
 
     async def update(
         self,
-        project_id: UUID,
         secret_id: UUID,
         update_secret_dto: UpdateSecretDTO,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
     ) -> Optional[SecretResponseDTO]:
         raise NotImplementedError
 
     async def delete(
         self,
-        project_id: UUID,
         secret_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
     ) -> None:
         raise NotImplementedError

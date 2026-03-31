@@ -1,12 +1,12 @@
 import {useEffect, useMemo} from "react"
 
+import {ChatMessageEditor as MessageEditor} from "@agenta/ui/chat-message"
 import {PlusOutlined} from "@ant-design/icons"
 import {MinusCircle} from "@phosphor-icons/react"
 import {Button, Form, Input} from "antd"
 import isEqual from "lodash/isEqual"
 
-import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
-import MessageEditor from "@/oss/components/Playground/Components/ChatCommon/MessageEditor"
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 
 interface Message {
     role: string
@@ -90,7 +90,7 @@ export const Messages: React.FC<MessagesProps> = ({value = [], onChange}) => {
                                         id={`evaluator-message-${key}`}
                                         role={message.role}
                                         text={message.content}
-                                        className="group/evaluator-message w-full max-w-full box-border"
+                                        className="group/evaluator-message w-full max-w-full box-border [&_.agenta-editor-wrapper]:min-h-[160px] [&_.agenta-rich-text-editor]:min-h-[120px]"
                                         enableTokens
                                         onChangeRole={(role) =>
                                             updateMessages((prev) => {

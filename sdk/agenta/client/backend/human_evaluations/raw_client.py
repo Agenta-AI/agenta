@@ -18,8 +18,10 @@ from ..types.human_evaluation import HumanEvaluation
 from ..types.human_evaluation_scenario import HumanEvaluationScenario
 from ..types.human_evaluation_scenario_input import HumanEvaluationScenarioInput
 from ..types.human_evaluation_scenario_output import HumanEvaluationScenarioOutput
-from ..types.score import Score
 from ..types.simple_evaluation_output import SimpleEvaluationOutput
+from .types.human_evaluation_scenario_update_score import (
+    HumanEvaluationScenarioUpdateScore,
+)
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -331,7 +333,7 @@ class RawHumanEvaluationsClient:
         *,
         status: typing.Optional[EvaluationStatusEnum] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Updates an evaluation's status.
 
@@ -352,7 +354,7 @@ class RawHumanEvaluationsClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -372,9 +374,9 @@ class RawHumanEvaluationsClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -479,14 +481,14 @@ class RawHumanEvaluationsClient:
         evaluation_type: EvaluationType,
         *,
         vote: typing.Optional[str] = OMIT,
-        score: typing.Optional[Score] = OMIT,
+        score: typing.Optional[HumanEvaluationScenarioUpdateScore] = OMIT,
         correct_answer: typing.Optional[str] = OMIT,
         outputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioOutput]] = OMIT,
         inputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioInput]] = OMIT,
         is_pinned: typing.Optional[bool] = OMIT,
         note: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Updates an evaluation scenario's vote or score based on its type.
 
@@ -506,7 +508,7 @@ class RawHumanEvaluationsClient:
 
         vote : typing.Optional[str]
 
-        score : typing.Optional[Score]
+        score : typing.Optional[HumanEvaluationScenarioUpdateScore]
 
         correct_answer : typing.Optional[str]
 
@@ -523,7 +525,7 @@ class RawHumanEvaluationsClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -531,16 +533,24 @@ class RawHumanEvaluationsClient:
             method="PUT",
             json={
                 "vote": vote,
-                "score": score,
+                "score": convert_and_respect_annotation_metadata(
+                    object_=score,
+                    annotation=typing.Optional[HumanEvaluationScenarioUpdateScore],
+                    direction="write",
+                ),
                 "correct_answer": correct_answer,
                 "outputs": convert_and_respect_annotation_metadata(
                     object_=outputs,
-                    annotation=typing.Sequence[HumanEvaluationScenarioOutput],
+                    annotation=typing.Optional[
+                        typing.Sequence[HumanEvaluationScenarioOutput]
+                    ],
                     direction="write",
                 ),
                 "inputs": convert_and_respect_annotation_metadata(
                     object_=inputs,
-                    annotation=typing.Sequence[HumanEvaluationScenarioInput],
+                    annotation=typing.Optional[
+                        typing.Sequence[HumanEvaluationScenarioInput]
+                    ],
                     direction="write",
                 ),
                 "is_pinned": is_pinned,
@@ -557,9 +567,9 @@ class RawHumanEvaluationsClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -660,7 +670,7 @@ class RawHumanEvaluationsClient:
         *,
         score: float,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Updates the score of an evaluation scenario.
 
@@ -681,7 +691,7 @@ class RawHumanEvaluationsClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -701,9 +711,9 @@ class RawHumanEvaluationsClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -737,7 +747,7 @@ class RawHumanEvaluationsClient:
         evaluation_id: str,
         *,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[typing.Optional[typing.Any]]:
+    ) -> HttpResponse[typing.Any]:
         """
         Fetch all the results for one the comparison table
 
@@ -756,7 +766,7 @@ class RawHumanEvaluationsClient:
 
         Returns
         -------
-        HttpResponse[typing.Optional[typing.Any]]
+        HttpResponse[typing.Any]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -769,9 +779,9 @@ class RawHumanEvaluationsClient:
                 return HttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1107,7 +1117,7 @@ class AsyncRawHumanEvaluationsClient:
         *,
         status: typing.Optional[EvaluationStatusEnum] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Updates an evaluation's status.
 
@@ -1128,7 +1138,7 @@ class AsyncRawHumanEvaluationsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1148,9 +1158,9 @@ class AsyncRawHumanEvaluationsClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1255,14 +1265,14 @@ class AsyncRawHumanEvaluationsClient:
         evaluation_type: EvaluationType,
         *,
         vote: typing.Optional[str] = OMIT,
-        score: typing.Optional[Score] = OMIT,
+        score: typing.Optional[HumanEvaluationScenarioUpdateScore] = OMIT,
         correct_answer: typing.Optional[str] = OMIT,
         outputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioOutput]] = OMIT,
         inputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioInput]] = OMIT,
         is_pinned: typing.Optional[bool] = OMIT,
         note: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Updates an evaluation scenario's vote or score based on its type.
 
@@ -1282,7 +1292,7 @@ class AsyncRawHumanEvaluationsClient:
 
         vote : typing.Optional[str]
 
-        score : typing.Optional[Score]
+        score : typing.Optional[HumanEvaluationScenarioUpdateScore]
 
         correct_answer : typing.Optional[str]
 
@@ -1299,7 +1309,7 @@ class AsyncRawHumanEvaluationsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1307,16 +1317,24 @@ class AsyncRawHumanEvaluationsClient:
             method="PUT",
             json={
                 "vote": vote,
-                "score": score,
+                "score": convert_and_respect_annotation_metadata(
+                    object_=score,
+                    annotation=typing.Optional[HumanEvaluationScenarioUpdateScore],
+                    direction="write",
+                ),
                 "correct_answer": correct_answer,
                 "outputs": convert_and_respect_annotation_metadata(
                     object_=outputs,
-                    annotation=typing.Sequence[HumanEvaluationScenarioOutput],
+                    annotation=typing.Optional[
+                        typing.Sequence[HumanEvaluationScenarioOutput]
+                    ],
                     direction="write",
                 ),
                 "inputs": convert_and_respect_annotation_metadata(
                     object_=inputs,
-                    annotation=typing.Sequence[HumanEvaluationScenarioInput],
+                    annotation=typing.Optional[
+                        typing.Sequence[HumanEvaluationScenarioInput]
+                    ],
                     direction="write",
                 ),
                 "is_pinned": is_pinned,
@@ -1333,9 +1351,9 @@ class AsyncRawHumanEvaluationsClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1436,7 +1454,7 @@ class AsyncRawHumanEvaluationsClient:
         *,
         score: float,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Updates the score of an evaluation scenario.
 
@@ -1457,7 +1475,7 @@ class AsyncRawHumanEvaluationsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1477,9 +1495,9 @@ class AsyncRawHumanEvaluationsClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1513,7 +1531,7 @@ class AsyncRawHumanEvaluationsClient:
         evaluation_id: str,
         *,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
+    ) -> AsyncHttpResponse[typing.Any]:
         """
         Fetch all the results for one the comparison table
 
@@ -1532,7 +1550,7 @@ class AsyncRawHumanEvaluationsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.Optional[typing.Any]]
+        AsyncHttpResponse[typing.Any]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1545,9 +1563,9 @@ class AsyncRawHumanEvaluationsClient:
                 return AsyncHttpResponse(response=_response, data=None)
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.Optional[typing.Any],
+                    typing.Any,
                     parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
+                        type_=typing.Any,  # type: ignore
                         object_=_response.json(),
                     ),
                 )

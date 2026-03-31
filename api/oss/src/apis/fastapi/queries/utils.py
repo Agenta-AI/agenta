@@ -141,7 +141,7 @@ def parse_query_query_request_from_body(
             #
             windowing=windowing,
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         query_query_request = QueryQueryRequest()
 
     return query_query_request
@@ -163,8 +163,11 @@ def merge_query_query_requests(
             #
             query_refs=query_request_body.query_refs or query_request_params.query_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )
@@ -316,7 +319,7 @@ def parse_query_variant_query_request_from_body(
             #
             windowing=windowing,
         )
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         query_variant_query_request = QueryVariantQueryRequest()
 
     return query_variant_query_request
@@ -341,8 +344,11 @@ def merge_query_variant_query_requests(
             query_variant_refs=query_request_body.query_variant_refs
             or query_request_params.query_variant_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )
@@ -555,8 +561,11 @@ def merge_query_revision_query_requests(
             query_revision_refs=query_request_body.query_revision_refs
             or query_request_params.query_revision_refs,
             #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
+            include_archived=(
+                query_request_body.include_archived
+                if query_request_body.include_archived is not None
+                else query_request_params.include_archived
+            ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )

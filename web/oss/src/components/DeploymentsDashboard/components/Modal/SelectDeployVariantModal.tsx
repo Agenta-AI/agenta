@@ -6,7 +6,7 @@ import {createUseStyles} from "react-jss"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import VariantsTable from "@/oss/components/VariantsComponents/Table"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {DeploymentRevisions} from "@/oss/lib/Types"
 import {JSSTheme} from "@/oss/lib/Types"
 
@@ -26,7 +26,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         textTransform: "capitalize",
     },
     container: {
-        "& .ant-modal-body": {
+        "& .ant-modal-container": {
             height: 600,
             overflow: "auto",
         },
@@ -86,6 +86,7 @@ const SelectDeployVariantModal = ({
             }}
             okText="Deploy"
             width={1200}
+            height={600}
             className={classes.container}
             {...props}
         >

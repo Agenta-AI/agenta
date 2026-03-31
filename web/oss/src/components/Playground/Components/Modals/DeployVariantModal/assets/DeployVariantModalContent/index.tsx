@@ -41,7 +41,9 @@ const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
                 render: (_, record) => (
                     <VariantNameCell
                         revisionId={record.deployedAppVariantRevisionId as any}
+                        revisionName={record.deployedVariantName}
                         showBadges={false}
+                        hideDiscard
                     />
                 ),
             },
@@ -50,7 +52,7 @@ const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
     )
 
     return (
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-4" data-tour="deploy-variant-modal">
             <Typography.Text>
                 Select an environment to deploy <span className="font-medium">{variantName}</span>{" "}
                 {typeof revision !== "undefined" && <Version revision={revision} />}

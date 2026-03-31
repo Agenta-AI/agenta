@@ -11,15 +11,15 @@ This example demonstrates how to instrument a Node.js application with OpenTelem
 ## Version Compatibility
 
 This example uses the latest stable versions:
-- **OpenAI SDK** (`latest` - v6.x)
-- **OpenInference Instrumentation** (`latest` - v3.x)
-- **OpenInference Semantic Conventions** (`latest` - v2.x)
+- **OpenAI SDK** (`^4.x`)
+- **OpenInference Instrumentation** (`^2.x`)
+- **OpenInference Semantic Conventions** (`^2.x`)
 
 ## Setup
 
 1. Install dependencies:
 ```bash
-npm install
+pnpm install
 ```
 
 2. Create a `.env` file with your credentials:
@@ -30,7 +30,7 @@ cp .env.example .env
 
 3. Run the example:
 ```bash
-npm start
+pnpm start
 ```
 
 ## What's Happening?
@@ -65,4 +65,3 @@ See [SEMANTIC_CONVENTIONS.md](./SEMANTIC_CONVENTIONS.md) for detailed documentat
 ## View Your Traces
 
 After running the example, log in to [Agenta](https://cloud.agenta.ai) and navigate to the Observability section to see your traces!
-

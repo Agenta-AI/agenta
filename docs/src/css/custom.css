@@ -427,11 +427,18 @@ h1:not([class*="openapi"]) {
   letter-spacing: -0.01em;
 }
 
-h2:not([class*="openapi"]) {
+h2:not([class*="openapi"]):not([class*="cardTitle"]) {
   font-size: var(--ifm-heading-h2-font-size) !important;
   line-height: 1.3;
   font-weight: var(--ifm-h2-font-weight) !important;
   letter-spacing: -0.01em;
+}
+
+/* DocCard titles - 15px */
+h2[class*="cardTitle"] {
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
 }
 
 h3:not([class*="openapi"]) {
@@ -877,6 +884,13 @@ div[class*="docSidebarContainer"] {
   padding-top: 40px;
 }
 
+/* Generated index page title - match regular h1 size */
+.generatedIndexPage_DMd5 h1,
+h1[class*="title_"] {
+  font-size: var(--ifm-heading-h1-font-size) !important;
+  --ifm-h1-font-size: var(--ifm-heading-h1-font-size) !important;
+}
+
 .docItemCol_node_modules-docusaurus-theme-openapi-docs-lib-theme-ApiItem-Layout-styles-module {
   line-height: 24px;
 }
@@ -1202,10 +1216,24 @@ div[class*="scrollbar"] {
 }
 
 [class*="cardTitle"] {
-  font-size: var(--ifm-heading-h4-font-size) !important;
-  font-weight: var(--ifm-font-weight-normal) !important;
-  margin-bottom: 8px;
-  font-variant-emoji: no-emoji !important;
+  font-size: 15px !important;
+  font-weight: var(--ifm-font-weight-semibold) !important;
+  margin-bottom: 4px;
+}
+
+/* Hide the default emoji icon on doc cards */
+[class*="cardTitle"]::before {
+  display: none !important;
+}
+
+/* Ensure theme module card titles do not override size */
+[class^="cardTitle_"] {
+  font-size: 15px !important;
+  font-weight: var(--ifm-font-weight-semibold) !important;
+}
+
+[class^="cardDescription_"] {
+  font-size: 13px !important;
 }
 
 [class*="cardDescription"] {
@@ -1295,4 +1323,80 @@ details:not([class*="openapi"]) {
   background-color: var(--background-color) !important;
   border: 1px solid var(--ifm-color-emphasis-200) !important;
   --docusaurus-details-decoration-color: grey !important;
+}
+
+/* FAQ page specific styles */
+.faq-list {
+  margin-top: 1.5rem;
+}
+
+.faq-list h2 {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  font-size: 20px;
+}
+
+.faq-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.faq-card {
+  display: block;
+  padding: 16px 18px;
+  border: 1px solid var(--borderlight);
+  border-radius: var(--border-radius-sm);
+  text-decoration: none !important;
+  transition: border-color 0.15s ease-in-out;
+}
+
+.faq-card:hover {
+  border-color: var(--borderdark);
+  text-decoration: none !important;
+}
+
+[data-theme="dark"] .faq-card {
+  border-color: var(--borderdefault);
+}
+
+[data-theme="dark"] .faq-card:hover {
+  border-color: var(--borderdark);
+}
+
+.faq-card-title {
+  display: block;
+  font-size: 15px;
+  font-weight: var(--ifm-font-weight-semibold);
+  color: var(--contentprimary);
+  margin-bottom: 4px;
+}
+
+.faq-card-desc {
+  display: block;
+  font-size: 13px;
+  color: var(--contentsecondary);
+}
+
+.faq-tip-spacer {
+  height: 2rem;
+}
+
+/* DocCardList styling - full width cards */
+/* This affects FAQ category pages and API reference pages */
+[class*="docCardListItem"] {
+  --ifm-col-width: 100% !important;
+  max-width: 100% !important;
+  flex-basis: 100% !important;
+  width: 100% !important;
+}
+
+/* Override the col--6 flex sizing used by DocCardList */
+section.row > article.col.col--6,
+section.row > .col.col--6,
+section.row > .col--6 {
+  --ifm-col-width: 100% !important;
+  max-width: 100% !important;
+  flex: 0 0 100% !important;
+  width: 100% !important;
 }

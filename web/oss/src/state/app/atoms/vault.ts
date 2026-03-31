@@ -17,7 +17,7 @@ import {
 } from "@/oss/services/vault/api"
 
 import {userAtom} from "../../profile/selectors/user"
-import {projectIdAtom} from "../../project"
+import {getProjectValues, projectIdAtom} from "../../project"
 
 /**
  * Atom for tracking vault key migration status
@@ -34,12 +34,18 @@ export const vaultMigrationAtom = atom({
  */
 export const vaultSecretsQueryAtom = atomWithQuery((get) => {
     const user = get(userAtom)
-    const migrationStatus = get(vaultMigrationAtom)
+    const _migrationStatus = get(vaultMigrationAtom)
     const projectId = get(projectIdAtom)
 
     return {
-        queryKey: ["vault", "secrets", user?.id],
-        queryFn: fetchVaultSecret,
+        queryKey: ["vault", "secrets", user?.id, projectId],
+        queryFn: async () => {
+            if (!projectId) {
+                throw new Error("[vault] Missing projectId for fetchVaultSecret")
+            }
+
+            return await fetchVaultSecret({projectId})
+        },
         staleTime: 1000 * 60 * 5, // 5 minutes
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
@@ -88,7 +94,12 @@ export const customSecretsAtom = atom((get) => {
  */
 export const createVaultSecretMutationAtom = atomWithMutation(() => ({
     mutationFn: async (payload: any) => {
-        return await createVaultSecret({payload})
+        const {projectId} = getProjectValues()
+        if (!projectId) {
+            throw new Error("[vault] Missing projectId for createVaultSecret")
+        }
+
+        return await createVaultSecret({projectId, payload})
     },
     onSuccess: () => {
         // Invalidate and refetch vault secrets
@@ -101,7 +112,12 @@ export const createVaultSecretMutationAtom = atomWithMutation(() => ({
  */
 export const updateVaultSecretMutationAtom = atomWithMutation(() => ({
     mutationFn: async ({secret_id, payload}: {secret_id: string; payload: any}) => {
-        return await updateVaultSecret({secret_id, payload})
+        const {projectId} = getProjectValues()
+        if (!projectId) {
+            throw new Error("[vault] Missing projectId for updateVaultSecret")
+        }
+
+        return await updateVaultSecret({projectId, secret_id, payload})
     },
     onSuccess: () => {
         // Invalidate and refetch vault secrets
@@ -114,7 +130,12 @@ export const updateVaultSecretMutationAtom = atomWithMutation(() => ({
  */
 export const deleteVaultSecretMutationAtom = atomWithMutation(() => ({
     mutationFn: async (secret_id: string) => {
-        return await deleteVaultSecret({secret_id})
+        const {projectId} = getProjectValues()
+        if (!projectId) {
+            throw new Error("[vault] Missing projectId for deleteVaultSecret")
+        }
+
+        return await deleteVaultSecret({projectId, secret_id})
     },
     onSuccess: () => {
         // Invalidate and refetch vault secrets
@@ -134,7 +155,9 @@ const getEnvNameMap = (): Record<string, any> => ({
     DEEPINFRA_API_KEY: SecretDTOProvider.DEEPINFRA,
     ALEPHALPHA_API_KEY: SecretDTOProvider.ALEPHALPHA,
     GROQ_API_KEY: SecretDTOProvider.GROQ,
-    MISTRAL_API_KEY: SecretDTOProvider.MISTRALAI,
+    MISTRAL_API_KEY: SecretDTOProvider.MISTRAL,
+    // Backward-compatible mapping for legacy Mistral provider name
+    MISTRALAI_API_KEY: SecretDTOProvider.MISTRAL,
     ANTHROPIC_API_KEY: SecretDTOProvider.ANTHROPIC,
     PERPLEXITYAI_API_KEY: SecretDTOProvider.PERPLEXITYAI,
     TOGETHERAI_API_KEY: SecretDTOProvider.TOGETHERAI,
@@ -153,6 +176,13 @@ export const createStandardSecretAtom = atom(null, async (get, set, provider: Ll
     const updateMutation = get(updateVaultSecretMutationAtom)
 
     try {
+        const providerKind = envNameMap[provider.name as string]
+        if (!providerKind) {
+            throw new Error(
+                `[vault] Unknown provider name "${provider.name}" when creating standard secret`,
+            )
+        }
+
         // Match the original working payload structure exactly
         const payload = {
             header: {
@@ -162,7 +192,7 @@ export const createStandardSecretAtom = atom(null, async (get, set, provider: Ll
             secret: {
                 kind: SecretDTOKind.PROVIDER_KEY,
                 data: {
-                    kind: envNameMap[provider.name as string],
+                    kind: providerKind,
                     provider: {
                         key: provider.key,
                     },

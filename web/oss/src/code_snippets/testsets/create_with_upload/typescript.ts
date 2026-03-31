@@ -13,6 +13,7 @@ export default function tsCode(uri: string): string {
 
     const formData = new FormData();
     formData.append('file', fs.createReadStream(filePath));
+    formData.append('file_type', 'csv');
     formData.append('testset_name', testsetName);
 
     const config = {

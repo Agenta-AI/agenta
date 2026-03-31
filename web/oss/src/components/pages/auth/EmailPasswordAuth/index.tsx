@@ -1,28 +1,67 @@
-import {useState} from "react"
+import {useRef, useState} from "react"
 
 import {Button, Form, FormProps, Input} from "antd"
 import {signUp} from "supertokens-auth-react/recipe/emailpassword"
 
 import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
+import {
+    clearPendingTurnstileToken,
+    isTurnstileEnabled,
+    setPendingTurnstileToken,
+} from "@/oss/lib/helpers/auth/turnstile"
 
 import ShowErrorMessage from "../assets/ShowErrorMessage"
 import {EmailPasswordAuthProps} from "../assets/types"
+import TurnstileWidget, {TurnstileWidgetHandle} from "../Turnstile"
 
 const EmailPasswordAuth = ({
     message,
     setMessage,
     authErrorMsg,
     initialEmail,
+    lockEmail = false,
 }: EmailPasswordAuthProps) => {
     const {handleAuthSuccess} = usePostAuthRedirect()
     const [form, setForm] = useState({email: initialEmail || "", password: ""})
     const [isLoading, setIsLoading] = useState(false)
+    const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+    const turnstileEnabled = isTurnstileEnabled()
+    const turnstileRef = useRef<TurnstileWidgetHandle>(null)
+
+    const resetTurnstile = () => {
+        clearPendingTurnstileToken()
+        setTurnstileToken(null)
+        turnstileRef.current?.reset()
+    }
+
+    const ensureTurnstileToken = () => {
+        if (!turnstileEnabled || turnstileToken) {
+            return true
+        }
+
+        setMessage({
+            message: "Please complete the security check.",
+            type: "error",
+        })
+
+        return false
+    }
 
     const signUpClicked: FormProps<{email: string; password: string}>["onFinish"] = async (
         values,
     ) => {
+        if (!ensureTurnstileToken()) {
+            return
+        }
+
         try {
             setIsLoading(true)
+            if (turnstileEnabled) {
+                setPendingTurnstileToken(turnstileToken)
+            }
+            console.log("[emailpassword-auth] signup submit", {
+                email: values.email,
+            })
             const response = await signUp({
                 formFields: [
                     {
@@ -47,15 +86,19 @@ const EmailPasswordAuth = ({
                 })
             } else {
                 setMessage({message: "Verification successful", type: "success"})
-                const {createdNewRecipeUser, user} = response as {
-                    createdNewRecipeUser?: boolean
+                const {user} = response as {
                     user?: {loginMethods?: unknown[]}
                 }
-                await handleAuthSuccess({createdNewRecipeUser, user})
+                console.log("[emailpassword-auth] signup ok", {
+                    hasUser: Boolean(user),
+                    loginMethods: user?.loginMethods,
+                })
+                await handleAuthSuccess({user})
             }
         } catch (error) {
             authErrorMsg(error)
         } finally {
+            resetTurnstile()
             setIsLoading(false)
         }
     }
@@ -70,7 +113,7 @@ const EmailPasswordAuth = ({
             >
                 <Form.Item
                     name="email"
-                    label="Email"
+                    // label="Email"
                     className="[&_.ant-form-item-required]:before:!hidden [&_.ant-form-item-required]:font-medium w-full mb-0 flex flex-col gap-1"
                     rules={[{required: true, message: "Please add your email!"}]}
                 >
@@ -80,12 +123,14 @@ const EmailPasswordAuth = ({
                         value={form.email}
                         placeholder="Enter valid email address"
                         status={message.type === "error" ? "error" : ""}
+                        disabled={lockEmail}
+                        className={lockEmail ? "auth-locked-input" : undefined}
                         onChange={(e) => setForm({...form, email: e.target.value})}
                     />
                 </Form.Item>
                 <Form.Item
                     name="password"
-                    label="Password"
+                    // label="Password"
                     className="[&_.ant-form-item-required]:before:!hidden [&_.ant-form-item-required]:font-medium w-full mb-0 flex flex-col gap-1"
                     rules={[{required: true, message: "Please add your password!"}]}
                 >
@@ -99,6 +144,20 @@ const EmailPasswordAuth = ({
                     />
                 </Form.Item>
 
+                {turnstileEnabled && (
+                    <TurnstileWidget
+                        ref={turnstileRef}
+                        className="flex justify-center"
+                        onTokenChange={setTurnstileToken}
+                        onError={() =>
+                            setMessage({
+                                message: "Security check failed. Please try again.",
+                                type: "error",
+                            })
+                        }
+                    />
+                )}
+
                 <Button
                     size="large"
                     type="primary"
@@ -106,7 +165,7 @@ const EmailPasswordAuth = ({
                     className="w-full"
                     loading={isLoading}
                 >
-                    Sign in
+                    Continue with password
                 </Button>
                 {message.type == "error" && (
                     <ShowErrorMessage info={message} className="text-start" />

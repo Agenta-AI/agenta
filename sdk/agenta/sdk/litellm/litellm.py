@@ -4,7 +4,6 @@ from opentelemetry.trace import SpanKind
 import agenta as ag
 
 from agenta.sdk.tracing.spans import CustomSpan
-from agenta.sdk.utils.exceptions import suppress  # TODO: use it !
 from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -152,7 +151,7 @@ def litellm_handler():
                     namespace="data",
                 )
 
-            except Exception as e:
+            except Exception:
                 pass
 
             span.set_attributes(
@@ -166,24 +165,27 @@ def litellm_handler():
                 namespace="metrics.unit.costs",
             )
 
+            # Handle both dict and object attribute access for usage, and safely handle None
+            usage = getattr(response_obj, "usage", None)
+            if isinstance(usage, dict):
+                prompt_tokens = usage.get("prompt_tokens")
+                completion_tokens = usage.get("completion_tokens")
+                total_tokens = usage.get("total_tokens")
+            elif usage is not None:
+                prompt_tokens = getattr(usage, "prompt_tokens", None)
+                completion_tokens = getattr(usage, "completion_tokens", None)
+                total_tokens = getattr(usage, "total_tokens", None)
+            else:
+                prompt_tokens = completion_tokens = total_tokens = None
+
             span.set_attributes(
                 attributes=(
                     {
-                        "prompt": (
-                            float(response_obj.usage.prompt_tokens)
-                            if response_obj.usage.prompt_tokens
-                            else None
-                        ),
-                        "completion": (
-                            float(response_obj.usage.completion_tokens)
-                            if response_obj.usage.completion_tokens
-                            else None
-                        ),
-                        "total": (
-                            float(response_obj.usage.total_tokens)
-                            if response_obj.usage.total_tokens
-                            else None
-                        ),
+                        "prompt": float(prompt_tokens) if prompt_tokens else None,
+                        "completion": float(completion_tokens)
+                        if completion_tokens
+                        else None,
+                        "total": float(total_tokens) if total_tokens else None,
                     }
                 ),
                 namespace="metrics.unit.tokens",
@@ -286,7 +288,7 @@ def litellm_handler():
                     namespace="data",
                 )
 
-            except Exception as e:
+            except Exception:
                 pass
 
             span.set_attributes(
@@ -300,24 +302,29 @@ def litellm_handler():
                 namespace="metrics.unit.costs",
             )
 
+            # Handle both dict and object attribute access for usage
+            usage = getattr(response_obj, "usage", None)
+            if usage is None:
+                prompt_tokens = None
+                completion_tokens = None
+                total_tokens = None
+            elif isinstance(usage, dict):
+                prompt_tokens = usage.get("prompt_tokens")
+                completion_tokens = usage.get("completion_tokens")
+                total_tokens = usage.get("total_tokens")
+            else:
+                prompt_tokens = getattr(usage, "prompt_tokens", None)
+                completion_tokens = getattr(usage, "completion_tokens", None)
+                total_tokens = getattr(usage, "total_tokens", None)
+
             span.set_attributes(
                 attributes=(
                     {
-                        "prompt": (
-                            float(response_obj.usage.prompt_tokens)
-                            if response_obj.usage.prompt_tokens
-                            else None
-                        ),
-                        "completion": (
-                            float(response_obj.usage.completion_tokens)
-                            if response_obj.usage.completion_tokens
-                            else None
-                        ),
-                        "total": (
-                            float(response_obj.usage.total_tokens)
-                            if response_obj.usage.total_tokens
-                            else None
-                        ),
+                        "prompt": float(prompt_tokens) if prompt_tokens else None,
+                        "completion": float(completion_tokens)
+                        if completion_tokens
+                        else None,
+                        "total": float(total_tokens) if total_tokens else None,
                     }
                 ),
                 namespace="metrics.unit.tokens",

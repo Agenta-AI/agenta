@@ -3,25 +3,27 @@ import {useMemo, useState} from "react"
 import {CloseOutlined, PlusOutlined} from "@ant-design/icons"
 import {Cards, Table} from "@phosphor-icons/react"
 import {Button, Divider, Flex, Input, Radio, Space, Spin, Typography} from "antd"
-import {useAtom} from "jotai"
+import {useAtomValue} from "jotai"
 import {createUseStyles} from "react-jss"
 
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import {getEvaluatorTags} from "@/oss/lib/evaluations/legacy"
-import {Evaluator, EvaluatorConfig, JSSTheme} from "@/oss/lib/Types"
+import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
+import {Evaluator, JSSTheme, SimpleEvaluator} from "@/oss/lib/Types"
+import {nonArchivedEvaluatorsAtom} from "@/oss/state/evaluators"
 
 import EvaluatorCard from "./EvaluatorCard"
 import EvaluatorList from "./EvaluatorList"
 
 interface EvaluatorsProps {
-    evaluatorConfigs: EvaluatorConfig[]
+    evaluatorConfigs: SimpleEvaluator[]
     handleOnCancel: () => void
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
     fetchingEvalConfigs: boolean
     setEditMode: React.Dispatch<React.SetStateAction<boolean>>
     setCloneConfig: React.Dispatch<React.SetStateAction<boolean>>
-    setEditEvalEditValues: React.Dispatch<React.SetStateAction<EvaluatorConfig | null>>
+    setEditEvalEditValues: React.Dispatch<React.SetStateAction<SimpleEvaluator | null>>
     onSuccess: () => void
     setEvaluatorsDisplay: any
     evaluatorsDisplay: string
@@ -78,16 +80,29 @@ const Evaluators = ({
 }: EvaluatorsProps) => {
     const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
-    const evaluatorTags = getEvaluatorTags()
-    const evaluators = useAtom(evaluatorsAtom)[0]
+    const baseEvaluatorTags = getEvaluatorTags()
+    const evaluators = useAtomValue(evaluatorsAtom)
+    const nonArchivedEvaluators = useAtomValue(nonArchivedEvaluatorsAtom)
     const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
+
+    // Filter tags to only show those that have evaluators
+    const evaluatorTags = useMemo(() => {
+        const tagsWithEvaluators = new Set<string>()
+        nonArchivedEvaluators.forEach((item) => {
+            item.tags.forEach((tag) => tagsWithEvaluators.add(tag))
+        })
+        return baseEvaluatorTags.filter((tag) => tagsWithEvaluators.has(tag.value))
+    }, [baseEvaluatorTags, nonArchivedEvaluators])
 
     const updatedEvaluatorConfigs = useMemo(() => {
         return evaluatorConfigs.map((config) => {
-            const matchingEvaluator = evaluators.find(
-                (evaluator) => evaluator.key === config.evaluator_key,
+            const evaluatorKey = resolveEvaluatorKey(config)
+            const matchingEvaluator = evaluators.find((evaluator) => evaluator.key === evaluatorKey)
+            if (!matchingEvaluator) return config
+            const nextTags = Array.from(
+                new Set([...(config.tags || []), ...(matchingEvaluator.tags || [])]),
             )
-            return matchingEvaluator ? {...config, tags: matchingEvaluator.tags} : config
+            return {...config, tags: nextTags}
         })
     }, [evaluatorConfigs, evaluators])
 
@@ -100,7 +115,7 @@ const Evaluators = ({
 
         if (searchTerm) {
             filtered = filtered.filter((item) =>
-                item.name.toLowerCase().includes(searchTerm.toLowerCase()),
+                (item.name || "").toLowerCase().includes(searchTerm.toLowerCase()),
             )
         }
 
@@ -134,7 +149,7 @@ const Evaluators = ({
                             <Radio.Button value={"view_all"} className="text-nowrap">
                                 View all
                             </Radio.Button>
-                            <Divider type="vertical" className="h-7 !mx-1" />
+                            <Divider orientation="vertical" className="h-7 !mx-1" />
                             {evaluatorTags.map((val, idx) => (
                                 <Radio.Button key={idx} value={val.value} className="text-nowrap">
                                     {val.label}

@@ -1,0 +1,61 @@
+---
+title: Sub-processors
+description: Agenta Cloud sub-processors by region
+slug: /administration/security/sub-processors
+---
+
+# Agenta Sub-processors
+
+Last updated: February 4, 2026
+
+If you have questions, contact security@agenta.ai.
+
+:::note
+This list applies to **Agenta Cloud (managed SaaS)** only. It does not apply to self-hosted deployments.
+:::
+
+## Current Sub-processors (EU)
+
+| Sub-processor | Purpose | Location |
+|---|---|---|
+| Amazon Web Services (AWS) | Cloud hosting provider | EU (Frankfurt) |
+| SuperTokens | Authentication provider | EU |
+| Daytona | Code execution sandbox | EU |
+| PostHog | Product analytics | US (soon EU) |
+| New Relic | Application monitoring | EU |
+| Crisp | Customer support chat | EU (Global) |
+| Stripe | Payments & billing | US (Global) |
+| Loops | Marketing email provider | US (Global) |
+| SendGrid | Transactional email provider | US (Global) |
+
+## Current Sub-processors (US)
+
+| Sub-processor | Purpose | Location |
+|---|---|---|
+| Amazon Web Services (AWS) | Cloud hosting provider | US (Ohio) |
+| SuperTokens | Authentication provider | US |
+| Daytona | Code execution sandbox | US |
+| PostHog | Product analytics | US |
+| New Relic | Application monitoring | EU |
+| Crisp | Customer support chat | EU (Global) |
+| Stripe | Payments & billing | US (Global) |
+| Loops | Marketing email provider | US (Global) |
+| SendGrid | Transactional email provider | US (Global) |
+
+## FAQ
+
+### Do you send my data to LLM providers?
+
+Agenta does not process customer data through LLM providers by default.
+
+When you use the Playground or run evaluations:
+
+- You bring your own LLM API keys (OpenAI, Anthropic, etc.).
+- Requests are sent directly from your browser/application to the LLM provider.
+- Agenta does not store or proxy LLM API calls in typical production use.
+
+For demo/trial purposes, Agenta may provide demo API keys. For production workloads, use your own keys.
+
+### Does this list apply to self-hosted deployments?
+
+No. For self-hosted deployments, you control your own infrastructure and any sub-processors you choose to use.

@@ -1,5 +1,6 @@
-import {TableProps, ColumnType, ColumnGroupType} from "antd/es/table"
 import {ReactNode} from "react"
+
+import {TableProps, ColumnType} from "antd/es/table"
 
 /**
  * Props for the renderAggregatedData function

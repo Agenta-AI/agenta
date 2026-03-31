@@ -1,5 +1,6 @@
+import {ImagePreview} from "@agenta/ui/components/presentational"
 import {Tag} from "antd"
-import ImagePreview from "@/oss/components/Common/ImagePreview"
+
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 
 import type {PromptPreviewSection} from "../types"
@@ -20,7 +21,7 @@ const PromptPreview = ({sections}: PromptPreviewProps) => {
                 const normalizedLabel = section.label?.trim().toLowerCase()
                 const labelIsDistinct =
                     Boolean(normalizedLabel) && normalizedLabel !== normalizedTag
-                const secondaryLabel = labelIsDistinct
+                const _secondaryLabel = labelIsDistinct
                     ? section.label
                     : section.role
                       ? `Message ${index + 1}`

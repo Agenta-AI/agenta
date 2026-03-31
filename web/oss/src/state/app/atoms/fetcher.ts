@@ -20,6 +20,16 @@ import {LS_APP_KEY} from "../assets/constants"
 
 const baseRouterAppIdAtom = atom<string | null>(null)
 
+const shouldResetEvaluationContextOnAppSwitch = ({
+    restPath,
+    pathname,
+}: {
+    restPath: string[]
+    pathname: string
+}) =>
+    (restPath[0] === "evaluations" && restPath[1] === "results") ||
+    pathname.includes("/evaluations/results")
+
 export const routerAppIdAtom = atom(
     (get) => {
         const derived = get(appIdentifiersAtom).appId
@@ -54,7 +64,13 @@ export const routerAppNavigationAtom = atom(null, (get, set, next: string | null
     const base = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps/${encodeURIComponent(next)}`
     const snapshot = get(appStateSnapshotAtom)
     const rest = snapshot.routeLayer === "app" ? snapshot.restPath : []
-    const href = rest.length ? `${base}/${rest.join("/")}` : `${base}/overview`
+    const nextRest = shouldResetEvaluationContextOnAppSwitch({
+        restPath: rest,
+        pathname: snapshot.pathname,
+    })
+        ? ["evaluations"]
+        : rest
+    const href = nextRest.length ? `${base}/${nextRest.join("/")}` : `${base}/overview`
     set(requestNavigationAtom, {type: "href", href, method: "push"})
 })
 
@@ -95,34 +111,36 @@ export const appsQueryAtom = atomWithQuery<ListAppsItem[]>((get) => {
  * Atom family for fetching app container URIs
  * Creates focused atoms for specific app+variant combinations
  */
-export const uriQueryAtomFamily = atomFamily((params: {appId: string; variantId?: string}) =>
-    atomWithQuery<string>((get) => {
-        const {appId, variantId} = params
-        const projectId = get(projectIdAtom)
+export const uriQueryAtomFamily = atomFamily(
+    (params: {appId: string; variantId?: string}) =>
+        atomWithQuery<string>((get) => {
+            const {appId, variantId} = params
+            const projectId = get(projectIdAtom)
 
-        return {
-            queryKey: ["uri", appId, variantId],
-            queryFn: async () => {
-                const url = await fetchAppContainerURL(appId, variantId)
-                return `${url}/run`
-            },
-            staleTime: 1000 * 60 * 5, // 5 minutes - URIs don't change often
-            refetchOnWindowFocus: false,
-            refetchOnReconnect: false,
-            refetchOnMount: false,
-            enabled: !!projectId && !!variantId, // Only fetch when variantId is provided
-            retry: (failureCount, error) => {
-                // Don't retry if it's a 404 or similar client error
-                if (
-                    (error as any)?.response?.status >= 400 &&
-                    (error as any)?.response?.status < 500
-                ) {
-                    return false
-                }
-                return failureCount < 3
-            },
-        }
-    }),
+            return {
+                queryKey: ["uri", appId, variantId],
+                queryFn: async () => {
+                    const url = await fetchAppContainerURL(appId, variantId)
+                    return `${url}/run`
+                },
+                staleTime: 1000 * 60 * 5, // 5 minutes - URIs don't change often
+                refetchOnWindowFocus: false,
+                refetchOnReconnect: false,
+                refetchOnMount: false,
+                enabled: !!projectId && !!variantId, // Only fetch when variantId is provided
+                retry: (failureCount, error) => {
+                    // Don't retry if it's a 404 or similar client error
+                    if (
+                        (error as any)?.response?.status >= 400 &&
+                        (error as any)?.response?.status < 500
+                    ) {
+                        return false
+                    }
+                    return failureCount < 3
+                },
+            }
+        }),
+    (a, b) => a.appId === b.appId && a.variantId === b.variantId,
 )
 
 export const appDetailQueryAtomFamily = atomFamily((appId: string | null) =>

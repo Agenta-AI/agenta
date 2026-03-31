@@ -1,5 +1,18 @@
 import {PropsWithChildren} from "react"
 
+import {
+    evaluatorSelectionConfig,
+    evaluatorRevisionSelectionConfig,
+} from "@agenta/entities/evaluator"
+import {legacyEvaluatorSelectionConfig} from "@agenta/entities/legacyEvaluator"
+import {testsetSelectionConfig} from "@agenta/entities/testset"
+import {
+    revisionModalAdapter,
+    simpleQueueModalAdapter,
+    testsetModalAdapter,
+    variantModalAdapter,
+} from "@agenta/entity-ui/adapters"
+import {initializeSelectionSystem} from "@agenta/entity-ui/selection"
 import {useQueryClient} from "@tanstack/react-query"
 import {Provider, getDefaultStore} from "jotai"
 import {useHydrateAtoms} from "jotai/react/utils"
@@ -9,6 +22,21 @@ import WebWorkerProvider from "../components/Playground/Components/WebWorkerProv
 import AgSWRConfig from "../lib/api/SWRConfig"
 
 import {SessionListener} from "./session"
+
+// Initialize the selection system with all entity configs
+// This must be called before any selection components are rendered
+initializeSelectionSystem({
+    testset: testsetSelectionConfig,
+    evaluator: evaluatorSelectionConfig,
+    legacyEvaluator: legacyEvaluatorSelectionConfig,
+    evaluatorRevision: evaluatorRevisionSelectionConfig,
+})
+
+// Explicitly reference modal adapters so registration is not tree-shaken.
+void testsetModalAdapter
+void revisionModalAdapter
+void simpleQueueModalAdapter
+void variantModalAdapter
 
 const HydrateAtoms = ({children}: PropsWithChildren) => {
     const queryClient = useQueryClient()

@@ -1,6 +1,8 @@
 import requests
 import pytest
 
+from uuid import uuid4
+
 from utils.constants import BASE_TIMEOUT
 
 
@@ -11,9 +13,19 @@ def create_account(ag_env):
     headers = {"Authorization": f"Access {auth_key}"}
     url = f"{api_url}/admin/account"
 
+    unique_id = uuid4().hex[:12]
+
     response = requests.post(
         url=url,
         headers=headers,
+        json={
+            "user": {
+                "email": f"{unique_id}@test.agenta.ai",
+            },
+            "subscription": {
+                "plan": "cloud_v0_business",  # Use BUSINESS plan to avoid quota limits in tests
+            },
+        },
         timeout=BASE_TIMEOUT,
     )
 

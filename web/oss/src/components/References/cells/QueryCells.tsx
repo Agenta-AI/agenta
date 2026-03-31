@@ -1,13 +1,13 @@
+import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {Typography} from "antd"
 
 import {
     formatSamplingRate,
     formatWindowRange,
-} from "@/oss/components/EvalRunDetails2/components/views/ConfigurationView/utils"
+} from "@/oss/components/EvalRunDetails/components/views/ConfigurationView/utils"
 import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
 import type {ReferenceColumnDescriptor} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
 import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
-import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 
 import FiltersPreview from "../../pages/evaluations/onlineEvaluation/components/FiltersPreview"
 import usePreviewQueryRevision from "../hooks/usePreviewQueryRevision"

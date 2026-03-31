@@ -8,7 +8,7 @@ from .workspace_permission import WorkspacePermission
 
 
 class WorkspaceMemberResponse(UniversalBaseModel):
-    user: typing.Dict[str, typing.Optional[typing.Any]]
+    user: typing.Dict[str, typing.Any]
     roles: typing.List[WorkspacePermission]
 
     if IS_PYDANTIC_V2:

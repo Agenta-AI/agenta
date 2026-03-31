@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {useCallback} from "react"
 
 import {SwapOutlined} from "@ant-design/icons"
@@ -8,19 +7,18 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
 
-import {openComparisonModalAtom} from "@/oss/components/VariantsComponents/Modals/VariantComparisonModal/store/comparisonModalStore"
-import {comparisonSelectionScopeAtom} from "@/oss/components/VariantsComponents/Modals/VariantComparisonModal/store/comparisonModalStore"
+import {
+    openComparisonModalAtom,
+    comparisonSelectionScopeAtom,
+} from "@/oss/components/VariantsComponents/Modals/VariantComparisonModal/store/comparisonModalStore"
+import {selectedVariantsCountAtom} from "@/oss/components/VariantsComponents/store/selectionAtoms"
 import VariantsTable from "@/oss/components/VariantsComponents/Table"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQuery} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
-import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {variantsPendingAtom} from "@/oss/state/loadingSelectors"
-import {selectedVariantsCountAtom} from "@/oss/state/variant/atoms/selection"
-import {
-    recentRevisionsAtom,
-    recentRevisionsTableRowsAtom,
-} from "@/oss/state/variant/selectors/variant"
+import type {EnhancedVariant} from "@/oss/lib/shared/variant/types"
+
+import {recentRevisionsOverviewAtom, revisionsReadyAtom} from "./atoms"
 
 const {Title} = Typography
 
@@ -31,8 +29,8 @@ const VariantsOverview = () => {
     // Drawer open/close is handled in VariantDrawerWrapper based on URL param
     const openComparisonModal = useSetAtom(openComparisonModalAtom)
     const setComparisonSelectionScope = useSetAtom(comparisonSelectionScopeAtom)
-    const isVariantLoading = useAtomValue(variantsPendingAtom)
-    const slicedVariantList = useAtomValue(recentRevisionsTableRowsAtom)
+    const isRevisionsReady = useAtomValue(revisionsReadyAtom)
+    const slicedVariantList = useAtomValue(recentRevisionsOverviewAtom)
     const selectionScope = "overview/recent"
     const selectedCount = useAtomValue(selectedVariantsCountAtom(selectionScope))
     const {goToPlayground} = usePlaygroundNavigation()
@@ -52,12 +50,9 @@ const VariantsOverview = () => {
     return (
         <div className={clsx(["flex flex-col gap-2", "[&_>_div_h1.ant-typography]:text-xs"])}>
             <div className="flex items-center justify-between">
-                <Space>
-                    <Title>Recent Prompts</Title>
-                    <Button>
-                        <Link href={`${appURL}/variants`}>View all</Link>
-                    </Button>
-                </Space>
+                <Title level={3} className="!m-0">
+                    Recent Prompts
+                </Title>
 
                 <Space>
                     <Button
@@ -73,6 +68,7 @@ const VariantsOverview = () => {
                     </Button>
 
                     <Button
+                        type="primary"
                         icon={<Rocket size={14} className="mt-[3px]" />}
                         onClick={() => handleNavigation()}
                     >
@@ -85,28 +81,31 @@ const VariantsOverview = () => {
                 showEnvBadges
                 showStableName
                 variants={slicedVariantList}
-                onRowClick={(variant) => {
+                onRowClick={(variant: EnhancedVariant) => {
                     // Cosmetic URL update for deep linking
                     updateQuery({
-                        revisionId: variant._revisionId ?? variant.id,
+                        revisionId: (variant as any)._revisionId ?? variant.id,
                         drawerType: "variant",
                     })
-                    // Open the drawer via atoms with an explicit selectedVariantId
                 }}
                 selectionScope={selectionScope}
-                isLoading={isVariantLoading}
-                handleOpenDetails={(record) => {
+                isLoading={!isRevisionsReady}
+                handleOpenDetails={(record: EnhancedVariant) => {
                     // Cosmetic URL update for deep linking
                     updateQuery({
-                        revisionId: record._revisionId ?? record.id,
+                        revisionId: (record as any)._revisionId ?? record.id,
                         drawerType: "variant",
                     })
-                    // Open the drawer via atoms with an explicit selectedVariantId
                 }}
-                handleOpenInPlayground={(record) => {
+                handleOpenInPlayground={(record: EnhancedVariant) => {
                     handleNavigation(record)
                 }}
             />
+            <div className="flex justify-end">
+                <Link href={`${appURL}/variants`} prefetch className="underline">
+                    View all prompts →
+                </Link>
+            </div>
         </div>
     )
 }

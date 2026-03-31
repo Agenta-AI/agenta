@@ -6,12 +6,12 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {
     INVOCATION_METRIC_KEYS,
     INVOCATION_METRIC_LABELS,
-} from "@/oss/components/EvalRunDetails2/components/views/OverviewView/constants"
+} from "@/oss/components/EvalRunDetails/components/views/OverviewView/constants"
 import {
     ColumnVisibilityMenuTrigger,
-    createTableColumns,
     createColumnVisibilityAwareCell,
     createComponentCell,
+    createTableColumns,
 } from "@/oss/components/InfiniteVirtualTable"
 import type {TableColumnConfig} from "@/oss/components/InfiniteVirtualTable/columns/types"
 import {getEvaluatorMetricBlueprintAtom} from "@/oss/components/References/atoms/metricBlueprint"
@@ -68,13 +68,13 @@ import {
     normalizeString,
     resolveCreatedAtForExport,
     resolveEvaluationKindForExport,
+    resolveEvaluatorHandles,
+    resolveEvaluatorReferenceCandidate,
     resolveReferenceExportValue,
     resolveRunNameForExport,
     resolveStatusForExport,
     sanitizeGroupLabel,
     withColumnVisibilityHeader,
-    resolveEvaluatorHandles,
-    resolveEvaluatorReferenceCandidate,
 } from "./utils"
 
 export {
@@ -175,23 +175,6 @@ const useEvaluationRunsColumns = ({
             ? stableReferenceBlueprintRef.current
             : newBlueprint
     }, [stableRows, evaluationKind])
-
-    const ensuredReferenceBlueprint = useMemo(() => {
-        if (evaluationKind !== "all") {
-            return referenceBlueprint
-        }
-        const hasQueryColumn = referenceBlueprint.some((descriptor) => descriptor.role === "query")
-        if (hasQueryColumn) {
-            return referenceBlueprint
-        }
-        const fallbackDescriptor: ReferenceColumnDescriptor = {
-            slotIndex: referenceBlueprint.length,
-            role: "query",
-            roleOrdinal: 1,
-            label: "Query",
-        }
-        return [...referenceBlueprint, fallbackDescriptor]
-    }, [evaluationKind, referenceBlueprint])
 
     const invocationMetricDescriptors = useMemo(
         () =>
@@ -449,7 +432,7 @@ const useEvaluationRunsColumns = ({
     const isMetricHidden = useCallback(
         (groupId: string, metricPath: string, descriptorOutputType: string | null | undefined) => {
             // First check descriptor's outputType
-            if (descriptorOutputType === "string") {
+            if (isStringOutputType(descriptorOutputType)) {
                 return true
             }
 
@@ -467,12 +450,13 @@ const useEvaluationRunsColumns = ({
                 return false
             }
 
-            // Extract the metric name from the full path
-            const metricName = metricPath.includes(".")
+            const canonicalFullPath = canonicalizeMetricKey(metricPath)
+            const metricLeaf = metricPath.includes(".")
                 ? (metricPath.split(".").pop() ?? metricPath)
                 : metricPath
-            const canonicalPath = canonicalizeMetricKey(metricName)
-            const outputType = outputTypesMap.get(canonicalPath)
+            const canonicalLeafPath = canonicalizeMetricKey(metricLeaf)
+            const outputType =
+                outputTypesMap.get(canonicalFullPath) ?? outputTypesMap.get(canonicalLeafPath)
 
             if (outputType === undefined) {
                 return false
@@ -532,12 +516,18 @@ const useEvaluationRunsColumns = ({
                                 const key = createEvaluatorOutputTypesKey(groupProjectId, groupSlug)
                                 const outputTypesMap = getOutputTypesMap(key)
                                 if (outputTypesMap.size > 0) {
-                                    const metricName = descriptor.metricPath.includes(".")
+                                    const canonicalFullPath = canonicalizeMetricKey(
+                                        descriptor.metricPath,
+                                    )
+                                    const metricLeaf = descriptor.metricPath.includes(".")
                                         ? (descriptor.metricPath.split(".").pop() ??
                                           descriptor.metricPath)
                                         : descriptor.metricPath
-                                    const canonicalPath = canonicalizeMetricKey(metricName)
-                                    enrichedOutputType = outputTypesMap.get(canonicalPath) ?? null
+                                    const canonicalLeafPath = canonicalizeMetricKey(metricLeaf)
+                                    enrichedOutputType =
+                                        outputTypesMap.get(canonicalFullPath) ??
+                                        outputTypesMap.get(canonicalLeafPath) ??
+                                        null
                                 }
                             }
 
@@ -688,7 +678,7 @@ const useEvaluationRunsColumns = ({
             {
                 title: "Status",
                 key: "status",
-                width: 56,
+                width: 61,
                 fixed: "left",
                 visibilityLocked: true,
                 align: "left",
@@ -741,7 +731,7 @@ const useEvaluationRunsColumns = ({
             })
         }
 
-        ensuredReferenceBlueprint
+        referenceBlueprint
             .filter(
                 (descriptor) => descriptor.role !== "evaluator" && descriptor.role !== "variant",
             )
@@ -827,7 +817,7 @@ const useEvaluationRunsColumns = ({
         columnConfigs.push({
             title: <ColumnVisibilityMenuTrigger variant="icon" />,
             key: "actions",
-            width: 56,
+            width: 61,
             fixed: "right",
             visibilityLocked: true,
             align: "center",
@@ -857,7 +847,7 @@ const useEvaluationRunsColumns = ({
     }, [
         evaluationKind,
         metricNodes,
-        ensuredReferenceBlueprint,
+        referenceBlueprint,
         onOpenDetails,
         onVariantNavigation,
         onTestsetNavigation,

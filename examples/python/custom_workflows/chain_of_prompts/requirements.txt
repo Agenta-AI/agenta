@@ -1,3 +1,5 @@
-openai
 agenta
-opentelemetry.instrumentation.openai
+openai
+python-dotenv
+opentelemetry-instrumentation-openai
+uvicorn

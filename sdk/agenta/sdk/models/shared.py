@@ -87,8 +87,8 @@ class Slug(BaseModel):
     @field_validator("slug")
     def check_url_safety(cls, v):
         if v is not None:
-            if not match(r"^[a-zA-Z0-9_-]+$", v):
-                raise ValueError("slug must be URL-safe.")
+            if not match(r"^[a-zA-Z0-9_.\-]+$", v):
+                raise ValueError("'slug' must be URL-safe.")
         return v
 
 
@@ -98,6 +98,27 @@ class Version(BaseModel):
 
 class Reference(Identifier, Slug, Version):
     pass
+
+
+class Selector(BaseModel):
+    """
+    Selector for extracting specific data from entities.
+
+    Placed alongside Reference for data extraction from referenced entities.
+
+    Fields:
+    - **key**: For environment revisions only. Navigates to data.references.<key>,
+      follows the entity pointer found there (e.g. workflow_revision), fetches that
+      entity, then applies path against its data.
+    - **path**: Dot notation path into the resolved entity's data.
+      If key is set, path applies to the secondary entity's data.
+      If key is not set, path applies directly to the referenced entity's data.
+    """
+
+    key: Optional[str] = (
+        None  # Environment revision reference key for two-hop resolution
+    )
+    path: Optional[str] = None  # Dot notation path, e.g., "parameters.system_prompt"
 
 
 class Header(BaseModel):

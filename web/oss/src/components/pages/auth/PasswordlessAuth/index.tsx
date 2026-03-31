@@ -1,9 +1,17 @@
+import {useRef, useState} from "react"
+
 import {Button, Form, FormProps, Input} from "antd"
 import {createCode} from "supertokens-auth-react/recipe/passwordless"
 
 import ShowErrorMessage from "@/oss/components/pages/auth/assets/ShowErrorMessage"
+import {
+    clearPendingTurnstileToken,
+    isTurnstileEnabled,
+    setPendingTurnstileToken,
+} from "@/oss/lib/helpers/auth/turnstile"
 
 import {PasswordlessAuthProps} from "../assets/types"
+import TurnstileWidget, {TurnstileWidgetHandle} from "../Turnstile"
 
 const PasswordlessAuth = ({
     email,
@@ -15,10 +23,41 @@ const PasswordlessAuth = ({
     authErrorMsg,
     setIsLoginCodeVisible,
     disabled,
+    lockEmail = false,
 }: PasswordlessAuthProps) => {
+    const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+    const turnstileEnabled = isTurnstileEnabled()
+    const turnstileRef = useRef<TurnstileWidgetHandle>(null)
+
+    const resetTurnstile = () => {
+        clearPendingTurnstileToken()
+        setTurnstileToken(null)
+        turnstileRef.current?.reset()
+    }
+
+    const ensureTurnstileToken = () => {
+        if (!turnstileEnabled || turnstileToken) {
+            return true
+        }
+
+        setMessage({
+            message: "Please complete the security check.",
+            type: "error",
+        })
+
+        return false
+    }
+
     const sendOTP: FormProps<{email: string}>["onFinish"] = async (values) => {
+        if (!ensureTurnstileToken()) {
+            return
+        }
+
         try {
             setIsLoading(true)
+            if (turnstileEnabled) {
+                setPendingTurnstileToken(turnstileToken)
+            }
             const response = await createCode({email: values.email})
 
             if (response.status === "SIGN_IN_UP_NOT_ALLOWED") {
@@ -33,6 +72,7 @@ const PasswordlessAuth = ({
         } catch (err) {
             authErrorMsg(err)
         } finally {
+            resetTurnstile()
             setIsLoading(false)
         }
     }
@@ -51,9 +91,25 @@ const PasswordlessAuth = ({
                     type="email"
                     value={email}
                     placeholder="Enter valid email address"
+                    disabled={lockEmail}
+                    className={lockEmail ? "auth-locked-input" : undefined}
                     onChange={(e) => setEmail(e.target.value)}
                 />
             </Form.Item>
+
+            {turnstileEnabled && (
+                <TurnstileWidget
+                    ref={turnstileRef}
+                    className="flex justify-center"
+                    onTokenChange={setTurnstileToken}
+                    onError={() =>
+                        setMessage({
+                            message: "Security check failed. Please try again.",
+                            type: "error",
+                        })
+                    }
+                />
+            )}
 
             <Button
                 size="large"
@@ -63,7 +119,7 @@ const PasswordlessAuth = ({
                 loading={isLoading}
                 disabled={disabled}
             >
-                Continue with email
+                Continue with OTP
             </Button>
         </Form>
     )

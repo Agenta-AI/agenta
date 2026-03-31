@@ -1,0 +1,171 @@
+---
+title: Privacy & Data Handling
+description: How Agenta handles, processes, and protects your data
+slug: /administration/security/privacy
+---
+
+# Privacy & Data Handling
+
+Agenta is committed to protecting your privacy and handling your data responsibly. This page explains what data we collect, how we use it, and how we protect it.
+
+## Data We Collect
+
+### Account Data
+
+When you create an account, we collect:
+
+- Email address
+- Name (optional)
+- Organization name
+- Authentication credentials (hashed)
+
+### Usage Data
+
+When you use Agenta, we process:
+
+- **Prompts and configurations** - The prompts you create and manage
+- **Evaluation data** - Test sets, evaluation results, and metrics
+- **Observability data** - Traces, spans, and logs from your LLM applications
+- **Secrets** - API keys you store for LLM providers (encrypted)
+
+### Analytics Data
+
+We collect anonymized analytics to improve our product:
+
+- Feature usage patterns
+- Performance metrics
+- Error rates
+
+## How We Use Your Data
+
+### To Provide the Service
+
+- Store and manage your prompts
+- Run evaluations
+- Display observability data
+- Authenticate your access
+
+### To Improve the Service
+
+- Analyze usage patterns (anonymized)
+- Identify and fix bugs
+- Develop new features
+
+### We Do NOT
+
+- Sell your data to third parties
+- Use your prompts or data to train AI models
+- Share your data without your consent (except as required by law)
+
+## Data Protection
+
+### Encryption
+
+All your data is protected by encryption:
+
+| Data State | Encryption |
+|------------|------------|
+| At rest | AES-256 |
+| In transit | TLS 1.2+ |
+| Secrets | PGP symmetric encryption |
+
+### Access Controls
+
+- Only authorized personnel can access production systems
+- Access is logged and audited
+- Principle of least privilege enforced
+
+### Data Isolation
+
+- Your data is isolated from other customers
+- Organization-level and project-level isolations
+- No cross-tenant data access
+
+## Data Retention
+
+### Active Data
+
+Your data is retained as long as your account is active:
+
+- Prompts and configurations - Retained until deleted
+- Evaluation data - Retained until deleted
+- Observability traces - Retained per your plan limits
+
+### Deleted Data
+
+When you delete data:
+
+- It is removed from active use in the product
+- It may remain in backups for a limited period
+
+### Account Closure
+
+If you close your account:
+
+- Data deletion is initiated upon request
+- Timelines depend on your plan and support process
+
+## Your Rights
+
+You have control over your data:
+
+### Access
+
+- View all your data through the UI
+- Export your data via API
+- Request a data export from support
+
+### Correction
+
+- Update your profile information
+- Modify your prompts and configurations
+- Correct any inaccurate data
+
+### Deletion
+
+- Delete individual items (prompts, test sets, traces)
+- Delete your entire account
+- Request complete data erasure
+
+### Portability
+
+- Export prompts and configurations
+- Export evaluation results
+- Export observability data
+
+## Privacy Policy
+
+For complete legal details, see our [Privacy Policy](/administration/security/privacy-policy).
+
+## Contact
+
+For privacy-related questions or requests:
+
+- **Email**: privacy@agenta.ai
+- **Data requests**: Submit through your account settings or email support
+
+## FAQ
+
+### Do you use my data to train AI models?
+
+**No.** Your prompts, evaluation data, and traces are never used to train AI models. Your data is yours.
+
+### Can Agenta employees see my data?
+
+Access to customer data is strictly controlled:
+
+- Only authorized personnel with a business need
+- All access is logged and audited
+- Used only for support and troubleshooting when needed
+
+### How long do you keep my traces?
+
+Trace retention depends on your plan. Check your plan details for specific retention periods.
+
+### Can I request all my data?
+
+Yes. Contact support to request a complete export of your data.
+
+### What happens to my data if I cancel?
+
+Account cancellation may retain your data for a limited period to allow account recovery. Contact support for deletion requests.

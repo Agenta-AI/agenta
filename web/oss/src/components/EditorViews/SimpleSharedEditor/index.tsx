@@ -1,5 +1,13 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {
+    EditorProvider,
+    useLexicalComposerContext,
+    ON_CHANGE_LANGUAGE,
+    $isCodeBlockNode,
+    TOGGLE_MARKDOWN_VIEW,
+} from "@agenta/ui/editor"
+import {SharedEditor} from "@agenta/ui/shared-editor"
 import {mergeRegister} from "@lexical/utils"
 import {
     BracketsCurly,
@@ -17,12 +25,7 @@ import clsx from "clsx"
 import {$getRoot} from "lexical"
 import dynamic from "next/dynamic"
 
-import {EditorProvider, useLexicalComposerContext} from "@/oss/components/Editor/Editor"
-import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
-import {$isCodeBlockNode} from "@/oss/components/Editor/plugins/code/nodes/CodeBlockNode"
-import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
-import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
+import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 
 import {checkIsHTML, checkIsJSON, checkIsYAML, getDisplayedContent} from "../assets/helper"
 
@@ -210,7 +213,11 @@ const SimpleSharedEditorContent = ({
                                 {...formatDropdownProps}
                                 placement="bottomRight"
                                 trigger={["click"]}
-                                overlayStyle={{width: 120}}
+                                styles={{
+                                    root: {
+                                        width: 120,
+                                    },
+                                }}
                                 menu={{
                                     items: menuItems,
                                     selectable: true,
@@ -302,6 +309,7 @@ const SimpleSharedEditor = (props: SimpleSharedEditorProps) => {
             codeOnly={props.editorProps?.codeOnly || isJSON || isYAML || isHTML}
             enableTokens={false}
             showToolbar={false}
+            disabled={props.disabled}
         >
             <SimpleSharedEditorContent
                 {...props}

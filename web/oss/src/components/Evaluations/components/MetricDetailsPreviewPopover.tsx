@@ -290,18 +290,22 @@ const MetricPopoverContent = ({
 }) => {
     const isOnlineEvaluation = evaluationType === "online"
 
+    const normalizedPrefetchedStats = useMemo(
+        () => (prefetchedStats ? normalizeStatShape(prefetchedStats) : undefined),
+        [prefetchedStats],
+    )
     const prefetchedSelectionAtom = useMemo(
         () =>
-            prefetchedStats
+            normalizedPrefetchedStats
                 ? atom<RunLevelMetricSelection>({
                       state: "hasData",
-                      stats: prefetchedStats,
+                      stats: normalizedPrefetchedStats,
                       resolvedKey: metricKey ?? metricPath,
                   })
                 : null,
-        [prefetchedStats, metricKey, metricPath],
+        [normalizedPrefetchedStats, metricKey, metricPath],
     )
-    const effectiveShouldLoad = shouldLoad || Boolean(prefetchedStats)
+    const effectiveShouldLoad = shouldLoad || Boolean(normalizedPrefetchedStats)
     const selectionAtom = useMemo(() => {
         if (prefetchedSelectionAtom) {
             return prefetchedSelectionAtom
@@ -542,7 +546,7 @@ const MetricPopoverContent = ({
             </div>
         ) : null
 
-    if (!shouldLoad && !prefetchedStats) {
+    if (!shouldLoad && !normalizedPrefetchedStats) {
         return <span className="text-xs text-neutral-500">Loading statistics…</span>
     }
 
@@ -668,6 +672,7 @@ const MetricDetailsPreviewPopover = memo(
         prefetchedStats,
         evaluationType,
         scenarioTimestamp,
+        fullWidth = true,
         children,
     }: {
         runId?: string
@@ -684,6 +689,8 @@ const MetricDetailsPreviewPopover = memo(
         evaluationType?: "auto" | "human" | "online" | "custom"
         /** Timestamp for the scenario row (used for online evaluations to get temporal stats) */
         scenarioTimestamp?: string | number | null
+        /** Controls whether the trigger wrapper stretches to full width */
+        fullWidth?: boolean
         children: React.ReactNode
     }) => {
         const [shouldLoad, setShouldLoad] = useState(false)
@@ -716,7 +723,7 @@ const MetricDetailsPreviewPopover = memo(
                     />
                 }
             >
-                <div className="flex w-full">{children}</div>
+                <div className={fullWidth ? "flex w-full" : "inline-flex w-fit"}>{children}</div>
             </Popover>
         )
     },

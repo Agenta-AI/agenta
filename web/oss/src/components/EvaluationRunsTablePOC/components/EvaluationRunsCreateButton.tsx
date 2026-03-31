@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo} from "react"
 
-import {CaretDown, Check, Plus} from "@phosphor-icons/react"
-import {Button, Dropdown, Tooltip, type MenuProps} from "antd"
+import {PlusIcon} from "@phosphor-icons/react"
+import {Button, Dropdown, Tooltip, type ButtonProps, type MenuProps} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import {
@@ -12,18 +12,21 @@ import {
 } from "../atoms/view"
 import type {ConcreteEvaluationRunKind} from "../types"
 
-type SupportedCreateType = Extract<ConcreteEvaluationRunKind, "auto" | "human" | "online">
+type SupportedCreateType = Extract<
+    ConcreteEvaluationRunKind,
+    "auto" | "human" | "online" | "custom"
+>
 
-const SUPPORTED_CREATE_TYPES: SupportedCreateType[] = ["auto", "human", "online"]
+const SUPPORTED_CREATE_TYPES: SupportedCreateType[] = ["auto", "human", "online", "custom"]
 
 const createTypeCopy: Record<
     SupportedCreateType,
     {title: string; description: string; short: string}
 > = {
     auto: {
-        title: "Automatic evaluation",
+        title: "Auto evaluation",
         description: "Run testsets with configured evaluators for fast iteration.",
-        short: "Automatic",
+        short: "Auto",
     },
     human: {
         title: "Human evaluation",
@@ -35,15 +38,34 @@ const createTypeCopy: Record<
         description: "Send production traffic to variants and compare live metrics.",
         short: "Live",
     },
+    custom: {
+        title: "SDK evaluation",
+        description: "Run evaluations programmatically using the Agenta SDK.",
+        short: "SDK",
+    },
 }
 
-const isSupportedCreateType = (value: string): value is SupportedCreateType =>
-    SUPPORTED_CREATE_TYPES.includes(value as SupportedCreateType)
+const isSupportedCreateType = (value: unknown): value is SupportedCreateType => {
+    return typeof value === "string" && (SUPPORTED_CREATE_TYPES as string[]).includes(value)
+}
 
-const EvaluationRunsCreateButton = () => {
+const FALLBACK_CREATE_TYPE: SupportedCreateType = "auto"
+
+interface EvaluationRunsCreateButtonProps {
+    label?: string
+    size?: ButtonProps["size"]
+    className?: string
+}
+
+const EvaluationRunsCreateButton = ({
+    label,
+    size = "middle",
+    className,
+}: EvaluationRunsCreateButtonProps) => {
     const {createEnabled, createTooltip, evaluationKind, defaultCreateType, scope} = useAtomValue(
         evaluationRunsTableHeaderStateAtom,
     )
+    const isAllTab = evaluationKind === "all"
     const isAppScoped = scope === "app"
     const [createOpen, setCreateOpen] = useAtom(evaluationRunsCreateModalOpenAtom)
     const [selectedCreateType, setSelectedCreateType] = useAtom(
@@ -52,40 +74,50 @@ const EvaluationRunsCreateButton = () => {
     const [createTypePreference, setCreateTypePreference] = useAtom(
         evaluationRunsCreateTypePreferenceAtom,
     )
-    const isAllTab = evaluationKind === "all"
+
+    const availableTypes = useMemo<SupportedCreateType[]>(() => {
+        if (!isAllTab) return []
+        if (isAppScoped) return SUPPORTED_CREATE_TYPES.filter((t) => t !== "online")
+        return SUPPORTED_CREATE_TYPES
+    }, [isAllTab, isAppScoped])
+
+    const normalizeAllTabType = useCallback(
+        (value: unknown): SupportedCreateType => {
+            const candidate = isSupportedCreateType(value) ? value : FALLBACK_CREATE_TYPE
+            return availableTypes.includes(candidate)
+                ? candidate
+                : (availableTypes[0] ?? FALLBACK_CREATE_TYPE)
+        },
+        [availableTypes],
+    )
 
     useEffect(() => {
-        if (!createEnabled && createOpen) {
-            setCreateOpen(false)
-        }
+        if (!createEnabled && createOpen) setCreateOpen(false)
     }, [createEnabled, createOpen, setCreateOpen])
 
     useEffect(() => {
-        if (!isAllTab && defaultCreateType && selectedCreateType !== defaultCreateType) {
-            setSelectedCreateType(defaultCreateType)
-        }
+        if (isAllTab) return
+        if (!defaultCreateType) return
+        if (selectedCreateType !== defaultCreateType) setSelectedCreateType(defaultCreateType)
     }, [defaultCreateType, isAllTab, selectedCreateType, setSelectedCreateType])
 
     useEffect(() => {
         if (!isAllTab) return
-        const normalizedPreference = isSupportedCreateType(createTypePreference)
-            ? createTypePreference
-            : "auto"
-        if (!isSupportedCreateType(createTypePreference)) {
-            setCreateTypePreference(normalizedPreference)
-        }
-        if (selectedCreateType !== normalizedPreference) {
-            setSelectedCreateType(normalizedPreference)
-        }
+
+        const normalized = normalizeAllTabType(createTypePreference)
+
+        if (createTypePreference !== normalized) setCreateTypePreference(normalized)
+        if (selectedCreateType !== normalized) setSelectedCreateType(normalized)
     }, [
-        createTypePreference,
         isAllTab,
+        createTypePreference,
         selectedCreateType,
         setCreateTypePreference,
         setSelectedCreateType,
+        normalizeAllTabType,
     ])
 
-    const handlePrimaryClick = useCallback(() => {
+    const openCreateModal = useCallback(() => {
         if (!createEnabled) return
         setCreateOpen(true)
     }, [createEnabled, setCreateOpen])
@@ -93,69 +125,62 @@ const EvaluationRunsCreateButton = () => {
     const handleMenuClick = useCallback<NonNullable<MenuProps["onClick"]>>(
         ({key}) => {
             if (!isSupportedCreateType(key)) return
-            setSelectedCreateType(key)
-            setCreateTypePreference(key)
-            if (!createEnabled) return
-            setCreateOpen(true)
+
+            const normalized = normalizeAllTabType(key)
+
+            setSelectedCreateType(normalized)
+            setCreateTypePreference(normalized)
+            openCreateModal()
         },
-        [createEnabled, setCreateOpen, setCreateTypePreference, setSelectedCreateType],
+        [normalizeAllTabType, openCreateModal, setCreateTypePreference, setSelectedCreateType],
     )
 
-    const dropdownMenuItems = useMemo<MenuProps["items"]>(() => {
+    const menuItems = useMemo<MenuProps["items"]>(() => {
         if (!isAllTab) return []
-        // Filter out "online" (Live Evaluation) in app-scoped views
-        const availableTypes = isAppScoped
-            ? SUPPORTED_CREATE_TYPES.filter((type) => type !== "online")
-            : SUPPORTED_CREATE_TYPES
+
         return availableTypes.map((type) => {
             const copy = createTypeCopy[type]
-            const isActive = selectedCreateType === type
             return {
                 key: type,
                 label: (
-                    <div className="flex items-start gap-2 py-1">
-                        <div className="mt-0.5 h-4 w-4 text-primary">
-                            {isActive ? <Check size={14} weight="bold" /> : null}
-                        </div>
-                        <div className="flex flex-col">
-                            <span className="font-medium text-gray-900">{copy.title}</span>
-                            <span className="text-gray-500">{copy.description}</span>
-                        </div>
+                    <div className="flex flex-col py-1">
+                        <span className="font-medium text-gray-900">{copy.title}</span>
+                        <span className="text-gray-500">{copy.description}</span>
                     </div>
                 ),
             }
         })
-    }, [isAllTab, isAppScoped, selectedCreateType])
-
-    const buttonLabel = useMemo(() => {
-        if (!isAllTab) return "New Evaluation"
-        const shortLabel = isSupportedCreateType(selectedCreateType)
-            ? createTypeCopy[selectedCreateType]?.short
-            : null
-        return shortLabel ? `New ${shortLabel} Evaluation` : "New Evaluation"
-    }, [isAllTab, selectedCreateType])
+    }, [availableTypes, isAllTab])
 
     return (
         <Tooltip title={createTooltip ?? undefined}>
             <div className="inline-flex">
                 {isAllTab ? (
-                    <Dropdown.Button
-                        type="primary"
-                        icon={<CaretDown size={14} />}
+                    <Dropdown
+                        trigger={["click"]}
                         disabled={!createEnabled}
-                        menu={{items: dropdownMenuItems, onClick: handleMenuClick}}
-                        onClick={handlePrimaryClick}
+                        menu={{items: menuItems, onClick: handleMenuClick}}
                     >
-                        {buttonLabel}
-                    </Dropdown.Button>
+                        <Button
+                            type="primary"
+                            icon={<PlusIcon size={16} />}
+                            disabled={!createEnabled}
+                            size={size}
+                            className={className}
+                        >
+                            {label ?? "New Evaluation"}
+                        </Button>
+                    </Dropdown>
                 ) : (
                     <Button
                         type="primary"
-                        icon={<Plus size={16} />}
+                        icon={<PlusIcon size={16} />}
                         disabled={!createEnabled}
-                        onClick={handlePrimaryClick}
+                        onClick={openCreateModal}
+                        size={size}
+                        className={className}
                     >
-                        New Evaluation
+                        {label ?? "New evaluation"}
                     </Button>
                 )}
             </div>

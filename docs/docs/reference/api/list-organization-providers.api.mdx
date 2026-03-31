@@ -1,0 +1,71 @@
+---
+id: list-organization-providers
+title: "List Organization Providers"
+description: "List all SSO providers for an organization."
+sidebar_label: "List Organization Providers"
+hide_title: true
+hide_table_of_contents: true
+api: eJyVVMFu2zAM/RWDpw0QkqzYyacFW7EG7dCgyXYJgkK1mVidbakSHTQz9O8DZTu2m7ZAT7akxyfqkY81pOgSqwwpXUIMN8pRJPM8Wq1uI2P1QaVoXbTTNpJlpO1eluqfZPAEBGiDNiwWKcSQK0f3Q8j9iQAEGGllgcSLeFNDKQuEGEZwlYIAxWkYSRkIsPhUKYspxGQrFOCSDAsJcQ10NBzuyKpyDwJIUc4btwO+aJGC91umcUaXDh1HXsxm/Bk/e1UlCTq3q/LorgWDgESXhCUxXBqTqyTQTh8dx9R9Nt57L+DrxcU58R+Zq7TJ5tJabT/ACsayvqSavFMkqXL+U4SFOwfkOhmdyvJ4uwtaj8Xy4rSjSsI9WvBbL7o9aa08DhS90U2C4AUUbv+e+L/QOblHOJG9DQ1iRGs+9VxzUwVBuuNF2PACEnoe0OiHR0xoQPOdtXwm8H3+J0zfPJugTZN+i9v2HH2Jmgq9LcWPpgSvXdZBrtbr5Rlh0x8FUqbZJ3uk4AfKIIbp0AFuWr8whJ8OPeTQHjoDVTbncGlUqGizzIiMi6dTrCZJrqt0IvdYkpxI1QC3zJFUVtExkMyXi2s8XqFM0UK82Q4BK27EprXGsFM5pFHXyAK1Zp5XlGnbJt9ZOWuifCjzTg+rPA/JRfPlAgTwwxrPzCZfJjMQL5w0ArOHZBJaprs7HIN4IcTp/SAAi2AgIJTFt/6AMzPaUSHLAV8YhKNpshwUYpRa3Vv6g/Oz1ZFbeGpyqYLJwgPqtj82ownJV8fnI7Nvka2ATDviuLp+kA5/29x73n6q0HLNtwIO0ir5wBXY1JAqx/8pxDuZO3znaZ/uWkN9jt5KveuLkpviIPOKVyDgLx5fmfVh6mRd79Utap4kaGgQfzYkuUlPZvp5uQbv/wOfjVTF
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Organization Providers"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/organizations/{organization_id}/providers"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+List all SSO providers for an organization.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"organization_id","in":"path","required":true,"schema":{"type":"string","title":"Organization Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

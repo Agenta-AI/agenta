@@ -1,10 +1,10 @@
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Optional, Tuple, Dict, Any, TYPE_CHECKING
 from uuid import UUID
 from asyncio import sleep
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 
-from celery import current_app as celery_dispatch
+from genson import SchemaBuilder
 
 from oss.src.utils.logging import get_module_logger
 
@@ -43,7 +43,10 @@ from oss.src.core.evaluations.types import (
     EvaluationMetricsRefresh,
     # EVALUATION QUEUE
     EvaluationQueue,
+    EvaluationQueueFlags,
+    EvaluationQueueQueryFlags,
     EvaluationQueueCreate,
+    EvaluationQueueData,
     EvaluationQueueEdit,
     EvaluationQueueQuery,
 )
@@ -59,6 +62,14 @@ from oss.src.core.evaluations.types import (
     SimpleEvaluationCreate,
     SimpleEvaluationEdit,
     SimpleEvaluationQuery,
+    #
+    SimpleQueue,
+    SimpleQueueCreate,
+    SimpleQueueQuery,
+    SimpleQueueScenariosQuery,
+    SimpleQueueData,
+    SimpleQueueKind,
+    SimpleQueueSettings,
 )
 from oss.src.core.evaluations.types import CURRENT_VERSION
 from oss.src.core.tracing.dtos import (
@@ -79,23 +90,22 @@ from oss.src.core.testsets.dtos import TestsetRevision
 from oss.src.core.evaluators.dtos import EvaluatorRevision
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.testsets.service import TestsetsService
-from oss.src.core.testsets.service import SimpleTestsetsService
-from oss.src.core.evaluators.service import SimpleEvaluatorsService
+from oss.src.core.applications.service import ApplicationsService
 
-from oss.src.core.evaluations.utils import filter_scenario_ids
-
-from oss.src.models.db_models import AppVariantRevisionsDB
-
-from oss.src.services.db_manager import (
-    fetch_app_by_id,
-    fetch_app_variant_by_id,
-    fetch_app_variant_revision_by_id,
+from oss.src.core.evaluations.utils import (
+    filter_scenario_ids,
+    paginate_ids,
+    next_windowing_from_ids,
+    flatten_dedup_ids,
 )
-from oss.src.utils.helpers import get_slug_from_name_and_id
+
 from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
 
 
 log = get_module_logger(__name__)
+
+if TYPE_CHECKING:
+    from oss.src.tasks.taskiq.evaluations.worker import EvaluationsWorker
 
 
 SAFE_CLOSE_DELAY = 1  # seconds
@@ -129,6 +139,8 @@ DEFAULT_METRICS = [
     },
 ]
 
+METRICS_STEP_TYPES = {"invocation", "annotation"}
+
 DEFAULT_REFRESH_INTERVAL = 1  # minute(s)
 
 
@@ -140,6 +152,7 @@ class EvaluationsService:
         queries_service: QueriesService,
         testsets_service: TestsetsService,
         evaluators_service: EvaluatorsService,
+        evaluations_worker: Optional["EvaluationsWorker"] = None,
     ):
         self.evaluations_dao = evaluations_dao
 
@@ -147,6 +160,7 @@ class EvaluationsService:
         self.queries_service = queries_service
         self.testsets_service = testsets_service
         self.evaluators_service = evaluators_service
+        self.evaluations_worker = evaluations_worker
 
     ### CRUD
 
@@ -173,6 +187,12 @@ class EvaluationsService:
             log.error(e, exc_info=True)
             return False
 
+        if self.evaluations_worker is None:
+            log.warning(
+                "[LIVE] Taskiq client is not configured; skipping live run dispatch"
+            )
+            return False
+
         for project_id, run in ext_runs:
             user_id = run.created_by_id
 
@@ -186,17 +206,14 @@ class EvaluationsService:
                     oldest=oldest,
                 )
 
-                celery_dispatch.send_task(  # type: ignore
-                    "src.tasks.evaluations.live.evaluate",
-                    kwargs=dict(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        run_id=run.id,
-                        #
-                        newest=newest,
-                        oldest=oldest,
-                    ),
+                await self.evaluations_worker.evaluate_live_query.kiq(
+                    project_id=project_id,
+                    user_id=user_id,
+                    #
+                    run_id=run.id,
+                    #
+                    newest=newest,
+                    oldest=oldest,
                 )
 
                 log.info(
@@ -546,6 +563,19 @@ class EvaluationsService:
             scenario_ids=scenario_ids,
         )
 
+    async def query_scenario_ids(
+        self,
+        *,
+        project_id: UUID,
+        #
+        scenario: Optional[EvaluationScenarioQuery] = None,
+    ) -> List[UUID]:
+        return await self.evaluations_dao.query_scenario_ids(
+            project_id=project_id,
+            #
+            scenario=scenario,
+        )
+
     async def query_scenarios(
         self,
         *,
@@ -885,64 +915,24 @@ class EvaluationsService:
         )
 
         if not run or not run.data or not run.data.steps:
-            log.warning("[WARN] run or run.data or run.data.steps not found")
+            log.warning("run or run.data or run.data.steps not found")
             return []
 
-        steps_metrics_keys: Dict[str, List[Dict[str, str]]] = dict()
+        step_types_by_key: Dict[str, str] = {
+            step.key: step.type
+            for step in run.data.steps
+            if step.type in METRICS_STEP_TYPES
+        }
 
-        for step in run.data.steps:
-            steps_metrics_keys[step.key] = deepcopy(DEFAULT_METRICS)
-
-            if step.type == "annotation":
-                evaluator_revision_ref = step.references.get("evaluator_revision")
-
-                if not evaluator_revision_ref:
-                    log.warning("[WARN] Evaluator revision reference not found")
-                    continue
-
-                evaluator_revision = (
-                    await self.evaluators_service.fetch_evaluator_revision(
-                        project_id=project_id,
-                        evaluator_revision_ref=evaluator_revision_ref,
-                    )
-                )
-
-                if not evaluator_revision:
-                    log.warning("[WARN] Evaluator revision not found")
-                    continue
-
-                if evaluator_revision.data and evaluator_revision.data.schemas:
-                    metrics_keys = get_metrics_keys_from_schema(
-                        schema=(evaluator_revision.data.schemas.get("outputs")),
-                    )
-
-                    steps_metrics_keys[step.key] += [
-                        {
-                            "path": "attributes.ag.data.outputs."
-                            + metric_key.get("path", ""),
-                            "type": metric_key.get("type", ""),
-                        }
-                        for metric_key in metrics_keys
-                    ]
-                elif evaluator_revision.data and evaluator_revision.data.service:
-                    metrics_keys = get_metrics_keys_from_schema(
-                        schema=(evaluator_revision.data.service.get("format")),
-                    )
-
-                    steps_metrics_keys[step.key] += [
-                        {
-                            "path": "attributes.ag.data." + metric_key.get("path", ""),
-                            "type": metric_key.get("type", ""),
-                        }
-                        for metric_key in metrics_keys
-                    ]
+        steps_metrics_keys: Dict[str, List[Dict[str, str]]] = {
+            step_key: [] for step_key in step_types_by_key
+        }
 
         if not steps_metrics_keys:
-            log.warning("[WARN] No steps metrics keys found")
+            log.warning("No steps metrics keys found")
             return []
 
         step_keys = list(steps_metrics_keys.keys())
-        # log.info(f"[METRICS] Found {len(step_keys)} steps: {step_keys}")
 
         steps_trace_ids: Dict[str, List[str]] = dict()
 
@@ -958,30 +948,106 @@ class EvaluationsService:
                 ),
             )
 
-            # log.info(
-            #     f"[METRICS] Step '{step_key}': found {len(results) if results else 0} results"
-            # )
-
             if not results:
-                # log.warning("[WARN] No results found")
+                log.warning(f"No results found for step_key: {step_key}")
                 continue
 
-            trace_ids = [result.trace_id for result in results if result.trace_id]
-            # log.info(
-            #     f"[METRICS] Step '{step_key}': extracted {len(trace_ids)} trace_ids"
-            # )
+            trace_ids: List[str] | None = [
+                result.trace_id for result in results if result.trace_id
+            ]
 
             if trace_ids:
                 steps_trace_ids[step_key] = trace_ids
 
-        # log.info(f"[METRICS] steps_trace_ids keys: {list(steps_trace_ids.keys())}")
-        # log.info(
-        #     f"[METRICS] steps_metrics_keys keys: {list(steps_metrics_keys.keys())}"
-        # )
-
         if not steps_trace_ids:
             log.warning("[METRICS] No trace_ids found! Cannot extract metrics.")
             return []
+
+        inferred_metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}
+
+        for step in run.data.steps:
+            if step.type not in METRICS_STEP_TYPES:
+                continue
+
+            steps_metrics_keys[step.key] = deepcopy(DEFAULT_METRICS)
+
+            if step.type == "annotation":
+                evaluator_revision_ref = step.references.get("evaluator_revision")
+
+                if not evaluator_revision_ref:
+                    log.warning("Evaluator revision reference not found")
+                    continue
+
+                evaluator_revision = (
+                    await self.evaluators_service.fetch_evaluator_revision(
+                        project_id=project_id,
+                        evaluator_revision_ref=evaluator_revision_ref,
+                    )
+                )
+
+                if not evaluator_revision:
+                    log.warning("Evaluator revision not found")
+                    continue
+
+                outputs_schema = None
+                service_format = None
+
+                if evaluator_revision.data:
+                    if evaluator_revision.data.schemas:
+                        outputs_schema = evaluator_revision.data.schemas.outputs
+                    if evaluator_revision.data.service:
+                        service_format = evaluator_revision.data.service.get("format")
+
+                if outputs_schema:
+                    metrics_keys = get_metrics_keys_from_schema(
+                        schema=outputs_schema,
+                    )
+                elif service_format:
+                    metrics_keys = get_metrics_keys_from_schema(
+                        schema=service_format,
+                    )
+                else:
+                    trace_ids = steps_trace_ids.get(step.key)
+
+                    if not trace_ids:
+                        log.warning(
+                            f"[METRICS] Step '{step.key}': no trace_ids found for schema inference"
+                        )
+                        continue
+
+                    inferred_schema = await self._infer_evaluator_schema_from_traces(
+                        project_id=project_id,
+                        trace_ids=trace_ids,
+                    )
+
+                    if not inferred_schema:
+                        log.warning(
+                            f"[METRICS] Step '{step.key}': could not infer outputs schema"
+                        )
+                        continue
+
+                    metrics_keys = get_metrics_keys_from_schema(
+                        schema=inferred_schema,
+                    )
+
+                    inferred_metrics_keys_by_step[step.key] = metrics_keys
+
+                steps_metrics_keys[step.key] += [
+                    {
+                        "path": "attributes.ag.data.outputs."
+                        + metric_key.get("path", ""),
+                        "type": metric_key.get("type", ""),
+                    }
+                    for metric_key in metrics_keys
+                ]
+
+        if inferred_metrics_keys_by_step and run and run.data:
+            await self._update_run_mappings_from_inferred_metrics(
+                project_id=project_id,
+                user_id=user_id,
+                run=run,
+                inferred_metrics_keys_by_step=inferred_metrics_keys_by_step,
+            )
 
         steps_specs: Dict[str, List[MetricSpec]] = dict()
 
@@ -1025,11 +1091,6 @@ class EvaluationsService:
                         path=metric.get("path") or "*",
                     )
                     for metric in step_metrics_keys
-                ] + [
-                    MetricSpec(
-                        type=MetricType.JSON,
-                        path="attributes.ag",
-                    )
                 ]
 
                 # log.info(f"[METRICS] Step '{step_key}': {len(specs)} metric specs")
@@ -1048,13 +1109,13 @@ class EvaluationsService:
 
                 if len(buckets) == 0:
                     log.warning(
-                        f"[WARN] Step '{step_key}': No metrics from analytics (0 buckets)"
+                        f"Step '{step_key}': No metrics from analytics (0 buckets)"
                     )
                     continue
 
                 if len(buckets) != 1:
-                    log.warning("[WARN] There should be one and only one bucket")
-                    log.warning("[WARN] Buckets:", buckets)
+                    log.warning("There should be one and only one bucket")
+                    log.warning("Buckets:", buckets)
                     continue
 
                 bucket = buckets[0]
@@ -1068,21 +1129,21 @@ class EvaluationsService:
                 #     )
 
                 if not bucket.metrics:
-                    log.warning("[WARN] Bucket metrics should not be empty")
-                    log.warning("[WARN] Bucket:", bucket)
+                    log.warning("Bucket metrics should not be empty")
+                    log.warning("Bucket:", bucket)
                     continue
 
                 metrics_data |= {step_key: bucket.metrics}
                 # log.info(f"[METRICS] Step '{step_key}': added to metrics_data")
 
-            except Exception as e:
+            except Exception:
                 log.error(
                     f"[METRICS] Step '{step_key}': Exception during analytics",
                     exc_info=True,
                 )
 
         if not metrics_data:
-            # log.warning("[WARN] No metrics data: no metrics will be stored")
+            # log.warning("No metrics data: no metrics will be stored")
             return []
 
         metrics_create = [
@@ -1106,6 +1167,166 @@ class EvaluationsService:
         )
 
         return metrics
+
+    async def _infer_evaluator_schema_from_traces(
+        self,
+        *,
+        project_id: UUID,
+        trace_ids: List[str],
+    ) -> Optional[Dict[str, Any]]:
+        """Infer the outputs schema from trace attributes."""
+        try:
+            if not trace_ids:
+                return None
+
+            # Use a sample of trace IDs (first 5) to infer schema
+            sample_trace_ids = trace_ids[:5]
+
+            query = TracingQuery(
+                windowing=Windowing(
+                    oldest=datetime(1970, 1, 1, tzinfo=timezone.utc),
+                    newest=None,
+                ),
+                filtering=Filtering(
+                    conditions=[
+                        Condition(
+                            field="trace_id",
+                            operator=ListOperator.IN,
+                            value=sample_trace_ids,
+                        )
+                    ]
+                ),
+            )
+
+            spans = await self.tracing_service.query(
+                project_id=project_id,
+                query=query,
+            )
+
+            # Build schema from trace outputs
+            builder = SchemaBuilder()
+            found_outputs = False
+
+            for span in spans:
+                attributes = span.attributes
+                if not isinstance(attributes, dict):
+                    continue
+
+                ag_attributes = attributes.get("ag")
+                if not isinstance(ag_attributes, dict):
+                    continue
+
+                data = ag_attributes.get("data")
+                if not isinstance(data, dict):
+                    continue
+
+                outputs = data.get("outputs")
+                if outputs is None:
+                    continue
+
+                builder.add_object(outputs)
+                found_outputs = True
+
+            if not found_outputs:
+                return None
+
+            schema = builder.to_schema()
+            return schema
+
+        except Exception as e:
+            log.warning(f"[METRICS] Failed to infer evaluator schema from traces: {e}")
+            return None
+
+    async def _update_run_mappings_from_inferred_metrics(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        run: EvaluationRun,
+        inferred_metrics_keys_by_step: Dict[str, List[Dict[str, str]]],
+    ) -> None:
+        existing_mappings = list(run.data.mappings or [])
+        updated_mappings: List[EvaluationRunDataMapping] = []
+        seen_mapping_keys: set[tuple[str, str, str, str]] = set()
+
+        def mapping_key(
+            mapping: EvaluationRunDataMapping,
+        ) -> Optional[tuple[str, str, str, str]]:
+            if not mapping.step or not mapping.column:
+                return None
+            return (
+                mapping.step.key,
+                mapping.column.kind,
+                mapping.column.name,
+                mapping.step.path,
+            )
+
+        for mapping in existing_mappings:
+            if (
+                mapping.step
+                and mapping.column
+                and mapping.column.kind == "annotation"
+                and mapping.step.key in inferred_metrics_keys_by_step
+                and (
+                    mapping.column.name == "outputs"
+                    or mapping.step.path.endswith("outputs.outputs")
+                )
+            ):
+                continue
+            key = mapping_key(mapping)
+            if key and key in seen_mapping_keys:
+                continue
+            if key:
+                seen_mapping_keys.add(key)
+            updated_mappings.append(mapping)
+
+        for step_key, metrics_keys in inferred_metrics_keys_by_step.items():
+            for metric_key in metrics_keys:
+                path_suffix = metric_key.get("path", "")
+                new_key = (
+                    step_key,
+                    "annotation",
+                    path_suffix,
+                    "attributes.ag.data.outputs"
+                    + (f".{path_suffix}" if path_suffix else ""),
+                )
+                if new_key in seen_mapping_keys:
+                    continue
+                seen_mapping_keys.add(new_key)
+                updated_mappings.append(
+                    EvaluationRunDataMapping(
+                        column=EvaluationRunDataMappingColumn(
+                            kind="annotation",
+                            name=path_suffix,
+                        ),
+                        step=EvaluationRunDataMappingStep(
+                            key=step_key,
+                            path=(
+                                "attributes.ag.data.outputs"
+                                + (f".{path_suffix}" if path_suffix else "")
+                            ),
+                        ),
+                    )
+                )
+
+        if updated_mappings != existing_mappings:
+            run_data = EvaluationRunData(
+                steps=run.data.steps,
+                repeats=run.data.repeats,
+                mappings=updated_mappings,
+            )
+            await self.edit_run(
+                project_id=project_id,
+                user_id=user_id,
+                run=EvaluationRunEdit(
+                    id=run.id,
+                    name=run.name,
+                    description=run.description,
+                    status=run.status,
+                    flags=run.flags,
+                    data=run_data,
+                ),
+            )
 
     # - EVALUATION QUEUE -------------------------------------------------------
 
@@ -1256,6 +1477,8 @@ class EvaluationsService:
         #
         queue_id: UUID,
         #
+        use_queue_scenario_ids: bool = True,
+        #
     ) -> List[List[UUID]]:
         queue = await self.fetch_queue(
             project_id=project_id,
@@ -1265,9 +1488,11 @@ class EvaluationsService:
         if not queue:
             return []
 
-        queue_scenario_ids = queue.data.scenario_ids if queue.data else None
+        queue_scenario_ids = (
+            queue.data.scenario_ids if queue.data and use_queue_scenario_ids else None
+        )
 
-        scenarios = await self.query_scenarios(
+        run_scenario_ids = await self.query_scenario_ids(
             project_id=project_id,
             scenario=EvaluationScenarioQuery(
                 run_id=queue.run_id,
@@ -1275,42 +1500,98 @@ class EvaluationsService:
             ),
         )
 
-        run_scenario_ids = [scenario.id for scenario in scenarios]
-        run_scenario_ids = [id for id in run_scenario_ids if id is not None]
-
         queue_user_ids = queue.data.user_ids if queue.data else None
 
         if not queue_user_ids:
             return [run_scenario_ids]
 
+        if user_id is None:
+            return [run_scenario_ids]
+
         is_sequential = queue.flags and queue.flags.is_sequential or False
+        batch_size = queue.data.batch_size if queue.data else None
+        batch_offset = queue.data.batch_offset if queue.data else None
 
         user_scenario_ids = filter_scenario_ids(
             user_id,
             queue_user_ids,
             run_scenario_ids,
             is_sequential,
+            batch_offset=batch_offset,
+            batch_size=batch_size,
         )
 
         return user_scenario_ids
+
+    async def query_queue_scenarios(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID] = None,
+        #
+        queue_id: UUID,
+        #
+        scenario: Optional[EvaluationScenarioQuery] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> Tuple[List[EvaluationScenario], Optional[Windowing]]:
+        assigned_by_repeat = await self.fetch_queue_scenarios(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            queue_id=queue_id,
+        )
+
+        all_ids = flatten_dedup_ids(assigned_by_repeat)
+
+        if scenario and (scenario.status or scenario.statuses):
+            # Filter IDs by status after resolving assignment — fetch IDs for status match
+            status_filtered_ids = await self.query_scenario_ids(
+                project_id=project_id,
+                scenario=EvaluationScenarioQuery(
+                    ids=all_ids,
+                    status=scenario.status,
+                    statuses=scenario.statuses,
+                ),
+            )
+            status_set = set(status_filtered_ids)
+            all_ids = [id_ for id_ in all_ids if id_ in status_set]
+
+        paged_ids, has_more = paginate_ids(ids=all_ids, windowing=windowing)
+
+        if not paged_ids:
+            return [], None
+
+        scenarios = await self.fetch_scenarios(
+            project_id=project_id,
+            scenario_ids=paged_ids,
+        )
+
+        next_windowing = next_windowing_from_ids(
+            paged_ids=paged_ids,
+            windowing=windowing,
+            has_more=has_more,
+        )
+
+        return scenarios, next_windowing
 
 
 class SimpleEvaluationsService:
     def __init__(
         self,
-        queries_service: QueriesService,
         testsets_service: TestsetsService,
+        queries_service: QueriesService,
+        applications_service: ApplicationsService,
         evaluators_service: EvaluatorsService,
         evaluations_service: EvaluationsService,
-        simple_testsets_service: SimpleTestsetsService,
-        simple_evaluators_service: SimpleEvaluatorsService,
+        evaluations_worker: Optional["EvaluationsWorker"] = None,
     ):
-        self.queries_service = queries_service
         self.testsets_service = testsets_service
+        self.queries_service = queries_service
+        self.applications_service = applications_service
         self.evaluators_service = evaluators_service
         self.evaluations_service = evaluations_service
-        self.simple_testsets_service = simple_testsets_service
-        self.simple_evaluators_service = simple_evaluators_service
+        self.evaluations_worker = evaluations_worker
 
     async def create(
         self,
@@ -1324,6 +1605,7 @@ class SimpleEvaluationsService:
             is_closed=False,
             is_live=False,
             is_active=True,
+            is_queue=False,
         )
 
         if not evaluation.data:
@@ -1347,13 +1629,12 @@ class SimpleEvaluationsService:
                 is_closed=False,
                 is_live=evaluation.flags.is_live,
                 is_active=False,
+                is_queue=evaluation.flags.is_queue,
             )
 
             if not run_flags:
                 log.info("[EVAL] [failure] invalid simple evaluation flags")
                 return None
-
-            evaluation_jit = evaluation.jit or {"testsets": True, "evaluators": True}
 
             run_data = await self._make_evaluation_run_data(
                 project_id=project_id,
@@ -1365,8 +1646,6 @@ class SimpleEvaluationsService:
                 evaluator_steps=evaluation.data.evaluator_steps,
                 #
                 repeats=evaluation.data.repeats,
-                #
-                jit=evaluation_jit,
             )
 
             if not run_data:
@@ -1416,7 +1695,7 @@ class SimpleEvaluationsService:
             log.info("[EVAL] [success]     ", id=run.id)
             return _evaluation
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-except
             log.error("[EVAL] [failure]     ", exc_info=True)
             return None
 
@@ -1452,6 +1731,7 @@ class SimpleEvaluationsService:
             is_closed=False,
             is_live=False,
             is_active=True,
+            is_queue=False,
         )
 
         if not evaluation.id:
@@ -1459,7 +1739,7 @@ class SimpleEvaluationsService:
             return None
 
         if not evaluation.flags:
-            log.info("")
+            log.info("[EVAL] [failure] missing simple evaluation flags")
             return None
 
         if not evaluation.data:
@@ -1527,6 +1807,7 @@ class SimpleEvaluationsService:
                 is_closed=_evaluation.flags.is_closed,
                 is_live=_evaluation.flags.is_live,
                 is_active=_evaluation.flags.is_active,
+                is_queue=_evaluation.flags.is_queue,
             )
 
             run_data = await self._make_evaluation_run_data(
@@ -1595,7 +1876,7 @@ class SimpleEvaluationsService:
 
             return _evaluation
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-except
             log.error("[EVAL] [failure]     ", exc_info=True)
             return None
 
@@ -1623,10 +1904,27 @@ class SimpleEvaluationsService:
         #
         windowing: Optional[Windowing] = None,
     ) -> List[SimpleEvaluation]:
+        flags = (
+            query.flags.model_dump(
+                exclude_none=True,
+                mode="json",
+            )
+            if query and query.flags
+            else {}
+        )
+
         run_query = await self._make_evaluation_run_query(
-            is_closed=query.flags.is_closed if query and query.flags else None,
-            is_live=query.flags.is_live if query and query.flags else None,
-            is_active=query.flags.is_active if query and query.flags else None,
+            is_closed=flags.get("is_closed"),
+            is_live=flags.get("is_live"),
+            is_active=flags.get("is_active"),
+            is_queue=flags.get("is_queue"),
+            #
+            has_queries=flags.get("has_queries"),
+            has_testsets=flags.get("has_testsets"),
+            has_evaluators=flags.get("has_evaluators"),
+            has_custom=flags.get("has_custom"),
+            has_human=flags.get("has_human"),
+            has_auto=flags.get("has_auto"),
             #
             tags=query.tags if query else None,
             meta=query.meta if query else None,
@@ -1694,11 +1992,7 @@ class SimpleEvaluationsService:
 
                 _evaluation = await self._parse_evaluation_run(run=run)
 
-            elif (
-                not _evaluation.flags.is_live
-                and _evaluation.data.evaluator_steps
-                and (_evaluation.data.query_steps or _evaluation.data.testset_steps)
-            ):
+            elif not _evaluation.flags.is_live:
                 run = await self._activate_evaluation_run(
                     project_id=project_id,
                     user_id=user_id,
@@ -1714,26 +2008,62 @@ class SimpleEvaluationsService:
                     )
                     return None
 
-                if _evaluation.data.query_steps:
-                    celery_dispatch.send_task(  # type: ignore
-                        "src.tasks.evaluations.batch.evaluate_queries",
-                        kwargs=dict(
-                            project_id=project_id,
-                            user_id=user_id,
-                            #
-                            run_id=run.id,
-                        ),
+                # SDK evaluations set status="running" — the loop runs locally,
+                # so do NOT dispatch the legacy worker.
+                if _evaluation.data.status == "running":
+                    _evaluation = await self._parse_evaluation_run(run=run)
+                    return _evaluation
+
+                if self.evaluations_worker is None:
+                    log.warning(
+                        "[EVAL] Taskiq client missing; cannot dispatch evaluation run",
+                    )
+                    return _evaluation
+
+                has_query_steps = bool(_evaluation.data.query_steps)
+                has_testset_steps = bool(_evaluation.data.testset_steps)
+                has_application_steps = bool(_evaluation.data.application_steps)
+                has_evaluator_steps = bool(_evaluation.data.evaluator_steps)
+
+                if has_query_steps and has_evaluator_steps:
+                    await self.evaluations_worker.evaluate_batch_query.kiq(
+                        project_id=project_id,
+                        user_id=user_id,
+                        #
+                        run_id=run.id,
                     )
 
-                elif _evaluation.data.testset_steps:
-                    celery_dispatch.send_task(  # type: ignore
-                        "src.tasks.evaluations.batch.evaluate_testsets",
-                        kwargs=dict(
-                            project_id=project_id,
-                            user_id=user_id,
-                            #
-                            run_id=run.id,
-                        ),
+                elif (
+                    has_testset_steps and has_application_steps and has_evaluator_steps
+                ):
+                    await self.evaluations_worker.evaluate_batch_testset.kiq(
+                        project_id=project_id,
+                        user_id=user_id,
+                        #
+                        run_id=run.id,
+                    )
+
+                elif (
+                    has_testset_steps
+                    and has_application_steps
+                    and not has_evaluator_steps
+                    and not has_query_steps
+                ):
+                    await self.evaluations_worker.evaluate_batch_invocation.kiq(
+                        project_id=project_id,
+                        user_id=user_id,
+                        #
+                        run_id=run.id,
+                    )
+
+                else:
+                    log.warning(
+                        "[EVAL] [start] [skip] unsupported non-live run topology",
+                        run_id=run.id,
+                        has_query_steps=has_query_steps,
+                        has_testset_steps=has_testset_steps,
+                        has_application_steps=has_application_steps,
+                        has_evaluator_steps=has_evaluator_steps,
                     )
 
                 return _evaluation
@@ -1742,7 +2072,7 @@ class SimpleEvaluationsService:
 
             return _evaluation
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-except
             log.error("[EVAL] [start] [failure]", exc_info=True)
             return None
 
@@ -1768,6 +2098,136 @@ class SimpleEvaluationsService:
         _evaluation = await self._parse_evaluation_run(run=run)
 
         return _evaluation
+
+    async def _ensure_human_annotation_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        run: EvaluationRun,
+    ) -> None:
+        """Create an EvaluationQueue for human annotation steps if none exists for this run.
+
+        Queue creation is the service's responsibility — tasks must not create structural
+        objects. This is called before dispatching batch evaluation tasks so that any
+        human annotation steps are immediately queryable as a queue.
+        """
+        if not run.id or not run.data or not run.data.steps:
+            return
+
+        human_step_keys = [
+            step.key
+            for step in run.data.steps
+            if step.type == "annotation" and step.origin == "human" and step.key
+        ]
+
+        if not human_step_keys:
+            return
+
+        existing_queues = await self.evaluations_service.query_queues(
+            project_id=project_id,
+            queue=EvaluationQueueQuery(run_id=run.id),
+        )
+        if any(q.run_id == run.id for q in existing_queues):
+            return
+
+        await self.evaluations_service.create_queue(
+            project_id=project_id,
+            user_id=user_id,
+            queue=EvaluationQueueCreate(
+                run_id=run.id,
+                status=EvaluationStatus.RUNNING,
+                data=EvaluationQueueData(step_keys=human_step_keys),
+            ),
+        )
+
+    async def evaluate_batch_traces(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        trace_ids: List[str],
+    ) -> bool:
+        if not trace_ids:
+            return False
+        if self.evaluations_worker is None:
+            log.warning(
+                "[EVAL] Taskiq client missing; cannot dispatch trace batch",
+                run_id=run_id,
+            )
+            return False
+
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if not run or not run.flags or not run.flags.is_queue:
+            log.warning(
+                "[EVAL] trace batch dispatch requires a queue evaluation run",
+                run_id=run_id,
+            )
+            return False
+
+        await self._ensure_human_annotation_queue(
+            project_id=project_id,
+            user_id=user_id,
+            run=run,
+        )
+
+        await self.evaluations_worker.evaluate_batch_traces.kiq(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            run_id=run_id,
+            trace_ids=trace_ids,
+        )
+        return True
+
+    async def evaluate_batch_testcases(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        testcase_ids: List[UUID],
+    ) -> bool:
+        if not testcase_ids:
+            return False
+        if self.evaluations_worker is None:
+            log.warning(
+                "[EVAL] Taskiq client missing; cannot dispatch testcase batch",
+                run_id=run_id,
+            )
+            return False
+
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if not run or not run.flags or not run.flags.is_queue:
+            log.warning(
+                "[EVAL] testcase batch dispatch requires a queue evaluation run",
+                run_id=run_id,
+            )
+            return False
+
+        await self._ensure_human_annotation_queue(
+            project_id=project_id,
+            user_id=user_id,
+            run=run,
+        )
+
+        await self.evaluations_worker.evaluate_batch_testcases.kiq(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            run_id=run_id,
+            testcase_ids=testcase_ids,
+        )
+        return True
 
     async def close(
         self,
@@ -1827,8 +2287,6 @@ class SimpleEvaluationsService:
         evaluator_steps: Optional[Target] = None,
         #
         repeats: Optional[int] = None,
-        #
-        jit: Optional[Dict[str, bool]] = None,
     ) -> Optional[EvaluationRunData]:
         # IMPLICIT FLAG: is_multivariate=False
         # IMPLICIT FLAG: all_inputs=True
@@ -1857,7 +2315,7 @@ class SimpleEvaluationsService:
                 )
 
                 if not query_revision or not query_revision.slug:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find query revision",
                         id=query_revision_ref.id,
                     )
@@ -1872,7 +2330,7 @@ class SimpleEvaluationsService:
                 )
 
                 if not query_variant:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find query variant",
                         id=query_variant_ref.id,
                     )
@@ -1887,7 +2345,7 @@ class SimpleEvaluationsService:
                 )
 
                 if not query:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find query",
                         id=query_ref.id,
                     )
@@ -1932,54 +2390,6 @@ class SimpleEvaluationsService:
                     for testset_revision_id in testset_steps
                 }
 
-            # JIT MIGRATION ================================================== #
-            if jit and jit.get("testsets"):
-                _testset_steps = deepcopy(testset_steps or {})
-                testset_steps = dict()
-
-                for testset_id, origin in _testset_steps.items():
-                    testset_ref = Reference(id=testset_id)
-
-                    simple_testset = await self.simple_testsets_service.transfer(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        testset_id=testset_id,
-                    )
-
-                    if (
-                        not simple_testset
-                        or not simple_testset.id
-                        or not simple_testset.slug
-                    ):
-                        log.warn(
-                            "[EVAL] [run] [make] [failure] could not transfer simple testset",
-                            id=testset_ref.id,
-                        )
-                        return None
-
-                    testset_revision = (
-                        await self.testsets_service.fetch_testset_revision(
-                            project_id=project_id,
-                            #
-                            testset_ref=testset_ref,
-                        )
-                    )
-
-                    if (
-                        not testset_revision
-                        or not testset_revision.id
-                        or not testset_revision.slug
-                    ):
-                        log.warn(
-                            "[EVAL] [run] [make] [failure] could not find testset revision",
-                            id=testset_ref.id,
-                        )
-                        return None
-
-                    testset_steps[testset_revision.id] = origin
-            # ================================================================ #
-
             for testset_revision_id, origin in (testset_steps or {}).items():
                 testset_revision_ref = Reference(id=testset_revision_id)
 
@@ -1990,14 +2400,14 @@ class SimpleEvaluationsService:
                 )
 
                 if not testset_revision or not testset_revision.slug:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find testset revision",
                         id=testset_revision_ref.id,
                     )
                     return None
 
                 if not testset_revision.data or not testset_revision.data.testcases:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] invalid testset revision",
                         id=testset_revision_ref.id,
                     )
@@ -2012,7 +2422,7 @@ class SimpleEvaluationsService:
                 )
 
                 if not testset_variant:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find testset variant",
                         id=testset_variant_ref.id,
                     )
@@ -2027,7 +2437,7 @@ class SimpleEvaluationsService:
                 )
 
                 if not testset:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find testset",
                         id=testset_ref.id,
                     )
@@ -2060,7 +2470,7 @@ class SimpleEvaluationsService:
                 testcases[step_key] = testset_revision.data.testcases
 
                 if any(not testcase.data for testcase in testcases[step_key]):
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] invalid testset revision",
                         id=testset_revision_ref.id,
                     )
@@ -2070,7 +2480,6 @@ class SimpleEvaluationsService:
             # fetch applications -----------------------------------------------
             application_invocation_steps_keys: List[str] = list()
             application_references: Dict[str, Dict[str, Reference]] = dict()
-            application_revisions: Dict[str, AppVariantRevisionsDB] = dict()
             application_origins: Dict[str, Origin] = dict()
 
             if isinstance(application_steps, list):
@@ -2082,71 +2491,78 @@ class SimpleEvaluationsService:
             for application_revision_id, origin in (application_steps or {}).items():
                 application_revision_ref = Reference(id=application_revision_id)
 
-                application_revision = await fetch_app_variant_revision_by_id(
-                    variant_revision_id=str(application_revision_ref.id),
+                application_revision = (
+                    await self.applications_service.fetch_application_revision(
+                        project_id=project_id,
+                        application_revision_ref=application_revision_ref,
+                    )
                 )
 
                 if not application_revision:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find application revision",
                         id=application_revision_ref.id,
                     )
                     return None
 
                 application_variant_ref = Reference(
-                    id=UUID(str(application_revision.variant_id))
+                    id=application_revision.application_variant_id
                 )
 
-                application_variant = await fetch_app_variant_by_id(
-                    app_variant_id=str(application_variant_ref.id),
+                application_variant = (
+                    await self.applications_service.fetch_application_variant(
+                        project_id=project_id,
+                        application_variant_ref=application_variant_ref,
+                    )
                 )
 
                 if not application_variant:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find application variant",
                         id=application_variant_ref.id,
                     )
                     return None
 
-                application_ref = Reference(id=UUID(str(application_variant.app_id)))
+                application_ref = Reference(id=application_variant.application_id)
 
-                application = await fetch_app_by_id(
-                    app_id=str(application_ref.id),
+                application = await self.applications_service.fetch_application(
+                    project_id=project_id,
+                    application_ref=application_ref,
                 )
 
                 if not application:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find application",
                         id=application_ref.id,
                     )
                     return None
 
-                application_revision_slug = get_slug_from_name_and_id(
-                    str(application_revision.config_name),
-                    UUID(str(application_revision.id)),
-                )
+                if not application_revision.slug:
+                    log.warn(
+                        "[EVAL] [run] [make] [failure] application revision is missing slug",
+                        id=application_revision.id,
+                    )
+                    return None
 
-                step_key = "application-" + application_revision_slug
+                step_key = "application-" + application_revision.slug
 
                 application_invocation_steps_keys.append(step_key)
 
                 application_references[step_key] = dict(
                     application=Reference(
                         id=application_ref.id,
-                        slug=str(application.app_name),
+                        slug=application.slug,
                     ),
                     application_variant=Reference(
                         id=application_variant_ref.id,
-                        slug=str(application_variant.variant_name),
+                        slug=application_variant.slug,
                     ),
                     application_revision=Reference(
                         id=application_revision_ref.id,
-                        slug=str(application_revision.config_name),
-                        version=str(application_revision.revision),
+                        slug=application_revision.slug,
+                        version=application_revision.version,
                     ),
                 )
-
-                application_revisions[step_key] = application_revision
 
                 application_origins[step_key] = origin
 
@@ -2165,54 +2581,6 @@ class SimpleEvaluationsService:
                     for evaluator_revision_id in evaluator_steps
                 }
 
-            # JIT MIGRATION ================================================== #
-            if jit and jit.get("evaluators"):
-                _evaluator_steps = deepcopy(evaluator_steps or {})
-                evaluator_steps = dict()
-
-                for evaluator_id, origin in _evaluator_steps.items():
-                    evaluator_ref = Reference(id=evaluator_id)
-
-                    simple_evaluator = await self.simple_evaluators_service.transfer(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        evaluator_id=evaluator_id,
-                    )
-
-                    if (
-                        not simple_evaluator
-                        or not simple_evaluator.id
-                        or not simple_evaluator.slug
-                    ):
-                        log.warn(
-                            "[EVAL] [run] [make] [failure] could not transfer simple evaluator",
-                            id=evaluator_ref.id,
-                        )
-                        return None
-
-                    evaluator_revision = (
-                        await self.evaluators_service.fetch_evaluator_revision(
-                            project_id=project_id,
-                            #
-                            evaluator_ref=evaluator_ref,
-                        )
-                    )
-
-                    if (
-                        not evaluator_revision
-                        or not evaluator_revision.id
-                        or not evaluator_revision.slug
-                    ):
-                        log.warn(
-                            "[EVAL] [run] [make] [failure] could not find evaluator revision",
-                            id=evaluator_ref.id,
-                        )
-                        return None
-
-                    evaluator_steps[evaluator_revision.id] = origin
-            # ================================================================ #
-
             for evaluator_revision_id, origin in (evaluator_steps or {}).items():
                 evaluator_revision_ref = Reference(id=evaluator_revision_id)
 
@@ -2225,14 +2593,14 @@ class SimpleEvaluationsService:
                 )
 
                 if not evaluator_revision or not evaluator_revision.slug:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find evaluator revision",
                         id=evaluator_revision_ref.id,
                     )
                     return None
 
                 if not evaluator_revision.data:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] invalid evaluator revision",
                         id=evaluator_revision_ref.id,
                     )
@@ -2249,7 +2617,7 @@ class SimpleEvaluationsService:
                 )
 
                 if not evaluator_variant:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find evaluator variant",
                         id=evaluator_variant_ref.id,
                     )
@@ -2264,7 +2632,7 @@ class SimpleEvaluationsService:
                 )
 
                 if not evaluator:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find evaluator",
                         id=evaluator_ref.id,
                     )
@@ -2296,7 +2664,7 @@ class SimpleEvaluationsService:
 
                 if evaluator_revision.data.schemas:
                     metrics_keys = get_metrics_keys_from_schema(
-                        schema=(evaluator_revision.data.schemas.get("outputs")),
+                        schema=evaluator_revision.data.schemas.outputs,
                     )
 
                     evaluator_metrics_keys[step_key] = [
@@ -2360,16 +2728,24 @@ class SimpleEvaluationsService:
                     references=evaluator_references[step_key],
                     inputs=(
                         [
-                            # IMPLICIT FLAG: is_multivariate=False
-                            EvaluationRunDataStepInput(key="__all_invocations__"),
-                            # IMPLICIT FLAG: all_inputs=True
-                            EvaluationRunDataStepInput(key="__all_inputs__"),
+                            *(
+                                [
+                                    EvaluationRunDataStepInput(
+                                        key="__all_invocations__"
+                                    ),
+                                ]
+                                if application_invocation_steps_keys
+                                else []
+                            ),
+                            *(
+                                [
+                                    EvaluationRunDataStepInput(key="__all_inputs__"),
+                                ]
+                                if (query_input_steps_keys or testset_input_steps_keys)
+                                else []
+                            ),
                         ]
-                        if not query_steps
-                        else [
-                            # IMPLICIT FLAG: all_inputs=True
-                            EvaluationRunDataStepInput(key="__all_inputs__"),
-                        ]
+                        or None
                     ),
                 )
                 for step_key in evaluator_annotation_steps_keys
@@ -2456,7 +2832,7 @@ class SimpleEvaluationsService:
                 repeats=repeats or 1,
             )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-exception-caught
             log.error("[EVAL] [run] [make] [failure]", exc_info=True)
 
             return None
@@ -2467,11 +2843,25 @@ class SimpleEvaluationsService:
         is_closed: Optional[bool] = None,
         is_live: Optional[bool] = None,
         is_active: Optional[bool] = None,
+        is_queue: Optional[bool] = None,
+        has_queries: Optional[bool] = None,
+        has_testsets: Optional[bool] = None,
+        has_evaluators: Optional[bool] = None,
+        has_custom: Optional[bool] = None,
+        has_human: Optional[bool] = None,
+        has_auto: Optional[bool] = None,
     ) -> EvaluationRunFlags:
         return EvaluationRunFlags(
             is_closed=is_closed or False,
             is_live=is_live or False,
             is_active=is_active or False,
+            is_queue=is_queue or False,
+            has_queries=has_queries or False,
+            has_testsets=has_testsets or False,
+            has_evaluators=has_evaluators or False,
+            has_custom=has_custom or False,
+            has_human=has_human or False,
+            has_auto=has_auto or False,
         )
 
     async def _make_evaluation_run_query(
@@ -2480,14 +2870,28 @@ class SimpleEvaluationsService:
         is_closed: Optional[bool] = None,
         is_live: Optional[bool] = None,
         is_active: Optional[bool] = None,
+        is_queue: Optional[bool] = None,
+        has_queries: Optional[bool] = None,
+        has_testsets: Optional[bool] = None,
+        has_evaluators: Optional[bool] = None,
+        has_custom: Optional[bool] = None,
+        has_human: Optional[bool] = None,
+        has_auto: Optional[bool] = None,
         #
         tags: Optional[Tags] = None,
         meta: Optional[Meta] = None,
     ):
-        run_flags = await self._make_evaluation_run_flags(
+        run_flags = EvaluationRunQueryFlags(
             is_closed=is_closed,
             is_live=is_live,
             is_active=is_active,
+            is_queue=is_queue,
+            has_queries=has_queries,
+            has_testsets=has_testsets,
+            has_evaluators=has_evaluators,
+            has_custom=has_custom,
+            has_human=has_human,
+            has_auto=has_auto,
         )
 
         run_query = EvaluationRunQuery(
@@ -2617,7 +3021,7 @@ class SimpleEvaluationsService:
             for step in steps:
                 step_type = step.type
                 step_origin = step.origin
-                step_references = step.references
+                step_references = step.references or {}
                 step_id = None
 
                 if step_type == "input":
@@ -2683,6 +3087,672 @@ class SimpleEvaluationsService:
                 data=evaluation_data,
             )
 
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-exception-caught
             log.error("[EVAL] [run] [parse] [failure]", exc_info=True)
             return None
+
+
+class SimpleQueuesService:
+    def __init__(
+        self,
+        *,
+        evaluations_service: EvaluationsService,
+        simple_evaluations_service: SimpleEvaluationsService,
+        evaluators_service: EvaluatorsService,
+    ):
+        self.evaluations_service = evaluations_service
+        self.simple_evaluations_service = simple_evaluations_service
+        self.evaluators_service = evaluators_service
+
+    async def create(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        queue: SimpleQueueCreate,
+    ) -> Optional[SimpleQueue]:
+        if not queue.data:
+            return None
+
+        if not queue.data.evaluators:
+            return None
+
+        kind = queue.data.kind
+        queue_user_ids = self._normalize_assignments(
+            assignments=queue.data.assignments,
+        )
+        min_repeats = len(queue_user_ids) if queue_user_ids else 1
+        repeats = (
+            max(queue.data.repeats, min_repeats)
+            if queue.data.repeats is not None
+            else min_repeats
+        )
+
+        run_data_and_keys = await self._make_run_data(
+            project_id=project_id,
+            #
+            kind=kind,
+            #
+            evaluator_steps=queue.data.evaluators,
+            repeats=repeats,
+        )
+
+        if not run_data_and_keys:
+            return None
+
+        run_data, annotation_step_keys = run_data_and_keys
+
+        run = await self.evaluations_service.create_run(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            run=EvaluationRunCreate(
+                name=queue.name,
+                description=queue.description,
+                #
+                flags=EvaluationRunFlags(
+                    is_live=False,
+                    is_active=True,
+                    is_closed=False,
+                    is_queue=True,
+                ),
+                tags=queue.tags,
+                meta=queue.meta,
+                #
+                status=queue.status or EvaluationStatus.RUNNING,
+                #
+                data=run_data,
+            ),
+        )
+
+        if not run or not run.id:
+            return None
+
+        settings: Optional[SimpleQueueSettings] = (
+            queue.data.settings if queue.data else None
+        )
+        is_sequential = bool(
+            settings
+            and (settings.batch_size is not None or settings.batch_offset is not None)
+        )
+
+        created_queue = await self.evaluations_service.create_queue(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            queue=EvaluationQueueCreate(
+                name=queue.name,
+                description=queue.description,
+                #
+                flags=EvaluationQueueFlags(
+                    is_sequential=is_sequential,
+                ),
+                tags=queue.tags,
+                meta=queue.meta,
+                #
+                status=queue.status or EvaluationStatus.RUNNING,
+                #
+                data=EvaluationQueueData(
+                    user_ids=queue_user_ids,
+                    step_keys=annotation_step_keys,
+                    batch_size=settings.batch_size if settings else None,
+                    batch_offset=settings.batch_offset if settings else None,
+                ),
+                # is_queue
+                run_id=run.id,
+            ),
+        )
+
+        if not created_queue:
+            await self.evaluations_service.delete_run(
+                project_id=project_id,
+                run_id=run.id,
+            )
+            return None
+
+        return self._parse_queue(
+            queue=created_queue,
+            run=run,
+        )
+
+    async def fetch(
+        self,
+        *,
+        project_id: UUID,
+        queue_id: UUID,
+    ) -> Optional[SimpleQueue]:
+        queue = await self.evaluations_service.fetch_queue(
+            project_id=project_id,
+            queue_id=queue_id,
+        )
+        if not queue:
+            return None
+
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=queue.run_id,
+        )
+        if not run:
+            return None
+
+        return self._parse_queue(
+            queue=queue,
+            run=run,
+        )
+
+    async def query(
+        self,
+        *,
+        project_id: UUID,
+        query: Optional[SimpleQueueQuery] = None,
+        windowing: Optional[Windowing] = None,
+    ) -> List[SimpleQueue]:
+        run_ids_filter: Optional[List[UUID]] = None
+        if query and (query.run_id is not None or query.run_ids is not None):
+            requested_run_ids: List[UUID] = []
+
+            if query.run_id is not None:
+                requested_run_ids.append(query.run_id)
+
+            if query.run_ids:
+                requested_run_ids.extend(query.run_ids)
+
+            run_ids_filter = list(dict.fromkeys(requested_run_ids))
+
+        if query and query.kind is not None:
+            run_query = EvaluationRunQuery(
+                flags=EvaluationRunQueryFlags(
+                    is_queue=True,
+                    has_queries=query.kind == SimpleQueueKind.TRACES,
+                    has_testsets=query.kind == SimpleQueueKind.TESTCASES,
+                ),
+            )
+            runs = await self.evaluations_service.query_runs(
+                project_id=project_id,
+                run=run_query,
+            )
+
+            kind_run_ids = [run.id for run in runs if run and run.id]
+            if not kind_run_ids:
+                return []
+
+            kind_run_ids_set = set(kind_run_ids)
+            if run_ids_filter is None:
+                run_ids_filter = kind_run_ids
+            else:
+                run_ids_filter = [
+                    run_id for run_id in run_ids_filter if run_id in kind_run_ids_set
+                ]
+                if not run_ids_filter:
+                    return []
+
+        queues = await self.evaluations_service.query_queues(
+            project_id=project_id,
+            queue=EvaluationQueueQuery(
+                name=query.name if query else None,
+                description=query.description if query else None,
+                #
+                flags=EvaluationQueueQueryFlags(),
+                tags=query.tags if query else None,
+                meta=query.meta if query else None,
+                #
+                user_id=query.user_id if query else None,
+                user_ids=query.user_ids if query else None,
+                #
+                run_id=None,
+                run_ids=run_ids_filter,
+                #
+                ids=query.queue_ids if query else None,
+            ),
+            windowing=windowing,
+        )
+
+        if not queues:
+            return []
+
+        queue_run_ids = list(dict.fromkeys([queue.run_id for queue in queues if queue]))
+        runs = await self.evaluations_service.fetch_runs(
+            project_id=project_id,
+            run_ids=queue_run_ids,
+        )
+        runs_by_id = {run.id: run for run in runs if run and run.id}
+
+        return [
+            parsed
+            for parsed in [
+                self._parse_queue(
+                    queue=queue,
+                    run=runs_by_id.get(queue.run_id),
+                )
+                for queue in queues
+            ]
+            if parsed
+        ]
+
+    async def add_traces(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        queue_id: UUID,
+        #
+        trace_ids: List[str],
+    ) -> Optional[UUID]:
+        queue = await self.evaluations_service.fetch_queue(
+            project_id=project_id,
+            queue_id=queue_id,
+        )
+        if not queue:
+            return None
+
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=queue.run_id,
+        )
+        if not run:
+            return None
+
+        if self._get_kind(run) != SimpleQueueKind.TRACES:
+            return None
+
+        ok = await self.simple_evaluations_service.evaluate_batch_traces(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            run_id=queue.run_id,
+            #
+            trace_ids=trace_ids,
+        )
+        if not ok:
+            return None
+
+        return queue.id
+
+    async def add_testcases(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        queue_id: UUID,
+        #
+        testcase_ids: List[UUID],
+    ) -> Optional[UUID]:
+        queue = await self.evaluations_service.fetch_queue(
+            project_id=project_id,
+            queue_id=queue_id,
+        )
+        if not queue:
+            return None
+
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=queue.run_id,
+        )
+        if not run:
+            return None
+
+        if self._get_kind(run) != SimpleQueueKind.TESTCASES:
+            return None
+
+        ok = await self.simple_evaluations_service.evaluate_batch_testcases(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            run_id=queue.run_id,
+            #
+            testcase_ids=testcase_ids,
+        )
+        if not ok:
+            return None
+
+        return queue.id
+
+    async def query_scenarios(
+        self,
+        *,
+        project_id: UUID,
+        #
+        queue: Optional[SimpleQueueScenariosQuery] = None,
+        #
+        scenario: Optional[EvaluationScenarioQuery] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> Tuple[List[EvaluationScenario], Optional[Windowing]]:
+        if not queue or not queue.id:
+            return [], None
+
+        evaluation_queue = await self.evaluations_service.fetch_queue(
+            project_id=project_id,
+            queue_id=queue.id,
+        )
+        if not evaluation_queue:
+            return [], None
+
+        query_user_ids: List[UUID] = []
+        if queue and queue.user_id:
+            query_user_ids.append(queue.user_id)
+        if queue and queue.user_ids:
+            query_user_ids.extend(queue.user_ids)
+
+        query_user_ids = list(dict.fromkeys(query_user_ids))
+
+        assigned_scenario_ids_by_repeat: List[List[UUID]] = []
+        if query_user_ids:
+            for query_user_id in query_user_ids:
+                user_assigned_scenario_ids_by_repeat = (
+                    await self.evaluations_service.fetch_queue_scenarios(
+                        project_id=project_id,
+                        user_id=query_user_id,
+                        #
+                        queue_id=queue.id,
+                        #
+                        use_queue_scenario_ids=False,
+                    )
+                )
+
+                for idx, repeat_ids in enumerate(user_assigned_scenario_ids_by_repeat):
+                    while len(assigned_scenario_ids_by_repeat) <= idx:
+                        assigned_scenario_ids_by_repeat.append([])
+
+                    current_repeat_ids = assigned_scenario_ids_by_repeat[idx]
+                    current_repeat_ids_set = set(current_repeat_ids)
+                    for scenario_id in repeat_ids:
+                        if scenario_id in current_repeat_ids_set:
+                            continue
+                        current_repeat_ids.append(scenario_id)
+                        current_repeat_ids_set.add(scenario_id)
+        else:
+            assigned_scenario_ids_by_repeat = (
+                await self.evaluations_service.fetch_queue_scenarios(
+                    project_id=project_id,
+                    user_id=None,
+                    #
+                    queue_id=queue.id,
+                    #
+                    use_queue_scenario_ids=False,
+                )
+            )
+
+        all_ids = flatten_dedup_ids(assigned_scenario_ids_by_repeat)
+
+        if not all_ids:
+            return [], None
+
+        # Apply status filtering after assignment (preserves assignment order)
+        if scenario and (scenario.status or scenario.statuses):
+            status_filtered_ids = await self.evaluations_service.query_scenario_ids(
+                project_id=project_id,
+                scenario=EvaluationScenarioQuery(
+                    ids=all_ids,
+                    status=scenario.status,
+                    statuses=scenario.statuses,
+                ),
+            )
+            status_set = set(status_filtered_ids)
+            all_ids = [id_ for id_ in all_ids if id_ in status_set]
+
+        if not all_ids:
+            return [], None
+
+        paged_ids, has_more = paginate_ids(ids=all_ids, windowing=windowing)
+
+        if not paged_ids:
+            return [], None
+
+        scenarios = await self.evaluations_service.fetch_scenarios(
+            project_id=project_id,
+            scenario_ids=paged_ids,
+        )
+
+        next_windowing = next_windowing_from_ids(
+            paged_ids=paged_ids,
+            windowing=windowing,
+            has_more=has_more,
+        )
+
+        return scenarios, next_windowing
+
+    async def _make_run_data(
+        self,
+        *,
+        project_id: UUID,
+        kind: SimpleQueueKind,
+        evaluator_steps: Target,
+        repeats: int,
+    ) -> Optional[Tuple[EvaluationRunData, List[str]]]:
+        evaluator_step_origins: Dict[UUID, Origin]
+        if isinstance(evaluator_steps, list):
+            evaluator_step_origins = {
+                evaluator_revision_id: "human"
+                for evaluator_revision_id in evaluator_steps
+            }
+        else:
+            evaluator_step_origins = evaluator_steps
+
+        annotation_steps: List[EvaluationRunDataStep] = []
+        annotation_mappings: List[EvaluationRunDataMapping] = []
+        annotation_step_keys: List[str] = []
+
+        source_step_key = (
+            "query-direct" if kind == SimpleQueueKind.TRACES else "testset-direct"
+        )
+        source_step = EvaluationRunDataStep(
+            key=source_step_key,
+            type="input",
+            origin="custom",
+            references={},
+        )
+
+        source_mappings: List[EvaluationRunDataMapping] = []
+
+        for evaluator_revision_id, origin in evaluator_step_origins.items():
+            evaluator_revision_ref = Reference(id=evaluator_revision_id)
+            evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
+                project_id=project_id,
+                evaluator_revision_ref=evaluator_revision_ref,
+            )
+            if not evaluator_revision or not evaluator_revision.slug:
+                return None
+
+            evaluator_variant = await self.evaluators_service.fetch_evaluator_variant(
+                project_id=project_id,
+                evaluator_variant_ref=Reference(id=evaluator_revision.variant_id),
+            )
+            if not evaluator_variant:
+                return None
+
+            evaluator = await self.evaluators_service.fetch_evaluator(
+                project_id=project_id,
+                evaluator_ref=Reference(id=evaluator_variant.evaluator_id),
+            )
+            if not evaluator:
+                return None
+
+            step_key = "evaluator-" + evaluator_revision.slug
+            annotation_step_keys.append(step_key)
+
+            step_inputs: List[EvaluationRunDataStepInput] = [
+                EvaluationRunDataStepInput(key="__all_inputs__")
+            ]
+
+            annotation_steps.append(
+                EvaluationRunDataStep(
+                    key=step_key,
+                    type="annotation",
+                    origin=origin,
+                    references={
+                        "evaluator": Reference(
+                            id=evaluator.id,
+                            slug=evaluator.slug,
+                        ),
+                        "evaluator_variant": Reference(
+                            id=evaluator_variant.id,
+                            slug=evaluator_variant.slug,
+                        ),
+                        "evaluator_revision": Reference(
+                            id=evaluator_revision.id,
+                            slug=evaluator_revision.slug,
+                            version=evaluator_revision.version,
+                        ),
+                    },
+                    inputs=step_inputs,
+                )
+            )
+
+            metrics_keys: List[Dict[str, str]]
+            if evaluator_revision.data and evaluator_revision.data.schemas:
+                metrics_keys = get_metrics_keys_from_schema(
+                    schema=evaluator_revision.data.schemas.outputs,
+                )
+                metrics_keys = [
+                    {
+                        "path": metric_key.get("path", ""),
+                        "type": metric_key.get("type", ""),
+                    }
+                    for metric_key in metrics_keys
+                ]
+            else:
+                metrics_keys = [
+                    {
+                        "path": "outputs",
+                        "type": "json",
+                    }
+                ]
+
+            annotation_mappings.extend(
+                [
+                    EvaluationRunDataMapping(
+                        column=EvaluationRunDataMappingColumn(
+                            kind="annotation",
+                            name=metric_key.get("path", ""),
+                        ),
+                        step=EvaluationRunDataMappingStep(
+                            key=step_key,
+                            path=(
+                                "attributes.ag.data.outputs"
+                                + (
+                                    "." + metric_key.get("path", "")
+                                    if metric_key.get("path")
+                                    else ""
+                                )
+                            ),
+                        ),
+                    )
+                    for metric_key in metrics_keys
+                ]
+            )
+
+        run_data = EvaluationRunData(
+            steps=[source_step] + annotation_steps,
+            mappings=source_mappings + annotation_mappings,
+            repeats=repeats,
+        )
+
+        return run_data, annotation_step_keys
+
+    def _get_kind(self, run: EvaluationRun) -> Optional[SimpleQueueKind]:
+        if not run.flags or not run.flags.is_queue:
+            return None
+
+        if run.flags.has_queries and not run.flags.has_testsets:
+            return SimpleQueueKind.TRACES
+
+        if run.flags.has_testsets and not run.flags.has_queries:
+            return SimpleQueueKind.TESTCASES
+
+        return None
+
+    def _parse_queue(
+        self,
+        *,
+        queue: EvaluationQueue,
+        #
+        run: Optional[EvaluationRun],
+    ) -> Optional[SimpleQueue]:
+        if run is None:
+            return None
+
+        kind = self._get_kind(run)
+        if kind is None:
+            return None
+
+        assignments: Optional[List[List[UUID]]] = None
+        repeats: Optional[int] = None
+        if queue.data and queue.data.user_ids:
+            assignments = [
+                [UUID(str(user_id)) for user_id in repeat_user_ids]
+                for repeat_user_ids in queue.data.user_ids
+            ]
+
+        run_repeats = (
+            run.data.repeats if run and run.data and run.data.repeats else None
+        )
+        assignment_lanes = len(assignments) if assignments else 0
+        if run_repeats and assignment_lanes:
+            repeats = max(run_repeats, assignment_lanes)
+        elif run_repeats and run_repeats > 1:
+            repeats = run_repeats
+        elif assignment_lanes > 1:
+            repeats = assignment_lanes
+
+        return SimpleQueue(
+            id=queue.id,
+            #
+            name=queue.name,
+            description=queue.description,
+            #
+            created_at=queue.created_at,
+            updated_at=queue.updated_at or queue.created_at,
+            deleted_at=queue.deleted_at,
+            created_by_id=queue.created_by_id,
+            updated_by_id=queue.updated_by_id,
+            deleted_by_id=queue.deleted_by_id,
+            #
+            flags=queue.flags.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
+            if queue.flags
+            else None,
+            tags=queue.tags,
+            meta=queue.meta,
+            #
+            status=queue.status,
+            #
+            data=SimpleQueueData(
+                kind=kind,
+                assignments=assignments,
+                repeats=repeats,
+                settings=SimpleQueueSettings(
+                    batch_size=queue.data.batch_size if queue.data else None,
+                    batch_offset=queue.data.batch_offset if queue.data else None,
+                )
+                if queue.data
+                and (
+                    queue.data.batch_size is not None
+                    or queue.data.batch_offset is not None
+                )
+                else None,
+            ),
+            #
+            run_id=queue.run_id,
+        )
+
+    def _normalize_assignments(
+        self,
+        *,
+        assignments: Optional[List[List[UUID]]],
+    ) -> Optional[List[List[UUID]]]:
+        if assignments is None:
+            return None
+
+        if len(assignments) == 0:
+            return None
+
+        return [
+            [UUID(str(user_id)) for user_id in repeat_user_ids]
+            for repeat_user_ids in assignments
+        ]

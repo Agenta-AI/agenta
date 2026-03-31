@@ -1,10 +1,10 @@
 import type {ReactNode} from "react"
 
-import {TestResult} from "@/oss/components/Playground/assets/utilities/transformer/types/testRun"
+import {TestResult} from "@/oss/lib/shared/variant/types/testRun"
 
-import {TooltipButtonProps} from "../../../assets/EnhancedButton"
+import {EnhancedButtonProps} from "../../../../EnhancedUIs/Button/types"
 
-export interface TestsetDrawerButtonProps extends TooltipButtonProps {
+export interface TestsetDrawerButtonProps extends EnhancedButtonProps {
     icon?: boolean
     children?: ReactNode
     resultHashes?: (TestResult | string | null | undefined)[]

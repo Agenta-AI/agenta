@@ -33,39 +33,36 @@ export const TestPath = {
 } as const
 
 /**
- * Deployment environments where tests can be executed
+ * Role types for different test scenarios
  */
-export const TestEnvironment = {
-    local: "local", // Local deployment
-    staging: "staging", // Staging environment
-    beta: "beta", // Beta environment
-    oss: "oss", // OSS environment
-    demo: "demo", // Demo environment
-    prod: "prod", // Production environment
-} as const
-
-/**
- * Feature availability scope for different deployment types
- */
-export const TestFeatureLicenseScopeType = {
-    EE: "ee", // Features only available in ee
-} as const
-
-/**
- * Permission types for different test scenarios
- */
-export const TestPermissionType = {
+export const TestRoleType = {
     Owner: "owner",
+    Admin: "admin",
+    Developer: "developer",
     Editor: "editor",
+    Annotator: "annotator",
     Viewer: "viewer",
 } as const
 
 /**
- * Entitlement types for different test scenarios
+ * Plan types for different test scenarios
  */
-export const TestEntitlementType = {
+export const TestPlanType = {
     Hobby: "hobby",
     Pro: "pro",
+} as const
+
+/**
+ * Cost types for test execution
+ */
+export const TestCostType = {
+    Free: "free", // No monetary cost
+    Paid: "paid", // Uses paid third-party services
+} as const
+
+export const TestLicenseType = {
+    OSS: "oss",
+    EE: "ee",
 } as const
 
 export const TestLensType = {
@@ -85,19 +82,6 @@ export const TestSpeedType = {
 } as const
 
 /**
- * Environment-specific feature configuration
- * Defines which features are available in each environment
- */
-export const environmentFeatures: PlaywrightConfig.EnvironmentProjectConfig = {
-    local: {},
-    staging: {},
-    beta: {},
-    oss: {},
-    demo: {},
-    prod: {},
-} as const
-
-/**
  * Tag argument definitions for CLI and test decoration
  * Maps tag types to their CLI flags and test decoration prefixes
  */
@@ -105,13 +89,13 @@ export const TAG_ARGUMENTS: Record<PlaywrightConfig.TestTagType, PlaywrightConfi
     scope: {flag: "-scope", prefix: "@scope:"},
     coverage: {flag: "-coverage", prefix: "@coverage:"},
     path: {flag: "-path", prefix: "@path:"},
-    env: {flag: "-env", prefix: "@env:"},
-    feature: {flag: "-feature", prefix: "@feature:"},
-    entitlement: {flag: "-entitlement", prefix: "@entitlement:"},
-    permission: {flag: "-permission", prefix: "@permission:"},
+    plan: {flag: "-plan", prefix: "@plan:"},
+    role: {flag: "-role", prefix: "@role:"},
     lens: {flag: "-lens", prefix: "@lens:"},
     case: {flag: "-case", prefix: "@case:"},
     speed: {flag: "-speed", prefix: "@speed:"},
+    license: {flag: "-license", prefix: "@license:"},
+    cost: {flag: "-cost", prefix: "@cost:"},
 } as const
 
 /**
@@ -124,11 +108,4 @@ export const createTagString = (type: PlaywrightConfig.TestTagType, value: strin
     `${TAG_ARGUMENTS[type].prefix}${value}`
 
 // Re-export types from the types module for backward compatibility
-export type {
-    TestTagType,
-    TestTag,
-    TagArgument,
-    TestEnvironmentType,
-    ProjectFeatureConfig,
-    EnvironmentProjectConfig,
-} from "./types"
+export type {TestTagType, TestTag, TagArgument, ProjectFeatureConfig} from "./types"

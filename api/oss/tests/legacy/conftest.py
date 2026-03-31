@@ -1,11 +1,7 @@
 import os
 import uuid
 import json
-from json import loads
-from traceback import format_exc
-from typing import Optional, Any
 
-import boto3
 import httpx
 import pytest
 import agenta as ag
@@ -47,7 +43,6 @@ API_BASE_URL = f"{AGENTA_HOST}/api/"
 API_KEYS_MAPPING = {
     "OPENAI_API_KEY": "openai",
     "MISTRAL_API_KEY": "mistral",
-    "MISTRALAI_API_KEY": "mistralai",
     "COHERE_API_KEY": "cohere",
     "ANTHROPIC_API_KEY": "anthropic",
     "ANYSCALE_API_KEY": "anyscale",
@@ -378,10 +373,9 @@ async def create_programmatic_all_users(ahttp_client):
 
     roles = [
         "owner",
-        "editor",
-        "workspace_admin",
+        "admin",
     ]
-    for i in range(0, 3):
+    for i in range(0, len(roles)):
         randomness = uuid.uuid4().hex[:8]
         user_name = f"programmatic_test_user_{randomness}_{i}"
         user_email = f"{user_name}@agenta.ai"
@@ -741,7 +735,7 @@ async def deploy_variant_to_environment(
     client: AsyncClient, variant_id: str, environment_name: str, headers: dict
 ):
     response = await client.post(
-        f"environments/deploy",
+        "environments/deploy",
         json={"environment_name": environment_name, "variant_id": variant_id},
         headers=headers,
     )

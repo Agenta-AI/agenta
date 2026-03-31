@@ -2,13 +2,7 @@ import dayjs from "dayjs"
 
 import {sortSpansByStartTime} from "@/oss/lib/traces/tracing"
 
-import {
-    TraceSpanNode,
-    TracesResponse,
-    SpansResponse,
-    TracingDashboardData,
-    GenerationDashboardData,
-} from "../types"
+import {SpansResponse, TraceSpanNode, TracesResponse, TracingDashboardData} from "../types"
 
 export const isTracesResponse = (data: any): data is TracesResponse => {
     return typeof data === "object" && "traces" in data
@@ -29,12 +23,18 @@ export const transformTracesResponseToTree = (data: TracesResponse): TraceSpanNo
                 return buildTree(span)
             }
 
-            const node: TraceSpanNode = {
-                ...span,
+            if (!span || typeof span !== "object") {
+                return []
             }
 
-            if (span?.spans && Object.keys(span.spans).length > 0) {
-                node.children = buildTree(span.spans)
+            const {spans: nestedSpans, ...spanWithoutNestedSpans} = span
+
+            const node: TraceSpanNode = {
+                ...spanWithoutNestedSpans,
+            }
+
+            if (nestedSpans && Object.keys(nestedSpans).length > 0) {
+                node.children = buildTree(nestedSpans)
             }
 
             return node
@@ -48,15 +48,21 @@ export const transformTracesResponseToTree = (data: TracesResponse): TraceSpanNo
 }
 
 export const transformTracingResponse = (data: TraceSpanNode[]): TraceSpanNode[] => {
-    const enhance = (span: TraceSpanNode): TraceSpanNode => ({
-        ...span,
-        key: span.span_id,
-        invocationIds: {
-            trace_id: span.trace_id,
-            span_id: span.span_id,
-        },
-        children: span.children?.map(enhance),
-    })
+    const enhance = (span: TraceSpanNode): TraceSpanNode => {
+        const {spans: _nestedSpans, ...spanWithoutNestedSpans} = span as TraceSpanNode & {
+            spans?: unknown
+        }
+
+        return {
+            ...spanWithoutNestedSpans,
+            key: span.span_id,
+            invocationIds: {
+                trace_id: span.trace_id,
+                span_id: span.span_id,
+            },
+            children: span.children?.map(enhance),
+        }
+    }
 
     return data.map(enhance)
 }
@@ -74,6 +80,35 @@ export const rangeToIntervalMinutes = (range: string): number => {
         default:
             return 720
     }
+}
+
+export const calculateIntervalFromDuration = (durationMinutes: number): number => {
+    // Backend has a hard limit of ~1024 buckets.
+    // We enforce a max of 1000 buckets to be safe and avoid the backend defaulting to 30-day buckets.
+    const maxBuckets = 1000
+    const calculatedInterval = Math.ceil(durationMinutes / maxBuckets)
+
+    // Explicit mappings for standard frontend ranges to ensure nice granularity (~30-70 bars)
+    // 30 mins -> 1 min interval (30 bars)
+    if (durationMinutes <= 30) return Math.max(1, calculatedInterval)
+    // 1 hour -> 1 min interval (60 bars)
+    if (durationMinutes <= 60) return Math.max(1, calculatedInterval)
+    // 6 hours -> 5 min interval (72 bars)
+    if (durationMinutes <= 60 * 6) return Math.max(5, calculatedInterval)
+    // 24 hours -> 30 min interval (48 bars)
+    if (durationMinutes <= 60 * 24) return Math.max(30, calculatedInterval)
+    // 3 days -> 1 hour interval (72 bars)
+    if (durationMinutes <= 60 * 24 * 3) return Math.max(60, calculatedInterval)
+    // 7 days -> 3 hour interval (56 bars)
+    if (durationMinutes <= 60 * 24 * 7) return Math.max(180, calculatedInterval)
+    // 14 days -> 6 hour interval (56 bars)
+    if (durationMinutes <= 60 * 24 * 14) return Math.max(360, calculatedInterval)
+    // 30 days -> 12 hour interval (60 bars)
+    if (durationMinutes <= 60 * 24 * 30) return Math.max(720, calculatedInterval)
+
+    // For longer durations
+    // ensuring we never request too many buckets.
+    return Math.max(720, calculatedInterval)
 }
 
 export const normalizeDurationSeconds = (d = 0) => d / 1_000

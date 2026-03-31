@@ -13,6 +13,11 @@ const compat = new FlatCompat({
     baseDirectory: __dirname,
     recommendedConfig: eslint.configs.recommended,
     allConfig: eslint.configs.all,
+    languageOptions: {
+        parserOptions: {
+            tsconfigRootDir: __dirname,
+        },
+    },
 })
 
 const tsEslintConfig = tseslint.config(
@@ -21,10 +26,39 @@ const tsEslintConfig = tseslint.config(
     tseslint.configs.stylistic,
 )
 
+const includePrettierRule = process.env.DISABLE_PRETTIER !== "true"
+
 const config = [
     ...compat.extends("next/core-web-vitals"),
     ...compat.extends("plugin:@lexical/recommended"),
     ...tsEslintConfig,
+    {
+        languageOptions: {
+            parserOptions: {
+                tsconfigRootDir: __dirname,
+            },
+        },
+    },
+    // Prevent re-exporting from @agenta/* packages in app layer (oss/src and ee/src)
+    // This ensures consumers import directly from packages for proper tree-shaking
+    {
+        files: ["oss/src/**/*.ts", "oss/src/**/*.tsx", "ee/src/**/*.ts", "ee/src/**/*.tsx"],
+        rules: {
+            "no-restricted-syntax": [
+                "error",
+                {
+                    selector: "ExportNamedDeclaration[source.value=/^@agenta/]",
+                    message:
+                        "Do not re-export from @agenta/* packages. Consumers should import directly from the source package for proper tree-shaking.",
+                },
+                {
+                    selector: "ExportAllDeclaration[source.value=/^@agenta/]",
+                    message:
+                        "Do not re-export from @agenta/* packages. Consumers should import directly from the source package for proper tree-shaking.",
+                },
+            ],
+        },
+    },
     {
         rules: {
             "prefer-const": "off",
@@ -36,6 +70,20 @@ const config = [
             "@next/next/no-sync-scripts": 0,
             "react/no-children-prop": 0,
             "react-hooks/exhaustive-deps": "off",
+            // Disable new strict rules from eslint-plugin-react-hooks@7.x and React Compiler
+            // These can be enabled incrementally as the codebase is updated
+            "react-hooks/set-state-in-effect": "off",
+            "react-hooks/rules-of-hooks": "error",
+            "react-hooks/preserve-manual-memoization": "off",
+            "react-hooks/refs": "off",
+            "react-hooks/variables": "off",
+            "react-hooks/immutability": "off",
+            "react-hooks/use-memo": "off",
+            "react-hooks/use-callback": "off",
+            "react-hooks/use-effect": "off",
+            "react-hooks/purity": "off",
+            "react-hooks/globals": "off",
+            "react-compiler/react-compiler": "off",
             "import/no-anonymous-default-export": "off",
             "no-useless-escape": "off",
             "no-prototype-builtins": "off",
@@ -89,19 +137,23 @@ const config = [
                     ],
                 },
             ],
-            "prettier/prettier": [
-                "error",
-                {
-                    printWidth: 100,
-                    tabWidth: 4,
-                    useTabs: false,
-                    semi: false,
-                    bracketSpacing: false,
-                },
-            ],
+            ...(includePrettierRule
+                ? {
+                      "prettier/prettier": [
+                          "error",
+                          {
+                              printWidth: 100,
+                              tabWidth: 4,
+                              useTabs: false,
+                              semi: false,
+                              bracketSpacing: false,
+                          },
+                      ],
+                  }
+                : {}),
         },
     },
-    eslintPluginPrettier,
+    ...(includePrettierRule ? [eslintPluginPrettier] : []),
 ]
 
 export default config

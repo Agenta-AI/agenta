@@ -1,8 +1,8 @@
-import {MouseEvent, useMemo, useState} from "react"
+import {useMemo, useState} from "react"
 
-import {CloseOutlined, PythonOutlined} from "@ant-design/icons"
-import {Book, CodeBlock, FileTs, Play} from "@phosphor-icons/react"
-import {Button, ModalProps, Space, Tabs, TabsProps, Typography} from "antd"
+import {CloseOutlined, LinkOutlined} from "@ant-design/icons"
+import {Book, Play} from "@phosphor-icons/react"
+import {Button, ModalProps, Tabs, TabsProps, Typography} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
@@ -40,7 +40,6 @@ export const SetupTracingModalContent = ({
         {
             key: "openai",
             label: "OpenAI",
-            icon: <PythonOutlined />,
             children: (
                 <TracingTabContent
                     apiKeyValue={apiKeyValue}
@@ -52,7 +51,6 @@ export const SetupTracingModalContent = ({
         {
             key: "liteLLM",
             label: "LiteLLM",
-            icon: <FileTs />,
             children: (
                 <TracingTabContent
                     apiKeyValue={apiKeyValue}
@@ -64,7 +62,6 @@ export const SetupTracingModalContent = ({
         {
             key: "langChain",
             label: "LangChain",
-            icon: <CodeBlock />,
             children: (
                 <TracingTabContent
                     apiKeyValue={apiKeyValue}
@@ -76,7 +73,6 @@ export const SetupTracingModalContent = ({
         {
             key: "instructor",
             label: "Instructor",
-            icon: <CodeBlock />,
             children: (
                 <TracingTabContent
                     apiKeyValue={apiKeyValue}
@@ -88,7 +84,6 @@ export const SetupTracingModalContent = ({
         {
             key: "langGraph",
             label: "LangGraph",
-            icon: <CodeBlock />,
             children: (
                 <TracingTabContent
                     apiKeyValue={apiKeyValue}
@@ -100,13 +95,34 @@ export const SetupTracingModalContent = ({
         {
             key: "llamaIndex",
             label: "LlamaIndex",
-            icon: <CodeBlock />,
             children: (
                 <TracingTabContent
                     apiKeyValue={apiKeyValue}
                     setApiKeyValue={setApiKeyValue}
                     codeBlock={codeBlocks.llamaIndex}
                 />
+            ),
+        },
+        {
+            key: "others",
+            label: "More Integrations",
+            icon: <LinkOutlined />,
+            children: (
+                <div className="flex flex-col gap-6 items-center justify-center py-12">
+                    <Text className="text-center" style={{fontSize: 16}}>
+                        Looking for other integrations? We support many more frameworks and
+                        libraries.
+                    </Text>
+                    <Button
+                        type="primary"
+                        size="large"
+                        icon={<Book size={16} className="mt-1" />}
+                        href="https://agenta.ai/docs/observability/overview#integrations"
+                        target="_blank"
+                    >
+                        View All Integrations
+                    </Button>
+                </div>
             ),
         },
     ]
@@ -182,8 +198,12 @@ const SetupTracingModal = (props: ModalProps) => {
             title={null}
             className={classes.modalContainer}
             width={720}
-            height={832}
             closeIcon={null}
+            styles={{
+                container: {
+                    height: 832,
+                },
+            }}
             {...props}
         >
             <SetupTracingModalContent classes={classes} onCancel={props.onCancel} />

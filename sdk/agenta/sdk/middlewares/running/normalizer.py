@@ -257,7 +257,7 @@ class NormalizerMiddleware:
 
             code = getattr(exc, "status_code") if hasattr(exc, "status_code") else 500
 
-            if code in [401, 403]:
+            if code in [401, 403, 429]:  # Downstream API errors
                 code = 424
 
             message = str(exc) or "Internal Server Error"

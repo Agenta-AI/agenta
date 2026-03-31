@@ -9,35 +9,80 @@ RUN apt-get update && apt-get install -y jq
     
 # Install dependencies based on the preferred package manager
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* .npmrc* ./
+COPY patches/ ./patches/
 
 # Extract PNPM version and install it
 RUN PNPM_VERSION=$(cat package.json | jq -r '.packageManager | split("@")[1]') && \
     npm install -g pnpm@${PNPM_VERSION}
 
+# Copy app package manifests
 COPY ee/package.json ./ee/yarn.lock* ./ee/package-lock.json* ./ee/pnpm-lock.yaml* ./ee/.npmrc* ./ee/
 COPY oss/package.json ./oss/yarn.lock* ./oss/package-lock.json* ./oss/pnpm-lock.yaml* ./oss/.npmrc* ./oss/
+
+# Copy workspace package manifests (required for workspace:* resolution)
+COPY packages/agenta-shared/package.json ./packages/agenta-shared/
+COPY packages/agenta-ui/package.json ./packages/agenta-ui/
+COPY packages/agenta-entities/package.json ./packages/agenta-entities/
+COPY packages/agenta-entity-ui/package.json ./packages/agenta-entity-ui/
+COPY packages/agenta-playground/package.json ./packages/agenta-playground/
+COPY packages/agenta-playground-ui/package.json ./packages/agenta-playground-ui/
+COPY packages/agenta-annotation/package.json ./packages/agenta-annotation/
+COPY packages/agenta-annotation-ui/package.json ./packages/agenta-annotation-ui/
+
+# Copy shared package config files (required by package tsconfigs)
+COPY packages/tsconfig.base.json ./packages/
+COPY packages/css-modules.d.ts ./packages/
+
+# Copy tests workspace manifest (EE devDependency on @agenta/web-tests)
+COPY tests/package.json ./tests/
+
 COPY ./pnpm-workspace.yaml ./turbo.json ./
 
 COPY ./entrypoint.sh /app/entrypoint.sh   
 
+RUN groupadd --gid 10001 agenta && \
+    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta && \
+    chown -R agenta:agenta /app
+
+USER 10001
+
 RUN pnpm i
 
-COPY ee/src ./ee/src
-COPY ee/public ./ee/public
-COPY oss/src ./oss/src
-COPY oss/public ./oss/public
-COPY tsconfig.json .
-COPY ee/tsconfig.json ./ee
-COPY oss/tsconfig.json ./oss
+# Copy workspace package sources (after install to preserve layer caching)
+COPY --chown=agenta:agenta packages/agenta-shared/src ./packages/agenta-shared/src
+COPY --chown=agenta:agenta packages/agenta-shared/tsconfig.json ./packages/agenta-shared/
+COPY --chown=agenta:agenta packages/agenta-ui/src ./packages/agenta-ui/src
+COPY --chown=agenta:agenta packages/agenta-ui/tsconfig.json ./packages/agenta-ui/
+COPY --chown=agenta:agenta packages/agenta-entities/src ./packages/agenta-entities/src
+COPY --chown=agenta:agenta packages/agenta-entities/tsconfig.json ./packages/agenta-entities/
+COPY --chown=agenta:agenta packages/agenta-entity-ui/src ./packages/agenta-entity-ui/src
+COPY --chown=agenta:agenta packages/agenta-entity-ui/tsconfig.json ./packages/agenta-entity-ui/
+COPY --chown=agenta:agenta packages/agenta-playground/src ./packages/agenta-playground/src
+COPY --chown=agenta:agenta packages/agenta-playground/tsconfig.json ./packages/agenta-playground/
+COPY --chown=agenta:agenta packages/agenta-playground-ui/src ./packages/agenta-playground-ui/src
+COPY --chown=agenta:agenta packages/agenta-playground-ui/tsconfig.json ./packages/agenta-playground-ui/
+COPY --chown=agenta:agenta packages/agenta-annotation/src ./packages/agenta-annotation/src
+COPY --chown=agenta:agenta packages/agenta-annotation/tsconfig.json ./packages/agenta-annotation/
+COPY --chown=agenta:agenta packages/agenta-annotation-ui/src ./packages/agenta-annotation-ui/src
+COPY --chown=agenta:agenta packages/agenta-annotation-ui/tsconfig.json ./packages/agenta-annotation-ui/
 
-COPY ee/postcss.config.mjs ./ee/postcss.config.mjs
-COPY oss/postcss.config.mjs ./oss/postcss.config.mjs
+COPY --chown=agenta:agenta ee/src ./ee/src
+COPY --chown=agenta:agenta ee/public ./ee/public
+COPY --chown=agenta:agenta oss/src ./oss/src
+COPY --chown=agenta:agenta oss/public ./oss/public
+COPY --chown=agenta:agenta tsconfig.json .
+COPY --chown=agenta:agenta ee/tsconfig.json ./ee
+COPY --chown=agenta:agenta oss/tsconfig.json ./oss
 
-COPY ee/next.config.ts ./ee/next.config.ts
-COPY oss/next.config.ts ./oss/next.config.ts
+COPY --chown=agenta:agenta ee/postcss.config.mjs ./ee/postcss.config.mjs
+COPY --chown=agenta:agenta oss/postcss.config.mjs ./oss/postcss.config.mjs
 
-COPY ee/tailwind.config.ts ./ee/tailwind.config.ts
-COPY oss/tailwind.config.ts ./oss/tailwind.config.ts
+COPY --chown=agenta:agenta ee/next.config.ts ./ee/next.config.ts
+COPY --chown=agenta:agenta oss/next.config.ts ./oss/next.config.ts
+
+COPY --chown=agenta:agenta ee/tailwind.config.ts ./ee/tailwind.config.ts
+COPY --chown=agenta:agenta oss/tailwind.config.ts ./oss/tailwind.config.ts
+
 
 ENTRYPOINT ["./entrypoint.sh"]
 EXPOSE 3000

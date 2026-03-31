@@ -1,15 +1,16 @@
-import type {Key, MouseEvent} from "react"
+import type {Key, MouseEvent, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {useQueryClient} from "@tanstack/react-query"
-import {Button, Grid, Tooltip} from "antd"
+import {Grid} from "antd"
+import type {TableProps} from "antd/es/table"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import {activePreviewProjectIdAtom} from "@/oss/components/EvalRunDetails2/atoms/run"
-import {clearAllMetricStatsCaches} from "@/oss/components/EvalRunDetails2/atoms/runMetrics"
+import {activePreviewProjectIdAtom} from "@/oss/components/EvalRunDetails/atoms/run"
+import {clearAllMetricStatsCaches} from "@/oss/components/EvalRunDetails/atoms/runMetrics"
 import {
     InfiniteVirtualTableFeatureShell,
     type TableFeaturePagination,
@@ -19,28 +20,41 @@ import useTableExport, {
     EXPORT_RESOLVE_SKIP,
     type TableExportColumnContext,
 } from "@/oss/components/InfiniteVirtualTable/hooks/useTableExport"
+import EmptyStateAllEvaluations from "@/oss/components/pages/evaluations/allEvaluations/EmptyStateAllEvaluations"
+import EmptyStateEvaluation from "@/oss/components/pages/evaluations/autoEvaluation/EmptyStateEvaluation"
+import EmptyStateHumanEvaluation from "@/oss/components/pages/evaluations/humanEvaluation/EmptyStateHumanEvaluation"
+import EmptyStateOnlineEvaluation from "@/oss/components/pages/evaluations/onlineEvaluation/EmptyStateOnlineEvaluation"
+import EmptyStateSdkEvaluation from "@/oss/components/pages/evaluations/sdkEvaluation/EmptyStateSdkEvaluation"
 import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
+import {
+    onboardingWidgetActivationAtom,
+    recordWidgetEventAtom,
+    setOnboardingWidgetActivationAtom,
+} from "@/oss/lib/onboarding"
 import {useQueryParamState} from "@/oss/state/appState"
 
 import {shouldIgnoreRowClick} from "../../actions/navigationActions"
-import {evaluationRunsTableFetchEnabledAtom} from "../../atoms/context"
-import {evaluationRunsDatasetStore} from "../../atoms/tableStore"
 import {
-    evaluationRunsDeleteModalOpenAtom,
+    evaluationRunsDeleteContextAtom,
+    evaluationRunsTableFetchEnabledAtom,
+} from "../../atoms/context"
+import {EVALUATION_RUNS_QUERY_KEY_ROOT, evaluationRunsDatasetStore} from "../../atoms/tableStore"
+import {
     evaluationRunsCreateModalOpenAtom,
+    evaluationRunsCreateSelectedTypeAtom,
+    evaluationRunsDeleteModalOpenAtom,
     evaluationRunsMetaUpdaterAtom,
     evaluationRunsSelectedRowKeysAtom,
+    evaluationRunsSelectionSnapshotAtom,
     evaluationRunsTableComponentSliceAtom,
-    evaluationRunsTableResetAtom,
     evaluationRunsTableContextSetterAtom,
     evaluationRunsTablePageSizeAtom,
-    evaluationRunsSelectionSnapshotAtom,
-    evaluationRunsCreateSelectedTypeAtom,
+    evaluationRunsTableResetAtom,
 } from "../../atoms/view"
 import useEvaluationRunNavigationActions from "../../hooks/useEvaluationRunNavigationActions"
 import {
-    useEvaluationRunsColumns,
     resolveReferenceExportValue,
+    useEvaluationRunsColumns,
 } from "../../hooks/useEvaluationRunsColumns"
 import useEvaluationRunsPolling from "../../hooks/useEvaluationRunsPolling"
 import {clearMetricSelectionCache} from "../../hooks/useRunMetricSelection"
@@ -52,7 +66,6 @@ import type {
 import {resolveRowAppId} from "../../utils/runHelpers"
 import ColumnVisibilityPopoverContent from "../columnVisibility/ColumnVisibilityPopoverContent"
 import EvaluationRunsCreateButton from "../EvaluationRunsCreateButton"
-import EvaluationRunsDeleteButton from "../EvaluationRunsDeleteButton"
 import EvaluationRunsHeaderFilters from "../filters/EvaluationRunsHeaderFilters"
 
 import {ROW_HEIGHT} from "./assets/constants"
@@ -62,6 +75,13 @@ import {resolveReferenceValueFromAtoms} from "./export/referenceResolvers"
 import {resolveCreatedByExportValue, resolveRunNameFromSummary} from "./export/runResolvers"
 import {EvaluationRunsTableProps} from "./types"
 
+const DeleteEvaluationModal = dynamic(
+    () => import("@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"),
+    {
+        ssr: false,
+    },
+)
+
 const NewEvaluationModal = dynamic(
     () => import("@/oss/components/pages/evaluations/NewEvaluation"),
     {
@@ -70,6 +90,10 @@ const NewEvaluationModal = dynamic(
 )
 const OnlineEvaluationDrawer = dynamic(
     () => import("@/oss/components/pages/evaluations/onlineEvaluation/OnlineEvaluationDrawer"),
+    {ssr: false},
+)
+const SetupEvaluationModal = dynamic(
+    () => import("@/oss/components/pages/evaluations/SetupEvaluationModal"),
     {ssr: false},
 )
 const InactiveTablePlaceholder = ({className}: {className?: string}) => (
@@ -171,6 +195,9 @@ const EvaluationRunsTableActive = ({
     enableInfiniteScroll = true,
     autoHeight = true,
     headerTitle,
+    tabs,
+    headerExtra,
+    hideOnboardingVideos,
 }: EvaluationRunsTableProps) => {
     const {
         projectId: contextProjectId,
@@ -184,20 +211,45 @@ const EvaluationRunsTableActive = ({
         createEvaluationType,
         evaluationKind: contextEvaluationKind,
     } = useAtomValue(evaluationRunsTableComponentSliceAtom)
-    const _setMetaUpdater = useSetAtom(evaluationRunsMetaUpdaterAtom)
+    const setMetaUpdater = useSetAtom(evaluationRunsMetaUpdaterAtom)
     const setResetCallback = useSetAtom(evaluationRunsTableResetAtom)
     const setActivePreviewProjectId = useSetAtom(activePreviewProjectIdAtom)
     const [isCreateModalOpen, setIsCreateModalOpen] = useAtom(evaluationRunsCreateModalOpenAtom)
     const [selectedCreateType, setSelectedCreateType] = useAtom(
         evaluationRunsCreateSelectedTypeAtom,
     )
+    const onboardingWidgetActivation = useAtomValue(onboardingWidgetActivationAtom)
+    const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const [selectedRowKeys, setSelectedRowKeys] = useAtom(evaluationRunsSelectedRowKeysAtom)
     const [rowExportingKey, setRowExportingKey] = useState<string | null>(null)
-    const setDeleteModalOpen = useSetAtom(evaluationRunsDeleteModalOpenAtom)
+    const deleteContext = useAtomValue(evaluationRunsDeleteContextAtom)
+    const [isDeleteModalOpen, setDeleteModalOpen] = useAtom(evaluationRunsDeleteModalOpenAtom)
+
     const selectionSnapshot = useAtomValue(evaluationRunsSelectionSnapshotAtom)
     const store = useStore()
     const queryClient = useQueryClient()
     const [, setKindParam] = useQueryParamState("kind", "auto")
+
+    useEffect(() => {
+        if (onboardingWidgetActivation !== "sdk-docs") return
+        setKindParam("custom", {shallow: true})
+        setSelectedCreateType("custom")
+        setIsCreateModalOpen(true)
+        setOnboardingWidgetActivation(null)
+    }, [
+        onboardingWidgetActivation,
+        setIsCreateModalOpen,
+        setKindParam,
+        setOnboardingWidgetActivation,
+        setSelectedCreateType,
+    ])
+
+    useEffect(() => {
+        if (!isCreateModalOpen) return
+        if (selectedCreateType !== "custom") return
+        recordWidgetEvent("sdk_evaluation_modal_opened")
+    }, [isCreateModalOpen, recordWidgetEvent, selectedCreateType])
 
     // Responsive: use settings dropdown on narrow screens (< lg breakpoint)
     const screens = Grid.useBreakpoint()
@@ -234,6 +286,45 @@ const EvaluationRunsTableActive = ({
 
     // Poll for updates when evaluations are running
     useEvaluationRunsPolling({rows: displayedRows})
+
+    useEffect(() => {
+        if (!selectionSnapshot.hasSelection && isDeleteModalOpen) {
+            setDeleteModalOpen(false)
+        }
+    }, [isDeleteModalOpen, selectionSnapshot.hasSelection, setDeleteModalOpen])
+
+    const evaluationType = useMemo(() => {
+        if (selectionSnapshot.labels && selectionSnapshot.labels.length) {
+            return selectionSnapshot.labels
+        }
+        return "selected evaluations"
+    }, [selectionSnapshot.labels])
+
+    const deletionConfig = useMemo(() => {
+        if (!selectionSnapshot.hasSelection) return undefined
+        return {
+            evaluationKind: deleteContext.evaluationKind,
+            projectId: deleteContext.projectId,
+            previewRunIds: selectionSnapshot.previewRunIds,
+            invalidateQueryKeys: [EVALUATION_RUNS_QUERY_KEY_ROOT],
+            onSuccess: async () => {
+                setSelectedRowKeys([])
+                setMetaUpdater((prev) => ({...prev}))
+                setDeleteModalOpen(false)
+            },
+            onError: () => {
+                setDeleteModalOpen(false)
+            },
+        }
+    }, [
+        deleteContext.evaluationKind,
+        deleteContext.projectId,
+        selectionSnapshot.hasSelection,
+        selectionSnapshot.previewRunIds,
+        setMetaUpdater,
+        setSelectedRowKeys,
+        setDeleteModalOpen,
+    ])
 
     const buildRowHandlers = useCallback(
         (record: EvaluationRunTableRow) => {
@@ -292,7 +383,7 @@ const EvaluationRunsTableActive = ({
             getCheckboxProps: (record: EvaluationRunTableRow) => ({
                 disabled: Boolean(record.__isSkeleton),
             }),
-            columnWidth: 36,
+            columnWidth: 48,
             fixed: true,
         }),
         [selectedRowKeys, setSelectedRowKeys],
@@ -327,7 +418,47 @@ const EvaluationRunsTableActive = ({
         }
     }, [contextEvaluationKind, createEvaluationType, setSelectedCreateType])
 
-    const tableProps = useMemo(
+    const isEmptyState = useMemo(
+        () => pagination.paginationInfo.totalCount === 0 && !pagination.paginationInfo.isFetching,
+        [pagination.paginationInfo.isFetching, pagination.paginationInfo.totalCount],
+    )
+
+    const emptyStateComponent = useMemo((): ReactNode => {
+        if (!isEmptyState) return null
+
+        if (hideOnboardingVideos) {
+            return null
+        }
+
+        const openCreateModal = () => setIsCreateModalOpen(true)
+
+        const openSdkSetupModal = () => {
+            setSelectedCreateType("custom")
+            setIsCreateModalOpen(true)
+        }
+
+        switch (evaluationKind) {
+            case "auto":
+                return <EmptyStateEvaluation onRunEvaluation={openCreateModal} />
+            case "human":
+                return <EmptyStateHumanEvaluation onCreateEvaluation={openCreateModal} />
+            case "online":
+                return <EmptyStateOnlineEvaluation onCreateEvaluation={openCreateModal} />
+            case "custom":
+                return <EmptyStateSdkEvaluation onOpenSetupModal={openSdkSetupModal} />
+            case "all":
+            default:
+                return <EmptyStateAllEvaluations />
+        }
+    }, [
+        evaluationKind,
+        hideOnboardingVideos,
+        isEmptyState,
+        setIsCreateModalOpen,
+        setSelectedCreateType,
+    ])
+
+    const tableProps = useMemo<TableProps<EvaluationRunTableRow>>(
         () => ({
             size: "small" as const,
             sticky: true,
@@ -428,47 +559,24 @@ const EvaluationRunsTableActive = ({
         () => (createSupported ? <EvaluationRunsCreateButton /> : null),
         [createSupported],
     )
-    // On wide screens, show delete button in header; on narrow screens, it's in the dropdown
-    const deleteButton = useMemo(
-        () => (isNarrowScreen ? null : <EvaluationRunsDeleteButton />),
-        [isNarrowScreen],
+
+    // Delete action config - shell handles button rendering and narrow screen behavior
+    const deleteAction = useMemo(
+        () => ({
+            onDelete: () => setDeleteModalOpen(true),
+            disabled: !selectionSnapshot.hasSelection,
+            disabledTooltip: "Select runs to delete",
+        }),
+        [selectionSnapshot.hasSelection, setDeleteModalOpen],
     )
 
-    // Delete action config for the settings dropdown (narrow screens only)
-    const settingsDropdownDelete = useMemo(
-        () =>
-            isNarrowScreen
-                ? {
-                      onDelete: () => setDeleteModalOpen(true),
-                      disabled: !selectionSnapshot.hasSelection,
-                      label: "Delete selected",
-                  }
-                : undefined,
-        [isNarrowScreen, selectionSnapshot.hasSelection, setDeleteModalOpen],
-    )
-
-    // Export button for wide screens (on narrow screens, export is in the dropdown)
-    const renderExportButton = useCallback(
-        ({onExport, loading}: {onExport: () => void; loading: boolean}) => {
-            if (isNarrowScreen) return null
-            const disabled = !selectionSnapshot.hasSelection
-            const tooltip = disabled ? "Select runs to export" : undefined
-            return (
-                <Tooltip title={tooltip}>
-                    <span>
-                        <Button
-                            className="evaluation-runs-table__export"
-                            disabled={disabled}
-                            onClick={onExport}
-                            loading={loading}
-                        >
-                            Export CSV
-                        </Button>
-                    </span>
-                </Tooltip>
-            )
-        },
-        [isNarrowScreen, selectionSnapshot.hasSelection],
+    // Export action config - shell handles button rendering and narrow screen behavior
+    const exportAction = useMemo(
+        () => ({
+            disabled: !selectionSnapshot.hasSelection,
+            disabledTooltip: "Select runs to export",
+        }),
+        [selectionSnapshot.hasSelection],
     )
 
     const fallbackControlsHeight = showFilters ? 96 : headerTitle ? 48 : 24
@@ -594,6 +702,43 @@ const EvaluationRunsTableActive = ({
         [],
     )
 
+    if (isEmptyState && emptyStateComponent) {
+        return (
+            <div
+                className={clsx(
+                    "flex flex-col pt-8",
+                    autoHeight ? "h-full min-h-0" : "min-h-0",
+                    className,
+                )}
+            >
+                {emptyStateComponent}
+
+                {createSupported ? (
+                    selectedCreateType === "custom" ? (
+                        <SetupEvaluationModal
+                            open={isCreateModalOpen}
+                            onCancel={closeCreateModal}
+                        />
+                    ) : selectedCreateType === "online" ? (
+                        <OnlineEvaluationDrawer
+                            open={isCreateModalOpen}
+                            onClose={closeCreateModal}
+                            onCreate={handleCreateSuccess}
+                        />
+                    ) : (
+                        <NewEvaluationModal
+                            preview={selectedCreateType === "human"}
+                            open={isCreateModalOpen}
+                            evaluationType={selectedCreateType}
+                            onCancel={closeCreateModal}
+                            onSuccess={handleCreateSuccess}
+                        />
+                    )
+                ) : null}
+            </div>
+        )
+    }
+
     return (
         <div
             className={clsx("flex flex-col", autoHeight ? "h-full min-h-0" : "min-h-0", className)}
@@ -605,9 +750,12 @@ const EvaluationRunsTableActive = ({
                 columns={columns}
                 rowKey={rowKeyExtractor}
                 title={headerTitle}
+                tabs={tabs}
+                headerExtra={headerExtra}
                 filters={filtersNode}
                 primaryActions={createButton}
-                secondaryActions={deleteButton}
+                deleteAction={deleteAction}
+                exportAction={exportAction}
                 autoHeight={autoHeight}
                 rowHeight={ROW_HEIGHT}
                 fallbackControlsHeight={fallbackControlsHeight}
@@ -620,14 +768,22 @@ const EvaluationRunsTableActive = ({
                 pagination={tablePagination}
                 onPaginationStateChange={handlePaginationStateChange}
                 exportOptions={exportOptions}
-                renderExportButton={renderExportButton}
                 useSettingsDropdown={isNarrowScreen}
-                settingsDropdownDelete={settingsDropdownDelete}
                 keyboardShortcuts={infiniteTableKeyboardShortcuts}
             />
 
+            <DeleteEvaluationModal
+                open={isDeleteModalOpen}
+                onCancel={() => setDeleteModalOpen(false)}
+                evaluationType={evaluationType}
+                isMultiple={selectionSnapshot.rows.length > 1}
+                deletionConfig={deletionConfig}
+            />
+
             {createSupported ? (
-                selectedCreateType === "online" ? (
+                selectedCreateType === "custom" ? (
+                    <SetupEvaluationModal open={isCreateModalOpen} onCancel={closeCreateModal} />
+                ) : selectedCreateType === "online" ? (
                     <OnlineEvaluationDrawer
                         open={isCreateModalOpen}
                         onClose={closeCreateModal}

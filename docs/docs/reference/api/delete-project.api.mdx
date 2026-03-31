@@ -1,0 +1,71 @@
+---
+id: delete-project
+title: "Delete Project"
+description: "Delete Project"
+sidebar_label: "Delete Project"
+hide_title: true
+hide_table_of_contents: true
+api: eJyVVMtu2zAQ/BVjTy1A2G7Qk041agMxkqJG4vZiCAFDrS2mksiQqyCuwH8vlnrZcXLoSRI5HK5mdrYBkgcPyQ7ulbHoIRVgLDpJ2lTrDBLIsEDCB+vMEyoCAVY6WSKh42MNVLJESKDbf9AZCNAVr0jKQYDD51o7zCAhV6MAr3IsJSQN0NHySU9OVwcQsDeulAQJ1HVkIU0FAzYt9WSdQQgpM3prKo+eSa7mc35k6JXTlquGBO5rpdD7fV1M7jowCFCmIqyI4dLaQqv4k7Mnz2easbAQQhDw9erqkvi3LHQWj01Wzhn3H6yskEVHuq07Q5K64DdNWPpLQGHU2a6sjj/3UfFz3YIYVnRFeEAHIQ2iX5POyeOJmLemLRCCgNIf3vOhh/5A7+UBYSD7GBrFmGx5N7D9to6C9NvruBAEKHo9oTGPXUv1uO+s5StBGOsfMGMf7aI2bfkdLh05Rotahz6WYtla8N5lPeR6u91cELb9cd4Yy5iSyWZISYmUmzE/MTeUQwKzLil+1oyZCSDAo3vpQ1W7gqHS6uhv+5kTWZ/MZlhPVWHqbCoPWJGcSt0CU+ZQtdN0jCSLzfoGj9coM3SQ7NJTwD23Zdto57DBHGn1DbJcXcAXNeXG6b9t93QZz9tTIZq+N6eeL2Jxk8VmDQL4x1qh5tMv0zm8le8MzImSKjZQf3fcBvFGiOH/QQCWMU5AKMtv4wZXZo2nUlYnfBdunVUzSMC9OLOF1DEt8e6ms3HXDzwPApKT4ZcKyI0nRjTNo/T4yxUh8PJzjY6NSQW8SKflI8u0ayDTnt8zSPay8HhRzDBg4NNdl4HPExDvF9mbV7FzL7Ko+QsE/MHj+ZCOMyLve6PpAAul0NLJ0YuRxk009PZydbvariCEf+KnIYQ=
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete Project"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/projects/{project_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete Project
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"project_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Project Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

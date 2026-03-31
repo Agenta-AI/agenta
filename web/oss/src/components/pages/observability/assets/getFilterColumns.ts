@@ -1,5 +1,6 @@
-import {FILTER_COLUMNS} from "./constants"
 import {FilterGroup, FilterLeaf, FilterMenuNode} from "@/oss/components/Filters/types"
+
+import {FILTER_COLUMNS} from "./constants"
 import {AttributeKeyTreeOption} from "./filters/attributeKeyOptions"
 
 const cloneTreeOption = (option: AttributeKeyTreeOption): AttributeKeyTreeOption => ({

@@ -139,6 +139,11 @@ class QueryRevisionRetrieveRequest(BaseModel):
     query_ref: Optional[Reference] = None
     query_variant_ref: Optional[Reference] = None
     query_revision_ref: Optional[Reference] = None
+    #
+    include_trace_ids: Optional[bool] = None
+    include_traces: Optional[bool] = None
+    #
+    windowing: Optional[Windowing] = None
 
 
 class QueryRevisionResponse(BaseModel):

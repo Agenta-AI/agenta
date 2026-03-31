@@ -2,11 +2,11 @@ import {getDefaultStore} from "jotai"
 import Router from "next/router"
 
 import {
-    focusDrawerAtom as previewFocusDrawerAtom,
     openFocusDrawerAtom as openPreviewFocusDrawerAtom,
+    focusDrawerAtom as previewFocusDrawerAtom,
     resetFocusDrawerAtom as resetPreviewFocusDrawerAtom,
     setFocusDrawerTargetAtom as setPreviewFocusDrawerTargetAtom,
-} from "@/oss/components/EvalRunDetails2/state/focusDrawerAtom"
+} from "@/oss/components/EvalRunDetails/state/focusDrawerAtom"
 import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appState"
 
 const isBrowser = typeof window !== "undefined"

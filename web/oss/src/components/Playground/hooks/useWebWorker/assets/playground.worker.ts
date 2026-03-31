@@ -1,245 +1,237 @@
-import {GenerationChatRow, GenerationInputRow} from "@/oss/components/Playground/state/types"
-import {ConfigMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
-import {constructPlaygroundTestUrl} from "@/oss/lib/shared/variant/stringUtils"
-import {OpenAPISpec} from "@/oss/lib/shared/variant/types/openapi"
-import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
-
-import {transformToRequestBody} from "../../../../../lib/shared/variant/transformer/transformToRequestBody"
-import {EnhancedVariant} from "../../../../../lib/shared/variant/transformer/types"
-import {parseValidationError} from "../../../assets/utilities/errors"
+interface RunVariantRowPayload {
+    rowId: string
+    entityId: string
+    runId: string
+    messageId?: string
+    invocationUrl: string
+    requestBody: Record<string, unknown>
+    headers?: Record<string, string>
+    repetitions?: number
+}
 
 // Track in-flight requests so we can cancel them by runId
 const abortControllers = new Map<string, AbortController>()
 
-const MODELS = ["gemini"]
+// Simple p-limit implementation to avoid adding dependencies
+const pLimit = (concurrency: number) => {
+    const queue: (() => Promise<void>)[] = []
+    let activeCount = 0
 
-const extractPromptModel = (variant: EnhancedVariant, requestBody: Record<string, any>) => {
-    const candidates = [
-        requestBody?.ag_config?.prompt,
-        Array.isArray(requestBody?.ag_config?.prompts)
-            ? requestBody?.ag_config?.prompts?.[0]
-            : undefined,
-        variant?.parameters?.ag_config?.prompt,
-        variant?.parameters?.prompt,
-        (variant?.parameters as any)?.agConfig?.prompt,
-    ]
-
-    for (const prompt of candidates) {
-        if (!prompt) continue
-        const llmCfg = (prompt as any).llm_config || (prompt as any).llmConfig
-        if (llmCfg?.model) {
-            return llmCfg.model as string
+    const next = () => {
+        activeCount--
+        if (queue.length > 0) {
+            queue.shift()?.()
         }
     }
-    return undefined
-}
 
-const isFileReference = (value: string) => {
-    if (!value) return false
-    if (/^https?:\/\//i.test(value)) return true
-    return value.startsWith("file_") || value.startsWith("file-")
-}
+    const run = async <T>(
+        fn: () => Promise<T>,
+        resolve: (value: T | PromiseLike<T>) => void,
+        reject: (reason?: unknown) => void,
+    ) => {
+        activeCount++
+        const result = (async () => fn())()
+        try {
+            const res = await result
+            resolve(res)
+        } catch (err) {
+            reject(err)
+        } finally {
+            next()
+        }
+    }
 
-const stripFileMetadataForUrlAttachments = (messages: any[]) => {
-    messages.forEach((message) => {
-        if (!message || !Array.isArray(message.content)) return
-        message.content.forEach((part: any) => {
-            if (!part || part.type !== "file") return
-            const fileNode = part.file || {}
-            const fileId = fileNode.file_id || fileNode.fileId
-            if (typeof fileId !== "string" || !isFileReference(fileId)) return
-            delete fileNode.filename
-            delete fileNode.format
+    const enqueue = <T>(fn: () => Promise<T>): Promise<T> => {
+        return new Promise<T>((resolve, reject) => {
+            const task = () => run(fn, resolve, reject)
+
+            if (activeCount < concurrency) {
+                task()
+            } else {
+                queue.push(task)
+            }
         })
-    })
+    }
+
+    return enqueue
 }
 
-const applyModelAttachmentRules = (variant: EnhancedVariant, requestBody: Record<string, any>) => {
-    if (!requestBody || typeof requestBody !== "object") return
-    if (Array.isArray(requestBody.messages)) {
-        const modelName = extractPromptModel(variant, requestBody)
-        if (modelName && MODELS.some((allowed) => modelName.toLowerCase().includes(allowed))) {
-            return
-        }
-        stripFileMetadataForUrlAttachments(requestBody.messages)
-    }
+// Global limiter instance to share concurrency limit across all runVariantRow calls.
+const limit = pLimit(6)
+
+const asRecord = (value: unknown): Record<string, unknown> | null => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null
+    return value as Record<string, unknown>
 }
 
-async function runVariantInputRow(payload: {
-    variant: EnhancedVariant
-    allMetadata: Record<string, ConfigMetadata>
-    inputRow: GenerationInputRow
-    messageRow?: GenerationChatRow
-    rowId: string
-    appId: string
-    uri: {
-        runtimePrefix: string
-        routePath?: string
-        status?: boolean
+const parseErrorMessage = (status: number, data: unknown, fallbackText = ""): string => {
+    if (status === 429) {
+        const detailRec = asRecord(data)
+        const detail =
+            (typeof detailRec?.detail === "string" && detailRec.detail) ||
+            (typeof data === "string" ? data : "API rate limit exceeded")
+        return detail
     }
-    headers: Record<string, string>
-    projectId: string
-    messageId?: string
-    chatHistory?: any[]
-    spec: OpenAPISpec
-    runId: string
-    // New: pass pre-resolved prompt context to keep transform consistent with app atoms
-    prompts?: any[]
-    variables?: string[]
-    variableValues?: Record<string, string>
-    revisionId?: string
-    variantId?: string
-    isChat?: boolean
-    isCustom?: boolean
-    appType?: string
-}) {
-    const {
-        variant,
-        rowId,
-        uri,
-        inputRow,
-        messageId,
-        messageRow,
-        allMetadata,
-        headers,
-        projectId,
-        appId,
-        chatHistory,
-        spec,
-        runId,
-        prompts,
-        variables,
-        variableValues,
-        revisionId,
-        variantId: payloadVariantId,
-        isChat,
-        isCustom,
-        appType,
-    } = payload
 
-    const requestBody = stripAgentaMetadataDeep(
-        transformToRequestBody({
-            variant,
-            inputRow,
-            messageRow,
-            allMetadata,
-            chatHistory,
-            spec,
-            routePath: uri?.routePath,
-            prompts,
-            variables,
-            variableValues,
-            revisionId,
-            isChat,
-            isCustom,
-            appType,
-        }),
-    )
-    applyModelAttachmentRules(variant, requestBody)
-    let result
+    const rec = asRecord(data)
+    const statusRec = asRecord(rec?.status)
+    const detailRec = asRecord(rec?.detail)
+
+    if (typeof statusRec?.message === "string" && statusRec.message.trim().length > 0) {
+        return statusRec.message
+    }
+    if (typeof detailRec?.message === "string" && detailRec.message.trim().length > 0) {
+        return detailRec.message
+    }
+    if (typeof rec?.detail === "string" && rec.detail.trim().length > 0) {
+        return rec.detail
+    }
+    if (typeof fallbackText === "string" && fallbackText.trim().length > 0) {
+        return fallbackText
+    }
+    return `Request failed with status ${status}`
+}
+
+const executeRequest = async (payload: RunVariantRowPayload, controller: AbortController) => {
     try {
-        // Create an AbortController for this run to support cancellation
-        const controller = new AbortController()
-        abortControllers.set(runId, controller)
-        // Construct URL using the revision's URI info (not localhost)
-        const baseUrl = constructPlaygroundTestUrl(uri, "/test", true)
-        // The baseUrl should already be absolute if uri.runtimePrefix is properly set
-        const fullUrl = baseUrl
-        const search = new URLSearchParams()
-        search.set("application_id", appId)
-        if (headers.Authorization && projectId) {
-            search.set("project_id", projectId)
-        }
-        const queryParams = `?${search.toString()}`
-
-        const response = await fetch(`${fullUrl}${queryParams}`, {
+        const response = await fetch(payload.invocationUrl, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 "ngrok-skip-browser-warning": "1",
-                ...headers,
+                ...(payload.headers || {}),
             },
-            body: JSON.stringify(requestBody),
+            body: JSON.stringify(payload.requestBody),
             signal: controller.signal,
         })
-        const data = await response.json()
+
+        let data: unknown = null
+        let responseText = ""
+
+        try {
+            responseText = await response.text()
+            if (responseText) {
+                try {
+                    data = JSON.parse(responseText)
+                } catch {
+                    data = responseText
+                }
+            }
+        } catch {
+            data = null
+        }
+
         if (!response.ok) {
-            const errorMessage = parseValidationError(data)
-            result = {
+            return {
                 response: undefined,
-                error: errorMessage,
+                error: parseErrorMessage(response.status, data, responseText),
                 metadata: {
                     timestamp: new Date().toISOString(),
                     statusCode: response.status,
+                    retryAfter: response.headers.get("Retry-After") || undefined,
                     rawError: data,
                 },
             }
-        } else {
-            result = {
-                response: data,
-                metadata: {
-                    timestamp: new Date().toISOString(),
-                    statusCode: response.status,
-                },
-            }
         }
-    } catch (error) {
-        console.error("Error running variant input row:", error)
-        result = {
+
+        return {
+            response: data,
+            metadata: {
+                timestamp: new Date().toISOString(),
+                statusCode: response.status,
+            },
+        }
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === "AbortError") {
+            throw error
+        }
+
+        return {
             response: undefined,
-            error:
-                error instanceof Error
-                    ? error.name === "AbortError"
-                        ? "Request aborted"
-                        : error.message
-                    : "Unknown error occurred",
+            error: error instanceof Error ? error.message : "Unknown error",
             metadata: {
                 timestamp: new Date().toISOString(),
                 type: "network_error",
             },
         }
-    } finally {
-        // Cleanup controller for this runId
-        abortControllers.delete(runId)
-        postMessage({
-            type: "runVariantInputRowResult",
-            payload: {
-                variant,
-                variantId: payloadVariantId || revisionId || (variant as any)?.id,
-                revisionId,
-                rowId,
-                result,
-                messageId,
-                runId,
-            },
-        })
     }
 }
 
-addEventListener(
-    "message",
-    (
-        event: MessageEvent<{
-            type: string
-            payload: any
-        }>,
-    ) => {
-        if (event.data.type === "ping") {
-            postMessage("pong")
-        } else if (event.data.type === "runVariantInputRow") {
-            runVariantInputRow(event.data.payload)
-        } else if (event.data.type === "cancelRun") {
-            const {runId} = event.data.payload || {}
-            const controller = runId ? abortControllers.get(runId) : undefined
-            if (controller) {
-                controller.abort()
-                abortControllers.delete(runId)
-            }
-        } else {
-            postMessage({
-                type: "error",
-                payload: "Unknown message",
-            })
+async function runVariantRow(payload: RunVariantRowPayload) {
+    const repetitions = Math.max(1, payload.repetitions || 1)
+    const controller = new AbortController()
+    abortControllers.set(payload.runId, controller)
+
+    try {
+        const tasks = Array.from({length: repetitions}).map(() =>
+            limit(() => executeRequest(payload, controller)),
+        )
+        const results = await Promise.all(tasks)
+
+        postMessage({
+            type: "runVariantRowResult",
+            payload: {
+                rowId: payload.rowId,
+                entityId: payload.entityId,
+
+                runId: payload.runId,
+                messageId: payload.messageId,
+                result: results,
+            },
+        })
+    } catch (error: unknown) {
+        if (error instanceof Error && error.name === "AbortError") {
+            return
         }
-    },
-)
+
+        postMessage({
+            type: "runVariantRowResult",
+            payload: {
+                rowId: payload.rowId,
+                entityId: payload.entityId,
+
+                runId: payload.runId,
+                messageId: payload.messageId,
+                result: {
+                    error: error instanceof Error ? error.message : String(error),
+                    metadata: {
+                        timestamp: new Date().toISOString(),
+                        type: "execution_error",
+                    },
+                },
+            },
+        })
+    } finally {
+        abortControllers.delete(payload.runId)
+    }
+}
+
+addEventListener("message", (event: MessageEvent<{type: string; payload: unknown}>) => {
+    if (event.data.type === "ping") {
+        postMessage("pong")
+        return
+    }
+
+    if (event.data.type === "runVariantRow") {
+        runVariantRow(event.data.payload as RunVariantRowPayload)
+        return
+    }
+
+    if (event.data.type === "cancelRun") {
+        const payload = asRecord(event.data.payload)
+        const runId = typeof payload?.runId === "string" ? payload.runId : ""
+        if (!runId) return
+
+        const controller = abortControllers.get(runId)
+        if (controller) {
+            controller.abort()
+            abortControllers.delete(runId)
+        }
+        return
+    }
+
+    postMessage({
+        type: "error",
+        payload: "Unknown message",
+    })
+})

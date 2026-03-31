@@ -1,5 +1,5 @@
-import type {Filter, FilterConditions} from "@/oss/lib/Types"
 import {inferReferenceOptionKey} from "@/oss/components/pages/observability/assets/filters/referenceUtils"
+import type {Filter, FilterConditions} from "@/oss/lib/Types"
 
 import type {
     QueryConditionPayload,

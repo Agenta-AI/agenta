@@ -13,12 +13,27 @@ import agenta as ag
 log = get_module_logger(__name__)
 
 
+_PROVIDER_KIND_ALIASES = {
+    "mistralai": "mistral",
+}
+
+
 class SecretsManager:
     @staticmethod
-    def get_from_route() -> Optional[List[Dict[str, Any]]]:
+    def _normalize_provider_kind(provider_kind: str) -> str:
+        normalized = re.sub(r"[\s-]+", "", provider_kind.lower())
+        return _PROVIDER_KIND_ALIASES.get(normalized, normalized)
+
+    @staticmethod
+    def get_from_route(scope: str = "all") -> Optional[List[Dict[str, Any]]]:
         context = RoutingContext.get()
 
-        secrets = context.secrets
+        if scope == "local":
+            secrets = context.local_secrets
+        elif scope == "vault":
+            secrets = context.vault_secrets
+        else:
+            secrets = context.secrets
 
         if not secrets:
             return []
@@ -140,7 +155,7 @@ class SecretsManager:
         return modified_model
 
     @staticmethod
-    def get_provider_settings(model: str) -> Optional[Dict]:
+    def get_provider_settings(model: str, scope: str = "all") -> Optional[Dict]:
         """
         Builds the LLM request with appropriate kwargs based on the custom provider/model
 
@@ -154,7 +169,7 @@ class SecretsManager:
         request_provider_model = model
 
         # STEP 1: get vault secrets from route context and transform it
-        secrets = SecretsManager.get_from_route()
+        secrets = SecretsManager.get_from_route(scope=scope)
         if not secrets:
             return None
 
@@ -187,9 +202,7 @@ class SecretsManager:
 
         # STEP 3: initialize provider settings and simplify provider name
         provider_settings = dict(model=compatible_provider_model)
-        request_provider_kind = re.sub(
-            r"[\s-]+", "", provider.lower()
-        )  # normalizing other special characters too (azure-openai)
+        request_provider_kind = SecretsManager._normalize_provider_kind(provider)
 
         # STEP 4: get credentials for model
         for secret in secrets:
@@ -199,7 +212,9 @@ class SecretsManager:
             # i). Extract API key if present
             # (for standard models -- openai/anthropic/gemini, etc)
             if secret.get("kind") == "provider_key":
-                secret_provider_kind = secret_data.get("kind", "")
+                secret_provider_kind = SecretsManager._normalize_provider_kind(
+                    secret_data.get("kind", "")
+                )
 
                 if request_provider_kind == secret_provider_kind:
                     if "key" in provider_info:
@@ -231,24 +246,54 @@ class SecretsManager:
         return provider_settings
 
     @staticmethod
-    async def retrieve_secrets():
+    async def retrieve_secrets() -> tuple[list, list, list]:
+        host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
+        scope_type = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.scope_type
+        scope_id = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.scope_id
+
         return await get_secrets(
-            f"{ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host}/api",
+            f"{host}/api",
             RunningContext.get().credentials,
+            host,
+            scope_type,
+            scope_id,
         )
 
     @staticmethod
     async def ensure_secrets_in_workflow():
         ctx = RunningContext.get()
 
-        ctx.secrets = await SecretsManager.retrieve_secrets()
+        # First check if secrets are already available in RunningContext
+        # (populated by decorators/running.py via workflow.invoke)
+        if ctx.secrets:
+            return ctx.secrets
+
+        # Then check RoutingContext (populated by old serving.py decorator)
+        routing_ctx = RoutingContext.get()
+        if routing_ctx.secrets:
+            ctx.secrets = routing_ctx.secrets
+            ctx.vault_secrets = routing_ctx.vault_secrets
+            ctx.local_secrets = routing_ctx.local_secrets
+
+            RunningContext.set(ctx)
+
+            return ctx.secrets
+
+        # Fall back to fetching via retrieve_secrets() for non-HTTP workflow contexts
+        secrets, vault_secrets, local_secrets = await SecretsManager.retrieve_secrets()
+
+        ctx.secrets = secrets
+        ctx.vault_secrets = vault_secrets
+        ctx.local_secrets = local_secrets
 
         RunningContext.set(ctx)
 
         return ctx.secrets
 
     @staticmethod
-    def get_provider_settings_from_workflow(model: str) -> Optional[Dict]:
+    def get_provider_settings_from_workflow(
+        model: str, scope: str = "all"
+    ) -> Optional[Dict]:
         """
         Builds the LLM request with appropriate kwargs based on the custom provider/model
 
@@ -262,7 +307,13 @@ class SecretsManager:
         request_provider_model = model
 
         # STEP 1: get vault secrets from route context and transform it
-        secrets = RunningContext.get().secrets
+        ctx = RunningContext.get()
+        if scope == "local":
+            secrets = ctx.local_secrets
+        elif scope == "vault":
+            secrets = ctx.vault_secrets
+        else:
+            secrets = ctx.secrets
         if not secrets:
             return None
 
@@ -295,9 +346,7 @@ class SecretsManager:
 
         # STEP 3: initialize provider settings and simplify provider name
         provider_settings = dict(model=compatible_provider_model)
-        request_provider_kind = re.sub(
-            r"[\s-]+", "", provider.lower()
-        )  # normalizing other special characters too (azure-openai)
+        request_provider_kind = SecretsManager._normalize_provider_kind(provider)
 
         # STEP 4: get credentials for model
         for secret in secrets:
@@ -307,7 +356,9 @@ class SecretsManager:
             # i). Extract API key if present
             # (for standard models -- openai/anthropic/gemini, etc)
             if secret.get("kind") == "provider_key":
-                secret_provider_kind = secret_data.get("kind", "")
+                secret_provider_kind = SecretsManager._normalize_provider_kind(
+                    secret_data.get("kind", "")
+                )
 
                 if request_provider_kind == secret_provider_kind:
                     if "key" in provider_info:

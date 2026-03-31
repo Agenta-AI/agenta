@@ -1,6 +1,6 @@
 from typing import Optional, Union, List, Dict, Any
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from oss.src.core.secrets.enums import (
     SecretKind,
@@ -45,42 +45,104 @@ class CustomProviderDTO(BaseModel):
     model_keys: Optional[List[str]] = None
 
 
+class SSOProviderSettingsDTO(BaseModel):
+    client_id: str
+    client_secret: str
+    issuer_url: str
+    scopes: List[str]
+    extra: Dict[str, Any] = Field(default_factory=dict)
+
+
+class SSOProviderDTO(BaseModel):
+    provider: SSOProviderSettingsDTO
+
+
+class WebhookProviderSettingsDTO(BaseModel):
+    key: str
+
+
+class WebhookProviderDTO(BaseModel):
+    provider: WebhookProviderSettingsDTO
+
+
 class SecretDTO(BaseModel):
     kind: SecretKind
-    data: Union[StandardProviderDTO, CustomProviderDTO]
+    data: Union[
+        StandardProviderDTO,
+        CustomProviderDTO,
+        SSOProviderDTO,
+        WebhookProviderDTO,
+    ]
 
     @model_validator(mode="before")
     def validate_secret_data_based_on_kind(cls, values: Dict[str, Any]):
         kind = values.get("kind")
+        if isinstance(kind, SecretKind):
+            kind = kind.value
         data = values.get("data", {})
+        if isinstance(data, BaseModel):
+            data = data.model_dump()
+            values["data"] = data
+
+        standard_provider_kinds = {provider.value for provider in StandardProviderKind}
+        custom_provider_kinds = {provider.value for provider in CustomProviderKind}
 
         if kind == SecretKind.PROVIDER_KEY.value:
             if not isinstance(data, dict):
                 raise ValueError(
                     "The provided request secret dto is not a valid type for StandardProviderDTO"
                 )
-            if not isinstance(data["provider"], dict) or "key" not in data["provider"]:
+            provider = data.get("provider")
+            if not isinstance(provider, dict) or "key" not in provider:
                 raise ValueError(
                     "The provided request secret dto is missing required fields for StandardProviderSettingsDTO"
                 )
-            if data["kind"] not in StandardProviderKind.__members__.values():
+            # Accept the legacy provider slug on input, but persist the canonical value.
+            if data.get("kind") == StandardProviderKind.MISTRALAI.value:
+                data["kind"] = StandardProviderKind.MISTRAL.value
+            if data.get("kind") not in standard_provider_kinds:
                 raise ValueError(
                     "The provided kind in data is not a valid StandardProviderKind enum"
                 )
 
         elif kind == SecretKind.CUSTOM_PROVIDER.value:
+            if not isinstance(data, dict):
+                raise ValueError(
+                    "The provided request secret dto is not a valid type for CustomProviderDTO"
+                )
             # Fix inconsistent API naming - Users might enter 'togetherai' but the API requires 'together_ai'
             # This ensures compatibility with LiteLLM which requires the provider in "together_ai" format
             if data.get("kind", "") == "togetherai":
                 data["kind"] = "together_ai"
 
-            if not isinstance(data, dict):
-                raise ValueError(
-                    "The provided request secret dto is not a valid type for CustomProviderDTO"
-                )
-            if data["kind"] not in CustomProviderKind.__members__.values():
+            if data.get("kind") not in custom_provider_kinds:
                 raise ValueError(
                     "The provided kind in data is not a valid CustomProviderKind enum"
+                )
+        elif kind == SecretKind.SSO_PROVIDER.value:
+            if not isinstance(data, dict):
+                raise ValueError(
+                    "The provided request secret dto is not a valid type for SSOProviderDTO"
+                )
+            provider = data.get("provider")
+            if not isinstance(provider, dict):
+                raise ValueError(
+                    "The provided request secret dto is missing required fields for SSOProviderSettingsDTO"
+                )
+            required_fields = {"client_id", "client_secret", "issuer_url", "scopes"}
+            if not required_fields.issubset(provider.keys()):
+                raise ValueError(
+                    "The provided request secret dto is missing required fields for SSOProviderSettingsDTO"
+                )
+        elif kind == SecretKind.WEBHOOK_PROVIDER.value:
+            if not isinstance(data, dict):
+                raise ValueError(
+                    "The provided request secret dto is not a valid type for WebhookProviderDTO"
+                )
+            provider = data.get("provider")
+            if not isinstance(provider, dict) or "key" not in provider:
+                raise ValueError(
+                    "The provided request secret dto is missing required fields for WebhookProviderSettingsDTO"
                 )
         else:
             raise ValueError("The provided kind is not a valid SecretKind enum")
@@ -105,7 +167,10 @@ class CreateSecretDTO(BaseModel):
         header = values.get("header")
         secret = values.get("secret")
         if header and isinstance(header, dict) and "name" in header:
-            if secret.get("kind") == SecretKind.CUSTOM_PROVIDER.value:
+            if (
+                isinstance(secret, dict)
+                and secret.get("kind") == SecretKind.CUSTOM_PROVIDER.value
+            ):
                 secret["data"].update({"provider_slug": header["name"]})
         return values
 
@@ -130,7 +195,10 @@ class UpdateSecretDTO(BaseModel):
         header = values.get("header")
         secret = values.get("secret")
         if header and isinstance(header, dict) and "name" in header:
-            if secret.get("kind") == SecretKind.CUSTOM_PROVIDER.value:
+            if (
+                isinstance(secret, dict)
+                and secret.get("kind") == SecretKind.CUSTOM_PROVIDER.value
+            ):
                 secret["data"].update({"provider_slug": header["name"]})
         return values
 

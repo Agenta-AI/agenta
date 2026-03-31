@@ -5,7 +5,7 @@ description: "Switch Plans User Route"
 sidebar_label: "Switch Plans User Route"
 hide_title: true
 hide_table_of_contents: true
-api: eJyVVMFu2zAM/RWDpw0QkqzYyadl2IAW3dCgTXcJgoC2mVidLKmSnDUL9O8DZcdJmvawUxyJpB7fe+QeAm485Av4KpWSegNLAcaSwyCNvqkgB/9HhrJeWYXagwCLDhsK5DhrDxobghz4FgRIDTk8t+R2IMDRcysdVZAH15IAX9bUIOR7CDvLST44flEA6bZhDKUybbXaTla1KQouMRxYZ07/Fq2Xmrw/PavbBrUMu5XC4uzi5eIEN6QDrlByt0EGxWhm3EKMSwburdGePGO9mkz4pyJfOmmZFcjhoS1L8n7dquy+D+b6RgfSgcPRWiXLROL4yXPO/th/jDEK+Hx1dVn4FypZpbTsu3PG/UdVsI6FC7LDXVFAqfhLBmr8ZYAy5dkt6t3dOml6Lk8Uw4nUgTbkIC6jOJyhc8hSHWj8YTqAEAU0fvOW3IfQn+Q9bgiGYu+HJjKyOd/G49umeKIynFltkfrqnu7jTjQ+0tux+34b3zr63nrsEHI9n88uCnbavnJLmqCMDeazR08uuzdtYMc0FGrDQ2aND2m4Qg05jItuGMdp6MbdBIIAT257GLzWKcihDsH6fDxO1h51vh6hHKOVwFb2VLZOhl1Kmc5ubml3TViRg3yxPA14YBt1xjgPGzRBK2+JKepHftqG2jj5t1O7n/26y2IOpF6blN7TNU3gsunsBgRwGx05k9Gn0QReU3YWzBOAZZqAw9vpGsQrFob+eac0yf4QCJsvxwtGxmQ3qE/qva/QGayBi0AvgcWRyeYJxL4XbwG9eCxnvzN7AZcCatY5X8B+X6CnR6di5ONuZbJGlfRYKHbyGpWnCwDDNoAP973pP2Yg3gb2m3bH3bxF1XJI8sUWneR3kg3EQTYG0OVMy5JsOMm6WD1cZbDv7O5hDjH+A+mQJqo=
+api: eJyVVU1v2zAM/SsGTxsgJFmxk0/LPoAG3dCgzXYpgkC2mVidLKmSnDUL9N8HSrbjNO1hpyTkE0W998gcwfOdg/wBPgsphdrBmoE2aLkXWi0qyMH9Eb6sN0Zy5YCB4ZY36NHSqSMo3iDkQFlgIBTk8NSiPQADi0+tsFhB7m2LDFxZY8MhP4I/GDrkvKUbGaBqG+qhlLqtNvvZptZFQSWGgLF6/LNonVDo3DhWtw1Xwh82khdnieeLCN+h8nzDBTBwKLebWjuP1QaVR2uscEg0eOEltbmkt4Wwphc5o5VDR4+4ms3oo0JXWmGILsjhvi1LdG7byuyuA9PFWnlUnuDcGCnKyO700dGZ44mYEEJg8PHq6rLwLy5FFY9l36zV9j+qgrGkqBep7wo9F5K+CY+NuwRIXZ5luTrcbqPY57oFNkSE8rhDC2EdWB/j1nLSsKfxu04NQmDQuN1rPuihP9A5vkMYir0NjWRkK8oG8p9pIyF9ehEDgUHpn0dldPGIpR+V+UJcPnsIp/4HzMnHD5Gb1H6HG/nkJFFS6G0qviYJXrush1yvVsuLgskfLxwXxzMjk7rsp0Ob3enWk+sa9LWmCTba+Ti5voYcpkWa9Gmc6Gka7zgIdt9PdWslIbkRUeX0s/beuHw6xXYSJ2mSxmjCRQKuqUbZWuEPsch8ubjBwzXyCi3kD+sx4J7Mmex2Dhsk4kbcIJHWbZh562ttxd/koW7V1OlUiNJv9Vj5eWwumy8XwIAeluiaTT5MZvCSxDMwzRUvo436u2Ma2AsihvfTCmviUIFH3nw6Jagzor/halTvbc3O2hq4IGuSXCIOT2zi2Mn5AJ2cJHC3ojtJ1wxorxHmeCy4w59WhkDhtKFJo0o4Xkjy9pZLhxcNDDsG3t11Y/A+A/Z6Y7/xcPor2HPZEiT6Ys+toHuiDVgvGzWQzszLEo0fnbpYaFRlMPTy9n4FIfwDb8BMmw==
 sidebar_class_name: "post api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -47,7 +47,7 @@ Switch Plans User Route
 </Heading>
 
 <ParamsDetails
-  parameters={[{"name":"plan","in":"query","required":true,"schema":{"type":"string","enum":["cloud_v0_hobby","cloud_v0_pro","cloud_v0_business","cloud_v0_humanity_labs","cloud_v0_x_labs","cloud_v0_agenta_ai"],"title":"Plan"}}]}
+  parameters={[{"name":"plan","in":"query","required":true,"schema":{"type":"string","enum":["cloud_v0_hobby","cloud_v0_pro","cloud_v0_business","cloud_v0_humanity_labs","cloud_v0_x_labs","cloud_v0_agenta_ai","self_hosted_enterprise"],"title":"Plan"}}]}
 >
   
 </ParamsDetails>
@@ -62,7 +62,7 @@ Switch Plans User Route
 <StatusCodes
   id={undefined}
   label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
 >
   
 </StatusCodes>

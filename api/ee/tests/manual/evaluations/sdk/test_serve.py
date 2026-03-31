@@ -5,11 +5,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI
+from fastapi import FastAPI  # noqa: E402
 
 os.environ["AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED"] = "false"
 
-import agenta as ag
+import agenta as ag  # noqa: E402
 
 ag.init(
     api_url="http://localhost",
@@ -17,28 +17,23 @@ ag.init(
 )
 
 
-from agenta.sdk.models.workflows import (
-    WorkflowServiceRequestData,
+from agenta.sdk.models.workflows import (  # noqa: E402
     WorkflowServiceResponseData,
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
 )
-from agenta.sdk.decorators.routing import (
+from agenta.sdk.decorators.routing import (  # noqa: E402
     route,
     default_app,
     create_app,
 )
-from agenta.sdk.decorators.running import (
+from agenta.sdk.decorators.running import (  # noqa: E402
     WorkflowServiceRequest,
     workflow,
 )
-from agenta.sdk.decorators.tracing import (
-    instrument,
-)
 
-from agenta.sdk.workflows import builtin
+from agenta.sdk.workflows import builtin  # noqa: E402
 
-from agenta.sdk.workflows.utils import HANDLER_REGISTRY
 
 custom_app = create_app()
 
@@ -390,7 +385,7 @@ curl -i http://127.0.0.1:8000/services/auto_ai_critique/inspect
 """ {"version":"2025.07.14","data":{"outputs":{"score":1,0,"success":true}}}
 curl -i -N \
   -H "Content-Type: application/json" \
-  -H "Authorization: ApiKey ZKoZDbEr.856b25f9d620e3a5b090d2eb0db92b9c915b4551f404c092d076e0dab9268a31" \
+  -H "Authorization: ApiKey your_api_key_here" \
   -d '{
     "data": {
       "inputs": {
@@ -419,7 +414,7 @@ curl -i -N \
 """ {"version":"2025.07.14","data":{"outputs":{"score":0.0,"success":false}}}
 curl -i -N \
   -H "Content-Type: application/json" \
-  -H "Authorization: ApiKey ZKoZDbEr.856b25f9d620e3a5b090d2eb0db92b9c915b4551f404c092d076e0dab9268a31" \
+  -H "Authorization: ApiKey your_api_key_here" \
   -d '{
     "data": {
       "inputs": {
@@ -667,7 +662,7 @@ curl -i http://127.0.0.1:8000/services/completion/inspect
 """
 curl -i -N \
   -H "Content-Type: application/json" \
-  -H "Authorization: ApiKey ZKoZDbEr.856b25f9d620e3a5b090d2eb0db92b9c915b4551f404c092d076e0dab9268a31" \
+  -H "Authorization: ApiKey your_api_key_here" \
   -d '{"data": {"inputs": {"country": "Germany"}, "parameters": {"prompt": {"messages": [{"role": "assistant", "content": "What's the capital of {{country}}?"}]}}}}' \
   http://127.0.0.1:8000/services/completion/invoke
 """
@@ -686,7 +681,7 @@ curl -i http://127.0.0.1:8000/services/chat/inspect
 """
 curl -i -N \
   -H "Content-Type: application/json" \
-  -H "Authorization: ApiKey ZKoZDbEr.856b25f9d620e3a5b090d2eb0db92b9c915b4551f404c092d076e0dab9268a31" \
+  -H "Authorization: ApiKey your_api_key_here" \
   -d '{"data": {"inputs": {"country": "Germany"}, "parameters": {"prompt": {"messages": [{"role": "user", "content": "Hello, world!"}]}}}}' \
   http://127.0.0.1:8000/services/chat/invoke
 """

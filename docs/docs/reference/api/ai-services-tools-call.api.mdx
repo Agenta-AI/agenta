@@ -1,0 +1,71 @@
+---
+id: ai-services-tools-call
+title: "Call Tool"
+description: "Call Tool"
+sidebar_label: "Call Tool"
+hide_title: true
+hide_table_of_contents: true
+api: eJydVk2PGjkQ/Suozr0wGe2pT8tORgrKToIGdi8IjQp3AU7cdscfk2FR//dV2Q1tIENmw6XBrnouv/eqiz143DgoFzCeDGZkn6UgB8sCTEMWvTR6UkEJKJ9ct/nkjVHuSaBSUIClb4Gc/9NUOyj3IIz2pD1/xaZRUkSI0RdnNK85saUa+Vtj+QAvyfEvjTXx0+8aghKct1JvoAAvveKFT7zfFoB2E2rSPiZhVUlGRzXNwLwNVByAzOoLCZ8BjY8AbXsZxZeRliqmI5a07DPnxqg7VOoxXfjBVKSgZZQ+i8+OC64x2qWr3d7c8KMiJ6xsuF4oYRaEIOfWQQ0eu2AofpW8LE16qt1lRLrnJb3CaOehBE8vOUlzDiugojUGddxnvvh5RaZ5jPsJsRHkB8Ry8l13lR4CrcVddkQW4bwNwgdL1V1GnN59XkO5+D/2aIvjlXRQCtqsutnxENGfLN29tcZmVKyMUYQ6K3TiKMZkPK5ROfZHTR5Paz2Ty6KgJ1mdxpySfq3mOecPJtUPpTin/YGLuUR7S+rBusdeaAv4/fb20u7/oJJVNPPgviPlF71ekUeprlhdGXGy+wb+pPa0IcuXftV2f5lUIKtfu821Jngg53BDvYdfD41kDGK7sat0E1J7HSwUF9oChH/JYC70iPZ/Q+cxN6n8Li7zTC9RUuh1Kt4nCa4Z5MN8Pr0ATP44NQa7aMB2gtgVW8OzpjGOwRr0WyhhhHJ0GD2jOHpG3ejhVbIuihusirGNjMqmn1vvG1eORhSGQplQDXFD2uMQZQpcMoYIVvpdBBlPJx9p94GwIgvlYpkHzNiQyWKnYUdZsJEfiYlKwwzGwW+Nlf8m37C8XFLKYibY6o/99Lx/wbpR1E/D3i751GujUdYm98k4Xmswnk6gAKYkkXszfDe8gXPKT4K5C1H47NC0DcUZhUfmoACqYwuCJ6z/6De4MpauRp3h5QqfFHLkja07ahTK2Fzx2H0n/gLigQf52WFsAC6cLbAsYMteKRew36/Q0d9WtS0vfwtkWdNlAc9oJa6YpwX39/ag7h6+0q4fKL91Q+8ZVUhqnr2U2FYpYywENf5q7DKz8/TzbA4FrLp/SLWpOMfid+5O/A4lAP/b4uxor7i2B4V6E/g9UkLC5M9/525RGw==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Call Tool"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/ai/services/tools/call"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Call Tool
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"name":{"type":"string","title":"Name"},"arguments":{"additionalProperties":true,"type":"object","title":"Arguments"}},"type":"object","required":["name"],"title":"ToolCallRequestModel"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"content":{"items":{"properties":{"type":{"type":"string","const":"text","title":"Type","default":"text"},"text":{"type":"string","title":"Text"}},"type":"object","required":["text"],"title":"ToolCallTextContent"},"type":"array","title":"Content"},"structuredContent":{"anyOf":[{"additionalProperties":true,"type":"object"},{"type":"null"}],"title":"Structuredcontent"},"isError":{"type":"boolean","title":"Iserror","default":false},"meta":{"anyOf":[{"properties":{"trace_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Trace Id"}},"type":"object","title":"ToolCallMeta"},{"type":"null"}]}},"type":"object","title":"ToolCallResponseModel"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

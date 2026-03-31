@@ -19,8 +19,9 @@ from agenta.sdk.models.workflows import (
 from agenta.sdk.middlewares.routing.cors import CORSMiddleware
 from agenta.sdk.middlewares.routing.auth import AuthMiddleware
 from agenta.sdk.middlewares.routing.otel import OTelMiddleware
-from agenta.sdk.contexts.running import running_context_manager, RunningContext
-from agenta.sdk.contexts.tracing import tracing_context_manager, TracingContext
+from agenta.sdk.middleware.vault import VaultMiddleware
+from agenta.sdk.middlewares.running.vault import invalidate_secrets_cache
+from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.decorators.running import auto_workflow, Workflow
 from agenta.sdk.workflows.errors import ErrorStatus
 
@@ -29,6 +30,7 @@ def create_app(**kwargs: Any) -> FastAPI:
     app = FastAPI(**kwargs)
 
     app.add_middleware(CORSMiddleware)
+    app.add_middleware(VaultMiddleware)
     app.add_middleware(AuthMiddleware)
     app.add_middleware(OTelMiddleware)
 
@@ -141,7 +143,7 @@ async def handle_invoke_failure(exception: Exception) -> Response:
             else 500
         )
 
-        if code in [401, 403]:
+        if code in [401, 403, 429]:  # Downstream API errors
             code = 424
 
         message = str(exception) or "Internal Server Error"
@@ -194,7 +196,7 @@ async def handle_inspect_failure(exception: Exception) -> Response:
         getattr(exception, "status_code") if hasattr(exception, "status_code") else 500
     )
 
-    if code in [401, 403]:
+    if code in [401, 403, 429]:  # Downstream API errors
         code = 424
 
     message = str(exception) or "Internal Server Error"
@@ -208,22 +210,26 @@ class route:
         path: str = "/",
         app: Optional[FastAPI] = None,
         router: Optional[APIRouter] = None,
+        flags: Optional[dict] = None,
     ):
         path = path.rstrip("/")
         path = path if path else "/"
         path = path if path.startswith("/") else "/" + path
         self.path = path
         self.root = app or router or default_app
+        self.flags = flags
 
     def __call__(self, foo: Optional[Union[Callable[..., Any], Workflow]] = None):
         if foo is None:
             return self
 
-        workflow = auto_workflow(foo)
+        workflow = auto_workflow(foo, flags=self.flags)
 
         async def invoke_endpoint(req: Request, request: WorkflowServiceRequest):
             credentials = req.state.auth.get("credentials")
-            secrets = req.state.auth.get("secrets")
+            secrets = (
+                req.state.vault.get("secrets") if hasattr(req.state, "vault") else None
+            )
 
             try:
                 response = await workflow.invoke(
@@ -231,6 +237,14 @@ class route:
                     secrets=secrets,
                     credentials=credentials,
                 )
+
+                status = getattr(response, "status", None)
+                status_type = getattr(status, "type", None)
+
+                if isinstance(status_type, str) and status_type.endswith(
+                    "#v0:schemas:invalid-secrets"
+                ):
+                    invalidate_secrets_cache(credentials)
 
                 return await handle_invoke_success(req, response)
 

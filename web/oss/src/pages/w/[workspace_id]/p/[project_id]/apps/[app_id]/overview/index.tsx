@@ -1,20 +1,21 @@
 // @ts-nocheck
 import {memo, useState} from "react"
 
+import {PageLayout} from "@agenta/ui"
 import {MoreOutlined} from "@ant-design/icons"
-import {PencilLine, PencilSimple, Trash} from "@phosphor-icons/react"
+import {PencilSimple, Trash} from "@phosphor-icons/react"
+// TEMPORARY: Disabling name editing
+// import {PencilLine} from "@phosphor-icons/react"
 import {Button, Dropdown, Space, Typography} from "antd"
-import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
-import {createUseStyles} from "react-jss"
 
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
-import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
+// TEMPORARY: Disabling name editing
+// import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import DeploymentOverview from "@/oss/components/pages/overview/deployments/DeploymentOverview"
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
-import type {JSSTheme} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app"
 
 const CustomWorkflowHistory: any = dynamic(
@@ -27,21 +28,12 @@ const LatestEvaluationRunsTable: any = dynamic(() =>
     import("@/oss/components/EvaluationRunsTablePOC").then((m) => m.LatestEvaluationRunsTable),
 )
 
-const {Title, Text} = Typography
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    container: {
-        "& h1": {
-            fontSize: theme.fontSizeHeading4,
-            fontWeight: theme.fontWeightMedium,
-            lineHeight: theme.lineHeightHeading4,
-        },
-    },
-}))
+const {Title} = Typography
 
 const AppDetailsSection = memo(() => {
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
-    const openEditAppModal = useSetAtom(openEditAppModalAtom)
+    // TEMPORARY: Disabling name editing
+    // const openEditAppModal = useSetAtom(openEditAppModalAtom)
     const {currentApp, mutate: mutateApps} = useAppsData()
     const {openModal} = useCustomWorkflowConfig({
         afterConfigSave: mutateApps,
@@ -49,12 +41,18 @@ const AppDetailsSection = memo(() => {
     })
     return (
         <>
-            <Space className="justify-between">
-                <Text className="!m-0 text-[16px] font-medium">{currentApp?.app_name || ""}</Text>
+            <Space className="flex items-center gap-3">
+                <Title level={3} className="!m-0">
+                    {currentApp?.app_name || ""}
+                </Title>
 
                 <Dropdown
                     trigger={["click"]}
-                    overlayStyle={{width: 180}}
+                    styles={{
+                        root: {
+                            width: 180,
+                        },
+                    }}
                     menu={{
                         items: [
                             ...(currentApp?.app_type === "custom"
@@ -74,12 +72,13 @@ const AppDetailsSection = memo(() => {
                                       //   },
                                   ]
                                 : [
-                                      {
-                                          key: "rename_app",
-                                          label: "Rename",
-                                          icon: <PencilLine size={16} />,
-                                          onClick: () => openEditAppModal(currentApp!),
-                                      },
+                                      // TEMPORARY: Disabling name editing
+                                      // {
+                                      //     key: "rename_app",
+                                      //     label: "Rename",
+                                      //     icon: <PencilLine size={16} />,
+                                      //     onClick: () => openEditAppModal(currentApp!),
+                                      // },
                                   ]),
                             {
                                 key: "delete_app",
@@ -99,7 +98,6 @@ const AppDetailsSection = memo(() => {
 })
 
 const OverviewPage = () => {
-    const classes = useStyles()
     const {currentApp} = useAppsData()
     const appId = currentApp?.app_id ?? null
     const [isCustomWorkflowHistoryDrawerOpen, setIsCustomWorkflowHistoryDrawerOpen] =
@@ -107,7 +105,7 @@ const OverviewPage = () => {
 
     return (
         <>
-            <div className={clsx(classes.container, "flex flex-col gap-10")}>
+            <PageLayout className="gap-8">
                 <AppDetailsSection />
                 <ObservabilityOverview />
                 <DeploymentOverview />
@@ -118,14 +116,16 @@ const OverviewPage = () => {
                     evaluationKind="auto"
                     appId={appId}
                     appScoped
+                    withContainerStyles={false}
                 />
                 <LatestEvaluationRunsTable
                     title="Human Evaluations"
                     evaluationKind="human"
                     appId={appId}
                     appScoped
+                    withContainerStyles={false}
                 />
-            </div>
+            </PageLayout>
 
             <CustomWorkflowHistory
                 open={isCustomWorkflowHistoryDrawerOpen}

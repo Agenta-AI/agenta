@@ -1,10 +1,11 @@
 import React, {useEffect, useMemo, useState} from "react"
 
+import {SelectLLMProviderBase, type ProviderGroup} from "@agenta/ui/select-llm-provider"
+import {capitalize} from "@agenta/ui/select-llm-provider"
 import {Plus, WarningCircle} from "@phosphor-icons/react"
 import {Button, Form, Input, Typography} from "antd"
 import {useWatch} from "antd/lib/form/Form"
 
-import SelectLLMProvider from "@/oss/components/SelectLLMProvider"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
@@ -29,11 +30,11 @@ const {Text} = Typography
  * }
  */
 type FieldAttributes =
-    | {kind: "text"; inputType?: "text" | "password" | "url"}
+    | {kind: "text"; type?: "text" | "password" | "url"; inputType?: "text" | "password" | "url"}
     | {kind: "textarea"; rows?: number; monospace?: boolean}
     | {kind: "json"; rows?: number; monospace?: boolean; strict?: boolean}
 
-type FieldWithAttributes = {
+interface FieldWithAttributes {
     attributes?: FieldAttributes
     key: string
     label: string
@@ -53,7 +54,7 @@ const renderControl = (field: FieldWithAttributes, isRequired?: boolean) => {
             <LabelInput
                 label={`${field.label}${isRequired ? " *" : ""}`}
                 placeholder={field.placeholder}
-                inputType={(a?.inputType as any) ?? "text"}
+                type={a?.type ?? a?.inputType ?? "text"}
             />
         )
     }
@@ -112,6 +113,18 @@ const ConfigureProviderDrawerContent = ({
         () => new Set(standardProviders.map((provider) => provider.toLowerCase())),
         [standardProviders],
     )
+
+    // Build provider options for SelectLLMProviderBase
+    const providerOptions = useMemo<ProviderGroup[]>(() => {
+        const allProviders = [...new Set([...standardProviders, ...customProviders])]
+        return allProviders.map((key) => {
+            const label = PROVIDER_LABELS[key] ?? capitalize(key)
+            return {
+                label,
+                options: [{label, value: key, key}],
+            }
+        })
+    }, [standardProviders, customProviders])
 
     const providerValue = useWatch("provider", form) || ""
     const normalizedProviderKind = useMemo(() => {
@@ -190,7 +203,7 @@ const ConfigureProviderDrawerContent = ({
                         Provider<span aria-hidden> *</span>
                     </Text>
                     <Form.Item name="provider" className="mb-0" rules={[{required: true}]}>
-                        <SelectLLMProvider />
+                        <SelectLLMProviderBase options={providerOptions} />
                     </Form.Item>
                 </div>
 

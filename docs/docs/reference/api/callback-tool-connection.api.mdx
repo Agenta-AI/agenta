@@ -1,0 +1,71 @@
+---
+id: callback-tool-connection
+title: "Callback Connection"
+description: "Handle OAuth callback from Composio."
+sidebar_label: "Callback Connection"
+hide_title: true
+hide_table_of_contents: true
+api: eJy1VVFvGjEM/isnP0fQVXviaaibVtRNrQbbS4VQyBlIm7ukia8rQ/nvk5M7OMoqsYc+wSWfPzv2Z3sHJNcBRvcws9YEmAsoMSivHWlbwwiuZV0aLG7HDW0KJY1ZSvVYrLytiitbORu0HYAA69BLNpmUMIIOtyBrzULZukaV+AQ46WWFhJ6d7qCWFbJBhmC5kErZpqaFLkGA5gieGvRbEODxqdEeSxitpAkoIKgNVhJGO5D19naV+GjrmC+Q1/Uaotif1I0xEOcCSJPhg6vOZTHOLotJCZEt2pgCSWrCO0cxzU76ftF76xcVhiDX+M7uv7Cv4nvr6/Xr39v7NPmIfOQxOFsHDMx1eXHBP8dCnDZKYQirxhQ/WjAIFg5hTSkC54xWSYTDh8A2u0N8McYo4OPl5SnxL2l0mcyKlI7/YAXnWfikc9wlktSG/2nCKpwCjFVHt2ckTdeEa/QQ51F0Z9J7yeXo8vjN5gAhCqjCmpmP+Q7Qfak7srehWRszvo2sA9ekhHTXk3QQBSh66dHY5QMqgqM+I3whFtcJ5qCn+5SbHH6L6wnlUKJcobdT8TmX4F/OOsj1bHZ3Qpj1USFtLA+wNVKaVbSBEQydx2eNv4c8zcLwMM7CsBt0ICCgf+6mWuMN20mnUynz54bIhdFwiM1AGduUA7nGmuRA6gycM4dqvKZtIhnfTW5we42yRA+j+3kfMGUFZk0dw/Z1kE7fIGem7Wee39brP7Kdw6mvN9kqpvqubL+84xRcMb6bgAB+WG6Wi8GHwQW8XhJHYG4eqZJWOt/pGsSrROzfDwKwSp0DhLL6dLjgyJwNVMm6x3fVraGr/mY5Cml36OFzV1ibOBbr0BmpUzuliHetEu6hVQKj07oU0FMDf3V6mAvY2EBss9stZcCf3sTIx3mWcoFLHeTS9KbpI27f3oXP0jQcX1LUG6b7lXUO+PWeOdfBMXbOH14zOIlUdKLiF2ajsVLoqGd1MlOZZd97X7/MIMa/XentyQ==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Callback Connection"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/preview/tools/connections/callback"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Handle OAuth callback from Composio.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"connected_account_id","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Connected Account Id"}},{"name":"status","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Status"}},{"name":"error_message","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Error Message"}},{"name":"state","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"State"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

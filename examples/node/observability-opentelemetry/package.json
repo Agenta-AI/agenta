@@ -1,25 +1,26 @@
 {
-    "name": "agenta-opentelemetry-quickstart",
-    "version": "1.0.0",
-    "description": "Quick start example for using OpenTelemetry with Agenta",
-    "type": "module",
-    "scripts": {
-        "start": "node --import ./instrumentation.js app.js"
-    },
-    "dependencies": {
-        "@arizeai/openinference-instrumentation-openai": "^3.2.3",
-        "@arizeai/openinference-semantic-conventions": "^2.1.2",
-        "@opentelemetry/api": "^1.9.0",
-        "@opentelemetry/exporter-trace-otlp-proto": "^0.54.0",
-        "@opentelemetry/instrumentation": "^0.54.0",
-        "@opentelemetry/resources": "^1.28.0",
-        "@opentelemetry/sdk-trace-base": "^1.28.0",
-        "@opentelemetry/sdk-trace-node": "^1.28.0",
-        "@opentelemetry/semantic-conventions": "^1.28.0",
-        "openai": "^6.7.0"
-    },
-    "devDependencies": {
-        "@types/node": "^22.0.0",
-        "typescript": "^5.7.0"
-    }
+  "name": "agenta-opentelemetry-quickstart",
+  "version": "1.0.0",
+  "description": "Quick start example for using OpenTelemetry with Agenta",
+  "type": "module",
+  "scripts": {
+    "start": "node --import ./instrumentation.js app.js"
+  },
+  "dependencies": {
+    "@arizeai/openinference-instrumentation-openai": "^2.3.1",
+    "@arizeai/openinference-semantic-conventions": "^2.1.2",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.54.0",
+    "@opentelemetry/instrumentation": "^0.54.0",
+    "@opentelemetry/resources": "^1.28.0",
+    "@opentelemetry/sdk-trace-base": "^1.28.0",
+    "@opentelemetry/sdk-trace-node": "^1.28.0",
+    "@opentelemetry/semantic-conventions": "^1.28.0",
+    "dotenv": "^17.2.3",
+    "openai": "^4.104.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
 }

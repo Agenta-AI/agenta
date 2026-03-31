@@ -1,10 +1,26 @@
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING, Any, Dict
 from uuid import UUID, uuid4
+from collections import defaultdict
 
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.git.interfaces import GitDAOInterface
-from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.dtos import Reference, Windowing, Trace, Traces
+from oss.src.core.tracing.dtos import (
+    TracingQuery,
+    OTelSpan,
+    Formatting,
+    Focus,
+    Format,
+)
+from oss.src.core.tracing.utils.parsing import (
+    parse_trace_id_from_uuid,
+    parse_span_id_from_uuid,
+)
+
+if TYPE_CHECKING:
+    from oss.src.core.tracing.service import TracingService
+
 from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
@@ -34,6 +50,7 @@ from oss.src.core.queries.dtos import (
     QueryVariantQuery,
     #
     QueryRevision,
+    QueryRevisionData,
     QueryRevisionCreate,
     QueryRevisionEdit,
     QueryRevisionQuery,
@@ -55,8 +72,155 @@ class QueriesService:
         self,
         *,
         queries_dao: GitDAOInterface,
+        tracing_service: Optional["TracingService"] = None,
     ):
         self.queries_dao = queries_dao
+        self.tracing_service = tracing_service
+
+    @staticmethod
+    def _sanitize_persisted_query_revision_data(
+        data: Optional[Any],
+    ) -> Optional[Dict[str, Any]]:
+        """Persist only canonical query revision fields."""
+        if data is None:
+            return None
+
+        try:
+            parsed = QueryRevisionData.model_validate(data)
+        except Exception:
+            return None
+
+        persisted_data: Dict[str, Any] = {}
+        if parsed.formatting is not None:
+            persisted_data["formatting"] = parsed.formatting
+        if parsed.filtering is not None:
+            persisted_data["filtering"] = parsed.filtering
+        if parsed.windowing is not None:
+            persisted_data["windowing"] = parsed.windowing
+
+        if not persisted_data:
+            return None
+
+        return QueryRevisionData(**persisted_data).model_dump(
+            mode="json",
+            exclude_none=True,
+        )
+
+    @classmethod
+    def _sanitize_query_revision_payload(
+        cls,
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if "data" not in payload:
+            return payload
+
+        sanitized_data = cls._sanitize_persisted_query_revision_data(
+            payload.get("data")
+        )
+        if sanitized_data is None:
+            payload.pop("data", None)
+        else:
+            payload["data"] = sanitized_data
+
+        return payload
+
+    async def _populate_traces(
+        self,
+        project_id: UUID,
+        #
+        query_revision: "QueryRevision",
+        #
+        include_trace_ids: Optional[bool] = None,
+        include_traces: Optional[bool] = None,
+        windowing: Optional[Windowing] = None,
+    ) -> None:
+        """Conditionally execute the stored filter and populate trace IDs / traces.
+
+        Flag defaults (both False when None — queries default is stored content only):
+          include_trace_ids=True  — execute filter and return trace_ids
+          include_traces=True     — execute filter and return both trace_ids and traces
+
+        [A.1] include_trace_ids=True,  include_traces=False
+              → execute filter; return trace_ids only
+        [A.2] include_trace_ids=True,  include_traces=True  (or include_traces alone)
+              → execute filter; return both trace_ids and traces
+        """
+        if not query_revision.data or not self.tracing_service:
+            return
+
+        # Opt-in semantics (asymmetric with testsets): both flags default False
+        # because executing a live trace filter is expensive and should be explicit.
+        _include_ids = include_trace_ids is True
+        _include_items = include_traces is True
+
+        if not _include_ids and not _include_items:
+            return
+
+        # Merge windowing: stored bounds take precedence; request limit overrides
+        stored = query_revision.data.windowing
+        if stored:
+            merged = stored.model_copy()
+            updates = {}
+            if windowing and windowing.limit is not None:
+                updates["limit"] = windowing.limit
+            if windowing and windowing.next is not None:
+                updates["next"] = windowing.next
+            if updates:
+                merged = merged.model_copy(update=updates)
+        else:
+            merged = windowing
+
+        tracing_query = TracingQuery(
+            formatting=(
+                query_revision.data.formatting.model_copy(
+                    update={
+                        "focus": (query_revision.data.formatting.focus or Focus.TRACE),
+                        "format": (
+                            query_revision.data.formatting.format or Format.AGENTA
+                        ),
+                    }
+                )
+                if query_revision.data.formatting
+                else Formatting(focus=Focus.TRACE, format=Format.AGENTA)
+            ),
+            filtering=query_revision.data.filtering,
+            windowing=merged,
+        )
+
+        flat_spans = await self.tracing_service.query(
+            project_id=project_id,
+            query=tracing_query,
+        )
+
+        # Group spans by trace_id while preserving first-seen order.
+        spans_by_trace: dict[str, list] = defaultdict(list)
+        for span in flat_spans:
+            spans_by_trace[span.trace_id].append(span)
+
+        traces: Traces = [
+            Trace(
+                trace_id=parse_trace_id_from_uuid(tid),
+                spans={
+                    parse_span_id_from_uuid(s.span_id): OTelSpan(
+                        **s.model_dump()
+                    ).model_dump(
+                        mode="json",
+                        exclude_none=True,
+                    )
+                    for s in spans
+                },
+            )
+            for tid, spans in spans_by_trace.items()
+        ]
+
+        query_revision.data.trace_ids = [
+            trace.trace_id for trace in traces if trace.trace_id
+        ]
+
+        if _include_items:
+            query_revision.data.traces = traces
+        else:
+            query_revision.data.traces = None
 
     ## -- artifacts ------------------------------------------------------------
 
@@ -440,9 +604,13 @@ class QueriesService:
         #
         query_revision_create: QueryRevisionCreate,
     ) -> Optional[QueryRevision]:
-        _revision_create = RevisionCreate(
-            **query_revision_create.model_dump(mode="json"),
+        revision_create_payload = self._sanitize_query_revision_payload(
+            query_revision_create.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
         )
+        _revision_create = RevisionCreate(**revision_create_payload)
 
         revision = await self.queries_dao.create_revision(
             project_id=project_id,
@@ -468,6 +636,11 @@ class QueriesService:
         query_ref: Optional[Reference] = None,
         query_variant_ref: Optional[Reference] = None,
         query_revision_ref: Optional[Reference] = None,
+        #
+        include_trace_ids: Optional[bool] = None,
+        include_traces: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
     ) -> Optional[QueryRevision]:
         if not query_ref and not query_variant_ref and not query_revision_ref:
             return None
@@ -515,6 +688,17 @@ class QueriesService:
             **revision.model_dump(mode="json"),
         )
 
+        await self._populate_traces(
+            project_id,
+            #
+            _query_revision,
+            #
+            include_trace_ids=include_trace_ids,
+            include_traces=include_traces,
+            #
+            windowing=windowing,
+        )
+
         return _query_revision
 
     async def edit_query_revision(
@@ -525,9 +709,13 @@ class QueriesService:
         #
         query_revision_edit: QueryRevisionEdit,
     ) -> Optional[QueryRevision]:
-        _query_revision_edit = RevisionEdit(
-            **query_revision_edit.model_dump(mode="json"),
+        revision_edit_payload = self._sanitize_query_revision_payload(
+            query_revision_edit.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
         )
+        _query_revision_edit = RevisionEdit(**revision_edit_payload)
 
         revision = await self.queries_dao.edit_revision(
             project_id=project_id,
@@ -649,9 +837,13 @@ class QueriesService:
         #
         query_revision_commit: QueryRevisionCommit,
     ) -> Optional[QueryRevision]:
-        _revision_commit = RevisionCommit(
-            **query_revision_commit.model_dump(mode="json"),
+        revision_commit_payload = self._sanitize_query_revision_payload(
+            query_revision_commit.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
         )
+        _revision_commit = RevisionCommit(**revision_commit_payload)
 
         if not _revision_commit.artifact_id:
             if not _revision_commit.variant_id:
@@ -691,6 +883,7 @@ class QueriesService:
         #
         query_revisions_log: QueryRevisionsLog,
         #
+        include_archived: bool = False,
     ) -> List[QueryRevision]:
         _revisions_log = RevisionsLog(
             **query_revisions_log.model_dump(mode="json"),
@@ -700,6 +893,8 @@ class QueriesService:
             project_id=project_id,
             #
             revisions_log=_revisions_log,
+            #
+            include_archived=include_archived,
         )
 
         _query_revisions = [
@@ -841,6 +1036,9 @@ class SimpleQueriesService:
             meta=query.meta,
             #
             data=query_revision.data,
+            #
+            variant_id=query_variant.id,
+            revision_id=query_revision.id,
         )
 
         return simple_query

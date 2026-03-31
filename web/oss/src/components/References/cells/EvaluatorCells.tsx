@@ -1,7 +1,5 @@
 import {useMemo} from "react"
 
-import {Typography} from "antd"
-
 import {
     useRunRowReferences,
     useRunRowSummary,

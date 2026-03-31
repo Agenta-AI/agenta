@@ -2,7 +2,6 @@ from typing import Optional, Union, Callable
 from contextvars import Token, ContextVar
 from contextlib import contextmanager
 
-
 from pydantic import BaseModel
 
 from agenta.sdk.models.workflows import (
@@ -24,8 +23,10 @@ class RunningContext(BaseModel):
     parameters: Optional[dict] = None
     schemas: Optional[dict] = None
 
-    secrets: Optional[list] = None
     credentials: Optional[str] = None
+    secrets: Optional[list] = None
+    local_secrets: Optional[list] = None
+    vault_secrets: Optional[list] = None
 
     handler: Optional[Callable] = None
 

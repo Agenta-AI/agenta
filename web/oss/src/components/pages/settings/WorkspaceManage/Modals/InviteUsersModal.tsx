@@ -1,36 +1,30 @@
 import {useCallback, useState, useMemo, type FC} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {MinusCircleOutlined} from "@ant-design/icons"
 import {Alert, Form, Input, Modal, Select, Space, Typography, theme} from "antd"
-import {useAtom} from "jotai"
 import Link from "next/link"
 
-import {message} from "@/oss/components/AppMessageContext"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
-import {workspaceRolesAtom} from "@/oss/lib/atoms/organization"
-import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
-import {isDemo, snakeToTitle} from "@/oss/lib/helpers/utils"
-import {Plan} from "@/oss/lib/Types"
+import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
+import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
+import {snakeToTitle} from "@/oss/lib/helpers/utils"
 import {inviteToWorkspace} from "@/oss/services/workspace/api"
 import {useOrgData} from "@/oss/state/org"
+import {useWorkspaceRoles} from "@/oss/state/workspace"
 
 import {InviteFormProps, InviteUsersModalProps} from "./assets/types"
 
 const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoading}) => {
-    const {subscription}: {subscription?: any} = useSubscriptionDataWrapper() ?? {
-        subscription: undefined,
-    }
-
     const {selectedOrg, refetch} = useOrgData()
-    const [roles] = useAtom(workspaceRolesAtom)
+    const {roles} = useWorkspaceRoles()
+    const {hasRBAC} = useEntitlements()
     const {token} = theme.useToken()
     const organizationId = selectedOrg?.id
 
     const filteredRoles = useMemo(() => {
-        if (!isDemo()) {
-            return roles.filter((role) => role.role_name !== "owner")
-        }
-        return roles
+        // Always filter out "owner" role from invite dropdown
+        return roles.filter((role) => role.role_name !== "owner")
     }, [roles])
 
     const onSubmit = useCallback(
@@ -39,16 +33,19 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
 
             setLoading(true)
 
-            inviteToWorkspace({
-                data: emails.map((email) => ({
-                    email,
-                    ...(role ? {roles: [role]} : {}),
-                })),
-                organizationId,
-                workspaceId,
-            })
+            inviteToWorkspace(
+                {
+                    data: emails.map((email) => ({
+                        email,
+                        ...(role ? {roles: [role]} : {}),
+                    })),
+                    organizationId,
+                    workspaceId,
+                },
+                true,
+            )
                 .then((responses) => {
-                    if (!isDemo() && typeof responses.url === "string") {
+                    if (!isEmailInvitationsEnabled() && typeof responses.url === "string") {
                         onSuccess?.({
                             email: emails[0],
                             uri: responses.url,
@@ -61,7 +58,25 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
 
                     form.resetFields()
                 })
-                .catch(console.error)
+                .catch((error: any) => {
+                    const detail = error?.response?.data?.detail
+                    const rawError =
+                        typeof error?.response?.data?.error === "string"
+                            ? error.response.data.error
+                            : undefined
+                    const detailMessage =
+                        typeof detail === "string"
+                            ? detail
+                            : detail?.message || rawError || "Failed to send invitations"
+                    const isDomainRestricted =
+                        typeof detailMessage === "string" &&
+                        detailMessage.toLowerCase().includes("domain")
+                    message.error(
+                        isDomainRestricted
+                            ? "Only verified domains are allowed in this organization."
+                            : detailMessage,
+                    )
+                })
                 .finally(() => setLoading(false))
         },
         [organizationId],
@@ -114,12 +129,12 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                     </>
                 )}
             </Form.List>
-            {isDemo() ? (
+            {isEE() && hasRBAC ? (
                 <>
                     <Form.Item
                         name="role"
                         rules={[{required: true, message: "Please select a role"}]}
-                        initialValue="editor"
+                        initialValue="viewer"
                         className="mb-1"
                     >
                         <Select
@@ -131,9 +146,9 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                                 value: role.role_name,
                                 desc: role.role_description,
                             }))}
-                            disabled={subscription?.plan !== Plan.Business}
+                            disabled={!hasRBAC}
                             optionRender={(option) => (
-                                <Space direction="vertical" size="small">
+                                <Space orientation="vertical" size="small">
                                     <Typography.Text>{option.label}</Typography.Text>
                                     <Typography.Text className="text-wrap" type="secondary">
                                         {option.data.desc}
@@ -143,12 +158,13 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                             optionLabelProp="label"
                         />
                     </Form.Item>
-                    {subscription?.plan !== Plan.Business ? (
+                    {!hasRBAC ? (
                         <Alert
                             message={
                                 <div className="flex flex-col">
                                     <Typography.Text>
-                                        Role selection is only available for Business Plans.
+                                        Role selection is only available for Business and Enterprise
+                                        plans.
                                     </Typography.Text>
 
                                     <Link
@@ -178,6 +194,7 @@ const InviteUsersModal: FC<InviteUsersModalProps> = ({
 }) => {
     const [form] = Form.useForm()
     const [loading, setLoading] = useState(false)
+    const {hasRBAC} = useEntitlements()
 
     useLazyEffect(() => {
         if (props.open) form.resetFields()
@@ -201,8 +218,8 @@ const InviteUsersModal: FC<InviteUsersModalProps> = ({
         >
             <Typography.Paragraph type="secondary">
                 Invite members to your team by entering their emails.{" "}
-                {!isDemo()
-                    ? "Role base access control is available in the cloud and enterprise editions of Agenta"
+                {!isEE() || !hasRBAC
+                    ? "Role-based access control is available in Cloud/EE."
                     : "You can specify the roles to control the access level of the invited members on Agenta."}
             </Typography.Paragraph>
             <InviteForm

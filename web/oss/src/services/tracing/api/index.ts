@@ -1,9 +1,20 @@
-import {getBaseUrl, fetchJson, ensureProjectId, ensureAppId} from "@/oss/lib/api/assets/fetchClient"
+import dayjs from "dayjs"
+import utc from "dayjs/plugin/utc"
+
+import {SortResult} from "@/oss/components/Filters/Sort"
+import {ensureAppId, ensureProjectId, fetchJson, getBaseUrl} from "@/oss/lib/api/assets/fetchClient"
 import {getProjectValues} from "@/oss/state/project"
-import {rangeToIntervalMinutes, tracingToGeneration} from "../lib/helpers"
+
+import {calculateIntervalFromDuration, tracingToGeneration} from "../lib/helpers"
 import {GenerationDashboardData, TracingDashboardData} from "../types"
 
-export const fetchAllPreviewTraces = async (params: Record<string, any> = {}, appId: string) => {
+dayjs.extend(utc)
+
+export const fetchAllPreviewTraces = async (
+    params: Record<string, any> = {},
+    appId: string,
+    signal?: AbortSignal,
+) => {
     const base = getBaseUrl()
     const projectId = ensureProjectId()
     const applicationId = ensureAppId(appId)
@@ -33,6 +44,7 @@ export const fetchAllPreviewTraces = async (params: Record<string, any> = {}, ap
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(payload),
+        signal,
     })
 }
 
@@ -56,10 +68,59 @@ export const deletePreviewTrace = async (traceId: string) => {
     return fetchJson(url, {method: "DELETE"})
 }
 
+export const fetchSessions = async (params: {
+    appId?: string
+    windowing?: {
+        oldest?: string
+        newest?: string
+        next?: string
+        limit?: number
+        order?: string
+    }
+    cursor?: string
+    filter?: any
+    realtime?: boolean
+}) => {
+    const base = getBaseUrl()
+    const projectId = ensureProjectId()
+    const applicationId = params.appId ? ensureAppId(params.appId) : undefined
+
+    const url = new URL(`${base}/tracing/sessions/query`)
+    if (projectId) url.searchParams.set("project_id", projectId)
+    if (applicationId) url.searchParams.set("application_id", applicationId)
+
+    const payload: Record<string, any> = {}
+
+    // Initialize windowing if it doesn't exist but we have a cursor
+    if (params.windowing || params.cursor) {
+        payload.windowing = {...(params.windowing || {})}
+
+        // If cursor is provided, it goes into windowing.next
+        if (params.cursor) {
+            payload.windowing.next = params.cursor
+        }
+    }
+
+    if (params.filter) {
+        payload.filter = params.filter
+    }
+
+    // Add realtime parameter (true = latest/unstable, false/undefined = all/stable)
+    if (params.realtime !== undefined) {
+        payload.realtime = params.realtime
+    }
+
+    return fetchJson(url, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload),
+    })
+}
+
 export const fetchGenerationsDashboardData = async (
     appId: string | null | undefined,
     _options: {
-        range: string
+        range: SortResult
         environment?: string
         variant?: string
         projectId?: string
@@ -105,9 +166,48 @@ export const fetchGenerationsDashboardData = async (
         })
     }
 
+    let startTime: string
+    let endTime: string | undefined
+
+    if (options.range.type === "custom" && options.range.customRange) {
+        startTime = options.range.customRange.startTime || ""
+        endTime = options.range.customRange.endTime || undefined
+
+        if (!startTime) {
+            throw new Error("Custom range startTime is required")
+        }
+    } else {
+        startTime = options.range.sorted
+        endTime = undefined // implied "now" for standard ranges
+    }
+
+    const startDayjs = dayjs(startTime)
+    const endDayjs = endTime ? dayjs(endTime) : dayjs()
+
+    if (!startDayjs.isValid()) {
+        throw new Error("Invalid startTime for tracing analytics query")
+    }
+    if (endTime && !endDayjs.isValid()) {
+        throw new Error("Invalid endTime for tracing analytics query")
+    }
+    if (endDayjs.isBefore(startDayjs)) {
+        throw new Error("endTime must be greater than or equal to startTime")
+    }
+
+    const durationMin = Math.max(1, endDayjs.diff(startDayjs, "minute"))
+    const interval = calculateIntervalFromDuration(durationMin)
+
+    // Determine rangeString for formatting ticks to maintain compatibility
+    let rangeString = "30_days"
+    const durationHours = durationMin / 60
+    if (durationHours <= 24) rangeString = "24_hours"
+    else if (durationHours <= 168) rangeString = "7_days"
+
     const payload: Record<string, any> = {
         focus: "trace",
-        interval: rangeToIntervalMinutes(options.range),
+        interval,
+        oldest: startTime,
+        newest: endTime,
         ...(conditions.length ? {filter: {conditions}} : {}),
     }
 
@@ -119,5 +219,5 @@ export const fetchGenerationsDashboardData = async (
     })
 
     const valTracing = response as TracingDashboardData
-    return tracingToGeneration(valTracing, options.range) as GenerationDashboardData
+    return tracingToGeneration(valTracing, rangeString) as GenerationDashboardData
 }

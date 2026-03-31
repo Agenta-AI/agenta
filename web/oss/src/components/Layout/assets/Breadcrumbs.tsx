@@ -1,5 +1,6 @@
 import {memo, useMemo} from "react"
 
+import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {Sidebar} from "@phosphor-icons/react"
 import {Breadcrumb, Typography} from "antd"
 import clsx from "clsx"
@@ -12,8 +13,7 @@ import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
 import {useAppState} from "@/oss/state/appState"
 
 import packageJsonData from "../../../../package.json"
-import EnhancedButton from "../../Playground/assets/EnhancedButton"
-import TooltipWithCopyAction from "../../TooltipWithCopyAction"
+import EnhancedButton from "../../EnhancedUIs/Button"
 
 import {useStyles, type StyleProps} from "./styles"
 
@@ -70,7 +70,7 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const breadcrumbs = useAtomValue(breadcrumbAtom)
     const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
-    const appState = useAppState()
+    const _appState = useAppState()
     const breadcrumbItems = useMemo(
         () => breadcrumbItemsGenerator(breadcrumbs || {}),
         [breadcrumbs],
@@ -80,7 +80,7 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
         <section
             className={clsx(
                 classes.breadcrumbContainer,
-                "sticky top-0 z-10 bg-white max-w-full overflow-hidden gap-4 !px-3",
+                "sticky top-0 z-[100] bg-white max-w-full overflow-hidden gap-4 !px-3",
             )}
         >
             <div className="flex flex-nowrap items-center shrink-1 min-w-0">

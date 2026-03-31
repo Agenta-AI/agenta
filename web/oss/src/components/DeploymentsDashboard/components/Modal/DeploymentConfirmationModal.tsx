@@ -7,7 +7,7 @@ import {createUseStyles} from "react-jss"
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import CommitNote from "@/oss/components/Playground/assets/CommitNote"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {JSSTheme} from "@/oss/lib/Types"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -42,8 +42,8 @@ const DeploymentConfirmationModalContent = ({
             ? "Are you sure you want to deploy"
             : "Are you sure you want to revert?"
     return (
-        <Space direction="vertical" size={16} className="w-full">
-            <Space direction="vertical" size={4}>
+        <Space orientation="vertical" size={16} className="w-full">
+            <Space orientation="vertical" size={4}>
                 <Typography.Text>{confirmationText}</Typography.Text>
 
                 {variant && (

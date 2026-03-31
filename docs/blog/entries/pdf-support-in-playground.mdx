@@ -1,0 +1,99 @@
+---
+title: "PDF Support in the Playground"
+slug: pdf-support-in-playground
+date: 2025-12-17
+tags: [v0.69.0]
+description: "Attach PDFs to chat messages in the Playground. Upload files, provide URLs, or use file IDs from provider APIs. Works across evaluations and observability."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+The Playground now supports PDF attachments for chat applications. You can include PDF documents in your prompts to build applications that analyze documents, answer questions about content, or extract information from files.
+
+## What is PDF Support?
+
+PDF support lets you attach PDF documents to chat messages when testing prompts in the Playground. The feature works with vision-capable models from OpenAI, Gemini, and Claude. These models can read and understand PDF content to answer questions or perform analysis.
+
+This is useful when you're building applications that need to work with documents. Examples include invoice processing, contract analysis, document Q&A, or content extraction.
+
+## Supported Providers
+
+PDF support works with vision-capable models that handle document inputs.
+
+## How to Attach PDFs
+
+To attach a PDF to a chat message, click "Add attachment" in the message input. You'll see three options:
+
+### Upload a File
+
+Select a PDF from your computer. The file is converted to base64 and sent with your prompt.
+
+### Provide a URL
+
+Paste the URL to a publicly accessible PDF. The model fetches the PDF from the URL.
+
+### Use a File ID
+
+If you've uploaded a file through a provider's API (like the Gemini Files API), you can use the file ID instead. The model retrieves the file from the provider's storage.
+
+## Using PDFs in Evaluations
+
+PDF attachments work in both automatic and human evaluations. You can include PDFs in your test sets and run evaluations across multiple documents.
+
+## PDFs in Observability and Tracing
+
+When you trace requests that include PDFs, you can see the PDF attachment information in the trace data.
+
+## Example Use Cases
+
+### Invoice Processing
+
+Create a prompt that extracts key information from invoices:
+
+```
+Extract the following information from this invoice:
+- Invoice number
+- Date
+- Total amount
+- Vendor name
+- Line items
+
+Return the information as structured JSON.
+```
+
+Attach sample invoices as PDFs. Test the prompt with different invoice formats to ensure reliable extraction across vendors.
+
+### Contract Analysis
+
+Build a prompt that analyzes legal contracts:
+
+```
+Review the attached contract and identify:
+- Key obligations for each party
+- Important dates and deadlines
+- Termination clauses
+- Liability limitations
+
+Provide a summary in plain language.
+```
+
+Attach contract PDFs and verify that the model identifies critical terms consistently.
+
+### Document Q&A
+
+Create an assistant that answers questions about documents:
+
+```
+You are a document assistant. Answer the user's question based on the
+attached PDF. Be specific and cite page numbers when possible.
+
+Question: {{question}}
+```
+
+Attach various document types (reports, manuals, research papers) and test question-answering accuracy across different content.
+
+## Next Steps
+
+Learn more about [using the Playground](/prompt-engineering/playground/using-playground) to develop and test prompts with PDF attachments.

@@ -3,8 +3,7 @@ import type {StaticImageData} from "next/image"
 
 import type {AgentaNodeDTO} from "@/oss/services/observability/types"
 
-import type {EvaluationFlow, EvaluationType} from "./enums"
-import {VariantParameters} from "./shared/variant/transformer/types"
+import {VariantParameters} from "./shared/variant/types"
 
 // Type utility to convert snake_case object properties to camelCase
 export type SnakeToCamelCaseKeys<T> = T extends readonly any[]
@@ -55,10 +54,12 @@ export interface Workspace {
 export type JSSTheme = GlobalToken & {isDark: boolean; fontWeightMedium: number}
 
 export interface testset {
-    _id: string
+    _id?: string
+    id?: string
     name: string
     created_at: string
     updated_at: string
+    created_by_id?: string
     columns?: string[]
 }
 
@@ -107,6 +108,7 @@ export interface ListAppsItem {
     app_type?: string
     created_at?: string
     updated_at: string
+    folder_id?: string | null
 }
 
 export type APP_TYPE = "completion" | "chat" | "custom"
@@ -193,110 +195,6 @@ export interface LLMRunRateLimit {
     delay_between_batches: number
 }
 
-export interface Evaluation {
-    id: string
-    createdAt: string
-    createdAtTimestamp: number
-    createdBy: string
-    user: {
-        id: string
-        username: string
-    }
-    variants: Variant[]
-    evaluationType: EvaluationType
-    status: EvaluationFlow
-    testset: {
-        _id: string
-        testsetChatColumn: string
-    } & Testset
-    appName: string
-    llmAppPromptTemplate?: string
-    evaluationTypeSettings: {
-        similarityThreshold: number
-        regexPattern: string
-        regexShouldMatch: boolean
-        webhookUrl: string
-        customCodeEvaluationId?: string
-        llmAppPromptTemplate?: string
-        evaluationPromptTemplate?: string
-    }
-    revisions: string[]
-    variant_revision_ids: string[]
-}
-
-export interface EvaluationScenario {
-    id: string
-    evaluation_id: string
-    inputs: {input_name: string; input_value: string}[]
-    outputs: {variant_id: string; variant_output: string}[]
-    correctAnswer: string | null
-    vote?: string | null
-    score?: string | number | null
-    isPinned: boolean
-    note: string
-}
-
-//TODO: modify this to accomodate results of other evaluation types
-// currently only used for human_a_b_testing
-export interface EvaluationResult {
-    votes_data: {
-        nb_of_rows: number
-        flag_votes: {
-            number_of_votes: number
-            percentage: number
-        }
-        positive_votes: {
-            number_of_votes: number
-            percentage: number
-        }
-        variants: string[]
-        variant_names: string[]
-        variants_votes_data: Record<
-            string,
-            {
-                number_of_votes: number
-                percentage: number
-            }
-        >
-    }
-}
-
-export interface CreateCustomEvaluation {
-    evaluation_name: string
-    python_code: string
-    app_id: string
-}
-
-export interface CreateCustomEvaluationSuccessResponse {
-    status: string
-    message: string
-    evaluation_id: string
-}
-
-export interface ExecuteCustomEvalCode {
-    evaluation_id: string
-    inputs: object[]
-    outputs: object[]
-    variant_id: string
-    correct_answer: string
-    app_id: string
-}
-
-export interface SingleCustomEvaluation {
-    id: string
-    app_name: string
-    evaluation_name: string
-}
-
-export interface AICritiqueCreate {
-    correct_answer: string
-    llm_app_prompt_template?: string
-    inputs: object[]
-    outputs: object[]
-    evaluation_prompt_template: string
-    open_ai_key: string
-}
-
 export interface Parameter {
     name: string
     type: string
@@ -319,56 +217,9 @@ export interface IPromptRevisions {
     revision: number
 }
 
-export interface EvaluationResponseType {
-    id: string
-    variant_ids: string[]
-    variant_names: string[]
-    votes_data: {
-        variants_votes_data: {
-            number_of_votes: number
-            percentage: number
-        }
-        flag_votes: {number_of_votes: number; percentage: number}
-    }
-    app_id: string
-    status: string
-    evaluation_type: string
-    variants_revision_ids: string[]
-    revisions: string[] // The revision number
-    evaluation_type_settings: {
-        similarity_threshold: number
-        regex_pattern: string
-        regex_should_match: boolean
-        webhook_url: string
-        custom_code_evaluation_id?: string
-        llm_app_prompt_template?: string
-    }
-    testset_name: string
-    testset_id: string
-    created_at: string
-    user_username: string
-    user_id: string
-}
-
 export interface LanguageItem {
     displayName: string
     languageKey: string
-}
-
-export interface ResultsTableDataType {
-    id: string
-    variants: string[]
-    votesData?: {
-        variants_votes_data: {
-            number_of_votes: number
-            percentage: number
-        }
-        flag_votes: {number_of_votes: number; percentage: number}
-    }
-    scoresData?: any
-    evaluationType: EvaluationType
-    createdAt?: string
-    avgScore?: number
 }
 
 /**
@@ -538,38 +389,7 @@ export interface Environment {
     deployed_variant_name: string | null
     deployed_app_variant_revision_id: string | null
     revision: string | null
-}
-
-export interface VariantVotesData {
-    number_of_votes: number
-    percentage: number
-}
-export interface HumanEvaluationListTableDataType {
-    key: string
-    variants: string[]
-    testset: {
-        _id: string
-        name: string
-    }
-    evaluationType: string
-    status: EvaluationFlow
-    votesData: {
-        nb_of_rows: number
-        variants: string[]
-        flag_votes: {
-            number_of_votes: number
-            percentage: number
-        }
-        positive_votes: {
-            number_of_votes: number
-            percentage: number
-        }
-        variants_votes_data: Record<string, VariantVotesData>
-    }
-    createdAt: string
-    revisions: string[]
-    variant_revision_ids: string[]
-    variantNames: string[]
+    updated_at?: string | null
 }
 
 export type FilterValue =
@@ -577,7 +397,7 @@ export type FilterValue =
     | number
     | boolean
     | Record<string, any>
-    | Array<string | number | boolean | Record<string, any>>
+    | (string | number | boolean | Record<string, any>)[]
 
 export interface Filter {
     field: string
@@ -638,16 +458,27 @@ export interface Workspace {
     members: WorkspaceMember[]
 }
 
+export interface OrganizationFlags {
+    is_demo: boolean
+    is_personal: boolean
+    allow_email: boolean
+    allow_social: boolean
+    allow_sso: boolean
+    allow_root: boolean
+    domains_only: boolean
+    auto_join: boolean
+}
+
 export interface Org {
     id: string
-    name: string
-    description: string
-    owner: string
-    is_paying: boolean
+    slug?: string
+    name?: string
+    description?: string
+    flags: OrganizationFlags
+    owner_id: string
 }
 
 export type OrgDetails = Org & {
-    type: "default"
     default_workspace: Workspace
     workspaces: string[]
 }
@@ -663,32 +494,6 @@ export interface APIKey {
     created_at: string
     last_used_at: string
     expiration_date: string | null
-}
-
-export interface SingleModelEvaluationListTableDataType {
-    id: string
-    key: string
-    variants: Variant[]
-    testset: {
-        _id: string
-        name: string
-    }
-    evaluationType: string
-    status: EvaluationFlow
-    scoresData: {
-        nb_of_rows: number
-        wrong?: GenericObject[]
-        correct?: GenericObject[]
-        true?: GenericObject[]
-        false?: GenericObject[]
-        variant: string[]
-    }
-    avgScore: number
-    custom_code_eval_id: string
-    resultsData: Record<string, number>
-    createdAt: string
-    revisions: string[]
-    variant_revision_ids: string[]
 }
 
 export interface FuncResponse {
@@ -846,6 +651,7 @@ export interface Evaluator {
     key: string
     settings_presets?: SettingsPreset[]
     settings_template: Record<string, EvaluationSettingsTemplate>
+    outputs_schema?: Record<string, any>
     icon_url?: string | StaticImageData
     color?: string
     direct_use?: boolean
@@ -853,6 +659,77 @@ export interface Evaluator {
     oss?: boolean
     requires_llm_api_keys?: boolean
     tags: string[]
+    archived?: boolean
+}
+
+export interface SimpleEvaluatorData {
+    version?: string
+    uri?: string
+    url?: string
+    headers?: Record<string, string>
+    schemas?: Record<string, any>
+    script?: {content?: string; runtime?: string}
+    parameters?: Record<string, any>
+    service?: Record<string, any>
+    configuration?: Record<string, any>
+}
+
+export interface SimpleEvaluatorFlags {
+    is_custom?: boolean
+    is_evaluator?: boolean
+    is_human?: boolean
+    requires_llm_api_keys?: boolean
+    evaluator_key?: string
+    color?: string
+}
+
+export interface SimpleEvaluator {
+    id: string
+    slug: string
+    name?: string
+    description?: string
+    tags?: string[]
+    meta?: Record<string, any>
+    flags?: SimpleEvaluatorFlags
+    data?: SimpleEvaluatorData
+    created_at?: string
+    updated_at?: string
+    deleted_at?: string | null
+    created_by_id?: string
+    updated_by_id?: string
+    deleted_by_id?: string
+    color?: string
+    icon_url?: string | StaticImageData
+}
+
+export interface SimpleEvaluatorCreate {
+    slug: string
+    name?: string
+    description?: string
+    tags?: string[]
+    meta?: Record<string, any>
+    flags?: SimpleEvaluatorFlags
+    data?: SimpleEvaluatorData
+}
+
+export interface SimpleEvaluatorEdit {
+    id: string
+    name?: string
+    description?: string
+    tags?: string[]
+    meta?: Record<string, any>
+    flags?: SimpleEvaluatorFlags
+    data?: SimpleEvaluatorData
+}
+
+export interface SimpleEvaluatorResponse {
+    count: number
+    evaluator: SimpleEvaluator | null
+}
+
+export interface SimpleEvaluatorsResponse {
+    count: number
+    evaluators: SimpleEvaluator[]
 }
 
 export interface EvaluatorConfig {
@@ -988,6 +865,7 @@ type ValueTypeOptions =
     | "messages"
     | "multiple_choice"
     | "llm_response_schema"
+    | "fields_checkbox_list"
 
 export interface EvaluationSettingsTemplate {
     type: ValueTypeOptions
@@ -1067,6 +945,7 @@ export enum Plan {
     Pro = "cloud_v0_pro",
     Business = "cloud_v0_business",
     Enterprise = "cloud_v0_enterprise",
+    SelfHostedEnterprise = "self_hosted_enterprise",
 }
 
 export interface DeploymentRevisionConfig {

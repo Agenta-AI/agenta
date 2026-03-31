@@ -1,7 +1,7 @@
 ---
 title: "Managing Testsets"
 sidebar_label: "Managing Testsets"
-description: "Learn how to create, list, and retrieve testsets using the Agenta SDK"
+description: "Learn how to create, list, and retrieve testsets using the Agenta SDK or API"
 sidebar_position: 2
 ---
 
@@ -9,7 +9,7 @@ import GoogleColabButton from "@site/src/components/GoogleColabButton";
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-This guide covers how to create, list, and retrieve testsets using the Agenta SDK for evaluation purposes.
+This guide covers how to create, list, and retrieve testsets using the Agenta SDK or REST API.
 
 <GoogleColabButton notebookPath="examples/jupyter/evaluation/testset-management.ipynb">
   Open in Google Colaboratory
@@ -25,6 +25,8 @@ Use `ag.testsets.acreate()` to create a new testset with data:
 ```python
 import agenta as ag
 
+ag.init()
+
 # Create a testset with simple data
 testset = await ag.testsets.acreate(
     data=[
@@ -35,9 +37,33 @@ testset = await ag.testsets.acreate(
     name="Country Capitals",
 )
 
-print(f"Created testset with ID: {testset.id}")
+testset_id = testset.testset_id or testset.id
+print(f"Testset ID: {testset_id}")
+print(f"Revision ID: {testset.id}")
 print(f"Name: {testset.name}")
 print(f"Slug: {testset.slug}")
+```
+
+  </TabItem>
+  <TabItem value="REST API">
+
+```bash
+curl -X POST "https://cloud.agenta.ai/api/preview/simple/testsets/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
+  -d '{
+    "testset": {
+      "name": "Country Capitals",
+      "slug": "country-capitals",
+      "data": {
+        "testcases": [
+          {"data": {"country": "Germany", "capital": "Berlin"}},
+          {"data": {"country": "France", "capital": "Paris"}},
+          {"data": {"country": "Spain", "capital": "Madrid"}}
+        ]
+      }
+    }
+  }'
 ```
 
   </TabItem>
@@ -48,9 +74,11 @@ print(f"Slug: {testset.slug}")
 - `name`: The name of your testset.
 
 **Returns:** A `TestsetRevision` object containing:
-- `id`: The UUID of the created testset
+- `id`: The UUID of the created testset revision
+- `testset_id`: The parent testset UUID (stable across revisions)
 - `name`: The testset name
-- `slug`: The testset slug
+- `slug`: The revision slug
+- `version`: The revision version string (e.g. "1")
 - `data`: The test data (with `testcases` structure)
 
 **Sample Output:**
@@ -76,7 +104,15 @@ The `data` parameter accepts a simple list of dictionaries. The SDK automaticall
 
 ## Upserting a Testset
 
-Use `ag.testsets.aupsert()` to create a new testset or update an existing one if it already exists:
+Use `ag.testsets.aupsert()` to create a testset or replace an existing one with the same name.
+
+The function first searches for a testset matching the provided `name` (or `testset_id` if given). If it finds one, it replaces all testcases with your new data and creates a new revision. If no match exists, it creates a new testset.
+
+Each update creates a new revision while keeping the same `testset_id`. This allows you to track changes over time and reference specific versions of your test data.
+
+:::warning
+Upsert performs a full replacement. All existing testcases are removed and replaced with the data you provide. The operation does not merge or append testcases.
+:::
 
 <Tabs>
   <TabItem value="Python SDK">
@@ -84,32 +120,66 @@ Use `ag.testsets.aupsert()` to create a new testset or update an existing one if
 ```python
 import agenta as ag
 
-# Create or update a testset
+ag.init()
+
+# First call creates a testset with 2 testcases
 testset = await ag.testsets.aupsert(
     name="Country Capitals",
     data=[
         {"country": "Germany", "capital": "Berlin"},
         {"country": "France", "capital": "Paris"},
+    ],
+)
+
+# Second call replaces all testcases with these 3
+# France is removed because it's not in the new data
+testset = await ag.testsets.aupsert(
+    name="Country Capitals",
+    data=[
+        {"country": "Germany", "capital": "Berlin"},
         {"country": "Spain", "capital": "Madrid"},
         {"country": "Italy", "capital": "Rome"},
     ],
 )
+# Result: testset now contains Germany, Spain, Italy (not France)
+```
 
-print(f"Upserted testset with ID: {testset.id}")
+  </TabItem>
+  <TabItem value="REST API">
+
+Use the PUT endpoint with the testset ID to replace all testcases:
+
+```bash
+curl -X PUT "https://cloud.agenta.ai/api/preview/simple/testsets/{testset_id}" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
+  -d '{
+    "testset": {
+      "id": "YOUR_TESTSET_ID",
+      "name": "Country Capitals",
+      "data": {
+        "testcases": [
+          {"data": {"country": "Germany", "capital": "Berlin"}},
+          {"data": {"country": "Spain", "capital": "Madrid"}},
+          {"data": {"country": "Italy", "capital": "Rome"}}
+        ]
+      }
+    }
+  }'
 ```
 
   </TabItem>
 </Tabs>
 
 **Parameters:**
-- `name` (required): The name of your testset. Used to find existing testset.
-- `data` (required): A list of dictionaries containing your test data.
-- `testset_id` (optional): If provided, updates the testset with this specific ID.
+- `name`: The testset name. Used to find an existing testset when `testset_id` is not provided.
+- `data` (required): The testcases that will replace all existing data.
+- `testset_id` (optional): Updates this specific testset directly, skipping the name lookup.
 
-**Returns:** A `TestsetRevision` object with the created or updated testset.
+**Returns:** A `TestsetRevision` object containing the created or updated testset.
 
-:::tip When to use upsert vs create
-Use `aupsert()` when you want to update an existing testset with the same name, or create it if it doesn't exist. This is useful in CI/CD pipelines where you want to keep testsets synchronized. Use `acreate()` when you explicitly want to create a new testset every time.
+:::tip When to use each method
+Use `aupsert()` when you want to keep a testset synchronized with your data source. This works well in CI/CD pipelines where you regenerate test data on each run. Use `acreate()` when you need a new testset every time.
 :::
 
 ## Listing Testsets
@@ -122,12 +192,25 @@ To list all testsets in your project, use `ag.testsets.alist()`:
 ```python
 import agenta as ag
 
+ag.init()
+
 # List all testsets
 testsets = await ag.testsets.alist()
 
 print(f"Found {len(testsets)} testsets:")
 for testset in testsets:
-    print(f"  - {testset.name} (ID: {testset.id})")
+    testset_id = testset.testset_id or testset.id
+    print(f"  - {testset.name} (testset_id: {testset_id})")
+```
+
+  </TabItem>
+  <TabItem value="REST API">
+
+```bash
+curl -X POST "https://cloud.agenta.ai/api/preview/simple/testsets/query" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
+  -d '{}'
 ```
 
   </TabItem>
@@ -135,10 +218,11 @@ for testset in testsets:
 
 **Parameters:** None required.
 
-**Returns:** A list of `TestsetRevision` objects, each containing:
-- `id`: The testset UUID
+**Returns:** A list of `TestsetRevision` objects. For each item:
+- `id`: The latest revision UUID
+- `testset_id`: The parent testset UUID
 - `name`: The testset name
-- `slug`: The testset slug
+- `slug`: The revision slug
 - Additional metadata fields
 
 **Sample Output:**
@@ -158,9 +242,13 @@ for testset in testsets:
 ]
 ```
 
-## Retrieving a Testset by ID
+## Retrieving a Testset
 
-To retrieve a specific testset by its ID, use `ag.testsets.aretrieve()`:
+Use `ag.testsets.aretrieve()` to fetch a testset. You can retrieve either the latest revision or a specific historical revision.
+
+### Retrieving the Latest Revision
+
+Pass the `testset_id` to get the most recent version of a testset:
 
 <Tabs>
   <TabItem value="Python SDK">
@@ -168,60 +256,88 @@ To retrieve a specific testset by its ID, use `ag.testsets.aretrieve()`:
 ```python
 import agenta as ag
 
-# Retrieve a specific testset (using the testset_id from creation)
+ag.init()
+
+# Retrieve the latest revision
 testset = await ag.testsets.aretrieve(testset_id=testset_id)
 
 if testset:
-    print(f"Retrieved testset: {testset.id}")
-    print(f"Testcases count: {len(testset.data.testcases) if testset.data and testset.data.testcases else 0}")
-else:
-    print("Testset not found")
+    print(f"Testcases: {len(testset.data.testcases)}")
+```
+
+  </TabItem>
+  <TabItem value="REST API">
+
+```bash
+curl -X GET "https://cloud.agenta.ai/api/preview/simple/testsets/{testset_id}" \
+  -H "Authorization: ApiKey YOUR_API_KEY"
+```
+
+  </TabItem>
+</Tabs>
+
+### Retrieving a Specific Revision
+
+Pass the `testset_revision_id` to get an exact historical version. This is useful when you need to reproduce an evaluation or compare different versions of your test data.
+
+<Tabs>
+  <TabItem value="Python SDK">
+
+```python
+import agenta as ag
+
+ag.init()
+
+# Retrieve a specific revision
+testset = await ag.testsets.aretrieve(testset_revision_id=revision_id)
+
+if testset:
+    print(f"Version: {testset.version}")
+    print(f"Testcases: {len(testset.data.testcases)}")
+```
+
+  </TabItem>
+  <TabItem value="REST API">
+
+```bash
+curl -X POST "https://cloud.agenta.ai/api/preview/testsets/revisions/retrieve" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
+  -d '{
+    "testset_revision_ref": {
+      "id": "YOUR_REVISION_ID"
+    }
+  }'
 ```
 
   </TabItem>
 </Tabs>
 
 **Parameters:**
-- `testset_id`: The UUID of the testset to retrieve
+- `testset_id`: Retrieves the latest revision of this testset.
+- `testset_revision_id`: Retrieves this exact revision.
 
-**Returns:** A `TestsetRevision` object (or `None` if not found) containing:
-- `id`: The testset revision UUID
-- `testset_id`: The parent testset UUID
-- `slug`: The revision slug
+**Returns:** A `TestsetRevision` object containing:
+- `id`: The revision UUID
+- `testset_id`: The parent testset UUID (stable across revisions)
 - `version`: The revision version number
-- `data`: The `TestsetRevisionData` with all testcases
-
-**Sample Output:**
-
-```python
-{
-    "id": "01963413-3d39-7650-80ce-3ad5d688da6c",
-    "testset_id": "01963413-3d39-7650-80ce-3ad5d688da6c",
-    "slug": "3ad5d688da6c",
-    "version": "1",
-    "data": {
-        "testcases": [
-            {"data": {"country": "Germany", "capital": "Berlin"}},
-            {"data": {"country": "France", "capital": "Paris"}},
-            {"data": {"country": "Spain", "capital": "Madrid"}}
-        ]
-    }
-}
-```
+- `data`: The testcases for this revision
 
 :::info
-Currently using the legacy testset API. When retrieving a testset, the function returns a `TestsetRevision` object with version "1". In the future, this will support the new versioning system where each update creates a new revision.
+Each update creates a new revision. The `testset_id` stays the same, but the `revision_id` changes. Store revision IDs when you need to reference exact versions later (for example, when logging which test data was used in an evaluation).
 :::
 
 ## Retrieving a Testset by Name
 
-While there's no dedicated function for this, you can easily find a testset by name by filtering the results from `ag.testsets.alist()`:
+You can find a testset by name by filtering the results from the query endpoint:
 
 <Tabs>
   <TabItem value="Python SDK">
 
 ```python
 import agenta as ag
+
+ag.init()
 
 async def get_testset_by_name(name: str):
     """Helper function to find a testset by name."""
@@ -240,9 +356,24 @@ async def get_testset_by_name(name: str):
 testset = await get_testset_by_name("Country Capitals")
 
 if testset:
-    print(f"Found testset: {testset.name} with ID: {testset.id}")
+    testset_id = testset.testset_id or testset.id
+    print(f"Found testset: {testset.name} (testset_id: {testset_id}, revision_id: {testset.id})")
 else:
     print("Testset not found")
+```
+
+  </TabItem>
+  <TabItem value="REST API">
+
+```bash
+curl -X POST "https://cloud.agenta.ai/api/preview/simple/testsets/query" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
+  -d '{
+    "testset": {
+      "name": "Country Capitals"
+    }
+  }'
 ```
 
   </TabItem>
@@ -262,6 +393,8 @@ Once you have a testset, you can access the testcases within it:
 ```python
 import agenta as ag
 
+ag.init()
+
 # Retrieve a testset
 testset = await ag.testsets.aretrieve(testset_id=testset_id)
 
@@ -270,6 +403,32 @@ if testset and testset.data and testset.data.testcases:
     for testcase in testset.data.testcases:
         print(f"Testcase: {testcase.data}")
         # Use testcase.data in your evaluation
+```
+
+  </TabItem>
+  <TabItem value="REST API">
+
+When you retrieve a testset via the API, the response includes the testcases in the `data.testcases` array:
+
+```json
+{
+  "testset": {
+    "id": "01963413-3d39-7650-80ce-3ad5d688da6c",
+    "name": "Country Capitals",
+    "data": {
+      "testcases": [
+        {
+          "id": "bf2de79d-bcd0-569e-92aa-735bbdd0b447",
+          "data": {"country": "Germany", "capital": "Berlin"}
+        },
+        {
+          "id": "f54345c8-939c-5d03-9950-b62b876b10bd",
+          "data": {"country": "France", "capital": "Paris"}
+        }
+      ]
+    }
+  }
+}
 ```
 
   </TabItem>

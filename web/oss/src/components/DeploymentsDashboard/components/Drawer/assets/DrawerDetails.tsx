@@ -1,3 +1,6 @@
+import {useMemo} from "react"
+
+import {variantsListQueryStateAtomFamily} from "@agenta/entities/legacyAppRevision"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -11,7 +14,6 @@ import {
 import {useAppId} from "@/oss/hooks/useAppId"
 import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import {JSSTheme} from "@/oss/lib/Types"
-import {variantsLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import VariantDetailsRenderer from "../../../assets/VariantDetailsRenderer"
 
@@ -38,7 +40,9 @@ const DrawerDetails = ({revisionId}: DrawerDetailsProps) => {
     const appId = useAppId()
     const revisions = useAtomValue(filteredDeploymentRevisionsAtom) || []
     const selectedRevisionRow = useAtomValue(selectedRevisionRowAtom)
-    const variantsLoading = useAtomValue(variantsLoadingAtom)
+    const variantsLoading = useAtomValue(
+        useMemo(() => variantsListQueryStateAtomFamily(appId || ""), [appId]),
+    ).isPending
     const effectiveId =
         revisionId ||
         selectedRevisionRow?.deployed_app_variant_revision ||

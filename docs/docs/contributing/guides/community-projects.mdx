@@ -1,0 +1,106 @@
+---
+title: "Community Projects"
+description: "How Agenta tracks deployment-focused community projects and how to contribute to them"
+sidebar_position: 5
+---
+
+If you want to help Agenta run well in more environments, community projects are the place to contribute.
+
+Community projects give deployment work a clear home. They help contributors understand:
+
+- which setup or environment the work is about
+- who is expected to maintain it
+- what level of support users should expect
+
+## Where Contributors Can Help Today
+
+The source of truth for the current matrix lives in the table below and in `.github/.labels.yml` in the repository.
+
+Use the official OSS quick start as the reference deployment surface. Community projects extend Agenta to additional environments beyond that baseline.
+
+| Surface | Role | Support expectation | Start here |
+| --- | --- | --- | --- |
+| Local OSS with Docker Compose | Official baseline and reference point for new deployment work | `support/official` | [Quick Start](/self-host/quick-start) |
+| Railway OSS | Current community-managed deployment surface for Agenta OSS | `support/experimental` | [Deploy on Railway](/self-host/guides/deploy-on-railway) |
+
+## How To Contribute
+
+1. Pick a tracked deployment surface and read the matching guide before changing scripts or docs.
+2. Use the label families in the appendix to find the right GitHub issues and discussions for that setup.
+3. When you improve a tracked surface, update the docs, scripts, and ownership or support metadata together.
+4. If you want to propose a new deployment surface, open an issue or discussion first and describe the provider, platform, runtime, OLAP backend, maintenance owner, and support level.
+
+## When A Deployment Surface Becomes A Community Project
+
+Update these items in the same change:
+
+- `.github/.labels.yml`
+- `CODEOWNERS`
+- the relevant setup docs and README files
+
+## Appendix: Label Taxonomy
+
+Each tracked deployment surface is described with a small set of dimensions:
+
+| Dimension | Label family | Meaning |
+| --- | --- | --- |
+| Provider | `provider/*` | Who provides the infrastructure or hosting environment |
+| Platform | `platform/*` | The deployment target or environment shape |
+| Runtime | `runtime/*` | How Agenta is run or orchestrated |
+| OLAP | `olap/*` | The storage or analytics backend classification used by the setup |
+| Maintenance | `maintenance/*` | Who is expected to keep the setup working |
+| Support | `support/*` | The level of promise made to users |
+
+Use `maintenance/*` to understand who is expected to fix and update a setup. Use `support/*` to understand whether a deployment surface is official or best-effort.
+
+## Provider Labels
+
+| Label | Issues | Discussions |
+| --- | --- | --- |
+| `provider/local` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22provider%2Flocal%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22provider%2Flocal%22) |
+| `provider/railway` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22provider%2Frailway%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22provider%2Frailway%22) |
+| `provider/hetzner` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22provider%2Fhetzner%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22provider%2Fhetzner%22) |
+| `provider/aws` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22provider%2Faws%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22provider%2Faws%22) |
+| `provider/azure` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22provider%2Fazure%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22provider%2Fazure%22) |
+| `provider/gcp` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22provider%2Fgcp%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22provider%2Fgcp%22) |
+
+## Platform Labels
+
+| Label | Issues | Discussions |
+| --- | --- | --- |
+| `platform/local` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22platform%2Flocal%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22platform%2Flocal%22) |
+| `platform/vps` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22platform%2Fvps%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22platform%2Fvps%22) |
+| `platform/k3s` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22platform%2Fk3s%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22platform%2Fk3s%22) |
+| `platform/eks` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22platform%2Feks%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22platform%2Feks%22) |
+| `platform/aks` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22platform%2Faks%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22platform%2Faks%22) |
+| `platform/gke` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22platform%2Fgke%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22platform%2Fgke%22) |
+
+## Runtime Labels
+
+| Label | Issues | Discussions |
+| --- | --- | --- |
+| `runtime/docker-compose` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22runtime%2Fdocker-compose%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22runtime%2Fdocker-compose%22) |
+| `runtime/kubernetes` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22runtime%2Fkubernetes%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22runtime%2Fkubernetes%22) |
+
+## OLAP Labels
+
+| Label | Issues | Discussions |
+| --- | --- | --- |
+| `olap/local` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22olap%2Flocal%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22olap%2Flocal%22) |
+| `olap/postgres` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22olap%2Fpostgres%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22olap%2Fpostgres%22) |
+| `olap/clickhouse` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22olap%2Fclickhouse%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22olap%2Fclickhouse%22) |
+| `olap/tigerdata` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22olap%2Ftigerdata%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22olap%2Ftigerdata%22) |
+
+## Maintenance Labels
+
+| Label | Issues | Discussions |
+| --- | --- | --- |
+| `maintenance/internal` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22maintenance%2Finternal%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22maintenance%2Finternal%22) |
+| `maintenance/community` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22maintenance%2Fcommunity%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22maintenance%2Fcommunity%22) |
+
+## Support Labels
+
+| Label | Issues | Discussions |
+| --- | --- | --- |
+| `support/official` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22support%2Fofficial%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22support%2Fofficial%22) |
+| `support/experimental` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22support%2Fexperimental%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22support%2Fexperimental%22) |

@@ -24,7 +24,8 @@ export const buildBreadcrumbSegments = ({
     projectIsPending,
 }: BreadcrumbContext): BreadcrumbAtom => {
     const items: BreadcrumbAtom = {}
-    const segments = uriPath.split("?")[0].split("/").filter(Boolean)
+    // Remove query params and hash from path before splitting into segments
+    const segments = uriPath.split("?")[0].split("#")[0].split("/").filter(Boolean)
     const appSlugIndex = segments.indexOf("apps")
 
     const wsIndex = segments.indexOf("w")

@@ -1,8 +1,11 @@
 from typing import Any, Type, Optional, Union
-from json import dumps, loads
 from random import random
 from asyncio import sleep
+from uuid import uuid4
 
+import orjson
+
+# from cachetools import TTLCache
 from redis.asyncio import Redis
 from pydantic import BaseModel
 
@@ -11,8 +14,9 @@ from oss.src.utils.env import env
 
 log = get_module_logger(__name__)
 
-AGENTA_CACHE_DB = 1
-AGENTA_CACHE_TTL = 5 * 60  # 5 minutes
+AGENTA_LOCK_TTL = 15  # 15 seconds
+AGENTA_CACHE_TTL = 5 * 60  # 5 minutes (Layer 2) [L2]
+AGENTA_CACHE_LOCAL_TTL = 15  # 15 seconds for local in-memory cache (Layer 1) [L1]
 
 AGENTA_CACHE_BACKOFF_BASE = 50  # Base backoff delay in milliseconds
 AGENTA_CACHE_ATTEMPTS_MAX = 4  # Maximum number of attempts to retry cache retrieval
@@ -22,17 +26,47 @@ AGENTA_CACHE_LOCK_TTL = 1  # TTL for cache locks
 
 AGENTA_CACHE_SCAN_BATCH_SIZE = 500
 AGENTA_CACHE_DELETE_BATCH_SIZE = 1000
+AGENTA_LOCK_SOCKET_TIMEOUT = 2.0  # Locks should be more reliable than cache lookups
 
 CACHE_DEBUG = False
 CACHE_DEBUG_VALUE = False
 
-r = Redis(
-    host=env.REDIS_CACHE_HOST,
-    port=env.REDIS_CACHE_PORT,
-    db=AGENTA_CACHE_DB,
-    decode_responses=True,
+# Redis is the only active cache layer.
+# L1 in-process caching is disabled because it can serve stale data across
+# gunicorn workers after mutations invalidate Redis from a different process.
+#
+# Original L1 cache:
+# local_cache: TTLCache = TTLCache(maxsize=4096, ttl=AGENTA_CACHE_LOCAL_TTL)
+
+# Use volatile Redis instance for caching (prefix-based separation)
+# decode_responses=False: orjson operates on bytes for 3x performance vs json
+r = Redis.from_url(
+    url=env.redis.uri_volatile,
+    decode_responses=False,
     socket_timeout=0.5,  # read/write timeout
 )
+
+# Dedicated Redis client for distributed locks with a longer timeout.
+r_lock = Redis.from_url(
+    url=env.redis.uri_volatile,
+    decode_responses=False,
+    socket_timeout=AGENTA_LOCK_SOCKET_TIMEOUT,
+)
+
+# Ownership-safe lock scripts. Owner token must match to renew/release.
+_LOCK_RENEW_IF_OWNER_SCRIPT = """
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+    return redis.call("EXPIRE", KEYS[1], tonumber(ARGV[2]))
+end
+return 0
+"""
+
+_LOCK_RELEASE_IF_OWNER_SCRIPT = """
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+    return redis.call("DEL", KEYS[1])
+end
+return 0
+"""
 
 
 # HELPERS ----------------------------------------------------------------------
@@ -70,7 +104,7 @@ def _pack(
     else:
         raise TypeError("Cache key must be str or dict")
 
-    return f"p:{project_id}:u:{user_id}:{namespace}:{key}"
+    return f"cache:p:{project_id}:u:{user_id}:{namespace}:{key}"
 
 
 async def _scan(pattern: str) -> list[str]:
@@ -93,35 +127,37 @@ async def _scan(pattern: str) -> list[str]:
         return keys
 
     except Exception as e:
-        log.warn(f"Error scanning keys with pattern {pattern}: {e}")
+        log.error(f"[cache] SCAN ERROR: pattern={pattern} error={e}", exc_info=True)
 
         return []
 
 
 def _serialize(
     value: Any,
-) -> str:
+) -> bytes:
     if value is None:
-        return "__NULL__"
+        return b"__NULL__"
 
     if isinstance(value, BaseModel):
-        return dumps(value.model_dump(mode="json", exclude_none=True))
+        return orjson.dumps(value.model_dump(mode="json", exclude_none=True))
 
     elif isinstance(value, list) and all(isinstance(v, BaseModel) for v in value):
-        return dumps([v.model_dump(mode="json", exclude_none=True) for v in value])
+        return orjson.dumps(
+            [v.model_dump(mode="json", exclude_none=True) for v in value]
+        )
 
-    return dumps(value)
+    return orjson.dumps(value)
 
 
 def _deserialize(
-    raw: str,
+    raw: bytes,
     model: Optional[Type[BaseModel]] = None,
     is_list: bool = False,
 ) -> Any:
-    if raw == "__NULL__":
+    if raw == b"__NULL__":
         return None
 
-    data = loads(raw)
+    data = orjson.loads(raw)
 
     if not model:
         return data
@@ -153,16 +189,32 @@ async def _try_get_and_maybe_renew(
 ) -> Optional[Any]:
     data = None
 
+    # Layer 1 is intentionally disabled.
+    #
+    # Original L1 read path:
+    # if cache_name in local_cache:
+    #     raw = local_cache[cache_name]
+    #     if CACHE_DEBUG:
+    #         log.debug(
+    #             "[cache] L1-HIT",
+    #             name=cache_name,
+    #             value=raw if CACHE_DEBUG_VALUE else "***",
+    #         )
+    #     return _deserialize(raw, model=model, is_list=is_list)
+
+    # Layer 2: Check Redis (distributed, 5min TTL, ~1ms latency)
     raw = await r.get(cache_name)
 
-    if raw:
+    if raw is not None:
         if CACHE_DEBUG:
             log.debug(
-                "[cache] HIT  ",
+                "[cache] L2-HIT",
                 name=cache_name,
-                value=data if CACHE_DEBUG_VALUE else "***",
+                value=raw if CACHE_DEBUG_VALUE else "***",
             )
 
+        # Original L1 backfill path:
+        # local_cache[cache_name] = raw
         data = _deserialize(raw, model=model, is_list=is_list)
 
         if ttl is not None and ttl > 0:
@@ -293,6 +345,10 @@ async def set_cache(
     value: Optional[Any] = None,
     ttl: Optional[int] = AGENTA_CACHE_TTL,
 ) -> Optional[bool]:
+    # Noop if caching is disabled
+    if not env.redis.cache_enabled:
+        return None
+
     try:
         cache_name = _pack(
             namespace=namespace,
@@ -300,16 +356,22 @@ async def set_cache(
             project_id=project_id,
             user_id=user_id,
         )
-        cache_value = _serialize(value)
+        cache_value: bytes = _serialize(value)
         cache_px = int(ttl * 1000)
 
+        # Write to Redis only.
+        #
+        # Original L1 write path:
+        # local_cache[cache_name] = cache_value
         await r.set(cache_name, cache_value, px=cache_px)
 
         if CACHE_DEBUG:
             log.debug(
                 "[cache] SAVE ",
                 name=cache_name,
-                value=cache_value if CACHE_DEBUG_VALUE else "***",
+                value=cache_value.decode("utf-8", errors="ignore")
+                if CACHE_DEBUG_VALUE
+                else "***",
             )
 
         lock_name = f"lock::{cache_name}"
@@ -357,6 +419,10 @@ async def get_cache(
     jitter: Optional[float] = AGENTA_CACHE_JITTER_SPREAD,
     leakage: Optional[float] = AGENTA_CACHE_LEAKAGE_PROBABILITY,
 ) -> Optional[Any]:
+    # Noop if caching is disabled - always return cache miss
+    if not env.redis.cache_enabled:
+        return None
+
     try:
         cache_name = _pack(
             namespace=namespace,
@@ -412,6 +478,10 @@ async def invalidate_cache(
     project_id: Optional[str] = None,
     user_id: Optional[str] = None,
 ) -> Optional[bool]:
+    # Noop if caching is disabled
+    if not env.redis.cache_enabled:
+        return None
+
     try:
         cache_name = None
 
@@ -423,6 +493,10 @@ async def invalidate_cache(
                 user_id=user_id,
             )
 
+            # Clear from Redis.
+            #
+            # Original L1 invalidation path:
+            # local_cache.pop(cache_name, None)
             await r.delete(cache_name)
 
         else:
@@ -435,8 +509,50 @@ async def invalidate_cache(
 
             keys = await _scan(cache_name)
 
+            if CACHE_DEBUG:
+                log.debug(
+                    f"[cache] INVALIDATE pattern={cache_name} redis_keys_found={len(keys)}"
+                )
+
+            # Original L1 pattern invalidation path:
+            # parts = cache_name.split(":")
+            # concrete_parts = []
+            # for part in parts:
+            #     if "*" in part:
+            #         break
+            #     concrete_parts.append(part)
+            # local_prefix = ":".join(concrete_parts) + ":" if concrete_parts else ""
+            # local_keys_deleted = 0
+            #
+            # if CACHE_DEBUG:
+            #     log.debug(f"[cache] INVALIDATE local_prefix={local_prefix}")
+            #     log.debug(f"[cache] INVALIDATE local_cache has {len(local_cache)} keys")
+            #     for lk in list(local_cache.keys()):
+            #         log.debug(f"[cache] INVALIDATE local_cache_key={lk}")
+            #
+            # for local_key in list(local_cache.keys()):
+            #     if local_key.startswith(local_prefix):
+            #         local_cache.pop(local_key, None)
+            #         local_keys_deleted += 1
+            #         if CACHE_DEBUG:
+            #             log.debug(f"[cache] INVALIDATE deleted local_key={local_key}")
+            #
+            # if CACHE_DEBUG:
+            #     log.debug(f"[cache] INVALIDATE local_keys_deleted={local_keys_deleted}")
+
+            # Clear from Redis
+            redis_keys_deleted = 0
             for i in range(0, len(keys), AGENTA_CACHE_DELETE_BATCH_SIZE):
-                await r.delete(*keys[i : i + AGENTA_CACHE_DELETE_BATCH_SIZE])
+                batch = keys[i : i + AGENTA_CACHE_DELETE_BATCH_SIZE]
+                deleted_count = await r.delete(*batch)
+                redis_keys_deleted += deleted_count
+
+                if CACHE_DEBUG:
+                    for key in batch:
+                        log.debug(f"[cache] INVALIDATE redis_key={key}")
+
+            if CACHE_DEBUG:
+                log.debug(f"[cache] INVALIDATE redis_keys_deleted={redis_keys_deleted}")
 
         if CACHE_DEBUG:
             log.debug(
@@ -457,3 +573,220 @@ async def invalidate_cache(
         log.warn(e)
 
         return None
+
+
+async def acquire_lock(
+    namespace: str,
+    key: Optional[Union[str, dict]] = None,
+    project_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    ttl: int = AGENTA_LOCK_TTL,
+    strict: bool = False,
+) -> Optional[str]:
+    """Acquire a distributed lock using Redis SET NX (atomic check-and-set).
+
+    This prevents race conditions in distributed systems by ensuring only one
+    process can acquire the lock at a time.
+
+    Args:
+        namespace: Lock namespace (e.g., "account-creation", "task-processing")
+        key: Unique identifier for the lock (e.g., email, user_id, task_id)
+        project_id: Optional project scope
+        user_id: Optional user scope
+        ttl: Lock expiration time in seconds (default: 10). Auto-releases after TTL.
+        strict: If True, re-raise Redis errors instead of returning None.
+
+    Returns:
+        Lock owner token if lock was acquired, None if lock is already held by another process.
+
+    Example:
+        lock_owner = await acquire_lock(namespace="account-creation", key=email, ttl=10)
+        if not lock_owner:
+            # Another process has the lock
+            return
+
+        try:
+            # Do work while holding the lock
+            await create_account(email)
+        finally:
+            # Always release the lock
+            await release_lock(
+                namespace="account-creation",
+                key=email,
+                owner=lock_owner,
+            )
+    """
+    try:
+        lock_key = _pack(
+            namespace=f"lock:{namespace}",
+            key=key,
+            project_id=project_id,
+            user_id=user_id,
+        )
+        lock_owner = uuid4().hex
+
+        # Atomic SET NX: Returns True if lock acquired, False if already held
+        acquired = await r_lock.set(lock_key, lock_owner, nx=True, ex=ttl)
+
+        if acquired:
+            if CACHE_DEBUG:
+                log.debug(
+                    "[lock] ACQUIRED",
+                    key=lock_key,
+                    ttl=ttl,
+                )
+            return lock_owner
+        else:
+            if CACHE_DEBUG:
+                log.debug(
+                    "[lock] BLOCKED",
+                    key=lock_key,
+                )
+            return None
+
+    except Exception as e:
+        log.error(
+            f"[lock] ACQUIRE ERROR: namespace={namespace} key={key} error={e}",
+            exc_info=True,
+        )
+        if strict:
+            raise
+        return None
+
+
+async def renew_lock(
+    namespace: str,
+    key: Optional[Union[str, dict]] = None,
+    project_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    ttl: int = AGENTA_LOCK_TTL,
+    owner: Optional[str] = None,
+) -> bool:
+    """Renew (extend) the TTL of an existing distributed lock.
+
+    Use this to prevent lock expiration during long-running operations.
+    Only succeeds if the lock key still exists in Redis. If an owner token is
+    provided, renewal only succeeds when ownership matches.
+
+    Args:
+        namespace: Lock namespace (same as used in acquire_lock)
+        key: Lock key (same as used in acquire_lock)
+        project_id: Optional project ID (same as used in acquire_lock)
+        user_id: Optional user ID (same as used in acquire_lock)
+        ttl: New expiration time in seconds
+        owner: Optional owner token returned by acquire_lock
+
+    Returns:
+        True if lock was renewed, False if lock has already expired or on error
+    """
+    try:
+        lock_key = _pack(
+            namespace=f"lock:{namespace}",
+            key=key,
+            project_id=project_id,
+            user_id=user_id,
+        )
+
+        if owner:
+            renewed = await r_lock.eval(
+                _LOCK_RENEW_IF_OWNER_SCRIPT,
+                1,
+                lock_key,
+                owner,
+                str(ttl),
+            )
+        else:
+            renewed = await r_lock.expire(lock_key, ttl)
+
+        if renewed:
+            if CACHE_DEBUG:
+                log.debug(
+                    "[lock] RENEWED",
+                    key=lock_key,
+                    ttl=ttl,
+                )
+            return True
+        else:
+            log.warn(
+                f"[lock] RENEW FAILED (expired or lost ownership): namespace={namespace} key={key}"
+            )
+            return False
+
+    except Exception as e:
+        log.error(
+            f"[lock] RENEW ERROR: namespace={namespace} key={key} error={e}",
+            exc_info=True,
+        )
+        return False
+
+
+async def release_lock(
+    namespace: str,
+    key: Optional[Union[str, dict]] = None,
+    project_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    owner: Optional[str] = None,
+    strict: bool = False,
+) -> bool:
+    """Release a distributed lock acquired with acquire_lock().
+
+    Args:
+        namespace: Lock namespace (same as used in acquire_lock)
+        key: Lock key (same as used in acquire_lock)
+        project_id: Optional project ID (same as used in acquire_lock)
+        user_id: Optional user ID (same as used in acquire_lock)
+        owner: Optional owner token returned by acquire_lock
+        strict: If True, re-raise Redis errors instead of returning False.
+
+    Returns:
+        True if lock was released, False if already expired.
+
+    Example:
+        lock_acquired = await acquire_lock(namespace="account-creation", key=email)
+        if lock_acquired:
+            try:
+                # ... critical section ...
+            finally:
+                await release_lock(namespace="account-creation", key=email)
+    """
+    try:
+        lock_key = _pack(
+            namespace=f"lock:{namespace}",
+            key=key,
+            project_id=project_id,
+            user_id=user_id,
+        )
+
+        if owner:
+            deleted = await r_lock.eval(
+                _LOCK_RELEASE_IF_OWNER_SCRIPT,
+                1,
+                lock_key,
+                owner,
+            )
+        else:
+            deleted = await r_lock.delete(lock_key)
+
+        if deleted:
+            if CACHE_DEBUG:
+                log.debug(
+                    "[lock] RELEASED",
+                    key=lock_key,
+                )
+            return True
+        else:
+            if CACHE_DEBUG:
+                log.debug(
+                    "[lock] ALREADY EXPIRED OR OWNED BY ANOTHER WORKER",
+                    key=lock_key,
+                )
+            return False
+
+    except Exception as e:
+        log.error(
+            f"[lock] RELEASE ERROR: namespace={namespace} key={key} error={e}",
+            exc_info=True,
+        )
+        if strict:
+            raise
+        return False

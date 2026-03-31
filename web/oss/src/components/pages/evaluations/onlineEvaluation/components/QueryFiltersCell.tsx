@@ -1,13 +1,15 @@
 import React, {useEffect, useMemo, useState} from "react"
 
 import {Skeleton} from "antd"
+
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 
-import FiltersPreview from "./FiltersPreview"
 import {
     retrieveQueryRevision,
     type QueryFilteringPayload,
 } from "../../../../../services/onlineEvaluations/api"
+
+import FiltersPreview from "./FiltersPreview"
 
 type RowRecord = any
 

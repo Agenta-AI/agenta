@@ -1,10 +1,10 @@
+import dayjs from "dayjs"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
-import {TraceSpanNode} from "@/oss/services/tracing/types/index"
-import dayjs from "dayjs"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
+import {TraceSpanNode} from "@/oss/services/tracing/types/index"
 
 // Metric extraction helpers ----------------------------------------------------
 const getTokenMetrics = (span?: TraceSpanNode) => span?.attributes?.ag?.metrics?.tokens ?? null

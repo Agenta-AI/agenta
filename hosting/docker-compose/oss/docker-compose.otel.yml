@@ -1,11 +1,15 @@
 services:
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib
-    volumes:
-      - ./otel-collector-config.yml:/etc/otelcol-contrib/config.yaml
-    environment:
-      - AGENTA_OTLP_ENDPOINT=${AGENTA_OTLP_ENDPOINT}
-      - AGENTA_API_KEY=${AGENTA_API_KEY}
-    ports:
-      - "4317:4317" # OTLP gRPC receiver
-      - "4318:4318" # OTLP HTTP receiver
+    otel-collector:
+        # === IMAGE ================================================ #
+        image: otel/opentelemetry-collector-contrib
+        # === STORAGE ============================================== #
+        volumes:
+            - ./otel-collector-config.yml:/etc/otelcol-contrib/config.yaml
+        # === CONFIGURATION ======================================== #
+        environment:
+            - AGENTA_OTLP_ENDPOINT=${AGENTA_OTLP_ENDPOINT}
+            - AGENTA_API_KEY=${AGENTA_API_KEY}
+        # === NETWORK ============================================== #
+        ports:
+            - "4317:4317" # OTLP gRPC receiver
+            - "4318:4318" # OTLP HTTP receiver

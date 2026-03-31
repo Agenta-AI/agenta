@@ -1,7 +1,6 @@
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any
 from uuid import UUID, uuid4
 
-from fastapi import Request
 from genson import SchemaBuilder
 
 from oss.src.utils.logging import get_module_logger
@@ -18,31 +17,25 @@ from oss.src.core.shared.dtos import (
     Windowing,
 )
 from oss.src.core.tracing.dtos import (
-    Focus,
-    Format,
-    TracingQuery,
-    Formatting,
-    Condition,
-    Filtering,
-    OTelReference,
-    OTelLink,
-    LogicalOperator,
-    ComparisonOperator,
-    ListOperator,
+    OTelFlatSpan,
     TraceType,
     SpanType,
 )
+from oss.src.core.tracing.service import TracingService
 from oss.src.core.evaluators.dtos import (
+    SimpleEvaluatorCreate,
     SimpleEvaluatorFlags,
-    SimpleEvaluatorQueryFlags,
-    #
     SimpleEvaluatorData,
 )
-
-
-from oss.src.core.tracing.utils import (
-    parse_into_attributes,
-    parse_from_attributes,
+from oss.src.core.tracing.utils.traces import (
+    build_otel_links,
+    build_simple_trace_attributes,
+    build_simple_trace_query,
+    first_link,
+    parse_simple_trace,
+)
+from oss.src.core.tracing.dtos import (
+    SimpleTraceReferences,
 )
 from oss.src.core.annotations.types import (
     AnnotationOrigin,
@@ -59,14 +52,6 @@ from oss.src.core.annotations.types import (
     AnnotationQuery,
 )
 
-from oss.src.apis.fastapi.tracing.router import TracingRouter
-from oss.src.apis.fastapi.tracing.models import (
-    OTelFlatSpan,
-    OTelTracingRequest,
-    OTelTracingResponse,
-)
-from oss.src.apis.fastapi.evaluators.models import SimpleEvaluatorCreate
-
 from oss.src.core.annotations.utils import validate_data_against_schema
 
 
@@ -79,15 +64,16 @@ class AnnotationsService:
         *,
         evaluators_service: EvaluatorsService,
         simple_evaluators_service: SimpleEvaluatorsService,
-        tracing_router: TracingRouter,
+        tracing_service: TracingService,
     ):
         self.evaluators_service = evaluators_service
         self.simple_evaluators_service = simple_evaluators_service
-        self.tracing_router = tracing_router
+        self.tracing_service = tracing_service
 
     async def create(
         self,
         *,
+        organization_id: UUID,
         project_id: UUID,
         user_id: UUID,
         #
@@ -211,6 +197,7 @@ class AnnotationsService:
         )
 
         annotation_link = await self._create_annotation(
+            organization_id=organization_id,
             project_id=project_id,
             user_id=user_id,
             #
@@ -231,6 +218,7 @@ class AnnotationsService:
 
         annotation = await self._fetch_annotation(
             project_id=project_id,
+            user_id=user_id,
             #
             annotation_link=annotation_link,
         )
@@ -241,6 +229,7 @@ class AnnotationsService:
         self,
         *,
         project_id: UUID,
+        user_id: Optional[UUID] = None,
         #
         trace_id: str,
         span_id: Optional[str] = None,
@@ -252,6 +241,7 @@ class AnnotationsService:
 
         annotation: Optional[Annotation] = await self._fetch_annotation(
             project_id=project_id,
+            user_id=user_id,
             #
             annotation_link=annotation_link,
         )
@@ -260,6 +250,7 @@ class AnnotationsService:
     async def edit(
         self,
         *,
+        organization_id: UUID,
         project_id: UUID,
         user_id: UUID,
         #
@@ -275,6 +266,7 @@ class AnnotationsService:
 
         annotation: Optional[Annotation] = await self._fetch_annotation(
             project_id=project_id,
+            user_id=user_id,
             #
             annotation_link=annotation_link,
         )
@@ -389,11 +381,8 @@ class AnnotationsService:
             is_evaluation=annotation.kind == AnnotationKind.EVAL,
         )
 
-        annotation_references = AnnotationReferences(
-            **annotation.references.model_dump(),
-        )
-
         annotation_link = await self._edit_annotation(
+            organization_id=organization_id,
             project_id=project_id,
             user_id=user_id,
             #
@@ -405,8 +394,8 @@ class AnnotationsService:
             #
             data=annotation_edit.data,
             #
-            references=annotation_references,
-            links=annotation.links,
+            references=annotation_edit.references,
+            links=annotation_edit.links,
         )
 
         if annotation_link is None:
@@ -414,6 +403,7 @@ class AnnotationsService:
 
         annotation = await self._fetch_annotation(
             project_id=project_id,
+            user_id=user_id,
             #
             annotation_link=annotation_link,
         )
@@ -447,6 +437,7 @@ class AnnotationsService:
         self,
         *,
         project_id: UUID,
+        user_id: Optional[UUID] = None,
         #
         annotation_query: Optional[AnnotationQuery] = None,
         #
@@ -474,18 +465,13 @@ class AnnotationsService:
         annotation_tags = annotation.tags if annotation else None
         annotation_meta = annotation.meta if annotation else None
 
-        annotation_references = (
-            AnnotationReferences(
-                **annotation.references.model_dump(),
-            )
-            if annotation and annotation.references
-            else None
-        )
+        annotation_references = annotation.references if annotation else None
 
         _annotation_links = annotation.links if annotation else None
 
         annotations = await self._query_annotation(
             project_id=project_id,
+            user_id=user_id,
             #
             flags=annotation_flags,
             tags=annotation_tags,
@@ -505,6 +491,7 @@ class AnnotationsService:
     async def _create_annotation(
         self,
         *,
+        organization_id: UUID,
         project_id: UUID,
         user_id: UUID,
         #
@@ -532,39 +519,12 @@ class AnnotationsService:
             exclude_unset=True,
         )
 
-        if isinstance(links, dict):
-            _links = [
-                OTelLink(
-                    trace_id=link.trace_id,
-                    span_id=link.span_id,
-                    attributes={"key": key},  # type: ignore
-                )
-                for key, link in links.items()
-                if link.trace_id and link.span_id
-            ]
-        elif isinstance(links, list):
-            _links = [
-                OTelLink(
-                    trace_id=link.trace_id,
-                    span_id=link.span_id,
-                    attributes={"key": "key"},  # type: ignore
-                )
-                for link in links
-                if link.trace_id and link.span_id
-            ]
-
-        else:
-            _links = None
+        _links = build_otel_links(links)
 
         _flags = flags.model_dump(mode="json", exclude_none=True)
 
-        _type = {
-            "trace": "annotation",
-            "span": "task",
-        }
-
-        _attributes = parse_into_attributes(
-            type=_type,
+        _attributes = build_simple_trace_attributes(
+            trace_kind="annotation",
             flags=_flags,
             tags=tags,
             meta=meta,
@@ -572,7 +532,10 @@ class AnnotationsService:
             references=_references,
         )
 
-        trace_request = OTelTracingRequest(
+        links = await self.tracing_service.create_trace(
+            organization_id=organization_id,
+            project_id=project_id,
+            user_id=user_id,
             spans=[
                 OTelFlatSpan(
                     trace_id=trace_id,
@@ -583,30 +546,11 @@ class AnnotationsService:
                     attributes=_attributes,
                     links=_links,
                 )
-            ]
+            ],
+            sync=True,  # Synchronous for user-facing annotations
         )
 
-        request = Request(
-            scope={"type": "http", "http_version": "1.1", "scheme": "http"}
-        )
-
-        request.state.project_id = str(project_id)
-        request.state.user_id = str(user_id)
-
-        _links_response = await self.tracing_router.create_trace(
-            request=request,
-            #
-            trace_request=trace_request,
-        )
-
-        _link = (
-            Link(
-                trace_id=_links_response.links[0].trace_id,
-                span_id=_links_response.links[0].span_id,
-            )
-            if _links_response.links and len(_links_response.links) > 0
-            else None
-        )
+        _link = first_link(links)
 
         return _link
 
@@ -618,120 +562,77 @@ class AnnotationsService:
         #
         annotation_link: Link,
     ) -> Optional[Annotation]:
-        request = Request(
-            scope={"type": "http", "http_version": "1.1", "scheme": "http"}
-        )
-
-        request.state.project_id = str(project_id)
-        request.state.user_id = str(user_id) if user_id else None
-
         if not annotation_link.trace_id:
             return None
 
-        trace_response: OTelTracingResponse = await self.tracing_router.fetch_trace(
-            request=request,
-            #
+        trace = await self.tracing_service.fetch_trace(
+            project_id=project_id,
             trace_id=annotation_link.trace_id,
         )
 
-        if not trace_response or not trace_response.traces:
-            return None
-
-        traces = list(trace_response.traces.values())
-        trace = traces[0] if traces else None
-
-        if not trace or not trace.spans:
-            return None
-
-        spans = list(trace.spans.values())
-        root_span = spans[0] if spans else None
-
-        if not root_span or isinstance(root_span, list):
-            return None
-
-        (
-            type,
-            flags,
-            tags,
-            meta,
-            data,
-            references,
-        ) = parse_from_attributes(root_span.attributes or {})
-
-        if not data:
+        parsed_trace = parse_simple_trace(trace)
+        if parsed_trace is None:
             return None
 
         _references = AnnotationReferences(
-            **{
-                key: Reference(
-                    id=ref.get("id"),
-                    slug=ref.get("slug"),
-                    version=ref.get("version"),
-                )
-                for key, ref in (references or {}).items()
-            }
+            **parsed_trace.references,
         )
 
-        _links = dict(
-            **{
-                str(link.attributes["key"]): Link(
-                    trace_id=link.trace_id,
-                    span_id=link.span_id,
-                )
-                for link in root_span.links or []
-                if link.attributes and "key" in link.attributes
-            }
-        )
+        _links = parsed_trace.links
 
         _origin = (
             (
-                flags.get("is_custom")
+                parsed_trace.flags.get("is_custom")
                 and AnnotationOrigin.CUSTOM
-                or flags.get("is_human")
+                or parsed_trace.flags.get("is_human")
                 and AnnotationOrigin.HUMAN
                 or AnnotationOrigin.AUTO
             )
-            if flags
+            if parsed_trace.flags
             else AnnotationOrigin.CUSTOM
         )
 
         _kind = (
-            (flags.get("is_evaluation") and AnnotationKind.EVAL or AnnotationKind.ADHOC)
-            if flags
+            (
+                parsed_trace.flags.get("is_evaluation")
+                and AnnotationKind.EVAL
+                or AnnotationKind.ADHOC
+            )
+            if parsed_trace.flags
             else AnnotationKind.ADHOC
         )
 
         _channel = (
             (
-                flags.get("is_sdk")
+                parsed_trace.flags.get("is_sdk")
                 and AnnotationChannel.SDK
-                or flags.get("is_web")
+                or parsed_trace.flags.get("is_web")
                 and AnnotationChannel.WEB
                 or AnnotationChannel.API
             )
-            if flags
+            if parsed_trace.flags
             else AnnotationChannel.API
         )
 
         annotation = Annotation(
-            trace_id=root_span.trace_id,
-            span_id=root_span.span_id,
+            trace_id=parsed_trace.span.trace_id,
+            span_id=parsed_trace.span.span_id,
             #
-            created_at=root_span.created_at,
-            updated_at=root_span.updated_at,
-            deleted_at=root_span.deleted_at,
-            created_by_id=root_span.created_by_id,
-            updated_by_id=root_span.updated_by_id,
-            deleted_by_id=root_span.deleted_by_id,
+            created_at=parsed_trace.span.created_at,
+            updated_at=parsed_trace.span.updated_at,
+            deleted_at=parsed_trace.span.deleted_at,
+            created_by_id=parsed_trace.span.created_by_id,
+            updated_by_id=parsed_trace.span.updated_by_id,
+            deleted_by_id=parsed_trace.span.deleted_by_id,
             #
             origin=_origin,
             kind=_kind,
             channel=_channel,
             #
-            tags=tags,
-            meta=meta,
+            tags=parsed_trace.tags,
+            meta=parsed_trace.meta,
             #
-            data=data,
+            data=parsed_trace.data,
             #
             references=_references,
             links=_links,
@@ -742,6 +643,7 @@ class AnnotationsService:
     async def _edit_annotation(
         self,
         *,
+        organization_id: UUID,
         project_id: UUID,
         user_id: UUID,
         #
@@ -765,38 +667,12 @@ class AnnotationsService:
             exclude_unset=True,
         )
 
-        if isinstance(links, dict):
-            _links = [
-                OTelLink(
-                    trace_id=link.trace_id,
-                    span_id=link.span_id,
-                    attributes={"key": key},  # type: ignore
-                )
-                for key, link in links.items()
-                if link.trace_id and link.span_id
-            ]
-        elif isinstance(links, list):
-            _links = [
-                OTelLink(
-                    trace_id=link.trace_id,
-                    span_id=link.span_id,
-                    attributes={"key": "key"},  # type: ignore
-                )
-                for link in links
-                if link.trace_id and link.span_id
-            ]
-        else:
-            _links = None
+        _links = build_otel_links(links)
 
         _flags = flags.model_dump(mode="json", exclude_none=True)
 
-        _type = {
-            "trace": "annotation",
-            "span": "task",
-        }
-
-        _attributes = parse_into_attributes(
-            type=_type,
+        _attributes = build_simple_trace_attributes(
+            trace_kind="annotation",
             flags=_flags,
             tags=tags,
             meta=meta,
@@ -804,7 +680,10 @@ class AnnotationsService:
             references=_references,
         )
 
-        trace_request = OTelTracingRequest(
+        links = await self.tracing_service.edit_trace(
+            organization_id=organization_id,
+            project_id=project_id,
+            user_id=user_id,
             spans=[
                 OTelFlatSpan(
                     trace_id=annotation.trace_id,
@@ -812,32 +691,11 @@ class AnnotationsService:
                     attributes=_attributes,
                     links=_links,
                 )
-            ]
+            ],
+            sync=True,  # Synchronous for user-facing annotations
         )
 
-        request = Request(
-            scope={"type": "http", "http_version": "1.1", "scheme": "http"}
-        )
-
-        request.state.project_id = str(project_id)
-        request.state.user_id = str(user_id)
-
-        _links_response = await self.tracing_router.edit_trace(
-            request=request,
-            #
-            trace_id=annotation.trace_id,
-            #
-            trace_request=trace_request,
-        )
-
-        _link = (
-            Link(
-                trace_id=_links_response.links[0].trace_id,
-                span_id=_links_response.links[0].span_id,
-            )
-            if _links_response.links and len(_links_response.links) > 0
-            else None
-        )
+        _link = first_link(links)
 
         return _link
 
@@ -852,30 +710,12 @@ class AnnotationsService:
         if not annotation_link.trace_id:
             return None
 
-        request = Request(
-            scope={"type": "http", "http_version": "1.1", "scheme": "http"}
-        )
-
-        request.state.project_id = str(project_id)
-        request.state.user_id = str(user_id)
-
-        link_response = await self.tracing_router.delete_trace(
-            request=request,
-            #
+        links = await self.tracing_service.delete_trace(
+            project_id=project_id,
             trace_id=annotation_link.trace_id,
         )
 
-        link = link_response.links[0] if link_response.links else None
-
-        if not link or not link.trace_id or not link.span_id:
-            return None
-
-        annotation_link = Link(
-            trace_id=link.trace_id,
-            span_id=link.span_id,
-        )
-
-        return annotation_link
+        return first_link(links)
 
     async def _query_annotation(
         self,
@@ -887,278 +727,98 @@ class AnnotationsService:
         tags: Optional[Tags] = None,
         meta: Optional[Meta] = None,
         #
-        references: Optional[AnnotationReferences] = None,
+        references: Optional[SimpleTraceReferences] = None,
         links: Optional[AnnotationLinks] = None,
         #
         annotation_links: Optional[List[Link]] = None,
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Annotation]:
-        formatting = Formatting(
-            focus=Focus.TRACE,
-            format=Format.AGENTA,
-        )
-
-        filtering = Filtering()
-
-        conditions: List[Union[Condition, Filtering]] = [
-            Condition(
-                field="attributes",
-                key="ag.type.trace",
-                value="annotation",
-                operator=ComparisonOperator.IS,
-            )
-        ]
-
-        trace_ids = (
-            [annotation_link.trace_id for annotation_link in annotation_links]
-            if annotation_links
-            else None
-        )
-
-        # span_ids = (
-        #     [annotation_link.span_id for annotation_link in annotation_links]
-        #     if annotation_links
-        #     else None
-        # )
-
-        if trace_ids:
-            conditions.append(
-                Condition(
-                    field="trace_id",
-                    value=trace_ids,
-                    operator=ListOperator.IN,
-                )
-            )
-
-        # if span_ids:
-        #     conditions.append(
-        #         Condition(
-        #             field="span_id",
-        #             value=span_ids,
-        #             operator=ListOperator.IN,
-        #         )
-        #     )
-
-        if flags:
-            for key, value in flags.model_dump(mode="json", exclude_none=True).items():
-                conditions.append(
-                    Condition(
-                        field="attributes",
-                        key=f"ag.flags.{key}",
-                        value=value,
-                        operator=ComparisonOperator.IS,
-                    )
-                )
-
-        if tags:
-            for key, value in tags.items():
-                conditions.append(
-                    Condition(
-                        field="attributes",
-                        key=f"ag.tags.{key}",
-                        value=value,  # type:ignore
-                        operator=ComparisonOperator.IS,
-                    )
-                )
-
-        if meta:
-            for key, value in meta.items():
-                conditions.append(
-                    Condition(
-                        field="attributes",
-                        key=f"ag.meta.{key}",
-                        value=value,  # type:ignore
-                        operator=ComparisonOperator.IS,
-                    )
-                )
-
-        if references:
-            for _, reference in references.model_dump(mode="json").items():
-                if reference:
-                    ref_id = str(reference.get("id")) if reference.get("id") else None
-                    ref_slug = (
-                        str(reference.get("slug")) if reference.get("slug") else None
-                    )
-                    conditions.append(
-                        Condition(
-                            field="references",
-                            value=[
-                                {"id": ref_id, "slug": ref_slug},
-                            ],
-                            operator=ListOperator.IN,
-                        )
-                    )
-
-        if links:
-            if isinstance(links, dict):
-                for _, link in links.items():
-                    if link:
-                        conditions.append(
-                            Condition(
-                                field="links",
-                                value=[
-                                    {
-                                        "trace_id": link.trace_id,
-                                        "span_id": link.span_id,
-                                    },
-                                ],
-                                operator=ListOperator.IN,
-                            )
-                        )
-            elif isinstance(links, list):
-                _conditions = []
-                for link in links:
-                    if link:
-                        _conditions.append(
-                            Condition(
-                                field="links",
-                                value=[
-                                    {
-                                        "trace_id": link.trace_id,
-                                        "span_id": link.span_id,
-                                    },
-                                ],
-                                operator=ListOperator.IN,
-                            )
-                        )
-                if _conditions:
-                    conditions.append(
-                        Filtering(
-                            operator=LogicalOperator.OR,
-                            conditions=_conditions,
-                        )
-                    )
-
-        if conditions:
-            filtering = Filtering(
-                operator=LogicalOperator.AND,
-                conditions=conditions,
-            )
-
-        query = TracingQuery(
-            formatting=formatting,
-            filtering=filtering,
+        query = build_simple_trace_query(
+            trace_kind="annotation",
+            flags=flags.model_dump(mode="json", exclude_none=True) if flags else None,
+            tags=tags,
+            meta=meta,
+            references=references.model_dump(mode="json") if references else None,
+            links=links,
+            trace_links=annotation_links,
             windowing=windowing,
         )
 
-        request = Request(
-            scope={"type": "http", "http_version": "1.1", "scheme": "http"}
-        )
-
-        request.state.project_id = str(project_id)
-        request.state.user_id = str(user_id) if user_id else None
-
-        spans_response: OTelTracingResponse = await self.tracing_router.query_spans(
-            request=request,
-            #
+        traces = await self.tracing_service.query_traces(
+            project_id=project_id,
             query=query,
         )
 
-        if not spans_response or not spans_response.traces:
+        if not traces:
             return []
-
-        traces = list(spans_response.traces.values())
 
         annotations = []
 
         for trace in traces:
-            if not trace or not trace.spans:
-                continue
-
-            spans = list(trace.spans.values())
-            root_span = spans[0] if spans else None
-
-            if not root_span or isinstance(root_span, list):
-                continue
-
-            (
-                __type,
-                __flags,
-                __tags,
-                __meta,
-                __data,
-                __references,
-            ) = parse_from_attributes(root_span.attributes or {})
-
-            if not __data:
+            parsed_trace = parse_simple_trace(trace)
+            if parsed_trace is None:
                 continue
 
             _references = AnnotationReferences(
-                **{
-                    key: Reference(
-                        id=ref.get("id"),
-                        slug=ref.get("slug"),
-                        version=ref.get("version"),
-                    )
-                    for key, ref in (__references or {}).items()
-                }
+                **parsed_trace.references,
             )
 
-            _links = dict(
-                **{
-                    str(link.attributes["key"]): Link(
-                        trace_id=link.trace_id,
-                        span_id=link.span_id,
-                    )
-                    for link in root_span.links or []
-                    if link.attributes and "key" in link.attributes
-                }
-            )
+            _links = parsed_trace.links
 
             _origin = (
                 (
-                    __flags.get("is_custom")
+                    parsed_trace.flags.get("is_custom")
                     and AnnotationOrigin.CUSTOM
-                    or __flags.get("is_human")
+                    or parsed_trace.flags.get("is_human")
                     and AnnotationOrigin.HUMAN
                     or AnnotationOrigin.AUTO
                 )
-                if __flags
+                if parsed_trace.flags
                 else AnnotationOrigin.CUSTOM
             )
 
             _kind = (
                 (
-                    __flags.get("is_evaluation")
+                    parsed_trace.flags.get("is_evaluation")
                     and AnnotationKind.EVAL
                     or AnnotationKind.ADHOC
                 )
-                if __flags
+                if parsed_trace.flags
                 else AnnotationKind.ADHOC
             )
 
             _channel = (
                 (
-                    __flags.get("is_sdk")
+                    parsed_trace.flags.get("is_sdk")
                     and AnnotationChannel.SDK
-                    or __flags.get("is_web")
+                    or parsed_trace.flags.get("is_web")
                     and AnnotationChannel.WEB
                     or AnnotationChannel.API
                 )
-                if __flags
+                if parsed_trace.flags
                 else AnnotationChannel.API
             )
 
             annotation = Annotation(
-                trace_id=root_span.trace_id,
-                span_id=root_span.span_id,
+                trace_id=parsed_trace.span.trace_id,
+                span_id=parsed_trace.span.span_id,
                 #
-                created_at=root_span.created_at,
-                updated_at=root_span.updated_at,
-                deleted_at=root_span.deleted_at,
-                created_by_id=root_span.created_by_id,
-                updated_by_id=root_span.updated_by_id,
-                deleted_by_id=root_span.deleted_by_id,
+                created_at=parsed_trace.span.created_at,
+                updated_at=parsed_trace.span.updated_at,
+                deleted_at=parsed_trace.span.deleted_at,
+                created_by_id=parsed_trace.span.created_by_id,
+                updated_by_id=parsed_trace.span.updated_by_id,
+                deleted_by_id=parsed_trace.span.deleted_by_id,
                 #
                 origin=_origin,
                 kind=_kind,
                 channel=_channel,
                 #
-                tags=__tags,
-                meta=__meta,
+                tags=parsed_trace.tags,
+                meta=parsed_trace.meta,
                 #
-                data=__data,
+                data=parsed_trace.data,
                 #
                 references=_references,
                 links=_links,

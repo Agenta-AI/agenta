@@ -6,7 +6,7 @@ import {
     openTraceDrawerAtom,
     setTraceDrawerActiveSpanAtom,
     traceDrawerAtom,
-} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
+} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {selectedNodeAtom, selectedTraceIdAtom} from "@/oss/state/newObservability/atoms/controls"
 
 import {isTraceSupportedRoute} from "./routeMatchers"

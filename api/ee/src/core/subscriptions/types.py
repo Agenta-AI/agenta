@@ -1,10 +1,10 @@
 from typing import Optional
 
-from os import environ
 
 from uuid import UUID
 from enum import Enum
 
+from oss.src.utils.env import env
 from pydantic import BaseModel
 
 
@@ -17,6 +17,8 @@ class Plan(str, Enum):
     CLOUD_V0_X_LABS = "cloud_v0_x_labs"
     #
     CLOUD_V0_AGENTA_AI = "cloud_v0_agenta_ai"
+    #
+    SELF_HOSTED_ENTERPRISE = "self_hosted_enterprise"
 
 
 class Event(str, Enum):
@@ -39,3 +41,20 @@ class SubscriptionDTO(BaseModel):
 FREE_PLAN = Plan.CLOUD_V0_HOBBY  # Move to ENV FILE
 REVERSE_TRIAL_PLAN = Plan.CLOUD_V0_PRO  # move to ENV FILE
 REVERSE_TRIAL_DAYS = 14  # move to ENV FILE
+
+
+def get_default_plan() -> Plan:
+    """Returns the default plan for new organizations.
+
+    Reads from AGENTA_DEFAULT_PLAN env var. If not set, defaults to:
+    - self_hosted_enterprise when Stripe is disabled
+    - cloud_v0_hobby when Stripe is enabled
+    """
+    raw = env.agenta.default_plan
+    if raw:
+        return Plan(raw)
+
+    if env.stripe.enabled:
+        return Plan.CLOUD_V0_HOBBY
+
+    return Plan.SELF_HOSTED_ENTERPRISE

@@ -37,12 +37,21 @@ function formatSingleError(error: ValidationError): string {
  */
 export function parseValidationError(error: unknown): string | undefined {
     try {
-        if (!error || typeof error !== "object") {
+        if (!error) {
+            return "An unknown error occurred"
+        }
+        if (typeof error === "string") {
+            return error
+        }
+        if (typeof error !== "object") {
             return "An unknown error occurred"
         }
 
         const apiError = error as ApiError
         if ("detail" in apiError) {
+            if (typeof apiError.detail === "string") {
+                return apiError.detail
+            }
             return Array.isArray(apiError.detail)
                 ? apiError.detail.map(formatSingleError).join("\n")
                 : formatSingleError(apiError.detail)

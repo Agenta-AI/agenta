@@ -1,12 +1,13 @@
-from fastapi import Request
+from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import get_cache, set_cache
+from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.common import APIRouter
 from oss.src.models.api.user_models import User
+from oss.src.models.api.user_models import UserUpdate
 from oss.src.services import db_manager, user_service
 
 
@@ -43,13 +44,16 @@ async def user_profile(request: Request):
         "User not found. Please ensure that the user_id is specified correctly."
     )
 
+    # Fall back to created_at if no update has occurred
+    updated_at = user.updated_at or user.created_at
+
     user = User(
         id=str(user.id),
         uid=str(user.uid),
         email=str(user.email),
         username=str(user.username),
-        created_at=str(user.created_at),
-        updated_at=str(user.updated_at),
+        created_at=str(user.created_at) if user.created_at else None,
+        updated_at=str(updated_at) if updated_at else None,
     )
 
     await set_cache(
@@ -61,6 +65,36 @@ async def user_profile(request: Request):
     )
 
     return user
+
+
+@router.put("/username", operation_id="update_user_username")
+async def update_user_username(request: Request, payload: UserUpdate):
+    username = (payload.username or "").strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="Username is required.")
+
+    user = await db_manager.update_user_username(
+        user_id=request.state.user_id,
+        username=username,
+    )
+
+    await invalidate_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+        namespace="user_profile",
+    )
+
+    # Fall back to created_at if no update has occurred
+    updated_at = user.updated_at or user.created_at
+
+    return User(
+        id=str(user.id),
+        uid=str(user.uid),
+        email=str(user.email),
+        username=str(user.username),
+        created_at=str(user.created_at) if user.created_at else None,
+        updated_at=str(updated_at) if updated_at else None,
+    )
 
 
 @router.post("/reset-password", operation_id="reset_user_password")

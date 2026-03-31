@@ -1,16 +1,17 @@
-import {useCallback} from "react"
+import {useCallback, useMemo} from "react"
 
+import {SharedEditor} from "@agenta/ui/shared-editor"
 import {InfoCircleOutlined} from "@ant-design/icons"
 import {theme, Form, Tooltip, InputNumber, Switch, Input, AutoComplete} from "antd"
 import {FormInstance, Rule} from "antd/es/form"
 import Link from "next/link"
 import {createUseStyles} from "react-jss"
 
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {isValidRegex} from "@/oss/lib/helpers/validators"
 import {generatePaths} from "@/oss/lib/transformers"
 import {EvaluationSettingsTemplate, JSSTheme} from "@/oss/lib/Types"
 
+import {FieldsTagsEditor} from "./FieldsTagsEditor"
 import {JSONSchemaEditor} from "./JSONSchema"
 import {Messages} from "./Messages"
 
@@ -60,7 +61,7 @@ interface ControlledSharedEditorProps {
     value?: unknown
     onChange?: (value: string) => void
     className?: string
-    language?: "json" | "yaml" | "code"
+    language?: "json" | "yaml" | "code" | "python" | "javascript" | "typescript"
 }
 
 const ControlledSharedEditor = ({
@@ -103,23 +104,20 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     traceTree,
     form,
 }) => {
-    const settingsValue = Form.useWatch(name, form)
+    const namePath = useMemo(() => (Array.isArray(name) ? name : [name]), [name])
+    const fieldKey = namePath[1]
+    const runtime = Form.useWatch(["parameters", "runtime"], form)
 
     const classes = useStyles()
     const {token} = theme.useToken()
 
-    const watched = Form.useWatch(name as any, form)
+    const watched = Form.useWatch(namePath as any, form)
     const savedValue = watched ?? defaultVal
-    const handleValueChange = useCallback(
-        (next: string) => {
-            if (form) {
-                form.setFieldsValue({
-                    [name as string]: next,
-                })
-            }
-        },
-        [form, name],
-    )
+
+    const runtimeLanguage =
+        runtime === "python" || runtime === "javascript" || runtime === "typescript"
+            ? runtime
+            : "code"
 
     const rules: Rule[] = [{required: required ?? true, message: "This field is required"}]
 
@@ -132,7 +130,7 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
         })
 
     const ExternalHelpInfo =
-        name[1] === "webhook_url" ? (
+        fieldKey === "webhook_url" ? (
             <div className={classes.ExternalHelp}>
                 <span>Learn</span>
                 <Link
@@ -170,9 +168,9 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                     rules={rules}
                     hidden={type === "hidden"}
                 >
-                    {name[1] === "question_key" ||
-                    name[1] === "answer_key" ||
-                    name[1] === "contexts_key" ? (
+                    {fieldKey === "question_key" ||
+                    fieldKey === "answer_key" ||
+                    fieldKey === "contexts_key" ? (
                         <AutoComplete
                             options={generatePaths(traceTree)}
                             filterOption={(inputValue, option) =>
@@ -194,27 +192,22 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                     ) : type === "code" ? (
                         <ControlledSharedEditor
                             className={classes.codeEditor}
-                            value={settingsValue}
-                            onChange={handleValueChange}
-                            language="code"
+                            language={runtimeLanguage}
                         />
                     ) : type === "object" ? (
-                        <ControlledSharedEditor
-                            className={classes.objectEditor}
-                            language="json"
-                            value={settingsValue}
-                            onChange={handleValueChange}
-                        />
+                        <ControlledSharedEditor className={classes.objectEditor} language="json" />
                     ) : type === "llm_response_schema" ? (
                         <JSONSchemaEditor
                             form={form!}
                             name={name}
-                            defaultValue={
+                            fallbackValue={
                                 typeof savedValue === "string"
                                     ? savedValue
                                     : JSON.stringify(savedValue ?? {}, null, 2)
                             }
                         />
+                    ) : type === "fields_tags_editor" ? (
+                        <FieldsTagsEditor form={form} name={name} />
                     ) : null}
                 </Form.Item>
             )}

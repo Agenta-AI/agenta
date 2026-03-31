@@ -1,23 +1,16 @@
 import {memo, useCallback, useMemo} from "react"
 
+import {runnableBridge} from "@agenta/entities/runnable"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {CaretDown, CaretUp, Rocket} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {useAtomValue} from "jotai"
-import {useRouter} from "next/router"
 
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "@/oss/components/Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
-import {
-    revisionListAtom,
-    variantByRevisionIdAtomFamily,
-} from "@/oss/components/Playground/state/atoms"
-import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms"
 import VariantNameCell from "@/oss/components/VariantNameCell"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQuery, useQueryParam} from "@/oss/hooks/useQuery"
-import useURL from "@/oss/hooks/useURL"
-import {currentVariantAppStatusAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {VariantDrawerTitleProps} from "../types"
 import {drawerVariantIsLoadingAtomFamily} from "../VariantDrawerContent"
@@ -32,14 +25,15 @@ const NavControls = memo(
     }: Pick<VariantDrawerTitleProps, "variantId" | "variantIds" | "variants" | "isLoading">) => {
         const [, updateQuery] = useQuery("replace")
         const [displayMode] = useQueryParam("displayMode")
-        const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
         const selectedParent = useMemo(() => {
-            const parentId =
-                typeof selectedVariant?._parentVariant === "string"
-                    ? selectedVariant?._parentVariant
-                    : selectedVariant?._parentVariant?.id
-            return variants.find((v) => v.id === parentId)
-        }, [variants, selectedVariant])
+            return variants.find(
+                (variant: any) =>
+                    variant?.id === variantId ||
+                    (Array.isArray(variant?.revisions)
+                        ? variant.revisions.some((revision: any) => revision?.id === variantId)
+                        : false),
+            )
+        }, [variants, variantId])
 
         const selectedVariantIndex = useMemo(() => {
             if (variantIds && variantIds.length > 1) {
@@ -143,24 +137,22 @@ const TitleActions = memo(
     ({
         variantId,
         viewAs,
-        variants,
         isLoading,
-    }: Pick<VariantDrawerTitleProps, "variantId" | "viewAs" | "variants" | "isLoading">) => {
-        const appStatus = useAtomValue(currentVariantAppStatusAtom)
-        const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
-        const isDirty = useAtomValue(variantIsDirtyAtomFamily(variantId))
+    }: Pick<VariantDrawerTitleProps, "variantId" | "viewAs" | "isLoading">) => {
+        const [, updateQuery] = useQuery("replace")
+        const entityQuery = useAtomValue(runnableBridge.query(variantId))
+        const entityReady = !entityQuery.isPending && !!entityQuery.data
+        const isDirty = useAtomValue(runnableBridge.isDirty(variantId))
         const {goToPlayground} = usePlaygroundNavigation()
-        const {appURL} = useURL()
-        const router = useRouter()
 
         return (
             <div className="flex items-center gap-2">
                 <Button
                     className="flex items-center gap-2"
                     size="small"
-                    disabled={!appStatus || isLoading}
+                    disabled={!entityReady || isLoading}
                     onClick={() => {
-                        goToPlayground(selectedVariant ?? variantId)
+                        goToPlayground(variantId)
                     }}
                 >
                     <Rocket size={14} />
@@ -171,20 +163,21 @@ const TitleActions = memo(
                     label="Deploy"
                     type="default"
                     size="small"
-                    variantId={
-                        !selectedVariant?._parentVariant ? selectedVariant?.variantId : undefined
-                    }
-                    revisionId={selectedVariant?._parentVariant ? selectedVariant?.id : undefined}
+                    revisionId={variantId}
                     disabled={isLoading}
+                    data-tour="deploy-button"
                 />
 
                 <CommitVariantChangesButton
-                    variantId={selectedVariant?.id}
+                    variantId={variantId}
                     label="Commit"
                     type="default"
                     size="small"
                     disabled={!isDirty || isLoading}
-                    commitType={viewAs}
+                    onSuccess={({revisionId}) => {
+                        if (!revisionId) return
+                        updateQuery({revisionId, drawerType: "variant"})
+                    }}
                 />
             </div>
         )
@@ -204,7 +197,13 @@ const VariantDrawerTitle = ({
     return (
         <section className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-                <Button onClick={onClose} type="text" icon={<CloseOutlined />} size="small" />
+                <Button
+                    onClick={onClose}
+                    type="text"
+                    data-tour="variant-drawer-close-button"
+                    icon={<CloseOutlined />}
+                    size="small"
+                />
                 <Button
                     onClick={onToggleWidth}
                     type="text"
@@ -224,12 +223,7 @@ const VariantDrawerTitle = ({
                 </div>
             </div>
 
-            <TitleActions
-                variantId={variantId}
-                viewAs={viewAs}
-                variants={variants}
-                isLoading={isLoading}
-            />
+            <TitleActions variantId={variantId} viewAs={viewAs} isLoading={isLoading} />
         </section>
     )
 }

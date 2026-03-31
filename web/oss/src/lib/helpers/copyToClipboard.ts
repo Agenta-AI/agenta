@@ -1,4 +1,4 @@
-import {message} from "@/oss/components/AppMessageContext"
+import {message} from "@agenta/ui/app-message"
 
 export const copyToClipboard = async (text: string, showToast = true) => {
     if (!text) return

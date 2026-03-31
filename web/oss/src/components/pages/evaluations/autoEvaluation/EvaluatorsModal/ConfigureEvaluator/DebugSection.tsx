@@ -1,6 +1,32 @@
-// @ts-nocheck
-import {Dispatch, SetStateAction, useEffect, useMemo, useRef, useState} from "react"
+/**
+ * State is managed via atoms (see ./state/atoms.ts):
+ * - playgroundSelectedTestcaseAtom: Selected testcase data
+ * - playgroundSelectedVariantAtom: Selected variant for testing
+ * - playgroundSelectedTestsetIdAtom: Selected testset ID
+ * - playgroundTraceTreeAtom: Trace output from running variant
+ * - playgroundEvaluatorAtom: Current evaluator being configured
+ * - playgroundFormRefAtom: Form instance for reading settings
+ *
+ * Data fetching:
+ * - Variants: fetched internally via appRevisionsWithDraftsAtomFamily()
+ * - Apps: fetched internally via useAppsData()
+ *
+ * Data fetching:
+ * - Variants: fetched internally via appRevisionsWithDraftsAtomFamily()
+ * - Apps: fetched internally via useAppsData()
+ */
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {
+    legacyAppRevisionMolecule,
+    legacyAppRevisionSchemaQueryAtomFamily,
+    extractAllEndpointSchemas,
+    extractInputKeysFromSchema,
+    transformToRequestBody,
+} from "@agenta/entities/legacyAppRevision"
+import {appRevisionsWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {message} from "@agenta/ui/app-message"
+import {SharedEditor} from "@agenta/ui/shared-editor"
 import {
     CheckCircleOutlined,
     CloseCircleOutlined,
@@ -8,94 +34,66 @@ import {
     MoreOutlined,
 } from "@ant-design/icons"
 import {Database, Lightning, Play} from "@phosphor-icons/react"
-import {Button, Dropdown, Flex, FormInstance, Space, Tabs, Tooltip, Typography} from "antd"
+import {Button, Dropdown, Flex, Space, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {atom, useAtomValue} from "jotai"
+import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 import yaml from "js-yaml"
+import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
-import {message} from "@/oss/components/AppMessageContext"
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
+import type {LoadTestsetSelectionPayload} from "@/oss/components/Playground/Components/Modals/LoadTestsetModal/assets/types"
 import {useAppId} from "@/oss/hooks/useAppId"
-import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {transformTraceKeysInSettings, mapTestcaseAndEvalValues} from "@/oss/lib/evaluations/legacy"
+import {buildEvaluatorUri, resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import {isBaseResponse, isFuncResponse} from "@/oss/lib/helpers/playgroundResp"
 import {
-    apiKeyObject,
     extractChatMessages,
     getStringOrJson,
     safeParse,
     safeJson5Parse,
 } from "@/oss/lib/helpers/utils"
 import {getAllVariantParameters} from "@/oss/lib/helpers/variantHelper"
-import useAppVariantRevisions from "@/oss/lib/hooks/useAppVariantRevisions"
-import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
-import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
-import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
-import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {uuidToSpanId, uuidToTraceId} from "@/oss/lib/traces/helpers"
 import {buildNodeTree, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
 import {
     buildNodeTreeV3,
     fromBaseResponseToTraceSpanType,
     transformTraceTreeToJson,
 } from "@/oss/lib/transformers"
-import {
-    BaseResponse,
-    ChatMessage,
-    Evaluator,
-    JSSTheme,
-    Parameter,
-    testset,
-    Variant,
-} from "@/oss/lib/Types"
+import {BaseResponse, ChatMessage, JSSTheme, Parameter, Variant} from "@/oss/lib/Types"
 import {callVariant} from "@/oss/services/api"
-import {
-    createEvaluatorDataMapping,
-    createEvaluatorRunExecution,
-} from "@/oss/services/evaluations/api_ee"
 import {AgentaNodeDTO} from "@/oss/services/observability/types"
-import {useAppsData} from "@/oss/state/app/hooks"
-import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {
-    stablePromptVariablesAtomFamily,
-    transformedPromptsAtomFamily,
-} from "@/oss/state/newPlayground/core/prompts"
-import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
-import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
+    invokeApplication,
+    invokeEvaluator,
+    mapWorkflowResponseToOutputs,
+    mapWorkflowResponseToEvaluatorOutput,
+    type WorkflowServiceBatchResponse,
+    type WorkflowServiceLink,
+    type WorkflowServiceReference,
+} from "@/oss/services/workflows/invoke"
+import {useAppsData} from "@/oss/state/app/hooks"
+import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
+import {revision} from "@/oss/state/entities/testset"
 
-import EvaluatorTestcaseModal from "./EvaluatorTestcaseModal"
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
+import {
+    playgroundEvaluatorAtom,
+    playgroundEditValuesAtom,
+    playgroundFormRefAtom,
+    playgroundLastAppIdAtom,
+    playgroundLastVariantIdAtom,
+    playgroundSelectedTestcaseAtom,
+    playgroundSelectedRevisionIdAtom,
+    playgroundSelectedVariantAtom,
+    playgroundTraceTreeAtom,
+} from "./state/atoms"
 import {buildVariantFromRevision} from "./variantUtils"
 
-interface DebugSectionProps {
-    selectedTestcase: {
-        testcase: Record<string, any> | null
-    }
-    selectedVariant: EnhancedVariant
-    testsets: testset[] | null
-    traceTree: {
-        trace: Record<string, any> | string | null
-    }
-    setTraceTree: Dispatch<
-        SetStateAction<{
-            trace: Record<string, any> | string | null
-        }>
-    >
-    selectedEvaluator: Evaluator
-    form: FormInstance<any>
-    debugEvaluator: boolean
-    setSelectedVariant: Dispatch<SetStateAction<Variant | null>>
-    variants: Variant[] | null
-    setSelectedTestcase: Dispatch<
-        SetStateAction<{
-            testcase: Record<string, any> | null
-        }>
-    >
-    setSelectedTestset: Dispatch<SetStateAction<string>>
-    selectedTestset: string
-}
+/**
+ * DebugSection has no required props - it fetches all data internally
+ * and reads state from atoms.
+ */
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     "@global": {
@@ -134,57 +132,162 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     },
     variantTab: {
-        flex: 1,
         minWidth: 0,
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
         "& .ant-tabs-content-holder": {
-            flex: 1,
             minHeight: 0,
-        },
-        "& .ant-tabs-content": {
-            height: "100%",
-            overflow: "hidden",
-            "& .ant-tabs-tabpane": {
-                height: "100%",
-                overflow: "hidden",
-            },
         },
     },
 }))
 
-const LAST_APP_KEY = "agenta:lastAppId"
-const LAST_VARIANT_KEY = "agenta:lastVariantId"
+const LoadTestsetModal = dynamic(
+    () => import("@/oss/components/Playground/Components/Modals/LoadTestsetModal"),
+    {ssr: false},
+)
 
-const DebugSection = ({
-    selectedTestcase,
-    selectedVariant: _selectedVariant,
-    testsets,
-    traceTree,
-    setTraceTree,
-    selectedEvaluator,
-    form,
-    debugEvaluator,
-    variants,
-    setSelectedVariant,
-    setSelectedTestcase,
-    selectedTestset,
-    setSelectedTestset,
-}: DebugSectionProps) => {
+const normalizeTraceId = (value?: string | null) => {
+    if (!value) return undefined
+    if (!value.includes("-")) return value
+
+    try {
+        return uuidToTraceId(value)
+    } catch {
+        return undefined
+    }
+}
+
+const normalizeSpanId = (value?: string | null) => {
+    if (!value) return undefined
+    if (value.includes("-")) {
+        try {
+            return uuidToSpanId(value)
+        } catch {
+            return undefined
+        }
+    }
+    return value.length === 32 ? value.slice(-16) : value
+}
+
+const toWorkflowLink = ({
+    traceId,
+    spanId,
+}: {
+    traceId?: string | null
+    spanId?: string | null
+}): WorkflowServiceLink | undefined => {
+    const normalizedTraceId = normalizeTraceId(traceId)
+    const normalizedSpanId = normalizeSpanId(spanId)
+
+    if (!normalizedTraceId || !normalizedSpanId) return undefined
+
+    return {
+        trace_id: normalizedTraceId,
+        span_id: normalizedSpanId,
+    }
+}
+
+const asRecord = (value: unknown): Record<string, unknown> | null => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null
+    return value as Record<string, unknown>
+}
+
+const readString = (value: unknown) => {
+    return typeof value === "string" && value.trim().length > 0 ? value : undefined
+}
+
+const normalizeApplicationReferences = (
+    references: unknown,
+): Record<string, WorkflowServiceReference> | undefined => {
+    const refs = asRecord(references)
+    if (!refs) return undefined
+
+    const appRef = asRecord(refs.application)
+    const appVariantRef = asRecord(refs.application_variant)
+    const appRevisionRef = asRecord(refs.application_revision)
+    const normalized: Record<string, WorkflowServiceReference> = {}
+
+    const applicationId = readString(appRef?.id)
+    const applicationSlug = readString(appRef?.slug)
+    if (applicationId || applicationSlug) {
+        normalized.application = {
+            ...(applicationId ? {id: applicationId} : {}),
+            ...(applicationSlug ? {slug: applicationSlug} : {}),
+        }
+    }
+
+    const applicationVariantId = readString(appVariantRef?.id) || readString(appRef?.variant_id)
+    const applicationVariantSlug = readString(appVariantRef?.slug)
+    if (applicationVariantId || applicationVariantSlug) {
+        normalized.application_variant = {
+            ...(applicationVariantId ? {id: applicationVariantId} : {}),
+            ...(applicationVariantSlug ? {slug: applicationVariantSlug} : {}),
+        }
+    }
+
+    const applicationRevisionId = readString(appRevisionRef?.id) || readString(appRef?.revision_id)
+    const applicationRevisionSlug = readString(appRevisionRef?.slug)
+    const applicationRevisionVersion = readString(appRevisionRef?.version)
+    if (applicationRevisionId || applicationRevisionSlug || applicationRevisionVersion) {
+        normalized.application_revision = {
+            ...(applicationRevisionId ? {id: applicationRevisionId} : {}),
+            ...(applicationRevisionSlug ? {slug: applicationRevisionSlug} : {}),
+            ...(applicationRevisionVersion ? {version: applicationRevisionVersion} : {}),
+        }
+    }
+
+    return Object.keys(normalized).length > 0 ? normalized : undefined
+}
+
+const extractRootSpanId = (spans?: {id?: string; parent_span_id?: string | null}[]) => {
+    if (!Array.isArray(spans) || spans.length === 0) return undefined
+    return spans.find((span) => !span.parent_span_id)?.id || spans[0]?.id
+}
+
+const extractLinkFromWorkflowResponse = (response?: WorkflowServiceBatchResponse | null) =>
+    toWorkflowLink({
+        traceId: response?.trace_id,
+        spanId: response?.span_id,
+    })
+
+const extractLinkFromBaseResponse = (response?: BaseResponse | null) =>
+    toWorkflowLink({
+        traceId: response?.trace?.trace_id || response?.tree?.nodes?.[0]?.root?.id,
+        spanId: extractRootSpanId(response?.trace?.spans) || response?.tree?.nodes?.[0]?.node?.id,
+    })
+
+const DebugSection = () => {
     const appId = useAppId()
     const classes = useStyles()
-    const uriObject = useAtomValue(appUriInfoAtom)
-    const appSchema = useAtomValue(appSchemaAtom)
     const {apps: availableApps = []} = useAppsData()
+
+    // ================================================================
+    // ATOMS - Read/write state from playground atoms
+    // ================================================================
+    const selectedTestcase = useAtomValue(playgroundSelectedTestcaseAtom)
+    const setSelectedTestcase = useSetAtom(playgroundSelectedTestcaseAtom)
+    const _selectedVariant = useAtomValue(playgroundSelectedVariantAtom)
+    const setSelectedVariant = useSetAtom(playgroundSelectedVariantAtom)
+    const selectedRevisionId = useAtomValue(playgroundSelectedRevisionIdAtom)
+    const setSelectedRevisionId = useSetAtom(playgroundSelectedRevisionIdAtom)
+    const traceTree = useAtomValue(playgroundTraceTreeAtom)
+    const setTraceTree = useSetAtom(playgroundTraceTreeAtom)
+    const selectedEvaluator = useAtomValue(playgroundEvaluatorAtom)
+    const evaluatorConfig = useAtomValue(playgroundEditValuesAtom)
+    const form = useAtomValue(playgroundFormRefAtom)
+    const [lastAppId, setLastAppId] = useAtom(playgroundLastAppIdAtom)
+    const [lastVariantId, setLastVariantId] = useAtom(playgroundLastVariantIdAtom)
+
     const [baseResponseData, setBaseResponseData] = useState<BaseResponse | null>(null)
+    const [lastInvocationLink, setLastInvocationLink] = useState<WorkflowServiceLink | null>(null)
     const [outputResult, setOutputResult] = useState("")
     const [isLoadingResult, setIsLoadingResult] = useState(false)
     const abortControllersRef = useRef<AbortController | null>(null)
+    const evaluatorAbortRef = useRef<AbortController | null>(null)
     const [isRunningVariant, setIsRunningVariant] = useState(false)
     const [variantResult, setVariantResult] = useState("")
     const [openVariantModal, setOpenVariantModal] = useState(false)
     const [openTestcaseModal, setOpenTestcaseModal] = useState(false)
+    const [dropdownOpen, setDropdownOpen] = useState(false)
+
     const [variantStatus, setVariantStatus] = useState({
         success: false,
         error: false,
@@ -193,39 +296,81 @@ const DebugSection = ({
         success: false,
         error: false,
     })
-    const {secrets} = useVaultSecret()
+
+    const handleEvaluatorTestsetData = useCallback(
+        (payload: LoadTestsetSelectionPayload | null) => {
+            const testcase = payload?.testcases?.[0]
+            if (!testcase) {
+                setSelectedRevisionId("")
+                setSelectedTestcase({testcase: null})
+                return
+            }
+
+            if (payload?.revisionId) {
+                setSelectedRevisionId(payload.revisionId)
+            }
+
+            const sanitized =
+                typeof testcase === "object"
+                    ? Object.fromEntries(
+                          Object.entries(testcase).filter(([key]) => !key.startsWith("__")),
+                      )
+                    : testcase
+
+            setSelectedTestcase({testcase: sanitized || null})
+        },
+        [setSelectedRevisionId, setSelectedTestcase],
+    )
 
     const defaultAppId = useMemo(() => {
         if (_selectedVariant?.appId) return _selectedVariant.appId
         if (appId) return appId
+        // Check persisted last used app
+        if (lastAppId && availableApps?.some((a: any) => a.app_id === lastAppId)) {
+            return lastAppId
+        }
         const firstApp = availableApps?.[0]
         return firstApp?.app_id ?? ""
-    }, [_selectedVariant?.appId, appId, availableApps])
+    }, [_selectedVariant?.appId, appId, availableApps, lastAppId])
 
-    const {revisionMap: defaultRevisionMap} = useAppVariantRevisions(defaultAppId || null)
+    const allRevisions = useAtomValue(
+        useMemo(() => appRevisionsWithDraftsAtomFamily(defaultAppId || ""), [defaultAppId]),
+    )
+
+    const defaultRevisionMap = useMemo(() => {
+        return allRevisions.reduce<Record<string, typeof allRevisions>>((acc, revision) => {
+            const key = revision.variantId
+            if (!acc[key]) acc[key] = []
+            acc[key].push(revision)
+            return acc
+        }, {})
+    }, [allRevisions])
 
     const selectedVariant = useMemo(() => {
-        const revs = _selectedVariant?.revisions || []
-        const variant = revs?.sort((a, b) => b.updatedAtTimestamp - a.updatedAtTimestamp)[0]
-        return variant
+        if (!_selectedVariant) return undefined
+        // If the variant has revisions, get the most recent one
+        const revs = (_selectedVariant as any)?.revisions || []
+        if (revs.length > 0) {
+            return revs.sort((a: any, b: any) => b.updatedAtTimestamp - a.updatedAtTimestamp)[0]
+        }
+        // Otherwise, return the variant itself (it may already be a revision or simple variant)
+        return _selectedVariant
     }, [_selectedVariant])
 
-    const fallbackVariant = useMemo(() => {
-        if (_selectedVariant || !defaultAppId) return null
-        const revisionLists = Object.values(defaultRevisionMap || {})
-        if (!revisionLists.length) return null
-        const revisions = revisionLists[0]
-        if (!revisions || revisions.length === 0) return null
-        const baseVariant = buildVariantFromRevision(revisions[0], defaultAppId)
-        baseVariant.revisions = [...revisions]
-        return baseVariant
-    }, [_selectedVariant, defaultAppId, defaultRevisionMap])
-
+    // Build ALL variants from the app for localStorage restore and fallback selection
     const derivedVariants = useMemo(() => {
-        if (variants && variants.length > 0) return variants
-        if (fallbackVariant) return [fallbackVariant]
-        return []
-    }, [variants, fallbackVariant])
+        if (_selectedVariant) return [] // Don't need fallbacks if already selected
+        if (!defaultAppId || !Object.keys(defaultRevisionMap).length) return []
+
+        const variants: Variant[] = []
+        Object.values(defaultRevisionMap).forEach((revisions) => {
+            if (!revisions || revisions.length === 0) return
+            const baseVariant = buildVariantFromRevision(revisions[0] as any, defaultAppId)
+            baseVariant.revisions = [...revisions] as any
+            variants.push(baseVariant)
+        })
+        return variants
+    }, [_selectedVariant, defaultAppId, defaultRevisionMap])
 
     // Resolve current application object for display
     const selectedApp = useMemo(() => {
@@ -233,33 +378,26 @@ const DebugSection = ({
         return availableApps.find((a: any) => a.app_id === id)
     }, [_selectedVariant?.appId, defaultAppId, availableApps])
 
-    // Initialize from localStorage (remember last app/variant) with fallbacks
+    // Initialize from persisted state (remember last app/variant) with fallbacks
     useEffect(() => {
-        // if parent already set a specific variant, respect it
+        // if already have a selected variant, respect it
         if (_selectedVariant) return
-
-        const storedAppId =
-            typeof window !== "undefined" ? localStorage.getItem(LAST_APP_KEY) : null
-        const storedVariantId =
-            typeof window !== "undefined" ? localStorage.getItem(LAST_VARIANT_KEY) : null
 
         let nextVariant: Variant | null = null
 
-        // 1) Try to find an existing variant matching stored ids among provided or fallback variants
-        const searchPool: Variant[] = [...(variants || []), ...(derivedVariants || [])].filter(
-            Boolean,
-        ) as Variant[]
+        // Search among derived variants (fetched internally)
+        const searchPool: Variant[] = derivedVariants.filter(Boolean) as Variant[]
 
-        if (storedVariantId) {
-            nextVariant = searchPool.find((v) => (v as any)?.variantId === storedVariantId) || null
+        if (lastVariantId) {
+            nextVariant = searchPool.find((v) => (v as any)?.variantId === lastVariantId) || null
         }
 
-        // 2) If not found by variant, but we have an app id, try first variant under that app
-        if (!nextVariant && storedAppId) {
-            nextVariant = searchPool.find((v) => (v as any)?.appId === storedAppId) || null
+        // If not found by variant, but we have an app id, try first variant under that app
+        if (!nextVariant && lastAppId) {
+            nextVariant = searchPool.find((v) => (v as any)?.appId === lastAppId) || null
         }
 
-        // 3) Finally fall back to first available variant in our computed list
+        // Fall back to first available variant
         if (!nextVariant && searchPool.length > 0) {
             nextVariant = searchPool[0]
         }
@@ -267,91 +405,139 @@ const DebugSection = ({
         if (nextVariant) {
             setSelectedVariant(nextVariant)
         }
-    }, [_selectedVariant, variants, derivedVariants, setSelectedVariant])
+    }, [_selectedVariant, derivedVariants, setSelectedVariant, lastAppId, lastVariantId])
 
     // Persist whenever the working selectedVariant changes
     useEffect(() => {
         const v = _selectedVariant as any
         if (!v) return
-        try {
-            if (v.appId) localStorage.setItem(LAST_APP_KEY, v.appId)
-            if (v.variantId) localStorage.setItem(LAST_VARIANT_KEY, v.variantId)
-        } catch {
-            // ignore storage errors (private mode, etc.)
-        }
-    }, [_selectedVariant])
+        if (v.appId) setLastAppId(v.appId)
+        if (v.variantId) setLastVariantId(v.variantId)
+    }, [_selectedVariant, setLastAppId, setLastVariantId])
 
+    // Seed molecule with revision data so stable prompt/transform atoms work correctly
+    // This ensures the molecule has URI and parameters for schema-based prompts derivation
     useEffect(() => {
-        if (_selectedVariant) return
-        if (derivedVariants.length > 0) {
-            setSelectedVariant(derivedVariants[0])
-            return
+        if (!selectedVariant?.id) return
+        if (!selectedVariant?.uri) return
+
+        // Check if molecule already has data
+        const currentData = legacyAppRevisionMolecule.get.serverData(selectedVariant.id)
+        if (currentData?.uri) return
+
+        // Seed molecule with revision data
+        legacyAppRevisionMolecule.set.serverData(selectedVariant.id, {
+            id: selectedVariant.id,
+            variantId: (selectedVariant as any).variantId,
+            variantName: (selectedVariant as any).variantName,
+            appId: (selectedVariant as any).appId,
+            uri: selectedVariant.uri,
+            revision: (selectedVariant as any).revision,
+            parameters: selectedVariant.parameters,
+            baseId: (selectedVariant as any).baseId,
+            baseName: (selectedVariant as any).baseName,
+            configName: (selectedVariant as any).configName,
+            commitMessage: (selectedVariant as any).commitMessage,
+            createdAt: (selectedVariant as any).createdAt,
+            updatedAt: (selectedVariant as any).updatedAt,
+            modifiedById: (selectedVariant as any).modifiedById,
+        })
+    }, [selectedVariant?.id, selectedVariant?.uri, selectedVariant?.parameters])
+
+    // App context for custom/chat flags
+    const appContext = useAtomValue(currentAppContextAtom)
+    const isCustomFlag = appContext?.appType === "custom"
+
+    // Per-revision schema (replaces app-wide appSchemaAtom / appUriInfoAtom)
+    const revisionSchemaQuery = useAtomValue(
+        useMemo(
+            () =>
+                selectedVariant?.id
+                    ? legacyAppRevisionSchemaQueryAtomFamily(selectedVariant.id)
+                    : atom({data: null, isPending: false, isError: false, error: null}),
+            [selectedVariant?.id],
+        ),
+    ) as any
+    const revisionSchema = revisionSchemaQuery?.data?.openApiSchema ?? null
+    const revisionRoutePath = revisionSchemaQuery?.data?.routePath ?? ""
+
+    // Stable variables derived from molecule inputPorts (spec + saved parameters; no live edits)
+    const inputPorts = useAtomValue(
+        useMemo(
+            () =>
+                selectedVariant?.id
+                    ? legacyAppRevisionMolecule.atoms.inputPorts(selectedVariant.id)
+                    : (atom([]) as any),
+            [selectedVariant?.id],
+        ),
+    ) as any[]
+    const stableVarNames = useMemo(
+        () => (inputPorts || []).map((p: any) => p.key) as string[],
+        [inputPorts],
+    )
+
+    // Read raw entity data for variant parameters
+    const variantEntityData = useAtomValue(
+        useMemo(
+            () =>
+                (selectedVariant?.id
+                    ? (legacyAppRevisionMolecule.atoms.data(selectedVariant?.id) as any)
+                    : (atom(null) as any)) as any,
+            [selectedVariant?.id],
+        ),
+    ) as any
+
+    const revisionRequestPayload = useAtomValue(
+        useMemo(
+            () =>
+                (selectedVariant?.id
+                    ? (legacyAppRevisionMolecule.atoms.requestPayload(selectedVariant?.id) as any)
+                    : (atom(null) as any)) as any,
+            [selectedVariant?.id],
+        ),
+    ) as any
+    const applicationReferences = useMemo(
+        () => normalizeApplicationReferences(revisionRequestPayload?.references),
+        [revisionRequestPayload?.references],
+    )
+
+    const activeRevision = useAtomValue(
+        useMemo(
+            () =>
+                (selectedRevisionId
+                    ? (revision.selectors.data(selectedRevisionId) as any)
+                    : (atom(null) as any)) as any,
+            [selectedRevisionId],
+        ),
+    ) as any
+
+    const activeTestsetLabel = useMemo(() => {
+        if (!activeRevision) return null
+        const version =
+            typeof activeRevision.version === "number"
+                ? activeRevision.version
+                : parseInt(activeRevision.version || "0", 10)
+        return {
+            name: activeRevision.name || activeRevision.testset_id || null,
+            version: Number.isFinite(version) ? version : null,
         }
-    }, [_selectedVariant, derivedVariants, setSelectedVariant])
-
-    // Variant flags (custom/chat) from global atoms for the selected revision
-    const flags = useAtomValue(
-        useMemo(
-            () =>
-                (selectedVariant?.id
-                    ? variantFlagsAtomFamily({revisionId: selectedVariant?.id})
-                    : (atom(null) as any)) as any,
-            [selectedVariant?.id],
-        ),
-    ) as any
-
-    // Stable variables derived from saved prompts (spec + saved parameters; no live edits)
-    const stableVarNames = useAtomValue(
-        useMemo(
-            () =>
-                (selectedVariant?.id
-                    ? (stablePromptVariablesAtomFamily(selectedVariant?.id) as any)
-                    : (atom([]) as any)) as any,
-            [selectedVariant?.id],
-        ),
-    ) as string[]
-
-    // Stable parameters (prompts + custom properties derived from saved revision + schema)
-    const stableTransformedParams = useAtomValue(
-        useMemo(
-            () =>
-                (selectedVariant?.id
-                    ? (transformedPromptsAtomFamily({
-                          revisionId: selectedVariant?.id,
-                          useStableParams: true,
-                      }) as any)
-                    : (atom(null) as any)) as any,
-            [selectedVariant?.id],
-        ),
-    ) as any
-
-    // Stable custom properties derived from spec + saved parameters (by revision)
-    const customProps = useAtomValue(
-        useMemo(
-            () =>
-                (selectedVariant?.id
-                    ? (customPropertiesByRevisionAtomFamily(selectedVariant?.id) as any)
-                    : (atom({}) as any)) as any,
-            [selectedVariant?.id],
-        ),
-    ) as any
-
-    const activeTestset = useMemo(() => {
-        return testsets?.find((item) => item._id === selectedTestset)
-    }, [selectedTestset, testsets])
+    }, [activeRevision])
 
     const isPlainObject = (value: unknown): value is Record<string, any> =>
         Boolean(value) && typeof value === "object" && !Array.isArray(value)
 
     const fetchEvalMapper = async () => {
-        if (!baseResponseData || !selectedTestcase.testcase) return
+        if (!baseResponseData || !selectedTestcase.testcase || !selectedEvaluator || !form) return
+
+        const controller = new AbortController()
+        evaluatorAbortRef.current = controller
 
         try {
             setEvalOutputStatus({success: false, error: false})
             setIsLoadingResult(true)
 
-            const settingsValues = form.getFieldValue("settings_values") || {}
-            let normalizedSettings = {...settingsValues}
+            const parameters = form.getFieldValue("parameters") || {}
+            let normalizedSettings = {...parameters}
 
             if (typeof normalizedSettings.json_schema === "string") {
                 try {
@@ -377,84 +563,157 @@ const DebugSection = ({
                 return
             }
 
-            const {testcaseObj, evalMapObj} = mapTestcaseAndEvalValues(
+            const {testcaseObj} = mapTestcaseAndEvalValues(
                 normalizedSettings,
                 selectedTestcase.testcase,
             )
 
             let outputs = {}
 
-            if (Object.keys(evalMapObj).length && selectedEvaluator.key.startsWith("rag_")) {
-                const mapResponse = await createEvaluatorDataMapping({
-                    inputs: baseResponseData,
-                    mapping: transformTraceKeysInSettings(evalMapObj),
-                })
-                outputs = {...outputs, ...mapResponse.outputs}
-            }
-
             if (Object.keys(testcaseObj).length) {
                 outputs = {...outputs, ...testcaseObj}
             }
 
-            if (!selectedEvaluator.key.startsWith("rag_")) {
-                const correctAnswerKey = settingsValues.correct_answer_key
-                const groundTruthKey =
-                    typeof correctAnswerKey === "string" && correctAnswerKey.startsWith("testcase.")
-                        ? correctAnswerKey.split(".")[1]
-                        : correctAnswerKey
+            const parseVersion = (raw: unknown, fallback: number) => {
+                if (raw === undefined || raw === null) return fallback
+                const match = String(raw).match(/\d+(\.\d+)?/)
+                return match ? parseFloat(match[0]) : fallback
+            }
 
-                const normalizeCompact = (val: any) => {
-                    try {
-                        if (val === undefined || val === null) return ""
-                        const str = typeof val === "string" ? val : JSON.stringify(val)
-                        const parsed = safeJson5Parse(str)
-                        if (parsed && typeof parsed === "object") {
-                            return JSON.stringify(parsed)
-                        }
-                        return str
-                    } catch {
-                        return typeof val === "string" ? val : JSON.stringify(val)
+            const evaluatorVersion = parseVersion(parameters.version, 1)
+
+            const allowGroundTruthKey = !(
+                selectedEvaluator.key === "auto_custom_code_run" && evaluatorVersion >= 2
+            )
+
+            const correctAnswerKey = allowGroundTruthKey ? parameters.correct_answer_key : undefined
+            const groundTruthKey =
+                typeof correctAnswerKey === "string" && correctAnswerKey.startsWith("testcase.")
+                    ? correctAnswerKey.split(".")[1]
+                    : correctAnswerKey
+
+            const normalizeCompact = (val: any) => {
+                try {
+                    if (val === undefined || val === null) return ""
+                    const str = typeof val === "string" ? val : JSON.stringify(val)
+                    const parsed = safeJson5Parse(str)
+                    if (parsed && typeof parsed === "object") {
+                        return JSON.stringify(parsed)
                     }
-                }
-
-                const rawGT = selectedTestcase?.["testcase"]?.[groundTruthKey]
-                const ground_truth = normalizeCompact(rawGT)
-                const prediction = normalizeCompact(variantResult)
-
-                outputs = {
-                    ...outputs,
-                    ...selectedTestcase.testcase,
-                    ground_truth,
-                    [groundTruthKey]: ground_truth,
-                    prediction,
-                    ...(selectedEvaluator.key === "auto_custom_code_run" ? {app_config: {}} : {}),
+                    return str
+                } catch {
+                    return typeof val === "string" ? val : JSON.stringify(val)
                 }
             }
 
-            const runResponse = await createEvaluatorRunExecution(selectedEvaluator.key, {
+            const hasValidGroundTruthKey =
+                typeof groundTruthKey === "string" && groundTruthKey.trim().length > 0
+
+            const rawGT = hasValidGroundTruthKey
+                ? selectedTestcase?.["testcase"]?.[groundTruthKey]
+                : undefined
+            const includeGroundTruth =
+                hasValidGroundTruthKey && rawGT !== undefined && rawGT !== null
+            const ground_truth = includeGroundTruth ? normalizeCompact(rawGT) : ""
+            const prediction = normalizeCompact(variantResult)
+
+            outputs = {
+                ...outputs,
+                ...selectedTestcase.testcase,
+                ...(includeGroundTruth ? {ground_truth, [groundTruthKey]: ground_truth} : {}),
+                prediction,
+                ...(selectedEvaluator.key === "auto_custom_code_run" ? {app_config: {}} : {}),
+            }
+
+            const evaluatorKey = resolveEvaluatorKey(evaluatorConfig) || selectedEvaluator?.key
+            const evaluatorUri =
+                evaluatorConfig?.data?.uri ||
+                (evaluatorKey ? buildEvaluatorUri(evaluatorKey) : undefined)
+            const evaluatorUrl = evaluatorConfig?.data?.url
+
+            if (!evaluatorUri && !evaluatorUrl) {
+                setOutputResult(
+                    "Evaluator interface is missing (uri/url). Save the evaluator and try again.",
+                )
+                setEvalOutputStatus({success: false, error: true})
+                return
+            }
+
+            const evaluatorParameters = transformTraceKeysInSettings(normalizedSettings)
+            const parsedVariantOutput = safeParse(variantResult, variantResult)
+            const workflowOutputs =
+                variantResult !== ""
+                    ? parsedVariantOutput
+                    : (baseResponseData?.data ?? parsedVariantOutput)
+
+            const tracePayload = (() => {
+                const t = traceTree?.trace
+                if (!t) return undefined
+                if (typeof t === "string") {
+                    try {
+                        const parsed = safeJson5Parse(t)
+                        return parsed && typeof parsed === "object" ? parsed : undefined
+                    } catch {
+                        return undefined
+                    }
+                }
+                return t
+            })()
+
+            const workflowResponse = await invokeEvaluator({
+                uri: evaluatorUri,
+                url: evaluatorUrl,
+                evaluator: evaluatorConfig,
                 inputs: outputs,
-                settings: transformTraceKeysInSettings(normalizedSettings),
-                ...(selectedEvaluator.requires_llm_api_keys || settingsValues?.requires_llm_api_keys
-                    ? {credentials: apiKeyObject(secrets)}
-                    : {}),
+                outputs: workflowOutputs,
+                trace: tracePayload,
+                parameters: evaluatorParameters,
+                references: applicationReferences,
+                links: lastInvocationLink ? {application: lastInvocationLink} : undefined,
+                options: {signal: controller.signal},
             })
+            const runResponse = mapWorkflowResponseToEvaluatorOutput(workflowResponse)
             setEvalOutputStatus({success: true, error: false})
 
             setOutputResult(getStringOrJson(runResponse.outputs))
         } catch (error: any) {
+            if (controller.signal.aborted) {
+                setOutputResult("Evaluation cancelled")
+                setEvalOutputStatus({success: false, error: false})
+                return
+            }
+
             console.error(error)
             setEvalOutputStatus({success: false, error: true})
-            if (error.response?.data?.detail) {
+
+            if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+                setOutputResult(
+                    "Request timed out. The evaluator is taking too long to respond. Please try again.",
+                )
+            } else if (error.code === "ERR_NETWORK" || error.message?.includes("Network Error")) {
+                setOutputResult("Network error. Please check your connection and try again.")
+            } else if (error.response?.data?.detail) {
                 const errorDetail =
                     typeof error.response.data.detail === "string"
                         ? error.response.data.detail
                         : formatJson(error.response.data.detail)
                 setOutputResult(getStringOrJson(errorDetail))
+            } else if (error.response?.status) {
+                setOutputResult(
+                    `Server error (${error.response.status}): ${error.response.statusText || "Unknown error"}`,
+                )
             } else {
-                setOutputResult("Error occured")
+                setOutputResult(error.message || "An unexpected error occurred")
             }
         } finally {
             setIsLoadingResult(false)
+            evaluatorAbortRef.current = null
+        }
+    }
+
+    const cancelEvaluatorRun = () => {
+        if (evaluatorAbortRef.current) {
+            evaluatorAbortRef.current.abort()
         }
     }
 
@@ -463,13 +722,16 @@ const DebugSection = ({
             message.info("Create an app first to run a variant.")
             return
         }
-        if (!selectedTestcase.testcase || !selectedVariant) return
+        if (!selectedTestcase.testcase || !selectedVariant) {
+            return
+        }
         const controller = new AbortController()
         abortControllersRef.current = controller
 
         try {
             setVariantStatus({success: false, error: false})
             setIsRunningVariant(true)
+            setLastInvocationLink(null)
 
             const params = {} as {
                 inputs: Parameter[]
@@ -479,14 +741,12 @@ const DebugSection = ({
                 messages: ChatMessage[]
             }
 
-            // Only use schema/uri when they belong to the same app as the selected variant
-            const selectedAppId = (selectedVariant as any)?.appId
-            const uriAppId = (uriObject as any)?.appId || (uriObject as any)?.app_id
-            const isSameAppAsUri = selectedAppId && uriAppId && selectedAppId === uriAppId
-
-            const safeSpec: any | undefined = isSameAppAsUri ? appSchema : undefined
-            const safeRoutePath: string = isSameAppAsUri ? uriObject?.routePath || "" : ""
-            const safeUriObject = isSameAppAsUri ? uriObject : undefined
+            // Per-revision schema (always matches the selected variant)
+            const safeSpec: any | undefined = revisionSchema || undefined
+            const safeRoutePath: string = revisionRoutePath || ""
+            const safeUriObject = revisionSchemaQuery?.data?.runtimePrefix
+                ? {runtimePrefix: revisionSchemaQuery.data.runtimePrefix, routePath: safeRoutePath}
+                : undefined
 
             if (selectedVariant?.parameters) {
                 const fromParams = (() => {
@@ -505,21 +765,32 @@ const DebugSection = ({
                     }
                 })()
 
+                const reservedInputKeys = new Set([
+                    "ag_config",
+                    "inputs",
+                    "environment",
+                    "revision_id",
+                    "variant_id",
+                    "app_id",
+                    "chat",
+                ])
+
                 let effectiveKeys: string[] = Array.from(
                     new Set([...(fromParams || []), ...(stableVarNames || [])]),
-                ).filter((k) => k && k !== "chat")
+                ).filter((k) => k && !reservedInputKeys.has(k))
 
                 let hasInputsProp = false
                 let hasMessagesPropFromSchema = false
                 if (safeSpec) {
-                    const req = (getRequestSchema as any)(safeSpec, {routePath: safeRoutePath})
-                    hasInputsProp = Boolean(req?.properties?.inputs)
-                    hasMessagesPropFromSchema = Boolean(req?.properties?.messages)
+                    const {primaryEndpoint} = extractAllEndpointSchemas(
+                        safeSpec as any,
+                        safeRoutePath,
+                    )
+                    hasInputsProp = Boolean(primaryEndpoint?.inputsSchema)
+                    hasMessagesPropFromSchema = Boolean(primaryEndpoint?.messagesSchema)
                 }
 
-                const isCustomFromFlag = Boolean(
-                    flags?.isCustom ?? (selectedVariant as any)?.isCustom,
-                )
+                const isCustomFromFlag = Boolean(isCustomFlag ?? (selectedVariant as any)?.isCustom)
                 const isCustomBySchema = safeSpec
                     ? Boolean(safeSpec) && !hasInputsProp && !hasMessagesPropFromSchema
                     : false
@@ -534,25 +805,27 @@ const DebugSection = ({
                 const isChatByKeys = (effectiveKeys || []).includes("messages")
                 const isChat = isChatBySchema !== null ? isChatBySchema : isChatByKeys
 
-                params.inputs = (effectiveKeys || []).map((name) => ({name, input: false}))
+                params.inputs = (effectiveKeys || [])
+                    .filter((name) => name !== "messages")
+                    .map((name) => ({name, input: false}))
 
-                const baseParameters = isPlainObject(stableTransformedParams)
-                    ? {...stableTransformedParams}
-                    : transformToRequestBody({
-                          variant: selectedVariant,
-                          allMetadata: getAllMetadata(),
-                          prompts:
-                              safeSpec && selectedVariant
-                                  ? derivePromptsFromSpec(
-                                        selectedVariant as any,
-                                        safeSpec as any,
-                                        safeRoutePath,
-                                    ) || []
-                                  : [],
-                          isChat,
-                          isCustom,
-                          customProperties: isCustom ? customProps : undefined,
-                      })
+                // Build raw ag_config from variant parameters
+                const variantParams = variantEntityData?.parameters || selectedVariant?.parameters
+                const payloadAgConfig = isPlainObject(revisionRequestPayload?.ag_config)
+                    ? (revisionRequestPayload.ag_config as Record<string, unknown>)
+                    : undefined
+                const variantAgConfig =
+                    payloadAgConfig ||
+                    (variantParams as Record<string, unknown>)?.ag_config ||
+                    variantParams ||
+                    {}
+
+                const baseParameters = transformToRequestBody({
+                    variant: selectedVariant,
+                    isChat,
+                    isCustom,
+                    rawAgConfig: variantAgConfig as Record<string, unknown>,
+                })
 
                 const variantParameters = isPlainObject(selectedVariant?.parameters)
                     ? (selectedVariant?.parameters as Record<string, any>)
@@ -613,13 +886,93 @@ const DebugSection = ({
             } else {
                 const {parameters, inputs} = await getAllVariantParameters(appId, selectedVariant)
                 params.parameters = parameters
-                params.inputs = inputs
-                const hasMessagesInput = (inputs || []).some((p) => p.name === "messages")
+                const reservedInputKeys = new Set([
+                    "ag_config",
+                    "inputs",
+                    "environment",
+                    "revision_id",
+                    "variant_id",
+                    "app_id",
+                ])
+                let sanitizedInputs = (inputs || []).filter(
+                    (p) => p?.name && !reservedInputKeys.has(p.name),
+                )
+                if (sanitizedInputs.length === 0) {
+                    const schemaKeys = safeSpec
+                        ? extractInputKeysFromSchema(safeSpec as any, safeRoutePath)
+                        : []
+                    if (schemaKeys.length > 0) {
+                        sanitizedInputs = schemaKeys.map((name) => ({name, input: false}))
+                    } else if (selectedTestcase.testcase) {
+                        sanitizedInputs = Object.keys(selectedTestcase.testcase)
+                            .filter(
+                                (key) =>
+                                    key &&
+                                    !key.startsWith("__") &&
+                                    !reservedInputKeys.has(key) &&
+                                    key !== "messages",
+                            )
+                            .map((name) => ({name, input: false}))
+                    }
+                }
+                params.inputs = sanitizedInputs
+                const hasMessagesInput = Boolean(
+                    (inputs || []).some((p) => p.name === "messages") ||
+                    (safeSpec &&
+                        extractAllEndpointSchemas(safeSpec as any, safeRoutePath)?.primaryEndpoint
+                            ?.messagesSchema),
+                )
                 params.isChatVariant = hasMessagesInput
                 params.messages = hasMessagesInput
                     ? extractChatMessages(selectedTestcase.testcase)
                     : []
                 params.isCustom = selectedVariant?.isCustom
+
+                const openApiDefaults = Array.isArray(parameters)
+                    ? parameters.reduce<Record<string, unknown>>((acc, param) => {
+                          if (
+                              typeof param?.name === "string" &&
+                              param.name.length > 0 &&
+                              param.default !== undefined
+                          ) {
+                              acc[param.name] = param.default
+                          }
+                          return acc
+                      }, {})
+                    : isPlainObject(parameters)
+                      ? {...(parameters as Record<string, unknown>)}
+                      : {}
+
+                const payloadAgConfig = isPlainObject(revisionRequestPayload?.ag_config)
+                    ? (revisionRequestPayload.ag_config as Record<string, unknown>)
+                    : undefined
+                const variantParams = variantEntityData?.parameters || selectedVariant?.parameters
+                const variantAgConfig = isPlainObject((variantParams as any)?.ag_config)
+                    ? ((variantParams as any).ag_config as Record<string, unknown>)
+                    : isPlainObject(variantParams)
+                      ? (variantParams as Record<string, unknown>)
+                      : undefined
+
+                const transformedParameters = transformToRequestBody({
+                    variant: selectedVariant,
+                    isChat: hasMessagesInput,
+                    isCustom: Boolean(params.isCustom),
+                    rawAgConfig: payloadAgConfig || variantAgConfig,
+                })
+
+                const mergedParameters = {
+                    ...openApiDefaults,
+                    ...(isPlainObject(transformedParameters) ? transformedParameters : {}),
+                }
+                if (
+                    !isPlainObject((mergedParameters as Record<string, unknown>).ag_config) &&
+                    (payloadAgConfig || variantAgConfig)
+                ) {
+                    ;(mergedParameters as Record<string, unknown>).ag_config =
+                        payloadAgConfig || variantAgConfig
+                }
+                params.parameters = mergedParameters
+
                 if (hasMessagesInput && params.messages.length === 0) {
                     setIsRunningVariant(false)
                     message.error(
@@ -637,6 +990,56 @@ const DebugSection = ({
                 ),
             )
 
+            const workflowParameters = isPlainObject((params.parameters as any)?.ag_config)
+                ? ((params.parameters as any).ag_config as Record<string, any>)
+                : isPlainObject(params.parameters)
+                  ? (params.parameters as Record<string, any>)
+                  : {}
+
+            const workflowInputs: Record<string, any> = {...filtered}
+            if (
+                params.isChatVariant &&
+                Array.isArray(params.messages) &&
+                params.messages.length > 0
+            ) {
+                workflowInputs.messages = params.messages
+            }
+
+            // Prefer unified workflow invocation for completion/chat app flows.
+            // Keep legacy /test fallback for custom apps and unknown interfaces.
+            const workflowUriCandidate = (() => {
+                const rawUri =
+                    typeof selectedVariant?.uri === "string" ? selectedVariant.uri.trim() : ""
+                if (rawUri && !rawUri.includes("://")) {
+                    return rawUri
+                }
+                if (params.isChatVariant) return "agenta:builtin:chat:v0"
+                if (!params.isCustom) return "agenta:builtin:completion:v0"
+                return ""
+            })()
+
+            if (!params.isCustom && workflowUriCandidate) {
+                const workflowResponse = await invokeApplication({
+                    uri: workflowUriCandidate,
+                    inputs: workflowInputs,
+                    parameters: workflowParameters,
+                    references: applicationReferences,
+                    options: {signal: controller.signal},
+                })
+
+                const runResponse = mapWorkflowResponseToOutputs(workflowResponse)
+                const outputs = runResponse.outputs ?? {}
+                setLastInvocationLink(extractLinkFromWorkflowResponse(workflowResponse) ?? null)
+                setBaseResponseData({
+                    version: workflowResponse.version,
+                    data: outputs,
+                })
+                setVariantResult(getStringOrJson(outputs))
+                setTraceTree({trace: null})
+                setVariantStatus({success: true, error: false})
+                return
+            }
+
             const result = await callVariant(
                 filtered,
                 params.inputs || [],
@@ -653,14 +1056,17 @@ const DebugSection = ({
             )
 
             if (typeof result === "string") {
+                setLastInvocationLink(null)
                 setVariantResult(getStringOrJson(result))
                 setTraceTree({trace: result})
                 setVariantStatus({success: true, error: false})
             } else if (isFuncResponse(result)) {
+                setLastInvocationLink(null)
                 setVariantResult(getStringOrJson(result))
                 setTraceTree({trace: result})
                 setVariantStatus({success: true, error: false})
             } else if (isBaseResponse(result)) {
+                setLastInvocationLink(extractLinkFromBaseResponse(result) ?? null)
                 setBaseResponseData(result)
                 const {trace, tree, data} = result
                 setVariantResult(getStringOrJson(data))
@@ -741,11 +1147,11 @@ const DebugSection = ({
     }
 
     const testcaseEditorKey = useMemo(
-        () => `testcase-${selectedTestset}-${JSON.stringify(selectedTestcase.testcase ?? {})}`,
-        [selectedTestset, selectedTestcase.testcase],
+        () => `testcase-${selectedRevisionId}-${JSON.stringify(selectedTestcase.testcase ?? {})}`,
+        [selectedRevisionId, selectedTestcase.testcase],
     )
 
-    const variantOutputEditorKey = useMemo(
+    const _variantOutputEditorKey = useMemo(
         () =>
             `variant-output-${selectedVariant?.variantId ?? "none"}-${JSON.stringify(
                 selectedTestcase.testcase ?? {},
@@ -753,7 +1159,7 @@ const DebugSection = ({
         [selectedVariant?.variantId, selectedTestcase.testcase],
     )
 
-    const traceEditorKey = useMemo(
+    const _traceEditorKey = useMemo(
         () =>
             `trace-${selectedVariant?.variantId ?? "none"}-${JSON.stringify(
                 traceTree.trace ?? {},
@@ -761,139 +1167,126 @@ const DebugSection = ({
         [selectedVariant?.variantId, traceTree.trace],
     )
 
-    const evaluatorOutputEditorKey = useMemo(
+    const _evaluatorOutputEditorKey = useMemo(
         () =>
-            `evaluator-output-${selectedEvaluator.key}-${JSON.stringify(
+            `evaluator-output-${selectedEvaluator?.key ?? "none"}-${JSON.stringify(
                 selectedTestcase.testcase ?? {},
             )}`,
-        [selectedEvaluator.key, selectedTestcase.testcase],
+        [selectedEvaluator?.key, selectedTestcase.testcase],
     )
 
     // Helper to print "App / Variant" nicely
     const appName = selectedApp?.name || selectedApp?.app_name || "app"
     const variantName = selectedVariant?.variantName || "variant"
 
+    // Guard: if no evaluator selected, show nothing (shouldn't happen in normal flow)
+    if (!selectedEvaluator) {
+        return null
+    }
+
     return (
-        <section className="flex flex-col gap-4 h-full pb-10 w-[50%]">
-            <div className="flex flex-col gap-4 min-w-0">
-                <Space direction="vertical" size={0}>
-                    <Typography.Text className={classes.title}>Test evaluator</Typography.Text>
-                    <Typography.Text type="secondary">
-                        Test your evaluator by generating a test data
-                    </Typography.Text>
-                </Space>
+        <div className="flex flex-col gap-4 w-full">
+            <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                    <Space size={5}>
+                        <Typography.Text className={classes.formTitleText}>
+                            Testcase
+                        </Typography.Text>
 
-                <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between">
-                        <Space size={5}>
-                            <Typography.Text className={classes.formTitleText}>
-                                Testcase
-                            </Typography.Text>
+                        {activeTestsetLabel && selectedTestcase.testcase && (
+                            <>
+                                <CheckCircleOutlined style={{color: "green"}} />
+                                <Typography.Text type="secondary">
+                                    <span className="inline-flex items-center gap-2">
+                                        <span>{activeTestsetLabel.name}</span>
+                                        {typeof activeTestsetLabel.version === "number" && (
+                                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md leading-none">
+                                                v{activeTestsetLabel.version}
+                                            </span>
+                                        )}
+                                    </span>
+                                </Typography.Text>
+                            </>
+                        )}
+                    </Space>
 
-                            {activeTestset && selectedTestcase.testcase && (
-                                <>
-                                    <CheckCircleOutlined style={{color: "green"}} />
-                                    <Typography.Text type="secondary">
-                                        loaded from {activeTestset.name}
-                                    </Typography.Text>
-                                </>
-                            )}
-                        </Space>
-
-                        <Tooltip
-                            title={testsets?.length === 0 ? "No testset" : ""}
-                            placement="bottom"
+                    <Tooltip placement="bottom" title="">
+                        <Button
+                            size="small"
+                            className="flex items-center gap-2"
+                            onClick={() => setOpenTestcaseModal(true)}
                         >
-                            <Button
-                                size="small"
-                                className="flex items-center gap-2"
-                                onClick={() => setOpenTestcaseModal(true)}
-                                disabled={testsets?.length === 0}
-                            >
-                                <Database />
-                                Load testcase
-                            </Button>
-                        </Tooltip>
-                    </div>
-
-                    <div className="flex-1 w-full overflow-hidden">
-                        <SharedEditor
-                            key={testcaseEditorKey}
-                            className={`${classes.editor} h-full`}
-                            editorType="border"
-                            initialValue={getStringOrJson(
-                                selectedTestcase.testcase ? formatJson(selectedTestcase) : "",
-                            )}
-                            handleChange={(value) => {
-                                try {
-                                    if (value) {
-                                        const parsedValue = JSON.parse(value)
-                                        setSelectedTestcase(parsedValue)
-                                    }
-                                } catch (error) {
-                                    console.error("Failed to parse testcase JSON", error)
-                                }
-                            }}
-                            editorProps={{
-                                codeOnly: true,
-                                language: "json",
-                                showLineNumbers: false,
-                            }}
-                            syncWithInitialValueChanges={true}
-                        />
-                    </div>
+                            <Database />
+                            Load testcase
+                        </Button>
+                    </Tooltip>
                 </div>
 
-                <div className="flex flex-col">
-                    <div className="flex items-center justify-between">
-                        <Space size={5}>
-                            <Typography.Text className={classes.formTitleText}>
-                                Application
-                            </Typography.Text>
-                            {variantStatus.success && (
-                                <>
-                                    <CheckCircleOutlined style={{color: "green"}} />
-                                    <Typography.Text type="secondary">Success</Typography.Text>
-                                </>
-                            )}
-                            {variantStatus.error && (
-                                <ExclamationCircleOutlined style={{color: "red"}} />
-                            )}
-                        </Space>
+                <div className="w-full overflow-hidden">
+                    <SharedEditor
+                        key={testcaseEditorKey}
+                        className={`${classes.editor} h-full`}
+                        editorType="border"
+                        initialValue={getStringOrJson(
+                            selectedTestcase.testcase ? formatJson(selectedTestcase.testcase) : "",
+                        )}
+                        handleChange={(value) => {
+                            try {
+                                if (value) {
+                                    const parsedValue = JSON.parse(value)
+                                    setSelectedTestcase({testcase: parsedValue})
+                                }
+                            } catch (error) {
+                                console.error("Failed to parse testcase JSON", error)
+                            }
+                        }}
+                        editorProps={{
+                            codeOnly: true,
+                            language: "json",
+                            showLineNumbers: false,
+                        }}
+                        syncWithInitialValueChanges={true}
+                    />
+                </div>
+            </div>
+            <div className="flex flex-col">
+                <div className="flex items-center justify-between">
+                    <Space size={5}>
+                        <Typography.Text className={classes.formTitleText}>
+                            Application
+                        </Typography.Text>
+                        {variantStatus.success && (
+                            <>
+                                <CheckCircleOutlined style={{color: "green"}} />
+                                <Typography.Text type="secondary">Success</Typography.Text>
+                            </>
+                        )}
+                        {variantStatus.error && (
+                            <ExclamationCircleOutlined style={{color: "red"}} />
+                        )}
+                    </Space>
 
-                        {isRunningVariant ? (
+                    {isRunningVariant ? (
+                        <Button
+                            size="small"
+                            className="w-[120px]"
+                            danger
+                            onClick={() => {
+                                if (abortControllersRef.current) {
+                                    abortControllersRef.current.abort()
+                                }
+                            }}
+                        >
+                            <CloseCircleOutlined />
+                            Cancel
+                        </Button>
+                    ) : (
+                        <Space.Compact>
                             <Button
                                 size="small"
-                                className="w-[120px]"
-                                danger
-                                onClick={() => {
-                                    if (abortControllersRef.current) {
-                                        abortControllersRef.current.abort()
-                                    }
-                                }}
-                            >
-                                <CloseCircleOutlined />
-                                Cancel
-                            </Button>
-                        ) : (
-                            <Dropdown.Button
-                                className="w-fit"
                                 disabled={!selectedTestcase.testcase}
-                                size="small"
-                                onClick={handleRunVariant}
                                 loading={isRunningVariant}
-                                icon={<MoreOutlined />}
-                                menu={{
-                                    items: [
-                                        {
-                                            key: "change_variant",
-                                            icon: <Lightning />,
-                                            // Updated copy
-                                            label: "Change application",
-                                            onClick: () => setOpenVariantModal(true),
-                                        },
-                                    ],
-                                }}
+                                onClick={handleRunVariant}
                             >
                                 <div
                                     className="flex items-center gap-2"
@@ -904,102 +1297,138 @@ const DebugSection = ({
                                     }
                                 >
                                     <Play />
-                                    {/* Show "App / Variant" */}
                                     Run application ({appName}/{variantName})
                                 </div>
-                            </Dropdown.Button>
-                        )}
-                    </div>
-
-                    <Tabs
-                        defaultActiveKey="output"
-                        className={classes.variantTab}
-                        items={[
-                            {
-                                key: "output",
-                                label: "Output",
-                                children: (
-                                    <div className="w-full h-full overflow-hidden">
-                                        <SharedEditor
-                                            key={`debug-output-${variantResult}`}
-                                            className={`${classes.editor} h-full`}
-                                            editorClassName={clsx([
-                                                "!border-none !shadow-none px-0 overflow-hidden",
-                                            ])}
-                                            editorType="border"
-                                            useAntdInput
-                                            antdInputProps={{
-                                                textarea: true,
-                                                autoSize: {minRows: 10, maxRows: 10},
-                                            }}
-                                            initialValue={variantResult}
-                                            handleChange={(value) => {
-                                                if (value) {
-                                                    setVariantResult(value)
-                                                }
-                                            }}
-                                            syncWithInitialValueChanges={true}
-                                        />
-                                    </div>
-                                ),
-                            },
-                            {
-                                key: "trace",
-                                label: "Trace",
-                                children: (
-                                    <div className="w-full h-full overflow-hidden">
-                                        <SharedEditor
-                                            key={`debug-trace-${traceTree?.trace}`}
-                                            className={`${classes.editor} h-full`}
-                                            editorType="border"
-                                            initialValue={
-                                                traceTree.trace ? getStringOrJson(traceTree) : ""
-                                            }
-                                            handleChange={(value) => {
-                                                try {
-                                                    if (value) {
-                                                        const parsedValue = JSON.parse(value)
-                                                        setTraceTree(parsedValue)
-                                                    }
-                                                } catch (error) {
-                                                    console.error(
-                                                        "Failed to parse trace tree JSON",
-                                                        error,
-                                                    )
-                                                }
-                                            }}
-                                            editorProps={{
-                                                codeOnly: true,
-                                                language: "json",
-                                                showLineNumbers: false,
-                                            }}
-                                            syncWithInitialValueChanges={true}
-                                        />
-                                    </div>
-                                ),
-                            },
-                        ]}
-                    />
+                            </Button>
+                            <Dropdown
+                                open={dropdownOpen}
+                                onOpenChange={setDropdownOpen}
+                                menu={{
+                                    items: [
+                                        {
+                                            key: "change_variant",
+                                            icon: <Lightning />,
+                                            label: "Change application",
+                                        },
+                                    ],
+                                    onClick: (info) => {
+                                        if (info.key === "change_variant") {
+                                            setDropdownOpen(false)
+                                            setOpenVariantModal(true)
+                                        }
+                                    },
+                                }}
+                                trigger={["click"]}
+                            >
+                                <Button
+                                    size="small"
+                                    icon={<MoreOutlined />}
+                                    disabled={!selectedTestcase.testcase}
+                                />
+                            </Dropdown>
+                        </Space.Compact>
+                    )}
                 </div>
 
-                <div className="flex flex-col gap-1">
-                    <Flex justify="space-between">
-                        <Space size={5}>
-                            <Typography.Text className={classes.formTitleText}>
-                                Evaluator
-                            </Typography.Text>
-                            {evalOutputStatus.success && (
-                                <>
-                                    <CheckCircleOutlined style={{color: "green"}} />
-                                    <Typography.Text type="secondary">Successful</Typography.Text>
-                                </>
-                            )}
-                            {evalOutputStatus.error && (
-                                <ExclamationCircleOutlined style={{color: "red"}} />
-                            )}
-                        </Space>
+                <Tabs
+                    defaultActiveKey="output"
+                    className={classes.variantTab}
+                    items={[
+                        {
+                            key: "output",
+                            label: "Output",
+                            children: (
+                                <div className="w-full h-full overflow-hidden">
+                                    <SharedEditor
+                                        key={`debug-output-${variantResult}`}
+                                        className={`${classes.editor} h-full`}
+                                        editorClassName={clsx([
+                                            "!border-none !shadow-none px-0 overflow-hidden",
+                                        ])}
+                                        editorType="border"
+                                        useAntdInput
+                                        antdInputProps={{
+                                            textarea: true,
+                                            autoSize: {minRows: 10, maxRows: 10},
+                                        }}
+                                        initialValue={variantResult}
+                                        handleChange={(value) => {
+                                            if (value) {
+                                                setVariantResult(value)
+                                            }
+                                        }}
+                                        syncWithInitialValueChanges={true}
+                                    />
+                                </div>
+                            ),
+                        },
+                        {
+                            key: "trace",
+                            label: "Trace",
+                            children: (
+                                <div className="w-full h-full overflow-hidden">
+                                    <SharedEditor
+                                        key={`debug-trace-${traceTree?.trace}`}
+                                        className={`${classes.editor} h-full`}
+                                        editorType="border"
+                                        initialValue={
+                                            traceTree.trace ? getStringOrJson(traceTree) : ""
+                                        }
+                                        handleChange={(value) => {
+                                            try {
+                                                if (value) {
+                                                    const parsedValue = JSON.parse(value)
+                                                    setTraceTree(parsedValue)
+                                                }
+                                            } catch (error) {
+                                                console.error(
+                                                    "Failed to parse trace tree JSON",
+                                                    error,
+                                                )
+                                            }
+                                        }}
+                                        editorProps={{
+                                            codeOnly: true,
+                                            language: "json",
+                                            showLineNumbers: false,
+                                        }}
+                                        syncWithInitialValueChanges={true}
+                                    />
+                                </div>
+                            ),
+                        },
+                    ]}
+                />
+            </div>
+            <div className="flex flex-col gap-1">
+                <Flex justify="space-between">
+                    <Space size={5}>
+                        <Typography.Text className={classes.formTitleText}>
+                            Evaluator
+                        </Typography.Text>
+                        {evalOutputStatus.success && (
+                            <>
+                                <CheckCircleOutlined style={{color: "green"}} />
+                                <Typography.Text type="secondary">Successful</Typography.Text>
+                            </>
+                        )}
+                        {evalOutputStatus.error && (
+                            <ExclamationCircleOutlined style={{color: "red"}} />
+                        )}
+                    </Space>
+                    {isLoadingResult ? (
+                        <Button
+                            size="small"
+                            className="w-[120px]"
+                            danger
+                            onClick={cancelEvaluatorRun}
+                        >
+                            <CloseCircleOutlined />
+                            Cancel
+                        </Button>
+                    ) : (
                         <Tooltip
-                            title={baseResponseData ? "" : "BaseResponse feature"}
+                            title={baseResponseData ? "" : "Run application first"}
                             placement="bottom"
                         >
                             <Button
@@ -1007,45 +1436,44 @@ const DebugSection = ({
                                 size="small"
                                 onClick={fetchEvalMapper}
                                 disabled={!baseResponseData}
-                                loading={isLoadingResult}
                             >
                                 <Play /> Run evaluator
                             </Button>
                         </Tooltip>
-                    </Flex>
+                    )}
+                </Flex>
 
-                    <Tabs
-                        defaultActiveKey="output"
-                        className={classes.variantTab}
-                        items={[
-                            {
-                                key: "output",
-                                label: "Output",
-                                children: (
-                                    <div className="w-full h-full overflow-hidden">
-                                        <SharedEditor
-                                            key={`debug-output-${variantResult}`}
-                                            className={`${classes.editor} h-full`}
-                                            readOnly
-                                            disabled
-                                            state="disabled"
-                                            editorType="border"
-                                            initialValue={formatOutput(outputResult)}
-                                            editorProps={{
-                                                codeOnly: true,
-                                                language: "yaml",
-                                                readOnly: true,
-                                                disabled: true,
-                                                showLineNumbers: false,
-                                            }}
-                                            syncWithInitialValueChanges={true}
-                                        />
-                                    </div>
-                                ),
-                            },
-                        ]}
-                    />
-                </div>
+                <Tabs
+                    defaultActiveKey="output"
+                    className={classes.variantTab}
+                    items={[
+                        {
+                            key: "output",
+                            label: "Output",
+                            children: (
+                                <div className="w-full h-full overflow-hidden">
+                                    <SharedEditor
+                                        key={`debug-output-${variantResult}`}
+                                        className={`${classes.editor} h-full`}
+                                        readOnly
+                                        disabled
+                                        state="disabled"
+                                        editorType="border"
+                                        initialValue={formatOutput(outputResult)}
+                                        editorProps={{
+                                            codeOnly: true,
+                                            language: "yaml",
+                                            readOnly: true,
+                                            disabled: true,
+                                            showLineNumbers: false,
+                                        }}
+                                        syncWithInitialValueChanges={true}
+                                    />
+                                </div>
+                            ),
+                        },
+                    ]}
+                />
             </div>
 
             <EvaluatorVariantModal
@@ -1054,28 +1482,20 @@ const DebugSection = ({
                 onCancel={() => setOpenVariantModal(false)}
                 setSelectedVariant={(v) => {
                     setSelectedVariant(v)
-                    // eager persist on selection from modal
-                    try {
-                        if ((v as any)?.appId) localStorage.setItem(LAST_APP_KEY, (v as any).appId)
-                        if ((v as any)?.variantId)
-                            localStorage.setItem(LAST_VARIANT_KEY, (v as any).variantId)
-                    } catch {}
+                    // Persist selection via atoms
+                    if ((v as any)?.appId) setLastAppId((v as any).appId)
+                    if ((v as any)?.variantId) setLastVariantId((v as any).variantId)
                 }}
                 selectedVariant={selectedVariant}
-                selectedTestsetId={selectedTestset}
+                selectedRevisionId={selectedRevisionId}
             />
-
-            {testsets?.length && (
-                <EvaluatorTestcaseModal
-                    open={openTestcaseModal}
-                    onCancel={() => setOpenTestcaseModal(false)}
-                    testsets={testsets}
-                    setSelectedTestcase={setSelectedTestcase}
-                    selectedTestset={selectedTestset}
-                    setSelectedTestset={setSelectedTestset}
-                />
-            )}
-        </section>
+            <LoadTestsetModal
+                open={openTestcaseModal}
+                onCancel={() => setOpenTestcaseModal(false)}
+                setTestsetData={handleEvaluatorTestsetData}
+                selectionMode="single"
+            />
+        </div>
     )
 }
 

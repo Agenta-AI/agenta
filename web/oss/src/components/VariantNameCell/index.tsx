@@ -1,16 +1,14 @@
-import {memo} from "react"
+import {memo, useCallback} from "react"
 
+import {environmentMolecule} from "@agenta/entities/environment"
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
+import {message} from "@agenta/ui/app-message"
 import {Tag} from "antd"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
-import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms/propertySelectors"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import type {Variant} from "@/oss/lib/Types"
-import {revisionDeploymentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
-import {
-    variantDisplayNameByIdAtomFamily,
-    latestAppRevisionIdAtom,
-} from "@/oss/state/variant/selectors/variant"
+import type {VariantStatusInfo} from "@/oss/components/VariantDetailsWithStatus/types"
 
 type Rev = {
     id: string
@@ -25,6 +23,7 @@ interface VariantNameCellProps {
     showStable?: boolean
     revision?: Rev
     revisionName?: string | null
+    hideDiscard?: boolean
 }
 
 const VariantNameCell = memo(
@@ -34,45 +33,51 @@ const VariantNameCell = memo(
         revisionName,
         showBadges = false,
         showStable = false,
+        hideDiscard = false,
     }: VariantNameCellProps) => {
+        const currentRevisionId = revisionId || (revision?.id ?? "")
         const resolvedRevision = useAtomValue(
-            variantByRevisionIdAtomFamily(revisionId || (revision?.id ?? "")),
+            legacyAppRevisionMolecule.atoms.data(currentRevisionId),
         ) as Rev
 
         const rev = resolvedRevision ?? revision
-        const variantId = (rev && rev.variantId) || ""
 
-        const nameFromStore = useAtomValue(variantDisplayNameByIdAtomFamily(variantId))
-        const latestIdForVariant = useAtomValue(latestAppRevisionIdAtom)
+        const isLatestRevision = useAtomValue(runnableBridge.isLatestRevision(currentRevisionId))
         const deployedInFromStore = useAtomValue(
-            revisionDeploymentAtomFamily((rev && rev.id) || ""),
+            environmentMolecule.atoms.revisionDeployment((rev && rev.id) || ""),
         )
+
+        const _isDirty = useAtomValue(runnableBridge.isDirty(currentRevisionId))
+        const isDirty = showStable ? false : _isDirty
+        const discard = useSetAtom(runnableBridge.discard)
+
+        const handleDiscardDraft = useCallback(() => {
+            if (!currentRevisionId) return
+            try {
+                discard(currentRevisionId)
+                message.success("Draft changes discarded")
+            } catch (e) {
+                message.error("Failed to discard draft changes")
+                console.error(e)
+            }
+        }, [currentRevisionId, discard])
 
         if (!rev) {
             return (
-                <Tag color="default" bordered={false} className="-ml-1">
+                <Tag color="default" variant="filled" className="-ml-1">
                     No deployment
                 </Tag>
             )
         }
 
-        const resolvedName =
-            (nameFromStore && nameFromStore !== "-" ? nameFromStore : null) ||
-            revisionName ||
-            (rev as any)?.variantName ||
-            "-"
+        const resolvedName = revisionName || (rev as any)?.variantName || "-"
 
         const deployedIn =
             deployedInFromStore && deployedInFromStore.length > 0
                 ? deployedInFromStore
-                : ((rev as any)?.deployedIn as Variant["deployedIn"]) || []
+                : ((rev as any)?.deployedIn as {name: string}[]) || []
 
-        const isLatestRevision =
-            typeof (rev as any)?.isLatestRevision === "boolean"
-                ? (rev as any).isLatestRevision
-                : rev.id === latestIdForVariant
-
-        const variantMin: Pick<Variant, "deployedIn" | "isLatestRevision" | "id"> = {
+        const variantMin: VariantStatusInfo = {
             id: rev.id,
             deployedIn,
             isLatestRevision,
@@ -85,7 +90,10 @@ const VariantNameCell = memo(
                 revision={rev.revision ?? rev.revisionNumber}
                 showBadges={showBadges}
                 showRevisionAsTag
-                showStable={showStable}
+                hasChanges={isDirty}
+                isLatest={isLatestRevision}
+                onDiscardDraft={handleDiscardDraft}
+                hideDiscard={hideDiscard}
             />
         )
     },

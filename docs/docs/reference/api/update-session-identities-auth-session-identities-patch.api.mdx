@@ -1,0 +1,71 @@
+---
+id: update-session-identities-auth-session-identities-patch
+title: "Update Session Identities"
+description: "Update Session Identities"
+sidebar_label: "Update Session Identities"
+hide_title: true
+hide_table_of_contents: true
+api: eJyVVV1z2jAQ/CvMPbtAM33yU2mamTBpp0xC+sJ4MsK+YKW2pEinJJTxf++chDHmI215wT6tVsfuntgAiZWDdAETTyVkCWiDVpDUalpACt4UgvDBoXNSqwdZoCJJEt2D8FSeqhtBeQkJWHz26OiLLtaQbiDXilARPwpjKpmHM0ZPTiuuubzEWvCTsdwBU4X60QFclYR1eKC1QUjBkZVqBU3SFoS1Yg0JkKSK3+8izWDa0TQdWi+fMKdtz9JiwXqcODk7Iuz47oNQ0DBtR0PWYyg4o5WLzV+Mx/xVoMutNKwC8/k8R+cefTW43YIh+WfRmnDsp4uLY+KfopJF2Da4slbb/2A9sKJAErLqyd8HVDrvrQq1/vEI6eLYpl1FKsIVWmiy895907FBtrd2q2PbO+h3dE6ssAvCeWgQYzDn1SYBqYwPgrTL01BoEsjpbY9ml5QWd8lavtFf08TaxPa3uL0sdRZFh85L8TVacOqwFnI9n8+OCGM++sGIgR2cmIwEaqRS8/i3w2wElZDCiId+tJ2Mkdzf4tC+oHXBbm+rADYyeB1fSyLj0tEI/TCvtC+GYoWKxFDICMyYI/dW0jqQTGbTG1xfoyjQQrrI9gF3HNEYuj5sZ5Qw8gZZOiVqfufbTVv5OyaJDeeW4i7WhsN/291YV2+iNhWeu4EWbZ6ykJ1HvR+dSfhdg8lsCgmwJlHv8fDjcAyHLvTAPJgiDzls2w7LkBxouJMOEsA6TCUQivpzt8A/ymhHtVB7fO+Z3mtsJySne2QqIcP8hTY22zgsgOMQvA90LGvvsiy1I4ZtNkvh8N5WTcPlZ4+WPc4SeBFWiiXLtmApy9btDfzCdTteij6EOWV45aO7B9cWxyzumOQ5GnoXm+0FfDaZX15DAsvt31StC95kxSsPsHiFFID/E3l7yFuobaASauX5qkkhkvLnDxbRhwA=
+sidebar_class_name: "patch api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Update Session Identities"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"patch"}
+  path={"/auth/session/identities"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Update Session Identities
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"session_identities":{"items":{"type":"string"},"type":"array","title":"Session Identities"}},"type":"object","required":["session_identities"],"title":"SessionIdentitiesUpdate"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

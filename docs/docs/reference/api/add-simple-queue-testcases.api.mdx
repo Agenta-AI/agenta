@@ -1,0 +1,71 @@
+---
+id: add-simple-queue-testcases
+title: "Add Queue Testcases"
+description: "Add Queue Testcases"
+sidebar_label: "Add Queue Testcases"
+hide_title: true
+hide_table_of_contents: true
+api: eJydVm1v2kgQ/itoPvUkgylJ6NWfjstFKmqr5hKuX5AVDd4xbOuXzb7kwln+76fZNWAKaaTyAbD32cczzzwz3gYsrg0kS7h5wsKhlXVlII2gVqT91VxAAijEg5GlKujh0ZGjB0vGZmjIQAQKNZZkSTNPAxWWBAkEnBQQgawgAYV2AxFoenRSk4DEakcRmGxDJULSgN0q3mesltUaIshrXaKFBJzzLFbaggF/M/FgLqBt08BHxv5Ziy2T/Eif1ZWlyvISKlXIzOcUfzN1xfcOT1eaM7aSjI+lS+9BCn8tLZXm9SDbaAdArXHbC3rREQ7mwkB7wNWrb5TZI12Wx09PDyT3vgI+/x2fudaElu6CCtC2zK3JqLoyIZXJeMw/gkympeLsmcllGRmTu2Jw14Hhl8XKahc2dTnJytKadC/7a4+IQFCOrrCQjNvoYBB+XLX9knv3vCbwHlG5ooA2PeuLU3nPSDgX+9SDbJeTyalSX7GQwuswuNG61r8ukyCLsjhy0zGgqLOj1ZdE6Ymwk7pNX7bepzoEyO4szfqci3fQz2QMrung45ehXozBgldb7nDlggW65bm/0UaQ2ecezUk9rlnLZ/tqS7A2IfwO1yv8oUShQi9L8Vcowc8M8mGxuD0hDP44NsZMiEGw3KI3C0uym5onpqqN9bPRbiCBWGl6kvRvHIZo7L1v4mbXA228H6gxRGBIP+3GqdMFE6CSvvDhcmOtMkkckxtlRe3ECNdUWRyhDMCUOTKnpd16ktnt/CNtPxAK0pAs0z7gnv0aHHgM21cNlfxIrGM32mfObmot/wu26ub7JuxiobgT7g5z+eYZOenTubqEixx/v8qnl8Ord2/fDS+vppPh6iLPhpPs/fQin04xxymk3mB53ffXzOc7mN3OIQLWKhRlPHo7GsNJqfpg7l7MvFl36fhliH7Qdi8pREClb12whOUfhwVOlgtdYtXnO+uMo5D20rL5Y1Wg9O3pA2g60yyhMw0bwtsGuqHJdEnv/dp/GXNjbNh7yRKaZoWG/tFF2/LtR0ea7ZBG8IRa4oqVXDYgpOH/ApIcC0Mnoe7nHby561rytwFE51PYWaZiv/CRgq8ggu+07R8K/MDa7PzYdMvX4UlDP1YO20+mLDdC2DHLMlL2p9i015W3X+4XEMGqOy2UteA9Gllj/vah1iqcgvg4wfcaKLBaOx6MCQRO/vwP70Al6g==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Add Queue Testcases"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/preview/simple/queues/{queue_id}/testcases/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Add Queue Testcases
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"queue_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Queue Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"required":true,"content":{"application/json":{"schema":{"properties":{"testcase_ids":{"items":{"type":"string","format":"uuid"},"type":"array","title":"Testcase Ids"}},"type":"object","required":["testcase_ids"],"title":"SimpleQueueTestcasesCreateRequest"}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"queue_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Queue Id"}},"type":"object","title":"SimpleQueueIdResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

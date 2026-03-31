@@ -1,59 +1,133 @@
 import {memo, useCallback} from "react"
 
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {formatEntityDateTime} from "@agenta/entities/shared"
+import {useUserDisplayName} from "@agenta/entities/shared/user"
 import {GearSix} from "@phosphor-icons/react"
 import {ColumnsType} from "antd/es/table"
-import {getDefaultStore, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {openDeleteVariantModalAtom} from "@/oss/components/Playground/Components/Modals/DeleteVariantModal/store/deleteVariantModalStore"
+import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
+import {
+    openDeleteVariantModalAtom,
+    type OpenDeleteVariantModalPayload,
+} from "@/oss/components/Playground/Components/Modals/DeleteVariantModal/store/deleteVariantModalStore"
 import {openDeployVariantModalAtom} from "@/oss/components/Playground/Components/Modals/DeployVariantModal/store/deployVariantModalStore"
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
-import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
 import VariantNameCell from "@/oss/components/VariantNameCell"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {modelNameByRevisionIdAtomFamily} from "@/oss/state/variant/selectors/variant"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 
 const VariantDropdown = dynamic(() => import("../../Dropdown/VariantDropdown"), {ssr: false})
 
-const store = getDefaultStore()
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const toUnixMs = (value: unknown): number | undefined => {
+    if (typeof value !== "string" || !value) return undefined
+    const ts = new Date(value).getTime()
+    return Number.isFinite(ts) ? ts : undefined
+}
+
+const pickModelFromParams = (value: unknown, depth = 0, visited = new Set<unknown>()): string => {
+    if (!value || depth > 6) return ""
+    if (visited.has(value)) return ""
+    if (typeof value === "object") visited.add(value)
+
+    if (typeof value === "string") {
+        return value.trim()
+    }
+
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const result = pickModelFromParams(item, depth + 1, visited)
+            if (result) return result
+        }
+        return ""
+    }
+
+    if (typeof value === "object") {
+        const obj = value as Record<string, unknown>
+        const directModel = [obj.model, obj.model_name, obj.modelName, obj.engine].find(
+            (candidate) => typeof candidate === "string" && candidate.trim().length > 0,
+        ) as string | undefined
+        if (directModel) return directModel.trim()
+
+        const llmConfig = obj.llm_config ?? obj.llmConfig
+        if (llmConfig) {
+            const result = pickModelFromParams(llmConfig, depth + 1, visited)
+            if (result) return result
+        }
+
+        for (const nested of Object.values(obj)) {
+            const result = pickModelFromParams(nested, depth + 1, visited)
+            if (result) return result
+        }
+    }
+
+    return ""
+}
 
 const CreatedByCell = memo(({record}: {record: EnhancedVariant}) => {
+    const revisionData = useAtomValue(legacyAppRevisionMolecule.atoms.data(record.id)) as any
+    const authorIdCandidate =
+        [
+            (record as any)?.modifiedById,
+            (record as any)?.createdById,
+            revisionData?.modifiedById,
+            revisionData?.createdById,
+            (record as any)?.author,
+            revisionData?.author,
+            (record as any)?.modifiedBy,
+            revisionData?.modifiedBy,
+        ].find((value) => typeof value === "string" && UUID_REGEX.test(value.trim())) ?? undefined
+    const resolvedAuthorName = useUserDisplayName(authorIdCandidate)
     const fallbackName =
         [
+            resolvedAuthorName,
             (record as any)?.modifiedByDisplayName,
             (record as any)?.modifiedBy,
+            (record as any)?.author,
             (record as any)?.modifiedById,
             (record as any)?.createdByDisplayName,
             (record as any)?.createdBy,
             (record as any)?.createdById,
+            revisionData?.modifiedByDisplayName,
+            revisionData?.modifiedBy,
+            revisionData?.author,
+            revisionData?.createdByDisplayName,
+            revisionData?.createdBy,
+            revisionData?.createdById,
         ].find((value) => typeof value === "string" && value.trim().length > 0) ?? undefined
 
-    return (
-        <UserAvatarTag
-            variantId={record.id}
-            nameOverride={fallbackName}
-            modifiedBy={fallbackName}
-        />
-    )
+    return <UserAvatarTag nameOverride={fallbackName} modifiedBy={fallbackName} />
 })
 
 const CreatedOnCell = memo(({record}: {record: EnhancedVariant}) => {
-    return <div>{record.createdAt}</div>
+    const revisionData = useAtomValue(legacyAppRevisionMolecule.atoms.data(record.id)) as any
+    const ts =
+        (record as any).createdAtTimestamp ??
+        toUnixMs(revisionData?.createdAt) ??
+        (record as any).updatedAtTimestamp
+    const formatted = ts ? formatEntityDateTime(ts) : ""
+    return <div>{formatted}</div>
+})
+
+const UpdatedOnCell = memo(({record}: {record: EnhancedVariant}) => {
+    const revisionData = useAtomValue(legacyAppRevisionMolecule.atoms.data(record.id)) as any
+    const ts =
+        (record as any).updatedAtTimestamp ??
+        toUnixMs(revisionData?.updatedAt) ??
+        toUnixMs(revisionData?.createdAt) ??
+        (record as any).createdAtTimestamp
+    const formatted = ts ? formatEntityDateTime(ts) : ""
+    return <div>{formatted}</div>
 })
 
 const ModelCell = memo(({record}: {record: EnhancedVariant}) => {
-    const modelFromStore = store.get(modelNameByRevisionIdAtomFamily(record.id))
-    const inlineConfig = (record.parameters as any)?.prompt?.llm_config || record.parameters || {}
-    const inlineModel =
-        (record.modelName as string | undefined) ||
-        (inlineConfig && typeof inlineConfig === "object"
-            ? (inlineConfig as any)?.model
-            : undefined)
-
-    const name = [modelFromStore, inlineModel].find(
-        (value) => typeof value === "string" && value.trim().length > 0 && value !== "-",
-    )
+    const revisionData = useAtomValue(legacyAppRevisionMolecule.atoms.data(record.id)) as any
+    const params = revisionData?.parameters ?? (record.parameters as any)
+    const name = pickModelFromParams(params)
 
     return <div>{name || "-"}</div>
 })
@@ -72,13 +146,49 @@ const ActionCell = memo(
         record,
         handleOpenDetails,
         handleOpenInPlayground,
+        selectedRowKeys,
     }: {
         record: EnhancedVariant
         handleOpenDetails?: (record: EnhancedVariant) => void
         handleOpenInPlayground?: (record: EnhancedVariant) => void
+        selectedRowKeys?: (string | number)[]
     }) => {
         const openDeleteVariantModal = useSetAtom(openDeleteVariantModalAtom)
         const openDeployVariantModal = useSetAtom(openDeployVariantModalAtom)
+
+        const resolveDeletionTargets = useCallback(
+            (r: EnhancedVariant): OpenDeleteVariantModalPayload => {
+                const selection = Array.from(new Set((selectedRowKeys || []).map(String)))
+                const recordKey = String((r as any)._revisionId ?? (r as any)._id ?? (r as any).id)
+                const recordSelected = selection.includes(recordKey)
+                const isGroupedParentRow = Boolean((r as any)._isParentRow)
+                const variantId = String((r as any).variantId ?? "")
+
+                if (recordSelected && selection.length > 0) {
+                    return {
+                        revisionIds: selection,
+                        forceVariantIds: isGroupedParentRow && variantId ? [variantId] : [],
+                    }
+                }
+
+                const childKeys = ((r as any).children || [])
+                    .map((child: any) => String(child?._revisionId ?? child?.id))
+                    .filter((id: string | null | undefined) => Boolean(id))
+
+                if (childKeys.length > 0) {
+                    return {
+                        revisionIds: Array.from(new Set([recordKey, ...childKeys])),
+                        forceVariantIds: variantId ? [variantId] : [],
+                    }
+                }
+
+                return {
+                    revisionIds: [recordKey],
+                    forceVariantIds: isGroupedParentRow && variantId ? [variantId] : [],
+                }
+            },
+            [selectedRowKeys],
+        )
 
         const onDeploy = useCallback(
             (r: EnhancedVariant) => {
@@ -98,9 +208,9 @@ const ActionCell = memo(
         const onDelete = useCallback(
             (r: EnhancedVariant) => {
                 // Open the global DeleteVariant modal immediately; it will perform its own pre-check
-                openDeleteVariantModal(r.id)
+                openDeleteVariantModal(resolveDeletionTargets(r))
             },
-            [openDeleteVariantModal],
+            [openDeleteVariantModal, resolveDeletionTargets],
         )
 
         return (
@@ -121,12 +231,16 @@ export const getColumns = ({
     showEnvBadges,
     showActionsDropdown,
     showStableName = false,
+    showUpdatedOn = false,
+    selectedRowKeys,
 }: {
     showEnvBadges: boolean
     handleOpenDetails?: (record: EnhancedVariant) => void
     handleOpenInPlayground?: (record: EnhancedVariant) => void
     showActionsDropdown: boolean
     showStableName?: boolean
+    showUpdatedOn?: boolean
+    selectedRowKeys?: (string | number)[]
 }): ColumnsType<EnhancedVariant> => {
     const columns: ColumnsType<EnhancedVariant> = [
         {
@@ -171,6 +285,18 @@ export const getColumns = ({
         },
     ]
 
+    if (showUpdatedOn) {
+        columns.push({
+            title: "Updated on",
+            dataIndex: "updatedAt",
+            key: "updatedAt",
+            onHeaderCell: () => ({
+                style: {minWidth: 120},
+            }),
+            render: (_, record) => <UpdatedOnCell record={record} />,
+        })
+    }
+
     if (isDemo()) {
         columns.push({
             title: "Created by",
@@ -201,7 +327,7 @@ export const getColumns = ({
         columns.push({
             title: <GearSix size={16} />,
             key: "key",
-            width: 56,
+            width: 61,
             fixed: "right",
             align: "center",
             render: (_, record) => (
@@ -209,6 +335,7 @@ export const getColumns = ({
                     record={record}
                     handleOpenDetails={handleOpenDetails}
                     handleOpenInPlayground={handleOpenInPlayground}
+                    selectedRowKeys={selectedRowKeys}
                 />
             ),
         })

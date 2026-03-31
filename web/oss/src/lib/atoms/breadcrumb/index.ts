@@ -7,7 +7,7 @@ import {projectsAtom} from "@/oss/state/project"
 
 import {buildBreadcrumbSegments} from "../../helpers/buildBreadcrumbs"
 
-import type {BreadcrumbAtom, BreadcrumbItem} from "./types"
+import type {BreadcrumbAtom} from "./types"
 
 const breadcrumbOverridesAtom = atom<BreadcrumbAtom>({})
 

@@ -10,7 +10,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
 from oss.src.utils.env import env
-from oss.src.services import db_manager, evaluator_manager
+from oss.src.services import db_manager
+from oss.src.resources.evaluators.evaluators import get_builtin_evaluators
 from oss.src.models.deprecated_models import (
     ProjectScopedAppDB as AppDB,
     DeprecatedProjectDB as ProjectDB,
@@ -64,8 +65,8 @@ def check_for_multiple_default_projects(session: Session) -> Sequence[ProjectDB]
 
 
 def create_default_project():
-    PROJECT_NAME = "Default Project"
-    engine = create_engine(env.POSTGRES_URI_CORE)
+    PROJECT_NAME = "Default"
+    engine = create_engine(env.postgres.uri_core)
     sync_session = sessionmaker(engine, expire_on_commit=False)
 
     with sync_session() as session:
@@ -98,7 +99,7 @@ def add_completion_testset_to_project(session: Session, project_id: str):
         if os.path.exists(json_path):
             csvdata = db_manager.get_json(json_path)
             testset = {
-                "name": f"completion_testset",
+                "name": "completion_testset",
                 "csvdata": csvdata,
             }
             testset_db = TestsetDB(
@@ -116,10 +117,9 @@ def add_completion_testset_to_project(session: Session, project_id: str):
 
 def add_default_evaluators_to_project(session: Session, project_id: str):
     try:
+        builtin_evaluators = get_builtin_evaluators()
         direct_use_evaluators = [
-            evaluator
-            for evaluator in evaluator_manager.get_evaluators()
-            if evaluator.direct_use
+            evaluator for evaluator in builtin_evaluators if evaluator.direct_use
         ]
 
         for evaluator in direct_use_evaluators:
@@ -149,13 +149,13 @@ def add_default_evaluators_to_project(session: Session, project_id: str):
 
         session.commit()
 
-        print("Added default evalutors to project.")
+        print("Added default evaluators to project.")
     except Exception as e:
         print(f"An error occurred in adding default evaluators: {e}")
 
 
 def remove_default_project():
-    engine = create_engine(env.POSTGRES_URI_CORE)
+    engine = create_engine(env.postgres.uri_core)
     sync_session = sessionmaker(engine, expire_on_commit=False)
 
     with sync_session() as session:
@@ -180,7 +180,7 @@ def remove_default_project():
 
 
 def add_project_id_to_db_entities():
-    engine = create_engine(env.POSTGRES_URI_CORE)
+    engine = create_engine(env.postgres.uri_core)
     sync_session = sessionmaker(engine, expire_on_commit=False)
 
     with sync_session() as session:
@@ -192,7 +192,7 @@ def add_project_id_to_db_entities():
                     records = (
                         session.execute(
                             select(model)
-                            .where(model.project_id == None)
+                            .where(model.project_id == None)  # noqa: E711
                             .offset(offset)
                             .limit(BATCH_SIZE)
                         )
@@ -229,7 +229,7 @@ def add_project_id_to_db_entities():
 
 
 def remove_project_id_from_db_entities():
-    engine = create_engine(env.POSTGRES_URI_CORE)
+    engine = create_engine(env.postgres.uri_core)
     sync_session = sessionmaker(engine, expire_on_commit=False)
 
     with sync_session() as session:
@@ -240,7 +240,7 @@ def remove_project_id_from_db_entities():
                     records = (
                         session.execute(
                             select(model)
-                            .where(model.project_id != None)
+                            .where(model.project_id != None)  # noqa: E711
                             .offset(offset)
                             .limit(BATCH_SIZE)
                         )

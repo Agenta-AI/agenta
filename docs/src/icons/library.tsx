@@ -148,6 +148,21 @@ const SettingsIcon: IconComponent = (props) => (
   </svg>
 );
 
+const ShieldIcon: IconComponent = (props) => {
+  const {colorMode} = useColorMode();
+  const isDark = colorMode === 'dark';
+
+  return isDark ? (
+    <svg {...filledSvgProps} {...props}>
+      <path d="M12 1.95898L3 4.95898V11.9119C3 14.6493 4.18351 16.6696 5.85876 18.2592C7.5058 19.822 9.65956 20.997 11.6439 22.0675L12 22.2596L12.3561 22.0675C14.3404 20.997 16.4942 19.822 18.1412 18.2592C19.8165 16.6696 21 14.6493 21 11.9119V4.95898L12 1.95898Z" />
+    </svg>
+  ) : (
+    <svg {...strokeSvgProps} {...props}>
+      <path d="M20 5.75L12 3L4 5.75V11.9123C4 16.8848 8 19 12 21.1579C16 19 20 16.8848 20 11.9123V5.75Z" />
+    </svg>
+  );
+};
+
 const ServerIcon: IconComponent = (props) => {
   const {colorMode} = useColorMode();
   const isDark = colorMode === 'dark';
@@ -163,6 +178,23 @@ const ServerIcon: IconComponent = (props) => {
     <svg {...strokeSvgProps} {...props}>
       <path d="M21 12V5H3V12M21 12H3M21 12V19H3V12" />
       <path d="M6.5 14.625C6.98325 14.625 7.375 15.0168 7.375 15.5C7.375 15.9832 6.98325 16.375 6.5 16.375C6.01675 16.375 5.625 15.9832 5.625 15.5C5.625 15.0168 6.01675 14.625 6.5 14.625ZM6.5 7.625C6.98325 7.625 7.375 8.01675 7.375 8.5C7.375 8.98325 6.98325 9.375 6.5 9.375C6.01675 9.375 5.625 8.98325 5.625 8.5C5.625 8.01675 6.01675 7.625 6.5 7.625Z" fill="currentColor" stroke="currentColor" strokeWidth="0.75" />
+    </svg>
+  );
+};
+
+const PuzzleIcon: IconComponent = (props) => {
+  const {colorMode} = useColorMode();
+  const isDark = colorMode === 'dark';
+
+  return isDark ? (
+    // Dark mode - filled
+    <svg {...filledSvgProps} {...props}>
+      <path d="M17.5 1H13v4.5a3 3 0 1 1-6 0V1H4a3 3 0 0 0-3 3v3h4.5a3 3 0 1 1 0 6H1v4a3 3 0 0 0 3 3h3v-4.5a3 3 0 1 1 6 0V20h4a3 3 0 0 0 3-3v-3h-4.5a3 3 0 1 1 0-6H20V4a3 3 0 0 0-2.5-3z" />
+    </svg>
+  ) : (
+    // Light mode - stroke
+    <svg {...strokeSvgProps} {...props}>
+      <path d="M16.5 2H13v3.5a2.5 2.5 0 1 1-5 0V2H4.5A2.5 2.5 0 0 0 2 4.5V8h3.5a2.5 2.5 0 1 1 0 5H2v3.5A2.5 2.5 0 0 0 4.5 19H8v-3.5a2.5 2.5 0 1 1 5 0V19h3.5a2.5 2.5 0 0 0 2.5-2.5V13h-3.5a2.5 2.5 0 1 1 0-5H19V4.5A2.5 2.5 0 0 0 16.5 2z" />
     </svg>
   );
 };
@@ -198,7 +230,9 @@ const ICON_LIBRARIES: Record<string, IconLibrary> = {
     clock: ClockIcon,
     cookbook: CookbookIcon,
     settings: SettingsIcon,
+    shield: ShieldIcon,
     server: ServerIcon,
+    puzzle: PuzzleIcon,
     sun: SunIcon,
     moon: MoonIcon,
   },

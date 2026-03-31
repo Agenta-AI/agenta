@@ -95,7 +95,7 @@ Collaborate with Subject Matter Experts (SMEs) on prompt engineering and make su
 ### 📊 LLM Evaluation
 Evaluate your LLM applications systematically with both human and automated feedback.
 - **Flexible Testsets**: Create testcases from production data, playground experiments, or upload CSVs
-- **Pre-built and Custom Evaluators**: Use LLM-as-judge, one of our 20+ pre-built evaluators, or you custom evaluators
+- **Pre-built and Custom Evaluators**: Use LLM-as-judge, one of our 20+ pre-built evaluators, or your custom evaluators
 - **UI and API Access**: Run evaluations via UI (for SMEs) or programmatically (for engineers)
 - **Human Feedback Integration**: Collect and incorporate expert annotations
 
@@ -140,15 +140,22 @@ The easiest way to get started is through Agenta Cloud. Free tier available with
 ```bash
 git clone https://github.com/Agenta-AI/agenta && cd agenta
 ```
+2. Copy configuration:
 
-2. Start Agenta services:
+Before starting the services, create the environment file from the example:
+
+```bash
+cp hosting/docker-compose/oss/env.oss.gh.example hosting/docker-compose/oss/.env.oss.gh
+```
+
+3. Start Agenta services:
 ```bash
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
 ```
 
-3. Access Agenta at `http://localhost`.
+4. Access Agenta at `http://localhost`.
 
-For deploying on a remote host, or using different ports refers to our [self-hosting](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme) and [remote deployment documentation](https://agenta.ai/docs/self-host/guides/deploy-remotely?utm_source=github&utm_medium=referral&utm_campaign=readme).
+For deploying on a remote host, or using different ports refer to our [self-hosting](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme) and [remote deployment documentation](https://agenta.ai/docs/self-host/guides/deploy-remotely?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
 ## 💬 Community
 
@@ -162,11 +169,11 @@ Find help, explore resources, or get involved:
 
 ### 🤝 Contribute
 
-We welcome contributions of all kinds — from filing issues and sharing ideas to improving the codebase.
+We welcome contributions of all kinds, from filing issues and sharing ideas to improving the codebase. Check out our [CONTRIBUTING.md](CONTRIBUTING.md) and:
 
 - **🐛 [Report bugs](https://github.com/Agenta-AI/agenta/issues)** – Help us by reporting problems you encounter  
 - **💡 [Share ideas and feedback](https://github.com/Agenta-AI/agenta/discussions)** – Suggest features or vote on ideas
-- **🔧 [Contribute to the codebase](https://agenta.ai/docs/misc/contributing/getting-started?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Read the guide and open a pull request
+- **🔧 [Contribute to the codebase](https://agenta.ai/docs/contributing/overview?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Read the guide and open a pull request
 
 ## ⭐ Star Agenta
 
@@ -184,7 +191,7 @@ We welcome contributions of all kinds — from filing issues and sharing ideas t
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-51-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-60-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -260,6 +267,17 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://ikazoy.me/"><img src="https://avatars.githubusercontent.com/u/385109?v=4?s=100" width="100px;" alt="Yoshiki Ozaki"/><br /><sub><b>Yoshiki Ozaki</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Aikazoy" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/ahmed-agenta"><img src="https://avatars.githubusercontent.com/u/194256084?v=4?s=100" width="100px;" alt="ahmed-agenta"/><br /><sub><b>ahmed-agenta</b></sub></a><br /><a href="#design-ahmed-agenta" title="Design">🎨</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/VahantSharma"><img src="https://avatars.githubusercontent.com/u/172914890?v=4?s=100" width="100px;" alt="Vahant Sharma"/><br /><sub><b>Vahant Sharma</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=VahantSharma" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/muzman123"><img src="https://avatars.githubusercontent.com/u/66068301?v=4?s=100" width="100px;" alt="Muhammad Muzammil"/><br /><sub><b>Muhammad Muzammil</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=muzman123" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/CyrusNamjoo"><img src="https://avatars.githubusercontent.com/u/209579763?v=4?s=100" width="100px;" alt="Sirous Namjoo"/><br /><sub><b>Sirous Namjoo</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=CyrusNamjoo" title="Documentation">📖</a> <a href="#example-CyrusNamjoo" title="Examples">💡</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/adityadewan22-hub"><img src="https://avatars.githubusercontent.com/u/225586510?v=4?s=100" width="100px;" alt="adityadewan22-hub"/><br /><sub><b>adityadewan22-hub</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=adityadewan22-hub" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/majiayu000"><img src="https://avatars.githubusercontent.com/u/19658300?v=4?s=100" width="100px;" alt="lif"/><br /><sub><b>lif</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=majiayu000" title="Code">💻</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="http://karimkohel.com"><img src="https://avatars.githubusercontent.com/u/46066647?v=4?s=100" width="100px;" alt="karim kohel"/><br /><sub><b>karim kohel</b></sub></a><br /><a href="#example-karimkohel" title="Examples">💡</a> <a href="https://github.com/Agenta-AI/agenta/commits?author=karimkohel" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Vishesh-Paliwal"><img src="https://avatars.githubusercontent.com/u/142072830?v=4?s=100" width="100px;" alt="Vishesh Paliwal"/><br /><sub><b>Vishesh Paliwal</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Vishesh-Paliwal" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/aviu16"><img src="https://avatars.githubusercontent.com/u/162624394?v=4?s=100" width="100px;" alt="Eve"/><br /><sub><b>Eve</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=aviu16" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://endoze.github.io"><img src="https://avatars.githubusercontent.com/u/997161?v=4?s=100" width="100px;" alt="Endoze"/><br /><sub><b>Endoze</b></sub></a><br /><a href="#infra-endoze" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a> <a href="https://github.com/Agenta-AI/agenta/commits?author=endoze" title="Documentation">📖</a></td>
     </tr>
   </tbody>
 </table>

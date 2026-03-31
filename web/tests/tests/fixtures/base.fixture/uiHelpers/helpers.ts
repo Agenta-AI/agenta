@@ -2,17 +2,31 @@ import {expect, Locator, Page} from "@playwright/test"
 
 export const typeWithDelay = async (page: Page, selector: string, text: string, delay = 50) => {
     const input = page.locator(selector)
-    await input.click()
+    await input.waitFor({state: "visible"})
+    try {
+        await input.click()
+    } catch {
+        await input.click({force: true})
+    }
     await input.pressSequentially(text, {delay})
 }
 
 export const waitForPath = async (page: Page, path: string) => {
-    await page.waitForURL(path, {waitUntil: "domcontentloaded"})
+    // Strip protocol+host if full URL is passed, then match by pathname suffix
+    // to support workspace-scoped URLs (/w/{id}/p/{id}/path)
+    const pathname = path.replace(/^https?:\/\/[^/]+/, "")
+    await page.waitForURL((url) => url.pathname.endsWith(pathname), {
+        waitUntil: "domcontentloaded",
+    })
 }
 
 export const clickButton = async (page: Page, name: string, locator?: Locator) => {
     const button = (locator || page).getByRole("button", {name}).first()
-    await button.click()
+    try {
+        await button.click()
+    } catch {
+        await button.click({force: true})
+    }
 }
 
 export const selectOption = async (page: Page, {label, text}: {label?: string; text?: string}) => {

@@ -1,11 +1,10 @@
-import React, {useMemo} from "react"
+import {useCallback, useMemo} from "react"
 
-import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {executionItemController} from "@agenta/playground"
+import ControlsBar from "@agenta/playground-ui/chat-controls"
+import {useAtomValue, useSetAtom} from "jotai"
 
-import AddButton from "@/oss/components/Playground/assets/AddButton"
-import RunButton from "@/oss/components/Playground/assets/RunButton"
-import {isAnyRunningForLogicalAtomFamily} from "@/oss/state/newPlayground/chat/view"
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 
 interface Props {
     logicalId: string
@@ -15,6 +14,9 @@ interface Props {
     className?: string
 }
 
+/**
+ * OSS LastTurnFooterControls — reads isAnyRunning from atom and injects onboarding tracking.
+ */
 const LastTurnFooterControls: React.FC<Props> = ({
     logicalId,
     onRun,
@@ -23,18 +25,23 @@ const LastTurnFooterControls: React.FC<Props> = ({
     className,
 }) => {
     const isAnyRunning = useAtomValue(
-        useMemo(() => isAnyRunningForLogicalAtomFamily(logicalId), [logicalId]),
+        useMemo(() => executionItemController.selectors.isAnyRunningForRow(logicalId), [logicalId]),
     ) as boolean
 
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
+    const onTrackRun = useCallback(() => {
+        recordWidgetEvent("playground_ran_prompt")
+    }, [recordWidgetEvent])
+
     return (
-        <div className={clsx("flex items-center gap-2 p-3 pl-0", className)}>
-            {!isAnyRunning ? (
-                <RunButton onClick={onRun} size="small" />
-            ) : (
-                <RunButton isCancel onClick={onCancelAll} size="small" />
-            )}
-            <AddButton onClick={onAddMessage} size="small" label="Message" />
-        </div>
+        <ControlsBar
+            isRunning={isAnyRunning}
+            onRun={onRun}
+            onCancel={onCancelAll}
+            onAddMessage={onAddMessage}
+            onTrackRun={onTrackRun}
+            className={className ?? "p-3 pl-0"}
+        />
     )
 }
 

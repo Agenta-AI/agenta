@@ -1,10 +1,11 @@
-import traceback
 from typing import Optional
+from uuid import UUID
 from datetime import datetime, timezone, timedelta
 import asyncio
+import traceback
 
 from pydantic import ValidationError
-from fastapi import Request, HTTPException, Response
+from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from supertokens_python.recipe.session.asyncio import get_session
@@ -18,14 +19,14 @@ from oss.src.utils.caching import get_cache, set_cache
 
 from oss.src.utils.common import is_ee
 from oss.src.services import db_manager
-from oss.src.utils.logging import get_module_logger
 from oss.src.services import api_key_service
 from oss.src.services.exceptions import (
     UnauthorizedException,
     InternalServerErrorException,
     GatewayTimeoutException,
-    code_to_phrase,
 )
+
+from oss.src.core.auth.service import AuthService
 
 if is_ee():
     from ee.src.services import db_manager_ee
@@ -59,17 +60,62 @@ _PUBLIC_ENDPOINTS = (
     # STRIPE
     "/billing/stripe/events/",
     "/api/billing/stripe/events/",
+    # TOOLS — OAuth callback arrives from provider with no auth token
+    "/preview/tools/connections/callback",
+    "/api/preview/tools/connections/callback",
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
+_INVITE_ACCEPT_ENDPOINT_IDENTIFIER = "/invite/accept"
+_INVITATION_POLICY_ENDPOINT_IDENTIFIERS = (
+    _INVITE_ACCEPT_ENDPOINT_IDENTIFIER,
+    "/invite/resend",
+    "/invite",
+)
 
-_SECRET_KEY = env.AGENTA_AUTH_KEY
+_SECRET_KEY = env.agenta.auth_key
 _SECRET_EXP = 15 * 60  # 15 minutes
 
 _ZERO_UUID = "00000000-0000-0000-0000-000000000000"
 _NULL_UUID = "null"
 
 _SUPERTOKENS_TIMEOUT = 15  # 15 seconds or whatever you need
+
+
+def _auth_id_tail(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+
+    return value[-12:]
+
+
+def _log_bearer_auth_denied(
+    *,
+    request: Request,
+    query_project_id: Optional[str],
+    query_workspace_id: Optional[str],
+    session_user_id: Optional[str],
+    user_id: Optional[str],
+    cache_key: dict,
+    stage: str,
+    reason: str,
+    is_invite_accept_route: bool,
+    exc: Optional[Exception] = None,
+) -> None:
+    log.debug(
+        "[auth] bearer token unauthorized",
+        path=request.url.path,
+        method=request.method,
+        query_project_id=query_project_id,
+        query_workspace_id=query_workspace_id,
+        session_user_id_tail=_auth_id_tail(session_user_id),
+        user_id_tail=_auth_id_tail(user_id),
+        stage=stage,
+        reason=reason,
+        cache_key=cache_key,
+        is_invite_accept_route=is_invite_accept_route,
+        exception_type=type(exc).__name__ if exc else None,
+    )
 
 
 async def authentication_middleware(request: Request, call_next):
@@ -93,7 +139,9 @@ async def authentication_middleware(request: Request, call_next):
     """
 
     try:
-        await _authenticate(request)
+        await _check_authentication_token(request)
+
+        await _check_organization_policy(request)
 
         response = await call_next(request)
 
@@ -115,7 +163,14 @@ async def authentication_middleware(request: Request, call_next):
         return JSONResponse(status_code=400, content={"detail": exc.errors()})
 
     except HTTPException as exc:
-        log.error("%s: %s", exc.status_code, exc.detail)
+        # Only log server errors (5xx), not client errors like 401/403
+        if exc.status_code >= 500:
+            log.error("%s: %s", exc.status_code, exc.detail)
+        elif 400 <= exc.status_code < 500:
+            if exc.status_code in [401]:
+                log.debug("%s: %s", exc.status_code, exc.detail)
+            else:
+                log.warn("%s: %s", exc.status_code, exc.detail)
 
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
@@ -134,7 +189,7 @@ async def authentication_middleware(request: Request, call_next):
         )
 
 
-async def _authenticate(request: Request):
+async def _check_authentication_token(request: Request):
     try:
         if request.url.path.startswith(_PUBLIC_ENDPOINTS):
             return
@@ -155,6 +210,7 @@ async def _authenticate(request: Request):
             access_token = auth_header[len(_ACCESS_TOKEN_PREFIX) :]
 
             return await verify_access_token(
+                request=request,
                 access_token=access_token,
             )
 
@@ -233,6 +289,7 @@ async def _authenticate(request: Request):
 
 
 async def verify_access_token(
+    request: Request,
     access_token: str,
 ):
     try:
@@ -241,6 +298,8 @@ async def verify_access_token(
 
         if access_token != _SECRET_KEY:
             raise UnauthorizedException()
+
+        request.state.admin = True
 
         return
 
@@ -261,6 +320,22 @@ async def verify_bearer_token(
     user_email = None
     organization_name = None
     cache_key = {}
+    session_user_id = None
+    is_invite_accept_route = _INVITE_ACCEPT_ENDPOINT_IDENTIFIER in request.url.path
+
+    def _deny(stage: str, reason: str, exc: Optional[Exception] = None):
+        _log_bearer_auth_denied(
+            request=request,
+            query_project_id=query_project_id,
+            query_workspace_id=query_workspace_id,
+            session_user_id=session_user_id,
+            user_id=user_id,
+            cache_key=cache_key,
+            stage=stage,
+            reason=reason,
+            is_invite_accept_route=is_invite_accept_route,
+            exc=exc,
+        )
 
     try:
         session = await get_session(request)  # type: ignore
@@ -270,6 +345,7 @@ async def verify_bearer_token(
         cache_key = {}
 
         if not session_user_id:
+            _deny("session", "no session_user_id")
             raise UnauthorizedException()
 
         user: dict = await get_cache(
@@ -285,6 +361,7 @@ async def verify_bearer_token(
 
         if user is not None:
             if user.get("deny"):
+                _deny("user_cache", "cached deny for session_user_id")
                 raise UnauthorizedException()
 
         else:
@@ -309,6 +386,7 @@ async def verify_bearer_token(
                     value={"deny": True},
                 )
 
+                _deny("supertokens", "user not found in supertokens")
                 raise UnauthorizedException()
 
             user_email = user_info.emails[0] if user_info.emails else None
@@ -322,6 +400,7 @@ async def verify_bearer_token(
                     value={"deny": True},
                 )
 
+                _deny("supertokens", "no email in supertokens user")
                 raise UnauthorizedException()
 
             user = await db_manager.get_user_with_email(
@@ -337,6 +416,7 @@ async def verify_bearer_token(
                     value={"deny": True},
                 )
 
+                _deny("db_user", "no user in db for email")
                 raise UnauthorizedException()
 
             user_id = str(user.id)
@@ -354,11 +434,13 @@ async def verify_bearer_token(
 
         project_id = None
         workspace_id = None
+        cache_scope = "invite_accept" if is_invite_accept_route else "default"
 
         cache_key = {
             "u_id": user_id[-12:],  # Use last 12 characters of user_id for cache key
             "p_id": query_project_id[-12:] if query_project_id else "",
             "w_id": query_workspace_id[-12:] if query_workspace_id else "",
+            "scope": cache_scope,
         }
 
         state = await get_cache(
@@ -371,6 +453,7 @@ async def verify_bearer_token(
 
         if state is not None:
             if state.get("deny"):
+                _deny("state_cache", "cached deny for user+project")
                 raise UnauthorizedException()
 
             request.state.user_id = state.get("user_id")
@@ -397,6 +480,7 @@ async def verify_bearer_token(
                     value={"deny": True},
                 )
 
+                _deny("resolve", "project not found")
                 raise UnauthorizedException()
 
             workspace = await db_manager.get_workspace(
@@ -412,6 +496,7 @@ async def verify_bearer_token(
                     value={"deny": True},
                 )
 
+                _deny("resolve", "workspace not found")
                 raise UnauthorizedException()
 
             if project.workspace_id != workspace.id:
@@ -423,6 +508,7 @@ async def verify_bearer_token(
                     value={"deny": True},
                 )
 
+                _deny("resolve", "project/workspace mismatch")
                 raise UnauthorizedException()
 
             project_id = query_project_id
@@ -443,6 +529,7 @@ async def verify_bearer_token(
                     value={"deny": True},
                 )
 
+                _deny("resolve", "project not found (no workspace_id)")
                 raise UnauthorizedException()
 
             project_id = query_project_id
@@ -450,8 +537,6 @@ async def verify_bearer_token(
             organization_id = project.organization_id
 
         elif not query_project_id and query_workspace_id:
-            log.warning("[AUTH] Missing project_id in query params!")
-
             workspace = await db_manager.get_workspace(
                 workspace_id=query_workspace_id,
             )
@@ -465,6 +550,7 @@ async def verify_bearer_token(
                     value={"deny": True},
                 )
 
+                _deny("resolve", "workspace not found (no project_id)")
                 raise UnauthorizedException()
 
             workspace_id = query_workspace_id
@@ -474,19 +560,12 @@ async def verify_bearer_token(
             organization_id = workspace.organization_id
 
         else:
-            log.warning("[AUTH] Missing project_id in query params!")
-
             if is_ee():
                 workspace_id = await db_manager_ee.get_default_workspace_id(
                     user_id=user_id,
                 )
             else:
-                workspaces = await db_manager.get_workspaces()
-
-                assert len(workspaces) == 1, (
-                    "You can only have a single workspace in OSS."
-                )
-                workspace_id = str(workspaces[0].id)
+                workspace_id = await db_manager.get_default_workspace_id_oss()
 
             project_id = await db_manager.get_default_project_id_from_workspace(
                 workspace_id=workspace_id
@@ -511,7 +590,43 @@ async def verify_bearer_token(
                 value={"deny": True},
             )
 
+            _deny("resolve", "missing project_id or workspace_id after resolve")
             raise UnauthorizedException()
+
+        # Verify the authenticated user is a member of the requested project
+        # or workspace.  This is required whenever the caller supplied an
+        # explicit project_id or workspace_id (in the latter case we check
+        # workspace membership since the default project was resolved from it).
+        #
+        # NOTE: Membership is mutable (invites, auto-join) so we intentionally
+        # do NOT cache {"deny": True} here.  Caching a membership denial would
+        # lock the user out for the full cache TTL even after they accept an
+        # invite.  The deny is raised directly to the middleware, bypassing the
+        # outer except-handler that caches.
+        if (
+            is_ee()
+            and (query_project_id or query_workspace_id)
+            and not is_invite_accept_route
+        ):
+            if query_project_id:
+                is_member = await db_manager_ee.project_member_exists(
+                    project_id=project_id,
+                    user_id=user_id,
+                )
+            else:
+                is_member = await db_manager_ee.workspace_member_exists(
+                    workspace_id=workspace_id,
+                    user_id=user_id,
+                )
+
+            if not is_member:
+                _deny(
+                    "membership",
+                    "project_member" if query_project_id else "workspace_member",
+                )
+                # Raise HTTPException directly so the outer except-handlers
+                # (which cache deny) are NOT triggered.
+                raise HTTPException(status_code=401, detail="Unauthorized")
 
         # ----------------------------------------------------------------------
         try:
@@ -562,13 +677,14 @@ async def verify_bearer_token(
             "credentials": f"{_SECRET_TOKEN_PREFIX}{secret_token}",
         }
 
-        await set_cache(
-            project_id=query_project_id,
-            user_id=user_id,
-            namespace="verify_bearer_token",
-            key=cache_key,
-            value=state,
-        )
+        if not is_invite_accept_route:
+            await set_cache(
+                project_id=query_project_id,
+                user_id=user_id,
+                namespace="verify_bearer_token",
+                key=cache_key,
+                value=state,
+            )
 
         request.state.user_id = state.get("user_id")
         request.state.user_email = state.get("user_email")
@@ -582,6 +698,7 @@ async def verify_bearer_token(
         raise exc
 
     except UnauthorizedException as exc:
+        _deny("catch_unauthorized", "UnauthorizedException propagated", exc)
         await set_cache(
             project_id=query_project_id,
             user_id=user_id,
@@ -592,7 +709,13 @@ async def verify_bearer_token(
 
         raise exc
 
+    except HTTPException as exc:
+        # Membership failures raise bare HTTPException(401) intentionally
+        # to skip deny-caching.  Re-raise without touching the cache.
+        raise exc
+
     except Exception as exc:  # pylint: disable=bare-except
+        _deny("catch_all", "unexpected exception", exc)
         await set_cache(
             project_id=query_project_id,
             user_id=user_id,
@@ -758,3 +881,91 @@ async def sign_secret_token(
 
     except Exception as exc:  # pylint: disable=bare-except
         raise InternalServerErrorException() from exc
+
+
+async def _check_organization_policy(request: Request):
+    """
+    Check organization authentication policy for EE mode.
+
+    This is called after authentication to ensure the user's authentication method
+    is allowed by the organization's policy flags.
+
+    Skips policy checks for:
+    - Admin endpoints (using ACCESS_TOKEN)
+    - Invitation-related routes to allow users to accept invitations
+    """
+    if not is_ee():
+        return
+
+    if hasattr(request.state, "admin") and request.state.admin:
+        return
+
+    # Skip policy check for invitation routes
+    # Users must be able to accept invitations regardless of org auth policies
+    if any(
+        path in request.url.path for path in _INVITATION_POLICY_ENDPOINT_IDENTIFIERS
+    ):
+        return
+
+    # Skip policy checks for org-agnostic endpoints (no explicit org context).
+    # This prevents SSO logins from being blocked by the default org policy
+    # before the frontend can redirect to the intended SSO org.
+    if (
+        request.url.path in {"/api/profile", "/api/organizations"}
+        or request.url.path.startswith("/api/projects")
+        or request.url.path.startswith("/api/organizations/")
+    ):
+        # NOTE: These endpoints are hit during initial login bootstrap before the FE
+        # redirects to the intended org (e.g., SSO org). Enforcing org policy here
+        # can incorrectly fail against the default org and log the user out.
+        return
+
+    organization_id = (
+        request.state.organization_id
+        if hasattr(request.state, "organization_id")
+        else None
+    )
+    user_id = request.state.user_id if hasattr(request.state, "user_id") else None
+
+    if not organization_id or not user_id:
+        return
+
+    # Get identities from session
+    try:
+        session = await get_session(request)  # type: ignore
+        payload = session.get_access_token_payload() if session else {}  # type: ignore
+        session_identities = payload.get("session_identities") or []
+        user_identities = payload.get("user_identities", [])
+    except Exception:
+        session_identities = []
+        user_identities = []
+        return  # Skip policy check on session errors
+
+    auth_service = AuthService()
+    policy_error = await auth_service.check_organization_access(
+        UUID(user_id), UUID(organization_id), session_identities
+    )
+
+    if policy_error:
+        # Only enforce auth policy errors; skip membership errors (route handlers handle those)
+        error_code = policy_error.get("error")
+        if error_code in {
+            "AUTH_UPGRADE_REQUIRED",
+            "AUTH_SSO_DENIED",
+            "AUTH_DOMAIN_DENIED",
+        }:
+            detail = {
+                "error": policy_error.get("error"),
+                "message": policy_error.get(
+                    "message",
+                    "Authentication method not allowed for this organization",
+                ),
+                "required_methods": policy_error.get("required_methods", []),
+                "session_identities": session_identities,
+                "user_identities": user_identities,
+                "sso_providers": policy_error.get("sso_providers", []),
+                "current_domain": policy_error.get("current_domain"),
+                "allowed_domains": policy_error.get("allowed_domains", []),
+            }
+            raise HTTPException(status_code=403, detail=detail)
+        # If NOT_A_MEMBER, skip - let route handlers deal with it

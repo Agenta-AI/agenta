@@ -11,9 +11,13 @@ from ..core.pydantic_utilities import (
     UniversalBaseModel,
     update_forward_refs,
 )
+from .testset_flags import TestsetFlags
 
 
 class Testset(UniversalBaseModel):
+    flags: typing.Optional[TestsetFlags] = None
+    tags: typing.Optional[typing.Dict[str, typing.Optional["LabelJsonOutput"]]] = None
+    meta: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = None
     name: typing.Optional[str] = None
     description: typing.Optional[str] = None
     created_at: typing.Optional[dt.datetime] = None
@@ -24,12 +28,6 @@ class Testset(UniversalBaseModel):
     deleted_by_id: typing.Optional[str] = None
     slug: typing.Optional[str] = None
     id: typing.Optional[str] = None
-    testcases: typing.Optional[
-        typing.List[typing.Dict[str, typing.Optional["FullJsonOutput"]]]
-    ] = None
-    metadata: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = (
-        None
-    )
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
@@ -43,6 +41,9 @@ class Testset(UniversalBaseModel):
             extra = pydantic.Extra.allow
 
 
-from .full_json_output import FullJsonOutput  # noqa: E402, F401, I001
+from .label_json_output import LabelJsonOutput  # noqa: E402, I001
+from .full_json_output import FullJsonOutput  # noqa: E402, I001
 
-update_forward_refs(Testset)
+update_forward_refs(
+    Testset, FullJsonOutput=FullJsonOutput, LabelJsonOutput=LabelJsonOutput
+)

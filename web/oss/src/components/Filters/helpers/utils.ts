@@ -1,20 +1,11 @@
 import {TreeSelectProps} from "antd"
-import {
-    CustomValueType,
-    FilterGroup,
-    FilterLeaf,
-    FilterMenuNode,
-    RowValidation,
-    SelectOption,
-} from "../types"
-import {
-    getOperator,
-    valueShapeFor,
-} from "@/oss/components/pages/observability/assets/filters/operatorRegistry"
-import {FilterItem} from "../types"
-import {Filter, FilterConditions} from "@/oss/lib/Types"
+
+import {getOperator} from "@/oss/components/pages/observability/assets/filters/operatorRegistry"
+import {FilterConditions} from "@/oss/lib/Types"
+
 import {FieldConfig} from "../../pages/observability/assets/filters/fieldAdapter"
-import {normalizeFilter, toUIValue} from "../../pages/observability/assets/filters/valueCodec"
+import {FilterItem} from "../types"
+import {CustomValueType, FilterGroup, FilterLeaf, FilterMenuNode, SelectOption} from "../types"
 
 export const CUSTOM_FIELD_VALUE = "__custom__"
 
@@ -170,7 +161,19 @@ export const customOperatorIdsForType = (t: CustomValueType): FilterConditions[]
         ? ["eq", "neq", "gt", "lt", "gte", "lte"]
         : t === "boolean"
           ? ["is", "is_not"]
-          : ["is", "is_not", "contains", "startswith", "endswith", "in", "not_in"]
+          : [
+                "is",
+                "is_not",
+                "contains",
+                "startswith",
+                "endswith",
+                "in",
+                "not_in",
+                "gt",
+                "lt",
+                "gte",
+                "lte",
+            ]
 
 export const operatorOptionsFromIds = (ids: FilterConditions[]) =>
     ids.map((id) => {

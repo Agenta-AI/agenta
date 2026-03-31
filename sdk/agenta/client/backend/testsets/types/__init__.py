@@ -2,16 +2,60 @@
 
 # isort: skip_file
 
-from .create_testset_from_file_request_file_type import (
-    CreateTestsetFromFileRequestFileType,
-)
-from .fetch_testset_to_file_request_file_type import FetchTestsetToFileRequestFileType
-from .update_testset_from_file_request_file_type import (
-    UpdateTestsetFromFileRequestFileType,
-)
+import typing
+from importlib import import_module
+
+if typing.TYPE_CHECKING:
+    from .create_simple_testset_from_file_request_file_type import (
+        CreateSimpleTestsetFromFileRequestFileType,
+    )
+    from .edit_simple_testset_from_file_request_file_type import (
+        EditSimpleTestsetFromFileRequestFileType,
+    )
+    from .fetch_simple_testset_to_file_request_file_type import (
+        FetchSimpleTestsetToFileRequestFileType,
+    )
+    from .fetch_testset_revision_to_file_request_file_type import (
+        FetchTestsetRevisionToFileRequestFileType,
+    )
+_dynamic_imports: typing.Dict[str, str] = {
+    "CreateSimpleTestsetFromFileRequestFileType": ".create_simple_testset_from_file_request_file_type",
+    "EditSimpleTestsetFromFileRequestFileType": ".edit_simple_testset_from_file_request_file_type",
+    "FetchSimpleTestsetToFileRequestFileType": ".fetch_simple_testset_to_file_request_file_type",
+    "FetchTestsetRevisionToFileRequestFileType": ".fetch_testset_revision_to_file_request_file_type",
+}
+
+
+def __getattr__(attr_name: str) -> typing.Any:
+    module_name = _dynamic_imports.get(attr_name)
+    if module_name is None:
+        raise AttributeError(
+            f"No {attr_name} found in _dynamic_imports for module name -> {__name__}"
+        )
+    try:
+        module = import_module(module_name, __package__)
+        if module_name == f".{attr_name}":
+            return module
+        else:
+            return getattr(module, attr_name)
+    except ImportError as e:
+        raise ImportError(
+            f"Failed to import {attr_name} from {module_name}: {e}"
+        ) from e
+    except AttributeError as e:
+        raise AttributeError(
+            f"Failed to get {attr_name} from {module_name}: {e}"
+        ) from e
+
+
+def __dir__():
+    lazy_attrs = list(_dynamic_imports.keys())
+    return sorted(lazy_attrs)
+
 
 __all__ = [
-    "CreateTestsetFromFileRequestFileType",
-    "FetchTestsetToFileRequestFileType",
-    "UpdateTestsetFromFileRequestFileType",
+    "CreateSimpleTestsetFromFileRequestFileType",
+    "EditSimpleTestsetFromFileRequestFileType",
+    "FetchSimpleTestsetToFileRequestFileType",
+    "FetchTestsetRevisionToFileRequestFileType",
 ]

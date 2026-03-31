@@ -8,10 +8,9 @@ from oss.src.services import db_manager
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.postgres.shared.engine import engine
-from ee.src.models.api.organization_models import Organization
+from ee.src.core.organizations.types import Organization
 
 from oss.src.models.db_models import (
-    OrganizationDB,
     WorkspaceDB,
 )
 from ee.src.models.db_models import (
@@ -35,7 +34,6 @@ async def get_user_org_and_workspace_id(user_uid) -> Dict[str, Union[str, List[s
 
     Example Usage:
         result = await get_user_org_and_workspace_id("user123")
-        print(result)
 
     Output:
         { "id": "123", "uid": "user123", "organization_ids": [], "workspace_ids": []}
@@ -86,28 +84,6 @@ async def user_exists(user_email: str) -> bool:
     return False if not user else True
 
 
-async def get_user_own_org(user_uid: str) -> OrganizationDB:
-    """Get's the default users' organization from the database.
-
-    Arguments:
-        user_uid (str): The uid of the user
-
-    Returns:
-        Organization: Instance of OrganizationDB
-    """
-
-    user = await db_manager.get_user_with_id(user_id=user_uid)
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(OrganizationDB).filter_by(
-                owner=str(user.id),
-                type="default",
-            )
-        )
-        org = result.scalars().first()
-        return org
-
-
 async def get_org_default_workspace(organization: Organization) -> WorkspaceDB:
     """Get's the default workspace for an organization from the database.
 
@@ -121,7 +97,8 @@ async def get_org_default_workspace(organization: Organization) -> WorkspaceDB:
     async with engine.core_session() as session:
         result = await session.execute(
             select(WorkspaceDB).filter_by(
-                organization_id=organization.id, type="default"
+                organization_id=organization.id,
+                type="default",
             )
         )
         workspace = result.scalars().first()

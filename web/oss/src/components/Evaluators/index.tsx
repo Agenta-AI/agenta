@@ -1,18 +1,25 @@
 import {memo, useCallback, useEffect, useMemo, useState, type ChangeEvent, type Key} from "react"
 
+import {PageLayout} from "@agenta/ui"
+import {message} from "@agenta/ui/app-message"
 import {DeleteOutlined, PlusOutlined} from "@ant-design/icons"
-import {Button, Input, Tabs, Typography} from "antd"
+import {ChartDonutIcon, ListChecksIcon} from "@phosphor-icons/react"
+import {Button, Input, Space} from "antd"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {useLocalStorage} from "usehooks-ts"
 
-import {message} from "@/oss/components/AppMessageContext"
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
-import {AnnotateDrawerSteps} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/enum"
+import {AnnotateDrawerSteps} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/enum"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
+import {
+    onboardingWidgetActivationAtom,
+    setOnboardingWidgetActivationAtom,
+} from "@/oss/lib/onboarding"
 import {deleteEvaluatorConfig} from "@/oss/services/evaluations/api"
 import {deleteHumanEvaluator} from "@/oss/services/evaluators"
 import {useProjectData} from "@/oss/state/project/hooks"
@@ -28,10 +35,9 @@ import DeleteEvaluatorsModal from "./components/DeleteEvaluatorsModal"
 import SelectEvaluatorModal from "./components/SelectEvaluatorModal"
 import useEvaluatorsRegistryData from "./hooks/useEvaluatorsRegistryData"
 
-const AnnotateDrawer = dynamic(
-    () => import("@/oss/components/pages/observability/drawer/AnnotateDrawer"),
-    {ssr: false},
-)
+const AnnotateDrawer = dynamic(() => import("@/oss/components/SharedDrawers/AnnotateDrawer"), {
+    ssr: false,
+})
 
 const isValidEvaluatorTab = (value: string): value is EvaluatorCategory => {
     return EVALUATOR_TABS.some(({key}) => key === value)
@@ -50,6 +56,8 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
         DEFAULT_EVALUATOR_TAB,
     )
     const [tabState, setTabState] = useQueryParam("tab", activeTab)
+    const onboardingWidgetActivation = useAtomValue(onboardingWidgetActivationAtom)
+    const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
 
     useEffect(() => {
         if (isValidEvaluatorTab(tabState)) {
@@ -69,6 +77,14 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
             setTabState(fallbackTab)
         }
     }, [tabState, activeTab])
+
+    useEffect(() => {
+        if (onboardingWidgetActivation !== "create-evaluator") return
+        setActiveTab("automatic")
+        setTabState("automatic")
+        setIsSelectEvaluatorModalOpen(true)
+        setOnboardingWidgetActivation(null)
+    }, [onboardingWidgetActivation, setActiveTab, setTabState, setOnboardingWidgetActivation])
 
     // states
     const [searchTerm, setSearchTerm] = useState("")
@@ -276,19 +292,50 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
     )
 
     const isDeleteDisabled = selectedRowKeys.length === 0
+    const evaluatorTabItems = useMemo(
+        () =>
+            EVALUATOR_TABS.map((tab) => ({
+                key: tab.key,
+                label: (
+                    <span className="inline-flex items-center gap-2">
+                        {tab.key === "automatic" ? <ChartDonutIcon /> : <ListChecksIcon />}
+                        {tab.label}
+                    </span>
+                ),
+            })),
+        [],
+    )
+    const headerTabsProps = useMemo(
+        () => ({
+            items: evaluatorTabItems,
+            activeKey: activeTab,
+            onChange: (key: string) => onTabChange(key as EvaluatorCategory),
+        }),
+        [activeTab, evaluatorTabItems, onTabChange],
+    )
 
     return (
-        <section className="flex h-full min-h-0 flex-col gap-4">
-            <Typography.Text className="text-[16px] font-medium">Evaluators</Typography.Text>
-
+        <PageLayout title="Evaluators" headerTabsProps={headerTabsProps}>
             <div className="flex flex-col gap-2">
-                <Tabs
-                    items={EVALUATOR_TABS}
-                    activeKey={activeTab}
-                    onChange={(key) => onTabChange(key as EvaluatorCategory)}
-                />
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
+                    <Input.Search
+                        allowClear
+                        placeholder="Search"
+                        value={searchTerm}
+                        onChange={onSearch}
+                        className="w-[320px]"
+                    />
+
+                    <Space>
+                        <Button
+                            icon={<DeleteOutlined />}
+                            disabled={isDeleteDisabled}
+                            type="text"
+                            danger
+                            onClick={() => setIsDeleteModalOpen(true)}
+                        >
+                            Delete
+                        </Button>
                         <Button
                             type="primary"
                             icon={<PlusOutlined />}
@@ -296,24 +343,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
                         >
                             Create new
                         </Button>
-
-                        <Input.Search
-                            allowClear
-                            placeholder="Search"
-                            value={searchTerm}
-                            onChange={onSearch}
-                            className="w-[320px]"
-                        />
-                    </div>
-                    <Button
-                        icon={<DeleteOutlined />}
-                        disabled={isDeleteDisabled}
-                        type="text"
-                        danger
-                        onClick={() => setIsDeleteModalOpen(true)}
-                    >
-                        Delete
-                    </Button>
+                    </Space>
                 </div>
                 <EnhancedTable
                     uniqueKey={EVALUATOR_TABLE_STORAGE_PREFIX}
@@ -367,7 +397,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
                 createEvaluatorProps={createEvaluatorDrawerProps}
                 closeOnLayoutClick={false}
             />
-        </section>
+        </PageLayout>
     )
 }
 

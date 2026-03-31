@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
+import {DeploymentRevisionConfig, DeploymentRevisions} from "@agenta/oss/src/lib/types_ee"
 import {Button, Card, Divider, Space, Typography, notification} from "antd"
 import dayjs from "dayjs"
 import duration from "dayjs/plugin/duration"
@@ -14,8 +15,6 @@ import {
     createRevertDeploymentRevision,
     fetchAllDeploymentRevisions,
 } from "@/oss/services/deploymentVersioning/api"
-
-import {DeploymentRevisionConfig, DeploymentRevisions} from "@agenta/oss/src/lib/types_ee"
 
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
@@ -242,7 +241,7 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
                                 >
                                     <Space style={{justifyContent: "space-between"}}>
                                         <Text className={classes.historyItemsTitle}>
-                                            <b>Revision</b> <span>v{item.revision}</span>
+                                            <b>Revision</b> <span>v{index + 1}</span>
                                         </Text>
                                         <Text className={classes.historyItemsTitle}>
                                             <span style={{fontSize: 12}}>
@@ -266,7 +265,7 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
 
                                     <Divider className={classes.divider} />
 
-                                    <Space direction="vertical">
+                                    <Space orientation="vertical">
                                         <div>
                                             <Text strong>Modified By: </Text>
                                             <Text>{item.modified_by}</Text>
@@ -305,7 +304,7 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
                                         title="Model Parameters"
                                         className={classes.promptHistoryCard}
                                     >
-                                        <Space direction="vertical">
+                                        <Space orientation="vertical">
                                             <>
                                                 {Object.entries(showDeployment.parameters).map(
                                                     ([key, value], index) => {

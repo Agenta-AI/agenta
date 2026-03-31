@@ -1,0 +1,71 @@
+---
+id: fetch-folder
+title: "Fetch Folder"
+description: "Fetch Folder"
+sidebar_label: "Fetch Folder"
+hide_title: true
+hide_table_of_contents: true
+api: eJzlV0uP2zgM/isBTy2gTrKDPfm02ZmmnZ3dbdBJ9xIEA8VmErWy5OoxaNbwfy8o2fEj82owPfWUhz5+JD/SIl2C41sLyRJmWmZoLKwY6AINd0KrqwwS2KBLd7ebcAwMCm54jo6gybIExXMkUDi+FRkwEAoSKLjbAQODX70wmEHijEcGNt1hziEpwe0LMrTOCLUFBhttcu4gAe8DixNOEiDGNbrKoKpWRGgLrSxa4jifTOgjQ5saUVDEkMCNT1O0duPl6GMNBgapVg6VIzgvCinSkOD4syWbshNXYSh9J6KHVPtoVIcrlMNt0KGJ7yIgGGS44V46SCYVq+UIztT+wyYo1SfeyKB7F8CzTFBQXM570BZRB7HWWiJXULGhjPTP/TSQCpN6yc2rv/ka5V9WqzcfvCu8e03JRBa9/oypA9K5SW+IhuoI3UahvJQ961nIkkx+hWwXdbI5On5isp3MBh3Xc5yv+/90NXpKkZmXTwjCShAO82dacWP4/vEu6Nv+mKj/kJgVqy+aZ0l2xPEv2Vasf1GcRnXZoagYpAa5w+yWu8cIO7dbxh2+cSLE87CXi0g7mgaxfJH9DCefIm3tJEOJP8HJZaStnTRyrfc0Kp7nJ8yD54j15z5MiVavF/XSqHXw0gj2ol4auQ5erPTbU3v1hmwrBi8XXozpi1BPMKLyOS0VnVEbNov+UL8mnmN3FYvbw4lZz8k2cBhU7gVrMw+EcRMZ3mDD1O5L60mjw7pSVQT+/fz8eLv5j0uRBUFHb43R5vTVJkPHhaRv9WU/BEid9k5/ZFitqsF86MxYHQMMk9Ju79sF27vfWr7FdmA8DA1ijBZ0Sh2vaM4QvGlcVQ+e1H3r0BwV4oK0/OburXC7yy6DNjH8Gtfpk7ZEsUIPS3EZS/BYZ7xfLOZHhLE/+o0xozV9NGvW9BzdTtP6vkUHzQMF47iY2nF5WNgrYGDR3DULvTeSgLwQobDx5865wibjMfqzVGqfnfEtKsfPuIjAFXGk3gi3DyTT+dU17t8jD1vwctUF3FA/xg7rww5V4YW4RtKpfrmYerfTRvwf26Z+wdhFqypUe6O7xZ6G4EbT+RUwoMSiQpOz384mMNStB6ZHiaehcxrf4RjYQIhD/nTZ5eE5Aoc8/6M9oMgKbV3OVYdvUKbBRlILQC04LiQX4SEJnsu6hMv63cICg6R961ox2Gnr6Lws19ziJyOriv7+6tFQUVYM7rgRfE0SLUvIhKXvGSQbLi0ehXK4VeDVx7rxX4/ara8fYlM4RVW749LTL2DwBfe9l8NwL+yatijr82maYuE6lkfXGPXPoaPfvV1AVX0HWTUBZA==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Folder"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/folders/{folder_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch Folder
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"folder_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Folder Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"folder":{"anyOf":[{"properties":{"flags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Flags"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"},"kind":{"anyOf":[{"type":"string","enum":["applications"],"title":"FolderKind"},{"type":"null"}]},"path":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Path"},"parent_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Parent Id"}},"type":"object","title":"Folder"},{"type":"null"}]}},"type":"object","title":"FolderResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

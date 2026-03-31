@@ -1,5 +1,6 @@
 import {chromium, type BrowserContext, TestType} from "@playwright/test"
 
+import {getChromiumLaunchOptions} from "../../../playwright/config/runtime.ts"
 import {test as baseTest} from "../base.fixture"
 
 import type {SessionState, SessionFixtures, SessionWorkerFixtures} from "./types"
@@ -9,8 +10,10 @@ const workerState: SessionState = {
     isAuthenticated: false,
 }
 
-export interface SessionTestType<T = {}>
-    extends TestType<SessionFixtures & T, SessionWorkerFixtures> {
+export interface SessionTestType<T = {}> extends TestType<
+    SessionFixtures & T,
+    SessionWorkerFixtures
+> {
     describeWithSession: (title: string, callback: () => void) => void
 }
 
@@ -27,7 +30,7 @@ export function createSessionTest<T = {}>(test: TestType<any, any>): SessionTest
 
         session: async ({sessionState, useSharedContext}, use, testInfo) => {
             let context: BrowserContext
-            const browser = await chromium.launch()
+            const browser = await chromium.launch(getChromiumLaunchOptions())
 
             if (useSharedContext && sessionState.context) {
                 // Create new context with stored state

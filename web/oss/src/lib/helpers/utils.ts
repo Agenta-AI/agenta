@@ -1,3 +1,4 @@
+import {tryParsePartialJson} from "@agenta/ui"
 import {notification} from "antd"
 import utc from "dayjs/plugin/utc"
 import yaml from "js-yaml"
@@ -6,15 +7,12 @@ import Router from "next/router"
 import promiseRetry from "promise-retry"
 import {v4 as uuidv4} from "uuid"
 
-import {tryParsePartialJson} from "@/oss/components/Editor/plugins/code/tryParsePartialJson"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {waitForValidURL} from "@/oss/state/url"
 
-import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
 
-import {getEnv} from "./dynamicEnv"
 import {getErrorMessage} from "./errorHandler"
 import {isEE} from "./isEE"
 
@@ -45,23 +43,6 @@ export const renameVariablesCapitalizeAll = (name: string) => {
     return words.join(" ")
 }
 
-export const EvaluationTypeLabels: Record<EvaluationType, string> = {
-    [EvaluationType.auto_exact_match]: "Exact Match",
-    [EvaluationType.auto_similarity_match]: "Similarity Match",
-    [EvaluationType.auto_ai_critique]: "AI Critic",
-    [EvaluationType.human_a_b_testing]: "A/B Test",
-    [EvaluationType.human_scoring]: "Scoring single variant",
-    [EvaluationType.custom_code_run]: "Custom Code Run",
-    [EvaluationType.auto_regex_test]: "Regex Test",
-    [EvaluationType.field_match_test]: "JSON Field Match",
-    [EvaluationType.auto_json_diff]: "JSON Diff Match",
-    [EvaluationType.auto_semantic_similarity]: "Semantic Similarity Match",
-    [EvaluationType.auto_webhook_test]: "Webhook Test",
-    [EvaluationType.single_model_test]: "Single Model Test",
-    [EvaluationType.rag_faithfulness]: "RAG Faithfulness",
-    [EvaluationType.rag_context_relevancy]: "RAG Context Relevancy",
-}
-
 export const apiKeyObject = (apiKeys: LlmProvider[]) => {
     if (!apiKeys) return {}
 
@@ -79,8 +60,14 @@ export const capitalize = (s: string) => {
         .join(" ")
 }
 
+const URL_SAFE = /^[a-zA-Z0-9_-]+$/
+
 export const isAppNameInputValid = (input: string) => {
-    return /^[a-zA-Z0-9_-]+$/.test(input)
+    return URL_SAFE.test(input)
+}
+
+export const isVariantNameInputValid = (input: string) => {
+    return URL_SAFE.test(input)
 }
 
 export const delay = (ms: number) => new Promise((res) => setTimeout(res, ms))
@@ -474,7 +461,7 @@ export const convertToStringOrJson = (value: any) => {
 }
 
 // Helper function to convert base64 data to object URL
-export type FileAttachment = {
+export interface FileAttachment {
     filename: string
     data: string
     format?: string

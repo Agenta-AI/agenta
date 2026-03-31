@@ -5,7 +5,7 @@ import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 import {
     evaluationQueryRevisionAtomFamily,
     type EvaluationQueryConfigurationResult,
-} from "@/oss/components/EvalRunDetails2/atoms/query"
+} from "@/oss/components/EvalRunDetails/atoms/query"
 
 export const usePreviewQueryRevision = (
     {runId}: {runId: string | null | undefined},

@@ -1,22 +1,24 @@
 import {useCallback} from "react"
 
-import {useSetAtom, useStore} from "jotai"
+import {variantsListAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {useQueryClient} from "@tanstack/react-query"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {useVariants} from "@/oss/lib/hooks/useVariants"
 import {removeTrailingSlash} from "@/oss/lib/shared/variant"
 import {createAndStartTemplate, ServiceType} from "@/oss/services/app-selector/api"
 import {useAppsData} from "@/oss/state/app"
+import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
+import {appCreationStatusAtom} from "@/oss/state/appCreation/status"
 import {
     openCustomWorkflowModalAtom,
     closeCustomWorkflowModalAtom,
 } from "@/oss/state/customWorkflow/modalAtoms"
 import {customWorkflowValuesAtomFamily} from "@/oss/state/customWorkflow/modalAtoms"
 import {useProfileData} from "@/oss/state/profile"
-import {appCreationStatusAtom} from "@/oss/state/appCreation/status"
 
 import {useCustomWorkflowConfigProps} from "./types"
 
@@ -25,6 +27,7 @@ const useCustomWorkflowConfig = ({
     setStatusModalOpen,
     // configureWorkflow = true,
     appId: propsAppId,
+    folderId,
     afterConfigSave,
 }: useCustomWorkflowConfigProps) => {
     const {currentApp} = useAppsData()
@@ -35,8 +38,11 @@ const useCustomWorkflowConfig = ({
     const configureWorkflow = modalAtomKey !== "new-app"
 
     const {mutate} = useAppsData()
-    // @ts-ignore
-    const {data, mutate: variantsMutate} = useVariants(currentApp)
+    const appId = useAtomValue(selectedAppIdAtom) || ""
+    const queryClient = useQueryClient()
+    const variantsMutate = useCallback(async () => {
+        await queryClient.invalidateQueries({queryKey: ["variants"]})
+    }, [queryClient])
 
     const posthog = usePostHogAg()
 
@@ -66,6 +72,7 @@ const useCustomWorkflowConfig = ({
             templateKey: ServiceType.Custom,
             serviceUrl: removeTrailingSlash(latestValues.appUrl),
             providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
+            folderId,
             onStatusChange: async (status, details, appId) => {
                 if (["error", "bad_request", "timeout", "success"].includes(status))
                     setFetchingTemplate(false)
@@ -88,6 +95,9 @@ const useCustomWorkflowConfig = ({
     // appNameExist moved to modal content for both modes
 
     const openModal = useCallback(() => {
+        // Read variants lazily when the modal opens — avoids triggering
+        // the expensive variant→revision fetch cascade on playground mount.
+        const variantsData = jotaiStore.get(variantsListAtomFamily(appId))
         openModalAtom({
             open: true,
             onCancel: () => {
@@ -96,11 +106,8 @@ const useCustomWorkflowConfig = ({
             handleCreateApp: configureWorkflow ? () => {} : handleCustomWorkflowClick,
             configureWorkflow,
             appId: modalAtomKey,
-            // @ts-ignore
             allVariantsDataMutate: variantsMutate,
-            variants:
-                (Array.isArray((data as any)?.variants) && (data as any)?.variants) ||
-                (Array.isArray(data as any) ? (data as any) : []),
+            variants: variantsData ?? [],
             mutate: async () => afterConfigSave?.(),
         })
     }, [
@@ -111,7 +118,8 @@ const useCustomWorkflowConfig = ({
         modalAtomKey,
         handleCustomWorkflowClick,
         variantsMutate,
-        data?.variants,
+        jotaiStore,
+        appId,
         afterConfigSave,
     ])
 

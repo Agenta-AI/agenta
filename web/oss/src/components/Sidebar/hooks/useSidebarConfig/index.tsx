@@ -1,8 +1,9 @@
-import {AppstoreOutlined, DatabaseOutlined, GithubFilled} from "@ant-design/icons"
+import {AppstoreOutlined, GithubFilled} from "@ant-design/icons"
 import {
-    ChartDonut,
     ChartLineUp,
+    Database,
     Desktop,
+    Flask,
     PaperPlane,
     Phone,
     Question,
@@ -12,15 +13,20 @@ import {
     TreeView,
     Lightning,
     Rocket,
-    CloudArrowUp,
     ChatCircle,
-    Gauge,
+    Gavel,
+    HouseIcon,
+    RocketLaunch,
+    ListChecks,
 } from "@phosphor-icons/react"
+import {useSetAtom} from "jotai"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
 import useURL from "@/oss/hooks/useURL"
+import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isDemo} from "@/oss/lib/helpers/utils"
+import {openWidgetAtom} from "@/oss/lib/onboarding"
 import {useAppsData} from "@/oss/state/app"
 import {useOrgData} from "@/oss/state/org"
 
@@ -30,31 +36,40 @@ export const useSidebarConfig = () => {
     const {doesSessionExist} = useSession()
     const {currentApp, recentlyVisitedAppId} = useAppsData()
     const {selectedOrg} = useOrgData()
+    const {canInviteMembers} = useWorkspacePermissions()
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
-
+    const openWidget = useSetAtom(openWidgetAtom)
     const hasProjectURL = Boolean(projectURL)
 
     const sidebarConfig: SidebarConfig[] = [
         {
             key: "app-management-link",
-            title: "App Management",
+            title: "Home",
             link: baseAppURL,
-            icon: <AppstoreOutlined size={16} />,
+            icon: <HouseIcon size={14} />,
+            disabled: !hasProjectURL,
+        },
+        {
+            key: "project-playground-link",
+            title: "Playground",
+            link: `${projectURL}/playground`,
+            icon: <Rocket size={14} />,
+            isHidden: true,
+            disabled: !hasProjectURL,
+        },
+        {
+            key: "project-prompts-link",
+            title: "Prompts",
+            link: `${projectURL}/prompts`,
+            icon: <AppstoreOutlined style={{fontSize: 14}} />,
             disabled: !hasProjectURL,
         },
         {
             key: "app-testsets-link",
-            title: "Testsets",
+            title: "Test sets",
             link: `${projectURL}/testsets`,
-            icon: <DatabaseOutlined size={16} />,
-            disabled: !hasProjectURL,
-        },
-        {
-            key: "app-observability-link",
-            title: "Observability",
-            link: `${projectURL}/observability`,
-            icon: <ChartLineUp size={16} />,
+            icon: <Database size={14} />,
             disabled: !hasProjectURL,
         },
         {
@@ -62,7 +77,7 @@ export const useSidebarConfig = () => {
             title: "Evaluators",
             link: `${projectURL}/evaluators`,
             // isHidden: !isDemo(),
-            icon: <Gauge size={16} />,
+            icon: <Gavel size={14} />,
             disabled: !hasProjectURL,
         },
         {
@@ -70,29 +85,39 @@ export const useSidebarConfig = () => {
             title: "Evaluations",
             link: `${projectURL}/evaluations`,
             // isHidden: !isDemo(),
-            icon: <ChartDonut size={16} />,
+            icon: <Flask size={14} />,
             disabled: !hasProjectURL,
         },
         {
-            key: `${currentApp?.app_name || ""}_key`,
-            title: currentApp?.app_name || "",
-            icon: <></>,
-            header: true,
+            key: "project-annotation-queues-link",
+            title: "Annotation Queues",
+            link: `${projectURL}/annotations`,
+            icon: <ListChecks size={14} />,
+            disabled: !hasProjectURL,
+        },
+        {
+            key: "app-observability-link",
+            title: "Observability",
+            link: `${projectURL}/observability`,
+            icon: <ChartLineUp size={14} />,
+            disabled: !hasProjectURL,
         },
         {
             key: "overview-link",
             title: "Overview",
             link: `${appURL || recentlyVisitedAppURL}/overview`,
-            icon: <Desktop size={16} />,
+            icon: <Desktop size={14} />,
             isHidden: !currentApp && !recentlyVisitedAppId,
+            isAppSection: true,
             disabled: !hasProjectURL,
         },
         {
             key: "app-playground-link",
             title: "Playground",
             link: `${appURL || recentlyVisitedAppURL}/playground`,
-            icon: <Rocket size={16} />,
+            icon: <Rocket size={14} />,
             isHidden: !currentApp && !recentlyVisitedAppId,
+            isAppSection: true,
             disabled: !hasProjectURL,
         },
         {
@@ -100,38 +125,35 @@ export const useSidebarConfig = () => {
             title: "Registry",
             link: `${appURL || recentlyVisitedAppURL}/variants`,
             isHidden: !currentApp && !recentlyVisitedAppId,
-            icon: <Lightning size={16} />,
+            isAppSection: true,
+            icon: <Lightning size={14} />,
             disabled: !hasProjectURL,
+            dataTour: "registry-nav",
         },
         {
             key: "app-evaluations-link",
             title: "Evaluations",
             link: `${appURL || recentlyVisitedAppURL}/evaluations`,
             isHidden: !currentApp && !recentlyVisitedAppId,
-            icon: <ChartDonut size={16} />,
+            isAppSection: true,
+            icon: <Flask size={14} />,
             disabled: !hasProjectURL,
+            dataTour: "evaluations-nav",
         },
         {
             key: "app-traces-link",
-            title: "Traces",
-            icon: <TreeView size={16} />,
+            title: "Observability",
+            icon: <TreeView size={14} />,
             isHidden: !currentApp && !recentlyVisitedAppId,
+            isAppSection: true,
             link: `${appURL || recentlyVisitedAppURL}/traces`,
-            disabled: !hasProjectURL,
-        },
-        {
-            key: "app-deployments-link",
-            title: "Deployments",
-            link: `${appURL || recentlyVisitedAppURL}/deployments`,
-            isHidden: !currentApp && !recentlyVisitedAppId,
-            icon: <CloudArrowUp size={16} />,
             disabled: !hasProjectURL,
         },
         {
             key: "settings-link",
             title: "Settings",
             link: `${projectURL}/settings`,
-            icon: <Gear size={16} />,
+            icon: <Gear size={14} />,
             isBottom: true,
             tooltip: "Settings",
             disabled: !hasProjectURL,
@@ -140,16 +162,32 @@ export const useSidebarConfig = () => {
             key: "invite-teammate-link",
             title: "Invite Teammate",
             link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
-            icon: <PaperPlane size={16} />,
+            icon: <PaperPlane size={14} />,
             isBottom: true,
             tooltip: "Invite Teammate",
-            isHidden: !doesSessionExist || !selectedOrg,
+            isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
             disabled: !hasProjectURL,
+        },
+        {
+            key: "get-started-guide-link",
+            title: "Get Started Guide",
+            icon: (
+                <span id="sidebar-get-started-guide">
+                    <RocketLaunch size={16} />
+                </span>
+            ),
+            isBottom: true,
+            tooltip: "Open the onboarding guide",
+            isHidden: !doesSessionExist,
+            onClick: (e) => {
+                e.preventDefault()
+                openWidget()
+            },
         },
         {
             key: "support-chat-link",
             title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
-            icon: <ChatCircle size={16} />,
+            icon: <ChatCircle size={14} />,
             isBottom: true,
             isHidden: !isDemo() || !isCrispEnabled,
             onClick: (e) => {
@@ -160,34 +198,34 @@ export const useSidebarConfig = () => {
         {
             key: "help-docs-link",
             title: "Help & Docs",
-            icon: <Question size={16} />,
+            icon: <Question size={14} />,
             isBottom: true,
             submenu: [
                 {
                     key: "docs",
                     title: "Documentation",
                     link: "https://agenta.ai/docs/",
-                    icon: <Scroll size={16} />,
+                    icon: <Scroll size={14} />,
                     divider: true,
                 },
                 {
                     key: "github-support",
                     title: "GitHub Support",
                     link: "https://github.com/Agenta-AI/agenta/issues",
-                    icon: <GithubFilled size={16} />,
+                    icon: <GithubFilled style={{fontSize: 14}} />,
                 },
                 {
                     key: "slack-connect",
                     title: "Slack Support",
                     link: "https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw",
-                    icon: <SlackLogo size={16} />,
+                    icon: <SlackLogo size={14} />,
                     divider: true,
                 },
                 {
                     key: "book-call",
                     title: "Book a call",
                     link: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
-                    icon: <Phone size={16} />,
+                    icon: <Phone size={14} />,
                 },
             ],
         },

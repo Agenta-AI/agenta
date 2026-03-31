@@ -1,7 +1,18 @@
-import {memo, useEffect, useMemo, useRef, useState, useTransition, type CSSProperties} from "react"
+import {
+    memo,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    useTransition,
+    type CSSProperties,
+    type ReactNode,
+} from "react"
 
-import {Tabs, Typography} from "antd"
-import clsx from "clsx"
+import {PageLayout} from "@agenta/ui"
+import {CloudServerOutlined} from "@ant-design/icons"
+import {ChartDonutIcon, CodeIcon, ListChecksIcon} from "@phosphor-icons/react"
+import type {TabsProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -43,6 +54,14 @@ const TAB_COLOR_MAP: Record<AppTabKey, string> = {
     human: "#ede9fe",
     online: "#dcfce7",
     custom: "#fce7f3",
+}
+
+const TAB_ICON_MAP: Record<AppTabKey, ReactNode> = {
+    all: null,
+    auto: <ChartDonutIcon />,
+    human: <ListChecksIcon />,
+    online: <CloudServerOutlined />,
+    custom: <CodeIcon />,
 }
 
 interface EvaluationTabsProps {
@@ -150,74 +169,57 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsPro
         [tabLabel, router.asPath],
     )
 
-    const renderContent = useMemo(() => {
-        return (
-            <div className="grow flex flex-col min-h-0">
-                <EvaluationRunsTablePOC
-                    includePreview
-                    pageSize={15}
-                    appId={appId}
-                    projectIdOverride={projectId ?? undefined}
-                    evaluationKind={displayedRunKind}
-                    className="flex-1 min-h-0"
-                />
-            </div>
-        )
-    }, [displayedTab, displayedRunKind, projectId, appId])
+    const tabIndicatorColor = useMemo(
+        () => tabColorMap[displayedTab] ?? "#dbeafe",
+        [displayedTab, tabColorMap],
+    )
+    const tabItemsWithIcons = useMemo(
+        () =>
+            tabItems.map((item) => ({
+                key: item.key,
+                label: (
+                    <span className="inline-flex items-center gap-2">
+                        {TAB_ICON_MAP[item.key]}
+                        {item.label}
+                    </span>
+                ),
+            })),
+        [tabItems],
+    )
+
+    const headerTabsProps = useMemo<TabsProps>(
+        () => ({
+            className: "infinite-table-tabs min-w-[320px] [&_.ant-tabs-nav]:mb-0",
+            style: tabIndicatorColor
+                ? ({"--tab-indicator-color": tabIndicatorColor} as CSSProperties)
+                : undefined,
+            activeKey: activeTab,
+            items: tabItemsWithIcons,
+            onChange: (key) => {
+                startTransition(() => {
+                    setKindParam(key)
+                })
+            },
+            destroyOnHidden: true,
+        }),
+        [activeTab, setKindParam, startTransition, tabIndicatorColor, tabItemsWithIcons],
+    )
 
     return (
-        <>
-            <div
-                className={clsx(
-                    "flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px-24px)] overflow-hidden",
-                    {
-                        "-mb-6": scope === "project",
-                    },
-                )}
-            >
-                <div className="w-full flex items-start justify-between gap-8">
-                    <div className="flex flex-col gap-1 min-w-[200px] max-w-prose shrink">
-                        <Typography.Title level={3} style={{margin: 0}}>
-                            Evaluations
-                        </Typography.Title>
-                        <Typography.Paragraph type="secondary" style={{marginBottom: 0}}>
-                            Manage all your evaluations in one place.
-                        </Typography.Paragraph>
-                    </div>
-
-                    <div className="min-w-0 shrink grow flex justify-end">
-                        <div className="flex flex-col items-end gap-1">
-                            <div
-                                className="evaluations-tabs min-w-[320px] flex-1"
-                                style={
-                                    {
-                                        "--tab-indicator-color":
-                                            tabColorMap[displayedTab] ?? "#dbeafe",
-                                    } as CSSProperties
-                                }
-                            >
-                                <Tabs
-                                    className="min-w-[320px] flex-1"
-                                    activeKey={activeTab}
-                                    items={tabItems.map((item) => ({
-                                        key: item.key,
-                                        label: item.label,
-                                    }))}
-                                    onChange={(key) => {
-                                        startTransition(() => {
-                                            setKindParam(key)
-                                        })
-                                    }}
-                                    destroyOnHidden
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {renderContent}
-            </div>
-        </>
+        <PageLayout
+            className="h-full min-h-0"
+            title="Evaluations"
+            headerTabsProps={headerTabsProps}
+        >
+            <EvaluationRunsTablePOC
+                includePreview
+                pageSize={15}
+                appId={appId}
+                projectIdOverride={projectId ?? undefined}
+                evaluationKind={displayedRunKind}
+                className="flex-1 min-h-0"
+            />
+        </PageLayout>
     )
 }
 

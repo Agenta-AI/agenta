@@ -1,0 +1,71 @@
+---
+id: update-project
+title: "Update Project"
+description: "Update Project"
+sidebar_label: "Update Project"
+hide_title: true
+hide_table_of_contents: true
+api: eJytVk1v2zgQ/SvGnHYBrp0Ge9JpvWmBGG23hpO0h8AIxtLYYiOJLEkl8Qr678WQ+rRTo3DriyVy+Dh8782IFTjcWYju4SZWmiysBShNBp1UxSKBCEqdoKMHbdRXih0I0GgwJ0eGl1VQYE4QQTP/IBMQIAseQZeCAEPfSmkogciZkgTYOKUcIarA7TWvtM7IYgcCtsrk6HjL0qM46TIOWAboySKBul4HRLLuX5XsGeZwg1gVjgrHU6h1JmN/ltlXqwoe6/fXhk/qJFl+C+eoAIv9p60/2Ti/WnQjRZllwJm0Gf7Ha2sBOT7SQ0JbLDP3KtZGqYywOAn2ER9p8rYBqWvRBqpNI0AbeOeVadhZBVKgrnmJIatVYcPJLi8u+C8hGxupmQyI4KaMY7J2W2aTVRMMZ3OnzA4L+b8PZgecoPFQ5lNMfBrAevXFeKdfkWyE3er3rMyj1RjTbzzElxazOUG/x6+k36O2uQ8K8Mza6jHazA5RDle1e0vbur7rE9GR5/vlC9v6e7Ls2kpXNlvMLNUCSkvmwajsbI7uLJnJigHaFHN1dlX6nHP1akH2Heh+3AdHfK6P+LNd5YWq/fvy8rhQP2Mmk2DTd8Yoc36VJuRQZvwkHeX2OCBT8Wj2J0iXhaMdGajXPS9oDO4Hcn9QIUHfIe3ulLE+krW484KFkB+HejImtzzL8ha6DKZr9fIDtYDYvQxgjproFXP58nqjHerK3IT0m7iBnL1EQaEfU/E2SHCqq1/f3i6PAIM/xsYI7X9QQTm5VCXhyxun/kvtUohg1tjQzqrenTUIsGSe2s94aTIORS29vOE1dU7baDajchpnqkymuKPC4RRlCFwzRlwa6fYeZL5cvKf9NWFCBqL79TDghl0ZfDYO67RBLd8Ts9VcKealS5VpenR7q0jDKqaD/b7q7wLvXjDXoVs0AJ1nxt9lviZ4y2zV0DFzf7bJfLkAAcxLoPli+mZ6AYfkj4K5HjH0vDZ1Pw3igMeOPhBAuS9GcIT5P/0EH0wr63IsBnhHWo+y6RhkJ890htLXmt+7alzQdSYLAqJBl1oLSJV1HFFVG7R0Z7K65uFvJRnWdS3gCY3EDdN0X0EiLT8nTas+SqZrT/DHqqmgPycgXk+y1b5g4Z8wK/kNBDzSfnyr9B0mba1VNQFXYa+/fB/oAY7aIns6rJjHMWl3MnY9qKXl/PbqGgRsmttmrhJeZPCZGwQ+h2yVP7w3tx+rIMNiV3IriyCA8u87DPnpkQ==
+sidebar_class_name: "patch api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Update Project"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"patch"}
+  path={"/projects/{project_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Update Project
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"project_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Project Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"required":true,"content":{"application/json":{"schema":{"properties":{"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"make_default":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Make Default"}},"type":"object","title":"UpdateProjectRequest"}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"organization_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Organization Id"},"organization_name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Organization Name"},"workspace_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Workspace Id"},"workspace_name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Workspace Name"},"project_id":{"type":"string","format":"uuid","title":"Project Id"},"project_name":{"type":"string","title":"Project Name"},"is_default_project":{"type":"boolean","title":"Is Default Project","default":false},"user_role":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"User Role"},"is_demo":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Is Demo"}},"type":"object","required":["project_id","project_name"],"title":"ProjectsResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

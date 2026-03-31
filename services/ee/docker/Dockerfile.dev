@@ -1,0 +1,23 @@
+FROM python:3.11-slim-bookworm
+
+WORKDIR /app
+
+RUN pip install --upgrade pip \
+    && pip install poetry
+
+COPY ./pyproject.toml /app/
+
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-interaction --no-ansi
+
+RUN groupadd --gid 10001 agenta && \
+    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta
+
+COPY --chown=agenta:agenta ./oss /app/oss/
+COPY --chown=agenta:agenta ./entrypoints /app/entrypoints/
+
+ENV PYTHONPATH=/sdk:$PYTHONPATH
+
+USER 10001
+
+EXPOSE 8080

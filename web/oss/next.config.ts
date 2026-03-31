@@ -1,6 +1,7 @@
 import {createRequire} from "module"
 import path from "path"
 
+import bundleAnalyzer from "@next/bundle-analyzer"
 import type {NextConfig} from "next"
 
 const require = createRequire(import.meta.url)
@@ -54,9 +55,35 @@ const COMMON_CONFIG: NextConfig = {
             },
         ]
     },
-    ...(!isDevelopment
-        ? {
-              transpilePackages: [
+    // Enable package import optimization for workspace packages and icon libraries
+    experimental: {
+        optimizePackageImports: [
+            "@agenta/oss",
+            "@agenta/shared",
+            "@agenta/ui",
+            "@agenta/entities",
+            "@agenta/entity-ui",
+            "@agenta/playground",
+            "@agenta/playground-ui",
+            "@agenta/annotation",
+            "@agenta/annotation-ui",
+            // Icon libraries - ensure tree-shaking works for individual icon imports
+            "@phosphor-icons/react",
+            "lucide-react",
+        ],
+    },
+    // Always transpile workspace packages to ensure proper module resolution
+    transpilePackages: [
+        "@agenta/shared",
+        "@agenta/ui",
+        "@agenta/entities",
+        "@agenta/entity-ui",
+        "@agenta/playground",
+        "@agenta/playground-ui",
+        "@agenta/annotation",
+        "@agenta/annotation-ui",
+        ...(!isDevelopment
+            ? [
                   "rc-util",
                   "antd",
                   "rc-pagination",
@@ -66,7 +93,11 @@ const COMMON_CONFIG: NextConfig = {
                   "rc-table",
                   "@ant-design/icons",
                   "@ant-design/icons-svg",
-              ],
+              ]
+            : []),
+    ],
+    ...(!isDevelopment
+        ? {
               webpack: (config, {webpack, isServer}) => {
                   config.resolve ??= {}
                   config.resolve.alias = {
@@ -88,6 +119,19 @@ const COMMON_CONFIG: NextConfig = {
                       loader: "swc-loader",
                   })
 
+                  // Ignore problematic ESM imports from @ant-design/x that we don't use
+                  // This prevents build errors for mermaid and refractor packages
+                  config.plugins.push(
+                      new webpack.IgnorePlugin({
+                          resourceRegExp: /^mermaid$/,
+                          contextRegExp: /@ant-design[\\/]x/,
+                      }),
+                      new webpack.IgnorePlugin({
+                          resourceRegExp: /^refractor\/.+$/,
+                          contextRegExp: /react-syntax-highlighter/,
+                      }),
+                  )
+
                   if (!isServer) {
                       config.plugins.push(
                           new webpack.DefinePlugin({
@@ -106,4 +150,8 @@ const COMMON_CONFIG: NextConfig = {
           }),
 }
 
-export default COMMON_CONFIG
+const withBundleAnalyzer = bundleAnalyzer({
+    enabled: process.env.ANALYZE === "true",
+})
+
+export default withBundleAnalyzer(COMMON_CONFIG)

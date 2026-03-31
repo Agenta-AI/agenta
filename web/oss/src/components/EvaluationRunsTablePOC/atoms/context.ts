@@ -33,7 +33,7 @@ export interface EvaluationRunsTableContext {
     activeAppId: string | null
     storageKey: string
     createSupported: boolean
-    createEvaluationType: "auto" | "human" | "online"
+    createEvaluationType: "auto" | "human" | "online" | "custom"
 }
 
 export const defaultEvaluationRunsTableOverrides: EvaluationRunsTableOverrides = {
@@ -88,13 +88,13 @@ export const evaluationRunsTableContextAtom = atom<EvaluationRunsTableContext>((
             derivedPreviewFlags = {has_auto: true}
             break
         case "human":
-            derivedPreviewFlags = {has_human: true}
+            derivedPreviewFlags = {has_human: true, is_queue: false}
             break
         case "custom":
             derivedPreviewFlags = {has_custom: true}
             break
         default:
-            derivedPreviewFlags = undefined
+            derivedPreviewFlags = {is_queue: false}
     }
 
     const isAutoOrHuman = evaluationKind === "auto" || evaluationKind === "human"
@@ -109,10 +109,17 @@ export const evaluationRunsTableContextAtom = atom<EvaluationRunsTableContext>((
     const appSegment = scope === "app" ? (explicitAppId ?? "app") : (explicitAppId ?? "all-apps")
     const scopeId = `${projectSegment}::${appSegment}::${evaluationKind}`
     const storageKey = `evaluation-runs:columns:${scopeId}`
-    const standardCreateSupported = isAutoOrHuman || evaluationKind === "online"
+    const standardCreateSupported =
+        isAutoOrHuman || evaluationKind === "online" || evaluationKind === "custom"
     const createSupported = evaluationKind === "all" ? true : standardCreateSupported
     const createEvaluationType =
-        evaluationKind === "human" ? "human" : evaluationKind === "online" ? "online" : "auto"
+        evaluationKind === "custom"
+            ? "custom"
+            : evaluationKind === "human"
+              ? "human"
+              : evaluationKind === "online"
+                ? "online"
+                : "auto"
 
     const context: EvaluationRunsTableContext = {
         projectId,

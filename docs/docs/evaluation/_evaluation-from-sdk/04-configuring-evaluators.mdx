@@ -5,46 +5,41 @@ description: "Learn how to configure built-in and custom evaluators using the SD
 sidebar_position: 4
 ---
 
-<!-- TODO: Replace with new SDK evaluation content -->
-
 ## Creating evaluators
 
-### Custom code evaluator
-
-Let's create a custom code evaluator that returns 1.0 if the first letter of the app output is uppercase:
+### Custom evaluator
 
 ```python
-code_snippet = """
-from typing import Dict
+import agenta as ag
 
-def evaluate(
-    app_params: Dict[str, str],
-    inputs: Dict[str, str],
-    output: str,  # output of the llm app
-    datapoint: Dict[str, str]  # contains the testset row
-) -> float:
-    if output and output[0].isupper():
-        return 1.0
-    else:
-        return 0.0
-"""
-
-response = client.evaluators.create_new_evaluator_config(
-    app_id=app_id,
-    name="capital_letter_evaluator",
-    evaluator_key="auto_custom_code_run",
-    settings_values={"code": code_snippet}
+@ag.evaluator(
+    slug="capital_letter_evaluator",
+    name="Capital Letter Evaluator",
 )
-letter_match_eval_id = response.id
+async def capital_letter_evaluator(outputs: str):
+    is_capitalized = bool(outputs) and outputs[0].isupper()
+    return {
+        "score": 1.0 if is_capitalized else 0.0,
+        "success": is_capitalized,
+    }
 ```
 
-## Using built-in evaluators
+### Built-in evaluators
 
-<!-- TODO: Add content for using built-in evaluators -->
+Agenta ships built-in evaluators you can configure directly:
+
+```python
+from agenta.sdk.workflows import builtin
+
+exact_match = builtin.auto_exact_match(
+    name="Capital Exact Match",
+    correct_answer_key="capital",
+)
+```
 
 ## Configuring evaluator settings
 
-<!-- TODO: Add content for configuring evaluator settings -->
+Built-in evaluators accept parameters (like `correct_answer_key`) when you construct them, so you can tailor scoring to your testset schema.
 
 ## Next steps
 

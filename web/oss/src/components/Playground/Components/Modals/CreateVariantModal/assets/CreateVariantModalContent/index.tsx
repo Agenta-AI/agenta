@@ -4,6 +4,7 @@ import {Input, Select, Typography, Form, Checkbox} from "antd"
 import clsx from "clsx"
 
 import CommitNote from "@/oss/components/Playground/assets/CommitNote"
+import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 
 import {CreateVariantModalContentProps} from "../types"
 
@@ -41,7 +42,8 @@ const CreateVariantModalContent = ({
             })
 
             setNameExists((oldValue) => nameExists)
-            setIsInputValid(variantName.trim().length > 0 && !nameExists)
+            const isValidFormat = isVariantNameInputValid(variantName)
+            setIsInputValid(variantName.trim().length > 0 && !nameExists && isValidFormat)
         },
         [setNewVariantName, variants],
     )
@@ -79,11 +81,21 @@ const CreateVariantModalContent = ({
                             validateStatus={
                                 nameExists
                                     ? "error"
-                                    : newVariantName.length === 0
-                                      ? "success"
-                                      : "success"
+                                    : newVariantName.length > 0 &&
+                                        !isVariantNameInputValid(newVariantName)
+                                      ? "error"
+                                      : newVariantName.length === 0
+                                        ? "success"
+                                        : "success"
                             }
-                            help={nameExists ? "Variant name already exists" : ""}
+                            help={
+                                nameExists
+                                    ? "Variant name already exists"
+                                    : newVariantName.length > 0 &&
+                                        !isVariantNameInputValid(newVariantName)
+                                      ? "Variant name must contain only letters, numbers, underscore, or dash"
+                                      : ""
+                            }
                         >
                             <Input onChange={handleVariantNameChange} />
                         </Form.Item>

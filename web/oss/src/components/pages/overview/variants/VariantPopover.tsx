@@ -1,3 +1,4 @@
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Badge, Button, Flex, Popover, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -6,9 +7,8 @@ import {statusMap} from "@/oss/components/VariantDetailsWithStatus/components/En
 import VariantNameCell from "@/oss/components/VariantNameCell"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {Environment} from "@/oss/lib/Types"
-import {variantUserDisplayNameAtomFamily} from "@/oss/state/variant/selectors/variant"
 
 type VariantPopoverProps = {
     env: Environment
@@ -16,8 +16,14 @@ type VariantPopoverProps = {
 } & React.ComponentProps<typeof Popover>
 
 const ModifiedByText = ({variant}: {variant: EnhancedVariant}) => {
-    const name = useAtomValue(variantUserDisplayNameAtomFamily(variant.id))
-    if (!name) return null
+    const revisionData = useAtomValue(legacyAppRevisionMolecule.atoms.data(variant.id)) as any
+    const name: string | null =
+        revisionData?.modifiedByDisplayName ??
+        revisionData?.modifiedBy ??
+        revisionData?.modified_by ??
+        (variant as any)?.modifiedBy ??
+        null
+    if (!name || name === "-") return null
     return <Typography.Text className="font-normal">{name}</Typography.Text>
 }
 
@@ -29,7 +35,12 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
             {...props}
             placement="bottom"
             trigger={"hover"}
-            overlayStyle={{minWidth: 256, maxWidth: 360}}
+            styles={{
+                root: {
+                    minWidth: 256,
+                    maxWidth: 360,
+                },
+            }}
             arrow={false}
             title={
                 <div onClick={(e) => e.stopPropagation()} className="flex flex-col gap-4">

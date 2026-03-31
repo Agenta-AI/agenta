@@ -10,7 +10,6 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 revision: str = "b3f15a7140ab"
 down_revision: Union[str, None] = "5a71b3f140ab"

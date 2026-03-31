@@ -1,7 +1,7 @@
-from typing import Optional, List
+from typing import Any, Optional, Union, Dict, List
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from fastapi import HTTPException
 
 from oss.src.core.shared.dtos import (
@@ -33,11 +33,17 @@ from oss.src.core.evaluations.types import (
     EvaluationQueueCreate,
     EvaluationQueueEdit,
     EvaluationQueueQuery,
+    EvaluationQueueScenariosQuery,
     #
     SimpleEvaluation,
     SimpleEvaluationCreate,
     SimpleEvaluationEdit,
     SimpleEvaluationQuery,
+    #
+    SimpleQueue,
+    SimpleQueueCreate,
+    SimpleQueueQuery,
+    SimpleQueueScenariosQuery,
 )
 
 
@@ -75,25 +81,49 @@ class EvaluationClosedException(HTTPException):
         self.queue_id = queue_id
 
 
+JIT = Optional[Union[bool, Dict]]
+
+
+def _coerce_jit(v: Any) -> bool:
+    """Coerce jit value to bool. Dicts (e.g. legacy SDK payloads) become False."""
+    if isinstance(v, dict):
+        return False
+    if v is None:
+        return True
+    return bool(v)
+
+
 # EVALUATION RUNS --------------------------------------------------------------
 
 
 class EvaluationRunsCreateRequest(BaseModel):
     runs: List[EvaluationRunCreate]
+    jit: JIT = True
+
+    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class EvaluationRunEditRequest(BaseModel):
     run: EvaluationRunEdit
+    jit: JIT = True
+
+    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class EvaluationRunsEditRequest(BaseModel):
     runs: List[EvaluationRunEdit]
+    jit: JIT = True
+
+    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class EvaluationRunQueryRequest(BaseModel):
     run: Optional[EvaluationRunQuery] = None
     #
     windowing: Optional[Windowing] = None
+    jit: JIT = True
+
+    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class EvaluationRunIdsRequest(BaseModel):
@@ -154,6 +184,8 @@ class EvaluationScenarioResponse(BaseModel):
 class EvaluationScenariosResponse(BaseModel):
     count: int = 0
     scenarios: List[EvaluationScenario] = []
+    #
+    windowing: Optional[Windowing] = None
 
 
 class EvaluationScenarioIdResponse(BaseModel):
@@ -296,21 +328,38 @@ class EvaluationQueueScenarioIdsResponse(BaseModel):
     scenario_ids: List[List[UUID]] = []
 
 
+class EvaluationQueueScenariosQueryRequest(BaseModel):
+    queue: Optional[EvaluationQueueScenariosQuery] = None
+    #
+    scenario: Optional[EvaluationScenarioQuery] = None
+    #
+    windowing: Optional[Windowing] = None
+
+
 # - SIMPLE EVALUATIONS ---------------------------------------------------------
 
 
 class SimpleEvaluationCreateRequest(BaseModel):
     evaluation: SimpleEvaluationCreate
+    jit: JIT = True
+
+    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class SimpleEvaluationEditRequest(BaseModel):
     evaluation: SimpleEvaluationEdit
+    jit: JIT = True
+
+    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class SimpleEvaluationQueryRequest(BaseModel):
     evaluation: Optional[SimpleEvaluationQuery] = None
     #
     windowing: Optional[Windowing] = None
+    jit: JIT = True
+
+    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class SimpleEvaluationResponse(BaseModel):
@@ -326,3 +375,56 @@ class SimpleEvaluationsResponse(BaseModel):
 class SimpleEvaluationIdResponse(BaseModel):
     count: int = 0
     evaluation_id: Optional[UUID] = None
+
+
+# - SIMPLE QUEUES --------------------------------------------------------------
+
+
+class SimpleQueueCreateRequest(BaseModel):
+    queue: SimpleQueueCreate
+
+
+class SimpleQueueQueryRequest(BaseModel):
+    queue: Optional[SimpleQueueQuery] = None
+    #
+    windowing: Optional[Windowing] = None
+
+
+class SimpleQueueScenariosQueryRequest(BaseModel):
+    queue: Optional[SimpleQueueScenariosQuery] = None
+    #
+    scenario: Optional[EvaluationScenarioQuery] = None
+    #
+    windowing: Optional[Windowing] = None
+
+
+class SimpleQueueTracesCreateRequest(BaseModel):
+    trace_ids: List[str]
+
+
+class SimpleQueueTestcasesCreateRequest(BaseModel):
+    testcase_ids: List[UUID]
+
+
+class SimpleQueueResponse(BaseModel):
+    count: int = 0
+    queue: Optional[SimpleQueue] = None
+
+
+class SimpleQueuesResponse(BaseModel):
+    count: int = 0
+    queues: List[SimpleQueue] = []
+    #
+    windowing: Optional[Windowing] = None
+
+
+class SimpleQueueIdResponse(BaseModel):
+    count: int = 0
+    queue_id: Optional[UUID] = None
+
+
+class SimpleQueueScenariosResponse(BaseModel):
+    count: int = 0
+    scenarios: List[EvaluationScenario] = []
+    #
+    windowing: Optional[Windowing] = None

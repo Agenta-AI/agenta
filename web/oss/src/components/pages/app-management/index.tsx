@@ -1,17 +1,23 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {PageLayout} from "@agenta/ui"
 import {Typography} from "antd"
-import {useRouter} from "next/router"
 import dayjs from "dayjs"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
+import {welcomeCardsDismissedAtom} from "@/oss/components/pages/app-management/components/WelcomeCardsSection/assets/store/welcomeCards"
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {type LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isDemo} from "@/oss/lib/helpers/utils"
+import {
+    onboardingWidgetActivationAtom,
+    recordWidgetEventAtom,
+    setOnboardingWidgetActivationAtom,
+} from "@/oss/lib/onboarding"
 import {Template, GenericObject, StyleProps} from "@/oss/lib/Types"
 import {waitForAppToStart} from "@/oss/services/api"
 import {createAndStartTemplate, deleteApp, ServiceType} from "@/oss/services/app-selector/api"
@@ -24,11 +30,8 @@ import {useProfileData} from "@/oss/state/profile"
 import {getTemplateKey, timeout} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
 import ApplicationManagementSection from "./components/ApplicationManagementSection"
-import GetStartedSection from "./components/GetStartedSection"
 import HelpAndSupportSection from "./components/HelpAndSupportSection"
-import useCustomWorkflowConfig from "./modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
-import ProjectHeaderActions from "./components/ProjectHeaderActions"
-import {useProjectData} from "@/oss/state/project"
+import WelcomeCardsSection from "./components/WelcomeCardsSection"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
@@ -47,20 +50,16 @@ const SetupTracingModal: any = dynamic(
 const ObservabilityDashboardSection: any = dynamic(
     () => import("@/oss/components/pages/app-management/components/ObservabilityDashboardSection"),
 )
-const {Title} = Typography
 
 const AppManagement: React.FC = () => {
-    const {project} = useProjectData()
     const statusData = useAtomValue(appCreationStatusAtom)
     const setStatusData = useSetAtom(appCreationStatusAtom)
     const resetAppCreation = useSetAtom(resetAppCreationAtom)
     const [statusModalOpen, setStatusModalOpen] = useState(false)
-    const [fetchingCustomWorkflow, setFetchingCustomWorkflow] = useState(false)
-    const {openModal} = useCustomWorkflowConfig({
-        setStatusModalOpen,
-        setFetchingTemplate: setFetchingCustomWorkflow,
-        appId: "",
-    })
+    const onboardingWidgetActivation = useAtomValue(onboardingWidgetActivationAtom)
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
+    const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
+    const welcomeCardsDismissed = useAtomValue(welcomeCardsDismissedAtom)
     const posthog = usePostHogAg()
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
@@ -100,6 +99,7 @@ const AppManagement: React.FC = () => {
                                 deployed_by: user?.id,
                             },
                         })
+                        recordWidgetEvent("prompt_created")
                     }
 
                 setStatusData((prev) => ({...prev, status, details, appId: appId || prev.appId}))
@@ -107,14 +107,17 @@ const AppManagement: React.FC = () => {
         })
     }
 
-    const {query: routerQuery, isReady} = useRouter()
+    useEffect(() => {
+        if (onboardingWidgetActivation !== "open-create-prompt") return
+        setIsAddAppFromTemplatedModal(true)
+        setOnboardingWidgetActivation(null)
+    }, [onboardingWidgetActivation, setOnboardingWidgetActivation])
 
     useEffect(() => {
-        if (!isReady) return
-        if (routerQuery.create_prompt === "true") {
-            setIsAddAppFromTemplatedModal(true)
-        }
-    }, [isReady, routerQuery.create_prompt])
+        if (onboardingWidgetActivation !== "tracing-snippet") return
+        setIsSetupTracingModal(true)
+        setOnboardingWidgetActivation(null)
+    }, [onboardingWidgetActivation, setOnboardingWidgetActivation])
 
     const onErrorRetry = async () => {
         if (statusData.appId) {
@@ -162,34 +165,20 @@ const AppManagement: React.FC = () => {
 
     return (
         <>
-            <div className={classes.container}>
+            <PageLayout className={`${classes.container} gap-8`}>
                 {error ? (
                     <ResultComponent status={"error"} title="Failed to load" />
                 ) : (
                     <>
-                        <div className="flex items-center gap-3 flex-wrap">
-                            <Title level={3} className="!m-0 flex items-center gap-2 min-w-0">
-                                <span
-                                    className="truncate max-w-[360px]"
-                                    title={project?.project_name || "Project"}
-                                >
-                                    {project?.project_name || "Project"}
-                                </span>
-                                <span className="text-neutral-500 whitespace-nowrap">
-                                    App Management
-                                </span>
-                            </Title>
+                        {welcomeCardsDismissed && (
+                            <Typography.Title level={5} className="!m-0">
+                                Home
+                            </Typography.Title>
+                        )}
 
-                            <ProjectHeaderActions />
-                        </div>
-
-                        <GetStartedSection
-                            selectedOrg={selectedOrg}
-                            apps={apps}
-                            setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal}
-                            setIsMaxAppModalOpen={setIsMaxAppModalOpen}
-                            setIsWriteOwnAppModal={openModal}
-                            setIsSetupTracingModal={setIsSetupTracingModal}
+                        <WelcomeCardsSection
+                            onCreatePrompt={() => setIsAddAppFromTemplatedModal(true)}
+                            onSetupTracing={() => setIsSetupTracingModal(true)}
                         />
 
                         <ObservabilityDashboardSection />
@@ -206,7 +195,7 @@ const AppManagement: React.FC = () => {
                         <HelpAndSupportSection />
                     </>
                 )}
-            </div>
+            </PageLayout>
 
             <SetupTracingModal
                 open={isSetupTracingModal}
@@ -247,7 +236,7 @@ const AppManagement: React.FC = () => {
 
             <CreateAppStatusModal
                 open={statusModalOpen}
-                loading={fetchingTemplate || fetchingCustomWorkflow}
+                loading={fetchingTemplate}
                 onErrorRetry={onErrorRetry}
                 onTimeoutRetry={onTimeoutRetry}
                 onCancel={() => {

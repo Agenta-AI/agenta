@@ -1,0 +1,71 @@
+---
+id: verify-organization-domain
+title: "Verify Organization Domain"
+description: "Verify a domain (marks it as verified)."
+sidebar_label: "Verify Organization Domain"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9VU1P4zAQ/SvRnECymi7aU05bLStRsSsqYLlUFRqSaWPIh7Gdim7k/74aO2kTCkhIqz0l8Yyfx2/em7SQkUm1VFbWFSRwR1qudxFGWV2irKKTEvWTiaSN0ERbDkrKTicgoFakkXfNM0jAh3b3td5gJf/49fsAAQIUaizJkjaQLFuosCRIYJQrMxAguQKFNgcBmp4bqSmDxOqGBJg0pxIhacHuFG83VstqAwKstAUvXA3wonkGzon9WaGUf3HKeeDF468YwKi6MmR4z9l0yo8xozdNmpIx66aIrrtkEJDWlaXKcjoqVcjUlx0/Gt7THupwzjkBX8/OjoHvsJBZuO0PrWv9CVRQmttnZag7I4uy4DdpqTTHCUWdjqJY7a7WvpdjmpjxbkVWljakwa2c6NdQa9wNuPxZhwLBCSjN5iPaf5ExuCHYg72f6smIbjnquNuq8YT04blfcAJS+zKAqR8eKbUDmO/M5YtlGR3lHGSz9NyE8ru81QHj0KLQofepOA8teOuwPuXi9nZxBBj0UZLNa7ahqo31hrM5JBAPLWbi9pXjXBxsYeJ27w8XByeDAEN621u20QXjoZK+x+Ezt1aZJI6pmaRF3WQT3FBlcYIyJK4YI220tDsPMlvML2l3QZiRhmS5GibcsDSD2MZp+wahkpfEdXWWnjU2r3V3m97WedjlfOPX9bDvM19cNFvMQfC4MsFF08mXyRTEK2+NktlVmHoR9Wf7MIhXROzvDwKo9JYCS1h+OwS4Mm5SidUAr5u6owl23k/PUWXtweOfmNUdhaznWBUM67ra204ry9E4NiAgOZ7PnVw4OByonWJWAnKWX7KEtn1AQ7914RwvPzekWQIrAVvUEh+4IcsWMmn4PYNkjYWhD656ct057jR67zq9TCrWyBaLhr9AwBPt3vjZsIr/4/EHuvw8zHsPtF18lqak7GDn0fhms+xtvri6uQXn/gLw+6Vg
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Verify Organization Domain"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations/{organization_id}/domains/{domain_id}/verify"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Verify a domain (marks it as verified).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"organization_id","in":"path","required":true,"schema":{"type":"string","title":"Organization Id"}},{"name":"domain_id","in":"path","required":true,"schema":{"type":"string","title":"Domain Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

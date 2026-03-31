@@ -1,13 +1,14 @@
+import {message} from "@agenta/ui/app-message"
 import {atom} from "jotai"
 import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {WorkspaceRole} from "@/oss/lib/Types"
 import {updateOrganization} from "@/oss/services/organization/api"
 import {updateWorkspace, fetchAllWorkspaceRoles} from "@/oss/services/workspace/api"
 
 import {selectedOrgQueryAtom, orgsQueryAtom} from "../../org/selectors/org"
 import {userAtom} from "../../profile/selectors/user"
+import {projectIdAtom} from "../../project/selectors/project"
 
 /**
  * Mutation atom for updating workspace name
@@ -93,6 +94,7 @@ export const updateWorkspaceNameActionAtom = atom(
 export const workspaceRolesQueryAtom = atomWithQuery<Omit<WorkspaceRole, "permissions">[]>(
     (get) => {
         const user = get(userAtom)
+        const projectId = get(projectIdAtom)
 
         return {
             queryKey: ["workspaceRoles"],
@@ -101,7 +103,7 @@ export const workspaceRolesQueryAtom = atomWithQuery<Omit<WorkspaceRole, "permis
             refetchOnWindowFocus: false,
             refetchOnReconnect: false,
             refetchOnMount: false,
-            enabled: !!user?.id,
+            enabled: !!user?.id && !!projectId,
             retry: (failureCount, error) => {
                 // Don't retry on client errors (404, etc.)
                 if (

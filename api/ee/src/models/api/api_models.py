@@ -12,16 +12,17 @@ from oss.src.models.api.api_models import (
     EnvironmentRevision,
     EnvironmentOutputExtended,
 )
+from ee.src.models.shared_models import WorkspaceRole
 
 
 class TimestampModel(BaseModel):
-    created_at: str = Field(str(datetime.now(timezone.utc)))
-    updated_at: str = Field(str(datetime.now(timezone.utc)))
+    created_at: str = Field(default_factory=lambda: str(datetime.now(timezone.utc)))
+    updated_at: str = Field(default_factory=lambda: str(datetime.now(timezone.utc)))
 
 
 class InviteRequest(BaseModel):
     email: str
-    roles: List[str]
+    roles: List[WorkspaceRole]
 
 
 class ReseendInviteRequest(BaseModel):

@@ -44,7 +44,7 @@ export type EvaluatorPreviewDto = EvaluatorDto<"payload"> &
         revision?: EvaluatorRevisionDto
     }
 
-type EvaluatorDtoBase = {
+interface EvaluatorDtoBase {
     name: string
     slug: string
     key?: string

@@ -7,6 +7,7 @@ import {User} from "@/oss/lib/Types"
 import {selectedOrgIdAtom} from "@/oss/state/org"
 import {profileQueryAtom} from "@/oss/state/profile/selectors/user"
 import {projectIdAtom} from "@/oss/state/project"
+import {sessionExistsAtom} from "@/oss/state/session"
 
 import {BillingPlan, DataUsageType, SubscriptionType} from "../../services/billing/types"
 
@@ -28,7 +29,7 @@ export const usageQueryAtom = atomWithQuery((get) => {
             return response.data as DataUsageType
         },
         staleTime: 1000 * 60 * 2, // 2 minutes
-        refetchOnWindowFocus: false,
+        refetchOnWindowFocus: true,
         refetchOnReconnect: false,
         refetchOnMount: true,
         enabled: !!user && !!projectId,
@@ -51,6 +52,7 @@ export const subscriptionQueryAtom = atomWithQuery((get) => {
     const user = profileQuery.data as User | undefined
     const projectId = get(projectIdAtom)
     const organizationId = get(selectedOrgIdAtom)
+    const sessionExists = get(sessionExistsAtom)
 
     return {
         queryKey: ["billing", "subscription", projectId, user?.id, organizationId],
@@ -61,10 +63,10 @@ export const subscriptionQueryAtom = atomWithQuery((get) => {
             return response.data as SubscriptionType
         },
         staleTime: 1000 * 60 * 5, // 5 minutes
-        refetchOnWindowFocus: false,
+        refetchOnWindowFocus: true,
         refetchOnReconnect: false,
         refetchOnMount: true,
-        enabled: !!organizationId && !!user && !!projectId,
+        enabled: sessionExists && !!organizationId && !!user && !!projectId,
         retry: (failureCount, error) => {
             // Don't retry on client errors
             if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {

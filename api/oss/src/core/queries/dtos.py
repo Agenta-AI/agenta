@@ -1,19 +1,19 @@
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 
-from oss.src.core.tracing.dtos import Filtering
+from oss.src.core.tracing.dtos import Filtering, Formatting
 from oss.src.core.shared.dtos import (
     Identifier,
     Slug,
     Lifecycle,
     Header,
-    Flags,
     Tags,
     Meta,
     Windowing,
+    Trace,
 )
 from oss.src.core.shared.dtos import sync_alias, AliasConfig
 from oss.src.core.git.dtos import (
@@ -64,20 +64,34 @@ class QueryRevisionIdAlias(AliasConfig):
     )
 
 
-class Query(Artifact):
+# flags ------------------------------------------------------------------------
+
+
+class QueryFlags(BaseModel):
     pass
+
+
+class QueryQueryFlags(BaseModel):
+    pass
+
+
+# queries ----------------------------------------------------------------------
+
+
+class Query(Artifact):
+    flags: Optional[QueryFlags] = None
 
 
 class QueryCreate(ArtifactCreate):
-    pass
+    flags: Optional[QueryFlags] = None
 
 
 class QueryEdit(ArtifactEdit):
-    pass
+    flags: Optional[QueryFlags] = None
 
 
 class QueryQuery(ArtifactQuery):
-    pass
+    flags: Optional[QueryQueryFlags] = None
 
 
 class QueryVariant(
@@ -105,8 +119,12 @@ class QueryVariantQuery(VariantQuery):
 
 
 class QueryRevisionData(BaseModel):
-    windowing: Optional[Windowing] = None
+    formatting: Optional[Formatting] = None
     filtering: Optional[Filtering] = None
+    windowing: Optional[Windowing] = None
+    #
+    trace_ids: Optional[List[str]] = None
+    traces: Optional[List[Trace]] = None
 
 
 class QueryRevision(
@@ -211,18 +229,21 @@ class SimpleQuery(
     Lifecycle,
     Header,
 ):
-    flags: Optional[Flags] = None
+    flags: Optional[QueryFlags] = None
     tags: Optional[Tags] = None
     meta: Optional[Meta] = None
 
     data: Optional[QueryRevisionData] = None
+
+    variant_id: Optional[UUID] = None
+    revision_id: Optional[UUID] = None
 
 
 class SimpleQueryCreate(
     Slug,
     Header,
 ):
-    flags: Optional[Flags] = None
+    flags: Optional[QueryFlags] = None
     tags: Optional[Tags] = None
     meta: Optional[Meta] = None
 
@@ -233,7 +254,7 @@ class SimpleQueryEdit(
     Identifier,
     Header,
 ):
-    flags: Optional[Flags] = None
+    flags: Optional[QueryFlags] = None
     tags: Optional[Tags] = None
     meta: Optional[Meta] = None
 
@@ -241,6 +262,6 @@ class SimpleQueryEdit(
 
 
 class SimpleQueryQuery(BaseModel):
-    flags: Optional[Flags] = None
+    flags: Optional[QueryQueryFlags] = None
     tags: Optional[Tags] = None
     meta: Optional[Meta] = None

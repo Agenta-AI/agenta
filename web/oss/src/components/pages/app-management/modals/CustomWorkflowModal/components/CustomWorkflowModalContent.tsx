@@ -1,16 +1,17 @@
 import {useCallback, useEffect, useMemo} from "react"
 
+import {probeEndpointPath, variantsListAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CloseOutlined} from "@ant-design/icons"
 import {Scroll} from "@phosphor-icons/react"
 import {Typography, Space, Button, notification} from "antd"
-import {useAtom} from "jotai"
+import {useAtom, useAtomValue} from "jotai"
 
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
-import {useVariants} from "@/oss/lib/hooks/useVariants"
-import {findCustomWorkflowPath, removeTrailingSlash} from "@/oss/lib/shared/variant"
+import {removeTrailingSlash} from "@/oss/lib/shared/variant"
 import {updateVariant} from "@/oss/services/app-selector/api"
 import {useAppsData} from "@/oss/state/app"
+import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {
     customWorkflowValuesAtomFamily,
     customWorkflowTestStatusAtom,
@@ -60,8 +61,8 @@ const CustomWorkflowModalContent = ({
         if (!customWorkflowAppValues) return
         const hasExplicit = Boolean(
             customWorkflowAppValues.appName ||
-                customWorkflowAppValues.appUrl ||
-                customWorkflowAppValues.appDesc,
+            customWorkflowAppValues.appUrl ||
+            customWorkflowAppValues.appDesc,
         )
         if (!hasExplicit) return
         setValues((draft) => {
@@ -74,9 +75,9 @@ const CustomWorkflowModalContent = ({
     // Access current app and variants before seeding effect
     const {currentApp, apps} = useAppsData()
     // Fetch variants as a fallback if not provided via props
-    // @ts-ignore
-    const {data: fetchedVariantsData} = useVariants(currentApp)
-    const effectiveVariants = variants?.length ? variants : fetchedVariantsData?.variants
+    const appId = useAtomValue(selectedAppIdAtom) || ""
+    const fetchedVariantsData = useAtomValue(useMemo(() => variantsListAtomFamily(appId), [appId]))
+    const effectiveVariants = variants?.length ? variants : fetchedVariantsData
 
     // Seeding is handled on modal open via openCustomWorkflowModalAtom -> customWorkflowSeedAtom
 
@@ -184,7 +185,8 @@ const CustomWorkflowModalContent = ({
 
         try {
             if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
-            const {status} = (await findCustomWorkflowPath(url, "/health")) || {}
+            const result = await probeEndpointPath(url, {endpoint: "/health"})
+            const status = result?.status
             if (!status) throw new Error("Unable to establish connection")
             setTestConnectionStatus({success: true, error: false, loading: false})
         } catch (error) {

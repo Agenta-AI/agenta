@@ -1,14 +1,14 @@
 import {type Key} from "react"
 
+import type {EnhancedObjectConfig} from "@agenta/entities/legacyAppRevision"
+import {appRevisionsWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
 import {atom} from "jotai"
 
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {EnhancedObjectConfig} from "@/oss/lib/shared/variant/genericTransformer/types"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {AgentaConfigPrompt} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
+import {AgentaConfigPrompt} from "@/oss/lib/shared/variant/types"
 import {DeploymentRevision, DeploymentRevisions} from "@/oss/lib/Types"
-
-import {revisionListAtom} from "../../Playground/state/atoms"
+import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 
 export type DeploymentRevisionWithVariant = DeploymentRevision & {
     variant: EnhancedVariant<EnhancedObjectConfig<AgentaConfigPrompt>> | undefined
@@ -72,7 +72,9 @@ export const deploymentModalsAtom = atom({
  * Processed deployment revisions with variants and formatting
  */
 export const processedDeploymentRevisionsAtom = atom<DeploymentRevisionWithVariant[]>((get) => {
-    const variants = get(revisionListAtom) || []
+    const rawAppId = get(selectedAppIdAtom)
+    const appId = typeof rawAppId === "string" ? rawAppId : null
+    const variants = appId ? get(appRevisionsWithDraftsAtomFamily(appId)) || [] : []
     const envRevisions = get(envRevisionsAtom)
 
     if (!envRevisions?.revisions) {
@@ -80,14 +82,13 @@ export const processedDeploymentRevisionsAtom = atom<DeploymentRevisionWithVaria
     }
 
     return envRevisions.revisions
+        .filter((rev) => rev.revision !== null && rev.revision !== undefined && rev.revision >= 0)
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        .map((rev, index) => ({
+        .map((rev, index, arr) => ({
             ...rev,
             created_at: formatDay({date: rev.created_at}),
             variant: variants.find((variant) => variant.id === rev.deployed_app_variant_revision),
-            environment_revision: envRevisions.revisions?.length
-                ? envRevisions.revisions.length - index
-                : 0,
+            environment_revision: arr.length - index,
         }))
 })
 
@@ -104,7 +105,7 @@ export const filteredDeploymentRevisionsAtom = atom<DeploymentRevisionWithVarian
 
     return revisions.filter(
         (item) =>
-            `v${item.revision}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            `v${item.environment_revision}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
             item.commit_message?.toLowerCase().includes(searchTerm.toLowerCase()),
     )
 })
@@ -113,7 +114,9 @@ export const filteredDeploymentRevisionsAtom = atom<DeploymentRevisionWithVarian
  * Selected variant for deployment (derived from selected row keys)
  */
 export const selectedVariantToDeployAtom = atom((get) => {
-    const variants = get(revisionListAtom) || []
+    const rawAppId = get(selectedAppIdAtom)
+    const appId = typeof rawAppId === "string" ? rawAppId : null
+    const variants = appId ? get(appRevisionsWithDraftsAtomFamily(appId)) || [] : []
     const selectedKeys = get(selectedDeploymentRowKeysAtom)
     return variants.find((variant) => variant.id === selectedKeys[0])
 })
@@ -122,7 +125,9 @@ export const selectedVariantToDeployAtom = atom((get) => {
  * Selected variant for revert (derived from revert selection)
  */
 export const selectedVariantToRevertAtom = atom((get) => {
-    const variants = get(revisionListAtom) || []
+    const rawAppId = get(selectedAppIdAtom)
+    const appId = typeof rawAppId === "string" ? rawAppId : null
+    const variants = appId ? get(appRevisionsWithDraftsAtomFamily(appId)) || [] : []
     const selectedVariantRevisionId = get(selectedVariantRevisionIdToRevertAtom)
     return variants.find((variant) => variant.id === selectedVariantRevisionId)
 })

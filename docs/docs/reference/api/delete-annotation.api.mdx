@@ -5,7 +5,7 @@ description: "Delete Annotation"
 sidebar_label: "Delete Annotation"
 hide_title: true
 hide_table_of_contents: true
-api: eJy9Vclu2zAQ/RVjTi1AWG7Qk041GgMJkqJB4vZiGMFEGltMKIohR25dQf9ekFodJ0GbAj1p4azvzTxWwLh1EK9grnXByLLQDtYCCkM2fJ2nEENKiphusbcBAQYt5sRkvXsFGnOCGNhiQrcyBQFSQwwGOQMBlh5LaSmFmG1JAlySUY4QV8B74/0cW6m3IIAlK/9j6QNNzlOoa9FHdwb13wRHvf+6CeUdpvEh2z+6VArq9ZD4xqBu8q59aGcK7cj5aCezmX+k5BIrTYAhhpsySci5Takm160xCEgKzaQ51GCMkklALbp33qcaVWisR5plkyEpysapLU5qpi3ZESyfg4WAlDZYKoZ4VgsYeLlVUj8cdn6YoUPwX8ERA9NvDDUmuDMq7u4p4VG7l76d4yivuQyD7J17TuraO308OTmm8DsqmQaPycLawr6dv5QYpfJvkil3xwaqSA5O/wC4bgbq9dA0Wov7MUxFU6DnJXfb1/bqCzmHW4I+2MumAYzJ0p8+B/iwdqvQV5O6tRsRPcDboPtyG6cNfK+xe7ZcXh0FbLg9JPU0SNZkPpasnDgrBj0LIsYZxBAZSztJP6Jhk1xUdRNeR1W7NjUIcGR3neiVVkEMGbNxcRQlqijTKW5JM05RRmhkmHhHSWkl74PL/Or8gvZnhClZiFfrscGNH6tmUA7Neo7QyAvykLWCOC85K6z81XUYZDFrvDwmUm+K4N4tRyhuMr86BwG+jQas2fTDdAZPITww9huBSdiILnc4BvEEhb5/EEB5WAdgwvzTcOArM4XjHPUo3nOMHRTUo8D0kyOjUIaBD+mrlsoVtFTCWBYdCH859FdT3MngWkBWOPZ+VXWHjr5ZVdf+92NJ1jO2FrBDK/HO47eqIJXOv6cQb1A5OiqxVw54d90uyPsJiOdL71jVntIdqtJ/gYAH2o/vUq8G/zFvB05QnKyb1Ko9nScJGR75HQmkH+l+1U4Xl4vlAur6N1du3PI=
+api: eJy9Vt9v2zYQ/leMe2oBzvaCPelpRpOhXjMkaLy+GEZAS2eLLUWq5DGoJ+h/H476bSdB2wF7kkTefXf8vuOdKiB59JBsYWWMJUnKGg87AbZEF7/WGSSQoUbCR9nbgIBSOlkgoWP3CowsEBIgJ1N8VBkIUAYSKCXlIMDh16AcZpCQCyjApzkWEpIK6FSynyenzBEEkCLNCxsGmq0zqGvRo/tSmh8Bl+Z0d4jpTcMwZLtigtZQ74bAD6U0TdwdQ/vSGo+e0a6WS35k6FOnykhDAg8hTdH7Q9Czj60xCEitITQUcyhLrdLI2uKzZ59qlGHpmGlSTYTUhsapTU4ZwiO6ES3vooWADA8yaIJkWQsYdHnUynyZnnwaoWPwv5IjBqV/EmoQWIAkcmofqMlxQJNZpvhYUt9PTvEd8TrqJikU++nK3lqN0sSl52NBqlwatHRv/gha/+mt+eUuUBnoLYvSoNj9Z0wpgijC4ju9pHPy9CpDZ76R9IuILzmvBkrrC8fB7G6D+pZr5hLrNbehW7BzX/h1zU6/XV1d3pNPUqssesxunLPu5y9JhiSV5reW7XMDbdPJ7o9Uy64+E2g4861tEmQdCn98rXn9hd7LIw6KvWwayZhteLfmtsZCs3m7vTat8il9G8FcCPKOufxGz2o99Mdt5KZJv7UblcwgUaPQy1RcNxK8ViHvN5v7C8CmPqaFcR1ny2w1ni0FUm6HwROnDeWQwGJodX5RdS2oXlRtX6tBgEf31E2l4HT0KlVUu/nMiUqfLBYY5qm2IZvLIxqSc6kawx1jpMEpOkWQ1f36A57eo8zQQbLdjQ0euEibspua9VLJUn1AJq+dYatAuXXqn+6scZLljVcdS+BgxxWwisnNVvdrEMAHa2hbzn+dL+GczIkx3y+ZxnLqYsdtEGdE9OcHAVjEywWEsvh92ODMSuupkGaE95x2k4R6Frg4F6WWKl6fGL5qRd2O5pcHwVO8/4dIunm1E5BbT2xdVXvp8W+n65qXvwZ0rNNOwJN0Su6ZtW0FmfL8nkFykNrjRWJ994E3H9sL8nY2tOdpwp2WhoV8kjrwFwj4gqfxTw/X2P8YtyMndq28q8+q3V2lKZY08rtoslzI/VW7vrm92dxAXf8Loplv8w==
 sidebar_class_name: "delete api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -28,7 +28,7 @@ import Heading from "@theme/Heading";
 
 <MethodEndpoint
   method={"delete"}
-  path={"/preview/annotations/{trace_id}/{span_id}"}
+  path={"/annotations/{trace_id}/{span_id}"}
   context={"endpoint"}
 >
   
@@ -62,7 +62,7 @@ Delete Annotation
 <StatusCodes
   id={undefined}
   label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"annotation_link":{"anyOf":[{"properties":{"span_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Span Id"},"trace_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Trace Id"}},"type":"object","title":"Link"},{"type":"null"}]}},"type":"object","title":"AnnotationLinkResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"annotation_link":{"anyOf":[{"properties":{"span_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Span Id"},"trace_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Trace Id"},"attributes":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Attributes"}},"type":"object","title":"OTelLink"},{"type":"null"}]}},"type":"object","title":"AnnotationLinkResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
 >
   
 </StatusCodes>

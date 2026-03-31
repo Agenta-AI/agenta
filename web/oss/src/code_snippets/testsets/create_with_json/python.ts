@@ -5,17 +5,23 @@ export default function pythonCode(uri: string, params: string): string {
 import json
 
 url = '${uri}'
+
 data = {
-    "name": "your_testset_name",
-    "csvdata": [
-        {"column1": "value1", "column2": "value2"},
-        {"column1": "value3", "column2": "value4"}
-    ]
+    "testset": {
+        "slug": "your-testset-slug",
+        "name": "your_testset_name",
+        "data": {
+            "testcases": [
+                {"data": {"column1": "value1", "column2": "value2"}},
+                {"data": {"column1": "value3", "column2": "value4"}},
+            ]
+        },
+    }
 }
 
-response = requests.post(url, data=json.dumps(data), headers={'Content-Type': 'application/json'${
-        !isDemo() ? "" : ", 'Authorization': 'your_api_key'"
-    }})
+headers = {'Content-Type': 'application/json'${!isDemo() ? "" : ", 'Authorization': 'your_api_key'"}}
+
+response = requests.post(url, data=json.dumps(data), headers=headers)
 
 print(response.status_code)
 print(response.json())

@@ -4,18 +4,17 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .reference import Reference
-from .role import Role
+from .ee_src_services_admin_manager_reference import EeSrcServicesAdminManagerReference
+from .project_scope_role import ProjectScopeRole
 
 
 class ProjectScope(UniversalBaseModel):
     credentials: str
-    role: Role
-    tier: str
-    user: Reference
-    project: Reference
-    workspace: Reference
-    organization: Reference
+    role: ProjectScopeRole
+    user: EeSrcServicesAdminManagerReference
+    project: EeSrcServicesAdminManagerReference
+    workspace: EeSrcServicesAdminManagerReference
+    organization: EeSrcServicesAdminManagerReference
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 import type {ReactNode} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {Button, Collapse, DatePicker, Form, Input, Select, Switch, Tooltip, Typography} from "antd"
 import dayjs from "dayjs"
 import type {Dayjs} from "dayjs"
@@ -10,7 +11,6 @@ import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {v4 as uuidv4} from "uuid"
 
-import {message} from "@/oss/components/AppMessageContext"
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import getFilterColumns from "@/oss/components/pages/observability/assets/getFilterColumns"
 import {evaluatorConfigsAtom} from "@/oss/lib/atoms/evaluation"
@@ -63,7 +63,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
     const filterColumns = useMemo(() => getFilterColumns(), [])
     const [filters, setFilters] = useAtom(onlineEvalFiltersAtom)
     const resetFilters = useSetAtom(resetOnlineEvalFiltersAtom)
-    // Load preview evaluators (with IDs) to map evaluator_config.evaluator_key -> evaluator.id
+    // Load preview evaluators (with IDs) to map config URI key -> evaluator.id
     const previewEvaluatorsSwr = useEvaluators({preview: true, queries: {is_human: false}})
     const baseEvaluators = (baseEvaluatorsSwr.data as Evaluator[] | undefined) ?? []
     const evaluators = useAtomValue(evaluatorConfigsAtom)
@@ -86,6 +86,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
         baseEvaluators,
     })
 
+    // Auto-generate name when evaluator is selected
     useEffect(() => {
         if (!selectedEvaluatorId) return
         const selectedOption = evaluatorOptions.find(
@@ -96,13 +97,31 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 ? matchedPreviewEvaluator
                 : selectedEvaluatorConfig
 
+        // Generate automatic name if name field is empty
+        const currentName = form.getFieldValue("name")
+        if (!currentName && selectedOption?.label) {
+            const evaluatorName =
+                typeof selectedOption.label === "string"
+                    ? selectedOption.label
+                    : fullEvaluator?.name || "Evaluation"
+            const randomSuffix = Math.random().toString(36).substring(2, 6)
+            const generatedName = `${evaluatorName}-${randomSuffix}`
+            form.setFieldsValue({name: generatedName})
+        }
+
         console.log("[OnlineEvaluationDrawer] Evaluator selected", {
             evaluatorId: selectedEvaluatorId,
             evaluatorLabel: selectedOption?.label,
             evaluatorOption: selectedOption,
             evaluatorConfig: fullEvaluator,
         })
-    }, [selectedEvaluatorId, evaluatorOptions, matchedPreviewEvaluator, selectedEvaluatorConfig])
+    }, [
+        selectedEvaluatorId,
+        evaluatorOptions,
+        matchedPreviewEvaluator,
+        selectedEvaluatorConfig,
+        form,
+    ])
 
     const evaluatorDetails = useEvaluatorDetails({
         evaluator: matchedPreviewEvaluator as any,

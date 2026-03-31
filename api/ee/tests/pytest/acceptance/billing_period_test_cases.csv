@@ -1,0 +1,2762 @@
+year,month,day,anchor,result_year,result_month,rule
+2024,1,1,None,2024,1,no_anchor -> current
+2024,1,1,0,2024,1,no_anchor -> current
+2024,1,1,1,2024,2,day >= anchor -> next
+2024,1,1,2,2024,1,day < anchor -> current
+2024,1,1,10,2024,1,day < anchor -> current
+2024,1,1,15,2024,1,day < anchor -> current
+2024,1,1,20,2024,1,day < anchor -> current
+2024,1,1,28,2024,1,day < anchor -> current
+2024,1,1,29,2024,1,day < anchor -> current
+2024,1,1,30,2024,1,day < anchor -> current
+2024,1,1,31,2024,1,day < anchor -> current
+2024,1,2,None,2024,1,no_anchor -> current
+2024,1,2,0,2024,1,no_anchor -> current
+2024,1,2,1,2024,2,day >= anchor -> next
+2024,1,2,2,2024,2,day >= anchor -> next
+2024,1,2,10,2024,1,day < anchor -> current
+2024,1,2,15,2024,1,day < anchor -> current
+2024,1,2,20,2024,1,day < anchor -> current
+2024,1,2,28,2024,1,day < anchor -> current
+2024,1,2,29,2024,1,day < anchor -> current
+2024,1,2,30,2024,1,day < anchor -> current
+2024,1,2,31,2024,1,day < anchor -> current
+2024,1,10,None,2024,1,no_anchor -> current
+2024,1,10,0,2024,1,no_anchor -> current
+2024,1,10,1,2024,2,day >= anchor -> next
+2024,1,10,2,2024,2,day >= anchor -> next
+2024,1,10,10,2024,2,day >= anchor -> next
+2024,1,10,15,2024,1,day < anchor -> current
+2024,1,10,20,2024,1,day < anchor -> current
+2024,1,10,28,2024,1,day < anchor -> current
+2024,1,10,29,2024,1,day < anchor -> current
+2024,1,10,30,2024,1,day < anchor -> current
+2024,1,10,31,2024,1,day < anchor -> current
+2024,1,14,None,2024,1,no_anchor -> current
+2024,1,14,0,2024,1,no_anchor -> current
+2024,1,14,1,2024,2,day >= anchor -> next
+2024,1,14,2,2024,2,day >= anchor -> next
+2024,1,14,10,2024,2,day >= anchor -> next
+2024,1,14,15,2024,1,day < anchor -> current
+2024,1,14,20,2024,1,day < anchor -> current
+2024,1,14,28,2024,1,day < anchor -> current
+2024,1,14,29,2024,1,day < anchor -> current
+2024,1,14,30,2024,1,day < anchor -> current
+2024,1,14,31,2024,1,day < anchor -> current
+2024,1,15,None,2024,1,no_anchor -> current
+2024,1,15,0,2024,1,no_anchor -> current
+2024,1,15,1,2024,2,day >= anchor -> next
+2024,1,15,2,2024,2,day >= anchor -> next
+2024,1,15,10,2024,2,day >= anchor -> next
+2024,1,15,15,2024,2,day >= anchor -> next
+2024,1,15,20,2024,1,day < anchor -> current
+2024,1,15,28,2024,1,day < anchor -> current
+2024,1,15,29,2024,1,day < anchor -> current
+2024,1,15,30,2024,1,day < anchor -> current
+2024,1,15,31,2024,1,day < anchor -> current
+2024,1,20,None,2024,1,no_anchor -> current
+2024,1,20,0,2024,1,no_anchor -> current
+2024,1,20,1,2024,2,day >= anchor -> next
+2024,1,20,2,2024,2,day >= anchor -> next
+2024,1,20,10,2024,2,day >= anchor -> next
+2024,1,20,15,2024,2,day >= anchor -> next
+2024,1,20,20,2024,2,day >= anchor -> next
+2024,1,20,28,2024,1,day < anchor -> current
+2024,1,20,29,2024,1,day < anchor -> current
+2024,1,20,30,2024,1,day < anchor -> current
+2024,1,20,31,2024,1,day < anchor -> current
+2024,1,27,None,2024,1,no_anchor -> current
+2024,1,27,0,2024,1,no_anchor -> current
+2024,1,27,1,2024,2,day >= anchor -> next
+2024,1,27,2,2024,2,day >= anchor -> next
+2024,1,27,10,2024,2,day >= anchor -> next
+2024,1,27,15,2024,2,day >= anchor -> next
+2024,1,27,20,2024,2,day >= anchor -> next
+2024,1,27,28,2024,1,day < anchor -> current
+2024,1,27,29,2024,1,day < anchor -> current
+2024,1,27,30,2024,1,day < anchor -> current
+2024,1,27,31,2024,1,day < anchor -> current
+2024,1,28,None,2024,1,no_anchor -> current
+2024,1,28,0,2024,1,no_anchor -> current
+2024,1,28,1,2024,2,day >= anchor -> next
+2024,1,28,2,2024,2,day >= anchor -> next
+2024,1,28,10,2024,2,day >= anchor -> next
+2024,1,28,15,2024,2,day >= anchor -> next
+2024,1,28,20,2024,2,day >= anchor -> next
+2024,1,28,28,2024,2,day >= anchor -> next
+2024,1,28,29,2024,1,day < anchor -> current
+2024,1,28,30,2024,1,day < anchor -> current
+2024,1,28,31,2024,1,day < anchor -> current
+2024,1,29,None,2024,1,no_anchor -> current
+2024,1,29,0,2024,1,no_anchor -> current
+2024,1,29,1,2024,2,day >= anchor -> next
+2024,1,29,2,2024,2,day >= anchor -> next
+2024,1,29,10,2024,2,day >= anchor -> next
+2024,1,29,15,2024,2,day >= anchor -> next
+2024,1,29,20,2024,2,day >= anchor -> next
+2024,1,29,28,2024,2,day >= anchor -> next
+2024,1,29,29,2024,2,day >= anchor -> next
+2024,1,29,30,2024,1,day < anchor -> current
+2024,1,29,31,2024,1,day < anchor -> current
+2024,1,30,None,2024,1,no_anchor -> current
+2024,1,30,0,2024,1,no_anchor -> current
+2024,1,30,1,2024,2,day >= anchor -> next
+2024,1,30,2,2024,2,day >= anchor -> next
+2024,1,30,10,2024,2,day >= anchor -> next
+2024,1,30,15,2024,2,day >= anchor -> next
+2024,1,30,20,2024,2,day >= anchor -> next
+2024,1,30,28,2024,2,day >= anchor -> next
+2024,1,30,29,2024,2,day >= anchor -> next
+2024,1,30,30,2024,2,day >= anchor -> next
+2024,1,30,31,2024,1,day < anchor -> current
+2024,1,31,None,2024,1,no_anchor -> current
+2024,1,31,0,2024,1,no_anchor -> current
+2024,1,31,1,2024,2,day >= anchor -> next
+2024,1,31,2,2024,2,day >= anchor -> next
+2024,1,31,10,2024,2,day >= anchor -> next
+2024,1,31,15,2024,2,day >= anchor -> next
+2024,1,31,20,2024,2,day >= anchor -> next
+2024,1,31,28,2024,2,day >= anchor -> next
+2024,1,31,29,2024,2,day >= anchor -> next
+2024,1,31,30,2024,2,day >= anchor -> next
+2024,1,31,31,2024,2,day >= anchor -> next
+2024,2,1,None,2024,2,no_anchor -> current
+2024,2,1,0,2024,2,no_anchor -> current
+2024,2,1,1,2024,3,day >= anchor -> next
+2024,2,1,2,2024,2,day < anchor -> current
+2024,2,1,10,2024,2,day < anchor -> current
+2024,2,1,15,2024,2,day < anchor -> current
+2024,2,1,20,2024,2,day < anchor -> current
+2024,2,1,28,2024,2,day < anchor -> current
+2024,2,1,29,2024,2,day < anchor -> current
+2024,2,1,30,2024,2,day < anchor -> current
+2024,2,1,31,2024,2,day < anchor -> current
+2024,2,2,None,2024,2,no_anchor -> current
+2024,2,2,0,2024,2,no_anchor -> current
+2024,2,2,1,2024,3,day >= anchor -> next
+2024,2,2,2,2024,3,day >= anchor -> next
+2024,2,2,10,2024,2,day < anchor -> current
+2024,2,2,15,2024,2,day < anchor -> current
+2024,2,2,20,2024,2,day < anchor -> current
+2024,2,2,28,2024,2,day < anchor -> current
+2024,2,2,29,2024,2,day < anchor -> current
+2024,2,2,30,2024,2,day < anchor -> current
+2024,2,2,31,2024,2,day < anchor -> current
+2024,2,10,None,2024,2,no_anchor -> current
+2024,2,10,0,2024,2,no_anchor -> current
+2024,2,10,1,2024,3,day >= anchor -> next
+2024,2,10,2,2024,3,day >= anchor -> next
+2024,2,10,10,2024,3,day >= anchor -> next
+2024,2,10,15,2024,2,day < anchor -> current
+2024,2,10,20,2024,2,day < anchor -> current
+2024,2,10,28,2024,2,day < anchor -> current
+2024,2,10,29,2024,2,day < anchor -> current
+2024,2,10,30,2024,2,day < anchor -> current
+2024,2,10,31,2024,2,day < anchor -> current
+2024,2,14,None,2024,2,no_anchor -> current
+2024,2,14,0,2024,2,no_anchor -> current
+2024,2,14,1,2024,3,day >= anchor -> next
+2024,2,14,2,2024,3,day >= anchor -> next
+2024,2,14,10,2024,3,day >= anchor -> next
+2024,2,14,15,2024,2,day < anchor -> current
+2024,2,14,20,2024,2,day < anchor -> current
+2024,2,14,28,2024,2,day < anchor -> current
+2024,2,14,29,2024,2,day < anchor -> current
+2024,2,14,30,2024,2,day < anchor -> current
+2024,2,14,31,2024,2,day < anchor -> current
+2024,2,15,None,2024,2,no_anchor -> current
+2024,2,15,0,2024,2,no_anchor -> current
+2024,2,15,1,2024,3,day >= anchor -> next
+2024,2,15,2,2024,3,day >= anchor -> next
+2024,2,15,10,2024,3,day >= anchor -> next
+2024,2,15,15,2024,3,day >= anchor -> next
+2024,2,15,20,2024,2,day < anchor -> current
+2024,2,15,28,2024,2,day < anchor -> current
+2024,2,15,29,2024,2,day < anchor -> current
+2024,2,15,30,2024,2,day < anchor -> current
+2024,2,15,31,2024,2,day < anchor -> current
+2024,2,20,None,2024,2,no_anchor -> current
+2024,2,20,0,2024,2,no_anchor -> current
+2024,2,20,1,2024,3,day >= anchor -> next
+2024,2,20,2,2024,3,day >= anchor -> next
+2024,2,20,10,2024,3,day >= anchor -> next
+2024,2,20,15,2024,3,day >= anchor -> next
+2024,2,20,20,2024,3,day >= anchor -> next
+2024,2,20,28,2024,2,day < anchor -> current
+2024,2,20,29,2024,2,day < anchor -> current
+2024,2,20,30,2024,2,day < anchor -> current
+2024,2,20,31,2024,2,day < anchor -> current
+2024,2,27,None,2024,2,no_anchor -> current
+2024,2,27,0,2024,2,no_anchor -> current
+2024,2,27,1,2024,3,day >= anchor -> next
+2024,2,27,2,2024,3,day >= anchor -> next
+2024,2,27,10,2024,3,day >= anchor -> next
+2024,2,27,15,2024,3,day >= anchor -> next
+2024,2,27,20,2024,3,day >= anchor -> next
+2024,2,27,28,2024,2,day < anchor -> current
+2024,2,27,29,2024,2,day < anchor -> current
+2024,2,27,30,2024,2,day < anchor -> current
+2024,2,27,31,2024,2,day < anchor -> current
+2024,2,28,None,2024,2,no_anchor -> current
+2024,2,28,0,2024,2,no_anchor -> current
+2024,2,28,1,2024,3,day >= anchor -> next
+2024,2,28,2,2024,3,day >= anchor -> next
+2024,2,28,10,2024,3,day >= anchor -> next
+2024,2,28,15,2024,3,day >= anchor -> next
+2024,2,28,20,2024,3,day >= anchor -> next
+2024,2,28,28,2024,3,day >= anchor -> next
+2024,2,28,29,2024,2,day < anchor -> current
+2024,2,28,30,2024,2,day < anchor -> current
+2024,2,28,31,2024,2,day < anchor -> current
+2024,2,29,None,2024,2,no_anchor -> current
+2024,2,29,0,2024,2,no_anchor -> current
+2024,2,29,1,2024,3,day >= anchor -> next
+2024,2,29,2,2024,3,day >= anchor -> next
+2024,2,29,10,2024,3,day >= anchor -> next
+2024,2,29,15,2024,3,day >= anchor -> next
+2024,2,29,20,2024,3,day >= anchor -> next
+2024,2,29,28,2024,3,day >= anchor -> next
+2024,2,29,29,2024,3,day >= anchor -> next
+2024,2,29,30,2024,2,day < anchor -> current
+2024,2,29,31,2024,2,day < anchor -> current
+2024,3,1,None,2024,3,no_anchor -> current
+2024,3,1,0,2024,3,no_anchor -> current
+2024,3,1,1,2024,4,day >= anchor -> next
+2024,3,1,2,2024,3,day < anchor -> current
+2024,3,1,10,2024,3,day < anchor -> current
+2024,3,1,15,2024,3,day < anchor -> current
+2024,3,1,20,2024,3,day < anchor -> current
+2024,3,1,28,2024,3,day < anchor -> current
+2024,3,1,29,2024,3,day < anchor -> current
+2024,3,1,30,2024,3,day < anchor -> current
+2024,3,1,31,2024,3,day < anchor -> current
+2024,3,2,None,2024,3,no_anchor -> current
+2024,3,2,0,2024,3,no_anchor -> current
+2024,3,2,1,2024,4,day >= anchor -> next
+2024,3,2,2,2024,4,day >= anchor -> next
+2024,3,2,10,2024,3,day < anchor -> current
+2024,3,2,15,2024,3,day < anchor -> current
+2024,3,2,20,2024,3,day < anchor -> current
+2024,3,2,28,2024,3,day < anchor -> current
+2024,3,2,29,2024,3,day < anchor -> current
+2024,3,2,30,2024,3,day < anchor -> current
+2024,3,2,31,2024,3,day < anchor -> current
+2024,3,10,None,2024,3,no_anchor -> current
+2024,3,10,0,2024,3,no_anchor -> current
+2024,3,10,1,2024,4,day >= anchor -> next
+2024,3,10,2,2024,4,day >= anchor -> next
+2024,3,10,10,2024,4,day >= anchor -> next
+2024,3,10,15,2024,3,day < anchor -> current
+2024,3,10,20,2024,3,day < anchor -> current
+2024,3,10,28,2024,3,day < anchor -> current
+2024,3,10,29,2024,3,day < anchor -> current
+2024,3,10,30,2024,3,day < anchor -> current
+2024,3,10,31,2024,3,day < anchor -> current
+2024,3,14,None,2024,3,no_anchor -> current
+2024,3,14,0,2024,3,no_anchor -> current
+2024,3,14,1,2024,4,day >= anchor -> next
+2024,3,14,2,2024,4,day >= anchor -> next
+2024,3,14,10,2024,4,day >= anchor -> next
+2024,3,14,15,2024,3,day < anchor -> current
+2024,3,14,20,2024,3,day < anchor -> current
+2024,3,14,28,2024,3,day < anchor -> current
+2024,3,14,29,2024,3,day < anchor -> current
+2024,3,14,30,2024,3,day < anchor -> current
+2024,3,14,31,2024,3,day < anchor -> current
+2024,3,15,None,2024,3,no_anchor -> current
+2024,3,15,0,2024,3,no_anchor -> current
+2024,3,15,1,2024,4,day >= anchor -> next
+2024,3,15,2,2024,4,day >= anchor -> next
+2024,3,15,10,2024,4,day >= anchor -> next
+2024,3,15,15,2024,4,day >= anchor -> next
+2024,3,15,20,2024,3,day < anchor -> current
+2024,3,15,28,2024,3,day < anchor -> current
+2024,3,15,29,2024,3,day < anchor -> current
+2024,3,15,30,2024,3,day < anchor -> current
+2024,3,15,31,2024,3,day < anchor -> current
+2024,3,20,None,2024,3,no_anchor -> current
+2024,3,20,0,2024,3,no_anchor -> current
+2024,3,20,1,2024,4,day >= anchor -> next
+2024,3,20,2,2024,4,day >= anchor -> next
+2024,3,20,10,2024,4,day >= anchor -> next
+2024,3,20,15,2024,4,day >= anchor -> next
+2024,3,20,20,2024,4,day >= anchor -> next
+2024,3,20,28,2024,3,day < anchor -> current
+2024,3,20,29,2024,3,day < anchor -> current
+2024,3,20,30,2024,3,day < anchor -> current
+2024,3,20,31,2024,3,day < anchor -> current
+2024,3,27,None,2024,3,no_anchor -> current
+2024,3,27,0,2024,3,no_anchor -> current
+2024,3,27,1,2024,4,day >= anchor -> next
+2024,3,27,2,2024,4,day >= anchor -> next
+2024,3,27,10,2024,4,day >= anchor -> next
+2024,3,27,15,2024,4,day >= anchor -> next
+2024,3,27,20,2024,4,day >= anchor -> next
+2024,3,27,28,2024,3,day < anchor -> current
+2024,3,27,29,2024,3,day < anchor -> current
+2024,3,27,30,2024,3,day < anchor -> current
+2024,3,27,31,2024,3,day < anchor -> current
+2024,3,28,None,2024,3,no_anchor -> current
+2024,3,28,0,2024,3,no_anchor -> current
+2024,3,28,1,2024,4,day >= anchor -> next
+2024,3,28,2,2024,4,day >= anchor -> next
+2024,3,28,10,2024,4,day >= anchor -> next
+2024,3,28,15,2024,4,day >= anchor -> next
+2024,3,28,20,2024,4,day >= anchor -> next
+2024,3,28,28,2024,4,day >= anchor -> next
+2024,3,28,29,2024,3,day < anchor -> current
+2024,3,28,30,2024,3,day < anchor -> current
+2024,3,28,31,2024,3,day < anchor -> current
+2024,3,29,None,2024,3,no_anchor -> current
+2024,3,29,0,2024,3,no_anchor -> current
+2024,3,29,1,2024,4,day >= anchor -> next
+2024,3,29,2,2024,4,day >= anchor -> next
+2024,3,29,10,2024,4,day >= anchor -> next
+2024,3,29,15,2024,4,day >= anchor -> next
+2024,3,29,20,2024,4,day >= anchor -> next
+2024,3,29,28,2024,4,day >= anchor -> next
+2024,3,29,29,2024,4,day >= anchor -> next
+2024,3,29,30,2024,3,day < anchor -> current
+2024,3,29,31,2024,3,day < anchor -> current
+2024,3,30,None,2024,3,no_anchor -> current
+2024,3,30,0,2024,3,no_anchor -> current
+2024,3,30,1,2024,4,day >= anchor -> next
+2024,3,30,2,2024,4,day >= anchor -> next
+2024,3,30,10,2024,4,day >= anchor -> next
+2024,3,30,15,2024,4,day >= anchor -> next
+2024,3,30,20,2024,4,day >= anchor -> next
+2024,3,30,28,2024,4,day >= anchor -> next
+2024,3,30,29,2024,4,day >= anchor -> next
+2024,3,30,30,2024,4,day >= anchor -> next
+2024,3,30,31,2024,3,day < anchor -> current
+2024,3,31,None,2024,3,no_anchor -> current
+2024,3,31,0,2024,3,no_anchor -> current
+2024,3,31,1,2024,4,day >= anchor -> next
+2024,3,31,2,2024,4,day >= anchor -> next
+2024,3,31,10,2024,4,day >= anchor -> next
+2024,3,31,15,2024,4,day >= anchor -> next
+2024,3,31,20,2024,4,day >= anchor -> next
+2024,3,31,28,2024,4,day >= anchor -> next
+2024,3,31,29,2024,4,day >= anchor -> next
+2024,3,31,30,2024,4,day >= anchor -> next
+2024,3,31,31,2024,4,day >= anchor -> next
+2024,4,1,None,2024,4,no_anchor -> current
+2024,4,1,0,2024,4,no_anchor -> current
+2024,4,1,1,2024,5,day >= anchor -> next
+2024,4,1,2,2024,4,day < anchor -> current
+2024,4,1,10,2024,4,day < anchor -> current
+2024,4,1,15,2024,4,day < anchor -> current
+2024,4,1,20,2024,4,day < anchor -> current
+2024,4,1,28,2024,4,day < anchor -> current
+2024,4,1,29,2024,4,day < anchor -> current
+2024,4,1,30,2024,4,day < anchor -> current
+2024,4,1,31,2024,4,day < anchor -> current
+2024,4,2,None,2024,4,no_anchor -> current
+2024,4,2,0,2024,4,no_anchor -> current
+2024,4,2,1,2024,5,day >= anchor -> next
+2024,4,2,2,2024,5,day >= anchor -> next
+2024,4,2,10,2024,4,day < anchor -> current
+2024,4,2,15,2024,4,day < anchor -> current
+2024,4,2,20,2024,4,day < anchor -> current
+2024,4,2,28,2024,4,day < anchor -> current
+2024,4,2,29,2024,4,day < anchor -> current
+2024,4,2,30,2024,4,day < anchor -> current
+2024,4,2,31,2024,4,day < anchor -> current
+2024,4,10,None,2024,4,no_anchor -> current
+2024,4,10,0,2024,4,no_anchor -> current
+2024,4,10,1,2024,5,day >= anchor -> next
+2024,4,10,2,2024,5,day >= anchor -> next
+2024,4,10,10,2024,5,day >= anchor -> next
+2024,4,10,15,2024,4,day < anchor -> current
+2024,4,10,20,2024,4,day < anchor -> current
+2024,4,10,28,2024,4,day < anchor -> current
+2024,4,10,29,2024,4,day < anchor -> current
+2024,4,10,30,2024,4,day < anchor -> current
+2024,4,10,31,2024,4,day < anchor -> current
+2024,4,14,None,2024,4,no_anchor -> current
+2024,4,14,0,2024,4,no_anchor -> current
+2024,4,14,1,2024,5,day >= anchor -> next
+2024,4,14,2,2024,5,day >= anchor -> next
+2024,4,14,10,2024,5,day >= anchor -> next
+2024,4,14,15,2024,4,day < anchor -> current
+2024,4,14,20,2024,4,day < anchor -> current
+2024,4,14,28,2024,4,day < anchor -> current
+2024,4,14,29,2024,4,day < anchor -> current
+2024,4,14,30,2024,4,day < anchor -> current
+2024,4,14,31,2024,4,day < anchor -> current
+2024,4,15,None,2024,4,no_anchor -> current
+2024,4,15,0,2024,4,no_anchor -> current
+2024,4,15,1,2024,5,day >= anchor -> next
+2024,4,15,2,2024,5,day >= anchor -> next
+2024,4,15,10,2024,5,day >= anchor -> next
+2024,4,15,15,2024,5,day >= anchor -> next
+2024,4,15,20,2024,4,day < anchor -> current
+2024,4,15,28,2024,4,day < anchor -> current
+2024,4,15,29,2024,4,day < anchor -> current
+2024,4,15,30,2024,4,day < anchor -> current
+2024,4,15,31,2024,4,day < anchor -> current
+2024,4,20,None,2024,4,no_anchor -> current
+2024,4,20,0,2024,4,no_anchor -> current
+2024,4,20,1,2024,5,day >= anchor -> next
+2024,4,20,2,2024,5,day >= anchor -> next
+2024,4,20,10,2024,5,day >= anchor -> next
+2024,4,20,15,2024,5,day >= anchor -> next
+2024,4,20,20,2024,5,day >= anchor -> next
+2024,4,20,28,2024,4,day < anchor -> current
+2024,4,20,29,2024,4,day < anchor -> current
+2024,4,20,30,2024,4,day < anchor -> current
+2024,4,20,31,2024,4,day < anchor -> current
+2024,4,27,None,2024,4,no_anchor -> current
+2024,4,27,0,2024,4,no_anchor -> current
+2024,4,27,1,2024,5,day >= anchor -> next
+2024,4,27,2,2024,5,day >= anchor -> next
+2024,4,27,10,2024,5,day >= anchor -> next
+2024,4,27,15,2024,5,day >= anchor -> next
+2024,4,27,20,2024,5,day >= anchor -> next
+2024,4,27,28,2024,4,day < anchor -> current
+2024,4,27,29,2024,4,day < anchor -> current
+2024,4,27,30,2024,4,day < anchor -> current
+2024,4,27,31,2024,4,day < anchor -> current
+2024,4,28,None,2024,4,no_anchor -> current
+2024,4,28,0,2024,4,no_anchor -> current
+2024,4,28,1,2024,5,day >= anchor -> next
+2024,4,28,2,2024,5,day >= anchor -> next
+2024,4,28,10,2024,5,day >= anchor -> next
+2024,4,28,15,2024,5,day >= anchor -> next
+2024,4,28,20,2024,5,day >= anchor -> next
+2024,4,28,28,2024,5,day >= anchor -> next
+2024,4,28,29,2024,4,day < anchor -> current
+2024,4,28,30,2024,4,day < anchor -> current
+2024,4,28,31,2024,4,day < anchor -> current
+2024,4,29,None,2024,4,no_anchor -> current
+2024,4,29,0,2024,4,no_anchor -> current
+2024,4,29,1,2024,5,day >= anchor -> next
+2024,4,29,2,2024,5,day >= anchor -> next
+2024,4,29,10,2024,5,day >= anchor -> next
+2024,4,29,15,2024,5,day >= anchor -> next
+2024,4,29,20,2024,5,day >= anchor -> next
+2024,4,29,28,2024,5,day >= anchor -> next
+2024,4,29,29,2024,5,day >= anchor -> next
+2024,4,29,30,2024,4,day < anchor -> current
+2024,4,29,31,2024,4,day < anchor -> current
+2024,4,30,None,2024,4,no_anchor -> current
+2024,4,30,0,2024,4,no_anchor -> current
+2024,4,30,1,2024,5,day >= anchor -> next
+2024,4,30,2,2024,5,day >= anchor -> next
+2024,4,30,10,2024,5,day >= anchor -> next
+2024,4,30,15,2024,5,day >= anchor -> next
+2024,4,30,20,2024,5,day >= anchor -> next
+2024,4,30,28,2024,5,day >= anchor -> next
+2024,4,30,29,2024,5,day >= anchor -> next
+2024,4,30,30,2024,5,day >= anchor -> next
+2024,4,30,31,2024,4,day < anchor -> current
+2024,5,1,None,2024,5,no_anchor -> current
+2024,5,1,0,2024,5,no_anchor -> current
+2024,5,1,1,2024,6,day >= anchor -> next
+2024,5,1,2,2024,5,day < anchor -> current
+2024,5,1,10,2024,5,day < anchor -> current
+2024,5,1,15,2024,5,day < anchor -> current
+2024,5,1,20,2024,5,day < anchor -> current
+2024,5,1,28,2024,5,day < anchor -> current
+2024,5,1,29,2024,5,day < anchor -> current
+2024,5,1,30,2024,5,day < anchor -> current
+2024,5,1,31,2024,5,day < anchor -> current
+2024,5,2,None,2024,5,no_anchor -> current
+2024,5,2,0,2024,5,no_anchor -> current
+2024,5,2,1,2024,6,day >= anchor -> next
+2024,5,2,2,2024,6,day >= anchor -> next
+2024,5,2,10,2024,5,day < anchor -> current
+2024,5,2,15,2024,5,day < anchor -> current
+2024,5,2,20,2024,5,day < anchor -> current
+2024,5,2,28,2024,5,day < anchor -> current
+2024,5,2,29,2024,5,day < anchor -> current
+2024,5,2,30,2024,5,day < anchor -> current
+2024,5,2,31,2024,5,day < anchor -> current
+2024,5,10,None,2024,5,no_anchor -> current
+2024,5,10,0,2024,5,no_anchor -> current
+2024,5,10,1,2024,6,day >= anchor -> next
+2024,5,10,2,2024,6,day >= anchor -> next
+2024,5,10,10,2024,6,day >= anchor -> next
+2024,5,10,15,2024,5,day < anchor -> current
+2024,5,10,20,2024,5,day < anchor -> current
+2024,5,10,28,2024,5,day < anchor -> current
+2024,5,10,29,2024,5,day < anchor -> current
+2024,5,10,30,2024,5,day < anchor -> current
+2024,5,10,31,2024,5,day < anchor -> current
+2024,5,14,None,2024,5,no_anchor -> current
+2024,5,14,0,2024,5,no_anchor -> current
+2024,5,14,1,2024,6,day >= anchor -> next
+2024,5,14,2,2024,6,day >= anchor -> next
+2024,5,14,10,2024,6,day >= anchor -> next
+2024,5,14,15,2024,5,day < anchor -> current
+2024,5,14,20,2024,5,day < anchor -> current
+2024,5,14,28,2024,5,day < anchor -> current
+2024,5,14,29,2024,5,day < anchor -> current
+2024,5,14,30,2024,5,day < anchor -> current
+2024,5,14,31,2024,5,day < anchor -> current
+2024,5,15,None,2024,5,no_anchor -> current
+2024,5,15,0,2024,5,no_anchor -> current
+2024,5,15,1,2024,6,day >= anchor -> next
+2024,5,15,2,2024,6,day >= anchor -> next
+2024,5,15,10,2024,6,day >= anchor -> next
+2024,5,15,15,2024,6,day >= anchor -> next
+2024,5,15,20,2024,5,day < anchor -> current
+2024,5,15,28,2024,5,day < anchor -> current
+2024,5,15,29,2024,5,day < anchor -> current
+2024,5,15,30,2024,5,day < anchor -> current
+2024,5,15,31,2024,5,day < anchor -> current
+2024,5,20,None,2024,5,no_anchor -> current
+2024,5,20,0,2024,5,no_anchor -> current
+2024,5,20,1,2024,6,day >= anchor -> next
+2024,5,20,2,2024,6,day >= anchor -> next
+2024,5,20,10,2024,6,day >= anchor -> next
+2024,5,20,15,2024,6,day >= anchor -> next
+2024,5,20,20,2024,6,day >= anchor -> next
+2024,5,20,28,2024,5,day < anchor -> current
+2024,5,20,29,2024,5,day < anchor -> current
+2024,5,20,30,2024,5,day < anchor -> current
+2024,5,20,31,2024,5,day < anchor -> current
+2024,5,27,None,2024,5,no_anchor -> current
+2024,5,27,0,2024,5,no_anchor -> current
+2024,5,27,1,2024,6,day >= anchor -> next
+2024,5,27,2,2024,6,day >= anchor -> next
+2024,5,27,10,2024,6,day >= anchor -> next
+2024,5,27,15,2024,6,day >= anchor -> next
+2024,5,27,20,2024,6,day >= anchor -> next
+2024,5,27,28,2024,5,day < anchor -> current
+2024,5,27,29,2024,5,day < anchor -> current
+2024,5,27,30,2024,5,day < anchor -> current
+2024,5,27,31,2024,5,day < anchor -> current
+2024,5,28,None,2024,5,no_anchor -> current
+2024,5,28,0,2024,5,no_anchor -> current
+2024,5,28,1,2024,6,day >= anchor -> next
+2024,5,28,2,2024,6,day >= anchor -> next
+2024,5,28,10,2024,6,day >= anchor -> next
+2024,5,28,15,2024,6,day >= anchor -> next
+2024,5,28,20,2024,6,day >= anchor -> next
+2024,5,28,28,2024,6,day >= anchor -> next
+2024,5,28,29,2024,5,day < anchor -> current
+2024,5,28,30,2024,5,day < anchor -> current
+2024,5,28,31,2024,5,day < anchor -> current
+2024,5,29,None,2024,5,no_anchor -> current
+2024,5,29,0,2024,5,no_anchor -> current
+2024,5,29,1,2024,6,day >= anchor -> next
+2024,5,29,2,2024,6,day >= anchor -> next
+2024,5,29,10,2024,6,day >= anchor -> next
+2024,5,29,15,2024,6,day >= anchor -> next
+2024,5,29,20,2024,6,day >= anchor -> next
+2024,5,29,28,2024,6,day >= anchor -> next
+2024,5,29,29,2024,6,day >= anchor -> next
+2024,5,29,30,2024,5,day < anchor -> current
+2024,5,29,31,2024,5,day < anchor -> current
+2024,5,30,None,2024,5,no_anchor -> current
+2024,5,30,0,2024,5,no_anchor -> current
+2024,5,30,1,2024,6,day >= anchor -> next
+2024,5,30,2,2024,6,day >= anchor -> next
+2024,5,30,10,2024,6,day >= anchor -> next
+2024,5,30,15,2024,6,day >= anchor -> next
+2024,5,30,20,2024,6,day >= anchor -> next
+2024,5,30,28,2024,6,day >= anchor -> next
+2024,5,30,29,2024,6,day >= anchor -> next
+2024,5,30,30,2024,6,day >= anchor -> next
+2024,5,30,31,2024,5,day < anchor -> current
+2024,5,31,None,2024,5,no_anchor -> current
+2024,5,31,0,2024,5,no_anchor -> current
+2024,5,31,1,2024,6,day >= anchor -> next
+2024,5,31,2,2024,6,day >= anchor -> next
+2024,5,31,10,2024,6,day >= anchor -> next
+2024,5,31,15,2024,6,day >= anchor -> next
+2024,5,31,20,2024,6,day >= anchor -> next
+2024,5,31,28,2024,6,day >= anchor -> next
+2024,5,31,29,2024,6,day >= anchor -> next
+2024,5,31,30,2024,6,day >= anchor -> next
+2024,5,31,31,2024,6,day >= anchor -> next
+2024,6,1,None,2024,6,no_anchor -> current
+2024,6,1,0,2024,6,no_anchor -> current
+2024,6,1,1,2024,7,day >= anchor -> next
+2024,6,1,2,2024,6,day < anchor -> current
+2024,6,1,10,2024,6,day < anchor -> current
+2024,6,1,15,2024,6,day < anchor -> current
+2024,6,1,20,2024,6,day < anchor -> current
+2024,6,1,28,2024,6,day < anchor -> current
+2024,6,1,29,2024,6,day < anchor -> current
+2024,6,1,30,2024,6,day < anchor -> current
+2024,6,1,31,2024,6,day < anchor -> current
+2024,6,2,None,2024,6,no_anchor -> current
+2024,6,2,0,2024,6,no_anchor -> current
+2024,6,2,1,2024,7,day >= anchor -> next
+2024,6,2,2,2024,7,day >= anchor -> next
+2024,6,2,10,2024,6,day < anchor -> current
+2024,6,2,15,2024,6,day < anchor -> current
+2024,6,2,20,2024,6,day < anchor -> current
+2024,6,2,28,2024,6,day < anchor -> current
+2024,6,2,29,2024,6,day < anchor -> current
+2024,6,2,30,2024,6,day < anchor -> current
+2024,6,2,31,2024,6,day < anchor -> current
+2024,6,10,None,2024,6,no_anchor -> current
+2024,6,10,0,2024,6,no_anchor -> current
+2024,6,10,1,2024,7,day >= anchor -> next
+2024,6,10,2,2024,7,day >= anchor -> next
+2024,6,10,10,2024,7,day >= anchor -> next
+2024,6,10,15,2024,6,day < anchor -> current
+2024,6,10,20,2024,6,day < anchor -> current
+2024,6,10,28,2024,6,day < anchor -> current
+2024,6,10,29,2024,6,day < anchor -> current
+2024,6,10,30,2024,6,day < anchor -> current
+2024,6,10,31,2024,6,day < anchor -> current
+2024,6,14,None,2024,6,no_anchor -> current
+2024,6,14,0,2024,6,no_anchor -> current
+2024,6,14,1,2024,7,day >= anchor -> next
+2024,6,14,2,2024,7,day >= anchor -> next
+2024,6,14,10,2024,7,day >= anchor -> next
+2024,6,14,15,2024,6,day < anchor -> current
+2024,6,14,20,2024,6,day < anchor -> current
+2024,6,14,28,2024,6,day < anchor -> current
+2024,6,14,29,2024,6,day < anchor -> current
+2024,6,14,30,2024,6,day < anchor -> current
+2024,6,14,31,2024,6,day < anchor -> current
+2024,6,15,None,2024,6,no_anchor -> current
+2024,6,15,0,2024,6,no_anchor -> current
+2024,6,15,1,2024,7,day >= anchor -> next
+2024,6,15,2,2024,7,day >= anchor -> next
+2024,6,15,10,2024,7,day >= anchor -> next
+2024,6,15,15,2024,7,day >= anchor -> next
+2024,6,15,20,2024,6,day < anchor -> current
+2024,6,15,28,2024,6,day < anchor -> current
+2024,6,15,29,2024,6,day < anchor -> current
+2024,6,15,30,2024,6,day < anchor -> current
+2024,6,15,31,2024,6,day < anchor -> current
+2024,6,20,None,2024,6,no_anchor -> current
+2024,6,20,0,2024,6,no_anchor -> current
+2024,6,20,1,2024,7,day >= anchor -> next
+2024,6,20,2,2024,7,day >= anchor -> next
+2024,6,20,10,2024,7,day >= anchor -> next
+2024,6,20,15,2024,7,day >= anchor -> next
+2024,6,20,20,2024,7,day >= anchor -> next
+2024,6,20,28,2024,6,day < anchor -> current
+2024,6,20,29,2024,6,day < anchor -> current
+2024,6,20,30,2024,6,day < anchor -> current
+2024,6,20,31,2024,6,day < anchor -> current
+2024,6,27,None,2024,6,no_anchor -> current
+2024,6,27,0,2024,6,no_anchor -> current
+2024,6,27,1,2024,7,day >= anchor -> next
+2024,6,27,2,2024,7,day >= anchor -> next
+2024,6,27,10,2024,7,day >= anchor -> next
+2024,6,27,15,2024,7,day >= anchor -> next
+2024,6,27,20,2024,7,day >= anchor -> next
+2024,6,27,28,2024,6,day < anchor -> current
+2024,6,27,29,2024,6,day < anchor -> current
+2024,6,27,30,2024,6,day < anchor -> current
+2024,6,27,31,2024,6,day < anchor -> current
+2024,6,28,None,2024,6,no_anchor -> current
+2024,6,28,0,2024,6,no_anchor -> current
+2024,6,28,1,2024,7,day >= anchor -> next
+2024,6,28,2,2024,7,day >= anchor -> next
+2024,6,28,10,2024,7,day >= anchor -> next
+2024,6,28,15,2024,7,day >= anchor -> next
+2024,6,28,20,2024,7,day >= anchor -> next
+2024,6,28,28,2024,7,day >= anchor -> next
+2024,6,28,29,2024,6,day < anchor -> current
+2024,6,28,30,2024,6,day < anchor -> current
+2024,6,28,31,2024,6,day < anchor -> current
+2024,6,29,None,2024,6,no_anchor -> current
+2024,6,29,0,2024,6,no_anchor -> current
+2024,6,29,1,2024,7,day >= anchor -> next
+2024,6,29,2,2024,7,day >= anchor -> next
+2024,6,29,10,2024,7,day >= anchor -> next
+2024,6,29,15,2024,7,day >= anchor -> next
+2024,6,29,20,2024,7,day >= anchor -> next
+2024,6,29,28,2024,7,day >= anchor -> next
+2024,6,29,29,2024,7,day >= anchor -> next
+2024,6,29,30,2024,6,day < anchor -> current
+2024,6,29,31,2024,6,day < anchor -> current
+2024,6,30,None,2024,6,no_anchor -> current
+2024,6,30,0,2024,6,no_anchor -> current
+2024,6,30,1,2024,7,day >= anchor -> next
+2024,6,30,2,2024,7,day >= anchor -> next
+2024,6,30,10,2024,7,day >= anchor -> next
+2024,6,30,15,2024,7,day >= anchor -> next
+2024,6,30,20,2024,7,day >= anchor -> next
+2024,6,30,28,2024,7,day >= anchor -> next
+2024,6,30,29,2024,7,day >= anchor -> next
+2024,6,30,30,2024,7,day >= anchor -> next
+2024,6,30,31,2024,6,day < anchor -> current
+2024,7,1,None,2024,7,no_anchor -> current
+2024,7,1,0,2024,7,no_anchor -> current
+2024,7,1,1,2024,8,day >= anchor -> next
+2024,7,1,2,2024,7,day < anchor -> current
+2024,7,1,10,2024,7,day < anchor -> current
+2024,7,1,15,2024,7,day < anchor -> current
+2024,7,1,20,2024,7,day < anchor -> current
+2024,7,1,28,2024,7,day < anchor -> current
+2024,7,1,29,2024,7,day < anchor -> current
+2024,7,1,30,2024,7,day < anchor -> current
+2024,7,1,31,2024,7,day < anchor -> current
+2024,7,2,None,2024,7,no_anchor -> current
+2024,7,2,0,2024,7,no_anchor -> current
+2024,7,2,1,2024,8,day >= anchor -> next
+2024,7,2,2,2024,8,day >= anchor -> next
+2024,7,2,10,2024,7,day < anchor -> current
+2024,7,2,15,2024,7,day < anchor -> current
+2024,7,2,20,2024,7,day < anchor -> current
+2024,7,2,28,2024,7,day < anchor -> current
+2024,7,2,29,2024,7,day < anchor -> current
+2024,7,2,30,2024,7,day < anchor -> current
+2024,7,2,31,2024,7,day < anchor -> current
+2024,7,10,None,2024,7,no_anchor -> current
+2024,7,10,0,2024,7,no_anchor -> current
+2024,7,10,1,2024,8,day >= anchor -> next
+2024,7,10,2,2024,8,day >= anchor -> next
+2024,7,10,10,2024,8,day >= anchor -> next
+2024,7,10,15,2024,7,day < anchor -> current
+2024,7,10,20,2024,7,day < anchor -> current
+2024,7,10,28,2024,7,day < anchor -> current
+2024,7,10,29,2024,7,day < anchor -> current
+2024,7,10,30,2024,7,day < anchor -> current
+2024,7,10,31,2024,7,day < anchor -> current
+2024,7,14,None,2024,7,no_anchor -> current
+2024,7,14,0,2024,7,no_anchor -> current
+2024,7,14,1,2024,8,day >= anchor -> next
+2024,7,14,2,2024,8,day >= anchor -> next
+2024,7,14,10,2024,8,day >= anchor -> next
+2024,7,14,15,2024,7,day < anchor -> current
+2024,7,14,20,2024,7,day < anchor -> current
+2024,7,14,28,2024,7,day < anchor -> current
+2024,7,14,29,2024,7,day < anchor -> current
+2024,7,14,30,2024,7,day < anchor -> current
+2024,7,14,31,2024,7,day < anchor -> current
+2024,7,15,None,2024,7,no_anchor -> current
+2024,7,15,0,2024,7,no_anchor -> current
+2024,7,15,1,2024,8,day >= anchor -> next
+2024,7,15,2,2024,8,day >= anchor -> next
+2024,7,15,10,2024,8,day >= anchor -> next
+2024,7,15,15,2024,8,day >= anchor -> next
+2024,7,15,20,2024,7,day < anchor -> current
+2024,7,15,28,2024,7,day < anchor -> current
+2024,7,15,29,2024,7,day < anchor -> current
+2024,7,15,30,2024,7,day < anchor -> current
+2024,7,15,31,2024,7,day < anchor -> current
+2024,7,20,None,2024,7,no_anchor -> current
+2024,7,20,0,2024,7,no_anchor -> current
+2024,7,20,1,2024,8,day >= anchor -> next
+2024,7,20,2,2024,8,day >= anchor -> next
+2024,7,20,10,2024,8,day >= anchor -> next
+2024,7,20,15,2024,8,day >= anchor -> next
+2024,7,20,20,2024,8,day >= anchor -> next
+2024,7,20,28,2024,7,day < anchor -> current
+2024,7,20,29,2024,7,day < anchor -> current
+2024,7,20,30,2024,7,day < anchor -> current
+2024,7,20,31,2024,7,day < anchor -> current
+2024,7,27,None,2024,7,no_anchor -> current
+2024,7,27,0,2024,7,no_anchor -> current
+2024,7,27,1,2024,8,day >= anchor -> next
+2024,7,27,2,2024,8,day >= anchor -> next
+2024,7,27,10,2024,8,day >= anchor -> next
+2024,7,27,15,2024,8,day >= anchor -> next
+2024,7,27,20,2024,8,day >= anchor -> next
+2024,7,27,28,2024,7,day < anchor -> current
+2024,7,27,29,2024,7,day < anchor -> current
+2024,7,27,30,2024,7,day < anchor -> current
+2024,7,27,31,2024,7,day < anchor -> current
+2024,7,28,None,2024,7,no_anchor -> current
+2024,7,28,0,2024,7,no_anchor -> current
+2024,7,28,1,2024,8,day >= anchor -> next
+2024,7,28,2,2024,8,day >= anchor -> next
+2024,7,28,10,2024,8,day >= anchor -> next
+2024,7,28,15,2024,8,day >= anchor -> next
+2024,7,28,20,2024,8,day >= anchor -> next
+2024,7,28,28,2024,8,day >= anchor -> next
+2024,7,28,29,2024,7,day < anchor -> current
+2024,7,28,30,2024,7,day < anchor -> current
+2024,7,28,31,2024,7,day < anchor -> current
+2024,7,29,None,2024,7,no_anchor -> current
+2024,7,29,0,2024,7,no_anchor -> current
+2024,7,29,1,2024,8,day >= anchor -> next
+2024,7,29,2,2024,8,day >= anchor -> next
+2024,7,29,10,2024,8,day >= anchor -> next
+2024,7,29,15,2024,8,day >= anchor -> next
+2024,7,29,20,2024,8,day >= anchor -> next
+2024,7,29,28,2024,8,day >= anchor -> next
+2024,7,29,29,2024,8,day >= anchor -> next
+2024,7,29,30,2024,7,day < anchor -> current
+2024,7,29,31,2024,7,day < anchor -> current
+2024,7,30,None,2024,7,no_anchor -> current
+2024,7,30,0,2024,7,no_anchor -> current
+2024,7,30,1,2024,8,day >= anchor -> next
+2024,7,30,2,2024,8,day >= anchor -> next
+2024,7,30,10,2024,8,day >= anchor -> next
+2024,7,30,15,2024,8,day >= anchor -> next
+2024,7,30,20,2024,8,day >= anchor -> next
+2024,7,30,28,2024,8,day >= anchor -> next
+2024,7,30,29,2024,8,day >= anchor -> next
+2024,7,30,30,2024,8,day >= anchor -> next
+2024,7,30,31,2024,7,day < anchor -> current
+2024,7,31,None,2024,7,no_anchor -> current
+2024,7,31,0,2024,7,no_anchor -> current
+2024,7,31,1,2024,8,day >= anchor -> next
+2024,7,31,2,2024,8,day >= anchor -> next
+2024,7,31,10,2024,8,day >= anchor -> next
+2024,7,31,15,2024,8,day >= anchor -> next
+2024,7,31,20,2024,8,day >= anchor -> next
+2024,7,31,28,2024,8,day >= anchor -> next
+2024,7,31,29,2024,8,day >= anchor -> next
+2024,7,31,30,2024,8,day >= anchor -> next
+2024,7,31,31,2024,8,day >= anchor -> next
+2024,8,1,None,2024,8,no_anchor -> current
+2024,8,1,0,2024,8,no_anchor -> current
+2024,8,1,1,2024,9,day >= anchor -> next
+2024,8,1,2,2024,8,day < anchor -> current
+2024,8,1,10,2024,8,day < anchor -> current
+2024,8,1,15,2024,8,day < anchor -> current
+2024,8,1,20,2024,8,day < anchor -> current
+2024,8,1,28,2024,8,day < anchor -> current
+2024,8,1,29,2024,8,day < anchor -> current
+2024,8,1,30,2024,8,day < anchor -> current
+2024,8,1,31,2024,8,day < anchor -> current
+2024,8,2,None,2024,8,no_anchor -> current
+2024,8,2,0,2024,8,no_anchor -> current
+2024,8,2,1,2024,9,day >= anchor -> next
+2024,8,2,2,2024,9,day >= anchor -> next
+2024,8,2,10,2024,8,day < anchor -> current
+2024,8,2,15,2024,8,day < anchor -> current
+2024,8,2,20,2024,8,day < anchor -> current
+2024,8,2,28,2024,8,day < anchor -> current
+2024,8,2,29,2024,8,day < anchor -> current
+2024,8,2,30,2024,8,day < anchor -> current
+2024,8,2,31,2024,8,day < anchor -> current
+2024,8,10,None,2024,8,no_anchor -> current
+2024,8,10,0,2024,8,no_anchor -> current
+2024,8,10,1,2024,9,day >= anchor -> next
+2024,8,10,2,2024,9,day >= anchor -> next
+2024,8,10,10,2024,9,day >= anchor -> next
+2024,8,10,15,2024,8,day < anchor -> current
+2024,8,10,20,2024,8,day < anchor -> current
+2024,8,10,28,2024,8,day < anchor -> current
+2024,8,10,29,2024,8,day < anchor -> current
+2024,8,10,30,2024,8,day < anchor -> current
+2024,8,10,31,2024,8,day < anchor -> current
+2024,8,14,None,2024,8,no_anchor -> current
+2024,8,14,0,2024,8,no_anchor -> current
+2024,8,14,1,2024,9,day >= anchor -> next
+2024,8,14,2,2024,9,day >= anchor -> next
+2024,8,14,10,2024,9,day >= anchor -> next
+2024,8,14,15,2024,8,day < anchor -> current
+2024,8,14,20,2024,8,day < anchor -> current
+2024,8,14,28,2024,8,day < anchor -> current
+2024,8,14,29,2024,8,day < anchor -> current
+2024,8,14,30,2024,8,day < anchor -> current
+2024,8,14,31,2024,8,day < anchor -> current
+2024,8,15,None,2024,8,no_anchor -> current
+2024,8,15,0,2024,8,no_anchor -> current
+2024,8,15,1,2024,9,day >= anchor -> next
+2024,8,15,2,2024,9,day >= anchor -> next
+2024,8,15,10,2024,9,day >= anchor -> next
+2024,8,15,15,2024,9,day >= anchor -> next
+2024,8,15,20,2024,8,day < anchor -> current
+2024,8,15,28,2024,8,day < anchor -> current
+2024,8,15,29,2024,8,day < anchor -> current
+2024,8,15,30,2024,8,day < anchor -> current
+2024,8,15,31,2024,8,day < anchor -> current
+2024,8,20,None,2024,8,no_anchor -> current
+2024,8,20,0,2024,8,no_anchor -> current
+2024,8,20,1,2024,9,day >= anchor -> next
+2024,8,20,2,2024,9,day >= anchor -> next
+2024,8,20,10,2024,9,day >= anchor -> next
+2024,8,20,15,2024,9,day >= anchor -> next
+2024,8,20,20,2024,9,day >= anchor -> next
+2024,8,20,28,2024,8,day < anchor -> current
+2024,8,20,29,2024,8,day < anchor -> current
+2024,8,20,30,2024,8,day < anchor -> current
+2024,8,20,31,2024,8,day < anchor -> current
+2024,8,27,None,2024,8,no_anchor -> current
+2024,8,27,0,2024,8,no_anchor -> current
+2024,8,27,1,2024,9,day >= anchor -> next
+2024,8,27,2,2024,9,day >= anchor -> next
+2024,8,27,10,2024,9,day >= anchor -> next
+2024,8,27,15,2024,9,day >= anchor -> next
+2024,8,27,20,2024,9,day >= anchor -> next
+2024,8,27,28,2024,8,day < anchor -> current
+2024,8,27,29,2024,8,day < anchor -> current
+2024,8,27,30,2024,8,day < anchor -> current
+2024,8,27,31,2024,8,day < anchor -> current
+2024,8,28,None,2024,8,no_anchor -> current
+2024,8,28,0,2024,8,no_anchor -> current
+2024,8,28,1,2024,9,day >= anchor -> next
+2024,8,28,2,2024,9,day >= anchor -> next
+2024,8,28,10,2024,9,day >= anchor -> next
+2024,8,28,15,2024,9,day >= anchor -> next
+2024,8,28,20,2024,9,day >= anchor -> next
+2024,8,28,28,2024,9,day >= anchor -> next
+2024,8,28,29,2024,8,day < anchor -> current
+2024,8,28,30,2024,8,day < anchor -> current
+2024,8,28,31,2024,8,day < anchor -> current
+2024,8,29,None,2024,8,no_anchor -> current
+2024,8,29,0,2024,8,no_anchor -> current
+2024,8,29,1,2024,9,day >= anchor -> next
+2024,8,29,2,2024,9,day >= anchor -> next
+2024,8,29,10,2024,9,day >= anchor -> next
+2024,8,29,15,2024,9,day >= anchor -> next
+2024,8,29,20,2024,9,day >= anchor -> next
+2024,8,29,28,2024,9,day >= anchor -> next
+2024,8,29,29,2024,9,day >= anchor -> next
+2024,8,29,30,2024,8,day < anchor -> current
+2024,8,29,31,2024,8,day < anchor -> current
+2024,8,30,None,2024,8,no_anchor -> current
+2024,8,30,0,2024,8,no_anchor -> current
+2024,8,30,1,2024,9,day >= anchor -> next
+2024,8,30,2,2024,9,day >= anchor -> next
+2024,8,30,10,2024,9,day >= anchor -> next
+2024,8,30,15,2024,9,day >= anchor -> next
+2024,8,30,20,2024,9,day >= anchor -> next
+2024,8,30,28,2024,9,day >= anchor -> next
+2024,8,30,29,2024,9,day >= anchor -> next
+2024,8,30,30,2024,9,day >= anchor -> next
+2024,8,30,31,2024,8,day < anchor -> current
+2024,8,31,None,2024,8,no_anchor -> current
+2024,8,31,0,2024,8,no_anchor -> current
+2024,8,31,1,2024,9,day >= anchor -> next
+2024,8,31,2,2024,9,day >= anchor -> next
+2024,8,31,10,2024,9,day >= anchor -> next
+2024,8,31,15,2024,9,day >= anchor -> next
+2024,8,31,20,2024,9,day >= anchor -> next
+2024,8,31,28,2024,9,day >= anchor -> next
+2024,8,31,29,2024,9,day >= anchor -> next
+2024,8,31,30,2024,9,day >= anchor -> next
+2024,8,31,31,2024,9,day >= anchor -> next
+2024,9,1,None,2024,9,no_anchor -> current
+2024,9,1,0,2024,9,no_anchor -> current
+2024,9,1,1,2024,10,day >= anchor -> next
+2024,9,1,2,2024,9,day < anchor -> current
+2024,9,1,10,2024,9,day < anchor -> current
+2024,9,1,15,2024,9,day < anchor -> current
+2024,9,1,20,2024,9,day < anchor -> current
+2024,9,1,28,2024,9,day < anchor -> current
+2024,9,1,29,2024,9,day < anchor -> current
+2024,9,1,30,2024,9,day < anchor -> current
+2024,9,1,31,2024,9,day < anchor -> current
+2024,9,2,None,2024,9,no_anchor -> current
+2024,9,2,0,2024,9,no_anchor -> current
+2024,9,2,1,2024,10,day >= anchor -> next
+2024,9,2,2,2024,10,day >= anchor -> next
+2024,9,2,10,2024,9,day < anchor -> current
+2024,9,2,15,2024,9,day < anchor -> current
+2024,9,2,20,2024,9,day < anchor -> current
+2024,9,2,28,2024,9,day < anchor -> current
+2024,9,2,29,2024,9,day < anchor -> current
+2024,9,2,30,2024,9,day < anchor -> current
+2024,9,2,31,2024,9,day < anchor -> current
+2024,9,10,None,2024,9,no_anchor -> current
+2024,9,10,0,2024,9,no_anchor -> current
+2024,9,10,1,2024,10,day >= anchor -> next
+2024,9,10,2,2024,10,day >= anchor -> next
+2024,9,10,10,2024,10,day >= anchor -> next
+2024,9,10,15,2024,9,day < anchor -> current
+2024,9,10,20,2024,9,day < anchor -> current
+2024,9,10,28,2024,9,day < anchor -> current
+2024,9,10,29,2024,9,day < anchor -> current
+2024,9,10,30,2024,9,day < anchor -> current
+2024,9,10,31,2024,9,day < anchor -> current
+2024,9,14,None,2024,9,no_anchor -> current
+2024,9,14,0,2024,9,no_anchor -> current
+2024,9,14,1,2024,10,day >= anchor -> next
+2024,9,14,2,2024,10,day >= anchor -> next
+2024,9,14,10,2024,10,day >= anchor -> next
+2024,9,14,15,2024,9,day < anchor -> current
+2024,9,14,20,2024,9,day < anchor -> current
+2024,9,14,28,2024,9,day < anchor -> current
+2024,9,14,29,2024,9,day < anchor -> current
+2024,9,14,30,2024,9,day < anchor -> current
+2024,9,14,31,2024,9,day < anchor -> current
+2024,9,15,None,2024,9,no_anchor -> current
+2024,9,15,0,2024,9,no_anchor -> current
+2024,9,15,1,2024,10,day >= anchor -> next
+2024,9,15,2,2024,10,day >= anchor -> next
+2024,9,15,10,2024,10,day >= anchor -> next
+2024,9,15,15,2024,10,day >= anchor -> next
+2024,9,15,20,2024,9,day < anchor -> current
+2024,9,15,28,2024,9,day < anchor -> current
+2024,9,15,29,2024,9,day < anchor -> current
+2024,9,15,30,2024,9,day < anchor -> current
+2024,9,15,31,2024,9,day < anchor -> current
+2024,9,20,None,2024,9,no_anchor -> current
+2024,9,20,0,2024,9,no_anchor -> current
+2024,9,20,1,2024,10,day >= anchor -> next
+2024,9,20,2,2024,10,day >= anchor -> next
+2024,9,20,10,2024,10,day >= anchor -> next
+2024,9,20,15,2024,10,day >= anchor -> next
+2024,9,20,20,2024,10,day >= anchor -> next
+2024,9,20,28,2024,9,day < anchor -> current
+2024,9,20,29,2024,9,day < anchor -> current
+2024,9,20,30,2024,9,day < anchor -> current
+2024,9,20,31,2024,9,day < anchor -> current
+2024,9,27,None,2024,9,no_anchor -> current
+2024,9,27,0,2024,9,no_anchor -> current
+2024,9,27,1,2024,10,day >= anchor -> next
+2024,9,27,2,2024,10,day >= anchor -> next
+2024,9,27,10,2024,10,day >= anchor -> next
+2024,9,27,15,2024,10,day >= anchor -> next
+2024,9,27,20,2024,10,day >= anchor -> next
+2024,9,27,28,2024,9,day < anchor -> current
+2024,9,27,29,2024,9,day < anchor -> current
+2024,9,27,30,2024,9,day < anchor -> current
+2024,9,27,31,2024,9,day < anchor -> current
+2024,9,28,None,2024,9,no_anchor -> current
+2024,9,28,0,2024,9,no_anchor -> current
+2024,9,28,1,2024,10,day >= anchor -> next
+2024,9,28,2,2024,10,day >= anchor -> next
+2024,9,28,10,2024,10,day >= anchor -> next
+2024,9,28,15,2024,10,day >= anchor -> next
+2024,9,28,20,2024,10,day >= anchor -> next
+2024,9,28,28,2024,10,day >= anchor -> next
+2024,9,28,29,2024,9,day < anchor -> current
+2024,9,28,30,2024,9,day < anchor -> current
+2024,9,28,31,2024,9,day < anchor -> current
+2024,9,29,None,2024,9,no_anchor -> current
+2024,9,29,0,2024,9,no_anchor -> current
+2024,9,29,1,2024,10,day >= anchor -> next
+2024,9,29,2,2024,10,day >= anchor -> next
+2024,9,29,10,2024,10,day >= anchor -> next
+2024,9,29,15,2024,10,day >= anchor -> next
+2024,9,29,20,2024,10,day >= anchor -> next
+2024,9,29,28,2024,10,day >= anchor -> next
+2024,9,29,29,2024,10,day >= anchor -> next
+2024,9,29,30,2024,9,day < anchor -> current
+2024,9,29,31,2024,9,day < anchor -> current
+2024,9,30,None,2024,9,no_anchor -> current
+2024,9,30,0,2024,9,no_anchor -> current
+2024,9,30,1,2024,10,day >= anchor -> next
+2024,9,30,2,2024,10,day >= anchor -> next
+2024,9,30,10,2024,10,day >= anchor -> next
+2024,9,30,15,2024,10,day >= anchor -> next
+2024,9,30,20,2024,10,day >= anchor -> next
+2024,9,30,28,2024,10,day >= anchor -> next
+2024,9,30,29,2024,10,day >= anchor -> next
+2024,9,30,30,2024,10,day >= anchor -> next
+2024,9,30,31,2024,9,day < anchor -> current
+2024,10,1,None,2024,10,no_anchor -> current
+2024,10,1,0,2024,10,no_anchor -> current
+2024,10,1,1,2024,11,day >= anchor -> next
+2024,10,1,2,2024,10,day < anchor -> current
+2024,10,1,10,2024,10,day < anchor -> current
+2024,10,1,15,2024,10,day < anchor -> current
+2024,10,1,20,2024,10,day < anchor -> current
+2024,10,1,28,2024,10,day < anchor -> current
+2024,10,1,29,2024,10,day < anchor -> current
+2024,10,1,30,2024,10,day < anchor -> current
+2024,10,1,31,2024,10,day < anchor -> current
+2024,10,2,None,2024,10,no_anchor -> current
+2024,10,2,0,2024,10,no_anchor -> current
+2024,10,2,1,2024,11,day >= anchor -> next
+2024,10,2,2,2024,11,day >= anchor -> next
+2024,10,2,10,2024,10,day < anchor -> current
+2024,10,2,15,2024,10,day < anchor -> current
+2024,10,2,20,2024,10,day < anchor -> current
+2024,10,2,28,2024,10,day < anchor -> current
+2024,10,2,29,2024,10,day < anchor -> current
+2024,10,2,30,2024,10,day < anchor -> current
+2024,10,2,31,2024,10,day < anchor -> current
+2024,10,10,None,2024,10,no_anchor -> current
+2024,10,10,0,2024,10,no_anchor -> current
+2024,10,10,1,2024,11,day >= anchor -> next
+2024,10,10,2,2024,11,day >= anchor -> next
+2024,10,10,10,2024,11,day >= anchor -> next
+2024,10,10,15,2024,10,day < anchor -> current
+2024,10,10,20,2024,10,day < anchor -> current
+2024,10,10,28,2024,10,day < anchor -> current
+2024,10,10,29,2024,10,day < anchor -> current
+2024,10,10,30,2024,10,day < anchor -> current
+2024,10,10,31,2024,10,day < anchor -> current
+2024,10,14,None,2024,10,no_anchor -> current
+2024,10,14,0,2024,10,no_anchor -> current
+2024,10,14,1,2024,11,day >= anchor -> next
+2024,10,14,2,2024,11,day >= anchor -> next
+2024,10,14,10,2024,11,day >= anchor -> next
+2024,10,14,15,2024,10,day < anchor -> current
+2024,10,14,20,2024,10,day < anchor -> current
+2024,10,14,28,2024,10,day < anchor -> current
+2024,10,14,29,2024,10,day < anchor -> current
+2024,10,14,30,2024,10,day < anchor -> current
+2024,10,14,31,2024,10,day < anchor -> current
+2024,10,15,None,2024,10,no_anchor -> current
+2024,10,15,0,2024,10,no_anchor -> current
+2024,10,15,1,2024,11,day >= anchor -> next
+2024,10,15,2,2024,11,day >= anchor -> next
+2024,10,15,10,2024,11,day >= anchor -> next
+2024,10,15,15,2024,11,day >= anchor -> next
+2024,10,15,20,2024,10,day < anchor -> current
+2024,10,15,28,2024,10,day < anchor -> current
+2024,10,15,29,2024,10,day < anchor -> current
+2024,10,15,30,2024,10,day < anchor -> current
+2024,10,15,31,2024,10,day < anchor -> current
+2024,10,20,None,2024,10,no_anchor -> current
+2024,10,20,0,2024,10,no_anchor -> current
+2024,10,20,1,2024,11,day >= anchor -> next
+2024,10,20,2,2024,11,day >= anchor -> next
+2024,10,20,10,2024,11,day >= anchor -> next
+2024,10,20,15,2024,11,day >= anchor -> next
+2024,10,20,20,2024,11,day >= anchor -> next
+2024,10,20,28,2024,10,day < anchor -> current
+2024,10,20,29,2024,10,day < anchor -> current
+2024,10,20,30,2024,10,day < anchor -> current
+2024,10,20,31,2024,10,day < anchor -> current
+2024,10,27,None,2024,10,no_anchor -> current
+2024,10,27,0,2024,10,no_anchor -> current
+2024,10,27,1,2024,11,day >= anchor -> next
+2024,10,27,2,2024,11,day >= anchor -> next
+2024,10,27,10,2024,11,day >= anchor -> next
+2024,10,27,15,2024,11,day >= anchor -> next
+2024,10,27,20,2024,11,day >= anchor -> next
+2024,10,27,28,2024,10,day < anchor -> current
+2024,10,27,29,2024,10,day < anchor -> current
+2024,10,27,30,2024,10,day < anchor -> current
+2024,10,27,31,2024,10,day < anchor -> current
+2024,10,28,None,2024,10,no_anchor -> current
+2024,10,28,0,2024,10,no_anchor -> current
+2024,10,28,1,2024,11,day >= anchor -> next
+2024,10,28,2,2024,11,day >= anchor -> next
+2024,10,28,10,2024,11,day >= anchor -> next
+2024,10,28,15,2024,11,day >= anchor -> next
+2024,10,28,20,2024,11,day >= anchor -> next
+2024,10,28,28,2024,11,day >= anchor -> next
+2024,10,28,29,2024,10,day < anchor -> current
+2024,10,28,30,2024,10,day < anchor -> current
+2024,10,28,31,2024,10,day < anchor -> current
+2024,10,29,None,2024,10,no_anchor -> current
+2024,10,29,0,2024,10,no_anchor -> current
+2024,10,29,1,2024,11,day >= anchor -> next
+2024,10,29,2,2024,11,day >= anchor -> next
+2024,10,29,10,2024,11,day >= anchor -> next
+2024,10,29,15,2024,11,day >= anchor -> next
+2024,10,29,20,2024,11,day >= anchor -> next
+2024,10,29,28,2024,11,day >= anchor -> next
+2024,10,29,29,2024,11,day >= anchor -> next
+2024,10,29,30,2024,10,day < anchor -> current
+2024,10,29,31,2024,10,day < anchor -> current
+2024,10,30,None,2024,10,no_anchor -> current
+2024,10,30,0,2024,10,no_anchor -> current
+2024,10,30,1,2024,11,day >= anchor -> next
+2024,10,30,2,2024,11,day >= anchor -> next
+2024,10,30,10,2024,11,day >= anchor -> next
+2024,10,30,15,2024,11,day >= anchor -> next
+2024,10,30,20,2024,11,day >= anchor -> next
+2024,10,30,28,2024,11,day >= anchor -> next
+2024,10,30,29,2024,11,day >= anchor -> next
+2024,10,30,30,2024,11,day >= anchor -> next
+2024,10,30,31,2024,10,day < anchor -> current
+2024,10,31,None,2024,10,no_anchor -> current
+2024,10,31,0,2024,10,no_anchor -> current
+2024,10,31,1,2024,11,day >= anchor -> next
+2024,10,31,2,2024,11,day >= anchor -> next
+2024,10,31,10,2024,11,day >= anchor -> next
+2024,10,31,15,2024,11,day >= anchor -> next
+2024,10,31,20,2024,11,day >= anchor -> next
+2024,10,31,28,2024,11,day >= anchor -> next
+2024,10,31,29,2024,11,day >= anchor -> next
+2024,10,31,30,2024,11,day >= anchor -> next
+2024,10,31,31,2024,11,day >= anchor -> next
+2024,11,1,None,2024,11,no_anchor -> current
+2024,11,1,0,2024,11,no_anchor -> current
+2024,11,1,1,2024,12,day >= anchor -> next
+2024,11,1,2,2024,11,day < anchor -> current
+2024,11,1,10,2024,11,day < anchor -> current
+2024,11,1,15,2024,11,day < anchor -> current
+2024,11,1,20,2024,11,day < anchor -> current
+2024,11,1,28,2024,11,day < anchor -> current
+2024,11,1,29,2024,11,day < anchor -> current
+2024,11,1,30,2024,11,day < anchor -> current
+2024,11,1,31,2024,11,day < anchor -> current
+2024,11,2,None,2024,11,no_anchor -> current
+2024,11,2,0,2024,11,no_anchor -> current
+2024,11,2,1,2024,12,day >= anchor -> next
+2024,11,2,2,2024,12,day >= anchor -> next
+2024,11,2,10,2024,11,day < anchor -> current
+2024,11,2,15,2024,11,day < anchor -> current
+2024,11,2,20,2024,11,day < anchor -> current
+2024,11,2,28,2024,11,day < anchor -> current
+2024,11,2,29,2024,11,day < anchor -> current
+2024,11,2,30,2024,11,day < anchor -> current
+2024,11,2,31,2024,11,day < anchor -> current
+2024,11,10,None,2024,11,no_anchor -> current
+2024,11,10,0,2024,11,no_anchor -> current
+2024,11,10,1,2024,12,day >= anchor -> next
+2024,11,10,2,2024,12,day >= anchor -> next
+2024,11,10,10,2024,12,day >= anchor -> next
+2024,11,10,15,2024,11,day < anchor -> current
+2024,11,10,20,2024,11,day < anchor -> current
+2024,11,10,28,2024,11,day < anchor -> current
+2024,11,10,29,2024,11,day < anchor -> current
+2024,11,10,30,2024,11,day < anchor -> current
+2024,11,10,31,2024,11,day < anchor -> current
+2024,11,14,None,2024,11,no_anchor -> current
+2024,11,14,0,2024,11,no_anchor -> current
+2024,11,14,1,2024,12,day >= anchor -> next
+2024,11,14,2,2024,12,day >= anchor -> next
+2024,11,14,10,2024,12,day >= anchor -> next
+2024,11,14,15,2024,11,day < anchor -> current
+2024,11,14,20,2024,11,day < anchor -> current
+2024,11,14,28,2024,11,day < anchor -> current
+2024,11,14,29,2024,11,day < anchor -> current
+2024,11,14,30,2024,11,day < anchor -> current
+2024,11,14,31,2024,11,day < anchor -> current
+2024,11,15,None,2024,11,no_anchor -> current
+2024,11,15,0,2024,11,no_anchor -> current
+2024,11,15,1,2024,12,day >= anchor -> next
+2024,11,15,2,2024,12,day >= anchor -> next
+2024,11,15,10,2024,12,day >= anchor -> next
+2024,11,15,15,2024,12,day >= anchor -> next
+2024,11,15,20,2024,11,day < anchor -> current
+2024,11,15,28,2024,11,day < anchor -> current
+2024,11,15,29,2024,11,day < anchor -> current
+2024,11,15,30,2024,11,day < anchor -> current
+2024,11,15,31,2024,11,day < anchor -> current
+2024,11,20,None,2024,11,no_anchor -> current
+2024,11,20,0,2024,11,no_anchor -> current
+2024,11,20,1,2024,12,day >= anchor -> next
+2024,11,20,2,2024,12,day >= anchor -> next
+2024,11,20,10,2024,12,day >= anchor -> next
+2024,11,20,15,2024,12,day >= anchor -> next
+2024,11,20,20,2024,12,day >= anchor -> next
+2024,11,20,28,2024,11,day < anchor -> current
+2024,11,20,29,2024,11,day < anchor -> current
+2024,11,20,30,2024,11,day < anchor -> current
+2024,11,20,31,2024,11,day < anchor -> current
+2024,11,27,None,2024,11,no_anchor -> current
+2024,11,27,0,2024,11,no_anchor -> current
+2024,11,27,1,2024,12,day >= anchor -> next
+2024,11,27,2,2024,12,day >= anchor -> next
+2024,11,27,10,2024,12,day >= anchor -> next
+2024,11,27,15,2024,12,day >= anchor -> next
+2024,11,27,20,2024,12,day >= anchor -> next
+2024,11,27,28,2024,11,day < anchor -> current
+2024,11,27,29,2024,11,day < anchor -> current
+2024,11,27,30,2024,11,day < anchor -> current
+2024,11,27,31,2024,11,day < anchor -> current
+2024,11,28,None,2024,11,no_anchor -> current
+2024,11,28,0,2024,11,no_anchor -> current
+2024,11,28,1,2024,12,day >= anchor -> next
+2024,11,28,2,2024,12,day >= anchor -> next
+2024,11,28,10,2024,12,day >= anchor -> next
+2024,11,28,15,2024,12,day >= anchor -> next
+2024,11,28,20,2024,12,day >= anchor -> next
+2024,11,28,28,2024,12,day >= anchor -> next
+2024,11,28,29,2024,11,day < anchor -> current
+2024,11,28,30,2024,11,day < anchor -> current
+2024,11,28,31,2024,11,day < anchor -> current
+2024,11,29,None,2024,11,no_anchor -> current
+2024,11,29,0,2024,11,no_anchor -> current
+2024,11,29,1,2024,12,day >= anchor -> next
+2024,11,29,2,2024,12,day >= anchor -> next
+2024,11,29,10,2024,12,day >= anchor -> next
+2024,11,29,15,2024,12,day >= anchor -> next
+2024,11,29,20,2024,12,day >= anchor -> next
+2024,11,29,28,2024,12,day >= anchor -> next
+2024,11,29,29,2024,12,day >= anchor -> next
+2024,11,29,30,2024,11,day < anchor -> current
+2024,11,29,31,2024,11,day < anchor -> current
+2024,11,30,None,2024,11,no_anchor -> current
+2024,11,30,0,2024,11,no_anchor -> current
+2024,11,30,1,2024,12,day >= anchor -> next
+2024,11,30,2,2024,12,day >= anchor -> next
+2024,11,30,10,2024,12,day >= anchor -> next
+2024,11,30,15,2024,12,day >= anchor -> next
+2024,11,30,20,2024,12,day >= anchor -> next
+2024,11,30,28,2024,12,day >= anchor -> next
+2024,11,30,29,2024,12,day >= anchor -> next
+2024,11,30,30,2024,12,day >= anchor -> next
+2024,11,30,31,2024,11,day < anchor -> current
+2024,12,1,None,2024,12,no_anchor -> current
+2024,12,1,0,2024,12,no_anchor -> current
+2024,12,1,1,2025,1,day >= anchor -> next
+2024,12,1,2,2024,12,day < anchor -> current
+2024,12,1,10,2024,12,day < anchor -> current
+2024,12,1,15,2024,12,day < anchor -> current
+2024,12,1,20,2024,12,day < anchor -> current
+2024,12,1,28,2024,12,day < anchor -> current
+2024,12,1,29,2024,12,day < anchor -> current
+2024,12,1,30,2024,12,day < anchor -> current
+2024,12,1,31,2024,12,day < anchor -> current
+2024,12,2,None,2024,12,no_anchor -> current
+2024,12,2,0,2024,12,no_anchor -> current
+2024,12,2,1,2025,1,day >= anchor -> next
+2024,12,2,2,2025,1,day >= anchor -> next
+2024,12,2,10,2024,12,day < anchor -> current
+2024,12,2,15,2024,12,day < anchor -> current
+2024,12,2,20,2024,12,day < anchor -> current
+2024,12,2,28,2024,12,day < anchor -> current
+2024,12,2,29,2024,12,day < anchor -> current
+2024,12,2,30,2024,12,day < anchor -> current
+2024,12,2,31,2024,12,day < anchor -> current
+2024,12,10,None,2024,12,no_anchor -> current
+2024,12,10,0,2024,12,no_anchor -> current
+2024,12,10,1,2025,1,day >= anchor -> next
+2024,12,10,2,2025,1,day >= anchor -> next
+2024,12,10,10,2025,1,day >= anchor -> next
+2024,12,10,15,2024,12,day < anchor -> current
+2024,12,10,20,2024,12,day < anchor -> current
+2024,12,10,28,2024,12,day < anchor -> current
+2024,12,10,29,2024,12,day < anchor -> current
+2024,12,10,30,2024,12,day < anchor -> current
+2024,12,10,31,2024,12,day < anchor -> current
+2024,12,14,None,2024,12,no_anchor -> current
+2024,12,14,0,2024,12,no_anchor -> current
+2024,12,14,1,2025,1,day >= anchor -> next
+2024,12,14,2,2025,1,day >= anchor -> next
+2024,12,14,10,2025,1,day >= anchor -> next
+2024,12,14,15,2024,12,day < anchor -> current
+2024,12,14,20,2024,12,day < anchor -> current
+2024,12,14,28,2024,12,day < anchor -> current
+2024,12,14,29,2024,12,day < anchor -> current
+2024,12,14,30,2024,12,day < anchor -> current
+2024,12,14,31,2024,12,day < anchor -> current
+2024,12,15,None,2024,12,no_anchor -> current
+2024,12,15,0,2024,12,no_anchor -> current
+2024,12,15,1,2025,1,day >= anchor -> next
+2024,12,15,2,2025,1,day >= anchor -> next
+2024,12,15,10,2025,1,day >= anchor -> next
+2024,12,15,15,2025,1,day >= anchor -> next
+2024,12,15,20,2024,12,day < anchor -> current
+2024,12,15,28,2024,12,day < anchor -> current
+2024,12,15,29,2024,12,day < anchor -> current
+2024,12,15,30,2024,12,day < anchor -> current
+2024,12,15,31,2024,12,day < anchor -> current
+2024,12,20,None,2024,12,no_anchor -> current
+2024,12,20,0,2024,12,no_anchor -> current
+2024,12,20,1,2025,1,day >= anchor -> next
+2024,12,20,2,2025,1,day >= anchor -> next
+2024,12,20,10,2025,1,day >= anchor -> next
+2024,12,20,15,2025,1,day >= anchor -> next
+2024,12,20,20,2025,1,day >= anchor -> next
+2024,12,20,28,2024,12,day < anchor -> current
+2024,12,20,29,2024,12,day < anchor -> current
+2024,12,20,30,2024,12,day < anchor -> current
+2024,12,20,31,2024,12,day < anchor -> current
+2024,12,27,None,2024,12,no_anchor -> current
+2024,12,27,0,2024,12,no_anchor -> current
+2024,12,27,1,2025,1,day >= anchor -> next
+2024,12,27,2,2025,1,day >= anchor -> next
+2024,12,27,10,2025,1,day >= anchor -> next
+2024,12,27,15,2025,1,day >= anchor -> next
+2024,12,27,20,2025,1,day >= anchor -> next
+2024,12,27,28,2024,12,day < anchor -> current
+2024,12,27,29,2024,12,day < anchor -> current
+2024,12,27,30,2024,12,day < anchor -> current
+2024,12,27,31,2024,12,day < anchor -> current
+2024,12,28,None,2024,12,no_anchor -> current
+2024,12,28,0,2024,12,no_anchor -> current
+2024,12,28,1,2025,1,day >= anchor -> next
+2024,12,28,2,2025,1,day >= anchor -> next
+2024,12,28,10,2025,1,day >= anchor -> next
+2024,12,28,15,2025,1,day >= anchor -> next
+2024,12,28,20,2025,1,day >= anchor -> next
+2024,12,28,28,2025,1,day >= anchor -> next
+2024,12,28,29,2024,12,day < anchor -> current
+2024,12,28,30,2024,12,day < anchor -> current
+2024,12,28,31,2024,12,day < anchor -> current
+2024,12,29,None,2024,12,no_anchor -> current
+2024,12,29,0,2024,12,no_anchor -> current
+2024,12,29,1,2025,1,day >= anchor -> next
+2024,12,29,2,2025,1,day >= anchor -> next
+2024,12,29,10,2025,1,day >= anchor -> next
+2024,12,29,15,2025,1,day >= anchor -> next
+2024,12,29,20,2025,1,day >= anchor -> next
+2024,12,29,28,2025,1,day >= anchor -> next
+2024,12,29,29,2025,1,day >= anchor -> next
+2024,12,29,30,2024,12,day < anchor -> current
+2024,12,29,31,2024,12,day < anchor -> current
+2024,12,30,None,2024,12,no_anchor -> current
+2024,12,30,0,2024,12,no_anchor -> current
+2024,12,30,1,2025,1,day >= anchor -> next
+2024,12,30,2,2025,1,day >= anchor -> next
+2024,12,30,10,2025,1,day >= anchor -> next
+2024,12,30,15,2025,1,day >= anchor -> next
+2024,12,30,20,2025,1,day >= anchor -> next
+2024,12,30,28,2025,1,day >= anchor -> next
+2024,12,30,29,2025,1,day >= anchor -> next
+2024,12,30,30,2025,1,day >= anchor -> next
+2024,12,30,31,2024,12,day < anchor -> current
+2024,12,31,None,2024,12,no_anchor -> current
+2024,12,31,0,2024,12,no_anchor -> current
+2024,12,31,1,2025,1,day >= anchor -> next
+2024,12,31,2,2025,1,day >= anchor -> next
+2024,12,31,10,2025,1,day >= anchor -> next
+2024,12,31,15,2025,1,day >= anchor -> next
+2024,12,31,20,2025,1,day >= anchor -> next
+2024,12,31,28,2025,1,day >= anchor -> next
+2024,12,31,29,2025,1,day >= anchor -> next
+2024,12,31,30,2025,1,day >= anchor -> next
+2024,12,31,31,2025,1,day >= anchor -> next
+2025,1,1,None,2025,1,no_anchor -> current
+2025,1,1,0,2025,1,no_anchor -> current
+2025,1,1,1,2025,2,day >= anchor -> next
+2025,1,1,2,2025,1,day < anchor -> current
+2025,1,1,10,2025,1,day < anchor -> current
+2025,1,1,15,2025,1,day < anchor -> current
+2025,1,1,20,2025,1,day < anchor -> current
+2025,1,1,28,2025,1,day < anchor -> current
+2025,1,1,29,2025,1,day < anchor -> current
+2025,1,1,30,2025,1,day < anchor -> current
+2025,1,1,31,2025,1,day < anchor -> current
+2025,1,2,None,2025,1,no_anchor -> current
+2025,1,2,0,2025,1,no_anchor -> current
+2025,1,2,1,2025,2,day >= anchor -> next
+2025,1,2,2,2025,2,day >= anchor -> next
+2025,1,2,10,2025,1,day < anchor -> current
+2025,1,2,15,2025,1,day < anchor -> current
+2025,1,2,20,2025,1,day < anchor -> current
+2025,1,2,28,2025,1,day < anchor -> current
+2025,1,2,29,2025,1,day < anchor -> current
+2025,1,2,30,2025,1,day < anchor -> current
+2025,1,2,31,2025,1,day < anchor -> current
+2025,1,10,None,2025,1,no_anchor -> current
+2025,1,10,0,2025,1,no_anchor -> current
+2025,1,10,1,2025,2,day >= anchor -> next
+2025,1,10,2,2025,2,day >= anchor -> next
+2025,1,10,10,2025,2,day >= anchor -> next
+2025,1,10,15,2025,1,day < anchor -> current
+2025,1,10,20,2025,1,day < anchor -> current
+2025,1,10,28,2025,1,day < anchor -> current
+2025,1,10,29,2025,1,day < anchor -> current
+2025,1,10,30,2025,1,day < anchor -> current
+2025,1,10,31,2025,1,day < anchor -> current
+2025,1,14,None,2025,1,no_anchor -> current
+2025,1,14,0,2025,1,no_anchor -> current
+2025,1,14,1,2025,2,day >= anchor -> next
+2025,1,14,2,2025,2,day >= anchor -> next
+2025,1,14,10,2025,2,day >= anchor -> next
+2025,1,14,15,2025,1,day < anchor -> current
+2025,1,14,20,2025,1,day < anchor -> current
+2025,1,14,28,2025,1,day < anchor -> current
+2025,1,14,29,2025,1,day < anchor -> current
+2025,1,14,30,2025,1,day < anchor -> current
+2025,1,14,31,2025,1,day < anchor -> current
+2025,1,15,None,2025,1,no_anchor -> current
+2025,1,15,0,2025,1,no_anchor -> current
+2025,1,15,1,2025,2,day >= anchor -> next
+2025,1,15,2,2025,2,day >= anchor -> next
+2025,1,15,10,2025,2,day >= anchor -> next
+2025,1,15,15,2025,2,day >= anchor -> next
+2025,1,15,20,2025,1,day < anchor -> current
+2025,1,15,28,2025,1,day < anchor -> current
+2025,1,15,29,2025,1,day < anchor -> current
+2025,1,15,30,2025,1,day < anchor -> current
+2025,1,15,31,2025,1,day < anchor -> current
+2025,1,20,None,2025,1,no_anchor -> current
+2025,1,20,0,2025,1,no_anchor -> current
+2025,1,20,1,2025,2,day >= anchor -> next
+2025,1,20,2,2025,2,day >= anchor -> next
+2025,1,20,10,2025,2,day >= anchor -> next
+2025,1,20,15,2025,2,day >= anchor -> next
+2025,1,20,20,2025,2,day >= anchor -> next
+2025,1,20,28,2025,1,day < anchor -> current
+2025,1,20,29,2025,1,day < anchor -> current
+2025,1,20,30,2025,1,day < anchor -> current
+2025,1,20,31,2025,1,day < anchor -> current
+2025,1,27,None,2025,1,no_anchor -> current
+2025,1,27,0,2025,1,no_anchor -> current
+2025,1,27,1,2025,2,day >= anchor -> next
+2025,1,27,2,2025,2,day >= anchor -> next
+2025,1,27,10,2025,2,day >= anchor -> next
+2025,1,27,15,2025,2,day >= anchor -> next
+2025,1,27,20,2025,2,day >= anchor -> next
+2025,1,27,28,2025,1,day < anchor -> current
+2025,1,27,29,2025,1,day < anchor -> current
+2025,1,27,30,2025,1,day < anchor -> current
+2025,1,27,31,2025,1,day < anchor -> current
+2025,1,28,None,2025,1,no_anchor -> current
+2025,1,28,0,2025,1,no_anchor -> current
+2025,1,28,1,2025,2,day >= anchor -> next
+2025,1,28,2,2025,2,day >= anchor -> next
+2025,1,28,10,2025,2,day >= anchor -> next
+2025,1,28,15,2025,2,day >= anchor -> next
+2025,1,28,20,2025,2,day >= anchor -> next
+2025,1,28,28,2025,2,day >= anchor -> next
+2025,1,28,29,2025,1,day < anchor -> current
+2025,1,28,30,2025,1,day < anchor -> current
+2025,1,28,31,2025,1,day < anchor -> current
+2025,1,29,None,2025,1,no_anchor -> current
+2025,1,29,0,2025,1,no_anchor -> current
+2025,1,29,1,2025,2,day >= anchor -> next
+2025,1,29,2,2025,2,day >= anchor -> next
+2025,1,29,10,2025,2,day >= anchor -> next
+2025,1,29,15,2025,2,day >= anchor -> next
+2025,1,29,20,2025,2,day >= anchor -> next
+2025,1,29,28,2025,2,day >= anchor -> next
+2025,1,29,29,2025,2,day >= anchor -> next
+2025,1,29,30,2025,1,day < anchor -> current
+2025,1,29,31,2025,1,day < anchor -> current
+2025,1,30,None,2025,1,no_anchor -> current
+2025,1,30,0,2025,1,no_anchor -> current
+2025,1,30,1,2025,2,day >= anchor -> next
+2025,1,30,2,2025,2,day >= anchor -> next
+2025,1,30,10,2025,2,day >= anchor -> next
+2025,1,30,15,2025,2,day >= anchor -> next
+2025,1,30,20,2025,2,day >= anchor -> next
+2025,1,30,28,2025,2,day >= anchor -> next
+2025,1,30,29,2025,2,day >= anchor -> next
+2025,1,30,30,2025,2,day >= anchor -> next
+2025,1,30,31,2025,1,day < anchor -> current
+2025,1,31,None,2025,1,no_anchor -> current
+2025,1,31,0,2025,1,no_anchor -> current
+2025,1,31,1,2025,2,day >= anchor -> next
+2025,1,31,2,2025,2,day >= anchor -> next
+2025,1,31,10,2025,2,day >= anchor -> next
+2025,1,31,15,2025,2,day >= anchor -> next
+2025,1,31,20,2025,2,day >= anchor -> next
+2025,1,31,28,2025,2,day >= anchor -> next
+2025,1,31,29,2025,2,day >= anchor -> next
+2025,1,31,30,2025,2,day >= anchor -> next
+2025,1,31,31,2025,2,day >= anchor -> next
+2025,2,1,None,2025,2,no_anchor -> current
+2025,2,1,0,2025,2,no_anchor -> current
+2025,2,1,1,2025,3,day >= anchor -> next
+2025,2,1,2,2025,2,day < anchor -> current
+2025,2,1,10,2025,2,day < anchor -> current
+2025,2,1,15,2025,2,day < anchor -> current
+2025,2,1,20,2025,2,day < anchor -> current
+2025,2,1,28,2025,2,day < anchor -> current
+2025,2,1,29,2025,2,day < anchor -> current
+2025,2,1,30,2025,2,day < anchor -> current
+2025,2,1,31,2025,2,day < anchor -> current
+2025,2,2,None,2025,2,no_anchor -> current
+2025,2,2,0,2025,2,no_anchor -> current
+2025,2,2,1,2025,3,day >= anchor -> next
+2025,2,2,2,2025,3,day >= anchor -> next
+2025,2,2,10,2025,2,day < anchor -> current
+2025,2,2,15,2025,2,day < anchor -> current
+2025,2,2,20,2025,2,day < anchor -> current
+2025,2,2,28,2025,2,day < anchor -> current
+2025,2,2,29,2025,2,day < anchor -> current
+2025,2,2,30,2025,2,day < anchor -> current
+2025,2,2,31,2025,2,day < anchor -> current
+2025,2,10,None,2025,2,no_anchor -> current
+2025,2,10,0,2025,2,no_anchor -> current
+2025,2,10,1,2025,3,day >= anchor -> next
+2025,2,10,2,2025,3,day >= anchor -> next
+2025,2,10,10,2025,3,day >= anchor -> next
+2025,2,10,15,2025,2,day < anchor -> current
+2025,2,10,20,2025,2,day < anchor -> current
+2025,2,10,28,2025,2,day < anchor -> current
+2025,2,10,29,2025,2,day < anchor -> current
+2025,2,10,30,2025,2,day < anchor -> current
+2025,2,10,31,2025,2,day < anchor -> current
+2025,2,14,None,2025,2,no_anchor -> current
+2025,2,14,0,2025,2,no_anchor -> current
+2025,2,14,1,2025,3,day >= anchor -> next
+2025,2,14,2,2025,3,day >= anchor -> next
+2025,2,14,10,2025,3,day >= anchor -> next
+2025,2,14,15,2025,2,day < anchor -> current
+2025,2,14,20,2025,2,day < anchor -> current
+2025,2,14,28,2025,2,day < anchor -> current
+2025,2,14,29,2025,2,day < anchor -> current
+2025,2,14,30,2025,2,day < anchor -> current
+2025,2,14,31,2025,2,day < anchor -> current
+2025,2,15,None,2025,2,no_anchor -> current
+2025,2,15,0,2025,2,no_anchor -> current
+2025,2,15,1,2025,3,day >= anchor -> next
+2025,2,15,2,2025,3,day >= anchor -> next
+2025,2,15,10,2025,3,day >= anchor -> next
+2025,2,15,15,2025,3,day >= anchor -> next
+2025,2,15,20,2025,2,day < anchor -> current
+2025,2,15,28,2025,2,day < anchor -> current
+2025,2,15,29,2025,2,day < anchor -> current
+2025,2,15,30,2025,2,day < anchor -> current
+2025,2,15,31,2025,2,day < anchor -> current
+2025,2,20,None,2025,2,no_anchor -> current
+2025,2,20,0,2025,2,no_anchor -> current
+2025,2,20,1,2025,3,day >= anchor -> next
+2025,2,20,2,2025,3,day >= anchor -> next
+2025,2,20,10,2025,3,day >= anchor -> next
+2025,2,20,15,2025,3,day >= anchor -> next
+2025,2,20,20,2025,3,day >= anchor -> next
+2025,2,20,28,2025,2,day < anchor -> current
+2025,2,20,29,2025,2,day < anchor -> current
+2025,2,20,30,2025,2,day < anchor -> current
+2025,2,20,31,2025,2,day < anchor -> current
+2025,2,27,None,2025,2,no_anchor -> current
+2025,2,27,0,2025,2,no_anchor -> current
+2025,2,27,1,2025,3,day >= anchor -> next
+2025,2,27,2,2025,3,day >= anchor -> next
+2025,2,27,10,2025,3,day >= anchor -> next
+2025,2,27,15,2025,3,day >= anchor -> next
+2025,2,27,20,2025,3,day >= anchor -> next
+2025,2,27,28,2025,2,day < anchor -> current
+2025,2,27,29,2025,2,day < anchor -> current
+2025,2,27,30,2025,2,day < anchor -> current
+2025,2,27,31,2025,2,day < anchor -> current
+2025,2,28,None,2025,2,no_anchor -> current
+2025,2,28,0,2025,2,no_anchor -> current
+2025,2,28,1,2025,3,day >= anchor -> next
+2025,2,28,2,2025,3,day >= anchor -> next
+2025,2,28,10,2025,3,day >= anchor -> next
+2025,2,28,15,2025,3,day >= anchor -> next
+2025,2,28,20,2025,3,day >= anchor -> next
+2025,2,28,28,2025,3,day >= anchor -> next
+2025,2,28,29,2025,2,day < anchor -> current
+2025,2,28,30,2025,2,day < anchor -> current
+2025,2,28,31,2025,2,day < anchor -> current
+2025,3,1,None,2025,3,no_anchor -> current
+2025,3,1,0,2025,3,no_anchor -> current
+2025,3,1,1,2025,4,day >= anchor -> next
+2025,3,1,2,2025,3,day < anchor -> current
+2025,3,1,10,2025,3,day < anchor -> current
+2025,3,1,15,2025,3,day < anchor -> current
+2025,3,1,20,2025,3,day < anchor -> current
+2025,3,1,28,2025,3,day < anchor -> current
+2025,3,1,29,2025,3,day < anchor -> current
+2025,3,1,30,2025,3,day < anchor -> current
+2025,3,1,31,2025,3,day < anchor -> current
+2025,3,2,None,2025,3,no_anchor -> current
+2025,3,2,0,2025,3,no_anchor -> current
+2025,3,2,1,2025,4,day >= anchor -> next
+2025,3,2,2,2025,4,day >= anchor -> next
+2025,3,2,10,2025,3,day < anchor -> current
+2025,3,2,15,2025,3,day < anchor -> current
+2025,3,2,20,2025,3,day < anchor -> current
+2025,3,2,28,2025,3,day < anchor -> current
+2025,3,2,29,2025,3,day < anchor -> current
+2025,3,2,30,2025,3,day < anchor -> current
+2025,3,2,31,2025,3,day < anchor -> current
+2025,3,10,None,2025,3,no_anchor -> current
+2025,3,10,0,2025,3,no_anchor -> current
+2025,3,10,1,2025,4,day >= anchor -> next
+2025,3,10,2,2025,4,day >= anchor -> next
+2025,3,10,10,2025,4,day >= anchor -> next
+2025,3,10,15,2025,3,day < anchor -> current
+2025,3,10,20,2025,3,day < anchor -> current
+2025,3,10,28,2025,3,day < anchor -> current
+2025,3,10,29,2025,3,day < anchor -> current
+2025,3,10,30,2025,3,day < anchor -> current
+2025,3,10,31,2025,3,day < anchor -> current
+2025,3,14,None,2025,3,no_anchor -> current
+2025,3,14,0,2025,3,no_anchor -> current
+2025,3,14,1,2025,4,day >= anchor -> next
+2025,3,14,2,2025,4,day >= anchor -> next
+2025,3,14,10,2025,4,day >= anchor -> next
+2025,3,14,15,2025,3,day < anchor -> current
+2025,3,14,20,2025,3,day < anchor -> current
+2025,3,14,28,2025,3,day < anchor -> current
+2025,3,14,29,2025,3,day < anchor -> current
+2025,3,14,30,2025,3,day < anchor -> current
+2025,3,14,31,2025,3,day < anchor -> current
+2025,3,15,None,2025,3,no_anchor -> current
+2025,3,15,0,2025,3,no_anchor -> current
+2025,3,15,1,2025,4,day >= anchor -> next
+2025,3,15,2,2025,4,day >= anchor -> next
+2025,3,15,10,2025,4,day >= anchor -> next
+2025,3,15,15,2025,4,day >= anchor -> next
+2025,3,15,20,2025,3,day < anchor -> current
+2025,3,15,28,2025,3,day < anchor -> current
+2025,3,15,29,2025,3,day < anchor -> current
+2025,3,15,30,2025,3,day < anchor -> current
+2025,3,15,31,2025,3,day < anchor -> current
+2025,3,20,None,2025,3,no_anchor -> current
+2025,3,20,0,2025,3,no_anchor -> current
+2025,3,20,1,2025,4,day >= anchor -> next
+2025,3,20,2,2025,4,day >= anchor -> next
+2025,3,20,10,2025,4,day >= anchor -> next
+2025,3,20,15,2025,4,day >= anchor -> next
+2025,3,20,20,2025,4,day >= anchor -> next
+2025,3,20,28,2025,3,day < anchor -> current
+2025,3,20,29,2025,3,day < anchor -> current
+2025,3,20,30,2025,3,day < anchor -> current
+2025,3,20,31,2025,3,day < anchor -> current
+2025,3,27,None,2025,3,no_anchor -> current
+2025,3,27,0,2025,3,no_anchor -> current
+2025,3,27,1,2025,4,day >= anchor -> next
+2025,3,27,2,2025,4,day >= anchor -> next
+2025,3,27,10,2025,4,day >= anchor -> next
+2025,3,27,15,2025,4,day >= anchor -> next
+2025,3,27,20,2025,4,day >= anchor -> next
+2025,3,27,28,2025,3,day < anchor -> current
+2025,3,27,29,2025,3,day < anchor -> current
+2025,3,27,30,2025,3,day < anchor -> current
+2025,3,27,31,2025,3,day < anchor -> current
+2025,3,28,None,2025,3,no_anchor -> current
+2025,3,28,0,2025,3,no_anchor -> current
+2025,3,28,1,2025,4,day >= anchor -> next
+2025,3,28,2,2025,4,day >= anchor -> next
+2025,3,28,10,2025,4,day >= anchor -> next
+2025,3,28,15,2025,4,day >= anchor -> next
+2025,3,28,20,2025,4,day >= anchor -> next
+2025,3,28,28,2025,4,day >= anchor -> next
+2025,3,28,29,2025,3,day < anchor -> current
+2025,3,28,30,2025,3,day < anchor -> current
+2025,3,28,31,2025,3,day < anchor -> current
+2025,3,29,None,2025,3,no_anchor -> current
+2025,3,29,0,2025,3,no_anchor -> current
+2025,3,29,1,2025,4,day >= anchor -> next
+2025,3,29,2,2025,4,day >= anchor -> next
+2025,3,29,10,2025,4,day >= anchor -> next
+2025,3,29,15,2025,4,day >= anchor -> next
+2025,3,29,20,2025,4,day >= anchor -> next
+2025,3,29,28,2025,4,day >= anchor -> next
+2025,3,29,29,2025,4,day >= anchor -> next
+2025,3,29,30,2025,3,day < anchor -> current
+2025,3,29,31,2025,3,day < anchor -> current
+2025,3,30,None,2025,3,no_anchor -> current
+2025,3,30,0,2025,3,no_anchor -> current
+2025,3,30,1,2025,4,day >= anchor -> next
+2025,3,30,2,2025,4,day >= anchor -> next
+2025,3,30,10,2025,4,day >= anchor -> next
+2025,3,30,15,2025,4,day >= anchor -> next
+2025,3,30,20,2025,4,day >= anchor -> next
+2025,3,30,28,2025,4,day >= anchor -> next
+2025,3,30,29,2025,4,day >= anchor -> next
+2025,3,30,30,2025,4,day >= anchor -> next
+2025,3,30,31,2025,3,day < anchor -> current
+2025,3,31,None,2025,3,no_anchor -> current
+2025,3,31,0,2025,3,no_anchor -> current
+2025,3,31,1,2025,4,day >= anchor -> next
+2025,3,31,2,2025,4,day >= anchor -> next
+2025,3,31,10,2025,4,day >= anchor -> next
+2025,3,31,15,2025,4,day >= anchor -> next
+2025,3,31,20,2025,4,day >= anchor -> next
+2025,3,31,28,2025,4,day >= anchor -> next
+2025,3,31,29,2025,4,day >= anchor -> next
+2025,3,31,30,2025,4,day >= anchor -> next
+2025,3,31,31,2025,4,day >= anchor -> next
+2025,4,1,None,2025,4,no_anchor -> current
+2025,4,1,0,2025,4,no_anchor -> current
+2025,4,1,1,2025,5,day >= anchor -> next
+2025,4,1,2,2025,4,day < anchor -> current
+2025,4,1,10,2025,4,day < anchor -> current
+2025,4,1,15,2025,4,day < anchor -> current
+2025,4,1,20,2025,4,day < anchor -> current
+2025,4,1,28,2025,4,day < anchor -> current
+2025,4,1,29,2025,4,day < anchor -> current
+2025,4,1,30,2025,4,day < anchor -> current
+2025,4,1,31,2025,4,day < anchor -> current
+2025,4,2,None,2025,4,no_anchor -> current
+2025,4,2,0,2025,4,no_anchor -> current
+2025,4,2,1,2025,5,day >= anchor -> next
+2025,4,2,2,2025,5,day >= anchor -> next
+2025,4,2,10,2025,4,day < anchor -> current
+2025,4,2,15,2025,4,day < anchor -> current
+2025,4,2,20,2025,4,day < anchor -> current
+2025,4,2,28,2025,4,day < anchor -> current
+2025,4,2,29,2025,4,day < anchor -> current
+2025,4,2,30,2025,4,day < anchor -> current
+2025,4,2,31,2025,4,day < anchor -> current
+2025,4,10,None,2025,4,no_anchor -> current
+2025,4,10,0,2025,4,no_anchor -> current
+2025,4,10,1,2025,5,day >= anchor -> next
+2025,4,10,2,2025,5,day >= anchor -> next
+2025,4,10,10,2025,5,day >= anchor -> next
+2025,4,10,15,2025,4,day < anchor -> current
+2025,4,10,20,2025,4,day < anchor -> current
+2025,4,10,28,2025,4,day < anchor -> current
+2025,4,10,29,2025,4,day < anchor -> current
+2025,4,10,30,2025,4,day < anchor -> current
+2025,4,10,31,2025,4,day < anchor -> current
+2025,4,14,None,2025,4,no_anchor -> current
+2025,4,14,0,2025,4,no_anchor -> current
+2025,4,14,1,2025,5,day >= anchor -> next
+2025,4,14,2,2025,5,day >= anchor -> next
+2025,4,14,10,2025,5,day >= anchor -> next
+2025,4,14,15,2025,4,day < anchor -> current
+2025,4,14,20,2025,4,day < anchor -> current
+2025,4,14,28,2025,4,day < anchor -> current
+2025,4,14,29,2025,4,day < anchor -> current
+2025,4,14,30,2025,4,day < anchor -> current
+2025,4,14,31,2025,4,day < anchor -> current
+2025,4,15,None,2025,4,no_anchor -> current
+2025,4,15,0,2025,4,no_anchor -> current
+2025,4,15,1,2025,5,day >= anchor -> next
+2025,4,15,2,2025,5,day >= anchor -> next
+2025,4,15,10,2025,5,day >= anchor -> next
+2025,4,15,15,2025,5,day >= anchor -> next
+2025,4,15,20,2025,4,day < anchor -> current
+2025,4,15,28,2025,4,day < anchor -> current
+2025,4,15,29,2025,4,day < anchor -> current
+2025,4,15,30,2025,4,day < anchor -> current
+2025,4,15,31,2025,4,day < anchor -> current
+2025,4,20,None,2025,4,no_anchor -> current
+2025,4,20,0,2025,4,no_anchor -> current
+2025,4,20,1,2025,5,day >= anchor -> next
+2025,4,20,2,2025,5,day >= anchor -> next
+2025,4,20,10,2025,5,day >= anchor -> next
+2025,4,20,15,2025,5,day >= anchor -> next
+2025,4,20,20,2025,5,day >= anchor -> next
+2025,4,20,28,2025,4,day < anchor -> current
+2025,4,20,29,2025,4,day < anchor -> current
+2025,4,20,30,2025,4,day < anchor -> current
+2025,4,20,31,2025,4,day < anchor -> current
+2025,4,27,None,2025,4,no_anchor -> current
+2025,4,27,0,2025,4,no_anchor -> current
+2025,4,27,1,2025,5,day >= anchor -> next
+2025,4,27,2,2025,5,day >= anchor -> next
+2025,4,27,10,2025,5,day >= anchor -> next
+2025,4,27,15,2025,5,day >= anchor -> next
+2025,4,27,20,2025,5,day >= anchor -> next
+2025,4,27,28,2025,4,day < anchor -> current
+2025,4,27,29,2025,4,day < anchor -> current
+2025,4,27,30,2025,4,day < anchor -> current
+2025,4,27,31,2025,4,day < anchor -> current
+2025,4,28,None,2025,4,no_anchor -> current
+2025,4,28,0,2025,4,no_anchor -> current
+2025,4,28,1,2025,5,day >= anchor -> next
+2025,4,28,2,2025,5,day >= anchor -> next
+2025,4,28,10,2025,5,day >= anchor -> next
+2025,4,28,15,2025,5,day >= anchor -> next
+2025,4,28,20,2025,5,day >= anchor -> next
+2025,4,28,28,2025,5,day >= anchor -> next
+2025,4,28,29,2025,4,day < anchor -> current
+2025,4,28,30,2025,4,day < anchor -> current
+2025,4,28,31,2025,4,day < anchor -> current
+2025,4,29,None,2025,4,no_anchor -> current
+2025,4,29,0,2025,4,no_anchor -> current
+2025,4,29,1,2025,5,day >= anchor -> next
+2025,4,29,2,2025,5,day >= anchor -> next
+2025,4,29,10,2025,5,day >= anchor -> next
+2025,4,29,15,2025,5,day >= anchor -> next
+2025,4,29,20,2025,5,day >= anchor -> next
+2025,4,29,28,2025,5,day >= anchor -> next
+2025,4,29,29,2025,5,day >= anchor -> next
+2025,4,29,30,2025,4,day < anchor -> current
+2025,4,29,31,2025,4,day < anchor -> current
+2025,4,30,None,2025,4,no_anchor -> current
+2025,4,30,0,2025,4,no_anchor -> current
+2025,4,30,1,2025,5,day >= anchor -> next
+2025,4,30,2,2025,5,day >= anchor -> next
+2025,4,30,10,2025,5,day >= anchor -> next
+2025,4,30,15,2025,5,day >= anchor -> next
+2025,4,30,20,2025,5,day >= anchor -> next
+2025,4,30,28,2025,5,day >= anchor -> next
+2025,4,30,29,2025,5,day >= anchor -> next
+2025,4,30,30,2025,5,day >= anchor -> next
+2025,4,30,31,2025,4,day < anchor -> current
+2025,5,1,None,2025,5,no_anchor -> current
+2025,5,1,0,2025,5,no_anchor -> current
+2025,5,1,1,2025,6,day >= anchor -> next
+2025,5,1,2,2025,5,day < anchor -> current
+2025,5,1,10,2025,5,day < anchor -> current
+2025,5,1,15,2025,5,day < anchor -> current
+2025,5,1,20,2025,5,day < anchor -> current
+2025,5,1,28,2025,5,day < anchor -> current
+2025,5,1,29,2025,5,day < anchor -> current
+2025,5,1,30,2025,5,day < anchor -> current
+2025,5,1,31,2025,5,day < anchor -> current
+2025,5,2,None,2025,5,no_anchor -> current
+2025,5,2,0,2025,5,no_anchor -> current
+2025,5,2,1,2025,6,day >= anchor -> next
+2025,5,2,2,2025,6,day >= anchor -> next
+2025,5,2,10,2025,5,day < anchor -> current
+2025,5,2,15,2025,5,day < anchor -> current
+2025,5,2,20,2025,5,day < anchor -> current
+2025,5,2,28,2025,5,day < anchor -> current
+2025,5,2,29,2025,5,day < anchor -> current
+2025,5,2,30,2025,5,day < anchor -> current
+2025,5,2,31,2025,5,day < anchor -> current
+2025,5,10,None,2025,5,no_anchor -> current
+2025,5,10,0,2025,5,no_anchor -> current
+2025,5,10,1,2025,6,day >= anchor -> next
+2025,5,10,2,2025,6,day >= anchor -> next
+2025,5,10,10,2025,6,day >= anchor -> next
+2025,5,10,15,2025,5,day < anchor -> current
+2025,5,10,20,2025,5,day < anchor -> current
+2025,5,10,28,2025,5,day < anchor -> current
+2025,5,10,29,2025,5,day < anchor -> current
+2025,5,10,30,2025,5,day < anchor -> current
+2025,5,10,31,2025,5,day < anchor -> current
+2025,5,14,None,2025,5,no_anchor -> current
+2025,5,14,0,2025,5,no_anchor -> current
+2025,5,14,1,2025,6,day >= anchor -> next
+2025,5,14,2,2025,6,day >= anchor -> next
+2025,5,14,10,2025,6,day >= anchor -> next
+2025,5,14,15,2025,5,day < anchor -> current
+2025,5,14,20,2025,5,day < anchor -> current
+2025,5,14,28,2025,5,day < anchor -> current
+2025,5,14,29,2025,5,day < anchor -> current
+2025,5,14,30,2025,5,day < anchor -> current
+2025,5,14,31,2025,5,day < anchor -> current
+2025,5,15,None,2025,5,no_anchor -> current
+2025,5,15,0,2025,5,no_anchor -> current
+2025,5,15,1,2025,6,day >= anchor -> next
+2025,5,15,2,2025,6,day >= anchor -> next
+2025,5,15,10,2025,6,day >= anchor -> next
+2025,5,15,15,2025,6,day >= anchor -> next
+2025,5,15,20,2025,5,day < anchor -> current
+2025,5,15,28,2025,5,day < anchor -> current
+2025,5,15,29,2025,5,day < anchor -> current
+2025,5,15,30,2025,5,day < anchor -> current
+2025,5,15,31,2025,5,day < anchor -> current
+2025,5,20,None,2025,5,no_anchor -> current
+2025,5,20,0,2025,5,no_anchor -> current
+2025,5,20,1,2025,6,day >= anchor -> next
+2025,5,20,2,2025,6,day >= anchor -> next
+2025,5,20,10,2025,6,day >= anchor -> next
+2025,5,20,15,2025,6,day >= anchor -> next
+2025,5,20,20,2025,6,day >= anchor -> next
+2025,5,20,28,2025,5,day < anchor -> current
+2025,5,20,29,2025,5,day < anchor -> current
+2025,5,20,30,2025,5,day < anchor -> current
+2025,5,20,31,2025,5,day < anchor -> current
+2025,5,27,None,2025,5,no_anchor -> current
+2025,5,27,0,2025,5,no_anchor -> current
+2025,5,27,1,2025,6,day >= anchor -> next
+2025,5,27,2,2025,6,day >= anchor -> next
+2025,5,27,10,2025,6,day >= anchor -> next
+2025,5,27,15,2025,6,day >= anchor -> next
+2025,5,27,20,2025,6,day >= anchor -> next
+2025,5,27,28,2025,5,day < anchor -> current
+2025,5,27,29,2025,5,day < anchor -> current
+2025,5,27,30,2025,5,day < anchor -> current
+2025,5,27,31,2025,5,day < anchor -> current
+2025,5,28,None,2025,5,no_anchor -> current
+2025,5,28,0,2025,5,no_anchor -> current
+2025,5,28,1,2025,6,day >= anchor -> next
+2025,5,28,2,2025,6,day >= anchor -> next
+2025,5,28,10,2025,6,day >= anchor -> next
+2025,5,28,15,2025,6,day >= anchor -> next
+2025,5,28,20,2025,6,day >= anchor -> next
+2025,5,28,28,2025,6,day >= anchor -> next
+2025,5,28,29,2025,5,day < anchor -> current
+2025,5,28,30,2025,5,day < anchor -> current
+2025,5,28,31,2025,5,day < anchor -> current
+2025,5,29,None,2025,5,no_anchor -> current
+2025,5,29,0,2025,5,no_anchor -> current
+2025,5,29,1,2025,6,day >= anchor -> next
+2025,5,29,2,2025,6,day >= anchor -> next
+2025,5,29,10,2025,6,day >= anchor -> next
+2025,5,29,15,2025,6,day >= anchor -> next
+2025,5,29,20,2025,6,day >= anchor -> next
+2025,5,29,28,2025,6,day >= anchor -> next
+2025,5,29,29,2025,6,day >= anchor -> next
+2025,5,29,30,2025,5,day < anchor -> current
+2025,5,29,31,2025,5,day < anchor -> current
+2025,5,30,None,2025,5,no_anchor -> current
+2025,5,30,0,2025,5,no_anchor -> current
+2025,5,30,1,2025,6,day >= anchor -> next
+2025,5,30,2,2025,6,day >= anchor -> next
+2025,5,30,10,2025,6,day >= anchor -> next
+2025,5,30,15,2025,6,day >= anchor -> next
+2025,5,30,20,2025,6,day >= anchor -> next
+2025,5,30,28,2025,6,day >= anchor -> next
+2025,5,30,29,2025,6,day >= anchor -> next
+2025,5,30,30,2025,6,day >= anchor -> next
+2025,5,30,31,2025,5,day < anchor -> current
+2025,5,31,None,2025,5,no_anchor -> current
+2025,5,31,0,2025,5,no_anchor -> current
+2025,5,31,1,2025,6,day >= anchor -> next
+2025,5,31,2,2025,6,day >= anchor -> next
+2025,5,31,10,2025,6,day >= anchor -> next
+2025,5,31,15,2025,6,day >= anchor -> next
+2025,5,31,20,2025,6,day >= anchor -> next
+2025,5,31,28,2025,6,day >= anchor -> next
+2025,5,31,29,2025,6,day >= anchor -> next
+2025,5,31,30,2025,6,day >= anchor -> next
+2025,5,31,31,2025,6,day >= anchor -> next
+2025,6,1,None,2025,6,no_anchor -> current
+2025,6,1,0,2025,6,no_anchor -> current
+2025,6,1,1,2025,7,day >= anchor -> next
+2025,6,1,2,2025,6,day < anchor -> current
+2025,6,1,10,2025,6,day < anchor -> current
+2025,6,1,15,2025,6,day < anchor -> current
+2025,6,1,20,2025,6,day < anchor -> current
+2025,6,1,28,2025,6,day < anchor -> current
+2025,6,1,29,2025,6,day < anchor -> current
+2025,6,1,30,2025,6,day < anchor -> current
+2025,6,1,31,2025,6,day < anchor -> current
+2025,6,2,None,2025,6,no_anchor -> current
+2025,6,2,0,2025,6,no_anchor -> current
+2025,6,2,1,2025,7,day >= anchor -> next
+2025,6,2,2,2025,7,day >= anchor -> next
+2025,6,2,10,2025,6,day < anchor -> current
+2025,6,2,15,2025,6,day < anchor -> current
+2025,6,2,20,2025,6,day < anchor -> current
+2025,6,2,28,2025,6,day < anchor -> current
+2025,6,2,29,2025,6,day < anchor -> current
+2025,6,2,30,2025,6,day < anchor -> current
+2025,6,2,31,2025,6,day < anchor -> current
+2025,6,10,None,2025,6,no_anchor -> current
+2025,6,10,0,2025,6,no_anchor -> current
+2025,6,10,1,2025,7,day >= anchor -> next
+2025,6,10,2,2025,7,day >= anchor -> next
+2025,6,10,10,2025,7,day >= anchor -> next
+2025,6,10,15,2025,6,day < anchor -> current
+2025,6,10,20,2025,6,day < anchor -> current
+2025,6,10,28,2025,6,day < anchor -> current
+2025,6,10,29,2025,6,day < anchor -> current
+2025,6,10,30,2025,6,day < anchor -> current
+2025,6,10,31,2025,6,day < anchor -> current
+2025,6,14,None,2025,6,no_anchor -> current
+2025,6,14,0,2025,6,no_anchor -> current
+2025,6,14,1,2025,7,day >= anchor -> next
+2025,6,14,2,2025,7,day >= anchor -> next
+2025,6,14,10,2025,7,day >= anchor -> next
+2025,6,14,15,2025,6,day < anchor -> current
+2025,6,14,20,2025,6,day < anchor -> current
+2025,6,14,28,2025,6,day < anchor -> current
+2025,6,14,29,2025,6,day < anchor -> current
+2025,6,14,30,2025,6,day < anchor -> current
+2025,6,14,31,2025,6,day < anchor -> current
+2025,6,15,None,2025,6,no_anchor -> current
+2025,6,15,0,2025,6,no_anchor -> current
+2025,6,15,1,2025,7,day >= anchor -> next
+2025,6,15,2,2025,7,day >= anchor -> next
+2025,6,15,10,2025,7,day >= anchor -> next
+2025,6,15,15,2025,7,day >= anchor -> next
+2025,6,15,20,2025,6,day < anchor -> current
+2025,6,15,28,2025,6,day < anchor -> current
+2025,6,15,29,2025,6,day < anchor -> current
+2025,6,15,30,2025,6,day < anchor -> current
+2025,6,15,31,2025,6,day < anchor -> current
+2025,6,20,None,2025,6,no_anchor -> current
+2025,6,20,0,2025,6,no_anchor -> current
+2025,6,20,1,2025,7,day >= anchor -> next
+2025,6,20,2,2025,7,day >= anchor -> next
+2025,6,20,10,2025,7,day >= anchor -> next
+2025,6,20,15,2025,7,day >= anchor -> next
+2025,6,20,20,2025,7,day >= anchor -> next
+2025,6,20,28,2025,6,day < anchor -> current
+2025,6,20,29,2025,6,day < anchor -> current
+2025,6,20,30,2025,6,day < anchor -> current
+2025,6,20,31,2025,6,day < anchor -> current
+2025,6,27,None,2025,6,no_anchor -> current
+2025,6,27,0,2025,6,no_anchor -> current
+2025,6,27,1,2025,7,day >= anchor -> next
+2025,6,27,2,2025,7,day >= anchor -> next
+2025,6,27,10,2025,7,day >= anchor -> next
+2025,6,27,15,2025,7,day >= anchor -> next
+2025,6,27,20,2025,7,day >= anchor -> next
+2025,6,27,28,2025,6,day < anchor -> current
+2025,6,27,29,2025,6,day < anchor -> current
+2025,6,27,30,2025,6,day < anchor -> current
+2025,6,27,31,2025,6,day < anchor -> current
+2025,6,28,None,2025,6,no_anchor -> current
+2025,6,28,0,2025,6,no_anchor -> current
+2025,6,28,1,2025,7,day >= anchor -> next
+2025,6,28,2,2025,7,day >= anchor -> next
+2025,6,28,10,2025,7,day >= anchor -> next
+2025,6,28,15,2025,7,day >= anchor -> next
+2025,6,28,20,2025,7,day >= anchor -> next
+2025,6,28,28,2025,7,day >= anchor -> next
+2025,6,28,29,2025,6,day < anchor -> current
+2025,6,28,30,2025,6,day < anchor -> current
+2025,6,28,31,2025,6,day < anchor -> current
+2025,6,29,None,2025,6,no_anchor -> current
+2025,6,29,0,2025,6,no_anchor -> current
+2025,6,29,1,2025,7,day >= anchor -> next
+2025,6,29,2,2025,7,day >= anchor -> next
+2025,6,29,10,2025,7,day >= anchor -> next
+2025,6,29,15,2025,7,day >= anchor -> next
+2025,6,29,20,2025,7,day >= anchor -> next
+2025,6,29,28,2025,7,day >= anchor -> next
+2025,6,29,29,2025,7,day >= anchor -> next
+2025,6,29,30,2025,6,day < anchor -> current
+2025,6,29,31,2025,6,day < anchor -> current
+2025,6,30,None,2025,6,no_anchor -> current
+2025,6,30,0,2025,6,no_anchor -> current
+2025,6,30,1,2025,7,day >= anchor -> next
+2025,6,30,2,2025,7,day >= anchor -> next
+2025,6,30,10,2025,7,day >= anchor -> next
+2025,6,30,15,2025,7,day >= anchor -> next
+2025,6,30,20,2025,7,day >= anchor -> next
+2025,6,30,28,2025,7,day >= anchor -> next
+2025,6,30,29,2025,7,day >= anchor -> next
+2025,6,30,30,2025,7,day >= anchor -> next
+2025,6,30,31,2025,6,day < anchor -> current
+2025,7,1,None,2025,7,no_anchor -> current
+2025,7,1,0,2025,7,no_anchor -> current
+2025,7,1,1,2025,8,day >= anchor -> next
+2025,7,1,2,2025,7,day < anchor -> current
+2025,7,1,10,2025,7,day < anchor -> current
+2025,7,1,15,2025,7,day < anchor -> current
+2025,7,1,20,2025,7,day < anchor -> current
+2025,7,1,28,2025,7,day < anchor -> current
+2025,7,1,29,2025,7,day < anchor -> current
+2025,7,1,30,2025,7,day < anchor -> current
+2025,7,1,31,2025,7,day < anchor -> current
+2025,7,2,None,2025,7,no_anchor -> current
+2025,7,2,0,2025,7,no_anchor -> current
+2025,7,2,1,2025,8,day >= anchor -> next
+2025,7,2,2,2025,8,day >= anchor -> next
+2025,7,2,10,2025,7,day < anchor -> current
+2025,7,2,15,2025,7,day < anchor -> current
+2025,7,2,20,2025,7,day < anchor -> current
+2025,7,2,28,2025,7,day < anchor -> current
+2025,7,2,29,2025,7,day < anchor -> current
+2025,7,2,30,2025,7,day < anchor -> current
+2025,7,2,31,2025,7,day < anchor -> current
+2025,7,10,None,2025,7,no_anchor -> current
+2025,7,10,0,2025,7,no_anchor -> current
+2025,7,10,1,2025,8,day >= anchor -> next
+2025,7,10,2,2025,8,day >= anchor -> next
+2025,7,10,10,2025,8,day >= anchor -> next
+2025,7,10,15,2025,7,day < anchor -> current
+2025,7,10,20,2025,7,day < anchor -> current
+2025,7,10,28,2025,7,day < anchor -> current
+2025,7,10,29,2025,7,day < anchor -> current
+2025,7,10,30,2025,7,day < anchor -> current
+2025,7,10,31,2025,7,day < anchor -> current
+2025,7,14,None,2025,7,no_anchor -> current
+2025,7,14,0,2025,7,no_anchor -> current
+2025,7,14,1,2025,8,day >= anchor -> next
+2025,7,14,2,2025,8,day >= anchor -> next
+2025,7,14,10,2025,8,day >= anchor -> next
+2025,7,14,15,2025,7,day < anchor -> current
+2025,7,14,20,2025,7,day < anchor -> current
+2025,7,14,28,2025,7,day < anchor -> current
+2025,7,14,29,2025,7,day < anchor -> current
+2025,7,14,30,2025,7,day < anchor -> current
+2025,7,14,31,2025,7,day < anchor -> current
+2025,7,15,None,2025,7,no_anchor -> current
+2025,7,15,0,2025,7,no_anchor -> current
+2025,7,15,1,2025,8,day >= anchor -> next
+2025,7,15,2,2025,8,day >= anchor -> next
+2025,7,15,10,2025,8,day >= anchor -> next
+2025,7,15,15,2025,8,day >= anchor -> next
+2025,7,15,20,2025,7,day < anchor -> current
+2025,7,15,28,2025,7,day < anchor -> current
+2025,7,15,29,2025,7,day < anchor -> current
+2025,7,15,30,2025,7,day < anchor -> current
+2025,7,15,31,2025,7,day < anchor -> current
+2025,7,20,None,2025,7,no_anchor -> current
+2025,7,20,0,2025,7,no_anchor -> current
+2025,7,20,1,2025,8,day >= anchor -> next
+2025,7,20,2,2025,8,day >= anchor -> next
+2025,7,20,10,2025,8,day >= anchor -> next
+2025,7,20,15,2025,8,day >= anchor -> next
+2025,7,20,20,2025,8,day >= anchor -> next
+2025,7,20,28,2025,7,day < anchor -> current
+2025,7,20,29,2025,7,day < anchor -> current
+2025,7,20,30,2025,7,day < anchor -> current
+2025,7,20,31,2025,7,day < anchor -> current
+2025,7,27,None,2025,7,no_anchor -> current
+2025,7,27,0,2025,7,no_anchor -> current
+2025,7,27,1,2025,8,day >= anchor -> next
+2025,7,27,2,2025,8,day >= anchor -> next
+2025,7,27,10,2025,8,day >= anchor -> next
+2025,7,27,15,2025,8,day >= anchor -> next
+2025,7,27,20,2025,8,day >= anchor -> next
+2025,7,27,28,2025,7,day < anchor -> current
+2025,7,27,29,2025,7,day < anchor -> current
+2025,7,27,30,2025,7,day < anchor -> current
+2025,7,27,31,2025,7,day < anchor -> current
+2025,7,28,None,2025,7,no_anchor -> current
+2025,7,28,0,2025,7,no_anchor -> current
+2025,7,28,1,2025,8,day >= anchor -> next
+2025,7,28,2,2025,8,day >= anchor -> next
+2025,7,28,10,2025,8,day >= anchor -> next
+2025,7,28,15,2025,8,day >= anchor -> next
+2025,7,28,20,2025,8,day >= anchor -> next
+2025,7,28,28,2025,8,day >= anchor -> next
+2025,7,28,29,2025,7,day < anchor -> current
+2025,7,28,30,2025,7,day < anchor -> current
+2025,7,28,31,2025,7,day < anchor -> current
+2025,7,29,None,2025,7,no_anchor -> current
+2025,7,29,0,2025,7,no_anchor -> current
+2025,7,29,1,2025,8,day >= anchor -> next
+2025,7,29,2,2025,8,day >= anchor -> next
+2025,7,29,10,2025,8,day >= anchor -> next
+2025,7,29,15,2025,8,day >= anchor -> next
+2025,7,29,20,2025,8,day >= anchor -> next
+2025,7,29,28,2025,8,day >= anchor -> next
+2025,7,29,29,2025,8,day >= anchor -> next
+2025,7,29,30,2025,7,day < anchor -> current
+2025,7,29,31,2025,7,day < anchor -> current
+2025,7,30,None,2025,7,no_anchor -> current
+2025,7,30,0,2025,7,no_anchor -> current
+2025,7,30,1,2025,8,day >= anchor -> next
+2025,7,30,2,2025,8,day >= anchor -> next
+2025,7,30,10,2025,8,day >= anchor -> next
+2025,7,30,15,2025,8,day >= anchor -> next
+2025,7,30,20,2025,8,day >= anchor -> next
+2025,7,30,28,2025,8,day >= anchor -> next
+2025,7,30,29,2025,8,day >= anchor -> next
+2025,7,30,30,2025,8,day >= anchor -> next
+2025,7,30,31,2025,7,day < anchor -> current
+2025,7,31,None,2025,7,no_anchor -> current
+2025,7,31,0,2025,7,no_anchor -> current
+2025,7,31,1,2025,8,day >= anchor -> next
+2025,7,31,2,2025,8,day >= anchor -> next
+2025,7,31,10,2025,8,day >= anchor -> next
+2025,7,31,15,2025,8,day >= anchor -> next
+2025,7,31,20,2025,8,day >= anchor -> next
+2025,7,31,28,2025,8,day >= anchor -> next
+2025,7,31,29,2025,8,day >= anchor -> next
+2025,7,31,30,2025,8,day >= anchor -> next
+2025,7,31,31,2025,8,day >= anchor -> next
+2025,8,1,None,2025,8,no_anchor -> current
+2025,8,1,0,2025,8,no_anchor -> current
+2025,8,1,1,2025,9,day >= anchor -> next
+2025,8,1,2,2025,8,day < anchor -> current
+2025,8,1,10,2025,8,day < anchor -> current
+2025,8,1,15,2025,8,day < anchor -> current
+2025,8,1,20,2025,8,day < anchor -> current
+2025,8,1,28,2025,8,day < anchor -> current
+2025,8,1,29,2025,8,day < anchor -> current
+2025,8,1,30,2025,8,day < anchor -> current
+2025,8,1,31,2025,8,day < anchor -> current
+2025,8,2,None,2025,8,no_anchor -> current
+2025,8,2,0,2025,8,no_anchor -> current
+2025,8,2,1,2025,9,day >= anchor -> next
+2025,8,2,2,2025,9,day >= anchor -> next
+2025,8,2,10,2025,8,day < anchor -> current
+2025,8,2,15,2025,8,day < anchor -> current
+2025,8,2,20,2025,8,day < anchor -> current
+2025,8,2,28,2025,8,day < anchor -> current
+2025,8,2,29,2025,8,day < anchor -> current
+2025,8,2,30,2025,8,day < anchor -> current
+2025,8,2,31,2025,8,day < anchor -> current
+2025,8,10,None,2025,8,no_anchor -> current
+2025,8,10,0,2025,8,no_anchor -> current
+2025,8,10,1,2025,9,day >= anchor -> next
+2025,8,10,2,2025,9,day >= anchor -> next
+2025,8,10,10,2025,9,day >= anchor -> next
+2025,8,10,15,2025,8,day < anchor -> current
+2025,8,10,20,2025,8,day < anchor -> current
+2025,8,10,28,2025,8,day < anchor -> current
+2025,8,10,29,2025,8,day < anchor -> current
+2025,8,10,30,2025,8,day < anchor -> current
+2025,8,10,31,2025,8,day < anchor -> current
+2025,8,14,None,2025,8,no_anchor -> current
+2025,8,14,0,2025,8,no_anchor -> current
+2025,8,14,1,2025,9,day >= anchor -> next
+2025,8,14,2,2025,9,day >= anchor -> next
+2025,8,14,10,2025,9,day >= anchor -> next
+2025,8,14,15,2025,8,day < anchor -> current
+2025,8,14,20,2025,8,day < anchor -> current
+2025,8,14,28,2025,8,day < anchor -> current
+2025,8,14,29,2025,8,day < anchor -> current
+2025,8,14,30,2025,8,day < anchor -> current
+2025,8,14,31,2025,8,day < anchor -> current
+2025,8,15,None,2025,8,no_anchor -> current
+2025,8,15,0,2025,8,no_anchor -> current
+2025,8,15,1,2025,9,day >= anchor -> next
+2025,8,15,2,2025,9,day >= anchor -> next
+2025,8,15,10,2025,9,day >= anchor -> next
+2025,8,15,15,2025,9,day >= anchor -> next
+2025,8,15,20,2025,8,day < anchor -> current
+2025,8,15,28,2025,8,day < anchor -> current
+2025,8,15,29,2025,8,day < anchor -> current
+2025,8,15,30,2025,8,day < anchor -> current
+2025,8,15,31,2025,8,day < anchor -> current
+2025,8,20,None,2025,8,no_anchor -> current
+2025,8,20,0,2025,8,no_anchor -> current
+2025,8,20,1,2025,9,day >= anchor -> next
+2025,8,20,2,2025,9,day >= anchor -> next
+2025,8,20,10,2025,9,day >= anchor -> next
+2025,8,20,15,2025,9,day >= anchor -> next
+2025,8,20,20,2025,9,day >= anchor -> next
+2025,8,20,28,2025,8,day < anchor -> current
+2025,8,20,29,2025,8,day < anchor -> current
+2025,8,20,30,2025,8,day < anchor -> current
+2025,8,20,31,2025,8,day < anchor -> current
+2025,8,27,None,2025,8,no_anchor -> current
+2025,8,27,0,2025,8,no_anchor -> current
+2025,8,27,1,2025,9,day >= anchor -> next
+2025,8,27,2,2025,9,day >= anchor -> next
+2025,8,27,10,2025,9,day >= anchor -> next
+2025,8,27,15,2025,9,day >= anchor -> next
+2025,8,27,20,2025,9,day >= anchor -> next
+2025,8,27,28,2025,8,day < anchor -> current
+2025,8,27,29,2025,8,day < anchor -> current
+2025,8,27,30,2025,8,day < anchor -> current
+2025,8,27,31,2025,8,day < anchor -> current
+2025,8,28,None,2025,8,no_anchor -> current
+2025,8,28,0,2025,8,no_anchor -> current
+2025,8,28,1,2025,9,day >= anchor -> next
+2025,8,28,2,2025,9,day >= anchor -> next
+2025,8,28,10,2025,9,day >= anchor -> next
+2025,8,28,15,2025,9,day >= anchor -> next
+2025,8,28,20,2025,9,day >= anchor -> next
+2025,8,28,28,2025,9,day >= anchor -> next
+2025,8,28,29,2025,8,day < anchor -> current
+2025,8,28,30,2025,8,day < anchor -> current
+2025,8,28,31,2025,8,day < anchor -> current
+2025,8,29,None,2025,8,no_anchor -> current
+2025,8,29,0,2025,8,no_anchor -> current
+2025,8,29,1,2025,9,day >= anchor -> next
+2025,8,29,2,2025,9,day >= anchor -> next
+2025,8,29,10,2025,9,day >= anchor -> next
+2025,8,29,15,2025,9,day >= anchor -> next
+2025,8,29,20,2025,9,day >= anchor -> next
+2025,8,29,28,2025,9,day >= anchor -> next
+2025,8,29,29,2025,9,day >= anchor -> next
+2025,8,29,30,2025,8,day < anchor -> current
+2025,8,29,31,2025,8,day < anchor -> current
+2025,8,30,None,2025,8,no_anchor -> current
+2025,8,30,0,2025,8,no_anchor -> current
+2025,8,30,1,2025,9,day >= anchor -> next
+2025,8,30,2,2025,9,day >= anchor -> next
+2025,8,30,10,2025,9,day >= anchor -> next
+2025,8,30,15,2025,9,day >= anchor -> next
+2025,8,30,20,2025,9,day >= anchor -> next
+2025,8,30,28,2025,9,day >= anchor -> next
+2025,8,30,29,2025,9,day >= anchor -> next
+2025,8,30,30,2025,9,day >= anchor -> next
+2025,8,30,31,2025,8,day < anchor -> current
+2025,8,31,None,2025,8,no_anchor -> current
+2025,8,31,0,2025,8,no_anchor -> current
+2025,8,31,1,2025,9,day >= anchor -> next
+2025,8,31,2,2025,9,day >= anchor -> next
+2025,8,31,10,2025,9,day >= anchor -> next
+2025,8,31,15,2025,9,day >= anchor -> next
+2025,8,31,20,2025,9,day >= anchor -> next
+2025,8,31,28,2025,9,day >= anchor -> next
+2025,8,31,29,2025,9,day >= anchor -> next
+2025,8,31,30,2025,9,day >= anchor -> next
+2025,8,31,31,2025,9,day >= anchor -> next
+2025,9,1,None,2025,9,no_anchor -> current
+2025,9,1,0,2025,9,no_anchor -> current
+2025,9,1,1,2025,10,day >= anchor -> next
+2025,9,1,2,2025,9,day < anchor -> current
+2025,9,1,10,2025,9,day < anchor -> current
+2025,9,1,15,2025,9,day < anchor -> current
+2025,9,1,20,2025,9,day < anchor -> current
+2025,9,1,28,2025,9,day < anchor -> current
+2025,9,1,29,2025,9,day < anchor -> current
+2025,9,1,30,2025,9,day < anchor -> current
+2025,9,1,31,2025,9,day < anchor -> current
+2025,9,2,None,2025,9,no_anchor -> current
+2025,9,2,0,2025,9,no_anchor -> current
+2025,9,2,1,2025,10,day >= anchor -> next
+2025,9,2,2,2025,10,day >= anchor -> next
+2025,9,2,10,2025,9,day < anchor -> current
+2025,9,2,15,2025,9,day < anchor -> current
+2025,9,2,20,2025,9,day < anchor -> current
+2025,9,2,28,2025,9,day < anchor -> current
+2025,9,2,29,2025,9,day < anchor -> current
+2025,9,2,30,2025,9,day < anchor -> current
+2025,9,2,31,2025,9,day < anchor -> current
+2025,9,10,None,2025,9,no_anchor -> current
+2025,9,10,0,2025,9,no_anchor -> current
+2025,9,10,1,2025,10,day >= anchor -> next
+2025,9,10,2,2025,10,day >= anchor -> next
+2025,9,10,10,2025,10,day >= anchor -> next
+2025,9,10,15,2025,9,day < anchor -> current
+2025,9,10,20,2025,9,day < anchor -> current
+2025,9,10,28,2025,9,day < anchor -> current
+2025,9,10,29,2025,9,day < anchor -> current
+2025,9,10,30,2025,9,day < anchor -> current
+2025,9,10,31,2025,9,day < anchor -> current
+2025,9,14,None,2025,9,no_anchor -> current
+2025,9,14,0,2025,9,no_anchor -> current
+2025,9,14,1,2025,10,day >= anchor -> next
+2025,9,14,2,2025,10,day >= anchor -> next
+2025,9,14,10,2025,10,day >= anchor -> next
+2025,9,14,15,2025,9,day < anchor -> current
+2025,9,14,20,2025,9,day < anchor -> current
+2025,9,14,28,2025,9,day < anchor -> current
+2025,9,14,29,2025,9,day < anchor -> current
+2025,9,14,30,2025,9,day < anchor -> current
+2025,9,14,31,2025,9,day < anchor -> current
+2025,9,15,None,2025,9,no_anchor -> current
+2025,9,15,0,2025,9,no_anchor -> current
+2025,9,15,1,2025,10,day >= anchor -> next
+2025,9,15,2,2025,10,day >= anchor -> next
+2025,9,15,10,2025,10,day >= anchor -> next
+2025,9,15,15,2025,10,day >= anchor -> next
+2025,9,15,20,2025,9,day < anchor -> current
+2025,9,15,28,2025,9,day < anchor -> current
+2025,9,15,29,2025,9,day < anchor -> current
+2025,9,15,30,2025,9,day < anchor -> current
+2025,9,15,31,2025,9,day < anchor -> current
+2025,9,20,None,2025,9,no_anchor -> current
+2025,9,20,0,2025,9,no_anchor -> current
+2025,9,20,1,2025,10,day >= anchor -> next
+2025,9,20,2,2025,10,day >= anchor -> next
+2025,9,20,10,2025,10,day >= anchor -> next
+2025,9,20,15,2025,10,day >= anchor -> next
+2025,9,20,20,2025,10,day >= anchor -> next
+2025,9,20,28,2025,9,day < anchor -> current
+2025,9,20,29,2025,9,day < anchor -> current
+2025,9,20,30,2025,9,day < anchor -> current
+2025,9,20,31,2025,9,day < anchor -> current
+2025,9,27,None,2025,9,no_anchor -> current
+2025,9,27,0,2025,9,no_anchor -> current
+2025,9,27,1,2025,10,day >= anchor -> next
+2025,9,27,2,2025,10,day >= anchor -> next
+2025,9,27,10,2025,10,day >= anchor -> next
+2025,9,27,15,2025,10,day >= anchor -> next
+2025,9,27,20,2025,10,day >= anchor -> next
+2025,9,27,28,2025,9,day < anchor -> current
+2025,9,27,29,2025,9,day < anchor -> current
+2025,9,27,30,2025,9,day < anchor -> current
+2025,9,27,31,2025,9,day < anchor -> current
+2025,9,28,None,2025,9,no_anchor -> current
+2025,9,28,0,2025,9,no_anchor -> current
+2025,9,28,1,2025,10,day >= anchor -> next
+2025,9,28,2,2025,10,day >= anchor -> next
+2025,9,28,10,2025,10,day >= anchor -> next
+2025,9,28,15,2025,10,day >= anchor -> next
+2025,9,28,20,2025,10,day >= anchor -> next
+2025,9,28,28,2025,10,day >= anchor -> next
+2025,9,28,29,2025,9,day < anchor -> current
+2025,9,28,30,2025,9,day < anchor -> current
+2025,9,28,31,2025,9,day < anchor -> current
+2025,9,29,None,2025,9,no_anchor -> current
+2025,9,29,0,2025,9,no_anchor -> current
+2025,9,29,1,2025,10,day >= anchor -> next
+2025,9,29,2,2025,10,day >= anchor -> next
+2025,9,29,10,2025,10,day >= anchor -> next
+2025,9,29,15,2025,10,day >= anchor -> next
+2025,9,29,20,2025,10,day >= anchor -> next
+2025,9,29,28,2025,10,day >= anchor -> next
+2025,9,29,29,2025,10,day >= anchor -> next
+2025,9,29,30,2025,9,day < anchor -> current
+2025,9,29,31,2025,9,day < anchor -> current
+2025,9,30,None,2025,9,no_anchor -> current
+2025,9,30,0,2025,9,no_anchor -> current
+2025,9,30,1,2025,10,day >= anchor -> next
+2025,9,30,2,2025,10,day >= anchor -> next
+2025,9,30,10,2025,10,day >= anchor -> next
+2025,9,30,15,2025,10,day >= anchor -> next
+2025,9,30,20,2025,10,day >= anchor -> next
+2025,9,30,28,2025,10,day >= anchor -> next
+2025,9,30,29,2025,10,day >= anchor -> next
+2025,9,30,30,2025,10,day >= anchor -> next
+2025,9,30,31,2025,9,day < anchor -> current
+2025,10,1,None,2025,10,no_anchor -> current
+2025,10,1,0,2025,10,no_anchor -> current
+2025,10,1,1,2025,11,day >= anchor -> next
+2025,10,1,2,2025,10,day < anchor -> current
+2025,10,1,10,2025,10,day < anchor -> current
+2025,10,1,15,2025,10,day < anchor -> current
+2025,10,1,20,2025,10,day < anchor -> current
+2025,10,1,28,2025,10,day < anchor -> current
+2025,10,1,29,2025,10,day < anchor -> current
+2025,10,1,30,2025,10,day < anchor -> current
+2025,10,1,31,2025,10,day < anchor -> current
+2025,10,2,None,2025,10,no_anchor -> current
+2025,10,2,0,2025,10,no_anchor -> current
+2025,10,2,1,2025,11,day >= anchor -> next
+2025,10,2,2,2025,11,day >= anchor -> next
+2025,10,2,10,2025,10,day < anchor -> current
+2025,10,2,15,2025,10,day < anchor -> current
+2025,10,2,20,2025,10,day < anchor -> current
+2025,10,2,28,2025,10,day < anchor -> current
+2025,10,2,29,2025,10,day < anchor -> current
+2025,10,2,30,2025,10,day < anchor -> current
+2025,10,2,31,2025,10,day < anchor -> current
+2025,10,10,None,2025,10,no_anchor -> current
+2025,10,10,0,2025,10,no_anchor -> current
+2025,10,10,1,2025,11,day >= anchor -> next
+2025,10,10,2,2025,11,day >= anchor -> next
+2025,10,10,10,2025,11,day >= anchor -> next
+2025,10,10,15,2025,10,day < anchor -> current
+2025,10,10,20,2025,10,day < anchor -> current
+2025,10,10,28,2025,10,day < anchor -> current
+2025,10,10,29,2025,10,day < anchor -> current
+2025,10,10,30,2025,10,day < anchor -> current
+2025,10,10,31,2025,10,day < anchor -> current
+2025,10,14,None,2025,10,no_anchor -> current
+2025,10,14,0,2025,10,no_anchor -> current
+2025,10,14,1,2025,11,day >= anchor -> next
+2025,10,14,2,2025,11,day >= anchor -> next
+2025,10,14,10,2025,11,day >= anchor -> next
+2025,10,14,15,2025,10,day < anchor -> current
+2025,10,14,20,2025,10,day < anchor -> current
+2025,10,14,28,2025,10,day < anchor -> current
+2025,10,14,29,2025,10,day < anchor -> current
+2025,10,14,30,2025,10,day < anchor -> current
+2025,10,14,31,2025,10,day < anchor -> current
+2025,10,15,None,2025,10,no_anchor -> current
+2025,10,15,0,2025,10,no_anchor -> current
+2025,10,15,1,2025,11,day >= anchor -> next
+2025,10,15,2,2025,11,day >= anchor -> next
+2025,10,15,10,2025,11,day >= anchor -> next
+2025,10,15,15,2025,11,day >= anchor -> next
+2025,10,15,20,2025,10,day < anchor -> current
+2025,10,15,28,2025,10,day < anchor -> current
+2025,10,15,29,2025,10,day < anchor -> current
+2025,10,15,30,2025,10,day < anchor -> current
+2025,10,15,31,2025,10,day < anchor -> current
+2025,10,20,None,2025,10,no_anchor -> current
+2025,10,20,0,2025,10,no_anchor -> current
+2025,10,20,1,2025,11,day >= anchor -> next
+2025,10,20,2,2025,11,day >= anchor -> next
+2025,10,20,10,2025,11,day >= anchor -> next
+2025,10,20,15,2025,11,day >= anchor -> next
+2025,10,20,20,2025,11,day >= anchor -> next
+2025,10,20,28,2025,10,day < anchor -> current
+2025,10,20,29,2025,10,day < anchor -> current
+2025,10,20,30,2025,10,day < anchor -> current
+2025,10,20,31,2025,10,day < anchor -> current
+2025,10,27,None,2025,10,no_anchor -> current
+2025,10,27,0,2025,10,no_anchor -> current
+2025,10,27,1,2025,11,day >= anchor -> next
+2025,10,27,2,2025,11,day >= anchor -> next
+2025,10,27,10,2025,11,day >= anchor -> next
+2025,10,27,15,2025,11,day >= anchor -> next
+2025,10,27,20,2025,11,day >= anchor -> next
+2025,10,27,28,2025,10,day < anchor -> current
+2025,10,27,29,2025,10,day < anchor -> current
+2025,10,27,30,2025,10,day < anchor -> current
+2025,10,27,31,2025,10,day < anchor -> current
+2025,10,28,None,2025,10,no_anchor -> current
+2025,10,28,0,2025,10,no_anchor -> current
+2025,10,28,1,2025,11,day >= anchor -> next
+2025,10,28,2,2025,11,day >= anchor -> next
+2025,10,28,10,2025,11,day >= anchor -> next
+2025,10,28,15,2025,11,day >= anchor -> next
+2025,10,28,20,2025,11,day >= anchor -> next
+2025,10,28,28,2025,11,day >= anchor -> next
+2025,10,28,29,2025,10,day < anchor -> current
+2025,10,28,30,2025,10,day < anchor -> current
+2025,10,28,31,2025,10,day < anchor -> current
+2025,10,29,None,2025,10,no_anchor -> current
+2025,10,29,0,2025,10,no_anchor -> current
+2025,10,29,1,2025,11,day >= anchor -> next
+2025,10,29,2,2025,11,day >= anchor -> next
+2025,10,29,10,2025,11,day >= anchor -> next
+2025,10,29,15,2025,11,day >= anchor -> next
+2025,10,29,20,2025,11,day >= anchor -> next
+2025,10,29,28,2025,11,day >= anchor -> next
+2025,10,29,29,2025,11,day >= anchor -> next
+2025,10,29,30,2025,10,day < anchor -> current
+2025,10,29,31,2025,10,day < anchor -> current
+2025,10,30,None,2025,10,no_anchor -> current
+2025,10,30,0,2025,10,no_anchor -> current
+2025,10,30,1,2025,11,day >= anchor -> next
+2025,10,30,2,2025,11,day >= anchor -> next
+2025,10,30,10,2025,11,day >= anchor -> next
+2025,10,30,15,2025,11,day >= anchor -> next
+2025,10,30,20,2025,11,day >= anchor -> next
+2025,10,30,28,2025,11,day >= anchor -> next
+2025,10,30,29,2025,11,day >= anchor -> next
+2025,10,30,30,2025,11,day >= anchor -> next
+2025,10,30,31,2025,10,day < anchor -> current
+2025,10,31,None,2025,10,no_anchor -> current
+2025,10,31,0,2025,10,no_anchor -> current
+2025,10,31,1,2025,11,day >= anchor -> next
+2025,10,31,2,2025,11,day >= anchor -> next
+2025,10,31,10,2025,11,day >= anchor -> next
+2025,10,31,15,2025,11,day >= anchor -> next
+2025,10,31,20,2025,11,day >= anchor -> next
+2025,10,31,28,2025,11,day >= anchor -> next
+2025,10,31,29,2025,11,day >= anchor -> next
+2025,10,31,30,2025,11,day >= anchor -> next
+2025,10,31,31,2025,11,day >= anchor -> next
+2025,11,1,None,2025,11,no_anchor -> current
+2025,11,1,0,2025,11,no_anchor -> current
+2025,11,1,1,2025,12,day >= anchor -> next
+2025,11,1,2,2025,11,day < anchor -> current
+2025,11,1,10,2025,11,day < anchor -> current
+2025,11,1,15,2025,11,day < anchor -> current
+2025,11,1,20,2025,11,day < anchor -> current
+2025,11,1,28,2025,11,day < anchor -> current
+2025,11,1,29,2025,11,day < anchor -> current
+2025,11,1,30,2025,11,day < anchor -> current
+2025,11,1,31,2025,11,day < anchor -> current
+2025,11,2,None,2025,11,no_anchor -> current
+2025,11,2,0,2025,11,no_anchor -> current
+2025,11,2,1,2025,12,day >= anchor -> next
+2025,11,2,2,2025,12,day >= anchor -> next
+2025,11,2,10,2025,11,day < anchor -> current
+2025,11,2,15,2025,11,day < anchor -> current
+2025,11,2,20,2025,11,day < anchor -> current
+2025,11,2,28,2025,11,day < anchor -> current
+2025,11,2,29,2025,11,day < anchor -> current
+2025,11,2,30,2025,11,day < anchor -> current
+2025,11,2,31,2025,11,day < anchor -> current
+2025,11,10,None,2025,11,no_anchor -> current
+2025,11,10,0,2025,11,no_anchor -> current
+2025,11,10,1,2025,12,day >= anchor -> next
+2025,11,10,2,2025,12,day >= anchor -> next
+2025,11,10,10,2025,12,day >= anchor -> next
+2025,11,10,15,2025,11,day < anchor -> current
+2025,11,10,20,2025,11,day < anchor -> current
+2025,11,10,28,2025,11,day < anchor -> current
+2025,11,10,29,2025,11,day < anchor -> current
+2025,11,10,30,2025,11,day < anchor -> current
+2025,11,10,31,2025,11,day < anchor -> current
+2025,11,14,None,2025,11,no_anchor -> current
+2025,11,14,0,2025,11,no_anchor -> current
+2025,11,14,1,2025,12,day >= anchor -> next
+2025,11,14,2,2025,12,day >= anchor -> next
+2025,11,14,10,2025,12,day >= anchor -> next
+2025,11,14,15,2025,11,day < anchor -> current
+2025,11,14,20,2025,11,day < anchor -> current
+2025,11,14,28,2025,11,day < anchor -> current
+2025,11,14,29,2025,11,day < anchor -> current
+2025,11,14,30,2025,11,day < anchor -> current
+2025,11,14,31,2025,11,day < anchor -> current
+2025,11,15,None,2025,11,no_anchor -> current
+2025,11,15,0,2025,11,no_anchor -> current
+2025,11,15,1,2025,12,day >= anchor -> next
+2025,11,15,2,2025,12,day >= anchor -> next
+2025,11,15,10,2025,12,day >= anchor -> next
+2025,11,15,15,2025,12,day >= anchor -> next
+2025,11,15,20,2025,11,day < anchor -> current
+2025,11,15,28,2025,11,day < anchor -> current
+2025,11,15,29,2025,11,day < anchor -> current
+2025,11,15,30,2025,11,day < anchor -> current
+2025,11,15,31,2025,11,day < anchor -> current
+2025,11,20,None,2025,11,no_anchor -> current
+2025,11,20,0,2025,11,no_anchor -> current
+2025,11,20,1,2025,12,day >= anchor -> next
+2025,11,20,2,2025,12,day >= anchor -> next
+2025,11,20,10,2025,12,day >= anchor -> next
+2025,11,20,15,2025,12,day >= anchor -> next
+2025,11,20,20,2025,12,day >= anchor -> next
+2025,11,20,28,2025,11,day < anchor -> current
+2025,11,20,29,2025,11,day < anchor -> current
+2025,11,20,30,2025,11,day < anchor -> current
+2025,11,20,31,2025,11,day < anchor -> current
+2025,11,27,None,2025,11,no_anchor -> current
+2025,11,27,0,2025,11,no_anchor -> current
+2025,11,27,1,2025,12,day >= anchor -> next
+2025,11,27,2,2025,12,day >= anchor -> next
+2025,11,27,10,2025,12,day >= anchor -> next
+2025,11,27,15,2025,12,day >= anchor -> next
+2025,11,27,20,2025,12,day >= anchor -> next
+2025,11,27,28,2025,11,day < anchor -> current
+2025,11,27,29,2025,11,day < anchor -> current
+2025,11,27,30,2025,11,day < anchor -> current
+2025,11,27,31,2025,11,day < anchor -> current
+2025,11,28,None,2025,11,no_anchor -> current
+2025,11,28,0,2025,11,no_anchor -> current
+2025,11,28,1,2025,12,day >= anchor -> next
+2025,11,28,2,2025,12,day >= anchor -> next
+2025,11,28,10,2025,12,day >= anchor -> next
+2025,11,28,15,2025,12,day >= anchor -> next
+2025,11,28,20,2025,12,day >= anchor -> next
+2025,11,28,28,2025,12,day >= anchor -> next
+2025,11,28,29,2025,11,day < anchor -> current
+2025,11,28,30,2025,11,day < anchor -> current
+2025,11,28,31,2025,11,day < anchor -> current
+2025,11,29,None,2025,11,no_anchor -> current
+2025,11,29,0,2025,11,no_anchor -> current
+2025,11,29,1,2025,12,day >= anchor -> next
+2025,11,29,2,2025,12,day >= anchor -> next
+2025,11,29,10,2025,12,day >= anchor -> next
+2025,11,29,15,2025,12,day >= anchor -> next
+2025,11,29,20,2025,12,day >= anchor -> next
+2025,11,29,28,2025,12,day >= anchor -> next
+2025,11,29,29,2025,12,day >= anchor -> next
+2025,11,29,30,2025,11,day < anchor -> current
+2025,11,29,31,2025,11,day < anchor -> current
+2025,11,30,None,2025,11,no_anchor -> current
+2025,11,30,0,2025,11,no_anchor -> current
+2025,11,30,1,2025,12,day >= anchor -> next
+2025,11,30,2,2025,12,day >= anchor -> next
+2025,11,30,10,2025,12,day >= anchor -> next
+2025,11,30,15,2025,12,day >= anchor -> next
+2025,11,30,20,2025,12,day >= anchor -> next
+2025,11,30,28,2025,12,day >= anchor -> next
+2025,11,30,29,2025,12,day >= anchor -> next
+2025,11,30,30,2025,12,day >= anchor -> next
+2025,11,30,31,2025,11,day < anchor -> current
+2025,12,1,None,2025,12,no_anchor -> current
+2025,12,1,0,2025,12,no_anchor -> current
+2025,12,1,1,2026,1,day >= anchor -> next
+2025,12,1,2,2025,12,day < anchor -> current
+2025,12,1,10,2025,12,day < anchor -> current
+2025,12,1,15,2025,12,day < anchor -> current
+2025,12,1,20,2025,12,day < anchor -> current
+2025,12,1,28,2025,12,day < anchor -> current
+2025,12,1,29,2025,12,day < anchor -> current
+2025,12,1,30,2025,12,day < anchor -> current
+2025,12,1,31,2025,12,day < anchor -> current
+2025,12,2,None,2025,12,no_anchor -> current
+2025,12,2,0,2025,12,no_anchor -> current
+2025,12,2,1,2026,1,day >= anchor -> next
+2025,12,2,2,2026,1,day >= anchor -> next
+2025,12,2,10,2025,12,day < anchor -> current
+2025,12,2,15,2025,12,day < anchor -> current
+2025,12,2,20,2025,12,day < anchor -> current
+2025,12,2,28,2025,12,day < anchor -> current
+2025,12,2,29,2025,12,day < anchor -> current
+2025,12,2,30,2025,12,day < anchor -> current
+2025,12,2,31,2025,12,day < anchor -> current
+2025,12,10,None,2025,12,no_anchor -> current
+2025,12,10,0,2025,12,no_anchor -> current
+2025,12,10,1,2026,1,day >= anchor -> next
+2025,12,10,2,2026,1,day >= anchor -> next
+2025,12,10,10,2026,1,day >= anchor -> next
+2025,12,10,15,2025,12,day < anchor -> current
+2025,12,10,20,2025,12,day < anchor -> current
+2025,12,10,28,2025,12,day < anchor -> current
+2025,12,10,29,2025,12,day < anchor -> current
+2025,12,10,30,2025,12,day < anchor -> current
+2025,12,10,31,2025,12,day < anchor -> current
+2025,12,14,None,2025,12,no_anchor -> current
+2025,12,14,0,2025,12,no_anchor -> current
+2025,12,14,1,2026,1,day >= anchor -> next
+2025,12,14,2,2026,1,day >= anchor -> next
+2025,12,14,10,2026,1,day >= anchor -> next
+2025,12,14,15,2025,12,day < anchor -> current
+2025,12,14,20,2025,12,day < anchor -> current
+2025,12,14,28,2025,12,day < anchor -> current
+2025,12,14,29,2025,12,day < anchor -> current
+2025,12,14,30,2025,12,day < anchor -> current
+2025,12,14,31,2025,12,day < anchor -> current
+2025,12,15,None,2025,12,no_anchor -> current
+2025,12,15,0,2025,12,no_anchor -> current
+2025,12,15,1,2026,1,day >= anchor -> next
+2025,12,15,2,2026,1,day >= anchor -> next
+2025,12,15,10,2026,1,day >= anchor -> next
+2025,12,15,15,2026,1,day >= anchor -> next
+2025,12,15,20,2025,12,day < anchor -> current
+2025,12,15,28,2025,12,day < anchor -> current
+2025,12,15,29,2025,12,day < anchor -> current
+2025,12,15,30,2025,12,day < anchor -> current
+2025,12,15,31,2025,12,day < anchor -> current
+2025,12,20,None,2025,12,no_anchor -> current
+2025,12,20,0,2025,12,no_anchor -> current
+2025,12,20,1,2026,1,day >= anchor -> next
+2025,12,20,2,2026,1,day >= anchor -> next
+2025,12,20,10,2026,1,day >= anchor -> next
+2025,12,20,15,2026,1,day >= anchor -> next
+2025,12,20,20,2026,1,day >= anchor -> next
+2025,12,20,28,2025,12,day < anchor -> current
+2025,12,20,29,2025,12,day < anchor -> current
+2025,12,20,30,2025,12,day < anchor -> current
+2025,12,20,31,2025,12,day < anchor -> current
+2025,12,27,None,2025,12,no_anchor -> current
+2025,12,27,0,2025,12,no_anchor -> current
+2025,12,27,1,2026,1,day >= anchor -> next
+2025,12,27,2,2026,1,day >= anchor -> next
+2025,12,27,10,2026,1,day >= anchor -> next
+2025,12,27,15,2026,1,day >= anchor -> next
+2025,12,27,20,2026,1,day >= anchor -> next
+2025,12,27,28,2025,12,day < anchor -> current
+2025,12,27,29,2025,12,day < anchor -> current
+2025,12,27,30,2025,12,day < anchor -> current
+2025,12,27,31,2025,12,day < anchor -> current
+2025,12,28,None,2025,12,no_anchor -> current
+2025,12,28,0,2025,12,no_anchor -> current
+2025,12,28,1,2026,1,day >= anchor -> next
+2025,12,28,2,2026,1,day >= anchor -> next
+2025,12,28,10,2026,1,day >= anchor -> next
+2025,12,28,15,2026,1,day >= anchor -> next
+2025,12,28,20,2026,1,day >= anchor -> next
+2025,12,28,28,2026,1,day >= anchor -> next
+2025,12,28,29,2025,12,day < anchor -> current
+2025,12,28,30,2025,12,day < anchor -> current
+2025,12,28,31,2025,12,day < anchor -> current
+2025,12,29,None,2025,12,no_anchor -> current
+2025,12,29,0,2025,12,no_anchor -> current
+2025,12,29,1,2026,1,day >= anchor -> next
+2025,12,29,2,2026,1,day >= anchor -> next
+2025,12,29,10,2026,1,day >= anchor -> next
+2025,12,29,15,2026,1,day >= anchor -> next
+2025,12,29,20,2026,1,day >= anchor -> next
+2025,12,29,28,2026,1,day >= anchor -> next
+2025,12,29,29,2026,1,day >= anchor -> next
+2025,12,29,30,2025,12,day < anchor -> current
+2025,12,29,31,2025,12,day < anchor -> current
+2025,12,30,None,2025,12,no_anchor -> current
+2025,12,30,0,2025,12,no_anchor -> current
+2025,12,30,1,2026,1,day >= anchor -> next
+2025,12,30,2,2026,1,day >= anchor -> next
+2025,12,30,10,2026,1,day >= anchor -> next
+2025,12,30,15,2026,1,day >= anchor -> next
+2025,12,30,20,2026,1,day >= anchor -> next
+2025,12,30,28,2026,1,day >= anchor -> next
+2025,12,30,29,2026,1,day >= anchor -> next
+2025,12,30,30,2026,1,day >= anchor -> next
+2025,12,30,31,2025,12,day < anchor -> current
+2025,12,31,None,2025,12,no_anchor -> current
+2025,12,31,0,2025,12,no_anchor -> current
+2025,12,31,1,2026,1,day >= anchor -> next
+2025,12,31,2,2026,1,day >= anchor -> next
+2025,12,31,10,2026,1,day >= anchor -> next
+2025,12,31,15,2026,1,day >= anchor -> next
+2025,12,31,20,2026,1,day >= anchor -> next
+2025,12,31,28,2026,1,day >= anchor -> next
+2025,12,31,29,2026,1,day >= anchor -> next
+2025,12,31,30,2026,1,day >= anchor -> next
+2025,12,31,31,2026,1,day >= anchor -> next

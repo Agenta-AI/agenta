@@ -3,12 +3,17 @@ import {isDemo} from "@/oss/lib/helpers/utils"
 export default function cURLCode(uri: string, params: string): string {
     return `curl -X POST ${uri} \
 -H 'Content-Type: application/json' \
-${!isDemo() ? "" : "-H 'Authorization: your_api_key'"} \
+ ${!isDemo() ? "" : "-H 'Authorization: your_api_key'"} \
 -d '{
-        "name": "your_testset_name",
-        "csvdata": [
-            {"column1": "value1", "column2": "value2"},
-            {"column1": "value3", "column2": "value4"}
-        ]
+        "testset": {
+            "slug": "your-testset-slug",
+            "name": "your_testset_name",
+            "data": {
+                "testcases": [
+                    {"data": {"column1": "value1", "column2": "value2"}},
+                    {"data": {"column1": "value3", "column2": "value4"}}
+                ]
+            }
+        }
     }'`
 }

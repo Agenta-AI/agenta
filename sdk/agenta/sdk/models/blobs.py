@@ -3,23 +3,12 @@ from uuid import UUID
 
 
 from agenta.sdk.models.shared import (
-    TraceID,
-    SpanID,
-    Link,
     Identifier,
-    Slug,
-    Version,
-    Reference,
     Lifecycle,
-    Header,
     Flags,
     Tags,
     Meta,
-    Metadata,
     Data,
-    Commit,
-    AliasConfig,
-    sync_alias,
 )
 
 

@@ -1,8 +1,9 @@
 import {Avatar} from "antd"
 
-import {AvatarTreeContentProps} from "../assets/types"
-import {spanTypeStyles} from "../assets/constants"
 import {SpanCategory} from "@/oss/services/tracing/types"
+
+import {spanTypeStyles} from "../assets/constants"
+import {AvatarTreeContentProps} from "../assets/types"
 
 export const statusMapper = (span: SpanCategory | null | undefined) => {
     const {bgColor, color, icon: Icon} = spanTypeStyles[span ?? "undefined"]

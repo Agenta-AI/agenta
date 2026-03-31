@@ -1,99 +1,102 @@
-import React from "react"
-import {memo, useCallback, useEffect, useRef} from "react"
+import {memo, useCallback, useRef} from "react"
 
-import {Typography, Button, Splitter} from "antd"
+import {
+    executionController,
+    executionItemController,
+    playgroundController,
+} from "@agenta/playground"
+import {EmptyState, ExecutionHeader, useEntitySelector} from "@agenta/playground-ui/components"
+import {
+    GenerationComparisonOutput,
+    GenerationComparisonOutputHeader,
+    GenerationComparisonInputHeader as PlaygroundComparisonGenerationInputHeader,
+} from "@agenta/playground-ui/execution-item-comparison-view"
+import ExecutionItems from "@agenta/playground-ui/execution-items"
+import {Button, Splitter, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 
-import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
-import {chatTurnIdsAtom} from "@/oss/state/generation/entities"
-import {appStatusAtom} from "@/oss/state/variant/atoms/appStatus"
-import {appStatusLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
+import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 
 import {usePlaygroundScrollSync} from "../../hooks/usePlaygroundScrollSync"
-import {displayedVariantsAtom, isComparisonViewAtom, appChatModeAtom} from "../../state/atoms"
-import {GenerationComparisonOutput} from "../PlaygroundGenerationComparisonView"
-import PlaygroundComparisonGenerationInputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonInputHeader/index."
-import GenerationComparisonOutputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonOutputHeader"
-import GenerationComparisonHeader from "../PlaygroundGenerationComparisonView/GenerationComparisonHeader"
-import PlaygroundGenerations from "../PlaygroundGenerations"
 import PromptComparisonVariantNavigation from "../PlaygroundPromptComparisonView/PromptComparisonVariantNavigation"
 import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
 import type {BaseContainerProps} from "../types"
+const PlaygroundFocusDrawer = dynamic(
+    () => import("@agenta/playground-ui/components").then((m) => m.PlaygroundFocusDrawer),
+    {ssr: false},
+)
 
-import ComparisonVariantConfigSkeleton from "./assets/ComparisonVariantConfigSkeleton"
-import ComparisonVariantNavigationSkeleton from "./assets/ComparisonVariantNavigationSkeleton"
-import GenerationPanelSkeleton from "./assets/GenerationPanelSkeleton"
-
-interface MainLayoutProps extends BaseContainerProps {
-    isLoading?: boolean
-}
+type MainLayoutProps = BaseContainerProps
 
 const SplitterPanel = Splitter.Panel
 
+const GenerationPanelPlaceholder = memo(() => (
+    <div className="p-4">
+        <div className="h-[180px] rounded-lg border border-solid border-[rgba(5,23,41,0.08)] bg-white" />
+    </div>
+))
+
 const GenerationComparisonRenderer = memo(() => {
-    // Variables rows (inputs) and logical chat turn ids
-    const rowIds = useAtomValue(generationInputRowIdsAtom)
-    const turnIds = useAtomValue(chatTurnIdsAtom)
-    const isChat = useAtomValue(appChatModeAtom)
+    // Unified render model: grouped execution items by row
+    const rows = useAtomValue(executionItemController.selectors.renderableRows)
+    const isChat = useAtomValue(executionController.selectors.isChatMode)
 
     if (isChat === undefined) return null
 
-    const sourceIds = isChat ? turnIds : rowIds
-
-    return (sourceIds || []).map((rowId, rowIndex) => (
-        <div key={rowId} className="flex flex-col">
+    return (rows || []).map((row) => (
+        <div key={row.rowId} className="flex flex-col">
             <div className="min-w-fit">
                 <GenerationComparisonOutput
-                    key={rowId}
-                    rowId={rowId}
-                    isFirstRow={rowIndex === 0}
-                    isLastRow={rowIndex === (sourceIds?.length || 0) - 1}
+                    key={row.rowId}
+                    rowId={row.rowId}
+                    isFirstRow={row.isFirstRow}
+                    isLastRow={row.isLastRow}
                 />
             </div>
         </div>
     ))
 })
 
-const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLayoutProps) => {
-    const isComparisonView = useAtomValue(isComparisonViewAtom)
-    const displayedVariants = useAtomValue(displayedVariantsAtom)
+const PlaygroundMainView = ({className, ...divProps}: MainLayoutProps) => {
+    const selectedEntityIds = useAtomValue(playgroundController.selectors.entityIds())
+    const displayedEntities = useAtomValue(playgroundController.selectors.displayedEntityIds())
+    const status = useAtomValue(playgroundController.selectors.status())
+    const urlAppId = useAtomValue(routerAppIdAtom)
+    const {open: openEntitySelector} = useEntitySelector()
+    const setEntityIds = playgroundController.actions.setEntityIds
 
-    const appStatus = useAtomValue(appStatusAtom)
-    const appStatusLoading = useAtomValue(appStatusLoadingAtom)
+    const layoutEntityIds = selectedEntityIds.length > 0 ? selectedEntityIds : displayedEntities
+    const isComparisonView = layoutEntityIds.length > 1
+    const hasAnyLayoutEntity = layoutEntityIds.length > 0
+    const hasDisplayedEntities = displayedEntities.length > 0
+    const isEmpty = status === "empty"
+    // On project-level playground (no app in URL), show empty state instead of error
+    // when no entities are selected
+    const isProjectLevel = !urlAppId
+    const showEmptyState = isEmpty && isProjectLevel
+    const showErrorState = isEmpty && !isProjectLevel
 
-    const hasDisplayedVariantIds = displayedVariants && displayedVariants.length > 0
-
-    // Only show skeleton when we don't have variant IDs yet (very early loading)
-    // Once we have IDs, render the components and let them handle their own loading
-    const shouldShowVariantConfigSkeleton =
-        appStatusLoading || (isLoading && !hasDisplayedVariantIds)
-    const shouldShowGenerationSkeleton = appStatusLoading || (isLoading && !hasDisplayedVariantIds)
-    const notReachable = !appStatusLoading && !appStatus
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
     const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
         enabled: isComparisonView,
     })
 
-    useEffect(() => {
-        if (process.env.NODE_ENV !== "production") {
-            console.info("[PlaygroundMainView] state", {
-                displayedVariants,
-                isComparisonView,
-                shouldShowVariantConfigSkeleton,
-                shouldShowGenerationSkeleton,
-                appStatus,
-                appStatusLoading,
-            })
+    const handleAddRunnable = useCallback(async () => {
+        const selection = await openEntitySelector({
+            title: "Add to Playground",
+            allowedTypes: ["legacyAppRevision"],
+        })
+        if (selection) {
+            // Add the selected entity to the playground
+            const store = (await import("jotai")).getDefaultStore()
+            store.set(setEntityIds, [selection.id])
         }
-    }, [
-        displayedVariants,
-        isComparisonView,
-        shouldShowVariantConfigSkeleton,
-        shouldShowGenerationSkeleton,
-        appStatus,
-        appStatusLoading,
-    ])
+    }, [openEntitySelector, setEntityIds])
+
+    // Selection validation and default selection are now handled imperatively
+    // by playgroundSyncAtom (store.sub subscriptions in playground.ts)
 
     const handleScroll = useCallback(
         (index: number) => {
@@ -106,17 +109,29 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
         [variantRefs],
     )
 
-    return notReachable ? (
-        <main className="flex flex-col grow h-full overflow-hidden items-center justify-center">
-            <div className="flex flex-col items-center justify-center gap-1">
-                <Typography.Title level={3}>Something went wrong</Typography.Title>
-                <Typography.Text className="mb-3 text-[14px]">
-                    Playground is unable to communicate with the service
-                </Typography.Text>
-                <Button>Try again</Button>
-            </div>
-        </main>
-    ) : (
+    if (showEmptyState) {
+        return (
+            <main className="flex flex-col grow h-full overflow-hidden items-center justify-center">
+                <EmptyState onAddRunnable={handleAddRunnable} />
+            </main>
+        )
+    }
+
+    if (showErrorState) {
+        return (
+            <main className="flex flex-col grow h-full overflow-hidden items-center justify-center">
+                <div className="flex flex-col items-center justify-center gap-1">
+                    <Typography.Title level={3}>Something went wrong</Typography.Title>
+                    <Typography.Text className="mb-3 text-[14px]">
+                        Playground is unable to communicate with the service
+                    </Typography.Text>
+                    <Button>Try again</Button>
+                </div>
+            </main>
+        )
+    }
+
+    return (
         <main
             className={clsx("flex flex-col grow h-full overflow-hidden", className)}
             {...divProps}
@@ -124,8 +139,8 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
             <div className="w-full max-h-full h-full grow relative overflow-hidden">
                 <Splitter
                     key={`${isComparisonView ? "comparison" : "single"}-splitter`}
-                    className="h-full"
-                    layout={isComparisonView ? "vertical" : "horizontal"}
+                    className="h-full playground-splitter"
+                    orientation={isComparisonView ? "vertical" : "horizontal"}
                 >
                     <SplitterPanel
                         defaultSize="50%"
@@ -145,27 +160,15 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
                                 },
                             ])}
                         >
-                            {isComparisonView &&
-                                (shouldShowVariantConfigSkeleton ? (
-                                    <ComparisonVariantNavigationSkeleton />
-                                ) : (
+                            <>
+                                {isComparisonView && hasDisplayedEntities && (
                                     <PromptComparisonVariantNavigation
-                                        className="[&::-webkit-scrollbar]:w-0 w-[400px] sticky left-0 z-10 h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] bg-white"
+                                        className="[&::-webkit-scrollbar]:w-0 w-[400px] sticky left-0 z-10 h-full overflow-y-auto overflow-x-hidden flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] bg-white"
                                         handleScroll={handleScroll}
                                     />
-                                ))}
-                            {shouldShowVariantConfigSkeleton ? (
-                                <ComparisonVariantConfigSkeleton
-                                    count={2}
-                                    isComparisonView={isComparisonView}
-                                />
-                            ) : (
-                                (displayedVariants || []).map((variant, index) => {
-                                    // Handle both object and string cases for displayedVariants
-                                    const variantId =
-                                        typeof variant === "string" ? variant : variant?.id
-
-                                    return (
+                                )}
+                                {hasAnyLayoutEntity ? (
+                                    layoutEntityIds.map((variantId, index) => (
                                         <div
                                             key={`variant-config-${variantId}`}
                                             className={clsx([
@@ -180,9 +183,13 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
                                         >
                                             <PlaygroundVariantConfig variantId={variantId} />
                                         </div>
-                                    )
-                                })
-                            )}
+                                    ))
+                                ) : (
+                                    <div className="h-full w-full p-4">
+                                        <div className="h-[260px] rounded-lg border border-solid border-[rgba(5,23,41,0.08)] bg-white" />
+                                    </div>
+                                )}
+                            </>
                         </section>
                     </SplitterPanel>
 
@@ -194,7 +201,7 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
                         defaultSize="50%"
                         key={`${isComparisonView ? "comparison" : "single"}-splitter-panel-runs`}
                     >
-                        {isComparisonView && <GenerationComparisonHeader />}
+                        {isComparisonView && <ExecutionHeader />}
                         <section
                             ref={setGenerationPanelRef}
                             className={clsx([
@@ -209,39 +216,40 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
                             {/* This component renders Output component header section */}
                             {isComparisonView ? (
                                 <div className="flex min-w-fit sticky top-0 z-[5]">
-                                    <PlaygroundComparisonGenerationInputHeader className="!w-[400px] shrink-0 sticky left-0 top-0 z-[5]" />
+                                    <PlaygroundComparisonGenerationInputHeader className="!w-[400px] shrink-0 sticky left-0 top-0 z-[99] bg-white" />
 
-                                    {displayedVariants.map((variantId) => (
+                                    {layoutEntityIds.map((variantId) => (
                                         <GenerationComparisonOutputHeader
                                             key={variantId}
-                                            variantId={variantId}
+                                            entityId={variantId}
                                             className="!min-w-[400px] flex-1 shrink-0"
                                         />
                                     ))}
                                 </div>
                             ) : null}
 
-                            {/* ATOM-LEVEL OPTIMIZATION: Generation components using focused atom subscriptions
-                            Comparison view: Uses rowIds from generationRowIdsAtom (chat/input rows)
-                            Single view: Uses displayedVariants for individual variant generations */}
-                            {shouldShowGenerationSkeleton ? (
-                                <GenerationPanelSkeleton />
-                            ) : isComparisonView ? (
+                            {/* ATOM-LEVEL OPTIMIZATION: Execution-item components using focused atom subscriptions
+                            Comparison view: Uses renderableExecutionRows for row grouping
+                            Single view: Uses displayedEntities for per-execution panels */}
+                            {!hasAnyLayoutEntity ? (
+                                <GenerationPanelPlaceholder />
+                            ) : isComparisonView && hasDisplayedEntities ? (
                                 <GenerationComparisonRenderer />
                             ) : (
-                                (displayedVariants || []).map((variantId) => {
-                                    // return null
-                                    return (
-                                        <PlaygroundGenerations
-                                            key={variantId}
-                                            variantId={variantId}
+                                layoutEntityIds.map((variantId) =>
+                                    displayedEntities.includes(variantId) ? (
+                                        <ExecutionItems key={variantId} entityId={variantId} />
+                                    ) : (
+                                        <GenerationPanelPlaceholder
+                                            key={`generation-placeholder-${variantId}`}
                                         />
-                                    )
-                                })
+                                    ),
+                                )
                             )}
                         </section>
                     </SplitterPanel>
                 </Splitter>
+                <PlaygroundFocusDrawer />
             </div>
         </main>
     )

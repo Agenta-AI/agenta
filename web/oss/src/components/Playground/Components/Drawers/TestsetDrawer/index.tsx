@@ -3,15 +3,12 @@ import {cloneElement, isValidElement, useMemo, useState} from "react"
 import {Database} from "@phosphor-icons/react"
 import dynamic from "next/dynamic"
 
-import {TestsetTraceData} from "@/oss/components/pages/observability/drawer/TestsetDrawer/assets/types"
-import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-
-import EnhancedButton from "../../../assets/EnhancedButton"
+import EnhancedButton from "../../../../EnhancedUIs/Button"
 
 import {TestsetDrawerButtonProps} from "./types"
 
 const TestsetDrawer = dynamic(
-    () => import("@/oss/components/pages/observability/drawer/TestsetDrawer/TestsetDrawer"),
+    () => import("@/oss/components/SharedDrawers/AddToTestsetDrawer/TestsetDrawer"),
 )
 
 const TestsetDrawerButton = ({
@@ -26,66 +23,46 @@ const TestsetDrawerButton = ({
 }: TestsetDrawerButtonProps) => {
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
 
-    let traces: (Record<string, any> | null | undefined)[] = []
-    const testsetTraceData = useMemo(() => {
+    // Extract span IDs from results - entity atoms will fetch the actual data
+    const spanIds = useMemo(() => {
         if (!isTestsetDrawerOpen) return []
 
+        let traces: (Record<string, any> | null | undefined)[] = []
         if (results) {
             traces = Array.isArray(results) ? results : [results]
-        } else if (resultHashes) {
-            const traceHashes = Array.isArray(resultHashes) ? resultHashes : [resultHashes]
-            traces = traceHashes
-                .map((hash) => {
-                    return hash ? getResponseLazy(hash) : undefined
-                })
-                .filter((tr) => !!tr)
         }
 
         if (traces.length === 0) return []
-        const extractedData = traces
-            ?.map((result, idx) => {
-                return {
-                    data:
-                        (result?.response?.tree?.nodes?.[0]?.data as Record<string, any>) ||
-                        result?.response?.data,
-                    key:
-                        (result?.response?.tree?.nodes?.[0]?.node?.id as string) ||
-                        result?.response?.span_id,
-                    id: idx + 1,
-                }
+
+        // Extract only span IDs - let entity atoms fetch the data
+        return traces
+            .map((result) => {
+                // Use span_id (hex format) not node.id (UUID format)
+                const spanId =
+                    (result?.response?.tree?.nodes?.[0]?.span_id as string) ||
+                    result?.response?.span_id
+                // Validate that the span has data (successful generation)
+                const hasData = result?.response?.tree?.nodes?.[0]?.data || result?.response?.data
+                return hasData ? spanId : null
             })
-            .filter((result) => result.data)
+            .filter((id): id is string => !!id)
+    }, [results, isTestsetDrawerOpen])
 
-        return extractedData
-    }, [resultHashes, results, isTestsetDrawerOpen])
-
-    // Count of valid result hashes (may include failed ones; see validResultsCount for success only)
-    // const isResults = useMemo(() => resultHashes?.filter(Boolean)?.length, [resultHashes])
     // Count only successful results (those that have response data)
+    // We count eagerly (before drawer opens) for button disabled state
     const validResultsCount = useMemo(() => {
-        // Direct results prop (rare path)
+        let traces: (Record<string, any> | null | undefined)[] = []
+
         if (results) {
-            const arr = Array.isArray(results) ? results : [results]
-            return arr.filter((r: any) => {
-                const data =
-                    (r?.response?.tree?.nodes?.[0]?.data as Record<string, any>) ||
-                    r?.response?.data
-                return Boolean(data)
-            }).length
+            traces = Array.isArray(results) ? results : [results]
         }
 
-        // Hash-based results (common path)
-        const hashes = Array.isArray(resultHashes) ? resultHashes : [resultHashes]
-        return hashes
-            .map((h) => (h ? getResponseLazy(h) : null))
-            .filter(Boolean)
-            .filter((r: any) => {
-                const data =
-                    (r?.response?.tree?.nodes?.[0]?.data as Record<string, any>) ||
-                    r?.response?.data
-                return Boolean(data)
-            }).length
-    }, [results, resultHashes])
+        return traces.filter((r: any) => {
+            const data =
+                (r?.response?.tree?.nodes?.[0]?.data as Record<string, any>) || r?.response?.data
+            return Boolean(data)
+        }).length
+    }, [results])
 
     return (
         <>
@@ -121,7 +98,7 @@ const TestsetDrawerButton = ({
 
             <TestsetDrawer
                 open={isTestsetDrawerOpen}
-                data={testsetTraceData as TestsetTraceData[]}
+                spanIds={spanIds}
                 showSelectedSpanText={false}
                 onClose={() => {
                     setIsTestsetDrawerOpen(false)

@@ -1,6 +1,6 @@
 import {useStore} from "jotai"
 
-import {evaluationQueryRevisionAtomFamily} from "@/oss/components/EvalRunDetails2/atoms/query"
+import {evaluationQueryRevisionAtomFamily} from "@/oss/components/EvalRunDetails/atoms/query"
 import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
 import type {ReferenceColumnDescriptor} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
 import {extractPrimaryInvocation} from "@/oss/components/pages/evaluations/utils"
@@ -342,9 +342,9 @@ export const resolveReferenceValueFromAtoms = (
 }
 
 export {
-    resolveTestsetReferenceValue,
     resolveApplicationReferenceValue,
-    resolveVariantReferenceValue,
-    resolveQueryReferenceValue,
     resolveEvaluatorReferenceValue,
+    resolveQueryReferenceValue,
+    resolveTestsetReferenceValue,
+    resolveVariantReferenceValue,
 }

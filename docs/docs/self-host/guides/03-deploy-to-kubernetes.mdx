@@ -1,7 +1,539 @@
 ---
-title: 'Deploy on Kubernetes'
+title: Deploy on Kubernetes
+sidebar_label: Deploy on Kubernetes
+description: 'Deploy Agenta on Kubernetes using the official Helm chart. Covers prerequisites, quick start, configuration, ingress, TLS, external databases, upgrading, and troubleshooting.'
 ---
 
-For the moment Kubernetes deployment is only available part of our Enterprise Edition. Agenta Enterprise is the best way to self-host Agenta. It is highly scalable and the data never leaves your environment. It provides the tools to manage multiple users and teams all in one place.
+:::info Community-Maintained — Beta
+The Agenta Helm chart is **community-maintained** and currently in **beta**. If you encounter issues or have suggestions, please [open a GitHub issue](https://github.com/Agenta-AI/agenta/issues/new/choose) or reach out in our [Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw).
+:::
 
-Agenta Enterprise is an early access stage for select partners. [Reach out](https://cal.com/mahmoud-mabrouk-ogzgey/demo) to inquire for more details. 
+This guide walks you through deploying Agenta on Kubernetes using the Helm chart. By the end, you will have a fully working Agenta instance running in your cluster.
+
+The Helm chart packages all Agenta OSS components and uses Bitnami PostgreSQL as a subchart dependency. Database migrations run automatically as a post-install/post-upgrade hook (post-hooks are required because PostgreSQL is deployed as a Bitnami subchart and is not available until the main release installs).
+
+## What Gets Deployed
+
+The chart creates the following workloads inside your Kubernetes namespace:
+
+- **Web** frontend (Next.js)
+- **API** backend (FastAPI + Gunicorn)
+- **Services** backend (FastAPI + Gunicorn)
+- **Worker (tracing)** for OTLP trace ingestion
+- **Worker (evaluations)** for async evaluation jobs
+- **Cron** for scheduled maintenance tasks
+- **PostgreSQL** (Bitnami subchart) with three databases
+- **Redis Volatile** for caching and pub/sub
+- **Redis Durable** for queues and persistent state
+- **SuperTokens** for authentication
+- **Alembic** migration job (post-install/post-upgrade hook)
+- **Ingress** resource for routing traffic to web, API, and services
+
+## Prerequisites
+
+- A running Kubernetes cluster (v1.24+)
+- `kubectl` configured to access your cluster
+- `helm` CLI (v3.10+) installed
+- An ingress controller installed in your cluster (Traefik or NGINX Ingress Controller)
+
+## Quick Start
+
+### 1. Clone the Repository
+
+```bash
+git clone --depth 1 https://github.com/Agenta-AI/agenta && cd agenta
+```
+
+### 2. Generate Secrets
+
+Generate the required secret values:
+
+```bash
+AG_AUTH_KEY=$(openssl rand -hex 32)
+AG_CRYPT_KEY=$(openssl rand -hex 32)
+PG_PASS=$(openssl rand -hex 16)
+```
+
+:::warning
+Save these values in a secure secret manager. You will need them for future upgrades. Avoid using `export` as it exposes variables to all child processes.
+:::
+
+### 3. Install the Chart
+
+```bash
+helm install agenta hosting/helm/agenta-oss \
+  --namespace agenta --create-namespace \
+  --set secrets.agentaAuthKey=$AG_AUTH_KEY \
+  --set secrets.agentaCryptKey=$AG_CRYPT_KEY \
+  --set secrets.postgresPassword=$PG_PASS
+```
+
+:::info
+The chart automatically wires `secrets.postgresPassword` to both the application pods and the Bitnami PostgreSQL subchart (via a shared Kubernetes Secret). You only need to set it once.
+:::
+
+:::caution Security note
+The `--set` approach is convenient for testing but exposes secrets in shell history and in `helm get values` output. For production, use a `values.yaml` file with restricted permissions or `secrets.existingSecret` to reference a pre-existing Kubernetes Secret. See [Secrets](#secrets) for details.
+:::
+
+### 4. Verify
+
+```bash
+# Watch pods start
+kubectl -n agenta get pods -w
+
+# Check the migration job completed
+kubectl -n agenta get jobs
+
+# Check ingress
+kubectl -n agenta get ingress
+```
+
+Once all pods are running, access Agenta through your ingress IP or domain. If ingress is not configured with a host, use port-forwarding:
+
+```bash
+kubectl port-forward svc/agenta-agenta-oss-web 3000:3000 -n agenta
+```
+
+Then open `http://localhost:3000` in your browser.
+
+## Using a Values File
+
+For production deployments, create a `values.yaml` file instead of passing `--set` flags:
+
+:::warning
+Never commit `values.yaml` to version control if it contains secrets. Add it to `.gitignore` and restrict file permissions (`chmod 600 values.yaml`). For fully managed secret lifecycle, use `secrets.existingSecret` to reference a pre-existing Kubernetes Secret or integrate with an external secrets operator.
+:::
+
+```yaml
+global:
+  webUrl: "https://agenta.example.com"
+  apiUrl: "https://agenta.example.com/api"
+  servicesUrl: "https://agenta.example.com/services"
+
+secrets:
+  agentaAuthKey: "your-auth-key"
+  agentaCryptKey: "your-crypt-key"
+  postgresPassword: "your-db-password"
+
+postgresql:
+  auth:
+    password: "your-db-password"
+
+ingress:
+  enabled: true
+  className: "traefik"
+  host: "agenta.example.com"
+```
+
+Install with:
+
+```bash
+helm install agenta hosting/helm/agenta-oss \
+  --namespace agenta --create-namespace \
+  -f values.yaml
+```
+
+## Configuration Reference
+
+Configuration is done through Helm values. The full default values are in `hosting/helm/agenta-oss/values.yaml`.
+
+### Global Settings
+
+| Value | Purpose | Default |
+|-------|---------|---------|
+| `global.webUrl` | Public web URL | `http://localhost` |
+| `global.apiUrl` | Public API URL | `http://localhost/api` |
+| `global.servicesUrl` | Public services URL | `http://localhost/services` |
+| `global.imagePullSecrets` | Image pull secrets | `[]` |
+
+### Secrets
+
+| Value | Purpose | Default |
+|-------|---------|---------|
+| `secrets.existingSecret` | Name of an existing Secret to use instead of the chart-managed one | `""` |
+| `secrets.agentaAuthKey` | Authorization key (**required**) | `""` |
+| `secrets.agentaCryptKey` | Encryption key (**required**) | `""` |
+| `secrets.postgresPassword` | PostgreSQL password (**required**) | `""` |
+| `secrets.supertokensApiKey` | SuperTokens API key (recommended for production) | `""` |
+| `secrets.oauth` | OAuth env vars injected into pods (key = env var name) | `{}` |
+| `secrets.llmProviders` | LLM provider API keys injected into pods | `{}` |
+
+To use an existing Kubernetes Secret instead of having the chart create one, set `secrets.existingSecret` to the name of your Secret. It must contain keys: `AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, `POSTGRES_PASSWORD`. This is the recommended approach for production as it keeps secrets out of Helm values entirely.
+
+:::caution
+When `secrets.supertokensApiKey` is empty, the SuperTokens instance runs without authentication. Any pod that can reach the SuperTokens service can manage auth data. Set an API key for production deployments.
+:::
+
+### Component Images
+
+| Value | Purpose | Default |
+|-------|---------|---------|
+| `api.image.repository` | API image | `ghcr.io/agenta-ai/agenta-api` |
+| `api.image.tag` | API image tag | `latest` |
+| `web.image.repository` | Web image | `ghcr.io/agenta-ai/agenta-web` |
+| `web.image.tag` | Web image tag | `latest` |
+| `services.image.repository` | Services image | `ghcr.io/agenta-ai/agenta-services` |
+| `services.image.tag` | Services image tag | `latest` |
+
+Workers, cron, and Alembic jobs reuse the API image.
+
+:::caution
+The default image tag is `latest`, which can pull untested versions and makes it difficult to audit what is running. For production, always pin a specific version tag (e.g., `v0.86.8`). See [Upgrading](#upgrading) for an example.
+:::
+
+### Component Toggles and Replicas
+
+Each component (`api`, `web`, `services`, `workerEvaluations`, `workerTracing`, `cron`, `supertokens`) supports:
+
+| Value | Purpose | Default |
+|-------|---------|---------|
+| `<component>.enabled` | Enable/disable the component | `true` |
+| `<component>.replicas` | Number of replicas | `1` |
+| `<component>.resources` | Resource requests/limits | `{}` |
+| `<component>.nodeSelector` | Node selector | `{}` |
+| `<component>.tolerations` | Tolerations | `[]` |
+| `<component>.affinity` | Affinity rules | `{}` |
+| `<component>.env` | Extra environment variables | `{}` |
+
+### PostgreSQL (Bundled)
+
+The chart includes Bitnami PostgreSQL as a subchart. It is enabled by default and creates three databases: `agenta_oss_core`, `agenta_oss_tracing`, and `agenta_oss_supertokens`.
+
+| Value | Purpose | Default |
+|-------|---------|---------|
+| `postgresql.enabled` | Enable bundled PostgreSQL | `true` |
+| `postgresql.auth.username` | Database user | `agenta` |
+| `postgresql.auth.password` | Database password (must match `secrets.postgresPassword`) | `""` |
+| `postgresql.primary.persistence.size` | PVC size | `10Gi` |
+
+### Redis
+
+The chart deploys two Redis instances: volatile (caching/pub-sub) and durable (queues/persistent state).
+
+| Value | Purpose | Default |
+|-------|---------|---------|
+| `redisVolatile.enabled` | Enable volatile Redis | `true` |
+| `redisVolatile.maxmemory` | Max memory | `512mb` |
+| `redisVolatile.password` | Password (recommended for production) | `""` |
+| `redisDurable.enabled` | Enable durable Redis | `true` |
+| `redisDurable.maxmemory` | Max memory | `512mb` |
+| `redisDurable.password` | Password (recommended for production) | `""` |
+| `redisDurable.persistence.size` | PVC size | `5Gi` |
+
+:::caution
+By default both Redis instances run without authentication. In shared or multi-tenant clusters, set passwords for both instances or use Kubernetes NetworkPolicies to restrict access to the Agenta namespace.
+:::
+
+### Alembic (Database Migrations)
+
+Migrations run as a Kubernetes Job with `post-install,post-upgrade` hooks. Post-hooks are used because PostgreSQL is deployed as a Bitnami subchart and is not available until after the main release installs.
+
+| Value | Purpose | Default |
+|-------|---------|---------|
+| `alembic.enabled` | Enable migration job | `true` |
+| `alembic.activeDeadlineSeconds` | Job timeout | `600` |
+| `alembic.backoffLimit` | Retry count | `3` |
+| `alembic.ttlSecondsAfterFinished` | Cleanup delay | `300` |
+
+## Ingress Configuration
+
+The chart creates an Ingress resource with three path rules:
+
+- `/api` routes to the API service
+- `/services` routes to the services backend
+- `/` routes to the web frontend
+
+### Ingress Values
+
+| Value | Purpose | Default |
+|-------|---------|---------|
+| `ingress.enabled` | Enable Ingress | `true` |
+| `ingress.className` | Ingress class | `traefik` |
+| `ingress.host` | Hostname | `""` |
+| `ingress.tls` | TLS configuration | `[]` |
+| `ingress.annotations` | Ingress annotations | `{}` |
+| `ingress.paths.api.path` | API path pattern | `/api` |
+| `ingress.paths.api.pathType` | API path type | `Prefix` |
+| `ingress.paths.services.path` | Services path pattern | `/services` |
+| `ingress.paths.services.pathType` | Services path type | `Prefix` |
+| `ingress.paths.web.path` | Web path pattern | `/` |
+| `ingress.paths.web.pathType` | Web path type | `Prefix` |
+
+:::info Ingress class name
+The chart defaults to `ingress.className: "traefik"`. If your cluster uses a different ingress controller, override this value to match. NGINX users must also override the ingress paths (see [Path Prefix Stripping](#path-prefix-stripping) below).
+
+You can check which ingress classes are available in your cluster with `kubectl get ingressclass`.
+:::
+
+### Path Prefix Stripping
+
+The API and services backends expect requests without the `/api` or `/services` prefix. Your ingress controller must strip these prefixes.
+
+**Traefik**: Use a `StripPrefix` Middleware via `extraObjects`:
+
+```yaml
+ingress:
+  className: "traefik"
+  host: "agenta.example.com"
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: agenta-strip-prefixes@kubernetescrd
+
+extraObjects:
+  - apiVersion: traefik.io/v1alpha1
+    kind: Middleware
+    metadata:
+      name: strip-prefixes
+      namespace: "{{ .Release.Namespace }}"
+    spec:
+      stripPrefix:
+        prefixes:
+          - /api
+          - /services
+```
+
+**NGINX Ingress Controller**: Override the paths to use regex capture groups and add rewrite annotations:
+
+```yaml
+ingress:
+  className: "nginx"
+  host: "agenta.example.com"
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+  paths:
+    api:
+      path: /api/(.*)
+      pathType: ImplementationSpecific
+    services:
+      path: /services/(.*)
+      pathType: ImplementationSpecific
+    web:
+      path: /(.*)
+      pathType: ImplementationSpecific
+```
+
+### Enabling TLS
+
+To enable TLS, provide a TLS secret and update your global URLs to use `https://`:
+
+```yaml
+global:
+  webUrl: "https://agenta.example.com"
+  apiUrl: "https://agenta.example.com/api"
+  servicesUrl: "https://agenta.example.com/services"
+
+ingress:
+  host: "agenta.example.com"
+  tls:
+    - secretName: agenta-tls
+      hosts:
+        - agenta.example.com
+```
+
+If you use cert-manager, add the appropriate annotation:
+
+```yaml
+ingress:
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+```
+
+## Using External Services
+
+You can disable any bundled infrastructure component and point to an external instance instead.
+
+### External PostgreSQL
+
+```yaml
+postgresql:
+  enabled: false
+  databases:
+    core: "agenta_oss_core"
+    tracing: "agenta_oss_tracing"
+    supertokens: "agenta_oss_supertokens"
+  external:
+    host: "your-pg-host.example.com"
+    port: 5432
+    username: "agenta"
+    sslmode: "require"
+```
+
+`sslmode` is appended to auto-constructed connection URIs only (as `?ssl=` for asyncpg and `?sslmode=` for the sync driver). It defaults to `"prefer"`. Set it to `"require"` or `"verify-full"` for managed databases (e.g., AWS RDS, Cloud SQL). When using full URI overrides (`uriCore`, `uriTracing`, `uriSupertokens`), include the SSL parameter directly in the URI — `sslmode` is ignored in that case.
+
+Create the three databases and grant permissions before installing:
+
+```sql
+CREATE ROLE agenta WITH LOGIN PASSWORD 'your-password';
+
+CREATE DATABASE agenta_oss_core OWNER agenta;
+CREATE DATABASE agenta_oss_tracing OWNER agenta;
+CREATE DATABASE agenta_oss_supertokens OWNER agenta;
+
+-- Grants needed for schema migrations (CREATE, ALTER) and application queries.
+-- You can replace ALL with specific privileges if your security policy requires it
+-- (e.g., SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER for a narrower scope).
+\c agenta_oss_core
+GRANT ALL ON SCHEMA public TO agenta;
+
+\c agenta_oss_tracing
+GRANT ALL ON SCHEMA public TO agenta;
+
+\c agenta_oss_supertokens
+GRANT ALL ON SCHEMA public TO agenta;
+```
+
+You can also provide full URI overrides:
+
+```yaml
+postgresql:
+  enabled: false
+  external:
+    uriCore: "postgresql+asyncpg://user:pass@host:5432/agenta_oss_core"
+    uriTracing: "postgresql+asyncpg://user:pass@host:5432/agenta_oss_tracing"
+    uriSupertokens: "postgresql://user:pass@host:5432/agenta_oss_supertokens"
+```
+
+:::warning
+URI overrides contain credentials inline. Prefer using `secrets.existingSecret` or an external secrets operator to avoid storing passwords in `values.yaml`.
+:::
+
+### External Redis
+
+```yaml
+redisVolatile:
+  enabled: false
+  external:
+    uri: "redis://your-redis-host:6379/0"
+
+redisDurable:
+  enabled: false
+  external:
+    uri: "redis://your-redis-host:6379/1"
+```
+
+### External SuperTokens
+
+```yaml
+supertokens:
+  enabled: false
+  external:
+    uri: "http://your-supertokens-host:3567"
+```
+
+## Adding LLM Provider Keys and OAuth
+
+Pass LLM API keys and OAuth credentials through the `secrets` section. These are stored in the Kubernetes Secret and injected as environment variables into the application pods.
+
+```yaml
+secrets:
+  llmProviders:
+    OPENAI_API_KEY: "sk-..."
+    ANTHROPIC_API_KEY: "sk-ant-..."
+  oauth:
+    GOOGLE_OAUTH_CLIENT_ID: "..."
+    GOOGLE_OAUTH_CLIENT_SECRET: "..."
+```
+
+## Upgrading
+
+To upgrade to a newer version:
+
+```bash
+helm upgrade agenta hosting/helm/agenta-oss \
+  --namespace agenta \
+  -f values.yaml
+```
+
+The Alembic migration job runs automatically as a post-upgrade hook. Check its status:
+
+```bash
+kubectl -n agenta get jobs -l app.kubernetes.io/component=alembic
+kubectl -n agenta logs job/agenta-agenta-oss-alembic
+```
+
+To pin to a specific version:
+
+```yaml
+api:
+  image:
+    tag: "v0.86.8"
+web:
+  image:
+    tag: "v0.86.8"
+services:
+  image:
+    tag: "v0.86.8"
+```
+
+## Uninstalling
+
+```bash
+helm uninstall agenta --namespace agenta
+```
+
+:::warning
+This does not delete PersistentVolumeClaims. To fully remove data, delete the PVCs manually:
+```bash
+kubectl -n agenta delete pvc -l app.kubernetes.io/instance=agenta
+```
+:::
+
+## Troubleshooting
+
+### Pods not starting
+
+Check pod status and events:
+
+```bash
+kubectl -n agenta get pods
+kubectl -n agenta describe pod <pod-name>
+```
+
+Common causes:
+- Missing secrets: ensure `secrets.agentaAuthKey`, `secrets.agentaCryptKey`, and `secrets.postgresPassword` are set
+- Image pull errors: verify image names and that `imagePullSecrets` are configured if using a private registry
+
+### Migration job fails
+
+Check migration logs:
+
+```bash
+kubectl -n agenta logs job/agenta-agenta-oss-alembic
+```
+
+Common causes:
+- PostgreSQL not ready: the job includes an init container that waits for PostgreSQL, but external databases may have network issues
+- Wrong credentials: verify `secrets.postgresPassword` matches the database password
+
+### Ingress not working
+
+Verify the Ingress resource:
+
+```bash
+kubectl -n agenta get ingress
+kubectl -n agenta describe ingress agenta-agenta-oss
+```
+
+Common causes:
+- Missing ingress controller: ensure Traefik or NGINX Ingress Controller is installed
+- Missing path prefix stripping: the API and services backends will return 404 if `/api` and `/services` prefixes are not stripped (see [Path Prefix Stripping](#path-prefix-stripping))
+- Wrong `ingress.className`: must match your ingress controller's class name
+
+### Services can't connect to each other
+
+Check logs for connection errors:
+
+```bash
+kubectl -n agenta logs -l app.kubernetes.io/component=api --prefix
+```
+
+Common causes:
+- Database URIs incorrect: check `global.webUrl`, `global.apiUrl`, and `global.servicesUrl`
+- Redis not ready: check Redis pod status
+
+## Getting Help
+
+If you run into issues:
+- [Create a GitHub issue](https://github.com/Agenta-AI/agenta/issues/new/choose)
+- Join our [Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw) for direct support

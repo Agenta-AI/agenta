@@ -1,5 +1,5 @@
 from typing import Any, Optional, Dict, Tuple
-from json import loads, JSONDecodeError
+from json import dumps, loads, JSONDecodeError
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -13,6 +13,8 @@ NAMESPACE_PREFIX_FEATURE_MAPPING = {
     "ag.type.": "type",
     "ag.links.": "links",
     "ag.exception.": "exception",
+    "ag.session.": "session",
+    "ag.user.": "user",
 }
 
 

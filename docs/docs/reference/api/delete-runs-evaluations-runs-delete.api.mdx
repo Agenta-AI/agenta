@@ -1,0 +1,71 @@
+---
+id: delete-runs-evaluations-runs-delete
+title: "Delete Runs"
+description: "Delete Runs"
+sidebar_label: "Delete Runs"
+hide_title: true
+hide_table_of_contents: true
+api: eJy1Vdtu2zgQ/RVjnulLncTt6mm9jYEabdHAze6LYQRjamSzlUiVlzSuoX9fDGlHUtJ0gQLrF5PDM0POmTOjI3jcOcjWsLjHMqBXRjvYCDA12bhb5pBBTiV5urNBuztqgclwl05BgKVvgZz/y+QHyI4gjfakPS+xrkslo9f4izOabU7uqUJe1Zav84oc72zQdyqPS+Wpigt/qAkycN4qvQMBhbEVesggBJVDI84AtBYPIMArX/J+FfRgmTtoWojZfiHpT69VlnLO/nznpnVtCVkFvczdKiUHDcdqfb0NFA2uNtqlDKaTCf/l5KRVNYeADD4HKcm5IpSD1QkM4nc5kiYkp1NSSnvake1k/jYiBORUYCg9ZBN+5f9AbeeK9eZnPL9M6ImFJlJ6OZ0+J+0fLFUefQYLa439fcZy8qjKXuZ9QGlk7xT14VMB2fopQ414xnqzeZmmDyY9kJms3O5njJ+hH8k53FHL+cvQSMbglk8bAUrXIanhdLyMhkaA9A+dMM9K8pa5fPD/2R7MTXr+Cdfpk7ZEqUIvU3GdSvArjby7vb15FjDpoy+M6zhzBqugWYEV+b1pBxUIqNHvIYNxZ1qNeVqNQYAje0/WxdoGWzIMaxULm7Z772uXjccURrI0IR/hjrTHEaoE3HAMGazyhxhkfrN8T4d3hDnZ2AUdwGfWY1JYH/ZYFazVe2KeNFa8nwe/N1b9SLLh6vKTkhcTwUpftZN28YBVXVJvcq7hosA3V8Xscnj1+tXr4eXVbDrcXhRyOJV/zC6K2QwLnMEmaqcwXenMY6qD+c0SBDBNie/J6NVoAk+r0ANzY6KMOjxnEo9BPKH1kU0QQFXsSvCE1Z/tAedZG+cr1J14/aL3nvLIJut5XJeoYsfFi48nNayhowaI05D/WMx743h+wfG4RUd/27Jp2PwtkOUSbwTco1W4ZYrWTNv+XOwjfKXDuZW0H8aeZHgZUnGfjChWWfKYS0m1/yV205H29eLD4nYBAranz2tlcvay+J1zwe+QAfCHO6XHcmDbEUrUu8BzJYMUlX//AnwWtuA=
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete Runs"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/evaluations/runs/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete Runs
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"run_ids":{"items":{"type":"string","format":"uuid"},"type":"array","title":"Run Ids"}},"type":"object","required":["run_ids"],"title":"EvaluationRunIdsRequest"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"run_ids":{"items":{"type":"string","format":"uuid"},"type":"array","title":"Run Ids","default":[]}},"type":"object","title":"EvaluationRunIdsResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

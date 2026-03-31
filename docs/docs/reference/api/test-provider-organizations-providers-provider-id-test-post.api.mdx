@@ -1,0 +1,76 @@
+---
+id: test-provider-organizations-providers-provider-id-test-post
+title: "Test Provider"
+description: "Test SSO provider connection."
+sidebar_label: "Test Provider"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVlFv4zYM/isCn66Al3TFngwMWNBuuOC2Nbjk9pIGgWoxse5sySfRwWWG//tAyU7spu12fd5TYomkyO/jR6kBknsP6Rru3V4a/bckbY2HTQIKfeZ0xd+Qwgo9ieXyXlTOHrRCJzJrDGa8PXkwD2aVay/QqMpqQ4LQkxeUo7if392OnHZ6X7twjHg8ih1SlmuzZ9sHo7TP7AHdUSib1SUaEtIocZCFVpLYzOHXWjtUp6O8wG/a0+TBzHfC11mG3u/qIhGldF9iCqfTpY+hxDvtt+Hfz+RqvIrOO6kLVL2j9EKbaM0pKJQZ6YMk9APvnSw8JkL7bdjFuHA1gQRshbHKuYIUGI9tn8fWDrE+Lfvt2UKr7Tb6WE+QQCWdLJHQMVcNGFkipDAwhwQ081RJyiGBHiZIucAEfJZjKSFtgI4Vu3py2uwhAdJU8MKiB2muoG03HMJX1nj07HVzfc0/455YntAWHztjSCCzhtAQm8uqKnQWypx+9uzTDDKpHGNEOp6g1XPZ7awrJUEKdR1q7LPlJBPwRb1/raYl77dJB1cD0hzvdwHAsUebnFZMXRTA5fcx/mTf9okc3hbqbhCiTWBXBOk1IJXSvCiLxQCSSFwXyz5+xowGpf0WnBkDJBbGmwMte/82gcyhJFRbSa9yoSThD6RLHIS5ja5iRhyortQg0EtYPRvyNQA/xbDdIUMVbb+vfYbDLjb8JUBnCa0hOIdu65pp3A89lwM2RmCOALlMfPN8Yr0iB9oa66/fEKVVWIiddUKa0ZCeQNtybT/d3FzK969uqlojfnXOurdrVyFJXQQVE5b+0qCw2Wj3P6hHG8I9Omg3Z26kc/I4oPF3GxPkbij9q6PgD/Re7oOSo8nLpgEMseLdlqdqVUc59KMnLLBa6NsgzIWwbhnLb/SvvcXYxPQ7u0E7nCmKDL0MxV2k4LnDepP3q9XiImDsjxIpt3xPna4byiGF6eiimp4uqmkzuHnaKV9Uoffdob+galewv6x04DR+5kSVT6dTrCdZYWs1kXs0JCdSR8MNx8hqp+kYgswW8w94fI9SoYN0vRkaLLkVY3ONzU6EyEp/wGMv2BRmNeXWdcX012UevdpA9M4OeZ6F5MRsMYcEuLComuvJj5PrCymOjFlFMgtN058dtnkOjIA41Q8JYBkkBISy/OW8wZkxKaU0g3jhNdbPh6fJNGcZ//9s+95nW9c8rNxpVUgdZktgrelUsR7Nb570J11AAun4TRaksUkgZ12la2iaR+nxkyvalpe/1ui41zcJHKTT8pE7b92A0p7/K0hjqi8T/O5jh+yVeCn7Xg+GxXCQRc1fkMAXPD55Q4ZZm/d6azqLWZZhRQPfi6uBhXkaIYv75Qra9h+jZU3L
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Test Provider"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations/providers/{provider_id}/test"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Test SSO provider connection.
+
+This endpoint tests the OIDC provider configuration by fetching the
+discovery document and validating required endpoints exist.
+If successful, marks the provider as valid (is_valid=true).
+If failed, marks as invalid and deactivates (is_valid=false, is_active=false).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"provider_id","in":"path","required":true,"schema":{"type":"string","title":"Provider Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"id":{"type":"string","format":"uuid","title":"Id"},"slug":{"type":"string","title":"Slug"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"flags":{"additionalProperties":true,"type":"object","title":"Flags"},"settings":{"additionalProperties":true,"type":"object","title":"Settings"},"created_at":{"type":"string","format":"date-time","title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"organization_id":{"type":"string","format":"uuid","title":"Organization Id"}},"type":"object","required":["id","slug","name","description","flags","settings","created_at","updated_at","organization_id"],"title":"OrganizationProviderResponse","description":"Response model for an SSO provider."}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

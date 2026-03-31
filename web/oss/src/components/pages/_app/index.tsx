@@ -1,3 +1,4 @@
+import {default as AppContextComponent} from "@agenta/ui/app-message"
 import {QueryClientProvider} from "@tanstack/react-query"
 import {App as AppComponent} from "antd"
 import {enableMapSet} from "immer"
@@ -7,6 +8,7 @@ import dynamic from "next/dynamic"
 import {Inter} from "next/font/google"
 
 import ThemeContextProvider from "@/oss/components/Layout/ThemeContextProvider"
+import {OnboardingProvider} from "@/oss/components/Onboarding"
 import GlobalScripts from "@/oss/components/Scripts/GlobalScripts"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import AuthProvider from "@/oss/lib/helpers/auth/AuthProvider"
@@ -17,12 +19,11 @@ import GlobalStateProvider from "@/oss/state/Providers"
 import ThemeContextBridge from "@/oss/ThemeContextBridge"
 
 import AppGlobalWrappers from "../../AppGlobalWrappers"
-import AppContextComponent from "../../AppMessageContext"
 
 enableMapSet()
 
 const NoMobilePageWrapper = dynamic(
-    () => import("@/oss/components/NoMobilePageWrapper/NoMobilePageWrapper"),
+    () => import("@/oss/components/Placeholders/NoMobilePageWrapper/NoMobilePageWrapper"),
     {
         ssr: false,
     },
@@ -54,25 +55,27 @@ export default function App({Component, pageProps, ...rest}: AppProps) {
                 <QueryClientProvider client={queryClient}>
                     <AuthProvider pageProps={pageProps}>
                         <GlobalStateProvider>
-                            <CustomPosthogProvider
-                                config={{
-                                    persistence: "localStorage+cookie",
-                                }}
-                            >
-                                <ThemeContextProvider>
-                                    <AppComponent>
-                                        <ThemeContextBridge>
-                                            <PreloadQueries />
-                                            <Layout>
-                                                <AppContextComponent />
-                                                <Component {...pageProps} />
-                                                <NoMobilePageWrapper />
-                                            </Layout>
-                                            <AppGlobalWrappers />
-                                        </ThemeContextBridge>
-                                    </AppComponent>
-                                </ThemeContextProvider>
-                            </CustomPosthogProvider>
+                            <OnboardingProvider>
+                                <CustomPosthogProvider
+                                    config={{
+                                        persistence: "localStorage+cookie",
+                                    }}
+                                >
+                                    <ThemeContextProvider>
+                                        <AppComponent>
+                                            <ThemeContextBridge>
+                                                <PreloadQueries />
+                                                <Layout>
+                                                    <AppContextComponent />
+                                                    <Component {...pageProps} />
+                                                    <NoMobilePageWrapper />
+                                                </Layout>
+                                                <AppGlobalWrappers />
+                                            </ThemeContextBridge>
+                                        </AppComponent>
+                                    </ThemeContextProvider>
+                                </CustomPosthogProvider>
+                            </OnboardingProvider>
                         </GlobalStateProvider>
                     </AuthProvider>
                 </QueryClientProvider>

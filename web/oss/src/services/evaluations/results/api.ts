@@ -9,8 +9,7 @@ import {getProjectValues} from "@/oss/state/project"
 const RESULTS_ENDPOINT = "/preview/evaluations/results/"
 
 /**
- * Convert a hex string (32 chars) to UUID format (with dashes).
- * e.g., "339569573a844e6cb7b97f88aa50db31" -> "33956957-3a84-4e6c-b7b9-7f88aa50db31"
+ * Convert a hex string (32 chars) to UUID format (with dashes)
  */
 const hexToUuid = (hex: string): string => {
     // If already in UUID format (contains dashes), return as-is
@@ -22,8 +21,7 @@ const hexToUuid = (hex: string): string => {
 }
 
 /**
- * Convert a hex span ID (16 chars) to UUID format by doubling it.
- * e.g., "912e71fb57cb9c62" -> "912e71fb-57cb-9c62-912e-71fb57cb9c62"
+ * Convert a hex span ID (16 chars) to UUID format by doubling it
  */
 const spanHexToUuid = (hex: string): string => {
     // If already in UUID format (contains dashes), return as-is
@@ -132,8 +130,8 @@ export const upsertStepResultWithAnnotation = async ({
     const {projectId} = getProjectValues()
 
     // Convert hex IDs to UUID format (the API expects UUIDs with dashes)
-    // Annotation API returns hex format: "339569573a844e6cb7b97f88aa50db31"
-    // Step result API expects UUID format: "33956957-3a84-4e6c-b7b9-7f88aa50db31"
+    // Annotation API returns hex format: "<annotation_trace_id_hex>"
+    // Step result API expects UUID format: "<annotation_trace_id_uuid>"
     const traceIdUuid = hexToUuid(annotationTraceId)
     const spanIdUuid = spanHexToUuid(annotationSpanId)
 
