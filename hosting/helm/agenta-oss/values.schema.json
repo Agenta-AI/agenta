@@ -168,6 +168,24 @@
         "resources": { "$ref": "#/$defs/resources" }
       }
     },
+    "workerWebhooks": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "env": { "type": "object" },
+        "resources": { "$ref": "#/$defs/resources" }
+      }
+    },
+    "workerEvents": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "env": { "type": "object" },
+        "resources": { "$ref": "#/$defs/resources" }
+      }
+    },
     "cron": {
       "type": "object",
       "properties": {
