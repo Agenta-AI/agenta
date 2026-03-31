@@ -1,0 +1,7 @@
+interface:
+  display_name: "Triage Findings"
+  short_description: "Orchestrate CR and QA triage"
+  default_prompt: "Use $triage-findings with url=<github-pr-url> to sync remote PR state and local CR and QA findings."
+
+policy:
+  allow_implicit_invocation: true

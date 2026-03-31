@@ -1,0 +1,7 @@
+interface:
+  display_name: "Resolve QA Findings"
+  short_description: "Fix and validate QA findings"
+  default_prompt: "Use $qa-resolve-findings with priority=P0 to reproduce, fix, and re-validate the selected highest-priority triaged QA bucket for this feature."
+
+policy:
+  allow_implicit_invocation: true

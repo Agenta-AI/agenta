@@ -1,0 +1,7 @@
+interface:
+  display_name: "Scan Codebase for QA"
+  short_description: "Deep validation-oriented inspection"
+  default_prompt: "Use $qa-scan-codebase with depth=deep to perform a validation-oriented scan of this feature and surface candidate findings and coverage gaps."
+
+policy:
+  allow_implicit_invocation: true

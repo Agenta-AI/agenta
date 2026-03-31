@@ -1,0 +1,7 @@
+interface:
+  display_name: "Scan Codebase for CR"
+  short_description: "Deep verification-oriented inspection"
+  default_prompt: "Use $cr-scan-codebase with depth=deep to perform a verification-oriented scan of this branch and surface candidate findings."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Resolve CR Findings"
+  short_description: "Fix and verify code review findings"
+  default_prompt: "Use $cr-resolve-findings with priority=P0 to address the selected highest-priority triaged CR bucket on this branch and update its statuses."
+
+policy:
+  allow_implicit_invocation: true

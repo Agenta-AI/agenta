@@ -1,0 +1,7 @@
+interface:
+  display_name: "Triage CR Findings"
+  short_description: "Sync and triage CR findings"
+  default_prompt: "Use $cr-triage-findings with url=<github-pr-url> to sync remote PR comments and local code into an evidence-backed CR findings set."
+
+policy:
+  allow_implicit_invocation: true

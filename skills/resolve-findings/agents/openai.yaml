@@ -1,0 +1,7 @@
+interface:
+  display_name: "Resolve Findings"
+  short_description: "Orchestrate CR and QA resolution"
+  default_prompt: "Use $resolve-findings with priority=next-highest to resolve the next unresolved CR and QA bucket."
+
+policy:
+  allow_implicit_invocation: true
