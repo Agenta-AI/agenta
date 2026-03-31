@@ -55,9 +55,7 @@ const testsetTests = () => {
             const testsets = testsetsData.testsets
 
             // Verify navigation and page title
-            await expect(
-                page.getByRole("heading", {name: /testsets|test sets/i}).first(),
-            ).toBeVisible({timeout: 10000})
+            await expect(page.getByTitle("Testsets").first()).toBeVisible({timeout: 10000})
 
             // Skip if no testsets exist on this deployment
             test.skip(!testsets || testsets.length === 0, "No testsets found on deployment")

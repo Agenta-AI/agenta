@@ -316,8 +316,6 @@ export const getVariants = async (page: Page, appId: string) => {
     await page.goto(overviewPath, {waitUntil: "domcontentloaded"})
     const data = await variantsResponse
 
-    console.log("[Playground E2E] Variants API response:", JSON.stringify(data, null, 2))
-
     const variants = data.workflow_variants || []
     const variantsCount = data.count || 0
     expect(Array.isArray(variants)).toBe(true)
