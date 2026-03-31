@@ -64,9 +64,13 @@ Default:
 5. Update both master files.
    Keep `CR.findings.md` and `QA.findings.md` accurate after resolution.
 
+6. Surface unresolved decisions before coding.
+   If either lane still has findings whose intended resolution is not implementation-ready, ask those follow-up questions before starting the corresponding lane.
+
 ## Orchestration Rules
 
 - Prefer sub-agents when they are available.
 - If sub-agents are not available, run the two passes sequentially.
 - Do not let one lane silently absorb the other.
 - This skill coordinates; the lane-specific skills own resolution logic.
+- Do not hide ambiguity behind `open` or `needs-user-decision` when the user already started answering. Ask the next concrete question.

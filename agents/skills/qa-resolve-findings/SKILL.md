@@ -47,6 +47,8 @@ Assume the curated findings are confirmed and the intended validation or fix pla
 
 If the input is only a checklist, or if the plan is still ambiguous, stop and ask the user before coding or rewriting tests.
 
+If the user previously commented on a finding but the expected behavior, validation target, rollout stance, or exact resolution path is still unclear, ask the follow-up question before coding.
+
 ## Workflow
 
 1. Reproduce the scenario.
@@ -64,6 +66,7 @@ If the input is only a checklist, or if the plan is still ambiguous, stop and as
 
 2. Validate that the target finding is still the one you are meant to fix.
    Do not re-triage the whole document. Only stop when the finding is obviously stale, contradictory, or missing a clear intended resolution.
+   If the finding is not implementation-ready after reading the user comments, ask concise finding-specific questions immediately.
 
 3. Stay within the selected bucket.
    Keep the change scoped to the failing behavior unless a broader repair is clearly required. Do not opportunistically drift into lower-priority findings unless the user asked for `all`.
@@ -89,6 +92,7 @@ If the input is only a checklist, or if the plan is still ambiguous, stop and as
 - If the right outcome is stronger validation rather than code, update the QA protocol accordingly.
 - Stay in implementation and validation mode once the finding and plan are clear.
 - If the finding is not actually confirmed or the plan is under-specified, ask the user instead of improvising triage.
+- Do not convert user ambiguity into silent assumptions. Surface the missing decision explicitly before changing code or tests.
 
 ## Expected Outputs
 

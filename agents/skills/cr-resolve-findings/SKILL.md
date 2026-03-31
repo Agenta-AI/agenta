@@ -47,6 +47,8 @@ Assume the curated findings are confirmed and the intended plan is already chose
 
 If only raw CR notes exist, or if the intended fix path is still ambiguous, stop and ask the user before coding.
 
+If the user previously commented on a finding but the policy, mutability rule, compatibility expectation, or exact desired outcome is still unclear, ask the follow-up question before coding.
+
 ## Workflow
 
 1. Load the current findings set.
@@ -64,6 +66,7 @@ If only raw CR notes exist, or if the intended fix path is still ambiguous, stop
 
 2. Validate that the target finding is still the one you are meant to fix.
    Do not re-triage the whole document. Only stop when the finding is obviously stale, contradictory, or missing a clear intended resolution.
+   If the finding text and the user comments do not yet produce an implementation-ready plan, ask concise finding-specific questions immediately.
 
 3. Stay within the selected bucket.
    Do not opportunistically drift into lower-priority findings unless the user asked for `all`.
@@ -90,6 +93,7 @@ If only raw CR notes exist, or if the intended fix path is still ambiguous, stop
 - If the real fix is documentation or migration planning, say so instead of forcing a code patch.
 - Stay in implementation mode once the finding and plan are clear.
 - If the finding is not actually confirmed or the plan is under-specified, ask the user instead of improvising triage.
+- Do not convert user ambiguity into hidden assumptions. Surface the missing decision explicitly before touching code.
 
 ## Expected Outputs
 

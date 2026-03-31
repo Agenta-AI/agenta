@@ -83,6 +83,7 @@ Treat old QA notes as reusable evidence and scenario seeds. Re-check them agains
 
 7. Resolve open questions.
    When expected behavior is ambiguous, acceptance criteria conflict, or multiple validation paths are legitimate, ask the user and record the resulting decision in the findings document.
+   If the user already commented on a finding but the validation target or disposition is still unclear, ask the missing follow-up question in the same turn rather than silently leaving the item open.
 
 8. Update PR thread disposition.
    If GitHub review-thread operations are available, resolve or close clearly-fixed QA-related review threads and keep unresolved threads mapped to finding IDs. If not, note the required manual action.
@@ -129,6 +130,7 @@ Useful status values:
 - Mark irreproducible or outdated issues as `stale`, not `open`.
 - Call out missing QA coverage separately from confirmed failures.
 - Keep the master findings file in sync with current PR comments, current findings, and current behavior.
+- When the user gives a per-finding reply, continue asking until the finding is clearly ready for fix, accepted, blocked, or still under investigation for a specific reason.
 
 ## What Belongs In QA vs CR
 

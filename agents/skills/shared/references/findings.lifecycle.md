@@ -49,6 +49,10 @@ Before starting, confirm the effective variables.
 - Re-check each item against current code or current behavior.
 - Update `CR.findings.md` or `QA.findings.md` so they reflect reality now.
 - When GitHub thread operations are available, resolve or close review threads that are clearly fixed and keep unresolved threads mapped to findings.
+- Bias toward clarification, not silent carry-forward:
+  - if the user commented on a finding but left the intended disposition, uncertainty, or fix path ambiguous, ask follow-up questions in the same turn
+  - do not leave a finding merely `open` or `needs-user-decision` without first asking the concrete question that blocks the next step
+  - when multiple findings are ambiguous, batch the questions clearly by finding ID instead of making the user do another discovery loop
 - Ask the user to resolve ambiguity when:
   - there are multiple legitimate fix paths
   - reviewer comments conflict
@@ -80,6 +84,9 @@ Before starting, confirm the effective variables.
 - Assume curated findings are confirmed and ready to act on.
 - Assume the intended plan or disposition has already been chosen.
 - If the plan is not clear, or the finding still needs triage, stop and ask the user before coding.
+- Bias toward readiness checks:
+  - when the user has already responded to findings, convert any remaining ambiguity into direct follow-up questions immediately
+  - do not start implementation while the intended resolution path, mutability rule, compatibility policy, or scope boundary is still underspecified
 - Implement the fix, add verification or validation coverage, and update status artifacts.
 
 Accept a `priority` input from the user prompt:

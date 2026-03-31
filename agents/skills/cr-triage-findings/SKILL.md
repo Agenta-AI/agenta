@@ -86,6 +86,7 @@ Treat external reviewer output as input hypotheses, not truth. A finding is only
 
 7. Resolve open questions.
    When evidence is ambiguous, reviewers disagree, or multiple fix paths are legitimate, ask the user and record the resulting decision in the findings document.
+   If the user already commented on a finding but the disposition still is not implementation-ready, ask the missing follow-up question in the same turn rather than silently leaving the item open.
 
 8. Update PR thread disposition.
    If GitHub review-thread operations are available, resolve or close clearly-fixed review threads and keep unresolved threads mapped to finding IDs. If not, note the required manual action.
@@ -148,6 +149,12 @@ Preserve the source severity if it is already established, but normalize the fin
 - Separate code defects from process or rollout comments.
 - Call out missing tests when the risk depends on absent coverage.
 - Keep the master findings file in sync with current PR comments and current code.
+- When the user gives a per-finding reply, do not treat partial intent as final intent. Ask targeted follow-up questions until each discussed finding is clearly one of:
+  - fix now
+  - stale
+  - wontfix / accepted
+  - blocked pending a specific external decision
+  - still under investigation with a clearly stated unknown
 
 ## What Belongs In CR vs QA
 

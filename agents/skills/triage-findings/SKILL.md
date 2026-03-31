@@ -59,6 +59,7 @@ Default:
 
 4. Surface decisions.
    Collect `needs-user-decision` items from both lanes and present them clearly.
+   If the user has already commented on those findings, turn the remaining uncertainty into explicit follow-up questions in the same turn instead of stopping at a status label.
 
 5. Keep master files synced.
    Ensure `path/CR.findings.md` and `path/QA.findings.md` reflect current code, current local docs, and remote PR state when applicable.
