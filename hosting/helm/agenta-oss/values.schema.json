@@ -8,7 +8,9 @@
         "webUrl": { "type": "string" },
         "apiUrl": { "type": "string" },
         "servicesUrl": { "type": "string" },
-        "imagePullSecrets": { "type": "array" }
+        "posthogApiKey": { "type": "string" },
+        "imagePullSecrets": { "type": "array" },
+        "extraEnv": { "type": "object" }
       }
     },
     "secrets": {
@@ -20,7 +22,8 @@
         "postgresPassword": { "type": "string" },
         "supertokensApiKey": { "type": "string" },
         "oauth": { "type": "object" },
-        "llmProviders": { "type": "object" }
+        "llmProviders": { "type": "object" },
+        "extraEnv": { "type": "object" }
       }
     },
     "serviceAccount": {

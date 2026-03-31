@@ -145,6 +145,7 @@ Configuration is done through Helm values. The full default values are in `hosti
 | `global.webUrl` | Public web URL | `http://localhost` |
 | `global.apiUrl` | Public API URL | `http://localhost/api` |
 | `global.servicesUrl` | Public services URL | `http://localhost/services` |
+| `global.extraEnv` | Extra non-secret env vars injected into all Agenta application pods | `{}` |
 | `global.imagePullSecrets` | Image pull secrets | `[]` |
 
 ### Secrets
@@ -158,12 +159,56 @@ Configuration is done through Helm values. The full default values are in `hosti
 | `secrets.supertokensApiKey` | SuperTokens API key (recommended for production) | `""` |
 | `secrets.oauth` | OAuth env vars injected into pods (key = env var name) | `{}` |
 | `secrets.llmProviders` | LLM provider API keys injected into pods | `{}` |
+| `secrets.extraEnv` | Extra secret env vars injected into all Agenta application pods | `{}` |
 
 To use an existing Kubernetes Secret instead of having the chart create one, set `secrets.existingSecret` to the name of your Secret. It must contain keys: `AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, `POSTGRES_PASSWORD`. This is the recommended approach for production as it keeps secrets out of Helm values entirely.
 
 :::caution
 When `secrets.supertokensApiKey` is empty, the SuperTokens instance runs without authentication. Any pod that can reach the SuperTokens service can manage auth data. Set an API key for production deployments.
 :::
+
+### Shared self-host env buckets
+
+Use the shared env buckets when you want a value to be available across Agenta application pods:
+
+- `global.extraEnv` for non-secret values
+- `secrets.extraEnv` for secret values
+
+This is the recommended place for optional self-hosting configuration such as:
+
+- access control / org management envs
+- SendGrid configuration
+- Composio configuration
+- New Relic license key
+
+Example:
+
+```yaml
+global:
+  extraEnv:
+    AGENTA_ALLOWED_DOMAINS: "example.com"
+    AGENTA_BLOCKED_DOMAINS: "mailinator.com"
+    AGENTA_BLOCKED_EMAILS: "blocked@example.com"
+    AGENTA_ORG_CREATION_ALLOWLIST: "admin@example.com"
+    SENDGRID_FROM_ADDRESS: "noreply@example.com"
+    COMPOSIO_API_URL: "https://backend.composio.dev"
+
+secrets:
+  extraEnv:
+    SENDGRID_API_KEY: "your-sendgrid-api-key"
+    COMPOSIO_API_KEY: "your-composio-api-key"
+    NEW_RELIC_LICENSE_KEY: "your-new-relic-license-key"
+```
+
+For self-hosted EE, keep these unset by default unless you explicitly need them:
+
+- `STRIPE_API_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PRICING`
+- `CLOUDFLARE_TURNSTILE_SITE_KEY`
+- `CLOUDFLARE_TURNSTILE_SECRET_KEY`
+
+`<component>.env` is still available for component-specific overrides. Use the shared buckets only for values that should be present across the app.
 
 ### Component Images
 

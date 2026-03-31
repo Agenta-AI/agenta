@@ -223,6 +223,50 @@ imagePullSecrets:
 {{- end }}
 
 {{/* ================================================================
+   Shared optional env vars (non-secret + secret refs) for app pods
+   ================================================================ */}}
+{{- define "agenta.sharedOptionalEnv" -}}
+- name: POSTHOG_API_KEY
+  value: {{ .Values.global.posthogApiKey | quote }}
+{{- with .Values.global.extraEnv }}
+{{- range $key, $val := . }}
+- name: {{ $key }}
+  value: {{ $val | quote }}
+{{- end }}
+{{- end }}
+{{- with .Values.secrets.oauth }}
+{{- range $key, $val := . }}
+- name: {{ $key }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" $ }}
+      key: {{ $key }}
+      optional: true
+{{- end }}
+{{- end }}
+{{- with .Values.secrets.llmProviders }}
+{{- range $key, $val := . }}
+- name: {{ $key }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" $ }}
+      key: {{ $key }}
+      optional: true
+{{- end }}
+{{- end }}
+{{- with .Values.secrets.extraEnv }}
+{{- range $key, $val := . }}
+- name: {{ $key }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" $ }}
+      key: {{ $key }}
+      optional: true
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/* ================================================================
    Common environment variables shared by api, workers, cron, alembic
    ================================================================ */}}
 {{- define "agenta.commonEnv" -}}
@@ -283,28 +327,7 @@ imagePullSecrets:
       name: {{ include "agenta.secretName" . }}
       key: SUPERTOKENS_API_KEY
       optional: true
-- name: POSTHOG_API_KEY
-  value: {{ .Values.global.posthogApiKey | quote }}
-{{- with .Values.secrets.oauth }}
-{{- range $key, $val := . }}
-- name: {{ $key }}
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "agenta.secretName" $ }}
-      key: {{ $key }}
-      optional: true
-{{- end }}
-{{- end }}
-{{- with .Values.secrets.llmProviders }}
-{{- range $key, $val := . }}
-- name: {{ $key }}
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "agenta.secretName" $ }}
-      key: {{ $key }}
-      optional: true
-{{- end }}
-{{- end }}
+{{ include "agenta.sharedOptionalEnv" . }}
 {{- end }}
 
 {{/* ================================================================

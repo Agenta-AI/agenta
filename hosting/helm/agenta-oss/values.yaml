@@ -7,6 +7,15 @@ global:
   servicesUrl: "http://localhost/services"
   posthogApiKey: "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
   imagePullSecrets: []
+  # Extra non-secret env vars injected into all Agenta application pods.
+  # Use this for shared self-hosting configuration such as:
+  #   AGENTA_ALLOWED_DOMAINS: "example.com"
+  #   AGENTA_BLOCKED_DOMAINS: "mailinator.com"
+  #   AGENTA_BLOCKED_EMAILS: "blocked@example.com"
+  #   AGENTA_ORG_CREATION_ALLOWLIST: "admin@example.com"
+  #   SENDGRID_FROM_ADDRESS: "noreply@example.com"
+  #   COMPOSIO_API_URL: "https://backend.composio.dev"
+  extraEnv: {}
   # Wire the Bitnami subchart to read the PostgreSQL password from the
   # chart-managed secret so users only need to set secrets.postgresPassword.
   #
@@ -51,6 +60,16 @@ secrets:
   llmProviders: {}
   #   OPENAI_API_KEY: ""
   #   ANTHROPIC_API_KEY: ""
+  # Extra secret env vars injected into all Agenta application pods.
+  # Use this for shared self-hosting secrets such as:
+  #   SENDGRID_API_KEY: ""
+  #   COMPOSIO_API_KEY: ""
+  #   NEW_RELIC_LICENSE_KEY: ""
+  #   CLOUDFLARE_TURNSTILE_SITE_KEY: ""      # leave unset by default for self-hosted EE
+  #   CLOUDFLARE_TURNSTILE_SECRET_KEY: ""    # leave unset by default for self-hosted EE
+  #   STRIPE_API_KEY: ""                     # leave unset by default for self-hosted EE
+  #   STRIPE_WEBHOOK_SECRET: ""             # leave unset by default for self-hosted EE
+  extraEnv: {}
 
 # =================================================================
 # ServiceAccount
