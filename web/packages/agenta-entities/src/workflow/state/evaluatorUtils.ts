@@ -16,7 +16,7 @@ import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {dereferenceSchema} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily} from "jotai-family"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import type {ListQueryState} from "../../shared"
 import {generateLocalId} from "../../shared"
@@ -100,6 +100,21 @@ export const nonArchivedEvaluatorsAtom = atom<Workflow[]>((get) => {
  */
 export function invalidateEvaluatorsListCache() {
     const store = getDefaultStore()
+
+    // Invalidate via TanStack QueryClient directly — works even when
+    // no component is currently subscribed to the query atoms (e.g.,
+    // evaluator created on one page, picker opened on another page).
+    try {
+        const qc = store.get(queryClientAtom)
+        qc.invalidateQueries({
+            queryKey: ["workflows", "evaluators"],
+            exact: false,
+            refetchType: "all",
+        })
+    } catch {
+        // queryClientAtom may not be initialized yet
+    }
+
     const current = store.get(evaluatorsListQueryAtom)
     if (current?.refetch) {
         current.refetch()
