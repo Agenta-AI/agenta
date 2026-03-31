@@ -710,7 +710,7 @@ const SingleView = ({
                                             appType={appType}
                                             collapsed={isVariableInputCollapsed}
                                             containerRef={getVariableRef(id)}
-                                            className="*:!border-none w-full overflow-hidden"
+                                            className="*:!border-none overflow-hidden"
                                             onMarkdownToggleReady={(toggle) => {
                                                 setMarkdownToggles((prev) => ({
                                                     ...(prev[id] === (toggle ?? undefined)

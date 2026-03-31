@@ -25,7 +25,7 @@ import {
 } from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus, VariantNameCell} from "@agenta/entity-ui/variant"
 import {playgroundController} from "@agenta/playground"
-import {playgroundInitializedAtom} from "@agenta/playground/state"
+import {connectedTestsetAtom, playgroundInitializedAtom} from "@agenta/playground/state"
 import {type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {
     DrawerProvidersProvider,
@@ -171,6 +171,8 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
     const addPrimaryNode = useSetAtom(playgroundController.actions.addPrimaryNode)
     const setEntityIds = useSetAtom(playgroundController.actions.setEntityIds)
     const setInitialized = useSetAtom(playgroundInitializedAtom)
+    const setSelectedAppLabel = useSetAtom(selectedAppLabelAtom)
+    const setConnectedTestset = useSetAtom(connectedTestsetAtom)
     useEffect(() => {
         if (entityId) {
             addPrimaryNode({type: "workflow", id: entityId, label: "Evaluator"})
@@ -179,8 +181,17 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
         return () => {
             setEntityIds([])
             setInitialized(false)
+            setSelectedAppLabel(null)
+            setConnectedTestset(null)
         }
-    }, [entityId, addPrimaryNode, setEntityIds, setInitialized])
+    }, [
+        entityId,
+        addPrimaryNode,
+        setEntityIds,
+        setInitialized,
+        setSelectedAppLabel,
+        setConnectedTestset,
+    ])
 
     // Evaluator state — derive directly from nodes instead of external atoms
     // to avoid stale reads across atom boundaries.
