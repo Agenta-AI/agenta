@@ -2,6 +2,7 @@
 # Global
 # =================================================================
 global:
+  agentaLicense: "oss"
   webUrl: "http://localhost"
   apiUrl: "http://localhost/api"
   servicesUrl: "http://localhost/services"
@@ -72,39 +73,13 @@ postgresql:
     username: "agenta"
   primary:
     initdb:
-      scripts:
-        init-db.sql: |
-          \c postgres
-
-          SELECT 'CREATE DATABASE agenta_oss_core'
-          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'agenta_oss_core')\gexec
-
-          SELECT 'CREATE DATABASE agenta_oss_tracing'
-          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'agenta_oss_tracing')\gexec
-
-          SELECT 'CREATE DATABASE agenta_oss_supertokens'
-          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'agenta_oss_supertokens')\gexec
-
-          GRANT ALL PRIVILEGES ON DATABASE agenta_oss_core TO agenta;
-          GRANT ALL PRIVILEGES ON DATABASE agenta_oss_tracing TO agenta;
-          GRANT ALL PRIVILEGES ON DATABASE agenta_oss_supertokens TO agenta;
-
-          \c agenta_oss_core
-          GRANT ALL ON SCHEMA public TO agenta;
-
-          \c agenta_oss_tracing
-          GRANT ALL ON SCHEMA public TO agenta;
-
-          \c agenta_oss_supertokens
-          GRANT ALL ON SCHEMA public TO agenta;
-
-          \c postgres
+      scriptsConfigMap: '{{ printf "%s-postgresql-initdb" .Release.Name }}'
     persistence:
       size: 10Gi
   databases:
-    core: "agenta_oss_core"
-    tracing: "agenta_oss_tracing"
-    supertokens: "agenta_oss_supertokens"
+    core: ""
+    tracing: ""
+    supertokens: ""
   # Only used when postgresql.enabled=false
   external:
     host: ""                    # REQUIRED when enabled=false
@@ -201,7 +176,7 @@ redisDurable:
 api:
   enabled: true
   image:
-    repository: ghcr.io/agenta-ai/agenta-api
+    repository: ""
     # Defaults to .Chart.AppVersion when empty.
     tag: ""
     pullPolicy: IfNotPresent
@@ -233,7 +208,7 @@ api:
 web:
   enabled: true
   image:
-    repository: ghcr.io/agenta-ai/agenta-web
+    repository: ""
     # Defaults to .Chart.AppVersion when empty.
     tag: ""
     pullPolicy: IfNotPresent
@@ -264,7 +239,7 @@ web:
 services:
   enabled: true
   image:
-    repository: ghcr.io/agenta-ai/agenta-services
+    repository: ""
     # Defaults to .Chart.AppVersion when empty.
     tag: ""
     pullPolicy: IfNotPresent

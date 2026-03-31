@@ -5,6 +5,7 @@
     "global": {
       "type": "object",
       "properties": {
+        "agentaLicense": { "type": "string", "enum": ["oss", "ee"] },
         "webUrl": { "type": "string" },
         "apiUrl": { "type": "string" },
         "servicesUrl": { "type": "string" },

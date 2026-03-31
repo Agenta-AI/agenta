@@ -8,9 +8,11 @@ description: 'Deploy Agenta on Kubernetes using the official Helm chart. Covers 
 The Agenta Helm chart is **community-maintained** and currently in **beta**. If you encounter issues or have suggestions, please [open a GitHub issue](https://github.com/Agenta-AI/agenta/issues/new/choose) or reach out in our [Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw).
 :::
 
-This guide walks you through deploying Agenta on Kubernetes using the Helm chart. By the end, you will have a fully working Agenta instance running in your cluster.
+This guide walks you through deploying Agenta on Kubernetes using the Helm chart. By the end, you will have a working Agenta instance running in your cluster.
 
-The Helm chart packages all Agenta OSS components and uses Bitnami PostgreSQL as a subchart dependency. Database migrations run automatically as a post-install/post-upgrade hook (post-hooks are required because PostgreSQL is deployed as a Bitnami subchart and is not available until the main release installs).
+The chart supports both OSS and Enterprise Edition. Set `global.agentaLicense` to `oss` or `ee`.
+
+Database migrations run automatically as a post-install or post-upgrade hook.
 
 ## What Gets Deployed
 
@@ -62,9 +64,12 @@ Save these values in a secure secret manager. You will need them for future upgr
 
 ### 3. Install the Chart
 
+For OSS:
+
 ```bash
 helm install agenta hosting/helm/agenta-oss \
   --namespace agenta --create-namespace \
+  --set global.agentaLicense=oss \
   --set secrets.agentaAuthKey=$AG_AUTH_KEY \
   --set secrets.agentaCryptKey=$AG_CRYPT_KEY \
   --set secrets.postgresPassword=$PG_PASS
@@ -101,32 +106,16 @@ Then open `http://localhost:3000` in your browser.
 
 ## Using a Values File
 
-For production deployments, create a `values.yaml` file instead of passing `--set` flags:
+For production deployments, create a `values.yaml` file instead of passing `--set` flags.
 
 :::warning
 Never commit `values.yaml` to version control if it contains secrets. Add it to `.gitignore` and restrict file permissions (`chmod 600 values.yaml`). For fully managed secret lifecycle, use `secrets.existingSecret` to reference a pre-existing Kubernetes Secret or integrate with an external secrets operator.
 :::
 
-```yaml
-global:
-  webUrl: "https://agenta.example.com"
-  apiUrl: "https://agenta.example.com/api"
-  servicesUrl: "https://agenta.example.com/services"
+Start from one of the example files:
 
-secrets:
-  agentaAuthKey: "your-auth-key"
-  agentaCryptKey: "your-crypt-key"
-  postgresPassword: "your-db-password"
-
-postgresql:
-  auth:
-    password: "your-db-password"
-
-ingress:
-  enabled: true
-  className: "traefik"
-  host: "agenta.example.com"
-```
+- `hosting/helm/agenta-oss/values-oss.example.yaml`
+- `hosting/helm/agenta-oss/values-ee.example.yaml`
 
 Install with:
 
@@ -144,10 +133,35 @@ Configuration is done through Helm values. The full default values are in `hosti
 
 | Value | Purpose | Default |
 |-------|---------|---------|
+| `global.agentaLicense` | Edition to deploy | `oss` |
 | `global.webUrl` | Public web URL | `http://localhost` |
 | `global.apiUrl` | Public API URL | `http://localhost/api` |
 | `global.servicesUrl` | Public services URL | `http://localhost/services` |
 | `global.imagePullSecrets` | Image pull secrets | `[]` |
+
+### Enterprise Edition
+
+To deploy Enterprise Edition, set `global.agentaLicense: ee`.
+
+Enterprise images are private packages in GHCR. Create the namespace and image pull secret first:
+
+```bash
+kubectl create namespace agenta
+
+kubectl create secret docker-registry ghcr-pull-secret \
+  --docker-server=ghcr.io \
+  --docker-username=<github-username> \
+  --docker-password=<github-pat> \
+  --namespace agenta
+```
+
+Then install with the EE example file:
+
+```bash
+helm install agenta hosting/helm/agenta-oss \
+  --namespace agenta \
+  -f hosting/helm/agenta-oss/values-ee.example.yaml
+```
 
 ### Secrets
 
@@ -171,11 +185,11 @@ When `secrets.supertokensApiKey` is empty, the SuperTokens instance runs without
 
 | Value | Purpose | Default |
 |-------|---------|---------|
-| `api.image.repository` | API image | `ghcr.io/agenta-ai/agenta-api` |
+| `api.image.repository` | API image | Derived from `global.agentaLicense` |
 | `api.image.tag` | API image tag | `latest` |
-| `web.image.repository` | Web image | `ghcr.io/agenta-ai/agenta-web` |
+| `web.image.repository` | Web image | Derived from `global.agentaLicense` |
 | `web.image.tag` | Web image tag | `latest` |
-| `services.image.repository` | Services image | `ghcr.io/agenta-ai/agenta-services` |
+| `services.image.repository` | Services image | Derived from `global.agentaLicense` |
 | `services.image.tag` | Services image tag | `latest` |
 
 Workers, cron, and Alembic jobs reuse the API image.
@@ -200,7 +214,10 @@ Each component (`api`, `web`, `services`, `workerEvaluations`, `workerTracing`, 
 
 ### PostgreSQL (Bundled)
 
-The chart includes Bitnami PostgreSQL as a subchart. It is enabled by default and creates three databases: `agenta_oss_core`, `agenta_oss_tracing`, and `agenta_oss_supertokens`.
+The chart includes Bitnami PostgreSQL as a subchart. It is enabled by default and creates three databases. The names depend on `global.agentaLicense`.
+
+- OSS: `agenta_oss_core`, `agenta_oss_tracing`, `agenta_oss_supertokens`
+- EE: `agenta_ee_core`, `agenta_ee_tracing`, `agenta_ee_supertokens`
 
 | Value | Purpose | Default |
 |-------|---------|---------|

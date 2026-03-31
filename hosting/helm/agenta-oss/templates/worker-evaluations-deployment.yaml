@@ -37,7 +37,7 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          command: ["newrelic-admin", "run-program", "python", "-m", "entrypoints.worker_evaluations"]
+          command: {{ if eq (include "agenta.edition" .) "oss" }}["newrelic-admin", "run-program", "python", "-m", "entrypoints.worker_evaluations"]{{ else }}["python", "-m", "entrypoints.worker_evaluations"]{{ end }}
           env:
             {{- include "agenta.commonEnv" . | nindent 12 }}
             {{- range $key, $val := .Values.workerEvaluations.env }}
