@@ -1,6 +1,6 @@
 """migrate roles to canonical names
 
-Rename legacy role strings to the canonical five-role set and delete API keys
+Rename legacy role strings to the canonical six-role set and delete API keys
 owned by users whose role does not permit API key access.
 
 Role mapping applied:

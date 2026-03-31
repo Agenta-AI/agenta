@@ -1,6 +1,6 @@
 """migrate roles to canonical names (oss scope: project_invitations only)
 
-Rename legacy role strings in project_invitations to the canonical five-role
+Rename legacy role strings in project_invitations to the canonical six-role
 set. Tables workspace_members and project_members are EE-only and are handled
 by the EE migration.
 

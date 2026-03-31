@@ -335,7 +335,7 @@ left join users u on u.id = ak.created_by_id
 left join project_members pm
     on pm.project_id = ak.project_id
    and pm.user_id = ak.created_by_id
-where pm.role in ('viewer', 'analyst', 'evaluator', 'auditor', 'developer', 'annotator')
+where pm.role in ('viewer', 'developer', 'annotator')
 order by organization_name, project_name, email, ak.created_at;
 ```
 

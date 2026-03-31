@@ -214,11 +214,12 @@ async def invite_user_to_workspace(
                 # Create a new invitation
                 role = (
                     payload_invite.roles[0].value
-                    if payload_invite.roles and hasattr(payload_invite.roles[0], "value")
+                    if payload_invite.roles
+                    and hasattr(payload_invite.roles[0], "value")
                     else (
                         str(payload_invite.roles[0])
                         if payload_invite.roles
-                        else WorkspaceRole.ADMIN.value
+                        else WorkspaceRole.VIEWER.value
                     )
                 )
                 invitation = await create_invitation(
