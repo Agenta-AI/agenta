@@ -32,16 +32,29 @@ Compatibility rule for this backlog:
 
 **Target state:**
 - `plan.md` explicitly states checkpoint 1 is mixed expand/contract
+- docs that still describe checkpoint 1 as fully backward compatible are updated or explicitly marked historical
 - every intentional backward-incompatible change has one of:
   - DB/schema migration work
   - persisted-payload rewrite / normalization work
   - generated-type / client-alignment work
   - explicit `wontfix` / no-migration decision
+- when a local revision already exists, persisted revision data remains the primary schema source during migration; `/inspect` is the bootstrap or live-discovery fallback when no local revision truth exists
 - codebase-level compatibility shims are only added when a concrete consumer still needs them
 
 **Depends on:** none
 
 **Migration type:** Planning / schema-migration coordination
+
+### Migration review checklist while mixed-state work remains unresolved
+
+Use this checklist for every intentional contract break until the migration backlog is closed:
+
+- identify the concrete consumer or stored-data surface that is affected
+- record whether the handling is DB migration, read-time normalization, generated-client alignment, frontend follow-up, or explicit no-migration
+- prefer persisted revision schemas when a local revision already exists; use `/inspect` only to bootstrap or discover a target that has no local revision truth yet
+- call out create/edit semantic changes explicitly when they affect quota, overwrite rules, or mutability expectations
+- do not rely on preserving old wrappers by default; if a wrapper is still required, name the consumer and the planned removal point
+- keep the plan docs and the migration backlog aligned so review comments do not have to infer migration intent from code deltas alone
 
 ---
 

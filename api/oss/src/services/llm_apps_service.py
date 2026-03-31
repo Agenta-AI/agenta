@@ -250,9 +250,16 @@ def _format_curl_request(
     headers: Dict[str, str],
     json_body: Dict[str, Any],
 ) -> str:
+    # Keep any future debug curl output safe by redacting sensitive headers.
+    redacted_headers = {
+        key: "[REDACTED]"
+        if key.lower() in {"authorization", "proxy-authorization", "cookie"}
+        else value
+        for key, value in headers.items()
+    }
     parts = ["curl", "-X", "POST", shlex.quote(url)]
 
-    for key, value in headers.items():
+    for key, value in redacted_headers.items():
         parts.extend(["-H", shlex.quote(f"{key}: {value}")])
 
     parts.extend(

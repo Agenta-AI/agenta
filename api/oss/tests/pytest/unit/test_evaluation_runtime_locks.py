@@ -50,7 +50,7 @@ async def fake_redis():
         ttl: int = caching.AGENTA_LOCK_TTL,
         owner=None,
     ) -> bool:
-        lock_key = caching._pack(
+        lock_key = caching.pack(
             namespace=f"lock:{namespace}",
             key=key,
             project_id=project_id,
@@ -72,7 +72,7 @@ async def fake_redis():
         owner=None,
         strict: bool = False,
     ) -> bool:
-        lock_key = caching._pack(
+        lock_key = caching.pack(
             namespace=f"lock:{namespace}",
             key=key,
             project_id=project_id,

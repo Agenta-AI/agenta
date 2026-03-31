@@ -1018,10 +1018,13 @@ class SimpleTracesService:
             return None
 
         _flags = self._flags(existing.origin, existing.kind, existing.channel)
-        _references = existing.references.model_dump(
+        references = trace_edit.references or SimpleTraceReferences()
+        links = trace_edit.links or {}
+
+        _references = references.model_dump(
             mode="json", exclude_none=True, exclude_unset=True
         )
-        _links = build_otel_links(existing.links)
+        _links = build_otel_links(links)
         _attributes = build_simple_trace_attributes(
             flags=_flags,
             tags=trace_edit.tags,
@@ -1066,8 +1069,8 @@ class SimpleTracesService:
             tags=trace_edit.tags,
             meta=trace_edit.meta,
             data=trace_edit.data,
-            references=existing.references,
-            links=existing.links,
+            references=references,
+            links=links,
         )
 
     async def delete(

@@ -32,11 +32,11 @@ def _normalize_preset(
     inherited_flags: dict[str, Any],
 ) -> dict[str, Any]:
     flags = {
-        "is_archived": preset.get("archived") or False,
-        "is_recommended": preset.get("recommended") or False,
-        "is_application": inherited_flags["is_application"],
-        "is_evaluator": inherited_flags["is_evaluator"],
-        "is_snippet": inherited_flags["is_snippet"],
+        "is_archived": preset.get("archived", False),
+        "is_recommended": preset.get("recommended", False),
+        "is_application": inherited_flags.get("is_application", False),
+        "is_evaluator": inherited_flags.get("is_evaluator", False),
+        "is_snippet": inherited_flags.get("is_snippet", False),
         **(preset.get("flags") or {}),
     }
     data = preset.get("data")
@@ -57,8 +57,10 @@ def _enrich_entry(
     metadata = evaluator_metadata or {}
     flags = _clone(entry["flags"])
     flags.update(metadata.get("flags") or {})
-    flags["is_archived"] = metadata.get("archived") or flags["is_archived"]
-    flags["is_recommended"] = metadata.get("recommended") or flags["is_recommended"]
+    if metadata.get("archived") is not None:
+        flags["is_archived"] = metadata["archived"]
+    if metadata.get("recommended") is not None:
+        flags["is_recommended"] = metadata["recommended"]
 
     enriched = {
         **_clone(entry),

@@ -81,6 +81,9 @@ def parse_url(url: str) -> str:
     """
 
     url = url.rstrip("/")
+    if "://" not in url:
+        url = f"http://{url}"
+
     parsed = urlparse(url)
     hostname = parsed.hostname
     docker_network_mode = env.docker.network_mode

@@ -415,7 +415,6 @@ class ApplicationsRouter:
     # APPLICATION CATALOG ------------------------------------------------------
 
     @intercept_exceptions()
-    @intercept_exceptions()
     async def list_application_catalog_types(
         self,
     ) -> ApplicationCatalogTypesResponse:

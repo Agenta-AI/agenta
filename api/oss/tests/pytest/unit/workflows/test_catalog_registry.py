@@ -3,6 +3,7 @@ from oss.src.resources.workflows.catalog import (
     get_filtered_workflow_catalog_templates,
     get_workflow_catalog_template,
 )
+from oss.src.resources.workflows import catalog as workflow_catalog
 
 
 def test_workflow_catalog_contains_application_and_evaluator_templates():
@@ -62,3 +63,42 @@ def test_snippet_catalog_filter_uses_flags():
 
     assert template is not None
     assert template.get("flags", {}).get("is_snippet") is True
+
+
+def test_catalog_metadata_explicit_false_overrides_truthy_base_flags():
+    entry = {
+        "key": "demo",
+        "name": "Demo",
+        "description": "Demo",
+        "categories": [],
+        "flags": {
+            "is_archived": True,
+            "is_recommended": True,
+            "is_application": True,
+            "is_evaluator": False,
+            "is_snippet": False,
+        },
+        "data": {"uri": "agenta:builtin:demo:v0", "schemas": {}},
+    }
+
+    enriched = workflow_catalog._enrich_entry(
+        entry,
+        evaluator_metadata={
+            "archived": False,
+            "recommended": False,
+        },
+    )
+
+    assert enriched["flags"]["is_archived"] is False
+    assert enriched["flags"]["is_recommended"] is False
+
+
+def test_normalize_preset_defaults_missing_inherited_flags_to_false():
+    normalized = workflow_catalog._normalize_preset(
+        {"key": "demo"},
+        inherited_flags={},
+    )
+
+    assert normalized["flags"]["is_application"] is False
+    assert normalized["flags"]["is_evaluator"] is False
+    assert normalized["flags"]["is_snippet"] is False
