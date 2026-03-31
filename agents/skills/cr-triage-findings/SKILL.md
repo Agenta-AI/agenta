@@ -83,6 +83,7 @@ Treat external reviewer output as input hypotheses, not truth. A finding is only
 
 6. Sync the master findings set.
    Use `path/CR.findings.md` as the canonical record. Pull from existing findings, open PR comments, prior CR docs, and current code, then sync them into one consistent state.
+   Keep the file split into `Open Findings` and `Closed Findings`, and move each finding into the correct section whenever its status changes.
 
 7. Resolve open questions.
    When evidence is ambiguous, reviewers disagree, or multiple fix paths are legitimate, ask the user and record the resulting decision in the findings document.
@@ -131,6 +132,7 @@ When helpful, include:
 - coverage gaps
 - thread disposition table
 - open questions or decision points
+- separate `Open Findings` and `Closed Findings` sections in the master file
 
 ## Severity Rules
 

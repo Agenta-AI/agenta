@@ -79,6 +79,7 @@ If the user previously commented on a finding but the policy, mutability rule, c
 
 6. Update status artifacts.
    Update `path/CR.findings.md` first, and `path/CR.status.md` when present. Mark findings `fixed`, `stale`, `wontfix`, `blocked`, or leave them `in-progress` with a concrete blocker.
+   Keep `CR.findings.md` split into `Open Findings` and `Closed Findings`, and move the finding into the correct section when its status changes.
 
 7. Sync PR review threads.
    If GitHub review-thread operations are available, resolve or close clearly-fixed review threads tied to the finding. Otherwise note the required manual action.

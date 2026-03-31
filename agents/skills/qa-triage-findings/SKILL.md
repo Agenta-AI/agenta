@@ -80,6 +80,7 @@ Treat old QA notes as reusable evidence and scenario seeds. Re-check them agains
 
 6. Sync the master findings set.
    Use `path/QA.findings.md` as the canonical record. Pull from existing findings, open PR comments, QA notes, validation docs, and current behavior, then sync them into one consistent state.
+   Keep the file split into `Open Findings` and `Closed Findings`, and move each finding into the correct section whenever its status changes.
 
 7. Resolve open questions.
    When expected behavior is ambiguous, acceptance criteria conflict, or multiple validation paths are legitimate, ask the user and record the resulting decision in the findings document.

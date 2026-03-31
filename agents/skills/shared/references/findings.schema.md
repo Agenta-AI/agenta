@@ -7,6 +7,13 @@ Use one canonical findings shape across CR and QA so scan, curate, and resolve c
 - Verification findings live in `CR.findings.md`
 - Validation findings live in `QA.findings.md`
 
+Each master findings document should be split into:
+
+- `## Open Findings`
+- `## Closed Findings`
+
+Move findings between those sections whenever their status changes. Do not leave closed findings in the open section or open findings in the closed section.
+
 Optional supporting documents:
 
 - `CR.status.md`
