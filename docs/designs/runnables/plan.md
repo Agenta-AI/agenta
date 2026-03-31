@@ -2,7 +2,7 @@
 
 > Status: draft
 > Date: 2026-03-05
-> Companion: [gap-analysis.md](./gap-analysis.md), [taxonomy.md](./taxonomy.md)
+> Companion: [gap-analysis.md](./gap-analysis.md), [gap.migrations.md](./gap.migrations.md), [gap.catalog.md](./gap.catalog.md), [taxonomy.md](./taxonomy.md)
 
 This document breaks the gap analysis into ordered checkpoints using an **expand-and-contract** migration strategy. The current runnable workstream is no longer expand-only: checkpoint 1 now includes selected contract removals and code-path contractions where the target runnable model replaces legacy surfaces.
 

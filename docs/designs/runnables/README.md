@@ -17,6 +17,8 @@
 ## Companion Documents
 
 - [gap-analysis.md](./gap-analysis.md)
+- [gap.migrations.md](./gap.migrations.md)
+- [gap.catalog.md](./gap.catalog.md)
 - [plan.md](./plan.md)
 - [design-review.md](./design-review.md)
 - [simple-traces-unification.md](./simple-traces-unification.md)

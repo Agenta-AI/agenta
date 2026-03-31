@@ -23,6 +23,7 @@
 - The later Mar 31, 2026 review delta introduced two new top-level findings:
   - `F19`, now fixed, for dropped evaluator repeats if selected cached trace entries were later rejected as unusable
   - `F20`, now fixed, for deploy still using `fetch_environment_revision(...)` instead of the newer retrieval path
+- `F14` is no longer treated as an active branch finding; the remaining work is tracked as scoped backlog in `gap.catalog.md` and `gap.migrations.md`.
 - Late Mar 31 comments `3016846465` and `3016980223` are duplicate/source refreshes for `F15`.
 - Late Mar 31 comments `3016846423` and `3016980136` describe the same workflow-catalog startup/per-build inefficiency and were merged into `F21`, now fixed.
 - Late Mar 31 comments `3016846597` and `3016980261` are process-only PR scope/title feedback and were not promoted to code findings.
@@ -48,28 +49,6 @@
 
 ## Open Findings
 
-### [OPEN] F14. Evaluator schema keys were renamed/removed without a confirmed consumer migration
-
-- Severity: `P2`
-- Confidence: `medium`
-- Status: `open`
-- Category: `Compatibility`
-- Summary: `ground_truth_key` was removed and `advanced` was renamed to `x-ag-ui-advanced`, with known frontend usage of the old keys.
-- Evidence:
-  - `api/oss/src/resources/evaluators/evaluators.py`
-  - `web/packages/agenta-entities/src/workflow/state/evaluatorUtils.ts:457`
-  - `web/packages/agenta-entities/src/workflow/state/molecule.ts:579`
-- Files:
-  - `api/oss/src/resources/evaluators/evaluators.py`
-- Cause: Producer-side contract changes were made without an explicit transition window in the review record.
-- Explanation: Frontend and other consumers may still read the old keys.
-- Impact: Silent UI regressions are possible if consumers were not updated in this PR.
-- Suggested Fix: Audit and update active frontend consumers, especially the code that still reads `advanced`; do not add backward-compat emission if the contract break is intentional.
-- Alternatives: Explicitly document the breaking change and gate rollout on consumer migration.
-- Sources:
-  - `docs/designs/runnables/CR.md`
-  - PR threads `2983188635`, `2984134999`
-
 ## Closed Findings
 
 ### [CLOSED] F19. Cached evaluator reuse could skip repeats if selected cached trace entries were unusable
@@ -92,6 +71,32 @@
 - Alternatives: None.
 - Sources:
   - PR thread `3016391790`
+
+### [CLOSED] F14. Evaluator schema key migration is deferred to catalog and migration backlog
+
+- Severity: `P2`
+- Confidence: `high`
+- Status: `wontfix`
+- Category: `Compatibility`, `Migration`
+- Summary: `ground_truth_key` removal and `advanced` -> `x-ag-ui-advanced` are no longer treated as active branch defects; the remaining work is scoped to catalog/web integration and migration follow-up.
+- Evidence:
+  - `api/oss/src/resources/evaluators/evaluators.py`
+  - `web/packages/agenta-entities/src/workflow/state/evaluatorUtils.ts:457`
+  - `web/packages/agenta-entities/src/workflow/state/molecule.ts:579`
+  - `docs/designs/runnables/gap.catalog.md`
+  - `docs/designs/runnables/gap.migrations.md`
+- Files:
+  - `api/oss/src/resources/evaluators/evaluators.py`
+  - `docs/designs/runnables/gap.catalog.md`
+  - `docs/designs/runnables/gap.migrations.md`
+- Cause: The branch intentionally adopted the new catalog contract without preserving the old keys, and the remaining consumer work belongs to dedicated catalog/migration scope rather than this findings loop.
+- Explanation: If the new contract turns into a real bug during active catalog/web or migration work, reopen it there as a concrete scoped defect instead of carrying a generic open finding on this branch.
+- Impact: The current branch does not restore backward compatibility for the removed keys; follow-up work is now explicit backlog rather than an active unresolved finding.
+- Suggested Fix: Handle consumer alignment in `gap.catalog.md` and `gap.migrations.md`; reopen only if an actual integration bug is reproduced.
+- Alternatives: Reintroduce compatibility keys now, but that is not the chosen approach.
+- Sources:
+  - `docs/designs/runnables/CR.md`
+  - PR threads `2983188635`, `2984134999`
 
 ### [CLOSED] F20. Application deploy now uses `retrieve_environment_revision(...)`
 
