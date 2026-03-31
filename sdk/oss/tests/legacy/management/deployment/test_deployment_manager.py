@@ -8,7 +8,7 @@ from tests.management.deployment.fixtures import *  # noqa: F403
 @pytest.mark.usefixtures("create_app_from_template")
 class TestDeploymentManager:
     @pytest.mark.asyncio
-    @pytest.mark.deployment_manager
+    @pytest.mark.role_manager
     async def test_configs_deploy_success(
         self, http_client, get_completion_app_from_list, get_variant_revisions
     ):
@@ -45,7 +45,7 @@ class TestDeploymentManager:
         assert "environment_lifecycle" in response.json()
 
     @pytest.mark.asyncio
-    @pytest.mark.deployment_manager
+    @pytest.mark.role_manager
     async def test_configs_deploy_not_found(self, http_client):
         # ACT: Add configuration
         response = await http_client.post(
