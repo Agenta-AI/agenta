@@ -44,9 +44,6 @@ secrets:
   postgresPassword: ""
   supertokensApiKey: ""
   # Extra OAuth env vars injected into backend pods and the web pod.
-  # NOTE: the web entrypoint currently derives OIDC provider flags by checking
-  # both client IDs and client secrets, so these values still need to reach the
-  # web pod for now. This should be cleaned up in a follow-up.
   oauth: {}
   #   GOOGLE_OAUTH_CLIENT_ID: ""
   #   GOOGLE_OAUTH_CLIENT_SECRET: ""
@@ -65,7 +62,7 @@ accessControl:
   orgCreationAllowlist: ""
 
 # =================================================================
-# Email (backend-only secrets; web receives only derived public flags)
+# Email
 # =================================================================
 email:
   sendgrid:
@@ -73,7 +70,7 @@ email:
     fromAddress: ""
 
 # =================================================================
-# Integrations / tools / observability
+# Integrations / observability
 # =================================================================
 integrations:
   composio:
@@ -85,25 +82,12 @@ observability:
     licenseKey: ""
 
 # =================================================================
-# Billing / anti-bot (leave unset by default for self-hosted EE)
+# Anti-bot (leave unset by default for self-hosted EE)
 # =================================================================
-billing:
-  stripe:
-    apiKey: ""
-    webhookSecret: ""
-    pricing: ""
-
 captcha:
   turnstile:
     siteKey: ""
     secretKey: ""
-
-# =================================================================
-# Backend-only escape hatches
-# =================================================================
-backend:
-  extraEnv: {}
-  secretEnv: {}
 
 # =================================================================
 # ServiceAccount

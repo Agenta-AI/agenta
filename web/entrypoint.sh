@@ -10,32 +10,26 @@ if [ "$ENTRYPOINT_DIR" != "." ]; then
   ENTRYPOINT_DIR="/app"
 fi
 
-# Infer AGENTA_SENDGRID_ENABLED from SENDGRID_API_KEY and sender address unless explicitly provided
-if [ -z "${AGENTA_SENDGRID_ENABLED+x}" ]; then
-  SENDGRID_FROM_ADDRESS_VALUE="${SENDGRID_FROM_ADDRESS:-${AGENTA_AUTHN_EMAIL_FROM:-${AGENTA_SEND_EMAIL_FROM_ADDRESS}}}"
-  if [ -n "$SENDGRID_API_KEY" ] && [ -n "$SENDGRID_FROM_ADDRESS_VALUE" ]; then
-    export AGENTA_SENDGRID_ENABLED="true"
-  else
-    export AGENTA_SENDGRID_ENABLED="false"
-  fi
+# Infer AGENTA_SENDGRID_ENABLED from SENDGRID_API_KEY and sender address
+SENDGRID_FROM_ADDRESS_VALUE="${SENDGRID_FROM_ADDRESS:-${AGENTA_AUTHN_EMAIL_FROM:-${AGENTA_SEND_EMAIL_FROM_ADDRESS}}}"
+if [ -n "$SENDGRID_API_KEY" ] && [ -n "$SENDGRID_FROM_ADDRESS_VALUE" ]; then
+  export AGENTA_SENDGRID_ENABLED="true"
+else
+  export AGENTA_SENDGRID_ENABLED="false"
 fi
 
-# Infer AGENTA_TOOLS_ENABLED from COMPOSIO_API_KEY unless explicitly provided
-if [ -z "${AGENTA_TOOLS_ENABLED+x}" ]; then
-  if [ -n "$COMPOSIO_API_KEY" ]; then
-    export AGENTA_TOOLS_ENABLED="true"
-  else
-    export AGENTA_TOOLS_ENABLED="false"
-  fi
+# Infer AGENTA_TOOLS_ENABLED from COMPOSIO_API_KEY
+if [ -n "$COMPOSIO_API_KEY" ]; then
+  export AGENTA_TOOLS_ENABLED="true"
+else
+  export AGENTA_TOOLS_ENABLED="false"
 fi
 
-# Infer AGENTA_BILLING_ENABLED from STRIPE_API_KEY unless explicitly provided
-if [ -z "${AGENTA_BILLING_ENABLED+x}" ]; then
-  if [ -n "$STRIPE_API_KEY" ]; then
-    export AGENTA_BILLING_ENABLED="true"
-  else
-    export AGENTA_BILLING_ENABLED="false"
-  fi
+# Infer AGENTA_BILLING_ENABLED from STRIPE_API_KEY
+if [ -n "$STRIPE_API_KEY" ]; then
+  export AGENTA_BILLING_ENABLED="true"
+else
+  export AGENTA_BILLING_ENABLED="false"
 fi
 
 mkdir -p "${ENTRYPOINT_DIR}/${AGENTA_LICENSE}/public"
@@ -141,9 +135,7 @@ if [ "${EFFECTIVE_AUTHN_EMAIL}" = "password" ] || [ "${EFFECTIVE_AUTHN_EMAIL}" =
 fi
 
 EFFECTIVE_TURNSTILE_SITE_KEY=""
-if [ -n "${AGENTA_TURNSTILE_SITE_KEY}" ]; then
-  EFFECTIVE_TURNSTILE_SITE_KEY="${AGENTA_TURNSTILE_SITE_KEY}"
-elif [ "${AGENTA_LICENSE}" = "ee" ] && [ -n "${CLOUDFLARE_TURNSTILE_SITE_KEY}" ] && [ -n "${CLOUDFLARE_TURNSTILE_SECRET_KEY}" ]; then
+if [ "${AGENTA_LICENSE}" = "ee" ] && [ -n "${CLOUDFLARE_TURNSTILE_SITE_KEY}" ] && [ -n "${CLOUDFLARE_TURNSTILE_SECRET_KEY}" ]; then
   EFFECTIVE_TURNSTILE_SITE_KEY="${CLOUDFLARE_TURNSTILE_SITE_KEY}"
 fi
 

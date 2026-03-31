@@ -68,19 +68,6 @@
         }
       }
     },
-    "billing": {
-      "type": "object",
-      "properties": {
-        "stripe": {
-          "type": "object",
-          "properties": {
-            "apiKey": { "type": "string" },
-            "webhookSecret": { "type": "string" },
-            "pricing": { "type": "string" }
-          }
-        }
-      }
-    },
     "captcha": {
       "type": "object",
       "properties": {
@@ -91,13 +78,6 @@
             "secretKey": { "type": "string" }
           }
         }
-      }
-    },
-    "backend": {
-      "type": "object",
-      "properties": {
-        "extraEnv": { "type": "object" },
-        "secretEnv": { "type": "object" }
       }
     },
     "serviceAccount": {

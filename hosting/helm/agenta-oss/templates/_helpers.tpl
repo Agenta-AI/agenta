@@ -238,14 +238,34 @@ imagePullSecrets:
       optional: true
 {{- end }}
 {{- end }}
-- name: AGENTA_SENDGRID_ENABLED
-  value: {{ if and .Values.email.sendgrid.apiKey .Values.email.sendgrid.fromAddress }}"true"{{ else }}"false"{{ end }}
-- name: AGENTA_TOOLS_ENABLED
-  value: {{ if .Values.integrations.composio.apiKey }}"true"{{ else }}"false"{{ end }}
-- name: AGENTA_BILLING_ENABLED
-  value: {{ if .Values.billing.stripe.apiKey }}"true"{{ else }}"false"{{ end }}
-- name: AGENTA_TURNSTILE_SITE_KEY
+{{- if .Values.email.sendgrid.apiKey }}
+- name: SENDGRID_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: SENDGRID_API_KEY
+      optional: true
+{{- end }}
+- name: SENDGRID_FROM_ADDRESS
+  value: {{ .Values.email.sendgrid.fromAddress | quote }}
+{{- if .Values.integrations.composio.apiKey }}
+- name: COMPOSIO_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: COMPOSIO_API_KEY
+      optional: true
+{{- end }}
+- name: CLOUDFLARE_TURNSTILE_SITE_KEY
   value: {{ .Values.captcha.turnstile.siteKey | quote }}
+{{- if .Values.captcha.turnstile.secretKey }}
+- name: CLOUDFLARE_TURNSTILE_SECRET_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: CLOUDFLARE_TURNSTILE_SECRET_KEY
+      optional: true
+{{- end }}
 {{- end }}
 
 {{/* ================================================================
@@ -258,8 +278,6 @@ imagePullSecrets:
   value: {{ .Values.email.sendgrid.fromAddress | quote }}
 - name: COMPOSIO_API_URL
   value: {{ .Values.integrations.composio.apiUrl | quote }}
-- name: STRIPE_PRICING
-  value: {{ .Values.billing.stripe.pricing | quote }}
 - name: CLOUDFLARE_TURNSTILE_SITE_KEY
   value: {{ .Values.captcha.turnstile.siteKey | quote }}
 - name: AGENTA_ALLOWED_DOMAINS
@@ -270,12 +288,6 @@ imagePullSecrets:
   value: {{ .Values.accessControl.blockedEmails | quote }}
 - name: AGENTA_ORG_CREATION_ALLOWLIST
   value: {{ .Values.accessControl.orgCreationAllowlist | quote }}
-{{- with .Values.backend.extraEnv }}
-{{- range $key, $val := . }}
-- name: {{ $key }}
-  value: {{ $val | quote }}
-{{- end }}
-{{- end }}
 {{- with .Values.secrets.oauth }}
 {{- range $key, $val := . }}
 - name: {{ $key }}
@@ -320,22 +332,6 @@ imagePullSecrets:
       key: NEW_RELIC_LICENSE_KEY
       optional: true
 {{- end }}
-{{- if .Values.billing.stripe.apiKey }}
-- name: STRIPE_API_KEY
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "agenta.secretName" . }}
-      key: STRIPE_API_KEY
-      optional: true
-{{- end }}
-{{- if .Values.billing.stripe.webhookSecret }}
-- name: STRIPE_WEBHOOK_SECRET
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "agenta.secretName" . }}
-      key: STRIPE_WEBHOOK_SECRET
-      optional: true
-{{- end }}
 {{- if .Values.captcha.turnstile.secretKey }}
 - name: CLOUDFLARE_TURNSTILE_SECRET_KEY
   valueFrom:
@@ -343,16 +339,6 @@ imagePullSecrets:
       name: {{ include "agenta.secretName" . }}
       key: CLOUDFLARE_TURNSTILE_SECRET_KEY
       optional: true
-{{- end }}
-{{- with .Values.backend.secretEnv }}
-{{- range $key, $val := . }}
-- name: {{ $key }}
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "agenta.secretName" $ }}
-      key: {{ $key }}
-      optional: true
-{{- end }}
 {{- end }}
 {{- end }}
 
