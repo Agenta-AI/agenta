@@ -79,6 +79,7 @@ If the user previously commented on a finding but the expected behavior, validat
 
 6. Update status artifacts.
    Update `path/QA.findings.md` first, and any companion QA status document under `path` when present. Mark the finding `fixed`, `blocked`, `stale`, `wontfix`, or `in-progress` with concrete notes.
+   Keep `Notes` and `Open Questions` above the findings sections.
    Keep `QA.findings.md` split into `Open Findings` and `Closed Findings`, and move the finding into the correct section when its status changes.
 
 7. Sync PR review threads.

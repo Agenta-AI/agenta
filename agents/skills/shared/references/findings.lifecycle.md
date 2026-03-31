@@ -48,6 +48,7 @@ Before starting, confirm the effective variables.
 - Pull in open PR comments, review notes, and historical findings.
 - Re-check each item against current code or current behavior.
 - Update `CR.findings.md` or `QA.findings.md` so they reflect reality now.
+- Keep `Notes` and `Open Questions` above the findings sections so unresolved context is not buried.
 - When GitHub thread operations are available, resolve or close review threads that are clearly fixed and keep unresolved threads mapped to findings.
 - Bias toward clarification, not silent carry-forward:
   - if the user commented on a finding but left the intended disposition, uncertainty, or fix path ambiguous, ask follow-up questions in the same turn
@@ -88,6 +89,9 @@ Before starting, confirm the effective variables.
   - when the user has already responded to findings, convert any remaining ambiguity into direct follow-up questions immediately
   - do not start implementation while the intended resolution path, mutability rule, compatibility policy, or scope boundary is still underspecified
 - Implement the fix, add verification or validation coverage, and update status artifacts.
+- Preserve document ordering when updating artifacts:
+  - keep `Notes` and `Open Questions` above `Open Findings`
+  - move findings between `Open Findings` and `Closed Findings` as status changes
 
 Accept a `priority` input from the user prompt:
 

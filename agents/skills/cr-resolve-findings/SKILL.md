@@ -79,6 +79,7 @@ If the user previously commented on a finding but the policy, mutability rule, c
 
 6. Update status artifacts.
    Update `path/CR.findings.md` first, and `path/CR.status.md` when present. Mark findings `fixed`, `stale`, `wontfix`, `blocked`, or leave them `in-progress` with a concrete blocker.
+   Keep `Notes` and `Open Questions` above the findings sections.
    Keep `CR.findings.md` split into `Open Findings` and `Closed Findings`, and move the finding into the correct section when its status changes.
 
 7. Sync PR review threads.

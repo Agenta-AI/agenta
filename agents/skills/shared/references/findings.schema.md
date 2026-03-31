@@ -9,10 +9,23 @@ Use one canonical findings shape across CR and QA so scan, curate, and resolve c
 
 Each master findings document should be split into:
 
+- optional `## Notes`
+- optional `## Open Questions`
 - `## Open Findings`
 - `## Closed Findings`
 
 Move findings between those sections whenever their status changes. Do not leave closed findings in the open section or open findings in the closed section.
+
+Preferred document order:
+
+1. title and sync metadata
+2. sources and summary sections
+3. `## Notes` when needed
+4. `## Open Questions` when needed
+5. `## Open Findings`
+6. `## Closed Findings`
+
+Keep `Notes` and `Open Questions` above `Open Findings` so unresolved context is visible before the finding list.
 
 Optional supporting documents:
 
