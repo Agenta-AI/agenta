@@ -24,7 +24,7 @@ from agenta.sdk.middlewares.routing.cors import CORSMiddleware
 from agenta.sdk.middlewares.routing.auth import AuthMiddleware
 from agenta.sdk.middlewares.routing.otel import OTelMiddleware
 from agenta.sdk.middlewares.running.vault import invalidate_secrets_cache
-from agenta.sdk.contexts.tracing import TracingContext
+from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
 from agenta.sdk.decorators.running import auto_workflow, inspect_workflow, Workflow
 from agenta.sdk.engines.running.errors import ErrorStatus
 
@@ -123,6 +123,19 @@ def _stream_wire_format(media_type: str) -> str:
     if media_type == "text/event-stream":
         return "sse"
     return "ndjson"  # application/x-ndjson, application/jsonl
+
+
+def _get_request_tracing_context(req: Request) -> TracingContext:
+    context = TracingContext.get().model_copy(deep=True)
+    otel = getattr(req.state, "otel", None) or {}
+
+    if otel.get("traceparent") is not None:
+        context.traceparent = otel["traceparent"]
+
+    if otel.get("baggage"):
+        context.baggage = otel["baggage"]
+
+    return context
 
 
 # ---------------------------------------------------------------------------
@@ -374,7 +387,7 @@ class route:
                 "Passing router= to route() is deprecated and will be removed in a "
                 "future version. Use app= or omit to use the default app. "
                 "The router= parameter does not support per-route namespace isolation "
-                "and will not produce a per-route openapi.json.",
+                "and will not produce isolated per-route invoke/inspect surfaces.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -389,11 +402,12 @@ class route:
             credentials = req.state.auth.get("credentials")
 
             try:
-                response = await wf.invoke(
-                    request=request,
-                    secrets=None,
-                    credentials=credentials,
-                )
+                with tracing_context_manager(_get_request_tracing_context(req)):
+                    response = await wf.invoke(
+                        request=request,
+                        secrets=None,
+                        credentials=credentials,
+                    )
 
                 status = getattr(response, "status", None)
                 status_type = getattr(status, "type", None)
@@ -412,24 +426,25 @@ class route:
             credentials = req.state.auth.get("credentials")
 
             try:
-                if any(
-                    (
-                        request.revision,
-                        request.references,
-                        request.selector,
-                        request.flags,
-                        request.tags,
-                        request.meta,
-                    )
-                ):
-                    result = await inspect_workflow(
-                        request=request,
-                        credentials=credentials,
-                    )
-                else:
-                    result = await wf.inspect(
-                        credentials=credentials,
-                    )
+                with tracing_context_manager(_get_request_tracing_context(req)):
+                    if any(
+                        (
+                            request.revision,
+                            request.references,
+                            request.selector,
+                            request.flags,
+                            request.tags,
+                            request.meta,
+                        )
+                    ):
+                        result = await inspect_workflow(
+                            request=request,
+                            credentials=credentials,
+                        )
+                    else:
+                        result = await wf.inspect(
+                            credentials=credentials,
+                        )
 
                 return await handle_inspect_success(result)
 

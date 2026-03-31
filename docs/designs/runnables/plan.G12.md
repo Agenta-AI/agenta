@@ -1,141 +1,27 @@
-# Plan: G12 — Applications and Evaluators Missing Invoke/Inspect Endpoints
+# Plan: G12 — Applications and Evaluators Do Not Get API Invoke/Inspect Endpoints
 
-> Status: draft
+> Status: closed — not planned
 > Date: 2026-03-17
 > Gap: [gap-analysis.md § G12, G12a, G12b](./gap-analysis.md#g12-applications-and-evaluators-missing-invokinspect-endpoints)
 
 ---
 
-## Goal
+## Decision
 
-Expose `inspect` endpoints on the applications and evaluators routers, parallel to what already exists on the workflows router. **`/invoke` is intentionally omitted** — the workflows invoke is a full proxy (API in the hot path for every LLM call), and supporting it on applications/evaluators would require either the same proxy overhead or an SDK change to accept auth via query param to support 307 redirects. Neither is desirable now.
+`/invoke` and `/inspect` are runtime `/services` endpoints, not API endpoints. Applications and evaluators remain filtered workflow projections at the API layer; they do not get their own runnable invoke/inspect routes.
 
-Additionally:
-- **G12a**: Add canonical workflow catalog endpoints; make evaluator catalog a filtered workflow catalog view.
-- **G12b**: Stop writing legacy `service` / `configuration` fields everywhere; normalize them to proper fields on read so consumers always see clean data. Removal of the fields from DTOs follows once a DB migration clears stored legacy data.
+What stays in scope:
+- **G12a**: canonical workflow catalog endpoints, with application/evaluator catalog views as filtered projections
+- **G12b**: removal of legacy `service` / `configuration` fields from the target revision contract
 
----
+What is out of scope:
+- `POST /applications/invoke`
+- `POST /applications/inspect`
+- `POST /evaluators/invoke`
+- `POST /evaluators/inspect`
+- any API-owned proxy or redirect surface that pretends runnable execution/discovery belongs to the API router family
 
-## G12 — Applications and Evaluators Inspect
-
-### Current State
-
-| Router | Invoke | Inspect |
-|--------|--------|---------|
-| `WorkflowsRouter` | `POST /invoke` ✅ | `POST /inspect` ✅ |
-| `ApplicationsRouter` | not added | ❌ missing |
-| `EvaluatorsRouter` | not added | ❌ missing |
-
-The SDK has `inspect_application` and `inspect_evaluator` in `sdk/agenta/sdk/decorators/running.py` (lines 639–762). They are wired to nothing on the API side.
-
----
-
-### S1. Add `inspect_application` to `ApplicationsService`
-
-**File:** `api/oss/src/core/applications/service.py`
-
-Add a section "application services":
-
-```python
-from agenta.sdk.decorators.running import (
-    inspect_application as _inspect_application,
-)
-
-async def inspect_application(
-    self,
-    *,
-    project_id: UUID,
-    user_id: UUID,
-    #
-    request: WorkflowServiceRequest,
-) -> WorkflowServiceRequest:
-    return await _inspect_application(request=request)
-```
-
----
-
-### S2. Add `inspect_evaluator` to `EvaluatorsService`
-
-**File:** `api/oss/src/core/evaluators/service.py`
-
-```python
-from agenta.sdk.decorators.running import (
-    inspect_evaluator as _inspect_evaluator,
-)
-
-async def inspect_evaluator(
-    self,
-    *,
-    project_id: UUID,
-    user_id: UUID,
-    #
-    request: WorkflowServiceRequest,
-) -> WorkflowServiceRequest:
-    return await _inspect_evaluator(request=request)
-```
-
-Replace the `# TODO: Implement ?` comment at line 844.
-
----
-
-### S3. Register `/inspect` route in `ApplicationsRouter`
-
-**File:** `api/oss/src/apis/fastapi/applications/router.py`
-
-Route registration in `__init__`:
-
-```python
-# APPLICATION SERVICES ------------------------------------------------
-
-self.router.add_api_route(
-    "/inspect",
-    self.inspect_application,
-    methods=["POST"],
-    operation_id="inspect_application",
-    status_code=status.HTTP_200_OK,
-    response_model=WorkflowServiceRequest,
-    response_model_exclude_none=True,
-)
-```
-
-Handler:
-
-```python
-@intercept_exceptions()
-@suppress_exceptions(default=WorkflowServiceRequest(), exclude=[HTTPException])
-async def inspect_application(
-    self,
-    request: Request,
-    *,
-    workflow_service_request: WorkflowServiceRequest,
-):
-    # EE permission check: VIEW_WORKFLOWS
-    try:
-        workflow_service_request = await self.applications_service.inspect_application(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            request=workflow_service_request,
-        )
-        return await handle_inspect_success(workflow_service_request)
-    except Exception as exception:
-        return await handle_inspect_failure(exception)
-```
-
-`handle_inspect_success` / `handle_inspect_failure` currently live in `workflows/router.py`. Extract them to `api/oss/src/apis/fastapi/shared/utils.py` before importing from a second router (avoids circular imports).
-
----
-
-### S4. Register `/inspect` route in `EvaluatorsRouter`
-
-**File:** `api/oss/src/apis/fastapi/evaluators/router.py`
-
-Same pattern as S3. Operation ID: `inspect_evaluator`.
-
----
-
-### S5. Simple routers
-
-The `SimpleApplicationsService` and `SimpleEvaluatorsService` are CRUD-only. **No inspect on simple routers.**
+The API service layer may still resolve references and call runtime `/services/.../invoke` or `/services/.../inspect` internally when the control plane needs live execution or discovery.
 
 ---
 

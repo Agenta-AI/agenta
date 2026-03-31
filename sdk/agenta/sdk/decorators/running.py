@@ -1,7 +1,6 @@
 # /agenta/sdk/decorators/running.py
 
 from typing import Any, Callable, Optional, Protocol, Union, Dict, cast
-import httpx
 from functools import update_wrapper, wraps
 from inspect import signature
 from uuid import UUID
@@ -39,7 +38,6 @@ from agenta.sdk.engines.running.utils import (
     retrieve_handler,
     retrieve_interface,
     retrieve_configuration,
-    is_custom_uri,
 )
 
 import agenta as ag
@@ -219,10 +217,6 @@ class workflow:
 
                 self.parameters = self.revision.data.parameters
 
-        if is_custom_uri(self.uri):
-            self.flags = self.flags or dict()
-            self.flags["is_custom"] = True
-
     def __call__(self, handler: Optional[Callable[..., Any]] = None) -> Workflow:
         if self.handler is None and handler is not None:
             self._register_handler(
@@ -232,10 +226,6 @@ class workflow:
 
         if self.handler is not None:
             self._extend_handler()
-
-            if is_custom_uri(self.uri):
-                self.flags = self.flags or dict()
-                self.flags["is_custom"] = True
 
             return self.handler
 
@@ -814,23 +804,3 @@ async def inspect_evaluator(
         #
         **kwargs,
     )
-
-
-async def get_openapi(
-    *,
-    url: str,
-    path: str = "/",
-) -> dict:
-    """Fetch the per-route openapi.json for a workflow, application, or evaluator."""
-    base = url.rstrip("/")
-    route_base = path.rstrip("/")
-    endpoint = f"{base}{route_base}/openapi.json"
-    async with httpx.AsyncClient() as client:
-        response = await client.get(endpoint)
-        response.raise_for_status()
-        return response.json()
-
-
-get_workflow_openapi = get_openapi
-get_application_openapi = get_openapi
-get_evaluator_openapi = get_openapi

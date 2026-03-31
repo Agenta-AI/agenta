@@ -54,6 +54,10 @@ That means the earlier evaluator test failure was caused by an environment misma
   - Add or reference the required migration backlog entries for each intentional break.
 - Status: `open`
 
+Update: resolved on branch.
+- Per-route `openapi.json` helper was removed from the SDK runtime.
+- The canonical runtime discovery surface is `POST {path}/inspect`.
+
 ### F2. Environment revision commit validation was fixed in-branch
 
 - Severity: `Medium`

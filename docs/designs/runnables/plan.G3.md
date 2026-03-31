@@ -14,7 +14,7 @@
 The new system exposes one discovery surface per route:
 
 ```
-{path}/inspect — GET, proprietary: WorkflowServiceRequest (schemas + flags + configuration)
+{path}/inspect — POST, proprietary: WorkflowServiceRequest (schemas + flags + configuration)
 ```
 
 All consumers (API, frontend, SDK) should use `/inspect` directly. The per-route OpenAPI spec
@@ -29,6 +29,7 @@ are not part of the new system contract.
 
 - ✅ Per-route sub-app mounting — each `@ag.route()` call produces its own isolated FastAPI sub-app
 - ✅ `{path}/inspect` — on every sub-app, returns `WorkflowServiceRequest` with schemas + flags
+- ✅ SDK OpenAPI helper removed — no per-route `openapi.json` helper remains in the new runtime contract
 
 ---
 
