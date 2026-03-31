@@ -535,7 +535,7 @@ class AuthService:
                                     ProjectMemberDB(
                                         user_id=user.id,
                                         project_id=project.id,
-                                        role="admin",
+                                        role="viewer",
                                     )
                                 )
 
