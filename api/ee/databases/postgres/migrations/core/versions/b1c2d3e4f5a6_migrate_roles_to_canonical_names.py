@@ -4,11 +4,11 @@ Rename legacy role strings to the canonical six-role set and delete API keys
 owned by users whose role does not permit API key access.
 
 Role mapping applied:
-  editor           -> admin
-  workspace_admin  -> admin
+  editor             -> admin
+  workspace_admin    -> admin
   deployment_manager -> manager
 
-API keys owned by project members with role `viewer` or `evaluator` are deleted
+API keys owned by project members with role `viewer` or `annotator` are deleted
 before the rename because those roles are not permitted to hold API keys.
 
 Revision ID: b1c2d3e4f5a6
