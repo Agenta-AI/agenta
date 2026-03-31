@@ -21,6 +21,8 @@ The chart creates the following workloads inside your Kubernetes namespace:
 - **Services** backend (FastAPI + Gunicorn)
 - **Worker (tracing)** for OTLP trace ingestion
 - **Worker (evaluations)** for async evaluation jobs
+- **Worker (webhooks)** for webhook delivery
+- **Worker (events)** for async event processing
 - **Cron** for scheduled maintenance tasks
 - **PostgreSQL** (Bitnami subchart) with three databases
 - **Redis Volatile** for caching and pub/sub
@@ -184,7 +186,7 @@ The default image tag is `latest`, which can pull untested versions and makes it
 
 ### Component Toggles and Replicas
 
-Each component (`api`, `web`, `services`, `workerEvaluations`, `workerTracing`, `cron`, `supertokens`) supports:
+Each component (`api`, `web`, `services`, `workerEvaluations`, `workerTracing`, `workerWebhooks`, `workerEvents`, `cron`, `supertokens`) supports:
 
 | Value | Purpose | Default |
 |-------|---------|---------|
