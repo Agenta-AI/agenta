@@ -13,8 +13,8 @@ type CanonicalProjectRole = "owner" | "admin" | "developer" | "editor" | "annota
 const FALLBACK_ROLE_PERMISSIONS: Record<CanonicalProjectRole, ProjectPermission[]> = {
     owner: ["*"],
     admin: ["view_api_keys", "edit_api_keys", "add_new_user_to_workspace", "modify_user_roles"],
-    manager: ["view_api_keys", "edit_api_keys"],
-    developer: [],
+    developer: ["view_api_keys", "edit_api_keys"],
+    editor: [],
     annotator: [],
     viewer: [],
 }
