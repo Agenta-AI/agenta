@@ -291,13 +291,14 @@ const DownstreamNodeCard = ({
     // Success -> extract and display value(s)
     // Filter to only show fields defined in output ports (excludes backend-injected fields like "success")
     const rawEntries = extractDisplayEntries(fullResult.output)
-    const entries = rawEntries && outputPorts.length > 0
-        ? (() => {
-              const portKeys = new Set(outputPorts.map((p) => p.key))
-              const filtered = rawEntries.filter(([key]) => portKeys.has(key))
-              return filtered.length > 0 ? filtered : rawEntries
-          })()
-        : rawEntries
+    const entries =
+        rawEntries && outputPorts.length > 0
+            ? (() => {
+                  const portKeys = new Set(outputPorts.map((p) => p.key))
+                  const filtered = rawEntries.filter(([key]) => portKeys.has(key))
+                  return filtered.length > 0 ? filtered : rawEntries
+              })()
+            : rawEntries
 
     if (!entries || entries.length === 0) {
         return (
