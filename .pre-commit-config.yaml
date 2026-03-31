@@ -1,9 +1,14 @@
 repos:
   - repo: local
     hooks:
-      - id: check-code-styling-and-gitleaks
-        name: code styling + gitleaks
+      - id: check-code-styling
+        name: code styling
         entry: hooks/check.sh
+        language: system
+        pass_filenames: false
+      - id: gitleaks-pre-commit
+        name: gitleaks git (pre-commit, scan staged)
+        entry: gitleaks --config .gitleaks.toml --exit-code 1 --verbose git --staged
         language: system
         pass_filenames: false
       - id: gitleaks-pre-push

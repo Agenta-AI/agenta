@@ -21,10 +21,6 @@ if [ -z "$staged_files" ]; then
   exit 0
 fi
 
-require_command "gitleaks" "Install it with Homebrew or see https://github.com/gitleaks/gitleaks#installation."
-
-gitleaks --config .gitleaks.toml --exit-code 1 --verbose git --staged
-
 should_run_styling_checks=false
 
 while IFS= read -r file_path; do
