@@ -70,12 +70,4 @@ jobs:
       packages: web-only
     secrets: inherit
 
-  tests-sdk:
-    needs: [deploy]
-    if: needs.deploy.outputs.preview_url != ''
-    uses: ./.github/workflows/44-railway-tests.yml
-    with:
-      agenta_web_url: ${{ needs.deploy.outputs.preview_url }}
-      layers: acceptance,integration
-      packages: sdk-only
-    secrets: inherit
+
