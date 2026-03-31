@@ -39,14 +39,14 @@ Shared references:
 For Codex:
 
 - invoke a skill with `$skill-name`
-- repo-local `skills/` is the canonical source, but Codex only auto-discovers skills from `~/.codex/skills`
+- repo-local `agents/skills/` is the canonical source, but Codex only auto-discovers skills from `~/.codex/skills`
 - if a skill does not appear under `$`, install or symlink it into `~/.codex/skills` and reload Codex
 
 For Claude:
 
 - invoke a project skill with `/project:skill-name` when your Claude client exposes project skills that way
 - otherwise use the Claude project skills picker after reloading the project
-- `.claude/skills/` contains Claude-facing wrappers for the canonical skills in `skills/`
+- `.claude/skills/` contains Claude-facing wrappers for the canonical skills in `agents/skills/`
 
 ## CR vs QA
 
