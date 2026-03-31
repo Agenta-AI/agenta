@@ -229,15 +229,66 @@ export const rowVariableValueAtomFamily = atomFamily(
 )
 
 /**
+ * Columns expected by downstream evaluator nodes (e.g., correct_answer).
+ * Scans evaluator configuration for `*_key` settings that map to testcase columns.
+ * Mirrors the resolution logic in buildFromSchema (runnable/utils.ts).
+ */
+const evaluatorExpectedColumnsAtom = atom<string[]>((get) => {
+    const nodes = get(playgroundNodesAtom)
+    const downstreamNodes = nodes.filter((n) => n.depth > 0)
+    if (downstreamNodes.length === 0) return []
+
+    const columns: string[] = []
+    const seen = new Set<string>()
+
+    for (const node of downstreamNodes) {
+        const config = get(workflowMolecule.selectors.configuration(node.entityId))
+        if (!config) continue
+
+        // Scan top-level and nested objects (e.g., advanced_config)
+        // for `*_key` settings that map to testcase columns.
+        const entries: [string, unknown][] = Object.entries(config)
+        for (const [key, value] of entries) {
+            // Recurse one level into plain objects (advanced_config, etc.)
+            if (value && typeof value === "object" && !Array.isArray(value)) {
+                entries.push(
+                    ...Object.entries(value as Record<string, unknown>),
+                )
+            }
+            if (!key.endsWith("_key") || typeof value !== "string" || !value) continue
+            const columnName = value.startsWith("testcase.") ? value.split(".")[1] : value
+            if (columnName && !seen.has(columnName)) {
+                seen.add(columnName)
+                columns.push(columnName)
+            }
+        }
+    }
+    return columns
+})
+
+/**
  * Context-aware variable keys for generation input rows.
  *
- * Keys are derived from the linked runnable columns.
+ * Keys are derived from the linked runnable columns, merged with
+ * any additional columns expected by downstream evaluator nodes.
  */
 export const rowVariableKeysWithContextAtom = atom<string[]>((get) => {
     const loadableId = get(derivedLoadableIdAtom)
     if (!loadableId) return []
     const columns = get(loadableController.selectors.columns(loadableId))
-    return columns.map((column) => column.key)
+    const primaryKeys = columns.map((column) => column.key)
+
+    const evaluatorKeys = get(evaluatorExpectedColumnsAtom)
+    if (evaluatorKeys.length === 0) return primaryKeys
+
+    const keySet = new Set(primaryKeys)
+    const merged = [...primaryKeys]
+    for (const key of evaluatorKeys) {
+        if (!keySet.has(key)) {
+            merged.push(key)
+        }
+    }
+    return merged
 })
 
 // ============================================================================
