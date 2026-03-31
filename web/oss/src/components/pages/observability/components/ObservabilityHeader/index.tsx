@@ -13,6 +13,7 @@ import {SortResult} from "@/oss/components/Filters/Sort"
 import AddActionsDropdown from "@/oss/components/SharedActions/AddActionsDropdown"
 import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {downloadCsv} from "@/oss/lib/helpers/fileManipulations"
 import {getNodeById} from "@/oss/lib/traces/observability_helpers"
 import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
@@ -111,6 +112,7 @@ const ObservabilityHeader = ({
     const [isExporting, setIsExporting] = useState(false)
     const exportAbortRef = useRef<AbortController | null>(null)
     const setDeleteModalState = useSetAtom(deleteTraceModalAtom)
+    const {canExportData} = useProjectPermissions()
 
     const {
         traces,
@@ -290,6 +292,7 @@ const ObservabilityHeader = ({
         const exportKey = "observability-export"
 
         try {
+            if (!canExportData) return
             if (!traces.length) return
 
             const {currentApp} = getAppValues()
@@ -381,7 +384,7 @@ const ObservabilityHeader = ({
             exportAbortRef.current = null
             setIsExporting(false)
         }
-    }, [columns, filters, sort, traceTabs, traces])
+    }, [canExportData, columns, filters, sort, traceTabs, traces])
 
     const handleRefresh = async () => {
         if (componentType === "sessions") {
@@ -534,21 +537,23 @@ const ObservabilityHeader = ({
                             </Radio.Group>
                         </Space>
                         <Space>
-                            <Button
-                                type="text"
-                                onClick={() => {
-                                    if (isExporting) {
-                                        exportAbortRef.current?.abort()
-                                        return
-                                    }
+                            {canExportData ? (
+                                <Button
+                                    type="text"
+                                    onClick={() => {
+                                        if (isExporting) {
+                                            exportAbortRef.current?.abort()
+                                            return
+                                        }
 
-                                    onExport()
-                                }}
-                                icon={<ExportIcon size={14} className="mt-0.5" />}
-                                disabled={!isExporting && traces.length === 0}
-                            >
-                                {isExporting ? "Cancel export" : "Export"}
-                            </Button>
+                                        onExport()
+                                    }}
+                                    icon={<ExportIcon size={14} className="mt-0.5" />}
+                                    disabled={!isExporting && traces.length === 0}
+                                >
+                                    {isExporting ? "Cancel export" : "Export"}
+                                </Button>
+                            ) : null}
 
                             <EditColumns
                                 columns={columns}
