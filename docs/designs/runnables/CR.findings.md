@@ -29,7 +29,6 @@
 ## Open Questions
 
 - Should the pre-commit reproducibility concern be promoted from thread-disposition-only tracking into a top-level `P3` finding, or remain an open-low note?
-- For F15, keep this blocked until the current DAO analysis is complete.
 
 ## Open Findings
 
@@ -55,27 +54,27 @@
   - `docs/designs/runnables/CR.md`
   - PR threads `2983188635`, `2984134999`
 
-### [OPEN] F15. Git DAO applies `application_refs` filtering after DB fetch
+## Closed Findings
+
+### [CLOSED] F15. Git DAO applies `application_refs` filtering after DB fetch
 
 - Severity: `P2`
 - Confidence: `high`
-- Status: `blocked`
+- Status: `wontfix`
 - Category: `Performance`, `Correctness`
-- Summary: `application_refs` filtering is done in Python after fetching revisions, defeating pagination and risking runtime errors on non-dict values.
+- Summary: `application_refs` filtering remains a Python-side post-fetch adapter because the current web UX/UI wants history grouped by application and only wants entries where that grouping changes.
 - Evidence:
-  - `api/oss/src/dbs/postgres/git/dao.py:1162-1218`
+  - `api/oss/src/dbs/postgres/git/dao.py:1281-1327`
 - Files:
   - `api/oss/src/dbs/postgres/git/dao.py`
-- Cause: The JSON-derived filter is not pushed into SQL and lacks a type guard before `.get()`.
-- Explanation: `query_revisions()` pages the DB result first, then loops through the returned revisions in Python and calls `.get()` on `ref_data["application"]` without first proving that value is a dict, so pagination semantics and malformed-value safety both depend on post-fetch behavior.
-- Impact: Pagination semantics and performance degrade, and malformed stored values can raise at runtime.
-- Suggested Fix: Push the filter into SQL/JSONB queries and add `isinstance(app_ref, dict)` guards once the current analysis is complete.
-- Alternatives: Apply filtering before paging only if the full dataset is guaranteed small, which is not the intended contract here.
+- Cause: The current frontend view still depends on application-grouped diff behavior that is not part of the canonical persistence contract.
+- Explanation: This is an intentional temporary adapter for the current web UX/UI. It should not live in the DAO long-term, but the plan is not to move it elsewhere; the plan is to remove it once the frontend no longer depends on this behavior. The DAO code is now explicitly commented as temporary adapter logic, and the non-dict `application` case is guarded.
+- Impact: Pagination semantics remain adapter-driven for this path until the frontend changes, but the current intent and removal direction are now explicit.
+- Suggested Fix: Remove the adapter when the frontend no longer needs application-grouped diff history; do not migrate this behavior deeper into the persistence layer.
+- Alternatives: Move the adapter to a higher layer temporarily, but that is not the chosen path because the expected transition is direct removal.
 - Sources:
   - `docs/designs/runnables/CR.md`
   - PR threads `2983188658`, `2984134983`, `2991025273`
-
-## Closed Findings
 
 ### [CLOSED] F7. Runnable docs still contained stale discovery-contract language
 
