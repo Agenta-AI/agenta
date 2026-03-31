@@ -86,7 +86,7 @@ from (
     from project_invitations
     group by role
 ) x
-where role in ('viewer', 'editor', 'workspace_admin', 'deployment_manager', 'analyst', 'evaluator', 'auditor')
+where role in ('viewer', 'editor', 'workspace_admin', 'deployment_manager')
 order by table_name, role;
 ```
 

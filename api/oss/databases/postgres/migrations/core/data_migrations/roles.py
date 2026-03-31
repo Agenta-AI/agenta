@@ -9,9 +9,9 @@ ROLE_MAP = {
 }
 
 # Roles that are not allowed to own API keys after migration.
-# `viewer` and `evaluator` are disallowed, so we delete their keys
+# `viewer` and `annotator` are disallowed, so we delete their keys
 # before renaming.
-DISALLOWED_API_KEY_ROLES = ("viewer", "evaluator")
+DISALLOWED_API_KEY_ROLES = ("viewer", "annotator")
 
 
 def _rename_roles_in_table(session: Connection, table: str) -> None:
@@ -87,7 +87,7 @@ def migrate_roles_to_canonical_names(session: Connection) -> None:
       workspace_admin  -> admin
       deployment_manager -> manager
 
-    API keys owned by users whose project role is `viewer` or `evaluator`
+    API keys owned by users whose project role is `viewer` or `annotator`
     are deleted first, because post-migration those roles are not permitted
     to hold API keys.
 
