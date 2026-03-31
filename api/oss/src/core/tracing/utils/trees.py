@@ -98,41 +98,41 @@ def infer_and_propagate_trace_type_by_trace(
     if not span_dtos:
         return span_dtos
 
+    trace_types_by_trace: Dict[str, TraceType] = {}
     spans_by_trace: Dict[str, List[OTelFlatSpan]] = {}
 
     for span_dto in span_dtos:
         trace_key = str(span_dto.trace_id)
         spans_by_trace.setdefault(trace_key, []).append(span_dto)
 
-    processed: List[OTelFlatSpan] = []
     for trace_spans in spans_by_trace.values():
-        inferred_trace_type = (
+        trace_key = str(trace_spans[0].trace_id)
+        trace_types_by_trace[trace_key] = (
             TraceType.ANNOTATION
             if any(span.links for span in trace_spans)
             else TraceType.INVOCATION
         )
 
-        for span in trace_spans:
-            span.trace_type = inferred_trace_type
+    for span in span_dtos:
+        inferred_trace_type = trace_types_by_trace[str(span.trace_id)]
+        span.trace_type = inferred_trace_type
 
-            if span.attributes is None:
-                span.attributes = {}
+        if span.attributes is None:
+            span.attributes = {}
 
-            ag = span.attributes.setdefault("ag", {})
-            if not isinstance(ag, dict):
-                ag = {}
-                span.attributes["ag"] = ag
+        ag = span.attributes.setdefault("ag", {})
+        if not isinstance(ag, dict):
+            ag = {}
+            span.attributes["ag"] = ag
 
-            ag_type = ag.setdefault("type", {})
-            if not isinstance(ag_type, dict):
-                ag_type = {}
-                ag["type"] = ag_type
+        ag_type = ag.setdefault("type", {})
+        if not isinstance(ag_type, dict):
+            ag_type = {}
+            ag["type"] = ag_type
 
-            ag_type["trace"] = inferred_trace_type.value
+        ag_type["trace"] = inferred_trace_type.value
 
-        processed.extend(trace_spans)
-
-    return processed
+    return span_dtos
 
 
 def parse_span_idx_to_span_id_tree(

@@ -20,6 +20,7 @@ from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorFlags,
 )
 from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsService
+from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.dbs.postgres.workflows.dbes import (
@@ -188,16 +189,17 @@ async def create_default_evaluators(
         template_key: Optional[str] = default.get("template_key")
         preset_key: Optional[str] = default.get("preset_key")
 
-        try:
-            if preset_key:
-                create = _build_from_preset(default)
-            elif template_key:
-                create = _build_from_template(default)
-            else:
-                continue
-            if not create:
-                continue
+        if preset_key:
+            create = _build_from_preset(default)
+        elif template_key:
+            create = _build_from_template(default)
+        else:
+            continue
 
+        if not create:
+            continue
+
+        try:
             result = await simple_evaluators_service.create(
                 project_id=project_id,
                 user_id=user_id,
@@ -211,10 +213,17 @@ async def create_default_evaluators(
                     evaluator_slug=result.slug,
                 )
 
-        except Exception as e:
-            log.warning(
+        except EntityCreationConflict:
+            log.info(
+                "Default evaluator already exists",
+                project_id=str(project_id),
+                slug=default.get("slug"),
+            )
+        except Exception:
+            log.error(
                 "Failed to create default evaluator",
                 project_id=str(project_id),
                 slug=default.get("slug"),
-                error=str(e),
+                exc_info=True,
             )
+            raise

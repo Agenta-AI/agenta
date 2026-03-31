@@ -4,8 +4,9 @@ from uuid import UUID
 
 import pytest
 
+from agenta.sdk.models.tracing import OTelLink
 from oss.src.core.shared.dtos import Trace
-from oss.src.core.tracing.dtos import OTelFlatSpan, OTelSpan, SpanType
+from oss.src.core.tracing.dtos import OTelFlatSpan, OTelSpan, SpanType, TraceType
 from oss.src.core.tracing.utils.trees import (
     calculate_and_propagate_metrics,
     calculate_costs,
@@ -13,6 +14,7 @@ from oss.src.core.tracing.utils.trees import (
     cumulate_costs,
     cumulate_tokens,
     get_span_from_trace,
+    infer_and_propagate_trace_type_by_trace,
     parse_span_dtos_to_span_idx,
     parse_span_idx_to_span_id_tree,
     trace_map_to_traces,
@@ -31,6 +33,8 @@ def _span(
     span_id: str,
     parent_id: str | None = None,
     span_name: str,
+    trace_id: str = TRACE_UUID,
+    links=None,
     prompt_tokens: float = 0.0,
     completion_tokens: float = 0.0,
     prompt_cost: float = 0.0,
@@ -41,12 +45,13 @@ def _span(
     total_tokens = prompt_tokens + completion_tokens
     total_cost = prompt_cost + completion_cost
     return OTelFlatSpan(
-        trace_id=TRACE_UUID,
+        trace_id=trace_id,
         span_id=span_id,
         parent_id=parent_id,
         span_name=span_name,
         span_type=span_type,
         start_time=datetime(2024, 1, 1, 0, 0, start_offset_s, tzinfo=timezone.utc),
+        links=links,
         attributes={
             "ag": {
                 "data": {"parameters": {"model": "gpt-4o-mini"}},
@@ -239,6 +244,38 @@ def test_calculate_and_propagate_metrics_runs_full_pipeline(monkeypatch):
     assert round(root_costs["total"], 6) == round(
         (1 * 0.01 + 1 * 0.02) + (2 * 0.01 + 3 * 0.02), 6
     )
+
+
+def test_infer_and_propagate_trace_type_by_trace_preserves_input_order():
+    trace_a = "trace-a"
+    trace_b = "trace-b"
+    spans = [
+        _span(span_id="span-a1", span_name="a1", trace_id=trace_a, start_offset_s=0),
+        _span(
+            span_id="span-b1",
+            span_name="b1",
+            trace_id=trace_b,
+            start_offset_s=1,
+            links=[OTelLink(trace_id=trace_a, span_id="span-a1")],
+        ),
+        _span(span_id="span-a2", span_name="a2", trace_id=trace_a, start_offset_s=2),
+        _span(span_id="span-b2", span_name="b2", trace_id=trace_b, start_offset_s=3),
+    ]
+
+    out = infer_and_propagate_trace_type_by_trace(spans)
+
+    assert [span.span_id for span in out] == [
+        "span-a1",
+        "span-b1",
+        "span-a2",
+        "span-b2",
+    ]
+    assert out[0].trace_type == TraceType.INVOCATION
+    assert out[1].trace_type == TraceType.ANNOTATION
+    assert out[2].trace_type == TraceType.INVOCATION
+    assert out[3].trace_type == TraceType.ANNOTATION
+    assert out[0].attributes["ag"]["type"]["trace"] == TraceType.INVOCATION.value
+    assert out[1].attributes["ag"]["type"]["trace"] == TraceType.ANNOTATION.value
 
 
 def test_trace_map_to_traces_and_back_and_get_span_helpers():

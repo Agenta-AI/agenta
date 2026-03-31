@@ -3,7 +3,7 @@
 > PR: `Agenta-AI/agenta#4022` (`[feat] Clean up workflows`)
 > Branch reviewed locally: `feat/extend-runnables`
 > Base compared: `origin/main`
-> Head synced: `a1659e782`
+> Head synced: `2348dc148`
 > Synced on: `2026-03-31`
 
 ## Sources
@@ -30,6 +30,11 @@
 - Very late Mar 31 comment `3017096727` is an additional source refresh for `F21`.
 - Very late Mar 31 comment `3017096638` introduced `F22`, which is now closed as an intentional contract break with no backward-compatibility expectation.
 - Very late Mar 31 comment `3017096701` flags `log.warn(...)` usage in live evaluations, but it was not promoted to a top-level finding because the project logger explicitly exposes `warn()` and the concern is deprecation/style-only in the current codebase context.
+- As of the latest sync on `2026-03-31`, there are no unresolved PR threads that map to `[CLOSED]` findings in this file.
+- The latest triage pass promoted two new findings and both are now fixed:
+  - `F23` for broad exception handling in default evaluator bootstrap
+  - `F24` for trace-type propagation reordering spans in mixed-trace batches
+- SDK export compatibility and tracing API contract changes remain unresolved policy questions and were not promoted yet.
 
 ## Rules
 
@@ -42,14 +47,62 @@
 - `.pre-commit-config.yaml` reproducibility concerns remain low-priority and already tracked in thread disposition; the Mar 31 thread `3016391939` does not change the finding set.
 - PR scope/title comments remain process-only; the Mar 31 thread `3016391966` reinforces existing scope feedback but is not a code defect.
 - The live-evaluation `log.warn(...)` comment (`3017096701`) remains an unresolved code-review thread, but it is currently treated as logger-style cleanup rather than a branch-specific defect.
+- Annotation edit `NameError` comments (`2949000424`, `2960191040`, `2962294526`) were not promoted because current HEAD still fetches the existing annotation before constructing the edited response.
+- Lock-key packing comments (`2997692596`, `2997692639`) were not promoted because current acquire/renew/release and metadata scan paths all use the same packed `cache:...:lock:eval:...` naming scheme.
+- Missing-environment-revision comments (`2954804899`, `2954804934`) were not promoted because current handlers already raise explicit `404` before dereferencing revision contents.
+- Absolute local filesystem link comments on `docs/design/legacy-adapter-migration/route-gap-analysis.md` (`2960191060`, `2960191090`, `2960191112`) are outdated and outside the active runnables findings scope.
 
 ## Open Questions
 
 - Should the pre-commit reproducibility concern be promoted from thread-disposition-only tracking into a top-level `P3` finding, or remain an open-low note?
+- Should SDK compatibility be preserved for `agenta.sdk.types` and the removed `config` export on this branch, or is that public export break intentional?
+- Should the tracing API contract changes (`POST /traces` now `202`, added `PUT /traces/{trace_id}`, legacy span-route changes) be treated as accepted migration-scope breaks and tracked in backlog, or should this branch preserve backward-compatible behavior?
 
 ## Open Findings
 
 ## Closed Findings
+
+### [CLOSED] F23. Default evaluator bootstrap masks real failures behind broad exception handling
+
+- Severity: `P2`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Correctness`, `Robustness`
+- Summary: Default evaluator bootstrap now treats duplicate-create conflicts as idempotent success while allowing real failures to surface.
+- Evidence:
+  - `api/oss/src/core/evaluators/defaults.py:175-225`
+  - `api/oss/tests/pytest/unit/evaluators/test_defaults.py`
+- Files:
+  - `api/oss/src/core/evaluators/defaults.py`
+  - `api/oss/tests/pytest/unit/evaluators/test_defaults.py`
+- Cause: `create_default_evaluators()` had wrapped the full create path in `except Exception`, collapsing duplicate collisions and genuine failures into the same warning path.
+- Explanation: The bootstrap path now handles `EntityCreationConflict` explicitly as the idempotent duplicate case and re-raises unexpected exceptions after logging them with stack context.
+- Impact: Repeated bootstrap runs stay quiet and safe, while real default-evaluator failures are no longer silently downgraded into warning-only behavior.
+- Suggested Fix: None.
+- Alternatives: Reintroduce a pre-create existence check, but that is not required once duplicate conflicts are handled explicitly.
+- Sources:
+  - PR threads `3017323130`, `3017323163`, `3017323235`, `3017323290`, `3017323352`
+
+### [CLOSED] F24. Trace-type propagation helper reorders spans in mixed-trace batches
+
+- Severity: `P2`
+- Confidence: `medium`
+- Status: `fixed`
+- Category: `Correctness`, `Robustness`
+- Summary: Trace-type inference now preserves the original span order while still propagating the inferred trace type per trace.
+- Evidence:
+  - `api/oss/src/core/tracing/utils/trees.py:89-132`
+  - `api/oss/tests/pytest/unit/tracing/utils/test_trees.py`
+- Files:
+  - `api/oss/src/core/tracing/utils/trees.py`
+  - `api/oss/tests/pytest/unit/tracing/utils/test_trees.py`
+- Cause: The helper used to rebuild the output list by grouped trace buckets instead of annotating spans in original order.
+- Explanation: The function now computes trace type per `trace_id` first and then mutates the original `span_dtos` sequence in place, so mixed-trace batches keep their input order.
+- Impact: Ordering-sensitive consumers no longer observe a grouped reorder as a side effect of trace-type inference.
+- Suggested Fix: None.
+- Alternatives: Document order instability explicitly, but preserving input order is the stronger contract.
+- Sources:
+  - PR threads `2960191266`, `2960191298`, `2960191323`, `2960191348`, `2969327992`, `2969327996`, `2969328001`
 
 ### [CLOSED] F19. Cached evaluator reuse could skip repeats if selected cached trace entries were unusable
 
@@ -278,7 +331,7 @@
 - Alternatives: None.
 - Sources:
   - `docs/designs/runnables/CR.md`
-  - PR threads `2962186164`, `2962294547`, `2964690962`, `2964690972`, `3016980197`
+  - PR threads `2962186164`, `2962294547`, `2964690962`, `2964690972`, `2991933141`, `3016980197`
 
 ### [CLOSED] F5. Workflow catalog metadata overrides still mishandle explicit `False` and sparse flags
 
@@ -486,7 +539,7 @@
 - Alternatives: Inline a stable lock-key serializer next to the lock code.
 - Sources:
   - `docs/designs/runnables/CR.md`
-  - PR thread `2991025290`
+  - PR threads `2991025290`, `2991933179`
 
 ### [CLOSED] F2. Environment revision commit validation
 
