@@ -1,7 +1,8 @@
-import React, {useMemo} from "react"
+import {useMemo, Fragment} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
+import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
@@ -217,7 +218,7 @@ function DownstreamNodeCard({
                 style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 6}}
             >
                 {entries.map(([key, value]) => (
-                    <React.Fragment key={key}>
+                    <Fragment key={key}>
                         <span className="text-[var(--ant-color-text-tertiary)] whitespace-nowrap leading-5">
                             {formatFieldLabel(key)}:
                         </span>
@@ -244,7 +245,7 @@ function DownstreamNodeCard({
                                 )
                             })()}
                         </span>
-                    </React.Fragment>
+                    </Fragment>
                 ))}
             </div>
         </NodeResultCard>
@@ -254,6 +255,76 @@ function DownstreamNodeCard({
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
+
+function getNodeDisplayLabel(
+    node: PlaygroundNode | undefined,
+    nodeNames: Record<string, string>,
+    fallback = "Output",
+) {
+    if (!node) return fallback
+    const resolvedName = nodeNames[node.id]
+    return (
+        resolvedName ||
+        (node.label && !/^[0-9a-f]{8}-/.test(node.label)
+            ? node.label
+            : node.entityType.charAt(0).toUpperCase() + node.entityType.slice(1))
+    )
+}
+
+function VariantOutputColumn({
+    rowId,
+    entityId,
+    nodeNames,
+    downstreamNodes,
+}: {
+    rowId: string
+    entityId: string
+    nodeNames: Record<string, string>
+    downstreamNodes: PlaygroundNode[]
+}) {
+    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
+        | PlaygroundNode[]
+        | null
+
+    const primary = useMemo(
+        () => nodes?.find((node) => node.entityId === entityId),
+        [nodes, entityId],
+    )
+    const primaryNodeLabel = useMemo(
+        () => getNodeDisplayLabel(primary, nodeNames),
+        [primary, nodeNames],
+    )
+
+    const primaryWorkflowData = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.data(entityId), [entityId]),
+    )
+    const primaryVersion = primaryWorkflowData?.version as number | undefined
+    const primaryIsDraft = useMemo(() => isLocalDraftId(entityId), [entityId])
+
+    return (
+        <div className="min-w-[400px] flex-1 flex flex-col gap-3">
+            <NodeResultCard
+                name={primaryNodeLabel}
+                version={primaryIsDraft ? undefined : primaryVersion}
+                isDraft={primaryIsDraft}
+            >
+                <div className="min-w-0">
+                    <PrimaryOutput rowId={rowId} entityId={entityId} />
+                </div>
+            </NodeResultCard>
+
+            {downstreamNodes.map((node) => (
+                <DownstreamNodeCard
+                    key={`${entityId}:${node.entityId}`}
+                    rowId={rowId}
+                    node={node}
+                    nodeName={getNodeDisplayLabel(node, nodeNames, node.entityType)}
+                    rootEntityId={entityId}
+                />
+            ))}
+        </div>
+    )
+}
 
 const FocusDrawerContent = () => {
     const {rowId, entityId} = useAtomValue(playgroundFocusDrawerAtom)
@@ -266,6 +337,8 @@ const FocusDrawerContent = () => {
         | null
     const isChain = (nodes?.length ?? 0) > 1
     const primaryEntityId = entityId || ""
+    const rootNodes = useMemo(() => (nodes ? nodes.filter((n) => n.depth === 0) : []), [nodes])
+    const isComparisonView = rootNodes.length > 1
 
     // Resolve human-readable names for downstream nodes
     const nodeNamesAtom = useMemo(
@@ -290,6 +363,11 @@ const FocusDrawerContent = () => {
         return nodes.filter((n) => n.depth > 0 && n.entityId !== primaryEntityId)
     }, [isChain, nodes, primaryEntityId])
 
+    const compareDownstreamNodes = useMemo(() => {
+        if (!isChain || !nodes) return []
+        return nodes.filter((n) => n.depth > 0)
+    }, [isChain, nodes])
+
     if (!rowId) return null
 
     return (
@@ -310,48 +388,45 @@ const FocusDrawerContent = () => {
                     {
                         key: "output",
                         label: "Outputs",
-                        children: (
+                        children: isComparisonView ? (
+                            <div className="overflow-x-auto">
+                                <div className="flex gap-4 min-w-fit">
+                                    {rootNodes.map((rootNode) => (
+                                        <VariantOutputColumn
+                                            key={rootNode.entityId}
+                                            rowId={rowId}
+                                            entityId={rootNode.entityId}
+                                            nodeNames={nodeNames}
+                                            downstreamNodes={compareDownstreamNodes}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
                             <div className="flex flex-col gap-3">
-                                {/* Primary node */}
                                 <NodeResultCard
-                                    name={(() => {
-                                        const primary = nodes?.find(
-                                            (n) => n.entityId === primaryEntityId,
-                                        )
-                                        if (!primary) return "Output"
-                                        const resolvedName = nodeNames[primary.id]
-                                        return (
-                                            resolvedName ||
-                                            (primary.label && !/^[0-9a-f]{8}-/.test(primary.label)
-                                                ? primary.label
-                                                : primary.entityType.charAt(0).toUpperCase() +
-                                                  primary.entityType.slice(1))
-                                        )
-                                    })()}
+                                    name={getNodeDisplayLabel(
+                                        nodes?.find((n) => n.entityId === primaryEntityId),
+                                        nodeNames,
+                                    )}
                                 >
                                     <div className="min-w-0">
                                         <PrimaryOutput rowId={rowId} entityId={primaryEntityId} />
                                     </div>
                                 </NodeResultCard>
-                                {/* Downstream nodes: each in its own bordered card */}
-                                {downstreamNodes.map((node) => {
-                                    const resolvedName = nodeNames[node.id]
-                                    const label =
-                                        resolvedName ||
-                                        (node.label && !/^[0-9a-f]{8}-/.test(node.label)
-                                            ? node.label
-                                            : node.entityType.charAt(0).toUpperCase() +
-                                              node.entityType.slice(1))
-                                    return (
-                                        <DownstreamNodeCard
-                                            key={node.entityId}
-                                            rowId={rowId}
-                                            node={node}
-                                            nodeName={label}
-                                            rootEntityId={primaryEntityId}
-                                        />
-                                    )
-                                })}
+                                {downstreamNodes.map((node) => (
+                                    <DownstreamNodeCard
+                                        key={node.entityId}
+                                        rowId={rowId}
+                                        node={node}
+                                        nodeName={getNodeDisplayLabel(
+                                            node,
+                                            nodeNames,
+                                            node.entityType,
+                                        )}
+                                        rootEntityId={primaryEntityId}
+                                    />
+                                ))}
                             </div>
                         ),
                     },
