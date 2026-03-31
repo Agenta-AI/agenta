@@ -32,6 +32,11 @@ Every finding should include these fields when they are known:
 - `Alternatives`
 - `Sources`
 
+Each finding title should also carry a quick visual state prefix:
+
+- `[OPEN]` for `candidate`, `open`, `confirmed`, `needs-user-decision`, `in-progress`, `blocked`, `process`, or `migration`
+- `[CLOSED]` for `fixed`, `stale`, or `wontfix`
+
 ## CR-Oriented Fields
 
 For verification findings, prefer:
