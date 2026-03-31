@@ -934,17 +934,6 @@ class SimpleEvaluatorsService:
 
         return parts[2] or None
 
-    @staticmethod
-    def _has_outputs_schema(
-        simple_evaluator_data: Optional[SimpleEvaluatorData],
-    ) -> bool:
-        if not simple_evaluator_data or not isinstance(
-            simple_evaluator_data.schemas, dict
-        ):
-            return False
-
-        return bool(simple_evaluator_data.schemas.get("outputs"))
-
     def _normalize_evaluator_data(
         self,
         simple_evaluator_data: Optional[SimpleEvaluatorData],
@@ -962,7 +951,7 @@ class SimpleEvaluatorsService:
 
         normalized_data_dict: Dict[str, Any] = {}
 
-        if evaluator_key and not self._has_outputs_schema(simple_evaluator_data):
+        if evaluator_key:
             settings_values = (
                 simple_evaluator_data.parameters
                 if isinstance(simple_evaluator_data.parameters, dict)
@@ -980,10 +969,18 @@ class SimpleEvaluatorsService:
                 exclude_unset=True,
             )
 
+            existing_schemas = existing_data_dict.get("schemas") or {}
+            inferred_schemas = normalized_data_dict.get("schemas") or {}
+            if existing_schemas or inferred_schemas:
+                normalized_data_dict["schemas"] = {
+                    **existing_schemas,
+                    **inferred_schemas,
+                }
+
         return SimpleEvaluatorData(
             **{
-                **normalized_data_dict,
                 **existing_data_dict,
+                **normalized_data_dict,
             }
         )
 

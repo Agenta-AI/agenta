@@ -662,8 +662,6 @@ class ApplicationRevisionIdAlias(AliasConfig):
 class ApplicationFlags(WorkflowFlags):
     def __init__(self, **data):
         data["is_application"] = True
-        data["is_evaluator"] = False
-        data["is_snippet"] = False
 
         super().__init__(**data)
 

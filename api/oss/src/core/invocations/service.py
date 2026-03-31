@@ -432,7 +432,7 @@ class InvocationsService:
         windowing: Optional[Windowing] = None,
     ):
         invocation = invocation_query if invocation_query else None
-        invocation_flags = InvocationFlags(is_evaluator=True)
+        invocation_flags = InvocationFlags()
 
         if invocation:
             if invocation.channel:

@@ -366,26 +366,37 @@ class AnnotationsService:
             else {},
         )
 
+        annotation_references = (
+            AnnotationReferences(**annotation_edit.references.model_dump())
+            if annotation_edit.references
+            else annotation.references
+        )
+        annotation_links = (
+            annotation_edit.links
+            if annotation_edit.links is not None
+            else annotation.links
+        )
+
         if evaluator_revision:
-            annotation.references.evaluator = Reference(
+            annotation_references.evaluator = Reference(
                 id=evaluator_revision.evaluator_id,
                 slug=(
-                    annotation.references.evaluator.slug
-                    if annotation.references.evaluator
+                    annotation_references.evaluator.slug
+                    if annotation_references.evaluator
                     else None
                 ),
             )
 
-            annotation.references.evaluator_variant = Reference(
+            annotation_references.evaluator_variant = Reference(
                 id=evaluator_revision.evaluator_variant_id,
                 slug=(
-                    annotation.references.evaluator_variant.slug
-                    if annotation.references.evaluator_variant
+                    annotation_references.evaluator_variant.slug
+                    if annotation_references.evaluator_variant
                     else None
                 ),
             )
 
-            annotation.references.evaluator_revision = Reference(
+            annotation_references.evaluator_revision = Reference(
                 id=evaluator_revision.id,
                 slug=evaluator_revision.slug,
                 version=evaluator_revision.version,
@@ -413,8 +424,8 @@ class AnnotationsService:
             #
             data=annotation_edit.data,
             #
-            references=annotation_edit.references,
-            links=annotation_edit.links,
+            references=annotation_references,
+            links=annotation_links,
         )
 
         if annotation_link is None:
@@ -462,8 +473,8 @@ class AnnotationsService:
             #
             data=annotation_edit.data,
             #
-            references=annotation.references,
-            links=annotation.links,
+            references=annotation_references,
+            links=annotation_links,
         )
 
         return updated_annotation
@@ -504,7 +515,7 @@ class AnnotationsService:
         windowing: Optional[Windowing] = None,
     ):
         annotation = annotation_query if annotation_query else None
-        annotation_flags = AnnotationQueryFlags(is_evaluator=True)
+        annotation_flags = AnnotationQueryFlags()
 
         if annotation:
             if annotation.origin:

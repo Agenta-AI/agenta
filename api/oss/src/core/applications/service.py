@@ -850,7 +850,7 @@ class ApplicationsService:
         """
         Fetch and resolve an application revision with embedded references.
 
-        Applications are workflows with is_evaluator=False. This method
+        Applications are workflows with is_application=True. This method
         delegates to WorkflowsService.resolve_workflow_revision and converts
         the result to Application types for backward compatibility.
 
@@ -933,15 +933,11 @@ class SimpleApplicationsService:
                         mode="json",
                         exclude_none=True,
                         exclude_unset=True,
-                        exclude={"is_evaluator"},
                     )
                 ),
-                is_evaluator=False,
             )
             if simple_application_create.flags
-            else SimpleApplicationFlags(
-                is_evaluator=False,
-            )
+            else SimpleApplicationFlags()
         )
 
         application_flags = ApplicationFlags(

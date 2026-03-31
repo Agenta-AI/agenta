@@ -82,7 +82,7 @@ class ApplicationRevisionIdAlias(AliasConfig):
 
 
 class ApplicationFlags(WorkflowFlags):
-    """Application flags - is_application=True, is_evaluator=False."""
+    """Application flags - is_application=True; other booleans use their normal defaults unless explicitly set."""
 
     def __init__(self, **data):
         data["is_application"] = True
@@ -91,7 +91,7 @@ class ApplicationFlags(WorkflowFlags):
 
 
 class ApplicationQueryFlags(WorkflowQueryFlags):
-    """Application query flags - filter for is_application=True, is_evaluator=False."""
+    """Application query flags - filter for is_application=True."""
 
     def __init__(self, **data):
         data["is_application"] = True

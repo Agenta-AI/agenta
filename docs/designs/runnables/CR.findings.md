@@ -21,7 +21,75 @@
 - Remote thread `3016391939` reiterates the existing low-priority `.pre-commit-config.yaml` reproducibility concern and was not promoted to a new top-level finding.
 - Remote thread `3016391966` is process-only scope/title feedback and was not promoted to a code finding.
 
-## Findings
+## Open Findings
+
+### [OPEN] F7. Runnable docs still contain stale discovery-contract language
+
+- Severity: `P2`
+- Confidence: `high`
+- Status: `in-progress`
+- Category: `Consistency`, `Maintainability`
+- Summary: Several runnable design docs still describe per-route `openapi.json` or paired OpenAPI discovery even though the target contract uses persisted revision truth first and `/inspect` as the runtime fallback.
+- Evidence:
+  - `docs/designs/runnables/plan.md:86-95`
+  - `docs/designs/runnables/runnables-system-layer.md:104-130`
+  - `docs/designs/runnables/runnables-function-layer.md:100-111`
+- Files:
+  - `docs/designs/runnables/plan.md`
+  - `docs/designs/runnables/runnables-system-layer.md`
+  - `docs/designs/runnables/runnables-function-layer.md`
+- Cause: Older design material still described an OpenAPI-based transition shape.
+- Explanation: The primary plan and several companion docs are now aligned on persisted revision truth plus `/inspect` fallback, but additional docs may still need cleanup.
+- Impact: Reviewers and implementers cannot trust the docs as a single source of truth.
+- Suggested Fix: Keep aligning remaining design docs to one contract: persisted revision truth first, `/inspect` only when there is no local revision truth yet or live discovery is explicitly needed.
+- Alternatives: None if the branch is committed to `/inspect` as the only runtime discovery route.
+- Sources:
+  - `docs/designs/runnables/CR.md`
+  - PR threads `2948797791`, `2948797838`, `2949000437`, `2952354703`, `2952354726`, `2954804833`, `2954804871`, `2956985931`, `2962186277`, `2962294682`, `2962294716`, `2964630533`, `2964630562`, `2964630579`
+
+### [OPEN] F14. Evaluator schema keys were renamed/removed without a confirmed consumer migration
+
+- Severity: `P2`
+- Confidence: `medium`
+- Status: `open`
+- Category: `Compatibility`
+- Summary: `ground_truth_key` was removed and `advanced` was renamed to `x-ag-ui-advanced`, with known frontend usage of the old keys.
+- Evidence:
+  - `api/oss/src/resources/evaluators/evaluators.py`
+  - `web/packages/agenta-entities/src/workflow/state/evaluatorUtils.ts:457`
+  - `web/packages/agenta-entities/src/workflow/state/molecule.ts:579`
+- Files:
+  - `api/oss/src/resources/evaluators/evaluators.py`
+- Cause: Producer-side contract changes were made without an explicit transition window in the review record.
+- Explanation: Frontend and other consumers may still read the old keys.
+- Impact: Silent UI regressions are possible if consumers were not updated in this PR.
+- Suggested Fix: Audit and update active frontend consumers, especially the code that still reads `advanced`; do not add backward-compat emission if the contract break is intentional.
+- Alternatives: Explicitly document the breaking change and gate rollout on consumer migration.
+- Sources:
+  - `docs/designs/runnables/CR.md`
+  - PR threads `2983188635`, `2984134999`
+
+### [OPEN] F15. Git DAO applies `application_refs` filtering after DB fetch
+
+- Severity: `P2`
+- Confidence: `high`
+- Status: `blocked`
+- Category: `Performance`, `Correctness`
+- Summary: `application_refs` filtering is done in Python after fetching revisions, defeating pagination and risking runtime errors on non-dict values.
+- Evidence:
+  - `api/oss/src/dbs/postgres/git/dao.py:1162-1218`
+- Files:
+  - `api/oss/src/dbs/postgres/git/dao.py`
+- Cause: The JSON-derived filter is not pushed into SQL and lacks a type guard before `.get()`.
+- Explanation: `query_revisions()` pages the DB result first, then loops through the returned revisions in Python and calls `.get()` on `ref_data["application"]` without first proving that value is a dict, so pagination semantics and malformed-value safety both depend on post-fetch behavior.
+- Impact: Pagination semantics and performance degrade, and malformed stored values can raise at runtime.
+- Suggested Fix: Push the filter into SQL/JSONB queries and add `isinstance(app_ref, dict)` guards once the current analysis is complete.
+- Alternatives: Apply filtering before paging only if the full dataset is guaranteed small, which is not the intended contract here.
+- Sources:
+  - `docs/designs/runnables/CR.md`
+  - PR threads `2983188658`, `2984134983`, `2991025273`
+
+## Closed Findings
 
 ### [CLOSED] F1. Migration framing no longer matches the branch's actual mixed expand/contract behavior
 
@@ -47,11 +115,11 @@
   - `docs/designs/runnables/CR.md`
   - PR threads `2954804958`, `2954805038`, `2956986020`, `2956986030`, `2960191383`, `2962186091`, `2964630612`, `2964630626`, `2965828569`
 
-### [OPEN] F3. Evaluator schema hydration can erase hydrated outputs during merge
+### [CLOSED] F3. Evaluator schema hydration can erase hydrated outputs during merge
 
 - Severity: `P2`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Correctness`
 - Summary: Hydrated `schemas.outputs` can be overwritten by sparse stored `schemas` during normalization.
 - Evidence:
@@ -59,30 +127,30 @@
 - Files:
   - `api/oss/src/core/evaluators/service.py`
 - Cause: The merge overlays existing stored data after hydration rather than preserving repaired fields.
-- Explanation: A stored `schemas` payload like `{}` or `{parameters: ...}` can wipe the hydrated outputs schema.
+- Explanation: Builtin evaluator schema parts that are inferred are now reapplied as inferred truth during normalization instead of being overwritten by sparse stored `schemas`.
 - Impact: Builtin evaluators can remain schema-incomplete and downstream consumers can observe inconsistent behavior.
-- Suggested Fix: Merge existing data first, then overlay repaired fields, or deep-merge `schemas` so `parameters` survive while `outputs` is guaranteed.
-- Alternatives: Normalize `schemas` in a dedicated repair helper before the final merge.
+- Suggested Fix: Keep inferred evaluator schema parts black-or-white: if a part is inferred for that evaluator kind, reapply the inferred value during normalization instead of trusting stored overrides.
+- Alternatives: None.
 - Sources:
   - `docs/designs/runnables/CR.md`
   - PR threads `2965828550`, `2971482846`
 
-### [OPEN] F4. Application flags no longer enforce `is_evaluator=False`
+### [CLOSED] F4. Application flags no longer enforce `is_evaluator=False`
 
 - Severity: `P2`
 - Confidence: `high`
-- Status: `needs-user-decision`
+- Status: `wontfix`
 - Category: `Correctness`, `Consistency`
-- Summary: `ApplicationFlags` and `ApplicationQueryFlags` still claim the application invariant but no longer enforce it.
+- Summary: Some SDK/API wording and creation paths still implied that application DTOs should force `is_evaluator=False`, but the intended contract is to rely on the default-false behavior instead of writing `False` explicitly.
 - Evidence:
   - `api/oss/src/core/applications/dtos.py:84-99`
 - Files:
   - `api/oss/src/core/applications/dtos.py`
-- Cause: Constructor normalization only forces `is_application=True`.
-- Explanation: Callers can construct contradictory DTOs with both `is_application=True` and `is_evaluator=True`.
-- Impact: Application-scoped queries become ambiguous and downstream filtering is harder to reason about.
-- Suggested Fix: Decide whether the DTO should enforce the invariant or whether the flags are intentionally user-owned booleans that merely default to `False`.
-- Alternatives: Fail fast on contradictory inputs instead of silently normalizing, or explicitly document that defaults already provide the intended behavior.
+- Cause: Earlier review framing treated default-false booleans as invariants that should be actively normalized.
+- Explanation: The intended rule is that these flags default to `False` unless explicitly set; the SDK/API wording and application-creation code now reflect that instead of forcing explicit false values.
+- Impact: Forcing `False` would add misleading normalization and blur which flags the caller actually supplied.
+- Suggested Fix: Do not write explicit false values in application creation paths, and document that the default is false.
+- Alternatives: None.
 - Sources:
   - `docs/designs/runnables/CR.md`
   - PR threads `2962186164`, `2962294547`, `2964690962`, `2964690972`
@@ -109,11 +177,11 @@
   - `docs/designs/runnables/CR.md`
   - PR threads `2962294573`, `2964690925`, `2964690953`, `2969327983`, `2969327989`, `2983188509`, `2984134965`, `2991025226`, `3016391904`
 
-### [OPEN] F6. Invocation query path filters invocation traces as evaluators
+### [CLOSED] F6. Invocation query path filters invocation traces as evaluators
 
 - Severity: `P2`
 - Confidence: `high`
-- Status: `needs-user-decision`
+- Status: `fixed`
 - Category: `Correctness`
 - Summary: `InvocationsService.query()` seeds `is_evaluator=True`, which can filter out the invocation traces it is supposed to return.
 - Evidence:
@@ -124,35 +192,11 @@
 - Cause: Query flags are initialized with evaluator semantics rather than invocation semantics.
 - Explanation: Invocation traces created by `_create_invocation()` do not set `is_evaluator=True`.
 - Impact: If the compatibility invocation router is remounted, query behavior will be wrong.
-- Suggested Fix: Confirm whether invocation and annotation filtering should be link-based instead of reusing evaluator/application/snippet flags, then update the query path accordingly.
+- Suggested Fix: Use the trace-kind and links-based definition for invocation versus annotation, and stop seeding query filters with evaluator flags.
 - Alternatives: Split invocation-specific filtering into a dedicated query DTO and mapper.
 - Sources:
   - `docs/designs/runnables/CR.md`
   - PR threads `2949000394`, `2960190986`, `2962186211`, `2962294499`, `2965208073`
-
-### [OPEN] F7. Runnable docs still contain stale discovery-contract language
-
-- Severity: `P2`
-- Confidence: `high`
-- Status: `in-progress`
-- Category: `Consistency`, `Maintainability`
-- Summary: Several runnable design docs still describe per-route `openapi.json` or paired OpenAPI discovery even though the target contract uses persisted revision truth first and `/inspect` as the runtime fallback.
-- Evidence:
-  - `docs/designs/runnables/plan.md:86-95`
-  - `docs/designs/runnables/runnables-system-layer.md:104-130`
-  - `docs/designs/runnables/runnables-function-layer.md:100-111`
-- Files:
-  - `docs/designs/runnables/plan.md`
-  - `docs/designs/runnables/runnables-system-layer.md`
-  - `docs/designs/runnables/runnables-function-layer.md`
-- Cause: Older design material still described an OpenAPI-based transition shape.
-- Explanation: The primary plan and several companion docs are now aligned on persisted revision truth plus `/inspect` fallback, but additional docs may still need cleanup.
-- Impact: Reviewers and implementers cannot trust the docs as a single source of truth.
-- Suggested Fix: Keep aligning remaining design docs to one contract: persisted revision truth first, `/inspect` only when there is no local revision truth yet or live discovery is explicitly needed.
-- Alternatives: None if the branch is committed to `/inspect` as the only runtime discovery route.
-- Sources:
-  - `docs/designs/runnables/CR.md`
-  - PR threads `2948797791`, `2948797838`, `2949000437`, `2952354703`, `2952354726`, `2954804833`, `2954804871`, `2956985931`, `2962186277`, `2962294682`, `2962294716`, `2964630533`, `2964630562`, `2964630579`
 
 ### [CLOSED] F8. `llm_apps_service` logs credentials in a curl command
 
@@ -174,11 +218,11 @@
   - `docs/designs/runnables/CR.md`
   - PR thread `2984134903`
 
-### [OPEN] F9. Annotation edit response can diverge from persisted references and links
+### [CLOSED] F9. Annotation edit response can diverge from persisted references and links
 
 - Severity: `P2`
 - Confidence: `high`
-- Status: `blocked`
+- Status: `fixed`
 - Category: `Correctness`
 - Summary: `annotations/service.py` forwards edited references and links to persistence but returns the pre-edit values in the response.
 - Evidence:
@@ -188,7 +232,7 @@
 - Cause: The response object is built from the pre-edit fetch rather than the edited values.
 - Explanation: Persisted state and returned state can diverge.
 - Impact: Callers cannot trust the edit response to represent the post-edit entity.
-- Suggested Fix: Wait for the contract decision, then either make references/links immutable in the edit contract or reflect the edited values in the returned DTO.
+- Suggested Fix: Treat annotation references and links as mutable and return the edited values in the response after applying evaluator-reference normalization.
 - Alternatives: Re-fetch after edit and build the response from persisted state.
 - Sources:
   - `docs/designs/runnables/CR.md`
@@ -215,23 +259,23 @@
   - `docs/designs/runnables/CR.md`
   - PR threads `2982653283`, `2982653312`, `2983188576`
 
-### [OPEN] F11. Trace query rewriting relies on `conditions[0]`
+### [CLOSED] F11. Trace query rewriting relies on `conditions[0]`
 
 - Severity: `P2`
 - Confidence: `high`
-- Status: `open`
+- Status: `stale`
 - Category: `Correctness`, `Robustness`
-- Summary: `tracing/service.py` rewrites `conditions[0]` assuming a stable internal ordering from `build_simple_trace_query()`.
+- Summary: This was mis-triaged as an arbitrary positional-ordering bug, but the helper intentionally operates on the single initial trace-kind condition that the trace-query builder inserts first.
 - Evidence:
   - `api/oss/src/core/tracing/service.py:445`
   - `api/oss/src/core/tracing/service.py:1155-1163`
 - Files:
   - `api/oss/src/core/tracing/service.py`
-- Cause: Positional mutation is used where a stable semantic hook is needed.
-- Explanation: The current implementation replaces `conditions[0]` after `build_simple_trace_query()` returns, both in the trace-id extraction path and in the query path, so any future builder reordering can target the wrong condition or fail outright.
-- Impact: Wrong filtering or runtime failure on future internal refactors.
-- Suggested Fix: Extend the builder to accept `trace_types` explicitly or locate the condition by stable field key.
-- Alternatives: Replace post-build mutation with typed query composition.
+- Cause: The original review read the helper as arbitrary positional mutation instead of a constrained helper over the known single-condition shape.
+- Explanation: `_extract_trace_ids_from_query()` already guards on exactly one condition, and `build_simple_trace_filtering()` always inserts the trace-kind condition first, so this report does not describe an actionable defect on current HEAD.
+- Impact: No confirmed bug remains here.
+- Suggested Fix: None.
+- Alternatives: Re-triage only if the helper shape changes later.
 - Sources:
   - `docs/designs/runnables/CR.md`
   - PR thread `2982653363`
@@ -276,48 +320,6 @@
   - `docs/designs/runnables/CR.md`
   - PR threads `2983188596`, `2991025251`
 
-### [OPEN] F14. Evaluator schema keys were renamed/removed without a confirmed consumer migration
-
-- Severity: `P2`
-- Confidence: `medium`
-- Status: `open`
-- Category: `Compatibility`
-- Summary: `ground_truth_key` was removed and `advanced` was renamed to `x-ag-ui-advanced`, with known frontend usage of the old keys.
-- Evidence:
-  - `api/oss/src/resources/evaluators/evaluators.py`
-  - `web/packages/agenta-entities/src/workflow/state/evaluatorUtils.ts:457`
-  - `web/packages/agenta-entities/src/workflow/state/molecule.ts:579`
-- Files:
-  - `api/oss/src/resources/evaluators/evaluators.py`
-- Cause: Producer-side contract changes were made without an explicit transition window in the review record.
-- Explanation: Frontend and other consumers may still read the old keys.
-- Impact: Silent UI regressions are possible if consumers were not updated in this PR.
-- Suggested Fix: Audit and update active consumers, especially the frontend code that still reads `advanced`; do not add backward-compat emission if the contract break is intentional.
-- Alternatives: Explicitly document the breaking change and gate rollout on consumer migration.
-- Sources:
-  - `docs/designs/runnables/CR.md`
-  - PR threads `2983188635`, `2984134999`
-
-### [OPEN] F15. Git DAO applies `application_refs` filtering after DB fetch
-
-- Severity: `P2`
-- Confidence: `high`
-- Status: `open`
-- Category: `Performance`, `Correctness`
-- Summary: `application_refs` filtering is done in Python after fetching revisions, defeating pagination and risking runtime errors on non-dict values.
-- Evidence:
-  - `api/oss/src/dbs/postgres/git/dao.py:1162-1218`
-- Files:
-  - `api/oss/src/dbs/postgres/git/dao.py`
-- Cause: The JSON-derived filter is not pushed into SQL and lacks a type guard before `.get()`.
-- Explanation: `query_revisions()` pages the DB result first, then loops through the returned revisions in Python and calls `.get()` on `ref_data["application"]` without first proving that value is a dict, so pagination semantics and malformed-value safety both depend on post-fetch behavior.
-- Impact: Pagination semantics and performance degrade, and malformed stored values can raise at runtime.
-- Suggested Fix: Push the filter into SQL/JSONB queries and add `isinstance(app_ref, dict)` guards.
-- Alternatives: Apply filtering before paging only if the full dataset is guaranteed small, which is not the intended contract here.
-- Sources:
-  - `docs/designs/runnables/CR.md`
-  - PR threads `2983188658`, `2984134983`, `2991025273`
-
 ### [CLOSED] F16. `urlparse` no longer handles scheme-less localhost inputs correctly
 
 - Severity: `P3`
@@ -361,8 +363,6 @@
   - `docs/designs/runnables/CR.md`
   - PR thread `2991025290`
 
-## Closed Or Accepted Findings
-
 ### [CLOSED] F2. Environment revision commit validation
 
 - Severity: `P2`
@@ -401,6 +401,4 @@
 ## Open Questions
 
 - Should the pre-commit reproducibility concern be promoted from thread-disposition-only tracking into a top-level `P3` finding, or remain an open-low note?
-- For F3, which schema fields are always inferred versus user-owned, and where should the service stop repairing versus preserving stored values?
-- For F4, should application DTOs enforce `is_evaluator=False`, or is the default-false behavior sufficient for the intended contract?
-- For F6, should invocation and annotation queries filter on link presence rather than evaluator/application/snippet flags?
+- For F15, keep this blocked until the current DAO analysis is complete.
