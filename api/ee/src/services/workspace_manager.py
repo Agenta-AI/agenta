@@ -3,6 +3,7 @@ from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.caching import invalidate_cache
 from oss.src.services import db_manager
 from ee.src.services import db_manager_ee, converters
 from oss.src.models.db_models import (
@@ -393,6 +394,14 @@ async def accept_workspace_invitation(
             await db_manager_ee.mark_invitation_as_used(
                 project_id, str(user.id), invitation
             )
+
+            # Invalidate any cached auth deny for this user so they can
+            # access the project immediately after accepting the invite.
+            await invalidate_cache(
+                namespace="verify_bearer_token",
+                user_id=str(user.id),
+            )
+
             return True
 
         else:

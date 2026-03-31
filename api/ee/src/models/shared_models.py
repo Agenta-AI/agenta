@@ -170,7 +170,6 @@ class Permission(str, Enum):
             cls.VIEW_EVALUATION,
             cls.RUN_SERVICE,
             cls.VIEW_BILLING,
-            #
             cls.VIEW_WORKFLOWS,
             cls.VIEW_EVALUATORS,
             cls.VIEW_QUERIES,
@@ -185,7 +184,6 @@ class Permission(str, Enum):
             cls.VIEW_EVALUATION_RESULTS,
             cls.VIEW_EVALUATION_METRICS,
             cls.VIEW_EVALUATION_QUEUES,
-            #
             cls.VIEW_TOOLS,
         ]
         ANNOTATOR_PERMISSIONS = VIEWER_PERMISSIONS + [
