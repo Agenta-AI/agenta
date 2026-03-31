@@ -248,6 +248,7 @@ const PlaygroundMainView = ({
                                         >
                                             <PlaygroundVariantConfig
                                                 variantId={variantId}
+                                                embedded={embedded}
                                                 externalViewMode={configViewMode}
                                                 onViewModeChange={onConfigViewModeChange}
                                             />
