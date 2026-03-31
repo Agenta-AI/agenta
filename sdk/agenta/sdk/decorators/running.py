@@ -7,6 +7,11 @@ from uuid import UUID
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.models.workflows import (
+    WorkflowServiceRequest,  # noqa: F401
+    WorkflowServiceBatchResponse,  # noqa: F401
+    WorkflowServiceStreamResponse,  # noqa: F401
+    WorkflowServiceStatus,  # noqa: F401
+    #
     WorkflowRevision,
     WorkflowRevisionData,
     WorkflowRequestData,

@@ -123,9 +123,8 @@ def semantic_field(
     x_ag_type: str | None = None,
     x_ag_type_ref: str | dict | None = None,
     jtype: str | list[str] | None = None,
-    title: str | None = None,
-    description: str | None = None,
-    default=None,
+    defs: dict | None = None,
+    **extra,
 ) -> dict:
     schema = {}
     if x_ag_type is None and x_ag_type_ref is None:
@@ -136,12 +135,9 @@ def semantic_field(
         schema["x-ag-type-ref"] = x_ag_type_ref
     if jtype is not None:
         schema["type"] = jtype
-    if title:
-        schema["title"] = title
-    if description:
-        schema["description"] = description
-    if default is not None:
-        schema["default"] = default
+    if defs is not None:
+        schema["$defs"] = defs
+    schema.update(extra)
     return schema
 
 
