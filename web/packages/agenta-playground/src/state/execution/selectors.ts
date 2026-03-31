@@ -251,9 +251,7 @@ const evaluatorExpectedColumnsAtom = atom<string[]>((get) => {
         for (const [key, value] of entries) {
             // Recurse one level into plain objects (advanced_config, etc.)
             if (value && typeof value === "object" && !Array.isArray(value)) {
-                entries.push(
-                    ...Object.entries(value as Record<string, unknown>),
-                )
+                entries.push(...Object.entries(value as Record<string, unknown>))
             }
             if (!key.endsWith("_key") || typeof value !== "string" || !value) continue
             const columnName = value.startsWith("testcase.") ? value.split(".")[1] : value
