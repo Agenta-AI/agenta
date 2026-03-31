@@ -153,6 +153,22 @@ export interface DrillInContentProps {
     toolbarContent?: ReactNode
     /** Hide the breadcrumb row when at root level (useful when an external header already shows the root title) */
     hideRootBreadcrumb?: boolean
+    /**
+     * Render callback for external controls (breadcrumb + add).
+     * When provided, the internal breadcrumb and add controls are hidden.
+     * The parent component is responsible for rendering them.
+     */
+    renderExternalControls?: (controls: DrillInExternalControls) => void
+}
+
+/** Controls exposed to external renderers via renderExternalControls */
+export interface DrillInExternalControls {
+    currentPath: string[]
+    currentPathDataType: "array" | "object" | "root" | null
+    navigateBack: () => void
+    navigateToIndex: (index: number) => void
+    addObjectProperty: (name: string, type: PropertyType) => void
+    addArrayItem: () => void
 }
 
 /**
@@ -192,6 +208,7 @@ export function DrillInContent({
     excludeKeys,
     toolbarContent,
     hideRootBreadcrumb = false,
+    renderExternalControls,
 }: DrillInContentProps) {
     // Parse initialPath to array format, removing rootTitle prefix if present
     const parsedInitialPath = useMemo(() => {
@@ -584,7 +601,26 @@ export function DrillInContent({
     // Add object property
     const addObjectProperty = useCallback(
         (propertyName: string, propertyType: PropertyType) => {
-            if (currentPath.length === 0) return
+            const defaultValue =
+                getDefaultValueForType?.(propertyType) ?? getDefaultValue(propertyType)
+
+            if (currentPath.length === 0) {
+                // Root level: set the new property directly via path
+                setValue(
+                    [propertyName],
+                    valueMode === "string" ? JSON.stringify(defaultValue) : defaultValue,
+                )
+
+                // Lock the type for this new property
+                if (onLockedFieldTypesChange) {
+                    onLockedFieldTypesChange({
+                        ...lockedFieldTypes,
+                        [propertyName]: propertyTypeToDataType(propertyType),
+                    })
+                }
+                return
+            }
+
             const value = currentValue
             if (value == null) return
 
@@ -592,9 +628,6 @@ export function DrillInContent({
             try {
                 const parsed = JSON.parse(strValue)
                 if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-                    // Get default value for type
-                    const defaultValue =
-                        getDefaultValueForType?.(propertyType) ?? getDefaultValue(propertyType)
                     const updated = {...parsed, [propertyName]: defaultValue}
                     setValue(
                         currentPath,
@@ -625,6 +658,26 @@ export function DrillInContent({
             onLockedFieldTypesChange,
         ],
     )
+
+    // Expose controls to external renderer
+    useEffect(() => {
+        renderExternalControls?.({
+            currentPath,
+            currentPathDataType,
+            navigateBack,
+            navigateToIndex,
+            addObjectProperty,
+            addArrayItem,
+        })
+    }, [
+        renderExternalControls,
+        currentPath,
+        currentPathDataType,
+        navigateBack,
+        navigateToIndex,
+        addObjectProperty,
+        addArrayItem,
+    ])
 
     // Delete item
     const deleteItem = useCallback(
@@ -661,11 +714,10 @@ export function DrillInContent({
                 {/* Optional header content */}
                 {headerContent}
 
-                {/* Breadcrumb navigation and add controls */}
-                {((!hideBreadcrumb && !(hideRootBreadcrumb && currentPath.length === 0)) ||
-                    !!toolbarContent ||
-                    showAddControls) && (
-                    <div className="flex flex-col gap-2">
+                {/* Breadcrumb navigation (hidden when external controls handle it) */}
+                {!renderExternalControls &&
+                    ((!hideBreadcrumb && !(hideRootBreadcrumb && currentPath.length === 0)) ||
+                        !!toolbarContent) && (
                         <div className="flex items-center gap-2">
                             {!hideBreadcrumb &&
                                 !(hideRootBreadcrumb && currentPath.length === 0) && (
@@ -681,15 +733,16 @@ export function DrillInContent({
                                     </div>
                                 )}
                             {toolbarContent}
-                            {showAddControls && (
-                                <DrillInControls
-                                    currentPathDataType={currentPathDataType}
-                                    onAddArrayItem={addArrayItem}
-                                    onAddObjectProperty={addObjectProperty}
-                                />
-                            )}
                         </div>
-                    </div>
+                    )}
+
+                {/* Add controls (hidden when external controls handle it) */}
+                {!renderExternalControls && showAddControls && (
+                    <DrillInControls
+                        currentPathDataType={currentPathDataType}
+                        onAddArrayItem={addArrayItem}
+                        onAddObjectProperty={addObjectProperty}
+                    />
                 )}
 
                 {/* Current level items */}
@@ -1352,8 +1405,20 @@ function renderFieldContent({
                             : (value ?? 0)
                     setValue(fullPath, finalValue)
                 }}
-                className="w-full"
-                size="middle"
+                placeholder={`Enter ${item.name}...`}
+                className={[
+                    "w-full",
+                    "[&.ant-input-number]:!rounded-lg",
+                    "[&.ant-input-number]:!min-h-[52px]",
+                    "[&.ant-input-number]:!px-[11px]",
+                    "[&.ant-input-number-outlined]:!border-[#BDC7D1]",
+                    "[&.ant-input-number-outlined]:hover:!border-[#394857]",
+                    "[&_.ant-input-number-input]:!p-0",
+                    "[&_.ant-input-number-input]:!h-[50px]",
+                    "[&_.ant-input-number-input]:!text-xs",
+                    "[&_.ant-input-number-input]:!leading-5",
+                ].join(" ")}
+                controls={false}
             />
         )
     }

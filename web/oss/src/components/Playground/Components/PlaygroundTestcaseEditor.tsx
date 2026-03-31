@@ -1,13 +1,15 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo, useRef, useState} from "react"
 
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {executionItemController} from "@agenta/playground"
 import {HeightCollapse, SyncStateTag, type SyncState} from "@agenta/ui"
 import {RightOutlined} from "@ant-design/icons"
-import {Code, TreeStructure} from "@phosphor-icons/react"
+import {CaretRight, Code, TreeStructure} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {EntityDrillInView, JsonEditorWithLocalState} from "@/oss/components/DrillInView"
+import type {DrillInExternalControls} from "@/oss/components/DrillInView"
+import {AddPropertyForm} from "@/oss/components/DrillInView/AddPropertyForm"
 import type {EntityAPI, EntityDrillIn, PathItem} from "@/oss/state/entities/shared"
 
 // ============================================================================
@@ -21,16 +23,6 @@ interface Column {
     name?: string
 }
 
-/**
- * Entity adapter that maps testcaseMolecule → EntityAPI interface.
- *
- * EntityDrillInView expects:
- *   entity.selectors.data(id)        → Atom<T | null>
- *   entity.controller(id)            → WritableAtom (dispatch)
- *   entity.drillIn.getValueAtPath    → pure read
- *   entity.drillIn.getRootItems      → root items (columns)
- *   entity.drillIn.valueMode         → "native"
- */
 const testcaseEntityAdapter = {
     selectors: {
         data: testcaseMolecule.data,
@@ -74,22 +66,20 @@ const testcaseEntityAdapter = {
 
 type EditMode = "fields" | "json"
 
-/**
- * Testcase editor for the playground focus drawer.
- *
- * Uses the OSS EntityDrillInView for fields mode (same rendering as TestcaseEditDrawer)
- * and JsonEditorWithLocalState for JSON mode — backed by testcaseMolecule data.
- */
 function PlaygroundTestcaseEditor({testcaseId}: {testcaseId: string}) {
     const [editMode, setEditMode] = useState<EditMode>("fields")
     const [isOpen, setIsOpen] = useState(true)
 
+    // DrillIn controls state, synced from DrillInContent via renderExternalControls
+    const controlsRef = useRef<DrillInExternalControls | null>(null)
+    const [currentPath, setCurrentPath] = useState<string[]>([])
+    const [currentPathDataType, setCurrentPathDataType] = useState<
+        "array" | "object" | "root" | null
+    >("root")
+
     const entityData = useAtomValue(useMemo(() => testcaseMolecule.data(testcaseId), [testcaseId]))
     const isDirty = useAtomValue(useMemo(() => testcaseMolecule.isDirty(testcaseId), [testcaseId]))
 
-    // Derive columns from the molecule, filtering out internal fields.
-    // Fall back to schema-based variable keys when testcase data is empty
-    // (e.g., newly created testcase with no testset connected).
     const rawColumns = useAtomValue(testcaseMolecule.atoms.columns) as Column[] | null
     const schemaKeys = useAtomValue(executionItemController.selectors.variableKeys) as string[]
     const columns = useMemo(() => {
@@ -101,7 +91,6 @@ function PlaygroundTestcaseEditor({testcaseId}: {testcaseId: string}) {
         return null
     }, [rawColumns, schemaKeys])
 
-    // JSON editor value — only user-facing column data
     const jsonValue = useMemo(() => {
         if (!entityData?.data) return "{}"
         if (columns && columns.length > 0) {
@@ -128,10 +117,23 @@ function PlaygroundTestcaseEditor({testcaseId}: {testcaseId: string}) {
         [updateTestcase, testcaseId],
     )
 
-    // Locally-created testcases have no server counterpart so isDirty is
-    // always true. Show "New" (green) for those instead of "Edited" (blue).
+    // Callback from DrillInContent that syncs controls state
+    const handleExternalControls = useCallback((controls: DrillInExternalControls) => {
+        controlsRef.current = controls
+        setCurrentPath(controls.currentPath)
+        setCurrentPathDataType(controls.currentPathDataType)
+    }, [])
+
+    // Add property handler — delegates to DrillIn's addObjectProperty which
+    // knows the current path and handles both root and nested levels
+    const handleAddProperty = useCallback((name: string, type: string) => {
+        controlsRef.current?.addObjectProperty(name, type as any)
+    }, [])
+
     const isNewRow = testcaseId.startsWith("new-") || testcaseId.startsWith("local-")
     const syncState: SyncState = isNewRow ? "new" : isDirty ? "modified" : "unmodified"
+    const isNested = currentPath.length > 0
+    const canAddProperty = currentPathDataType === "root" || currentPathDataType === "object"
 
     const toolbar = useMemo(
         () => (
@@ -166,17 +168,59 @@ function PlaygroundTestcaseEditor({testcaseId}: {testcaseId: string}) {
 
     return (
         <div>
-            {/* Header — matches Ant Design Collapse header style */}
+            {/* Header */}
             <div
                 className="flex items-center cursor-pointer select-none"
                 style={{padding: "10px 16px", lineHeight: 1.6667}}
                 onClick={() => setIsOpen((v) => !v)}
             >
-                <span className="flex-1" style={{fontSize: 12, color: "#1c2c3d"}}>
-                    Data
-                </span>
-                {/* Stop propagation so toggling edit mode doesn't collapse */}
-                <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                {/* Left side: "Data" label + breadcrumb path segments */}
+                <div
+                    className="flex-1 flex items-center gap-0 min-w-0"
+                    onClick={(e) => {
+                        if (isNested) e.stopPropagation()
+                    }}
+                >
+                    {isNested && editMode === "fields" ? (
+                        <button
+                            type="button"
+                            onClick={() => controlsRef.current?.navigateToIndex(0)}
+                            className="bg-transparent border-none cursor-pointer p-0 flex-shrink-0 text-[rgba(0,0,0,0.45)] hover:text-[#1c2c3d]"
+                            style={{fontSize: 12, lineHeight: 1.6667}}
+                        >
+                            Testcase Data
+                        </button>
+                    ) : (
+                        <span style={{fontSize: 12, color: "#1c2c3d", lineHeight: 1.6667}}>
+                            Testcase Data
+                        </span>
+                    )}
+                    {isNested &&
+                        editMode === "fields" &&
+                        currentPath.map((segment, i) => (
+                            <div key={i} className="flex items-center flex-shrink-0">
+                                <CaretRight size={10} className="text-[rgba(0,0,0,0.25)] mx-0.5" />
+                                <button
+                                    type="button"
+                                    onClick={() => controlsRef.current?.navigateToIndex(i + 1)}
+                                    className={`bg-transparent border-none cursor-pointer p-0 flex-shrink-0 ${
+                                        i === currentPath.length - 1
+                                            ? "text-[#1c2c3d] font-medium"
+                                            : "text-[rgba(0,0,0,0.45)] hover:text-[#1c2c3d]"
+                                    }`}
+                                    style={{fontSize: 12, lineHeight: 1.6667}}
+                                >
+                                    {segment}
+                                </button>
+                            </div>
+                        ))}
+                </div>
+
+                {/* Right side: controls */}
+                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    {editMode === "fields" && canAddProperty && (
+                        <AddPropertyForm onAdd={handleAddProperty} mode="popover" />
+                    )}
                     {toolbar}
                 </div>
                 <span
@@ -202,9 +246,9 @@ function PlaygroundTestcaseEditor({testcaseId}: {testcaseId: string}) {
                             columns={columns}
                             rootTitle="Data"
                             editable
-                            showAddControls
                             showDeleteControls
-                            hideRootBreadcrumb
+                            hideBreadcrumb
+                            renderExternalControls={handleExternalControls}
                         />
                     ) : (
                         <div
