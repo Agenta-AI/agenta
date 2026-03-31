@@ -5,7 +5,7 @@ from sqlalchemy import bindparam, text, Connection
 ROLE_MAP = {
     "editor": "admin",
     "workspace_admin": "admin",
-    "deployment_manager": "manager",
+    "deployment_manager": "developer",
     "evaluator": "annotator",
 }
 

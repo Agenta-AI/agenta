@@ -89,8 +89,8 @@ class ProjectRequest(BaseModel):
 OrganizationRole = Literal[
     "owner",
     "admin",
-    "manager",
     "developer",
+    "editor",
     "annotator",
     "viewer",
 ]
@@ -107,8 +107,8 @@ class OrganizationMembershipRequest(BaseModel):
 WorkspaceRole = Literal[
     "owner",
     "admin",
-    "manager",
     "developer",
+    "editor",
     "annotator",
     "viewer",
 ]
@@ -125,8 +125,8 @@ class WorkspaceMembershipRequest(BaseModel):
 ProjectRole = Literal[
     "owner",
     "admin",
-    "manager",
     "developer",
+    "editor",
     "annotator",
     "viewer",
 ]

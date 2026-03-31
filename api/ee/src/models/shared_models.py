@@ -7,8 +7,8 @@ from pydantic import BaseModel, Field
 class WorkspaceRole(str, Enum):
     OWNER = "owner"
     ADMIN = "admin"
-    MANAGER = "manager"
     DEVELOPER = "developer"
+    EDITOR = "editor"
     ANNOTATOR = "annotator"
     VIEWER = "viewer"
 
@@ -21,8 +21,8 @@ class WorkspaceRole(str, Enum):
         descriptions = {
             cls.OWNER: "Can fully manage the workspace, including adding and removing members.",
             cls.ADMIN: "Can manage workspace settings and members but cannot delete the workspace.",
-            cls.MANAGER: "Can deploy, export, and manage API keys and environments.",
-            cls.DEVELOPER: "Can edit prompts, testsets, evaluators, and workflows.",
+            cls.DEVELOPER: "Can deploy, export, and manage API keys and environments.",
+            cls.EDITOR: "Can edit prompts, testsets, evaluators, and workflows.",
             cls.ANNOTATOR: "Can run evaluations and annotate traces.",
             cls.VIEWER: "Can view the workspace content but cannot make changes.",
         }
@@ -199,7 +199,7 @@ class Permission(str, Enum):
             cls.EDIT_SPANS,
             cls.RUN_TOOLS,
         ]
-        DEVELOPER_PERMISSIONS = ANNOTATOR_PERMISSIONS + [
+        EDITOR_PERMISSIONS = ANNOTATOR_PERMISSIONS + [
             cls.EDIT_APPLICATIONS,
             cls.CREATE_APP_VARIANT,
             cls.DELETE_APP_VARIANT,
@@ -220,7 +220,7 @@ class Permission(str, Enum):
             cls.EDIT_INVOCATIONS,
             cls.EDIT_TOOLS,
         ]
-        MANAGER_PERMISSIONS = DEVELOPER_PERMISSIONS + [
+        DEVELOPER_PERMISSIONS = EDITOR_PERMISSIONS + [
             cls.VIEW_API_KEYS,
             cls.EDIT_API_KEYS,
             cls.DEPLOY_APPLICATION,
@@ -229,7 +229,7 @@ class Permission(str, Enum):
             cls.EDIT_APP_ENVIRONMENT_DEPLOYMENT,
             cls.CREATE_APP_ENVIRONMENT_DEPLOYMENT,
         ]
-        ADMIN_PERMISSIONS = MANAGER_PERMISSIONS + [
+        ADMIN_PERMISSIONS = DEVELOPER_PERMISSIONS + [
             cls.EDIT_WORKSPACE,
             cls.CREATE_WORKSPACE,
             cls.MODIFY_USER_ROLES,
@@ -240,8 +240,8 @@ class Permission(str, Enum):
         defaults = {
             WorkspaceRole.OWNER: [p for p in cls],
             WorkspaceRole.ADMIN: ADMIN_PERMISSIONS,
-            WorkspaceRole.MANAGER: MANAGER_PERMISSIONS,
             WorkspaceRole.DEVELOPER: DEVELOPER_PERMISSIONS,
+            WorkspaceRole.EDITOR: EDITOR_PERMISSIONS,
             WorkspaceRole.ANNOTATOR: ANNOTATOR_PERMISSIONS,
             WorkspaceRole.VIEWER: VIEWER_PERMISSIONS,
         }
