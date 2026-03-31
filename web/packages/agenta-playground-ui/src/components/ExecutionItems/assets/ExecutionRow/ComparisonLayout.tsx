@@ -5,6 +5,7 @@ import {executionItemController, playgroundController} from "@agenta/playground"
 import {getEvaluatorVerdictFromOutput} from "@agenta/playground/utils"
 import type {DropdownButtonOption, DropdownButtonOptionStatus} from "@agenta/ui/components"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
+import {AddButton} from "@agenta/ui/components/presentational"
 import {CopySimpleIcon, MinusCircleIcon, PlayIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
@@ -28,6 +29,7 @@ interface Props {
     cancelRow: () => void
     isBusy: boolean
     appType?: string
+    showAddRowButton?: boolean
 }
 
 const CopyVariableButton = ({rowId, variableKey}: {rowId: string; variableKey: string}) => {
@@ -66,9 +68,11 @@ const ComparisonLayout = ({
     cancelRow,
     isBusy,
     appType,
+    showAddRowButton = false,
 }: Props) => {
     const variableIds = useAtomValue(executionItemController.selectors.variableKeys) as string[]
     const deleteRow = useSetAtom(executionItemController.actions.deleteRow)
+    const addRow = useSetAtom(executionItemController.actions.addRow)
     const executionRowIds = useAtomValue(
         executionItemController.selectors.executionRowIds,
     ) as string[]
@@ -282,11 +286,7 @@ const ComparisonLayout = ({
             </div>
 
             {!inputOnly ? (
-                <div className={clsx("h-[48px] flex items-center px-4")}>
-                    {SyncStateTagSlot && loadableId && (
-                        <SyncStateTagSlot rowId={rowId} loadableId={loadableId} />
-                    )}
-                    <div className="flex-1" />
+                <div className={clsx("h-[48px] flex items-center gap-2 px-2")}>
                     <ExecutionRowRunControl
                         showDropdown={hasDownstreamNodes}
                         stepOptions={stepOptions}
@@ -296,6 +296,18 @@ const ComparisonLayout = ({
                         onOptionSelect={handleStepSelect}
                         trigger={["click"]}
                     />
+                    {showAddRowButton ? (
+                        <AddButton
+                            size="small"
+                            label="Test case"
+                            onClick={() => addRow()}
+                            className="mt-3"
+                        />
+                    ) : null}
+                    <div className="flex-1" />
+                    {SyncStateTagSlot && loadableId && (
+                        <SyncStateTagSlot rowId={rowId} loadableId={loadableId} />
+                    )}
                 </div>
             ) : null}
         </>
