@@ -2,17 +2,17 @@ import click
 from sqlalchemy import bindparam, text, Connection
 
 
-ROLE_MAP = {
-    "editor": "admin",
-    "workspace_admin": "admin",
-    "deployment_manager": "manager",
-    "evaluator": "annotator",
-}
-
 # Roles that are not allowed to own API keys after migration.
-# `viewer` and `annotator` are disallowed, so we delete their keys
+# `viewer` and `evaluator` are disallowed, so we delete their keys
 # before renaming.
 DISALLOWED_API_KEY_ROLES = ("viewer", "evaluator")
+
+ROLE_MAP = {
+    "workspace_admin": "admin",
+    "editor": "developer",
+    "deployment_manager": "editor",
+    "evaluator": "annotator",
+}
 
 
 def _rename_roles_in_table(session: Connection, table: str) -> None:
