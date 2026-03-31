@@ -8,7 +8,7 @@ import {useProjectData} from "@/oss/state/project"
 
 type ProjectPermission = string
 type ProjectRole = string
-type CanonicalProjectRole = "owner" | "admin" | "manager" | "developer" | "annotator" | "viewer"
+type CanonicalProjectRole = "owner" | "admin" | "developer" | "editor" | "annotator" | "viewer"
 
 const FALLBACK_ROLE_PERMISSIONS: Record<CanonicalProjectRole, ProjectPermission[]> = {
     owner: ["*"],
@@ -22,8 +22,8 @@ const FALLBACK_ROLE_PERMISSIONS: Record<CanonicalProjectRole, ProjectPermission[
 const isCanonicalProjectRole = (role: string | null | undefined): role is CanonicalProjectRole =>
     role === "owner" ||
     role === "admin" ||
-    role === "manager" ||
     role === "developer" ||
+    role === "editor" ||
     role === "annotator" ||
     role === "viewer"
 
@@ -136,7 +136,7 @@ export const useProjectPermissions = () => {
         isReady,
         selectedOrgId,
         selectedProjectId,
-        canExportData: hasRole("owner") || hasRole("admin") || hasRole("manager"),
+        canExportData: hasRole("owner") || hasRole("admin") || hasRole("developer"),
         canViewApiKeys: hasPermission("view_api_keys"),
         canEditApiKeys: hasPermission("edit_api_keys"),
     }

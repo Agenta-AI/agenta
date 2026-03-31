@@ -12,7 +12,7 @@ TYPES = {
     "coverage": ["smoke", "full"],
     "lens": ["functional", "performance", "security"],
     "plan": ["hobby", "pro", "business", "enterprise"],
-    "role": ["owner", "admin", "manager", "developer", "annotator", "viewer"],
+    "role": ["owner", "admin", "developer", "editor", "annotator", "viewer"],
     "path": ["happy", "grumpy"],
     "case": ["typical", "edge"],
     "speed": ["fast", "slow"],

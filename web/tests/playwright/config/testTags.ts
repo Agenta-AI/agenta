@@ -38,8 +38,8 @@ export const TestPath = {
 export const TestRoleType = {
     Owner: "owner",
     Admin: "admin",
-    Manager: "manager",
-    Developer: "developer",
+    Manager: "developer",
+    Developer: "editor",
     Annotator: "annotator",
     Viewer: "viewer",
 } as const
