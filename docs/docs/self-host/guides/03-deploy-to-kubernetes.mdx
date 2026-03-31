@@ -532,6 +532,52 @@ Common causes:
 - Database URIs incorrect: check `global.webUrl`, `global.apiUrl`, and `global.servicesUrl`
 - Redis not ready: check Redis pod status
 
+### The API URL must include `/api`
+
+The API URL (`global.apiUrl`) must end with `/api`. This is a current limitation. Authentication endpoints expect this prefix, and requests will fail with 404 if it is missing.
+
+Correct:
+```yaml
+global:
+  apiUrl: "https://agenta.example.com/api"
+```
+
+Incorrect:
+```yaml
+global:
+  apiUrl: "https://api.agenta.example.com"  # missing /api suffix
+```
+
+The services URL (`global.servicesUrl`) does not have this constraint.
+
+### All services must share the same origin
+
+Web, API, and services must be served from the same origin (same host and port). The API backend only allows cross-origin requests from a fixed set of origins, so placing the frontend and API on different ports or subdomains will cause the browser to block requests.
+
+Route all three through a single public origin using path-based routing:
+
+```
+https://agenta.example.com            -> web
+https://agenta.example.com/api        -> API (with prefix stripping)
+https://agenta.example.com/services   -> services (with prefix stripping)
+```
+
+You can do this with the built-in Ingress resource or with an external reverse proxy (Traefik, NGINX, Caddy, etc.).
+
+### Environment changes require a pod restart
+
+If you change environment variables outside of Helm (for example, by editing the deployment directly), restart the web pods for the new values to take effect:
+
+```bash
+kubectl -n agenta rollout restart deployment/<release>-agenta-oss-web
+```
+
+The web frontend generates its runtime configuration file (`__env.js`) once at pod startup. New environment values only appear after the pod restarts.
+
+Note that `helm upgrade` handles this automatically by updating the deployment template, which triggers a rollout. A manual restart is only needed when you change variables without going through Helm.
+
+Also note that any active `kubectl port-forward` sessions will break after a rollout because they are bound to the old pod. Restart your port-forward commands after each rollout.
+
 ## Getting Help
 
 If you run into issues:
