@@ -11,6 +11,7 @@ import {UserAuthorLabel} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {FormattedDate, cn, textColors} from "@agenta/ui"
 import {Typography} from "antd"
+import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
 import {useDrawerProviders} from "./DrawerContext"
@@ -21,6 +22,7 @@ const {Text} = Typography
 interface MetadataSidebarProps {
     revisionId: string
     context: DrawerContext
+    isCompact?: boolean
 }
 
 /** Reusable metadata row: label above value */
@@ -33,7 +35,7 @@ function MetadataField({label, children}: {label: string; children: React.ReactN
     )
 }
 
-const MetadataSidebar = memo(({revisionId, context}: MetadataSidebarProps) => {
+const MetadataSidebar = memo(({revisionId, context, isCompact}: MetadataSidebarProps) => {
     const workflowData = useAtomValue(
         useMemo(() => workflowMolecule.selectors.data(revisionId), [revisionId]),
     )
@@ -50,7 +52,14 @@ const MetadataSidebar = memo(({revisionId, context}: MetadataSidebarProps) => {
     const isEvaluator = context === "evaluator-view" || context === "evaluator-create"
 
     return (
-        <div className="w-[260px] h-full border-0 border-l border-solid border-zinc-2 shrink-0 overflow-y-auto flex flex-col">
+        <div
+            className={clsx([
+                "w-[260px] h-full shrink-0 overflow-y-auto flex flex-col",
+                {
+                    "border-0 border-l border-solid border-zinc-2": !isCompact,
+                },
+            ])}
+        >
             {/* Header */}
             <div className="px-4 pt-4 pb-3">
                 <Text className={cn("text-sm font-semibold", textColors.secondary)}>Details</Text>
