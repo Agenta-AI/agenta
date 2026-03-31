@@ -62,7 +62,7 @@
 ## 6. Frontend Product Changes
 
 - Rename displayed role labels across settings/member-management screens.
-- Update invite defaults from `editor` to `admin`.
+- Update invite defaults from `editor` to `viewer`.
 - Update role-picker options and tooltips.
 - Replace ad hoc entitlement/plan checks with `useOrganizationEntitlements()`, `hasEntitlement()`, and `hasPlan()` where relevant.
 - Hide or block API Keys UI for users without `view_api_keys`.
