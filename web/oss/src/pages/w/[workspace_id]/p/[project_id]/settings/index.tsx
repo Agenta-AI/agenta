@@ -125,7 +125,7 @@ const Settings: React.FC = () => {
         }
     }, [canViewApiKeys, resolvedTab])
 
-    useBreadcrumbsEffect({breadcrumbs, type: "new", condition: !!tab}, [resolvedTab])
+    useBreadcrumbsEffect({breadcrumbs, type: "new", condition: !!tab}, [tab, resolvedTab])
 
     const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
 

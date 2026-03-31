@@ -6,6 +6,7 @@ ROLE_MAP = {
     "editor": "admin",
     "workspace_admin": "admin",
     "deployment_manager": "manager",
+    "evaluator": "annotator",
 }
 
 # Roles that are not allowed to own API keys after migration.
