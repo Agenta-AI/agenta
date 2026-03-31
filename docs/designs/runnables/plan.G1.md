@@ -57,7 +57,7 @@ Endpoints registered per decorated function:
 | Path | Method | Notes |
 |------|--------|-------|
 | `{path}/invoke` | POST | execute; content-negotiated response |
-| `{path}/inspect` | GET | discover interface, schemas, flags |
+| `{path}/inspect` | POST | discover interface, schemas, flags |
 
 Response shape: `WorkflowServiceBatchResponse` or `WorkflowServiceStreamResponse` (`sdk/agenta/sdk/models/workflows.py`):
 ```python
@@ -78,8 +78,8 @@ class WorkflowServiceBatchResponse(BaseModel):
 | Execute workflow (playground mode) | `POST {path}/invoke` | ✅ |
 | Execute workflow (deployed mode) | `POST {path}/invoke` (url on revision encodes target) | ✅ |
 | Streaming response | `POST {path}/invoke` + `Accept: text/event-stream` | ✅ |
-| Discover interface + schemas | `GET {path}/inspect` | ✅ |
-| OpenAPI discovery (`/openapi.json`) | `GET {path}/inspect` | ✅ `/inspect` is the sole discovery surface |
+| Discover interface + schemas | `POST {path}/inspect` | ✅ |
+| OpenAPI discovery (`/openapi.json`) | dropped in new system | ✅ `/inspect` is the sole discovery surface |
 | Config injection (`ag_config` key) | `WorkflowServiceConfiguration` in request | ✅ |
 | Inline trace in response (`tree`) | Trace written to OTel backend instead | ✅ (different mechanism) |
 
