@@ -11,7 +11,11 @@ import {
     updateTextInContent,
 } from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui"
-import {ChatMessageEditor as MessageEditor, MessageAttachments} from "@agenta/ui/chat-message"
+import {
+    ChatMessageEditor as MessageEditor,
+    MessageAttachments,
+    createSnippetPdfAttachment,
+} from "@agenta/ui/chat-message"
 import {
     getCollapseStyle,
     PromptImageUpload,
@@ -72,49 +76,6 @@ function extractTextFromContent(content: MessageContent | undefined | null): str
             .join("")
     }
     return ""
-}
-
-function inferSnippetFile(text: string): {filename: string; mimeType: string} {
-    const trimmed = text.trim()
-
-    if (trimmed) {
-        try {
-            JSON.parse(trimmed)
-            return {filename: "snippet.json", mimeType: "application/json"}
-        } catch {
-            // fall through
-        }
-
-        if (/^<!doctype html>|^<html[\s>]/i.test(trimmed)) {
-            return {filename: "snippet.html", mimeType: "text/html"}
-        }
-
-        if (/^<\?xml|^<[a-zA-Z_][\w:.-]*[\s>]/.test(trimmed)) {
-            return {filename: "snippet.xml", mimeType: "application/xml"}
-        }
-
-        if (/(^|\n)#{1,6}\s|```|\[[^\]]+\]\([^)]+\)/.test(trimmed)) {
-            return {filename: "snippet.md", mimeType: "text/markdown"}
-        }
-    }
-
-    return {filename: "snippet.txt", mimeType: "text/plain"}
-}
-
-function createTextFileDataUrl(text: string, mimeType: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => {
-            if (typeof reader.result === "string") {
-                resolve(reader.result)
-                return
-            }
-
-            reject(new Error("Failed to create snippet data URL."))
-        }
-        reader.onerror = () => reject(reader.error ?? new Error("Failed to read snippet blob."))
-        reader.readAsDataURL(new Blob([text], {type: `${mimeType};charset=utf-8`}))
-    })
 }
 
 const TurnMessageAdapter: React.FC<Props> = ({
@@ -348,19 +309,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
 
     const handleAddSnippetAttachment = useCallback(
         async (pastedText: string) => {
-            const {filename, mimeType} = inferSnippetFile(pastedText)
-            const fileData = await createTextFileDataUrl(pastedText, mimeType)
-            const slotId = uuidv4()
-
-            setUploadSlots((prev) => [
-                ...prev,
-                {
-                    id: slotId,
-                    type: "document",
-                    filled: true,
-                    value: fileData,
-                },
-            ])
+            const {fileData, filename, mimeType} = await createSnippetPdfAttachment(pastedText)
             handleAddFileAttachment(fileData, filename, mimeType)
             message?.success(`Attached ${filename} as a snippet.`)
         },
