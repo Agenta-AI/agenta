@@ -208,8 +208,8 @@ redisDurable:
 # NOTE: The workers (workerEvaluations, workerTracing) and cron containers
 # reuse the API image. There is no separate image configuration for them.
 #
-# The official API image includes newrelic-admin. It acts as a no-op
-# passthrough when NEW_RELIC_LICENSE_KEY is not set.
+# If observability.newRelic.licenseKey is set, the chart wraps the API,
+# services, and worker commands with newrelic-admin.
 api:
   enabled: true
   image:

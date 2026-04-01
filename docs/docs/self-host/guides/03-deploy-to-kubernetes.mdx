@@ -178,7 +178,9 @@ Configuration is done through Helm values. The full default values are in `hosti
 | `secrets.oauth` | OAuth env vars injected into pods (key = env var name) | `{}` |
 | `secrets.llmProviders` | LLM provider API keys injected into pods | `{}` |
 
-To use an existing Kubernetes Secret instead of having the chart create one, set `secrets.existingSecret` to the name of your Secret. It must contain keys: `AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, `POSTGRES_PASSWORD`. This is the recommended approach for production as it keeps secrets out of Helm values entirely.
+To use an existing Kubernetes Secret instead of having the chart create one, set `secrets.existingSecret` to the name of your Secret. It must contain `AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, and `POSTGRES_PASSWORD`.
+
+If you enable secret-backed settings such as OAuth, LLM provider keys, SendGrid, Composio, New Relic, or Turnstile, add those keys to the same Secret too. When `secrets.existingSecret` is set, the chart does not create or update the Secret for you.
 
 :::caution
 When `secrets.supertokensApiKey` is empty, the SuperTokens instance runs without authentication. Any pod that can reach the SuperTokens service can manage auth data. Set an API key for production deployments.
@@ -262,6 +264,10 @@ The chart includes Bitnami PostgreSQL as a subchart. It is enabled by default an
 
 - OSS: `agenta_oss_core`, `agenta_oss_tracing`, `agenta_oss_supertokens`
 - EE: `agenta_ee_core`, `agenta_ee_tracing`, `agenta_ee_supertokens`
+
+:::caution
+The bundled PostgreSQL init scripts run only when the database volume is first created. If you change `global.agentaLicense` later, the chart will not rename or recreate the databases automatically. For that case, create the new databases yourself or do a fresh install with a new PostgreSQL volume.
+:::
 
 | Value | Purpose | Default |
 |-------|---------|---------|
