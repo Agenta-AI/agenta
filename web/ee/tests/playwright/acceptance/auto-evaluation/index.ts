@@ -26,7 +26,7 @@ const testAutoEval = () => {
             const appId = app.id
 
             const variants = await apiHelpers.getVariants(appId)
-            const variantName = variants[0].name || variants[0].variant_name
+            const variantName = variants[0].name
 
             // 2. Navigate to evaluation
             await navigateToEvaluation(appId)
@@ -69,7 +69,7 @@ const testAutoEval = () => {
             const appId = app.id
 
             const variants = await apiHelpers.getVariants(appId)
-            const variantName = variants[0].name || variants[0].variant_name
+            const variantName = variants[0].name
 
             // 2. Navigate to evaluation
             await navigateToEvaluation(appId)

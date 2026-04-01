@@ -9,10 +9,8 @@ import {SnakeToCamelCaseKeys} from "@/oss/lib/Types"
 const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
     navigateToHumanEvaluation: async ({page, uiHelpers, apiHelpers}, use) => {
         await use(async (appId: string) => {
-            await page.goto(`/apps/${appId}/evaluations?selectedEvaluation=human_annotation`)
-            await expect(page).toHaveURL(
-                new RegExp(`/apps/${appId}/evaluations\\?selectedEvaluation=human_annotation`),
-            )
+            await page.goto(`/apps/${appId}/evaluations?kind=human`)
+            await expect(page).toHaveURL(new RegExp(`/apps/${appId}/evaluations\\?kind=human`))
 
             const evaluationRunsResponse = await waitForApiResponse<{
                 runs: SnakeToCamelCaseKeys<EvaluationRun>[]
@@ -26,9 +24,7 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
 
             expect(Array.isArray(evaluationRuns.runs)).toBe(true)
 
-            await expect(page.locator("span").filter({hasText: /^Evaluations$/})).toBeVisible()
-
-            await uiHelpers.clickTab("Human annotation")
+            await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 10000})
 
             if (evaluationRunsResponse.runs.length > 0) {
                 await page.locator(".ant-checkbox").first().click()
@@ -50,16 +46,12 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
 
     navigateToHumanAnnotationRun: async ({page, uiHelpers, apiHelpers}, use) => {
         await use(async (appId: string) => {
-            await page.goto(`/apps/${appId}/evaluations?selectedEvaluation=human_annotation`)
-            await expect(page).toHaveURL(
-                new RegExp(`/apps/${appId}/evaluations\\?selectedEvaluation=human_annotation`),
-            )
+            await page.goto(`/apps/${appId}/evaluations?kind=human`)
+            await expect(page).toHaveURL(new RegExp(`/apps/${appId}/evaluations\\?kind=human`))
 
             const runs = await apiHelpers.getEvaluationRuns()
 
-            await expect(page.locator("span").filter({hasText: /^Evaluations$/})).toBeVisible()
-
-            await uiHelpers.clickTab("Human annotation")
+            await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 10000})
 
             await page.locator(`tr[data-row-key="${runs[0].id}"]`).click()
 

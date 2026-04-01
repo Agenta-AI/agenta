@@ -183,7 +183,8 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
     await expect(appTypeOption).toBeVisible({timeout: 15000})
     await appTypeOption.click()
 
-    const createAppResponse = page.waitForResponse((response) => {
+    // 1. POST /preview/workflows/ — create the workflow
+    const createWorkflowPromise = page.waitForResponse((response) => {
         if (
             !response.url().includes("/preview/workflows") ||
             response.url().includes("/query") ||
@@ -193,9 +194,41 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
         ) {
             return false
         }
-
         const payload = response.request().postData() || ""
         return payload.includes(appName)
+    })
+
+    // 2. POST /preview/workflows/variants/ — create the default variant
+    const createVariantPromise = page.waitForResponse((response) => {
+        return (
+            response.url().includes("/preview/workflows/variants") &&
+            !response.url().includes("/query") &&
+            response.request().method() === "POST"
+        )
+    })
+
+    // 3. POST /preview/workflows/revisions/commit — seed revision (v0)
+    let revisionCommitCount = 0
+    const seedRevisionPromise = page.waitForResponse((response) => {
+        if (
+            !response.url().includes("/preview/workflows/revisions/commit") ||
+            response.request().method() !== "POST"
+        ) {
+            return false
+        }
+        revisionCommitCount++
+        return revisionCommitCount === 1
+    })
+
+    // 4. POST /preview/workflows/revisions/commit — data revision (v1)
+    const dataRevisionPromise = page.waitForResponse((response) => {
+        if (
+            !response.url().includes("/preview/workflows/revisions/commit") ||
+            response.request().method() !== "POST"
+        ) {
+            return false
+        }
+        return revisionCommitCount >= 1
     })
 
     const submitButton = dialog.getByRole("button", {
@@ -205,13 +238,31 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
     await expect(submitButton).toBeEnabled({timeout: 15000})
     await submitButton.click()
 
-    const response = await createAppResponse
-    expect(response.ok()).toBe(true)
-
-    const createdApp = (await response.json()) as {workflow: ListAppsItem}
+    // Wait for workflow creation
+    const workflowResponse = await createWorkflowPromise
+    expect(workflowResponse.ok()).toBe(true)
+    const createdApp = (await workflowResponse.json()) as {workflow: ListAppsItem}
     const createdWorkflow = createdApp.workflow
-
     expect(createdWorkflow.id).toBeTruthy()
+
+    // Wait for variant creation
+    const variantResponse = await createVariantPromise
+    expect(variantResponse.ok()).toBe(true)
+    const variantData = await variantResponse.json()
+    expect(variantData.workflow_variant?.id).toBeTruthy()
+
+    // Wait for both revision commits
+    const seedResponse = await seedRevisionPromise
+    expect(seedResponse.ok()).toBe(true)
+
+    const dataResponse = await dataRevisionPromise
+    expect(dataResponse.ok()).toBe(true)
+
+    const revisionData = await dataResponse.json()
+    const latestRevisionId = revisionData.workflow_revision?.id ?? null
+    if (latestRevisionId) {
+        latestRevisionIdByAppId.set(createdWorkflow.id, latestRevisionId)
+    }
 
     return {
         ...createdWorkflow,

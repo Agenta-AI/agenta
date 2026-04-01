@@ -1,6 +1,7 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {expect} from "@agenta/web-tests/utils"
 import {EvaluationFixtures, RunAutoEvalFixtureType} from "./assets/types"
+import {getProjectScopedBasePath} from "tests/tests/fixtures/base.fixture/apiHelpers"
 
 /**
  * Evaluation-specific test fixtures extending the base test fixture.
@@ -9,25 +10,26 @@ import {EvaluationFixtures, RunAutoEvalFixtureType} from "./assets/types"
 const testWithEvaluationFixtures = baseTest.extend<EvaluationFixtures>({
     navigateToEvaluation: async ({page, uiHelpers}, use) => {
         await use(async (appId: string) => {
-            await page.goto(`/apps/${appId}/evaluations`)
-            await uiHelpers.expectPath(`/apps/${appId}/evaluations`)
+            await page.goto(`${getProjectScopedBasePath(page)}/apps/${appId}/evaluations`)
+            await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 10000})
 
             // Move to Automatic Evaluation tab
-            await uiHelpers.clickTab("Automatic Evaluation")
-            await page.locator("span").filter({hasText: /^Evaluations$/})
+            await uiHelpers.clickTab("Auto Evals")
 
             // Wait for Evaluations to load
             const spinner = page.locator(".ant-spin").first()
             if (await spinner.count()) {
                 await spinner.waitFor({state: "hidden"})
             }
+
+            await expect(page.getByText("Get Started with Evaluations").first()).toBeVisible()
         })
     },
 
     runAutoEvaluation: async ({page, uiHelpers}, use) => {
         await use(async ({evaluators, testset, variants}: RunAutoEvalFixtureType) => {
             // 1. Open modal
-            await uiHelpers.clickButton("Start new Evaluation")
+            await uiHelpers.clickButton("Run Evaluation")
             const modal = page.locator(".ant-modal").first()
             await expect(modal).toBeVisible()
 
