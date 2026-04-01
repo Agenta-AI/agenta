@@ -16,6 +16,7 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {annotationFormController, annotationSessionController} from "@agenta/annotation"
 import type {AnnotationMetricField} from "@agenta/annotation"
+import {message} from "@agenta/ui/app-message"
 import {Editor} from "@agenta/ui/editor"
 import {Info} from "@phosphor-icons/react"
 import {Alert, Button, Collapse, Popover, Tag, Typography} from "antd"
@@ -82,9 +83,19 @@ const EvaluatorSection = memo(function EvaluatorSection({
 interface AnnotationPanelProps {
     /** Current scenario ID */
     scenarioId: string
+    /** Queue ID — when provided together with onCompleted, shows a "Mark completed" button */
+    queueId?: string
+    /** Callback when scenario is marked complete */
+    onCompleted?: (scenarioId: string) => void
+    showMarkComplete?: boolean
 }
 
-const AnnotationPanel = memo(function AnnotationPanel({scenarioId}: AnnotationPanelProps) {
+const AnnotationPanel = memo(function AnnotationPanel({
+    scenarioId,
+    queueId,
+    onCompleted,
+    showMarkComplete,
+}: AnnotationPanelProps) {
     // Annotations and trace ref from session controller
     const annotations = useAtomValue(
         annotationSessionController.selectors.scenarioAnnotations(scenarioId),
@@ -105,12 +116,31 @@ const AnnotationPanel = memo(function AnnotationPanel({scenarioId}: AnnotationPa
     })
 
     const evaluatorIds = useAtomValue(annotationSessionController.selectors.evaluatorIds())
-    const isCompleted = useAtomValue(annotationSessionController.selectors.isCurrentCompleted())
+    const scenarioStatuses = useAtomValue(annotationSessionController.selectors.scenarioStatuses())
+    const isCompleted = scenarioStatuses[scenarioId] === "success"
 
     // Queue-level description shown in the helper popover
     const queueDescription = useAtomValue(annotationSessionController.selectors.queueDescription())
     const submitError = useAtomValue(annotationFormController.selectors.submitError(scenarioId))
     const clearSubmitError = useSetAtom(annotationFormController.actions.clearSubmitError)
+
+    // Mark-complete button state (only used when queueId is provided)
+
+    const isSubmitting = useAtomValue(annotationFormController.selectors.isSubmitting(scenarioId))
+    const hasFilledMetrics = useAtomValue(
+        annotationFormController.selectors.hasFilledMetrics(scenarioId),
+    )
+    const submitAnnotations = useSetAtom(annotationFormController.actions.submitAnnotations)
+
+    const handleMarkComplete = useCallback(async () => {
+        if (!queueId) return
+        try {
+            await submitAnnotations({scenarioId, queueId, markComplete: true})
+            onCompleted?.(scenarioId)
+        } catch (err) {
+            message.error((err as Error).message || "Failed to submit annotations")
+        }
+    }, [submitAnnotations, scenarioId, queueId, onCompleted])
 
     // Build collapse items from evaluators
     const evaluatorSlugs = useMemo(
@@ -266,6 +296,21 @@ const AnnotationPanel = memo(function AnnotationPanel({scenarioId}: AnnotationPa
                     bordered={false}
                 />
             </div>
+
+            {/* Mark completed button (drawer mode) */}
+            {showMarkComplete && (
+                <div className="shrink-0 border-0 border-t border-solid border-[rgba(5,23,41,0.06)] px-3 py-3">
+                    <Button
+                        type="primary"
+                        block
+                        onClick={handleMarkComplete}
+                        disabled={isSubmitting || isCompleted || !hasFilledMetrics}
+                        loading={isSubmitting}
+                    >
+                        {isCompleted ? "Completed" : "Mark completed"}
+                    </Button>
+                </div>
+            )}
         </div>
     )
 })

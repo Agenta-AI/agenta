@@ -45,7 +45,7 @@ import {
     Eye,
     Plus,
 } from "@phosphor-icons/react"
-import {Button, Drawer, Input, Tag, Tooltip, Typography, message} from "antd"
+import {Button, Drawer, Input, Skeleton, Tag, Tooltip, Typography, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
@@ -89,7 +89,7 @@ const TestcaseDataCell = memo(function TestcaseDataCell({
     const testcase = testcaseQuery?.data
 
     if (!testcaseRef.testcaseId || testcaseQuery?.isPending) {
-        return <Typography.Text type="secondary">...</Typography.Text>
+        return <Skeleton.Button active size="small" block className="!h-4 !min-w-[60px] !w-full" />
     }
 
     const value = testcase?.data?.[dataKey] ?? null
@@ -339,7 +339,8 @@ const TraceNameCell = memo(function TraceNameCell({
     const rootSpan = useAtomValue(traceRootSpanAtomFamily(effectiveTraceId || null))
 
     if (!effectiveTraceId) return <Typography.Text type="secondary">—</Typography.Text>
-    if (traceQuery.isPending) return <Typography.Text type="secondary">...</Typography.Text>
+    if (traceQuery.isPending)
+        return <Skeleton.Button active size="small" block className="!h-4 !min-w-[60px] !w-full" />
 
     return (
         <div className="flex items-center gap-1.5">
@@ -508,7 +509,7 @@ const AnnotationColumnCell = memo(function AnnotationColumnCell({
             <MetricValueDisplay value={value} />
         )
     ) : isPending && fallbackDataKey ? (
-        <Typography.Text type="secondary">...</Typography.Text>
+        <Skeleton.Button active size="small" block className="!h-4 !min-w-[60px] !w-full" />
     ) : fallbackValue !== null && fallbackValue !== undefined ? (
         <SmartCellContent
             value={fallbackValue}
@@ -588,7 +589,7 @@ const AnnotationOutputKeyCell = memo(function AnnotationOutputKeyCell({
             <MetricValueDisplay value={value} />
         )
     ) : isPending && fallbackDataKey ? (
-        <Typography.Text type="secondary">...</Typography.Text>
+        <Skeleton.Button active size="small" block className="!h-4 !min-w-[60px] !w-full" />
     ) : fallbackValue !== null && fallbackValue !== undefined ? (
         <SmartCellContent
             value={fallbackValue}
@@ -998,8 +999,6 @@ const AnnotationDrawer = memo(function AnnotationDrawer({
     queueId,
     open,
     onClose,
-    onSaved,
-    onCompleted,
 }: AnnotationDrawerProps) {
     const navigation = useAnnotationNavigation()
     const scenarios = useAtomValue(
@@ -1074,7 +1073,11 @@ const AnnotationDrawer = memo(function AnnotationDrawer({
 
                     {/* Right panel: Annotation form */}
                     <div className="w-[340px] min-w-[280px] shrink-0 border border-solid border-[rgba(5,23,41,0.06)] rounded-lg overflow-hidden bg-white">
-                        <AnnotationPanel scenarioId={scenarioId} />
+                        <AnnotationPanel
+                            scenarioId={scenarioId}
+                            queueId={queueId}
+                            showMarkComplete
+                        />
                     </div>
                 </div>
             )}
