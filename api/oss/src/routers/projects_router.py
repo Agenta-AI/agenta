@@ -68,8 +68,8 @@ async def _assert_org_owner(request: Request):
 
 
 def _get_oss_user_role(organization, user_id: str) -> str:
-    """Owner vs editor logic used across OSS endpoints."""
-    return "owner" if str(organization.owner_id) == str(user_id) else "editor"
+    """Owner vs admin logic used across OSS endpoints."""
+    return "owner" if str(organization.owner_id) == str(user_id) else "admin"
 
 
 async def _get_ee_membership_for_project(user_id, project_id):
