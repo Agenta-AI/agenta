@@ -26,14 +26,14 @@ spec:
       {{- end }}
       containers:
         - name: web
-          image: {{ .Values.web.image.repository }}:{{ .Values.web.image.tag | default .Chart.AppVersion }}
+          image: {{ include "agenta.webImage" . }}
           imagePullPolicy: {{ .Values.web.image.pullPolicy }}
           {{- with .Values.web.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           command: ["/app/entrypoint.sh"]
-          args: ["node", "./oss/server.js"]
+          args: ["node", {{ include "agenta.webServerPath" . | quote }}]
           ports:
             - name: http
               containerPort: {{ .Values.web.port }}
@@ -42,7 +42,7 @@ spec:
             - name: HOSTNAME
               value: "0.0.0.0"
             - name: AGENTA_LICENSE
-              value: "oss"
+              value: {{ include "agenta.edition" . | quote }}
             - name: AGENTA_WEB_URL
               value: {{ .Values.global.webUrl | quote }}
             - name: AGENTA_API_URL

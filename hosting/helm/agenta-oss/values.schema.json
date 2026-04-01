@@ -5,6 +5,7 @@
     "global": {
       "type": "object",
       "properties": {
+        "agentaLicense": { "type": "string", "enum": ["oss", "ee"] },
         "webUrl": { "type": "string" },
         "apiUrl": { "type": "string" },
         "servicesUrl": { "type": "string" },
@@ -217,6 +218,24 @@
       }
     },
     "workerTracing": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "env": { "type": "object" },
+        "resources": { "$ref": "#/$defs/resources" }
+      }
+    },
+    "workerWebhooks": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "env": { "type": "object" },
+        "resources": { "$ref": "#/$defs/resources" }
+      }
+    },
+    "workerEvents": {
       "type": "object",
       "properties": {
         "enabled": { "type": "boolean" },
