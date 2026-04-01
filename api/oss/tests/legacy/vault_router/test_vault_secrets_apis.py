@@ -255,7 +255,7 @@ class TestVaultSecretsAPI:
             headers={"Authorization": f"ApiKey {os.environ.get('VIEWER_API_KEY', '')}"},
         )
         assert delete_response.status_code == 403, (
-            "Secret update cannot be successful. Given that apikey belongs to a user with 'viewer' role."
+            "Secret deletion cannot be successful. Given that apikey belongs to a user with 'viewer' role."
         )
 
         delete_response_message = delete_response.json()["detail"]
