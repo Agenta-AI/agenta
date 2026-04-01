@@ -37,7 +37,7 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          command: ["newrelic-admin", "run-program", "python", "-m", "entrypoints.worker_events"]
+          command: {{ if .Values.observability.newRelic.licenseKey }}["newrelic-admin", "run-program", "python", "-m", "entrypoints.worker_events"]{{ else }}["python", "-m", "entrypoints.worker_events"]{{ end }}
           env:
             {{- include "agenta.commonEnv" . | nindent 12 }}
             {{- range $key, $val := .Values.workerEvents.env }}

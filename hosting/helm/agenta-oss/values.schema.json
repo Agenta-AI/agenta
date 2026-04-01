@@ -5,9 +5,11 @@
     "global": {
       "type": "object",
       "properties": {
+        "agentaLicense": { "type": "string", "enum": ["oss", "ee"] },
         "webUrl": { "type": "string" },
         "apiUrl": { "type": "string" },
         "servicesUrl": { "type": "string" },
+        "posthogApiKey": { "type": "string" },
         "imagePullSecrets": { "type": "array" }
       }
     },
@@ -21,6 +23,62 @@
         "supertokensApiKey": { "type": "string" },
         "oauth": { "type": "object" },
         "llmProviders": { "type": "object" }
+      }
+    },
+    "accessControl": {
+      "type": "object",
+      "properties": {
+        "allowedDomains": { "type": "string" },
+        "blockedDomains": { "type": "string" },
+        "blockedEmails": { "type": "string" },
+        "orgCreationAllowlist": { "type": "string" }
+      }
+    },
+    "email": {
+      "type": "object",
+      "properties": {
+        "sendgrid": {
+          "type": "object",
+          "properties": {
+            "apiKey": { "type": "string" },
+            "fromAddress": { "type": "string" }
+          }
+        }
+      }
+    },
+    "integrations": {
+      "type": "object",
+      "properties": {
+        "composio": {
+          "type": "object",
+          "properties": {
+            "apiKey": { "type": "string" },
+            "apiUrl": { "type": "string" }
+          }
+        }
+      }
+    },
+    "observability": {
+      "type": "object",
+      "properties": {
+        "newRelic": {
+          "type": "object",
+          "properties": {
+            "licenseKey": { "type": "string" }
+          }
+        }
+      }
+    },
+    "captcha": {
+      "type": "object",
+      "properties": {
+        "turnstile": {
+          "type": "object",
+          "properties": {
+            "siteKey": { "type": "string" },
+            "secretKey": { "type": "string" }
+          }
+        }
       }
     },
     "serviceAccount": {
