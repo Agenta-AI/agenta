@@ -184,6 +184,26 @@ To use an existing Kubernetes Secret instead of having the chart create one, set
 When `secrets.supertokensApiKey` is empty, the SuperTokens instance runs without authentication. Any pod that can reach the SuperTokens service can manage auth data. Set an API key for production deployments.
 :::
 
+### Access Control
+
+You can restrict who can sign up and create organizations.
+
+| Value | Purpose | Default |
+|-------|---------|---------|
+| `accessControl.allowedDomains` | Only allow sign-ups from these email domains (comma-separated) | `""` |
+| `accessControl.blockedDomains` | Block sign-ups from these email domains (comma-separated) | `""` |
+| `accessControl.blockedEmails` | Block specific email addresses (comma-separated) | `""` |
+| `accessControl.orgCreationAllowlist` | Only these emails can create organizations (comma-separated) | `""` |
+
+### Email (SendGrid)
+
+To enable transactional emails (invitations and password resets), configure SendGrid.
+
+| Value | Purpose | Default |
+|-------|---------|---------|
+| `email.sendgrid.apiKey` | SendGrid API key | `""` |
+| `email.sendgrid.fromAddress` | Sender email address | `""` |
+
 ### Configuring Images
 
 | Value | Purpose | Default |
