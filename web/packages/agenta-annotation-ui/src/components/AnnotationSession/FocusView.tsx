@@ -9,13 +9,15 @@
 
 import {memo, useCallback, useMemo} from "react"
 
-import {annotationSessionController} from "@agenta/annotation"
+import {annotationFormController, annotationSessionController} from "@agenta/annotation"
 import type {SessionView} from "@agenta/annotation"
+import {message} from "@agenta/ui/app-message"
 import {Check} from "@phosphor-icons/react"
 import {Button, Skeleton, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
+import {useAnnotationKeyboardShortcuts} from "../../hooks/useAnnotationKeyboardShortcuts"
 import ScenarioContent from "../ScenarioContent"
 
 import AnnotationPanel from "./AnnotationPanel"
@@ -166,6 +168,49 @@ const FocusView = memo(function FocusView({
         () => scenarios.find((s) => s.id === currentScenarioId) ?? null,
         [scenarios, currentScenarioId],
     )
+
+    // Keyboard shortcuts: arrow keys for nav, Cmd/Ctrl+Enter to submit
+    const scenarioId = currentScenarioId ?? ""
+    const hasNext = useAtomValue(annotationSessionController.selectors.hasNext())
+    const hasPrev = useAtomValue(annotationSessionController.selectors.hasPrev())
+    const isSubmitting = useAtomValue(annotationFormController.selectors.isSubmitting(scenarioId))
+    const hasFilledMetrics = useAtomValue(
+        annotationFormController.selectors.hasFilledMetrics(scenarioId),
+    )
+    const isCompleted = useAtomValue(annotationSessionController.selectors.isCurrentCompleted())
+    const navigateNext = useSetAtom(annotationSessionController.actions.navigateNext)
+    const navigatePrev = useSetAtom(annotationSessionController.actions.navigatePrev)
+    const submitAnnotations = useSetAtom(annotationFormController.actions.submitAnnotations)
+
+    const handleKeyboardSubmit = useCallback(async () => {
+        if (!scenarioId) return
+        try {
+            await submitAnnotations({
+                scenarioId,
+                queueId,
+                markComplete: !isCompleted,
+            })
+
+            if (isCompleted) {
+                message.success("Updated feedback")
+                return
+            }
+
+            onCompleted?.(scenarioId)
+        } catch (err) {
+            message.error((err as Error).message || "Failed to submit annotations")
+        }
+    }, [submitAnnotations, scenarioId, queueId, isCompleted, onCompleted])
+
+    useAnnotationKeyboardShortcuts({
+        onPrev: () => navigatePrev(),
+        onNext: () => navigateNext(),
+        onSubmit: handleKeyboardSubmit,
+        hasPrev,
+        hasNext,
+        canSubmit: !isSubmitting && hasFilledMetrics,
+        enabled: !!currentScenarioId,
+    })
 
     if (scenariosQuery.isPending) {
         return (
