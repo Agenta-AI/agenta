@@ -280,9 +280,7 @@ const InlineKeyValue = memo(function InlineKeyValue({
     return (
         <div className="flex items-baseline gap-2 min-h-[20px]">
             <span className="text-xs text-[var(--ant-color-text-tertiary)] shrink-0">{label}</span>
-            <span className="text-sm font-mono text-[var(--ant-color-text)] break-all">
-                {value || "—"}
-            </span>
+            <span className="font-mono text-[var(--ant-color-text)] break-all">{value || "—"}</span>
         </div>
     )
 })

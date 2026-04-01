@@ -25,11 +25,12 @@ import {
 } from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus, VariantNameCell} from "@agenta/entity-ui/variant"
 import {playgroundController} from "@agenta/playground"
-import {playgroundInitializedAtom} from "@agenta/playground/state"
+import {connectedTestsetAtom, playgroundInitializedAtom} from "@agenta/playground/state"
 import {type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {
     DrawerProvidersProvider,
     workflowRevisionDrawerAtom,
+    closeWorkflowRevisionDrawerAtom,
     workflowRevisionDrawerCallbackAtom,
     workflowRevisionDrawerEntityIdAtom,
     workflowRevisionDrawerExpandedAtom,
@@ -40,7 +41,7 @@ import {
 } from "@agenta/playground-ui/workflow-revision-drawer"
 import {EnvironmentTag} from "@agenta/ui"
 import {Rocket} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {Button, Typography, message} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -171,6 +172,8 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
     const addPrimaryNode = useSetAtom(playgroundController.actions.addPrimaryNode)
     const setEntityIds = useSetAtom(playgroundController.actions.setEntityIds)
     const setInitialized = useSetAtom(playgroundInitializedAtom)
+    const setSelectedAppLabel = useSetAtom(selectedAppLabelAtom)
+    const setConnectedTestset = useSetAtom(connectedTestsetAtom)
     useEffect(() => {
         if (entityId) {
             addPrimaryNode({type: "workflow", id: entityId, label: "Evaluator"})
@@ -179,8 +182,17 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
         return () => {
             setEntityIds([])
             setInitialized(false)
+            setSelectedAppLabel(null)
+            setConnectedTestset(null)
         }
-    }, [entityId, addPrimaryNode, setEntityIds, setInitialized])
+    }, [
+        entityId,
+        addPrimaryNode,
+        setEntityIds,
+        setInitialized,
+        setSelectedAppLabel,
+        setConnectedTestset,
+    ])
 
     // Evaluator state — derive directly from nodes instead of external atoms
     // to avoid stale reads across atom boundaries.
@@ -298,10 +310,15 @@ const useEvaluatorCommitCallback = () => {
     const drawerCallbackRef = useRef(drawerCallback)
     drawerCallbackRef.current = drawerCallback
 
+    const closeDrawer = useSetAtom(closeWorkflowRevisionDrawerAtom)
+    const closeDrawerRef = useRef(closeDrawer)
+    closeDrawerRef.current = closeDrawer
+
+    const isEvaluator = context === "evaluator-create" || context === "evaluator-view"
     const isEvaluatorCreate = context === "evaluator-create"
 
     useEffect(() => {
-        if (!isEvaluatorCreate) return
+        if (!isEvaluator) return
 
         const previousOnNewRevision = getWorkflowCommitCallbacks().onNewRevision
 
@@ -309,7 +326,17 @@ const useEvaluatorCommitCallback = () => {
             onNewRevision: async (result, params) => {
                 clearEvaluatorWorkflowCache()
                 await previousOnNewRevision?.(result, params)
-                drawerCallbackRef.current?.(result.newRevisionId)
+
+                if (isEvaluatorCreate) {
+                    drawerCallbackRef.current?.(result.newRevisionId)
+                    closeDrawerRef.current()
+                }
+
+                message.success(
+                    isEvaluatorCreate
+                        ? "Evaluator created successfully"
+                        : "Evaluator committed successfully",
+                )
             },
         })
 
@@ -318,7 +345,7 @@ const useEvaluatorCommitCallback = () => {
                 onNewRevision: previousOnNewRevision,
             })
         }
-    }, [isEvaluatorCreate])
+    }, [isEvaluator, isEvaluatorCreate])
 }
 
 // ================================================================

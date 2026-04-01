@@ -6,6 +6,7 @@ from sqlalchemy import select
 from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.caching import invalidate_cache
 
 from oss.src.models.db_models import InvitationDB, ProjectDB, OrganizationDB
 from oss.src.services import db_manager
@@ -505,7 +506,7 @@ class AuthService:
                                     WorkspaceMemberDB(
                                         user_id=user.id,
                                         workspace_id=workspace.id,
-                                        role="editor",
+                                        role="viewer",
                                     )
                                 )
 
@@ -535,11 +536,18 @@ class AuthService:
                                     ProjectMemberDB(
                                         user_id=user.id,
                                         project_id=project.id,
-                                        role="editor",
+                                        role="viewer",
                                     )
                                 )
 
                         await session.commit()
+
+                    # Invalidate any cached auth deny so the user can
+                    # access projects immediately after auto-join.
+                    await invalidate_cache(
+                        namespace="verify_bearer_token",
+                        user_id=str(user_id),
+                    )
 
                     log.info(
                         "[AUTH] [AUTO-JOIN] user auto-joined organization",

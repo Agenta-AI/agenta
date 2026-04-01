@@ -387,10 +387,9 @@ async def create_programmatic_all_users(ahttp_client):
 
     roles = [
         "owner",
-        "editor",
-        "workspace_admin",
+        "admin",
     ]
-    for i in range(0, 3):
+    for i in range(0, len(roles)):
         randomness = uuid.uuid4().hex[:8]
         user_name = f"programmatic_test_user_{randomness}_{i}"
         user_email = f"{user_name}@agenta.ai"

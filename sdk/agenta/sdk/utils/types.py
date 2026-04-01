@@ -609,6 +609,116 @@ def missing_lib_hints(unreplaced: set) -> Optional[str]:
     return None
 
 
+class AgLLM(AgSchemaMixin):
+    __ag_type__ = "llm"
+
+    model: str = MCField(
+        default="gpt-4o-mini",
+        choices=supported_llm_models,
+    )
+    temperature: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=2.0,
+    )
+    max_tokens: Optional[int] = Field(
+        default=None,
+        ge=0,
+    )
+    top_p: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+    )
+    frequency_penalty: Optional[float] = Field(
+        default=None,
+        ge=-2.0,
+        le=2.0,
+    )
+    presence_penalty: Optional[float] = Field(
+        default=None,
+        ge=-2.0,
+        le=2.0,
+    )
+    reasoning_effort: Optional[Literal["none", "low", "medium", "high"]] = Field(
+        default=None,
+        json_schema_extra={"x-ag-type": "choice"},
+    )
+    tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = Field(
+        default=None,
+    )
+    template_format: Literal["curly", "fstring", "jinja2"] = Field(
+        default="curly",
+    )
+
+
+class AgLLMs(AgSchemaMixin, RootModel[List[AgLLM]]):
+    __ag_type__ = "llms"
+
+    root: List[AgLLM] = Field(default_factory=list)
+
+    def __iter__(self):
+        return iter(self.root)
+
+    def __len__(self):
+        return len(self.root)
+
+    def __getitem__(self, item):
+        return self.root[item]
+
+
+class AgLoop(AgSchemaMixin):
+    __ag_type__ = "loop"
+
+    max_iterations: Optional[int] = Field(default=None, ge=1)
+    max_internal_tool_calls: Optional[int] = Field(default=None, ge=0)
+    max_consecutive_errors: Optional[int] = Field(default=None, ge=0)
+    allow_implicit_stop: Optional[bool] = None
+    require_terminate_tool: Optional[bool] = None
+
+
+class AgTool(AgSchemaMixin):
+    __ag_type__ = "tool"
+
+    name: str
+    type: Literal["internal", "external"] = "internal"
+    definition: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="OpenAI-compatible tool definition. Required for external tools.",
+    )
+
+
+class AgTools(AgSchemaMixin):
+    __ag_type__ = "tools"
+
+    internal: Optional[List[str]] = None
+    external: Optional[List[Dict[str, Any]]] = None
+
+
+class AgContext(AgSchemaMixin):
+    __ag_type__ = "context"
+
+    model_config = ConfigDict(extra="allow")
+
+
+class AgPermissions(AgSchemaMixin):
+    __ag_type__ = "permissions"
+
+    model_config = ConfigDict(extra="allow")
+
+
+class AgResponse(AgSchemaMixin):
+    __ag_type__ = "response"
+
+    stream: Optional[bool] = Field(default=False)
+    format: Optional[Literal["messages", "message", "text", "json"]] = Field(
+        default="messages",
+    )
+    schema_: Optional[Dict[str, Any]] = Field(default=None, alias="schema")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class PromptTemplate(AgSchemaMixin):
     __ag_type__ = "prompt-template"
 
@@ -855,5 +965,13 @@ def _dereference_schema(schema: dict) -> dict:
 CATALOG_TYPES = {
     Message.ag_type(): _dereference_schema(Message.model_json_schema()),
     Messages.ag_type(): _dereference_schema(Messages.model_json_schema()),
+    AgLLM.ag_type(): _dereference_schema(AgLLM.model_json_schema()),
+    AgLLMs.ag_type(): _dereference_schema(AgLLMs.model_json_schema()),
+    AgLoop.ag_type(): _dereference_schema(AgLoop.model_json_schema()),
+    AgTool.ag_type(): _dereference_schema(AgTool.model_json_schema()),
+    AgTools.ag_type(): _dereference_schema(AgTools.model_json_schema()),
+    AgContext.ag_type(): _dereference_schema(AgContext.model_json_schema()),
+    AgPermissions.ag_type(): _dereference_schema(AgPermissions.model_json_schema()),
+    AgResponse.ag_type(): _dereference_schema(AgResponse.model_json_schema()),
     PromptTemplate.ag_type(): _dereference_schema(PromptTemplate.model_json_schema()),
 }

@@ -248,6 +248,7 @@ const PlaygroundMainView = ({
                                         >
                                             <PlaygroundVariantConfig
                                                 variantId={variantId}
+                                                embedded={embedded}
                                                 externalViewMode={configViewMode}
                                                 onViewModeChange={onConfigViewModeChange}
                                             />
@@ -263,7 +264,7 @@ const PlaygroundMainView = ({
                     </SplitterPanel>
 
                     <SplitterPanel
-                        className={clsx("!h-full @container", {
+                        className={clsx("!h-full @container min-w-0", {
                             "!overflow-y-hidden flex flex-col": isComparisonView,
                         })}
                         collapsible
@@ -276,7 +277,8 @@ const PlaygroundMainView = ({
                             className={clsx([
                                 "playground-generation",
                                 {
-                                    "grow w-full h-full overflow-y-auto": !isComparisonView,
+                                    "grow w-full h-full overflow-y-auto overflow-x-hidden":
+                                        !isComparisonView,
                                     "grow w-full h-full overflow-auto [&::-webkit-scrollbar]:w-0":
                                         isComparisonView,
                                 },

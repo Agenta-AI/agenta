@@ -44,6 +44,7 @@ import {
     extractInputPortsFromSchema,
     extractOutputPortsFromSchema,
     extractSystemFieldNames,
+    formatKeyAsName,
 } from "../../runnable/portHelpers"
 import {normalizeWorkflowResponse} from "../../runnable/responseHelpers"
 import {extractVariablesFromConfig} from "../../runnable/utils"
@@ -680,12 +681,35 @@ const outputPortsAtomFamily = atomFamily((workflowId: string) =>
         }
 
         const schemaOutputs = extractOutputPortsFromSchema(entity?.data?.schemas?.outputs)
-        if (schemaOutputs.length > 0) return schemaOutputs
 
-        // Evaluator-type workflows default to score/number
+        // For evaluators, the backend output schema may be incomplete (e.g., only "score"
+        // when the json_schema config also defines "reasoning"). Prefer the richer source.
         if (entity?.flags?.is_evaluator) {
+            const config = (entity.data?.parameters ?? entity.data?.configuration) as
+                | Record<string, unknown>
+                | undefined
+            // Nested form: feedback_config.json_schema.schema.properties
+            const feedbackConfig = config?.feedback_config as Record<string, unknown> | undefined
+            const jsonSchema = feedbackConfig?.json_schema as
+                | {schema?: {properties?: Record<string, unknown>}}
+                | undefined
+            // Also check flat form (raw backend data): json_schema at top level
+            const flatJsonSchema = config?.json_schema as typeof jsonSchema | undefined
+            const fbProperties =
+                jsonSchema?.schema?.properties ?? flatJsonSchema?.schema?.properties
+            if (fbProperties && Object.keys(fbProperties).length > schemaOutputs.length) {
+                return Object.entries(fbProperties).map(([key, prop]) => ({
+                    key,
+                    name: formatKeyAsName(key),
+                    type: ((prop as Record<string, unknown>)?.type as string) ?? "string",
+                    schema: prop,
+                }))
+            }
+            if (schemaOutputs.length > 0) return schemaOutputs
             return [{key: "score", name: "Score", type: "number"}]
         }
+
+        if (schemaOutputs.length > 0) return schemaOutputs
         return [{key: "output", name: "Output", type: "string"}]
     }),
 )

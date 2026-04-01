@@ -123,9 +123,8 @@ def semantic_field(
     x_ag_type: str | None = None,
     x_ag_type_ref: str | dict | None = None,
     jtype: str | list[str] | None = None,
-    title: str | None = None,
-    description: str | None = None,
-    default=None,
+    defs: dict | None = None,
+    **extra,
 ) -> dict:
     schema = {}
     if x_ag_type is None and x_ag_type_ref is None:
@@ -136,12 +135,9 @@ def semantic_field(
         schema["x-ag-type-ref"] = x_ag_type_ref
     if jtype is not None:
         schema["type"] = jtype
-    if title:
-        schema["title"] = title
-    if description:
-        schema["description"] = description
-    if default is not None:
-        schema["default"] = default
+    if defs is not None:
+        schema["$defs"] = defs
+    schema.update(extra)
     return schema
 
 
@@ -178,12 +174,6 @@ def llm_inputs_schema(*, title: str, include_messages: bool) -> dict:
         additional_properties=True,
     )
 
-
-GENERIC_EVALUATOR_INPUTS_SCHEMA = obj(
-    title="Evaluator Inputs",
-    description="Generic testcase row object available to evaluator workflows.",
-    additional_properties=True,
-)
 
 SUCCESS_ONLY_OUTPUTS_SCHEMA = obj(
     title="Success-Only Outputs",
@@ -321,10 +311,6 @@ match_v0_interface = WorkflowRevisionData(
             },
             "additionalProperties": True,
         },
-        inputs=obj(
-            title="Match Inputs",
-            additional_properties=True,
-        ),
         outputs={
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "type": "object",
@@ -365,7 +351,10 @@ llm_v0_interface = WorkflowRevisionData(
             title="LLM Parameters",
             description="Canonical stored configuration for prompt and agent-style managed workflows.",
             properties={
-                "llms": arr(
+                "llms": semantic_field(
+                    x_ag_type_ref="llms",
+                    jtype="array",
+                    title="LLMs",
                     items=obj(
                         title="LLM Config",
                         properties={
@@ -394,11 +383,19 @@ llm_v0_interface = WorkflowRevisionData(
                                     obj(additional_properties=True),
                                 ]
                             },
+                            "template_format": scalar(
+                                jtype="string",
+                                enum=["curly", "fstring", "jinja2"],
+                                default="curly",
+                            ),
                         },
                         additional_properties=False,
                     ),
                 ),
-                "loop": obj(
+                "loop": semantic_field(
+                    x_ag_type_ref="loop",
+                    jtype="object",
+                    title="Loop",
                     properties={
                         "max_iterations": scalar(jtype="integer", minimum=1),
                         "max_internal_tool_calls": scalar(jtype="integer", minimum=0),
@@ -421,7 +418,10 @@ llm_v0_interface = WorkflowRevisionData(
                     },
                     additional_properties=False,
                 ),
-                "tools": obj(
+                "tools": semantic_field(
+                    x_ag_type_ref="tools",
+                    jtype="object",
+                    title="Tools",
                     properties={
                         "internal": arr(items=scalar(jtype="string")),
                         "external": arr(items=scalar(jtype="string")),
@@ -435,9 +435,22 @@ llm_v0_interface = WorkflowRevisionData(
                     description="Ordered list of normalized chat messages.",
                     default=[],
                 ),
-                "context": obj(additional_properties=True, **{"x-ag-context": True}),
-                "consent": obj(additional_properties=True, **{"x-ag-consent": True}),
-                "response": obj(
+                "context": semantic_field(
+                    x_ag_type_ref="context",
+                    jtype="object",
+                    title="Context",
+                    additional_properties=True,
+                ),
+                "permissions": semantic_field(
+                    x_ag_type_ref="permissions",
+                    jtype="object",
+                    title="Permissions",
+                    additional_properties=True,
+                ),
+                "response": semantic_field(
+                    x_ag_type_ref="response",
+                    jtype="object",
+                    title="Response",
                     properties={
                         "stream": scalar(jtype="boolean", default=False),
                         "format": scalar(
@@ -469,10 +482,17 @@ llm_v0_interface = WorkflowRevisionData(
                     title="Message",
                 ),
                 "content": arr(items={"type": "object"}, **{"x-ag-content": True}),
-                "context": obj(additional_properties=True, **{"x-ag-context": True}),
-                "consent": obj(additional_properties=True, **{"x-ag-consent": True}),
-                "variables": obj(
-                    additional_properties=True, **{"x-ag-variables": True}
+                "context": semantic_field(
+                    x_ag_type_ref="context",
+                    jtype="object",
+                    title="Context",
+                    additional_properties=True,
+                ),
+                "permissions": semantic_field(
+                    x_ag_type_ref="permissions",
+                    jtype="object",
+                    title="Permissions",
+                    additional_properties=True,
                 ),
             },
             additional_properties=True,
@@ -585,7 +605,6 @@ echo_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:echo:v0",
     schemas=dict(  # type: ignore
         parameters=obj(title="Echo Parameters", additional_properties=True),
-        inputs=obj(title="Echo Inputs", additional_properties=True),
         outputs={
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "type": "object",
@@ -618,7 +637,6 @@ auto_exact_match_v0_interface = WorkflowRevisionData(
             },
             additional_properties=False,
         ),
-        inputs=GENERIC_EVALUATOR_INPUTS_SCHEMA,
         outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
     ),
 )
@@ -639,7 +657,6 @@ auto_regex_test_v0_interface = WorkflowRevisionData(
             required=["regex_pattern"],
             additional_properties=False,
         ),
-        inputs=obj(title="Regex Test Inputs", additional_properties=True),
         outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
     ),
 )
@@ -660,7 +677,6 @@ field_match_test_v0_interface = WorkflowRevisionData(
             required=["json_field"],
             additional_properties=False,
         ),
-        inputs=GENERIC_EVALUATOR_INPUTS_SCHEMA,
         outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
     ),
 )
@@ -687,7 +703,6 @@ json_multi_field_match_v0_interface = WorkflowRevisionData(
             required=["fields", "correct_answer_key"],
             additional_properties=False,
         ),
-        inputs=GENERIC_EVALUATOR_INPUTS_SCHEMA,
         outputs={
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "type": "object",
@@ -737,7 +752,6 @@ auto_webhook_test_v0_interface = WorkflowRevisionData(
             required=["requires_llm_api_keys", "webhook_url"],
             additional_properties=False,
         ),
-        inputs=GENERIC_EVALUATOR_INPUTS_SCHEMA,
         outputs=SCORE_SUCCESS_OUTPUTS_SCHEMA,
     ),
 )
@@ -774,7 +788,6 @@ auto_custom_code_run_v0_interface = WorkflowRevisionData(
             required=["requires_llm_api_keys", "code"],
             additional_properties=False,
         ),
-        inputs=GENERIC_EVALUATOR_INPUTS_SCHEMA,
         outputs=SCORE_SUCCESS_OUTPUTS_SCHEMA,
     ),
 )
@@ -823,7 +836,10 @@ auto_ai_critique_v0_interface = WorkflowRevisionData(
             required=["prompt_template"],
             additional_properties=False,
         ),
-        inputs=GENERIC_EVALUATOR_INPUTS_SCHEMA,
+        inputs=llm_inputs_schema(
+            title="AI Critique Inputs",
+            include_messages=False,
+        ),
         outputs={
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "type": "object",
@@ -867,7 +883,6 @@ auto_starts_with_v0_interface = WorkflowRevisionData(
             required=["prefix"],
             additional_properties=False,
         ),
-        inputs=obj(title="Starts With Inputs", additional_properties=True),
         outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
     ),
 )
@@ -886,7 +901,6 @@ auto_ends_with_v0_interface = WorkflowRevisionData(
             required=["suffix"],
             additional_properties=False,
         ),
-        inputs=obj(title="Ends With Inputs", additional_properties=True),
         outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
     ),
 )
@@ -905,7 +919,6 @@ auto_contains_v0_interface = WorkflowRevisionData(
             required=["substring"],
             additional_properties=False,
         ),
-        inputs=obj(title="Contains Inputs", additional_properties=True),
         outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
     ),
 )
@@ -924,7 +937,6 @@ auto_contains_any_v0_interface = WorkflowRevisionData(
             required=["substrings"],
             additional_properties=False,
         ),
-        inputs=obj(title="Contains Any Inputs", additional_properties=True),
         outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
     ),
 )
@@ -943,7 +955,6 @@ auto_contains_all_v0_interface = WorkflowRevisionData(
             required=["substrings"],
             additional_properties=False,
         ),
-        inputs=obj(title="Contains All Inputs", additional_properties=True),
         outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
     ),
 )
@@ -952,7 +963,6 @@ auto_contains_json_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:auto_contains_json:v0",
     schemas=dict(  # type: ignore
         parameters=obj(title="Contains JSON Parameters", additional_properties=False),
-        inputs=obj(title="Contains JSON Inputs", additional_properties=True),
         outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
     ),
 )
@@ -986,7 +996,6 @@ auto_json_diff_v0_interface = WorkflowRevisionData(
             },
             additional_properties=False,
         ),
-        inputs=GENERIC_EVALUATOR_INPUTS_SCHEMA,
         outputs=SCORE_SUCCESS_OUTPUTS_SCHEMA,
     ),
 )
@@ -1006,7 +1015,6 @@ auto_levenshtein_distance_v0_interface = WorkflowRevisionData(
             },
             additional_properties=False,
         ),
-        inputs=GENERIC_EVALUATOR_INPUTS_SCHEMA,
         outputs=SCORE_SUCCESS_OUTPUTS_SCHEMA,
     ),
 )
@@ -1030,7 +1038,6 @@ auto_similarity_match_v0_interface = WorkflowRevisionData(
             required=["similarity_threshold"],
             additional_properties=False,
         ),
-        inputs=GENERIC_EVALUATOR_INPUTS_SCHEMA,
         outputs=SCORE_SUCCESS_OUTPUTS_SCHEMA,
     ),
 )
@@ -1050,7 +1057,6 @@ auto_semantic_similarity_v0_interface = WorkflowRevisionData(
             required=["correct_answer_key"],
             additional_properties=False,
         ),
-        inputs=GENERIC_EVALUATOR_INPUTS_SCHEMA,
         outputs=SCORE_SUCCESS_OUTPUTS_SCHEMA,
     ),
 )

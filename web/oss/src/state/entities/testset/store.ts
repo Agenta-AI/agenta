@@ -358,6 +358,7 @@ export const testsetsListQueryAtomFamily = atomFamily(
                 enabled: Boolean(projectId),
                 staleTime: 60_000,
                 gcTime: 5 * 60_000,
+                refetchOnMount: "always",
             }
         }),
     (a, b) => a === b,

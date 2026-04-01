@@ -382,8 +382,13 @@ function InsertInitialCodeBlockPlugin({
                                 let value: string
                                 // For JSON/YAML content, parse and format
                                 if (payload.language === "json") {
-                                    const objectValue = JSON5.parse(payload.content)
-                                    value = JSON.stringify(objectValue, null, 2)
+                                    try {
+                                        const objectValue = JSON5.parse(payload.content)
+                                        value = JSON.stringify(objectValue, null, 2)
+                                    } catch {
+                                        // Content isn't valid JSON — display as-is
+                                        value = payload.content
+                                    }
                                 } else if (payload.language === "yaml") {
                                     const objectValue = payload.content
                                     try {
@@ -587,26 +592,23 @@ function InsertInitialCodeBlockPlugin({
                                 obj = yaml.load(currentCode)
                             }
                         } catch (err) {
-                            console.error("Failed to parse old code during language switch", err)
-                            existingCodeBlock.setLanguage(newLanguage)
-                            return true
+                            // Content isn't valid JSON/YAML — keep text as-is
+                            newText = currentCode
                         }
 
-                        log(" Parsed object from current code", {obj})
-                        try {
-                            if (newLanguage === "json") {
-                                newText = JSON.stringify(obj, null, 2)
-                            } else {
-                                newText = yaml.dump(obj, {indent: 2})
-                                log(" Stringified object in new language", {newText})
+                        if (obj !== null) {
+                            log(" Parsed object from current code", {obj})
+                            try {
+                                if (newLanguage === "json") {
+                                    newText = JSON.stringify(obj, null, 2)
+                                } else {
+                                    newText = yaml.dump(obj, {indent: 2})
+                                    log(" Stringified object in new language", {newText})
+                                }
+                            } catch (err) {
+                                // Conversion failed — keep text as-is
+                                newText = currentCode
                             }
-                        } catch (err) {
-                            console.error(
-                                "Failed to stringify new code during language switch",
-                                err,
-                            )
-                            existingCodeBlock.setLanguage(newLanguage)
-                            return true
                         }
                     }
 

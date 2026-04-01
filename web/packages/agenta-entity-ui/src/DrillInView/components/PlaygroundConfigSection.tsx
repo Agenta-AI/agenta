@@ -471,12 +471,16 @@ function PlaygroundConfigSection({
     // Strip agenta_metadata from tools before serializing for JSON/YAML view.
     // This metadata is internal and should not be exposed to the user.
     // Also collect metadata so it can be re-attached when the user saves edits.
+    // Stabilize via serialized key to prevent infinite re-render loops when the
+    // parameters object reference changes but content is identical (e.g., during
+    // entity loading in URL-driven drawer initialization).
+    const parametersKey = JSON.stringify(parameters)
     const {displayParameters, metadataMap} = useMemo(() => {
         return {
             displayParameters: stripAgentaMetadata(parameters),
             metadataMap: collectAgentaMetadata(parameters),
         }
-    }, [parameters])
+    }, [parametersKey])
 
     // Derive a stable flag so the effect fires when draft is discarded (becomes null)
     const isDraftEmpty = draft === null || draft === undefined
@@ -817,6 +821,7 @@ function PlaygroundConfigSection({
                                             </Button>
                                         </div>
                                         <SelectLLMProviderBase
+                                            showGroup
                                             options={[
                                                 ...(llmProviderConfig?.extraOptionGroups ?? []),
                                                 ...promptModelInfo.modelOptions,
