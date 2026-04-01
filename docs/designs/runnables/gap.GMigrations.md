@@ -537,8 +537,8 @@ M5a (frontend endpoint migration)
 
 | Migration | Status | Resolution |
 |-----------|--------|------------|
-| M1a — Human evaluator URI backfill | **DONE** | Alembic migration `c2d3e4f5a6b7` (rows 6, 7 → `agenta:custom:feedback:v0`) |
-| M1b — user:custom URI alignment | **DONE** | Alembic migration `c2d3e4f5a6b7` (row 14 — normalize existing `user:custom:*`) |
+| M1a — Human evaluator URI backfill | **DONE** | Alembic migration `d3e4f5a6b7c8` (rows 6, 7 → `agenta:custom:feedback:v0`) |
+| M1b — user:custom URI alignment | **DONE** | Alembic migration `d3e4f5a6b7c8` (row 14 — normalize existing `user:custom:*`) |
 | M2a — is_custom derived | **DONE** | `is_custom` inferred by `infer_flags_from_data()`, not stored. `is_user_custom_uri()` renamed. |
 | M2b — is_human → is_runnable | **WONTFIX** | `is_human` stays as-is. No `is_runnable` concept needed — runnability is implicit from URI + handler presence. |
 | M2c — annotate param removal | **DONE** | Not in `@workflow` decorator signature. |

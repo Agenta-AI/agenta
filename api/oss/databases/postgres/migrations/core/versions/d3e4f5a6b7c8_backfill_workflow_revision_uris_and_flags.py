@@ -10,7 +10,7 @@ Phase 2 — rows with an existing URI get flags and legacy fields normalized.
 
 See docs/designs/runnables/migrations.sql for the full row-by-row analysis.
 
-Revision ID: c2d3e4f5a6b7
+Revision ID: d3e4f5a6b7c8
 Revises: b1c2d3e4f5a6
 Create Date: 2026-04-01 00:00:00.000000
 
@@ -26,7 +26,7 @@ from oss.databases.postgres.migrations.core.data_migrations.workflow_revisions i
 )
 
 # revision identifiers, used by Alembic.
-revision: str = "c2d3e4f5a6b7"
+revision: str = "d3e4f5a6b7c8"
 down_revision: Union[str, None] = "b1c2d3e4f5a6"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

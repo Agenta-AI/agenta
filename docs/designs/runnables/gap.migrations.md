@@ -20,7 +20,7 @@ Full item-level status is tracked in [gap.GMigrations.md — Resolution Status](
 
 Summary:
 
-- **DB migrations (M1, M3a, M3b, M3e):** DONE — Alembic migration `c2d3e4f5a6b7` handles URI backfills, flag normalization, legacy field stripping, and script flattening.
+- **DB migrations (M1, M3a, M3b, M3e):** DONE — Alembic migration `d3e4f5a6b7c8` handles URI backfills, flag normalization, legacy field stripping, and script flattening.
 - **Flag derivation (M2a, M2c, M2e):** DONE — flags are inferred at commit time, not stored.
 - **Flag rework (M2b, M2d):** WONTFIX — `is_human` stays; no `aggregate` param (implicit rule).
 - **API responses (M4a, M4b):** DONE — derived flags in revision DTOs.
@@ -53,7 +53,7 @@ Summary:
 
 ### M2. Database and Stored-Payload Migration Follow-Ups
 
-> Status: DONE — Alembic migration `c2d3e4f5a6b7`
+> Status: DONE — Alembic migration `d3e4f5a6b7c8`
 
 **What:** Runnable rollout still has explicit DB and stored-payload migration work that should be tracked as migration scope rather than as active code-review findings on every branch.
 
