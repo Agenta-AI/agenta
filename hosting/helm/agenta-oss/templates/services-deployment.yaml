@@ -31,15 +31,17 @@ spec:
         {{- include "agenta.waitForRedis" . | nindent 8 }}
       containers:
         - name: services
-          image: {{ .Values.services.image.repository }}:{{ .Values.services.image.tag | default .Chart.AppVersion }}
+          image: {{ include "agenta.servicesImage" . }}
           imagePullPolicy: {{ .Values.services.image.pullPolicy }}
           {{- with .Values.services.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           command:
+            {{- if .Values.observability.newRelic.licenseKey }}
             - newrelic-admin
             - run-program
+            {{- end }}
             - gunicorn
             - entrypoints.main:app
             - --bind
