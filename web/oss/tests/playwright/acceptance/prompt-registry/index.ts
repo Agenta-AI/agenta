@@ -1,5 +1,6 @@
 import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {expect} from "@agenta/web-tests/utils"
+import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 import {
     createTagString,
     TestCoverage,
@@ -25,33 +26,40 @@ const promptRegistryTests = () => {
                 createTagString("license", TestLicenseType.OSS),
             ],
         },
-        async ({page, uiHelpers}) => {
-            // Navigate to /apps (which redirects to workspace-scoped URL)
-            await page.goto("/apps", {waitUntil: "domcontentloaded"})
+        async ({page, uiHelpers, apiHelpers}) => {
+            // 1. Get or create a completion app
+            const app = await apiHelpers.getApp("completion")
+            const appId = app.id
 
-            // Click "Prompts" in sidebar to go to the prompts table
-            const promptsLink = page.locator('a:has-text("Prompts")').first()
-            await expect(promptsLink).toBeVisible({timeout: 10000})
-            await promptsLink.click()
+            // 2. Navigate to the app-level Registry page
+            const basePath = getProjectScopedBasePath(page)
+            await page.goto(`${basePath}/apps/${appId}/variants`, {
+                waitUntil: "domcontentloaded",
+            })
+            await uiHelpers.expectPath(`/apps/${appId}/variants`)
 
-            await uiHelpers.expectPath("/prompts")
+            // 3. Wait for the Registry table to load with at least one revision row
+            const firstRow = page.locator(".variant-table-row").first()
+            await expect(firstRow).toBeVisible({timeout: 30000})
 
-            // Verify the Prompts heading is visible
-            await expect(page.getByRole("heading", {name: /prompts/i}).first()).toBeVisible({
+            // 4. Click the first row to open the revision drawer
+            await firstRow.click()
+
+            // 5. Verify the "Workflow Revision" drawer opens
+            const drawer = page.locator(".ant-drawer").last()
+            await expect(drawer).toBeVisible({timeout: 15000})
+            await expect(drawer.getByText("Workflow Revision").first()).toBeVisible({
                 timeout: 15000,
             })
 
-            // Verify the prompts table is visible (uses div-based rows)
-            const promptsTable = page.getByRole("table").first()
-            await expect(promptsTable).toBeVisible()
+            // 6. Click the "Playground" button in the drawer header
+            const playgroundButton = drawer.getByRole("button", {name: "Playground"})
+            await expect(playgroundButton).toBeVisible({timeout: 15000})
+            await playgroundButton.click()
 
-            // Click the first app row - this navigates to the app overview page
-            const firstAppRow = page.locator('[class*="cursor"]').first()
-            await expect(firstAppRow).toBeVisible()
-            await firstAppRow.click()
-
-            // Verify navigation to the app overview page
-            await uiHelpers.expectPath("/overview")
+            // 7. Verify navigation to the playground page
+            await page.waitForURL(/\/apps\/.*\/playground/, {timeout: 15000})
+            await uiHelpers.expectPath(`/apps/${appId}/playground`)
         },
     )
 }
