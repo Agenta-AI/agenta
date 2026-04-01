@@ -1,6 +1,7 @@
 import os
 from uuid import getnode
 from json import loads
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict
 
@@ -107,6 +108,18 @@ class AuthConfig(BaseModel):
         "BOXY_SAML_OAUTH_CLIENT_SECRET"
     )
     boxy_saml_url: str | None = os.getenv("BOXY_SAML_URL")
+
+    # TEST: ENFORCE CHALLENGE
+    # turnstile_site_key: str | None = "3x00000000000000000000FF"
+    # TEST: BYPASS CHALLENGE
+    # turnstile_site_key: str | None = "1x00000000000000000000AA"
+    turnstile_site_key: str | None = os.getenv("CLOUDFLARE_TURNSTILE_SITE_KEY")
+    # TEST: ACCEPT CHALLENGE
+    # # turnstile_secret_key: str | None = "1x0000000000000000000000000000000AA"
+    turnstile_secret_key: str | None = os.getenv("CLOUDFLARE_TURNSTILE_SECRET_KEY")
+    turnstile_allowed_hostnames_raw: str = (
+        os.getenv("CLOUDFLARE_TURNSTILE_ALLOWED_HOSTNAMES") or ""
+    )
 
     model_config = ConfigDict(extra="ignore")
 
@@ -246,6 +259,39 @@ class AuthConfig(BaseModel):
     def any_enabled(self) -> bool:
         """At least one auth method enabled"""
         return self.email_enabled or self.oidc_enabled
+
+    @property
+    def turnstile_enabled(self) -> bool:
+        """Turnstile enabled if both site and secret keys are configured."""
+        return bool(self.turnstile_site_key and self.turnstile_secret_key)
+
+    @property
+    def turnstile_allowed_hostnames(self) -> set[str]:
+        """Expected hostnames for successful Turnstile verifications."""
+        configured_hostnames = {
+            hostname.strip().lower()
+            for hostname in self.turnstile_allowed_hostnames_raw.split(",")
+            if hostname.strip()
+        }
+        if configured_hostnames:
+            return configured_hostnames
+
+        derived_hostnames = set()
+        for candidate_url in (env.agenta.web_url, env.agenta.api_url):
+            try:
+                parsed = urlparse(
+                    candidate_url
+                    if "://" in candidate_url
+                    else f"https://{candidate_url}"
+                )
+            except Exception:
+                continue
+
+            hostname = (parsed.hostname or "").strip().lower()
+            if hostname and hostname not in {"localhost", "127.0.0.1", "::1"}:
+                derived_hostnames.add(hostname)
+
+        return derived_hostnames
 
     def validate_config(self) -> None:
         """Validate auth configuration"""
@@ -519,6 +565,14 @@ class AgentaConfig(BaseModel):
     ).lower() in _TRUTHY
 
     demos: str = os.getenv("AGENTA_DEMOS") or ""
+    default_plan: str | None = os.getenv("AGENTA_DEFAULT_PLAN") or None
+
+    # None when unset/empty = unrestricted; non-empty set = only these emails can create orgs
+    org_creation_allowlist: set | None = {
+        e.strip().lower()
+        for e in (os.getenv("AGENTA_ORG_CREATION_ALLOWLIST") or "").split(",")
+        if e.strip()
+    } or None
 
     blocked_emails: set = {
         e.strip().lower()

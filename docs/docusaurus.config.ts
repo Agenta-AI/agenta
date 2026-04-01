@@ -400,6 +400,51 @@ const config: Config = {
             from: "/self-host/applying-schema-migration",
             to: "/self-host/upgrading",
           },
+          // Contributing restructure redirects (old misc paths -> new top-level paths)
+          {
+            from: "/misc/contributing/getting-started",
+            to: "/contributing/overview",
+          },
+          {
+            from: "/misc/contributing/overview",
+            to: "/contributing/overview",
+          },
+          {
+            from: "/misc/contributing/first-pr",
+            to: "/contributing/first-pr",
+          },
+          {
+            from: "/misc/contributing/development-mode",
+            to: "/contributing/guides/development-mode",
+          },
+          {
+            from: "/misc/contributing/guides/development-mode",
+            to: "/contributing/guides/development-mode",
+          },
+          {
+            from: "/misc/contributing/file-issue",
+            to: "/contributing/guides/file-issue",
+          },
+          {
+            from: "/misc/contributing/guides/file-issue",
+            to: "/contributing/guides/file-issue",
+          },
+          {
+            from: "/misc/contributing/community-projects",
+            to: "/contributing/guides/community-projects",
+          },
+          {
+            from: "/misc/contributing/guides/community-projects",
+            to: "/contributing/guides/community-projects",
+          },
+          {
+            from: "/misc/contributing/guides/testing",
+            to: "/contributing/guides/testing",
+          },
+          {
+            from: "/misc/contributing/guides/formatting-and-linting",
+            to: "/contributing/guides/formatting-and-linting",
+          },
           // FAQ restructure redirects
           {
             from: "/misc/faq",

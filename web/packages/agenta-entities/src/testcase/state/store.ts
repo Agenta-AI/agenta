@@ -17,7 +17,7 @@
  */
 
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {createBatchFetcher, isValidUUID} from "@agenta/shared/utils"
 import {atom, type PrimitiveAtom} from "jotai"
 import {selectAtom} from "jotai/utils"
@@ -122,7 +122,7 @@ export const clearNewEntityIdsAtom = atom(null, (_get, set) => {
 const deletedEntityIdsBaseAtom = atom<Set<string>>(new Set<string>())
 export const deletedEntityIdsAtom = atom((get) => get(deletedEntityIdsBaseAtom))
 
-export const markDeletedAtom = atom(null, (get, set, id: string) => {
+export const markDeletedAtom = atom(null, (_get, set, id: string) => {
     set(deletedEntityIdsBaseAtom, (prev) => new Set([...prev, id]))
 })
 
@@ -436,7 +436,9 @@ export const testcaseQueryAtomFamily = atomFamily((testcaseId: string) =>
             },
             initialData: cachedData ?? undefined,
             // Disable query for local entities - they only exist in draft state
-            enabled: Boolean(!isLocalEntity && projectId && testcaseId && !cachedData),
+            enabled: Boolean(
+                get(sessionAtom) && !isLocalEntity && projectId && testcaseId && !cachedData,
+            ),
             staleTime: Infinity,
             gcTime: Infinity,
         }

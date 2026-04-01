@@ -4,6 +4,13 @@
  * Chain execution and input mapping utilities for runnables.
  */
 
+import {getAgentaApiUrl} from "@agenta/shared/api"
+import {projectIdAtom} from "@agenta/shared/state"
+import {getValueAtPath, generateId} from "@agenta/shared/utils"
+import {getDefaultStore} from "jotai/vanilla"
+
+import {parseEvaluatorKeyFromUri} from "../evaluator/core"
+
 import type {
     RunnableType,
     RunnableData,
@@ -84,6 +91,121 @@ export function computeTopologicalOrder(
     return result
 }
 
+/**
+ * Like computeTopologicalOrder but groups nodes into execution batches
+ * that respect connection-level parallelism.
+ *
+ * Returns `string[][]` where each inner array is a batch of nodes.
+ * Nodes within the same batch execute concurrently via `Promise.all`;
+ * batches execute sequentially.
+ *
+ * Within each BFS depth level, nodes are partitioned:
+ * - **Parallel batch**: nodes whose ALL incoming connections have `parallel: true`
+ *   are grouped into a single batch.
+ * - **Sequential slots**: each node with any non-parallel incoming connection
+ *   gets its own single-element batch.
+ *
+ * Example: App →(parallel) [Eval1, Eval2, Eval3]
+ *   → [["app"], ["eval1", "eval2", "eval3"]]
+ *
+ * Example: App →(sequential) App2 →(parallel) [Eval1, Eval2]
+ *   → [["app"], ["app2"], ["eval1", "eval2"]]
+ */
+export function computeTopologicalLevels(
+    nodes: {nodeId: string}[] | PlaygroundNode[],
+    connections: OutputConnection[],
+    startNodeId?: string,
+): string[][] {
+    const nodeIds = nodes.map((n) => ("nodeId" in n ? n.nodeId : n.id))
+
+    const inDegree = new Map<string, number>()
+    const adjacency = new Map<string, string[]>()
+
+    for (const nodeId of nodeIds) {
+        inDegree.set(nodeId, 0)
+        adjacency.set(nodeId, [])
+    }
+
+    // Build a lookup of incoming connections per target node
+    const incomingByTarget = new Map<string, OutputConnection[]>()
+    for (const conn of connections) {
+        const targets = adjacency.get(conn.sourceNodeId) ?? []
+        targets.push(conn.targetNodeId)
+        adjacency.set(conn.sourceNodeId, targets)
+
+        const currentInDegree = inDegree.get(conn.targetNodeId) ?? 0
+        inDegree.set(conn.targetNodeId, currentInDegree + 1)
+
+        const incoming = incomingByTarget.get(conn.targetNodeId) ?? []
+        incoming.push(conn)
+        incomingByTarget.set(conn.targetNodeId, incoming)
+    }
+
+    const queue: string[] = []
+
+    if (startNodeId && inDegree.get(startNodeId) === 0) {
+        queue.push(startNodeId)
+    }
+
+    for (const [nodeId, degree] of inDegree.entries()) {
+        if (degree === 0 && nodeId !== startNodeId) {
+            queue.push(nodeId)
+        }
+    }
+
+    const batches: string[][] = []
+
+    while (queue.length > 0) {
+        const levelSize = queue.length
+        const bfsLevel: string[] = []
+
+        for (let i = 0; i < levelSize; i++) {
+            const nodeId = queue.shift()!
+            bfsLevel.push(nodeId)
+
+            for (const neighbor of adjacency.get(nodeId) ?? []) {
+                const newDegree = (inDegree.get(neighbor) ?? 1) - 1
+                inDegree.set(neighbor, newDegree)
+
+                if (newDegree === 0) {
+                    queue.push(neighbor)
+                }
+            }
+        }
+
+        // Partition this BFS level into parallel vs sequential nodes.
+        // A node is "parallel-safe" when ALL its incoming connections
+        // have `parallel: true`.
+        const parallelBatch: string[] = []
+        const sequentialNodes: string[] = []
+
+        for (const nodeId of bfsLevel) {
+            const incoming = incomingByTarget.get(nodeId)
+            const allParallel = incoming?.length
+                ? incoming.every((c) => c.parallel === true)
+                : false
+
+            if (allParallel) {
+                parallelBatch.push(nodeId)
+            } else {
+                sequentialNodes.push(nodeId)
+            }
+        }
+
+        // Sequential nodes each become their own batch
+        for (const nodeId of sequentialNodes) {
+            batches.push([nodeId])
+        }
+
+        // Parallel-safe nodes share a single batch
+        if (parallelBatch.length > 0) {
+            batches.push(parallelBatch)
+        }
+    }
+
+    return batches
+}
+
 // ============================================================================
 // INPUT RESOLUTION
 // ============================================================================
@@ -109,6 +231,7 @@ export function resolveChainInputs(
     const incomingConnection = connections.find((c) => c.targetNodeId === targetNodeId)
 
     if (!incomingConnection) {
+        console.debug(`[resolveChainInputs] No incoming connection for node ${targetNodeId}`)
         return result
     }
 
@@ -116,6 +239,43 @@ export function resolveChainInputs(
     const sourceNodeId = incomingConnection.sourceNodeId
     const sourceResult = nodeResults[sourceNodeId]
     const upstreamOutput = sourceResult?.output ?? sourceResult?.structuredOutput ?? {}
+
+    console.debug(`[resolveChainInputs] Node ${targetNodeId}`, {
+        connectionId: incomingConnection.id,
+        sourceNodeId,
+        mappingCount: mappings.length,
+        mappings: mappings.map((m) => ({
+            targetKey: m.targetKey,
+            sourcePath: m.sourcePath,
+            status: m.status,
+        })),
+        hasUpstreamResult: !!sourceResult,
+        testcaseDataKeys: testcaseData ? Object.keys(testcaseData) : [],
+    })
+
+    // When there are no explicit input mappings (e.g., evaluators whose input
+    // schema has no fixed properties), fall back to the DebugSection pattern:
+    // pass through all testcase data + upstream output as prediction/outputs.
+    const hasValidMappings = mappings.some((m) => m.status === "valid" && m.sourcePath)
+    if (!hasValidMappings) {
+        // Spread testcase data first (ground truth, correct_answer, etc.)
+        if (testcaseData) {
+            Object.assign(result, testcaseData)
+        }
+
+        // Normalize upstream output to a string for the prediction field
+        const predictionValue =
+            typeof upstreamOutput === "string"
+                ? upstreamOutput
+                : typeof upstreamOutput === "object" && upstreamOutput !== null
+                  ? JSON.stringify(upstreamOutput)
+                  : String(upstreamOutput ?? "")
+
+        result.prediction = predictionValue
+        result.outputs = upstreamOutput
+
+        return result
+    }
 
     for (const mapping of mappings) {
         // Check for valid mapping with source path
@@ -213,20 +373,6 @@ export function resolveInputsFromMappings(
     return result
 }
 
-/**
- * Get value at a path in an object
- */
-function getValueAtPath(obj: unknown, path: string[]): unknown {
-    let current = obj
-    for (const key of path) {
-        if (current == null || typeof current !== "object") {
-            return undefined
-        }
-        current = (current as Record<string, unknown>)[key]
-    }
-    return current
-}
-
 // ============================================================================
 // AUTO MAPPING
 // ============================================================================
@@ -300,22 +446,82 @@ export function autoMapInputs(
 // TEMPLATE VARIABLE EXTRACTION
 // ============================================================================
 
+type TemplateFormat = "curly" | "fstring" | "jinja2"
+
+/** Normalize a raw template_format string to a known TemplateFormat, or null if unrecognized. */
+function resolveTemplateFormat(raw: string | null | undefined): TemplateFormat | null {
+    if (raw === "fstring") return "fstring"
+    if (raw === "jinja2" || raw === "jinja") return "jinja2"
+    if (raw === "curly") return "curly"
+    return null
+}
+
 /**
- * Extract variables from a template string using double curly brace syntax {{variableName}}
+ * Extract variables from a template string.
+ *
+ * Supports multiple template formats:
+ * - "curly" (default): {{variableName}}
+ * - "jinja2": {{variableName}} (blocks {% %} and comments {# #} are ignored — they are not variables)
+ * - "fstring": {variableName} (single braces; literal braces escaped as {{ / }})
+ *
  * @param input - Template string to extract variables from
+ * @param templateFormat - Template format to use for extraction
  * @returns Array of unique variable names found in the string
  */
-export function extractTemplateVariables(input: string): string[] {
-    // Simple pattern: match {{ then one or more non-brace characters, then }}
-    // Excludes { and } from variable names to prevent ReDoS backtracking
-    const variablePattern = /\{\{([^{}]+)\}\}/g
+export function extractTemplateVariables(
+    input: string,
+    templateFormat: TemplateFormat = "curly",
+): string[] {
     const variables: string[] = []
 
-    let match: RegExpExecArray | null
-    while ((match = variablePattern.exec(input)) !== null) {
-        const variable = match[1].trim()
-        if (variable && !variables.includes(variable)) {
-            variables.push(variable)
+    if (templateFormat === "fstring") {
+        // fstring: {var} is a variable, {{ and }} are literal braces (not variables)
+        // Linear scan: find each '{', skip if doubled '{{', otherwise read until '}'
+        let i = 0
+        while (i < input.length) {
+            if (input[i] === "{") {
+                if (input[i + 1] === "{") {
+                    // Escaped literal '{{', skip both
+                    i += 2
+                    continue
+                }
+                // Single '{' — look for closing '}'
+                const end = input.indexOf("}", i + 1)
+                if (end !== -1 && (end + 1 >= input.length || input[end + 1] !== "}")) {
+                    const variable = input.slice(i + 1, end).trim()
+                    if (variable && !variables.includes(variable)) {
+                        variables.push(variable)
+                    }
+                    i = end + 1
+                } else {
+                    i++
+                }
+            } else {
+                i++
+            }
+        }
+        return variables
+    }
+
+    // curly and jinja2 both use {{variableName}} for variable substitution
+    // Linear scan: find '{{', then find '}}', extract the content between them
+    let i = 0
+    while (i < input.length - 1) {
+        if (input[i] === "{" && input[i + 1] === "{") {
+            const start = i + 2
+            const end = input.indexOf("}}", start)
+            if (end !== -1) {
+                const variable = input.slice(start, end).trim()
+                if (variable && !variables.includes(variable)) {
+                    variables.push(variable)
+                }
+                i = end + 2
+            } else {
+                // No closing '}}' found, no more variables possible
+                break
+            }
+        } else {
+            i++
         }
     }
 
@@ -327,16 +533,19 @@ export function extractTemplateVariables(input: string): string[] {
  * @param obj - Object to extract variables from
  * @returns Array of unique variable names
  */
-export function extractTemplateVariablesFromJson(obj: unknown): string[] {
+export function extractTemplateVariablesFromJson(
+    obj: unknown,
+    templateFormat: TemplateFormat = "curly",
+): string[] {
     const variables: string[] = []
 
     if (typeof obj === "string") {
-        return extractTemplateVariables(obj)
+        return extractTemplateVariables(obj, templateFormat)
     }
 
     if (Array.isArray(obj)) {
         for (const item of obj) {
-            const itemVars = extractTemplateVariablesFromJson(item)
+            const itemVars = extractTemplateVariablesFromJson(item, templateFormat)
             for (const v of itemVars) {
                 if (!variables.includes(v)) variables.push(v)
             }
@@ -344,12 +553,13 @@ export function extractTemplateVariablesFromJson(obj: unknown): string[] {
     } else if (obj && typeof obj === "object") {
         for (const [key, value] of Object.entries(obj)) {
             // Extract from keys
-            const keyVars = typeof key === "string" ? extractTemplateVariables(key) : []
+            const keyVars =
+                typeof key === "string" ? extractTemplateVariables(key, templateFormat) : []
             for (const v of keyVars) {
                 if (!variables.includes(v)) variables.push(v)
             }
             // Extract from values
-            const valueVars = extractTemplateVariablesFromJson(value)
+            const valueVars = extractTemplateVariablesFromJson(value, templateFormat)
             for (const v of valueVars) {
                 if (!variables.includes(v)) variables.push(v)
             }
@@ -366,7 +576,10 @@ export function extractTemplateVariablesFromJson(obj: unknown): string[] {
  * @param prompts - Array of prompt objects with messages
  * @returns Array of unique variable names found in all messages
  */
-export function extractVariablesFromPrompts(prompts: {messages?: unknown}[] | undefined): string[] {
+export function extractVariablesFromPrompts(
+    prompts: {messages?: unknown}[] | undefined,
+    templateFormat: TemplateFormat = "curly",
+): string[] {
     if (!prompts || prompts.length === 0) return []
 
     const variables: string[] = []
@@ -383,7 +596,7 @@ export function extractVariablesFromPrompts(prompts: {messages?: unknown}[] | un
 
             // Handle string content
             if (typeof content === "string") {
-                const contentVars = extractTemplateVariables(content)
+                const contentVars = extractTemplateVariables(content, templateFormat)
                 for (const v of contentVars) {
                     if (!variables.includes(v)) variables.push(v)
                 }
@@ -392,7 +605,7 @@ export function extractVariablesFromPrompts(prompts: {messages?: unknown}[] | un
             else if (Array.isArray(content)) {
                 for (const part of content) {
                     if (typeof part === "string") {
-                        const partVars = extractTemplateVariables(part)
+                        const partVars = extractTemplateVariables(part, templateFormat)
                         for (const v of partVars) {
                             if (!variables.includes(v)) variables.push(v)
                         }
@@ -400,7 +613,7 @@ export function extractVariablesFromPrompts(prompts: {messages?: unknown}[] | un
                         const partObj = part as Record<string, unknown>
                         // Check text field in content parts
                         if (typeof partObj.text === "string") {
-                            const textVars = extractTemplateVariables(partObj.text)
+                            const textVars = extractTemplateVariables(partObj.text, templateFormat)
                             for (const v of textVars) {
                                 if (!variables.includes(v)) variables.push(v)
                             }
@@ -415,22 +628,463 @@ export function extractVariablesFromPrompts(prompts: {messages?: unknown}[] | un
 }
 
 /**
- * Extract template variables from agConfig prompt object
- * @param agConfig - The agConfig object containing prompt with messages
+ * Extract template variables from config prompt objects.
+ *
+ * Scans all top-level prompt-like entries in config for:
+ * 1. Message content templates ({{var}})
+ * 2. llm_config.response_format JSON schemas
+ * 3. llm_config.tools — function names, descriptions, parameter schemas
+ *
+ * @param config - The config object containing prompt(s) with messages/llm_config
  * @returns Array of unique variable names
  */
-export function extractVariablesFromAgConfig(
+export function extractVariablesFromConfig(
     agConfig: Record<string, unknown> | undefined,
 ): string[] {
     if (!agConfig) return []
 
-    const prompt = agConfig.prompt as Record<string, unknown> | undefined
-    if (!prompt) return []
+    const variables: string[] = []
+    const addUnique = (v: string) => {
+        if (!variables.includes(v)) variables.push(v)
+    }
 
-    const messages = prompt.messages
-    if (!Array.isArray(messages)) return []
+    for (const value of Object.values(agConfig)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue
+        const prompt = value as Record<string, unknown>
 
-    return extractVariablesFromPrompts([{messages}])
+        // Auto-detect template_format from the prompt object
+        const rawTf = (prompt.template_format ?? prompt.templateFormat) as string | undefined
+        const tf = resolveTemplateFormat(rawTf) ?? "curly"
+
+        // 1. Extract from messages
+        if (Array.isArray(prompt.messages)) {
+            extractVariablesFromPrompts([{messages: prompt.messages}], tf).forEach(addUnique)
+        }
+
+        // 2. Extract from llm_config: response_format and tools
+        const llmConfig = (prompt.llm_config ?? prompt.llmConfig) as
+            | Record<string, unknown>
+            | undefined
+        if (!llmConfig || typeof llmConfig !== "object") continue
+
+        const responseFormat = llmConfig.response_format ?? llmConfig.responseFormat
+        if (responseFormat) {
+            extractTemplateVariablesFromJson(responseFormat, tf).forEach(addUnique)
+        }
+
+        if (Array.isArray(llmConfig.tools)) {
+            for (const tool of llmConfig.tools) {
+                if (!tool || typeof tool !== "object") continue
+                const t = tool as Record<string, unknown>
+
+                // OpenAI function tool: {function: {name, description, parameters}}
+                const fn = t.function as Record<string, unknown> | undefined
+                if (fn) {
+                    if (typeof fn.name === "string") {
+                        extractTemplateVariables(fn.name, tf).forEach(addUnique)
+                    }
+                    if (typeof fn.description === "string") {
+                        extractTemplateVariables(fn.description, tf).forEach(addUnique)
+                    }
+                    if (fn.parameters) {
+                        extractTemplateVariablesFromJson(fn.parameters, tf).forEach(addUnique)
+                    }
+                }
+
+                // Generic tool: {description, parameters}
+                if (typeof t.description === "string") {
+                    extractTemplateVariables(t.description, tf).forEach(addUnique)
+                }
+                if (t.parameters && !fn) {
+                    extractTemplateVariablesFromJson(t.parameters, tf).forEach(addUnique)
+                }
+            }
+        }
+    }
+
+    return variables
+}
+
+/**
+ * Synchronize `input_keys` for prompt configs in a parameters object.
+ *
+ * Supports both wrapped params (`{ag_config: {...}}`) and direct config objects.
+ * Only prompt configs with a `messages` array are updated.
+ */
+export function syncPromptInputKeysInParameters(
+    parameters: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | null | undefined {
+    if (parameters == null) return parameters
+
+    const agConfig = parameters.ag_config
+    if (agConfig && typeof agConfig === "object" && !Array.isArray(agConfig)) {
+        const synced = syncPromptInputKeysInConfig(agConfig as Record<string, unknown>)
+        return synced !== agConfig ? {...parameters, ag_config: synced} : parameters
+    }
+
+    return syncPromptInputKeysInConfig(parameters)
+}
+
+function syncPromptInputKeysInConfig(config: Record<string, unknown>): Record<string, unknown> {
+    let changed = false
+    const result = {...config}
+
+    for (const [key, value] of Object.entries(result)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue
+
+        const promptConfig = value as Record<string, unknown>
+        if (!Array.isArray(promptConfig.messages)) continue
+
+        const variables = extractVariablesFromConfig({[key]: promptConfig})
+        const existing = promptConfig.input_keys
+
+        if (
+            Array.isArray(existing) &&
+            existing.length === variables.length &&
+            existing.every((existingKey, index) => existingKey === variables[index])
+        ) {
+            continue
+        }
+
+        result[key] = {...promptConfig, input_keys: variables}
+        changed = true
+    }
+
+    return changed ? result : config
+}
+
+// ============================================================================
+// EVALUATOR INPUT CONSTRUCTION
+// ============================================================================
+
+/**
+ * Context provided to the evaluator for building its execution inputs.
+ * The caller (execution runner) supplies upstream results and testcase data;
+ * the evaluator entity decides how to assemble them into `inputs`.
+ */
+export interface EvaluatorInputContext {
+    /** Testcase row data (e.g. {question, correct_answer, ...}) */
+    testcaseData: Record<string, unknown>
+    /** Raw output from the upstream (primary) node */
+    upstreamOutput: unknown
+    /** Evaluator's configuration / parameters (settings) */
+    settings: Record<string, unknown>
+    /**
+     * The evaluator's input schema from the inspect response.
+     * When provided, inputs are built dynamically from schema properties
+     * instead of using hardcoded field names.
+     *
+     * Expected shape: `{ type: "object", properties: {...}, additionalProperties?: boolean }`
+     */
+    inputSchema?: Record<string, unknown> | null
+}
+
+/** Known input keys that map to upstream output */
+const UPSTREAM_OUTPUT_KEYS = new Set(["outputs", "prediction"])
+
+/** Known input keys that map to the testcase data as a whole object */
+const TESTCASE_OBJECT_KEYS = new Set(["inputs"])
+
+/**
+ * Build evaluator execution inputs using the evaluator's input schema.
+ *
+ * When `inputSchema` is provided (from the inspect response), inputs are built
+ * dynamically by iterating over the schema's `properties`:
+ *
+ * 1. For each schema property, check if a corresponding `{key}_key` setting
+ *    exists (e.g., `correct_answer` input ← `correct_answer_key` setting).
+ *    If so, use the setting's value as the testcase column name to look up.
+ * 2. If the property matches a known upstream output key (`outputs`, `prediction`),
+ *    use the normalized upstream output.
+ * 3. Otherwise, try to find the value directly in testcase data.
+ * 4. If the schema allows `additionalProperties`, spread remaining testcase data.
+ *
+ * When `inputSchema` is not available, falls back to legacy behavior:
+ * spread testcase data + prediction + ground_truth from correct_answer_key.
+ *
+ * @returns The `inputs` object to send in `{ inputs, settings }` to the evaluator endpoint.
+ */
+export function buildEvaluatorExecutionInputs(ctx: EvaluatorInputContext): Record<string, unknown> {
+    const {testcaseData, upstreamOutput, settings, inputSchema} = ctx
+
+    const prediction = normalizeCompact(upstreamOutput)
+
+    const schemaProperties =
+        inputSchema?.properties && typeof inputSchema.properties === "object"
+            ? (inputSchema.properties as Record<string, unknown>)
+            : null
+
+    console.debug("[buildEvaluatorExecutionInputs]", {
+        hasInputSchema: !!schemaProperties,
+        schemaPropertyKeys: schemaProperties ? Object.keys(schemaProperties) : [],
+        testcaseDataKeys: Object.keys(testcaseData),
+        settingsKeys: Object.keys(settings),
+        upstreamOutputType: typeof upstreamOutput,
+    })
+
+    if (schemaProperties) {
+        return buildFromSchema({
+            schemaProperties,
+            inputSchema: inputSchema!,
+            testcaseData,
+            upstreamOutput,
+            prediction,
+            settings,
+        })
+    }
+
+    // Legacy fallback — no schema available
+    return buildLegacy({testcaseData, prediction, settings})
+}
+
+/**
+ * Schema-driven input construction.
+ * Iterates schema properties and resolves each input from settings, upstream output, or testcase data.
+ */
+function buildFromSchema(ctx: {
+    schemaProperties: Record<string, unknown>
+    inputSchema: Record<string, unknown>
+    testcaseData: Record<string, unknown>
+    upstreamOutput: unknown
+    prediction: string
+    settings: Record<string, unknown>
+}): Record<string, unknown> {
+    const {schemaProperties, inputSchema, testcaseData, upstreamOutput, prediction, settings} = ctx
+    const inputs: Record<string, unknown> = {}
+
+    for (const key of Object.keys(schemaProperties)) {
+        // 1. Check for a corresponding _key setting that maps to a testcase column
+        //    e.g., input "correct_answer" ← setting "correct_answer_key" → testcase column
+        const keySettingName = `${key}_key`
+        const keySettingValue = settings[keySettingName]
+
+        if (typeof keySettingValue === "string" && keySettingValue) {
+            const columnName = keySettingValue.startsWith("testcase.")
+                ? keySettingValue.split(".")[1]
+                : keySettingValue
+            inputs[key] = normalizeCompact(testcaseData[columnName])
+            continue
+        }
+
+        // 2. Known upstream output keys
+        if (UPSTREAM_OUTPUT_KEYS.has(key)) {
+            inputs[key] = key === "prediction" ? prediction : normalizeCompact(upstreamOutput)
+            continue
+        }
+
+        // 3. Known testcase object keys — pass testcase data as a whole object
+        //    e.g., auto_ai_critique expects "inputs" as the original workflow inputs
+        if (TESTCASE_OBJECT_KEYS.has(key)) {
+            inputs[key] = testcaseData
+            continue
+        }
+
+        // 4. Direct testcase column match
+        if (key in testcaseData) {
+            inputs[key] = testcaseData[key]
+            continue
+        }
+    }
+
+    // 5. If schema allows additionalProperties, spread remaining testcase data
+    if (inputSchema.additionalProperties !== false) {
+        for (const [key, value] of Object.entries(testcaseData)) {
+            if (!(key in inputs)) {
+                inputs[key] = value
+            }
+        }
+    }
+
+    // Ensure upstream output is always present in some form
+    if (!("prediction" in inputs) && !("outputs" in inputs)) {
+        inputs.prediction = prediction
+        inputs.outputs = upstreamOutput
+    }
+
+    console.debug("[buildEvaluatorExecutionInputs] schema-driven result", {
+        keys: Object.keys(inputs),
+        inputs,
+    })
+
+    return inputs
+}
+
+/**
+ * Legacy input construction (no schema available).
+ * Spreads testcase data + prediction + ground_truth from correct_answer_key.
+ */
+function buildLegacy(ctx: {
+    testcaseData: Record<string, unknown>
+    prediction: string
+    settings: Record<string, unknown>
+}): Record<string, unknown> {
+    const {testcaseData, prediction, settings} = ctx
+
+    const correctAnswerKey = settings.correct_answer_key
+    const groundTruthKey =
+        typeof correctAnswerKey === "string" && correctAnswerKey.startsWith("testcase.")
+            ? correctAnswerKey.split(".")[1]
+            : typeof correctAnswerKey === "string"
+              ? correctAnswerKey
+              : undefined
+
+    const rawGT = groundTruthKey ? testcaseData[groundTruthKey] : undefined
+    const ground_truth = normalizeCompact(rawGT)
+
+    console.debug("[buildEvaluatorExecutionInputs] legacy fallback", {
+        correct_answer_key: correctAnswerKey ?? "(not set)",
+        groundTruthKey: groundTruthKey ?? "(none)",
+        rawGT,
+        ground_truth,
+    })
+
+    const inputs: Record<string, unknown> = {
+        ...testcaseData,
+        prediction,
+    }
+
+    if (groundTruthKey) {
+        inputs.ground_truth = ground_truth
+        inputs[groundTruthKey] = ground_truth
+    }
+
+    console.debug("[buildEvaluatorExecutionInputs] legacy result", {
+        keys: Object.keys(inputs),
+        inputs,
+    })
+
+    return inputs
+}
+
+/**
+ * Result from validating evaluator inputs.
+ */
+export interface EvaluatorInputValidation {
+    /** Whether all required inputs are available */
+    valid: boolean
+    /** List of missing required input keys */
+    missingInputs: string[]
+    /** Human-readable message explaining why the evaluator cannot run */
+    message?: string
+}
+
+/**
+ * Validate that all required evaluator inputs are available.
+ *
+ * Checks the evaluator's input schema for required fields and verifies that
+ * the corresponding values can be resolved from testcase data or settings.
+ *
+ * This is used to skip evaluator execution when required inputs (like
+ * `correct_answer` mapped via `correct_answer_key`) are missing from the testcase.
+ *
+ * @returns Validation result with `valid: true` if all required inputs are available,
+ *          or `valid: false` with a list of missing inputs and an explanation message.
+ */
+export function validateEvaluatorInputs(ctx: EvaluatorInputContext): EvaluatorInputValidation {
+    const {testcaseData, settings, inputSchema} = ctx
+
+    const schemaProperties =
+        inputSchema?.properties && typeof inputSchema.properties === "object"
+            ? (inputSchema.properties as Record<string, unknown>)
+            : null
+
+    // Get required fields from schema (defaults to empty array if not specified)
+    const requiredFields: string[] = Array.isArray(inputSchema?.required)
+        ? (inputSchema.required as string[])
+        : []
+
+    if (!schemaProperties || requiredFields.length === 0) {
+        // No schema or no required fields — validation passes
+        return {valid: true, missingInputs: []}
+    }
+
+    const missingInputs: string[] = []
+
+    for (const key of requiredFields) {
+        // Skip upstream output keys — they come from the previous node, not testcase
+        if (UPSTREAM_OUTPUT_KEYS.has(key)) {
+            continue
+        }
+
+        // Skip testcase object keys — they're always available as the testcase itself
+        if (TESTCASE_OBJECT_KEYS.has(key)) {
+            continue
+        }
+
+        // Check for a corresponding _key setting that maps to a testcase column
+        const keySettingName = `${key}_key`
+        const keySettingValue = settings[keySettingName]
+
+        if (typeof keySettingValue === "string" && keySettingValue) {
+            // Setting exists — check if the mapped column exists in testcase data
+            const columnName = keySettingValue.startsWith("testcase.")
+                ? keySettingValue.split(".")[1]
+                : keySettingValue
+            const value = testcaseData[columnName]
+            if (value === undefined || value === null || value === "") {
+                missingInputs.push(key)
+            }
+            continue
+        }
+
+        // Check direct testcase column match
+        if (key in testcaseData) {
+            const value = testcaseData[key]
+            if (value === undefined || value === null || value === "") {
+                missingInputs.push(key)
+            }
+            continue
+        }
+
+        // Required field not found in settings or testcase data
+        missingInputs.push(key)
+    }
+
+    if (missingInputs.length > 0) {
+        const fieldList = missingInputs.map((f) => `"${f}"`).join(", ")
+        return {
+            valid: false,
+            missingInputs,
+            message: `Missing required input${missingInputs.length > 1 ? "s" : ""}: ${fieldList}. Check that the testcase contains the required data.`,
+        }
+    }
+
+    return {valid: true, missingInputs: []}
+}
+
+/**
+ * Normalize a value to a compact string representation.
+ * Mirrors DebugSection's `normalizeCompact` helper.
+ */
+function normalizeCompact(val: unknown): string {
+    if (val === undefined || val === null) return ""
+    const str = typeof val === "string" ? val : JSON.stringify(val)
+    try {
+        const parsed = JSON.parse(str)
+        if (parsed && typeof parsed === "object") {
+            return JSON.stringify(parsed)
+        }
+        return str
+    } catch {
+        return str
+    }
+}
+
+/**
+ * Transform trace-prefixed keys in evaluator settings.
+ * Strips `trace.` prefix from setting values (e.g. `"trace.spans.output"` → `"spans.output"`).
+ * Mirrors DebugSection's `transformTraceKeysInSettings` from legacy evaluations.
+ */
+function transformTraceKeysInSettings(settings: Record<string, unknown>): Record<string, unknown> {
+    const result: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(settings)) {
+        if (typeof value === "string" && value.startsWith("trace.")) {
+            result[key] = value.replace("trace.", "")
+        } else {
+            result[key] = value
+        }
+    }
+    return result
 }
 
 /**
@@ -445,13 +1099,25 @@ export function extractVariablesFromAgConfig(
  * @param enhancedPrompts - Array of enhanced prompt objects
  * @returns Array of unique variable names
  */
-export function extractVariablesFromEnhancedPrompts(enhancedPrompts: unknown[]): string[] {
+export function extractVariablesFromEnhancedPrompts(
+    enhancedPrompts: unknown[],
+    templateFormat: TemplateFormat = "curly",
+): string[] {
     if (!enhancedPrompts || enhancedPrompts.length === 0) return []
 
     const variables: string[] = []
 
     for (const prompt of enhancedPrompts) {
         const promptObj = prompt as Record<string, unknown> | null | undefined
+
+        // Read template_format from the enhanced prompt if available
+        const tfWrapper = (promptObj?.template_format ?? promptObj?.templateFormat) as
+            | Record<string, unknown>
+            | string
+            | undefined
+        const rawTf = typeof tfWrapper === "object" ? (tfWrapper?.value as string) : tfWrapper
+        const effectiveFormat = resolveTemplateFormat(rawTf) ?? templateFormat
+
         const messagesWrapper = promptObj?.messages as Record<string, unknown> | undefined
         const messages = messagesWrapper?.value
         if (!Array.isArray(messages)) continue
@@ -461,7 +1127,7 @@ export function extractVariablesFromEnhancedPrompts(enhancedPrompts: unknown[]):
             const contentWrapper = msgObj?.content as Record<string, unknown> | undefined
             const content = contentWrapper?.value
             if (typeof content === "string") {
-                for (const v of extractTemplateVariables(content)) {
+                for (const v of extractTemplateVariables(content, effectiveFormat)) {
                     if (!variables.includes(v)) variables.push(v)
                 }
             } else if (Array.isArray(content)) {
@@ -473,7 +1139,7 @@ export function extractVariablesFromEnhancedPrompts(enhancedPrompts: unknown[]):
                             : ((partObj?.text as Record<string, unknown> | undefined)?.value ??
                               partObj?.text)
                     if (typeof text === "string") {
-                        for (const v of extractTemplateVariables(text)) {
+                        for (const v of extractTemplateVariables(text, effectiveFormat)) {
                             if (!variables.includes(v)) variables.push(v)
                         }
                     }
@@ -492,6 +1158,10 @@ export function extractVariablesFromEnhancedPrompts(enhancedPrompts: unknown[]):
 export interface ExecuteRunnableOptions {
     inputs: Record<string, unknown>
     abortSignal?: AbortSignal
+    /** Pre-built HTTP request body — bypasses default body construction when provided */
+    rawBody?: Record<string, unknown>
+    /** HTTP headers for the request (e.g., Authorization). Merged with defaults. */
+    headers?: Record<string, string>
 }
 
 /**
@@ -507,13 +1177,18 @@ export interface ExecuteRunnableOptions {
  * @returns Execution result
  */
 export async function executeRunnable(
-    _type: RunnableType,
+    type: RunnableType,
     data: RunnableData,
     options: ExecuteRunnableOptions,
 ): Promise<ExecutionResult> {
-    const {inputs, abortSignal} = options
-    const executionId = crypto.randomUUID()
+    const {inputs, abortSignal, rawBody, headers: optionHeaders} = options
+    const executionId = generateId()
     const startedAt = new Date().toISOString()
+
+    // Route evaluator execution to the evaluator run endpoint
+    if ((type === "evaluator" || type === "evaluatorRevision") && !data.invocationUrl && data.uri) {
+        return executeEvaluator(data, options, executionId, startedAt)
+    }
 
     // Validate runnable data
     if (!data.invocationUrl) {
@@ -530,20 +1205,24 @@ export async function executeRunnable(
 
     try {
         // Build request body
-        // The API expects { inputs: { ... } } format
-        // For /test endpoint, also include ag_config to test draft changes
+        // When rawBody is provided (e.g., from transformToRequestBody), use it directly.
+        // Otherwise build the default { inputs, ag_config? } shape.
         const isTestEndpoint = data.invocationUrl.endsWith("/test")
-        const requestBody: Record<string, unknown> = {inputs}
-
-        if (isTestEndpoint && data.configuration) {
-            // Include the draft ag_config for testing uncommitted changes
-            requestBody.ag_config = data.configuration
-        }
+        const requestBody: Record<string, unknown> =
+            rawBody ??
+            (() => {
+                const body: Record<string, unknown> = {inputs}
+                if (isTestEndpoint && data.configuration) {
+                    body.ag_config = data.configuration
+                }
+                return body
+            })()
 
         const response = await fetch(data.invocationUrl, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                ...(optionHeaders ?? {}),
             },
             body: JSON.stringify(requestBody),
             signal: abortSignal,
@@ -591,17 +1270,9 @@ export async function executeRunnable(
         // API returns { version, data, content_type, tree, trace_id, span_id } - we want "data" as the output
         const output = responseData?.data !== undefined ? responseData.data : responseData
 
-        // Extract trace ID from response.trace_id (at root level, not inside tree)
+        // Extract trace metadata from the top-level workflow response.
         const traceId = responseData?.trace_id
-
-        // Debug logging for trace ID extraction
-        console.log("[executeRunnable] API response:", {
-            executionId,
-            hasTree: !!responseData?.tree,
-            traceId,
-            spanId: responseData?.span_id,
-            responseKeys: Object.keys(responseData || {}),
-        })
+        const spanId = responseData?.span_id
 
         return {
             executionId,
@@ -612,7 +1283,7 @@ export async function executeRunnable(
             // Store full response for detailed inspection
             structuredOutput: responseData,
             // Include trace info if available
-            trace: traceId ? {id: traceId} : undefined,
+            trace: traceId ? {id: traceId, ...(spanId ? {spanId} : {})} : undefined,
         }
     } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
@@ -634,6 +1305,140 @@ export async function executeRunnable(
             completedAt: new Date().toISOString(),
             error: {
                 message: error instanceof Error ? error.message : "Unknown error",
+            },
+        }
+    }
+}
+
+// ============================================================================
+// EVALUATOR EXECUTION
+// ============================================================================
+
+/**
+ * Execute a built-in evaluator via `POST /evaluators/{key}/run?project_id={projectId}`.
+ *
+ * Built-in evaluators don't have an `invocationUrl` — they are identified by
+ * a URI (e.g., `"agenta:builtin:auto_exact_match:v0"`) and invoked through
+ * the legacy evaluator run endpoint.
+ *
+ * Request body: `{ inputs: {...}, settings: {...} }`
+ * Response body: `{ outputs: {...} }`
+ */
+async function executeEvaluator(
+    data: RunnableData,
+    options: ExecuteRunnableOptions,
+    executionId: string,
+    startedAt: string,
+): Promise<ExecutionResult> {
+    const {inputs, abortSignal, headers: optionHeaders} = options
+
+    const evaluatorKey = parseEvaluatorKeyFromUri(data.uri ?? null)
+    if (!evaluatorKey) {
+        return {
+            executionId,
+            status: "error",
+            startedAt,
+            completedAt: new Date().toISOString(),
+            error: {
+                message: `Cannot parse evaluator key from URI: ${data.uri}`,
+            },
+        }
+    }
+
+    const store = getDefaultStore()
+    const projectId = store.get(projectIdAtom)
+    if (!projectId) {
+        return {
+            executionId,
+            status: "error",
+            startedAt,
+            completedAt: new Date().toISOString(),
+            error: {
+                message: "No project ID available for evaluator execution",
+            },
+        }
+    }
+
+    const apiUrl = getAgentaApiUrl()
+    const url = `${apiUrl}/evaluators/${evaluatorKey}/run?project_id=${projectId}`
+
+    try {
+        const rawSettings = (data.configuration ?? {}) as Record<string, unknown>
+        const requestBody: Record<string, unknown> = {
+            inputs,
+            settings: transformTraceKeysInSettings(rawSettings),
+        }
+
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(optionHeaders ?? {}),
+            },
+            body: JSON.stringify(requestBody),
+            signal: abortSignal,
+        })
+
+        if (!response.ok) {
+            const errorText = await response.text()
+            let errorMessage = `Evaluator request failed with status ${response.status}`
+
+            try {
+                const errorData = JSON.parse(errorText)
+                if (errorData?.detail?.message) {
+                    errorMessage = errorData.detail.message
+                } else if (typeof errorData?.detail === "string") {
+                    errorMessage = errorData.detail
+                }
+            } catch {
+                if (errorText) {
+                    errorMessage = errorText
+                }
+            }
+
+            return {
+                executionId,
+                status: "error",
+                startedAt,
+                completedAt: new Date().toISOString(),
+                error: {message: errorMessage},
+            }
+        }
+
+        const responseData = await response.json()
+
+        // Evaluator run returns { outputs: {...} }
+        const output = responseData?.outputs ?? responseData
+        const traceId = responseData?.trace_id
+        const spanId = responseData?.span_id
+
+        return {
+            executionId,
+            status: "success",
+            startedAt,
+            completedAt: new Date().toISOString(),
+            output,
+            structuredOutput: responseData,
+            trace: traceId ? {id: traceId, ...(spanId ? {spanId} : {})} : undefined,
+        }
+    } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+            return {
+                executionId,
+                status: "error",
+                startedAt,
+                completedAt: new Date().toISOString(),
+                error: {message: "Evaluator execution aborted"},
+            }
+        }
+
+        return {
+            executionId,
+            status: "error",
+            startedAt,
+            completedAt: new Date().toISOString(),
+            error: {
+                message: error instanceof Error ? error.message : "Unknown evaluator error",
             },
         }
     }

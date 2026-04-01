@@ -626,6 +626,30 @@ ENTITLEMENTS = {
             ),
         },
     },
+    Plan.SELF_HOSTED_ENTERPRISE: {
+        Tracker.FLAGS: {
+            Flag.HOOKS: True,
+            Flag.RBAC: True,
+            Flag.ACCESS: True,
+            Flag.DOMAINS: True,
+            Flag.SSO: True,
+        },
+        Tracker.COUNTERS: {
+            Counter.TRACES: Quota(
+                monthly=True,
+            ),
+            Counter.EVALUATIONS: Quota(
+                monthly=True,
+            ),
+            Counter.CREDITS: Quota(
+                monthly=True,
+            ),
+        },
+        Tracker.GAUGES: {
+            Gauge.USERS: Quota(),
+            Gauge.APPLICATIONS: Quota(),
+        },
+    },
 }
 
 

@@ -1,9 +1,9 @@
-import React, {useState} from "react"
+import React, {useMemo, useState} from "react"
 
-import {Menu, Divider, Typography, Input, Radio} from "antd"
+import {SharedEditor} from "@agenta/ui/shared-editor"
+import {Menu, Divider, Typography, Input, Radio, Tag} from "antd"
 import yaml from "js-yaml"
 
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {SettingsPreset} from "@/oss/lib/Types"
 
 import {LoadEvaluatorPresetContentProps} from "../assets/types"
@@ -25,13 +25,39 @@ const LoadEvaluatorPresetContent = ({
 
     const activePreset = settingsPresets.find((preset) => preset.key === selectedPresetKey) ?? null
 
-    const presetPreview = (() => {
+    const codePresetValues = useMemo(() => {
+        if (!activePreset?.values || typeof activePreset.values !== "object") return null
+
+        const candidate = activePreset.values as Record<string, unknown>
+        return typeof candidate.code === "string" ? candidate : null
+    }, [activePreset])
+
+    const previewLanguage = useMemo(() => {
+        if (!codePresetValues) return format
+        const runtime = codePresetValues.runtime
+        return runtime === "python" || runtime === "javascript" || runtime === "typescript"
+            ? runtime
+            : "code"
+    }, [codePresetValues, format])
+
+    const presetPreview = useMemo(() => {
         if (!activePreset) return ""
         if (typeof activePreset.values === "string") return activePreset.values
+        if (codePresetValues) return codePresetValues.code as string
+
         return format === "json"
             ? JSON.stringify(activePreset.values, null, 2)
             : yaml.dump(activePreset.values, {indent: 2})
-    })()
+    }, [activePreset, codePresetValues, format])
+
+    const presetMetadata = useMemo(() => {
+        if (!codePresetValues) return []
+
+        return Object.entries(codePresetValues).filter(
+            ([key, value]) =>
+                key !== "code" && value !== undefined && value !== null && value !== "",
+        )
+    }, [codePresetValues])
 
     return (
         <section className="flex gap-4 flex-1 mt-4 overflow-y-auto h-full">
@@ -62,15 +88,27 @@ const LoadEvaluatorPresetContent = ({
                     <Typography.Text className="text-lg font-medium -mt-1">
                         Select a Preset
                     </Typography.Text>
-                    <Radio.Group
-                        value={format}
-                        onChange={(e) => setFormat(e.target.value as "yaml" | "json")}
-                        size="small"
-                    >
-                        <Radio.Button value="yaml">YAML</Radio.Button>
-                        <Radio.Button value="json">JSON</Radio.Button>
-                    </Radio.Group>
+                    {!codePresetValues ? (
+                        <Radio.Group
+                            value={format}
+                            onChange={(e) => setFormat(e.target.value as "yaml" | "json")}
+                            size="small"
+                        >
+                            <Radio.Button value="yaml">YAML</Radio.Button>
+                            <Radio.Button value="json">JSON</Radio.Button>
+                        </Radio.Group>
+                    ) : null}
                 </div>
+
+                {presetMetadata.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                        {presetMetadata.map(([key, value]) => (
+                            <Tag key={key} className="m-0">
+                                {key}: {String(value)}
+                            </Tag>
+                        ))}
+                    </div>
+                ) : null}
 
                 <div className="overflow-y-auto h-full">
                     <SharedEditor
@@ -81,7 +119,7 @@ const LoadEvaluatorPresetContent = ({
                         initialValue={presetPreview}
                         editorProps={{
                             codeOnly: true,
-                            language: format,
+                            language: previewLanguage,
                         }}
                         syncWithInitialValueChanges={true}
                     />

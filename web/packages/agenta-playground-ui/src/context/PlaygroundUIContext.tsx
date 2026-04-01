@@ -8,7 +8,7 @@
  * @example
  * ```tsx
  * // In OSS app
- * import { PlaygroundUIProvider, PlaygroundContent } from "@agenta/playground"
+ * import { PlaygroundUIProvider } from "@agenta/playground-ui"
  * import { EntityDrillInView } from "@/oss/components/DrillInView"
  *
  * export function PlaygroundTest() {
@@ -16,7 +16,6 @@
  *     <PlaygroundUIProvider providers={{
  *       EntityDrillInView,
  *       SharedGenerationResultUtils,
- *       LoadTestsetModal: dynamic(() => import("...LoadTestsetModal")),
  *       CommitVariantChangesButton: dynamic(() => import("...CommitVariantChangesButton")),
  *     }}>
  *       <PlaygroundContent />
@@ -26,9 +25,9 @@
  * ```
  */
 
-import {createContext, useContext, type ReactNode, type ComponentType} from "react"
+import {createContext, useContext, type ComponentType, type ReactNode} from "react"
 
-import type {ModalProps, ButtonProps} from "antd"
+import type {ButtonProps} from "antd"
 
 // ============================================================================
 // PROP TYPES FOR INJECTABLE COMPONENTS
@@ -58,29 +57,19 @@ export interface EntityDrillInViewProps {
  */
 export interface SharedGenerationResultUtilsProps {
     traceId?: string | null
-    tree?: {
-        nodes?: {
-            metrics?: {
-                acc?: {
-                    duration?: {total?: number}
-                    tokens?: {total?: number; prompt?: number; completion?: number}
-                    costs?: {total?: number}
-                }
-                unit?: {
-                    duration?: {total?: number}
-                    tokens?: {total?: number; prompt?: number; completion?: number}
-                    costs?: {total?: number}
-                }
-            }
-            status?: string
-        }[]
-        trace_id?: string
-    } | null
     showStatus?: boolean
     className?: string
-    showTraceButton?: boolean
-    hideMetrics?: boolean
-    onAddToTestset?: () => void
+}
+
+/**
+ * Optional assistant-footer actions rendered under a chat assistant message.
+ * OSS uses this to inject gateway tool execution controls.
+ */
+export interface ChatTurnAssistantActionsProps {
+    rowId: string
+    entityId: string
+    currentResult?: unknown
+    onRun: () => void
 }
 
 /**
@@ -95,14 +84,6 @@ export interface LoadTestsetSelectionPayload {
 }
 
 /**
- * Props for LoadTestsetModal component
- * Modal for selecting/loading testset data
- */
-export interface LoadTestsetModalProps extends ModalProps {
-    setTestsetData: (payload: LoadTestsetSelectionPayload | null) => void
-}
-
-/**
  * Props for CommitVariantChangesButton component
  * Button for committing variant changes
  *
@@ -110,13 +91,11 @@ export interface LoadTestsetModalProps extends ModalProps {
  * with OSS implementations that handle onClick internally.
  */
 export interface CommitVariantChangesButtonProps extends ButtonProps {
-    variantId: string
+    entityId: string
     label?: ReactNode
     icon?: boolean
     children?: ReactNode
-    onSuccess?: (props: {revisionId?: string; variantId?: string}) => void
-    /** Commit type - matches OSS implementation's "prompt" | "parameters" union */
-    commitType?: "prompt" | "parameters"
+    onSuccess?: (props: {revisionId?: string; entityId?: string}) => void
 }
 
 // SettingsPreset type is imported from @agenta/entities/runnable
@@ -140,6 +119,27 @@ export interface SaveModeConfig {
 }
 
 // ============================================================================
+// PROP TYPES FOR FOCUS DRAWER INJECTABLE COMPONENTS
+// ============================================================================
+
+/**
+ * Props for SimpleSharedEditor component
+ * Editor with header, minimize/expand, and format controls
+ */
+export interface SimpleSharedEditorProps {
+    value?: string
+    initialValue?: string
+    editorType?: string
+    headerName?: string | ReactNode
+    headerClassName?: string
+    isJSON?: boolean
+    isMinimizeVisible?: boolean
+    isFormatVisible?: boolean
+    defaultMinimized?: boolean
+    minimizedHeight?: number
+}
+
+// ============================================================================
 // CONTEXT DEFINITION
 // ============================================================================
 
@@ -155,18 +155,42 @@ export interface PlaygroundUIProviders {
     /** SharedGenerationResultUtils for trace info display */
     SharedGenerationResultUtils: ComponentType<SharedGenerationResultUtilsProps>
 
-    /** LoadTestsetModal for testset selection */
-    LoadTestsetModal: ComponentType<LoadTestsetModalProps>
+    /** Optional assistant footer actions for chat turns (e.g. gateway tool execution) */
+    ChatTurnAssistantActions?: ComponentType<ChatTurnAssistantActionsProps>
 
     /** CommitVariantChangesButton for saving variants */
     CommitVariantChangesButton: ComponentType<CommitVariantChangesButtonProps>
 
+    /** SimpleSharedEditor for displaying editable content blocks */
+    SimpleSharedEditor?: ComponentType<SimpleSharedEditorProps>
+
     /**
-     * Initialize save mode for the LoadTestsetModal.
+     * Initialize save mode for testset selection modal.
      * Called before opening the modal to set up testcases for saving.
      * This allows the modal to switch to "save" mode instead of "load" mode.
      */
     initializeSaveMode?: (config: SaveModeConfig) => void
+
+    /**
+     * Optional slot for rendering a sync state tag in each row header.
+     * Called with rowId and loadableId — implementor derives syncState inline.
+     */
+    renderSyncStateTag?: ComponentType<{rowId: string; loadableId: string}>
+
+    /**
+     * Optional slot for rendering a testcase editor in the focus drawer.
+     * OSS provides EntityDualViewEditor wrapping the testcase entity.
+     * Includes Fields/JSON toggle, breadcrumb navigation, rich editors,
+     * and add/delete controls.
+     */
+    TestcaseEditor?: ComponentType<TestcaseEditorSlotProps>
+}
+
+/**
+ * Props for the testcase editor slot in the focus drawer.
+ */
+export interface TestcaseEditorSlotProps {
+    testcaseId: string
 }
 
 export interface PlaygroundUIContextValue {

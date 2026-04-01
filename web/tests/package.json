@@ -8,13 +8,14 @@
     "scripts": {
         "test:acceptance": "tsx playwright/scripts/run-tests.ts",
         "test:acceptance:ui": "tsx playwright/scripts/run-tests.ts --ui",
-        "test:acceptance:debug": "tsx playwright/scripts/run-tests.ts --debug"
+        "test:acceptance:debug": "tsx playwright/scripts/run-tests.ts --debug",
+        "test:smoke": "tsx playwright/scripts/run-tests.ts --coverage smoke"
     },
     "devDependencies": {
         "@playwright/test": "^1.57.0",
         "@types/node": "^20.8.10",
         "dotenv": "^16.5.0",
-        "tsx": "^4.20.3",
+        "tsx": "^4.21.0",
         "typescript": "^5.8.3"
     },
     "dependencies": {

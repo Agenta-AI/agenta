@@ -16,9 +16,10 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
         await use(async () => {
             await page.goto("/apps")
             await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
-            await uiHelpers.expectText("App Management", {
-                role: "heading",
+            const appsHeading = page.getByRole("heading", {
+                name: /Applications|App Management/i,
             })
+            await expect(appsHeading.first()).toBeVisible()
         })
     },
 
@@ -34,7 +35,7 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
      * 3. Validate API response
      * 4. Confirm navigation to playground
      */
-    createNewApp: async ({page, uiHelpers, apiHelpers}, use) => {
+    createNewApp: async ({page, uiHelpers}, use) => {
         await use(async (appName: string, appType) => {
             await uiHelpers.clickButton("Create New Prompt")
 
@@ -55,17 +56,22 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
             await expect(dialogTitle).toBeVisible()
             await uiHelpers.typeWithDelay('input[placeholder="Enter a name"]', appName)
             await page.getByText(appType).first().click()
-            await uiHelpers.clickButton("Create New Prompt", dialog)
-            const createAppPromise = apiHelpers.waitForApiResponse<CreateAppResponse>({
-                route: "/variant/from-template",
-                validateStatus: true,
-                responseHandler: (data) => {
-                    expect(data.app_id).toBeTruthy()
-                    expect(data.app_name).toBe(appName)
-                    expect(data.created_at).toBeTruthy()
-                },
+            const createAppPromise = page.waitForResponse((response) => {
+                if (!response.url().includes("/apps") || response.request().method() !== "POST") {
+                    return false
+                }
+
+                const payload = response.request().postData() || ""
+                return payload.includes(appName)
             })
-            const response = await createAppPromise
+            await uiHelpers.clickButton("Create New Prompt", dialog)
+            const createAppResponse = await createAppPromise
+            expect(createAppResponse.ok()).toBe(true)
+
+            const response = (await createAppResponse.json()) as CreateAppResponse
+            expect(response.app_id).toBeTruthy()
+            expect(response.app_name).toBe(appName)
+            expect(response.created_at).toBeTruthy()
             await page.waitForURL(/\/apps\/.*\/playground/)
             return response
         })
@@ -83,7 +89,6 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
      */
     verifyAppCreation: async ({uiHelpers}, use) => {
         await use(async (appName: string) => {
-            await uiHelpers.waitForLoadingState("Loading Playground...")
             await uiHelpers.expectText(appName, {
                 multiple: true,
             })

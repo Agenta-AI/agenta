@@ -12,38 +12,35 @@
  * @packageDocumentation
  */
 
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {produce} from "immer"
-import {atom} from "jotai"
 import type {Atom, WritableAtom} from "jotai"
+import {atom} from "jotai"
+import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
-import {
-    extractVariablesFromAgConfig,
-    extractVariablesFromEnhancedPrompts,
-} from "../../runnable/utils"
-import type {QueryState} from "../../shared"
-import type {ListQueryState} from "../../shared"
+import {extractVariablesFromConfig, extractVariablesFromEnhancedPrompts} from "../../runnable/utils"
+import type {ListQueryState, QueryState} from "../../shared"
 import {extractRoutePath, extractRuntimePrefix, isLocalDraftId, isPlaceholderId} from "../../shared"
 import {
-    fetchVariantsList,
     fetchAppsList,
+    fetchLatestRevisionId,
+    fetchRevisionsList,
+    fetchVariantsList,
     revisionBatchFetcher,
     variantDetailBatchFetcher,
-    revisionsListBatchFetcher,
     type AppListItem,
-    type VariantListItem,
     type RevisionListItem,
     type VariantDetail,
+    type VariantListItem,
 } from "../api"
 import type {LegacyAppRevisionData} from "../core"
-import {
-    stripVolatileKeys,
-    enhancedPromptsToParameters,
-    enhancedCustomPropertiesToParameters,
-} from "../utils"
-import {syncInputKeysInPrompts} from "../utils/syncInputKeys"
+import {stripVolatileKeys} from "../utils"
+
+import {clearPersistedDraft} from "./draftPersistence"
+import {legacyAppRevisionSchemaQueryAtomFamily} from "./schemaAtoms"
 
 // ============================================================================
 // INPUT PORTS TYPE
@@ -93,6 +90,28 @@ export function createEnrichedKey(revisionId: string, variantId: string): string
     return `${revisionId}:${variantId}`
 }
 
+// ============================================================================
+// LOCAL DRAFT SOURCE REFS (persisted)
+// ============================================================================
+
+export interface LocalDraftSourceRef {
+    sourceRevisionId: string | null
+    sourceVariantId: string | null
+    baseId: string | null
+    appId: string | null
+    createdAt: number
+}
+
+/**
+ * Persisted mapping of local draft IDs to their source/base references.
+ * This allows entity-level rehydration of local drafts after page reload
+ * even when in-memory local serverData is lost.
+ */
+export const localDraftSourceRefsByIdAtom = atomWithStorage<Record<string, LocalDraftSourceRef>>(
+    "agenta:local-draft-source-refs-v1",
+    {},
+)
+
 /**
  * Variant detail cache atom family
  * Caches variant details (including URI) by variant ID
@@ -100,7 +119,7 @@ export function createEnrichedKey(revisionId: string, variantId: string): string
 export const variantDetailCacheAtomFamily = atomFamily((variantId: string) =>
     atomWithQuery<VariantDetail | null>((get) => {
         const projectId = get(projectIdAtom)
-        const enabled = !!variantId && !!projectId
+        const enabled = get(sessionAtom) && !!variantId && !!projectId
 
         return {
             queryKey: ["variantDetail", variantId, projectId],
@@ -130,7 +149,8 @@ const directQueryAtomFamily = atomFamily((revisionId: string) =>
         // Placeholder IDs are temporary IDs used during pending hydrations (e.g., "__pending_hydration__dk-xxx")
         const isLocal = isLocalDraftId(revisionId)
         const isPlaceholder = isPlaceholderId(revisionId)
-        const enabled = !!revisionId && !!projectId && !isLocal && !isPlaceholder
+        const enabled =
+            get(sessionAtom) && !!revisionId && !!projectId && !isLocal && !isPlaceholder
 
         return {
             queryKey: ["legacyAppRevision", revisionId, projectId],
@@ -156,7 +176,7 @@ export const enrichedQueryAtomFamily = atomFamily((key: string) =>
         // Skip queries for local draft IDs and placeholder IDs
         const isLocal = parsed ? isLocalDraftId(parsed.revisionId) : false
         const isPlaceholder = parsed ? isPlaceholderId(parsed.revisionId) : false
-        const enabled = !!parsed && !!projectId && !isLocal && !isPlaceholder
+        const enabled = get(sessionAtom) && !!parsed && !!projectId && !isLocal && !isPlaceholder
 
         return {
             queryKey: ["legacyAppRevisionEnriched", key, projectId],
@@ -202,6 +222,51 @@ export const enrichedQueryAtomFamily = atomFamily((key: string) =>
  */
 export const legacyAppRevisionQueryAtomFamily = atomFamily((revisionId: string) =>
     atom<QueryState<LegacyAppRevisionData>>((get) => {
+        // Local drafts and hydration placeholders are client-only entities.
+        // Their server query is intentionally disabled, so treat them as
+        // non-pending and surface any locally-seeded serverData if available.
+        const isLocal = isLocalDraftId(revisionId)
+        const isPlaceholder = isPlaceholderId(revisionId)
+        if (isLocal || isPlaceholder) {
+            let localData = get(legacyAppRevisionServerDataAtomFamily(revisionId))
+            const persistedRef = get(localDraftSourceRefsByIdAtom)[revisionId] ?? null
+            let waitingForPersistedSource = false
+
+            // Entity-level rehydration fallback:
+            // if local data is missing after reload, synthesize it from source revision.
+            if (
+                !localData &&
+                persistedRef?.sourceRevisionId &&
+                persistedRef.sourceRevisionId !== revisionId &&
+                !isLocalDraftId(persistedRef.sourceRevisionId)
+            ) {
+                const sourceData = get(
+                    legacyAppRevisionServerDataSelectorFamily(persistedRef.sourceRevisionId),
+                )
+                if (sourceData) {
+                    localData = {
+                        ...sourceData,
+                        id: revisionId,
+                        appId: sourceData.appId ?? persistedRef.appId ?? undefined,
+                        variantId:
+                            sourceData.variantId ?? persistedRef.sourceVariantId ?? undefined,
+                        _sourceRevisionId: persistedRef.sourceRevisionId,
+                        _sourceVariantId: persistedRef.sourceVariantId ?? undefined,
+                        _baseId: persistedRef.baseId ?? undefined,
+                    } as LegacyAppRevisionData
+                } else {
+                    waitingForPersistedSource = true
+                }
+            }
+
+            return {
+                data: localData ?? undefined,
+                isPending: waitingForPersistedSource,
+                isError: false,
+                error: null,
+            }
+        }
+
         const query = get(directQueryAtomFamily(revisionId))
 
         if (query.isPending) {
@@ -301,11 +366,9 @@ export const legacyAppRevisionIsDirtyAtomFamily = atomFamily((revisionId: string
 /**
  * Derives input ports from the revision's parameters (ag_config).
  *
- * Extracts template variables ({{variableName}}) from prompt messages
- * and returns them as input port definitions.
- *
- * Prefers enhanced prompts (draft edits) over raw parameters, so that
- * newly added template variables are reflected immediately without saving.
+ * Extracts template variables ({{variableName}}) from prompt messages,
+ * response format, and tool definitions. For custom apps without prompts,
+ * falls back to request properties from the OpenAPI schema.
  */
 export const legacyAppRevisionInputPortsAtomFamily = atomFamily((revisionId: string) =>
     atom<LegacyAppRevisionInputPort[]>((get) => {
@@ -327,14 +390,47 @@ export const legacyAppRevisionInputPortsAtomFamily = atomFamily((revisionId: str
 
         // Fallback to raw parameters (server data before prompts are derived)
         const parameters = data.parameters as Record<string, unknown> | undefined
-        const dynamicKeys = extractVariablesFromAgConfig(parameters)
+        const dynamicKeys = extractVariablesFromConfig(parameters)
 
-        return dynamicKeys.map((key) => ({
-            key,
-            name: key,
-            type: "string" as const,
-            required: true,
-        }))
+        if (dynamicKeys.length > 0) {
+            return dynamicKeys.map((key) => ({
+                key,
+                name: key,
+                type: "string" as const,
+                required: true,
+            }))
+        }
+
+        // Fallback for custom apps: derive input keys from OpenAPI request schema.
+        // The schema query already populates requestProperties per endpoint.
+        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
+        if (schemaQuery.isPending || !schemaQuery.data?.endpoints) return []
+
+        const endpoints = schemaQuery.data.endpoints
+        const primaryEndpoint = endpoints.test ?? endpoints.run ?? endpoints.root ?? null
+        const inputSchemaProperties = primaryEndpoint?.inputsSchema?.properties
+        const primaryProps =
+            inputSchemaProperties && typeof inputSchemaProperties === "object"
+                ? Object.keys(inputSchemaProperties as Record<string, unknown>)
+                : primaryEndpoint?.requestProperties || []
+
+        const reserved = new Set([
+            "ag_config",
+            "messages",
+            "inputs",
+            "environment",
+            "revision_id",
+            "variant_id",
+            "app_id",
+        ])
+        return primaryProps
+            .filter((k: string) => k && !reserved.has(k))
+            .map((key: string) => ({
+                key,
+                name: key,
+                type: "string" as const,
+                required: true,
+            }))
     }),
 )
 
@@ -343,7 +439,7 @@ export const legacyAppRevisionInputPortsAtomFamily = atomFamily((revisionId: str
 // ============================================================================
 
 // Re-export types from API for convenience
-export type {AppListItem, VariantListItem, RevisionListItem}
+export type {AppListItem, RevisionListItem, VariantListItem}
 
 // ============================================================================
 // VARIANTS QUERY ATOMS
@@ -355,12 +451,17 @@ export type {AppListItem, VariantListItem, RevisionListItem}
 export const variantsQueryAtomFamily = atomFamily((appId: string) =>
     atomWithQuery<VariantListItem[]>((get) => {
         const projectId = get(projectIdAtom)
-        const enabled = !!projectId && !!appId
+        const enabled = get(sessionAtom) && !!projectId && !!appId
+        // Subscribe to cache version so invalidateEntityQueries() forces
+        // the options getter to re-run, which cascades through the
+        // jotai-tanstack-query observer chain and triggers a fresh fetch.
+        get(revisionCacheVersionAtom)
 
         return {
             queryKey: ["oss-variants-for-selection", appId, projectId],
             queryFn: () => fetchVariantsList(appId, projectId!),
-            staleTime: 1000 * 60,
+            staleTime: 0,
+            gcTime: 0,
             refetchOnWindowFocus: false,
             enabled,
         }
@@ -387,12 +488,14 @@ export const variantsListDataAtomFamily = atomFamily((appId: string) =>
 export const revisionsQueryAtomFamily = atomFamily((variantId: string) =>
     atomWithQuery<RevisionListItem[]>((get) => {
         const projectId = get(projectIdAtom)
-        const enabled = !!projectId && !!variantId
+        const enabled = get(sessionAtom) && !!projectId && !!variantId
+        get(revisionCacheVersionAtom)
 
         return {
             queryKey: ["oss-revisions-for-selection", variantId, projectId],
-            queryFn: () => revisionsListBatchFetcher({variantId, projectId: projectId!}),
-            staleTime: 1000 * 60,
+            queryFn: () => fetchRevisionsList(variantId, projectId!),
+            staleTime: 0,
+            gcTime: 0,
             refetchOnWindowFocus: false,
             enabled,
         }
@@ -418,7 +521,7 @@ export const revisionsListDataAtomFamily = atomFamily((variantId: string) =>
  */
 export const appsQueryAtom = atomWithQuery<AppListItem[]>((get) => {
     const projectId = get(projectIdAtom)
-    const enabled = !!projectId
+    const enabled = get(sessionAtom) && !!projectId
 
     return {
         queryKey: ["apps-for-selection", projectId],
@@ -629,9 +732,26 @@ const mergeRevisionListContext = (
 // ============================================================================
 
 /**
- * Special variant ID for the local drafts group.
+ * Special variant ID prefix for the local drafts group.
+ * The full ID is formatted as "__local_drafts__:appId".
  */
 export const LOCAL_DRAFTS_VARIANT_ID = "__local_drafts__"
+
+/**
+ * Check if a variant ID represents a local drafts group.
+ */
+export function isLocalDraftsGroupId(variantId: string): boolean {
+    return variantId.startsWith(LOCAL_DRAFTS_VARIANT_ID)
+}
+
+/**
+ * Extract the appId from a local drafts group variant ID.
+ * Returns null if the variantId is not a local drafts group.
+ */
+function extractLocalDraftsAppId(variantId: string): string | null {
+    if (!variantId.startsWith(`${LOCAL_DRAFTS_VARIANT_ID}:`)) return null
+    return variantId.slice(LOCAL_DRAFTS_VARIANT_ID.length + 1) || null
+}
 
 /**
  * Extended variant list item that can represent a local drafts group.
@@ -657,17 +777,43 @@ export interface RevisionListItemWithDrafts extends RevisionListItem {
 
 // Forward declaration - will be imported from localDrafts.ts
 // We use a lazy import pattern to avoid circular dependencies
-// Using Atom<T> type to support both regular atoms and atomWithStorage
 
-let _localDraftIdsAtom: Atom<string[]> | null = null
-let _localDraftsListAtom: Atom<unknown[]> | null = null
+type AtomFamilyFn<T> = (param: string) => Atom<T>
+
+let _localDraftIdsAtomFamily: AtomFamilyFn<string[]> | null = null
+let _localDraftsListAtomFamily: AtomFamilyFn<unknown[]> | null = null
+let _appIdAtom: Atom<string | null> | null = null
 
 /**
- * Set the local drafts atoms (called from localDrafts.ts to avoid circular deps)
+ * Set the local drafts atom families (called from localDrafts.ts to avoid circular deps)
  */
-export function setLocalDraftsAtoms(idsAtom: Atom<string[]>, listAtom: Atom<unknown[]>): void {
-    _localDraftIdsAtom = idsAtom
-    _localDraftsListAtom = listAtom
+export function setLocalDraftsAtoms(
+    idsAtomFamily: AtomFamilyFn<string[]>,
+    listAtomFamily: AtomFamilyFn<unknown[]>,
+): void {
+    _localDraftIdsAtomFamily = idsAtomFamily
+    _localDraftsListAtomFamily = listAtomFamily
+}
+
+/**
+ * Register the app ID atom for app-scoped operations.
+ * Called from the OSS bridge (legacyEntityBridge.ts) to wire up app scoping
+ * without creating a circular dependency.
+ */
+export function registerAppIdAtom(appIdAtom: Atom<string | null>): void {
+    _appIdAtom = appIdAtom
+}
+
+/**
+ * Get the registered app ID, falling back to "__global__".
+ * Used by backward-compat global atoms and imperative functions.
+ */
+export function getRegisteredAppId(get: <T>(a: Atom<T>) => T): string {
+    if (_appIdAtom) {
+        const appId = get(_appIdAtom)
+        if (appId && typeof appId === "string") return appId
+    }
+    return "__global__"
 }
 
 /**
@@ -680,14 +826,16 @@ export const variantsListWithDraftsAtomFamily = atomFamily((appId: string) =>
         const baseQuery = get(variantsQueryAtomFamily(appId))
         const variants: VariantListItemWithDrafts[] = []
 
-        // Check for local drafts - use localDraftsListAtom which filters out stale IDs
+        // Check for local drafts - use localDraftsListAtomFamily which filters out stale IDs
         // (IDs in localStorage without corresponding data)
-        if (_localDraftsListAtom) {
-            const localDrafts = get(_localDraftsListAtom) as unknown[]
+        if (_localDraftsListAtomFamily) {
+            const localDrafts = get(_localDraftsListAtomFamily(appId)) as unknown[]
             if (localDrafts.length > 0) {
                 // Add local drafts pseudo-variant at the top
+                // Encode appId in the variant ID so revisionsListWithDraftsAtomFamily
+                // can extract it without needing global app scoping
                 variants.push({
-                    id: LOCAL_DRAFTS_VARIANT_ID,
+                    id: `${LOCAL_DRAFTS_VARIANT_ID}:${appId}`,
                     name: "Local Drafts",
                     isLocalDraftGroup: true,
                     _draftCount: localDrafts.length,
@@ -710,21 +858,24 @@ export const variantsListWithDraftsAtomFamily = atomFamily((appId: string) =>
 )
 
 /**
- * Revisions list with local drafts - returns local drafts for __local_drafts__ variant.
+ * Revisions list with local drafts - returns local drafts for __local_drafts__:appId variant.
  *
  * This is the recommended atom for selection UIs that need to show local drafts.
+ * The variantId for local drafts is formatted as "__local_drafts__:appId".
  */
 export const revisionsListWithDraftsAtomFamily = atomFamily((variantId: string) =>
     atom<ListQueryState<RevisionListItemWithDrafts>>((get) => {
-        // Handle local drafts pseudo-variant
-        if (variantId === LOCAL_DRAFTS_VARIANT_ID && _localDraftsListAtom) {
-            const localDrafts = get(_localDraftsListAtom) as {
+        // Handle local drafts pseudo-variant (format: "__local_drafts__:appId")
+        const localDraftsAppId = extractLocalDraftsAppId(variantId)
+        if (localDraftsAppId && _localDraftsListAtomFamily) {
+            const localDrafts = get(_localDraftsListAtomFamily(localDraftsAppId)) as {
                 id: string
                 data: LegacyAppRevisionData
                 sourceRevisionId: string | null
                 isDirty: boolean
             }[]
 
+            const now = Date.now()
             const revisions: RevisionListItemWithDrafts[] = localDrafts.map((draft) => ({
                 id: draft.id,
                 revision: draft.data.revision ?? 0,
@@ -735,6 +886,8 @@ export const revisionsListWithDraftsAtomFamily = atomFamily((variantId: string) 
                 isDirty: draft.isDirty,
                 sourceRevisionId: draft.sourceRevisionId,
                 createdAt: new Date().toISOString(),
+                createdAtTimestamp: now,
+                updatedAtTimestamp: now,
             }))
 
             return {
@@ -760,6 +913,113 @@ export const revisionsListWithDraftsAtomFamily = atomFamily((variantId: string) 
         }
     }),
 )
+
+// ============================================================================
+// APP-LEVEL FLAT REVISION LIST (with local drafts)
+// ============================================================================
+
+/**
+ * Flat, sorted list of all revisions for an app, including local drafts.
+ *
+ * Walks the variant → revision hierarchy via variantsListWithDraftsAtomFamily
+ * and revisionsListWithDraftsAtomFamily, then flattens into a single list.
+ *
+ * Sorting: local drafts first, then server revisions by updatedAtTimestamp desc.
+ * Filtering: excludes server revisions with revision <= 0.
+ *
+ * This is the canonical source for "all revisions of an app" and replaces
+ * playground-level duplication that previously re-walked the same tree.
+ */
+export const appRevisionsWithDraftsAtomFamily = atomFamily((appId: string) =>
+    atom<RevisionListItemWithDrafts[]>((get) => {
+        if (!appId) return []
+
+        const variantsQuery = get(variantsListWithDraftsAtomFamily(appId))
+        const variants = variantsQuery.data ?? []
+
+        const revisions = variants.flatMap((variant) => {
+            if (!variant?.id) return []
+            const revisionsQuery = get(revisionsListWithDraftsAtomFamily(variant.id))
+            const list = revisionsQuery.data ?? []
+
+            // For server variants, ensure variantName is set on each revision
+            // (the API transform already sets it, but fall back to variant.name)
+            if (!variant.isLocalDraftGroup) {
+                const fallbackName = variant.name || variant.baseName || variant.id || "-"
+                return list.map((revision) => ({
+                    ...revision,
+                    variantName: revision.variantName || fallbackName,
+                }))
+            }
+
+            return list
+        })
+
+        const filtered = revisions.filter(
+            (revision) => revision.isLocalDraft || Number(revision.revision ?? 0) > 0,
+        )
+        const localDrafts = filtered.filter((revision) => revision.isLocalDraft)
+        const serverRevisions = filtered.filter((revision) => !revision.isLocalDraft)
+        serverRevisions.sort((a, b) => (b.updatedAtTimestamp ?? 0) - (a.updatedAtTimestamp ?? 0))
+
+        return [...localDrafts, ...serverRevisions]
+    }),
+)
+
+/**
+ * Lightweight query for the latest server revision ID of an app.
+ *
+ * Uses `/preview/applications/revisions/query` with `limit: 1, order: "descending"`
+ * to fetch only the single most recent revision — **one API call** instead of
+ * fetching all variants (1 call) + all revisions per variant (N calls).
+ */
+const latestServerRevisionIdQueryAtomFamily = atomFamily((appId: string) =>
+    atomWithQuery<string | null>((get) => {
+        const projectId = get(projectIdAtom)
+        const enabled = get(sessionAtom) && !!projectId && !!appId
+        get(revisionCacheVersionAtom)
+
+        return {
+            queryKey: ["latest-server-revision-id", appId, projectId],
+            queryFn: () => fetchLatestRevisionId(appId, projectId!),
+            staleTime: 0,
+            gcTime: 0,
+            refetchOnWindowFocus: false,
+            enabled,
+        }
+    }),
+)
+
+/**
+ * Latest server revision ID for an app.
+ *
+ * Returns `null` while the query is still pending so that callers
+ * (e.g. `ensurePlaygroundDefaults`) know to retry later.
+ */
+export const latestServerRevisionIdAtomFamily = atomFamily((appId: string) =>
+    atom<string | null>((get) => {
+        if (!appId) return null
+        const query = get(latestServerRevisionIdQueryAtomFamily(appId))
+        if (query.isPending) return null
+        return query.data ?? null
+    }),
+)
+
+/**
+ * Latest server revision ID for the currently registered app.
+ *
+ * Combines the app ID atom registered by the OSS layer (via
+ * `registerAppIdAtom`) with `latestServerRevisionIdAtomFamily`.
+ *
+ * This is an entity-level convenience atom so non-playground consumers
+ * (e.g. VariantNameCell, VariantsTable) can determine "is latest?" without
+ * depending on playground state.
+ */
+export const latestAppRevisionIdAtom = atom<string | null>((get) => {
+    const appId = getRegisteredAppId(get)
+    if (appId === "__global__") return null
+    return get(latestServerRevisionIdAtomFamily(appId))
+})
 
 // ============================================================================
 // ENRICHED SERVER DATA (replaces bridge pattern)
@@ -790,7 +1050,7 @@ export const legacyAppRevisionEnrichedDataFamily = atomFamily((revisionId: strin
 )
 
 /**
- * Legacy server data storage - kept for backward compatibility during migration.
+ * Legacy server data storage for backward compatibility.
  */
 export const legacyAppRevisionServerDataAtomFamily = atomFamily((_revisionId: string) =>
     atom<LegacyAppRevisionData | null>(null),
@@ -827,9 +1087,19 @@ export const legacyAppRevisionEntityWithBridgeAtomFamily = atomFamily((revisionI
             return draft
         }
 
-        // Use server data selector which merges enriched data with enhanced properties
         const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
-        return serverData
+        if (serverData) {
+            return serverData
+        }
+
+        // For local drafts, fall back to queryAtomFamily which handles rehydration
+        // from the source revision after page reload (similar to schema re-routing).
+        if (isLocalDraftId(revisionId)) {
+            const query = get(legacyAppRevisionQueryAtomFamily(revisionId))
+            return query.data ?? null
+        }
+
+        return null
     }),
 )
 
@@ -844,7 +1114,24 @@ export const legacyAppRevisionServerDataSelectorFamily = atomFamily((revisionId:
         const bridgeData = get(legacyAppRevisionServerDataAtomFamily(revisionId))
         const listItem = get(revisionListItemFromCacheAtomFamily(revisionId))
         if (bridgeData) {
-            return mergeRevisionListContext(bridgeData, listItem)
+            const merged = mergeRevisionListContext(bridgeData, listItem)
+            // Bridge data may lack identity and display fields (variantId, appId,
+            // variantName, configName, appName). Fill them from the enriched/query
+            // path which fetches variant detail.
+            if (merged && (!merged.variantId || !merged.variantName)) {
+                const enrichedData = get(legacyAppRevisionEnrichedDataFamily(revisionId))
+                if (enrichedData) {
+                    return {
+                        ...merged,
+                        variantId: merged.variantId ?? enrichedData.variantId,
+                        appId: merged.appId ?? enrichedData.appId,
+                        variantName: merged.variantName ?? enrichedData.variantName,
+                        configName: merged.configName ?? enrichedData.configName,
+                        appName: merged.appName ?? enrichedData.appName,
+                    }
+                }
+            }
+            return merged
         }
 
         const enrichedData = get(legacyAppRevisionEnrichedDataFamily(revisionId))
@@ -853,74 +1140,78 @@ export const legacyAppRevisionServerDataSelectorFamily = atomFamily((revisionId:
 )
 
 /**
+ * Reactive atom that returns the current draft parameters.
+ *
+ * Returns null when no draft exists.
+ * Used by isDirty, commit, diff view, and JSON editor.
+ */
+export const legacyAppRevisionDraftParametersAtomFamily = atomFamily((revisionId: string) =>
+    atom<Record<string, unknown> | null>((get) => {
+        const draft = get(legacyAppRevisionDraftAtomFamily(revisionId))
+        if (!draft) return null
+        const params = draft.parameters ?? null
+        // Strip frontend-only metadata (e.g. agenta_metadata on tools) so all
+        // consumers (diff preview, commit, isDirty) see clean server-compatible data
+        return params ? stripAgentaMetadataDeep(params) : null
+    }),
+)
+
+/**
  * Check if revision has unsaved changes.
  * Compares draft parameters with server parameters.
  *
- * IMPORTANT: We compare parameters (the source of truth) rather than the entire
- * object, because enhanced prompts/properties are derived and may have different
- * structure even when the underlying data is the same.
+ * Uses draftParametersAtomFamily for enhanced→raw conversion,
+ * then compares against server parameters with volatile keys stripped.
  */
 export const legacyAppRevisionIsDirtyWithBridgeAtomFamily = atomFamily((revisionId: string) =>
     atom<boolean>((get) => {
-        const draft = get(legacyAppRevisionDraftAtomFamily(revisionId))
-        if (!draft) {
-            return false
-        }
+        // Local drafts are inherently uncommitted — always dirty.
+        // This ensures URL hash persistence and hydration work correctly.
+        // For actual change detection (commit button), use hasChangesAtomFamily.
+        if (isLocalDraftId(revisionId)) return true
 
-        // Get server data (enriched or legacy)
+        const draftParams = get(legacyAppRevisionDraftParametersAtomFamily(revisionId))
+        if (draftParams === null) return false
+
         const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
-        if (!serverData) {
-            return true // New entity
-        }
-
-        // IMPORTANT: Compare PARAMETERS only, not enhanced prompts/properties.
-        // Enhanced prompts/properties are DERIVED from parameters and stored in draft
-        // when user edits, but server data doesn't have them (they're empty []).
-        // We need to convert enhanced data back to parameters for comparison.
+        if (!serverData) return false // Server data not yet loaded — don't report dirty prematurely
 
         const serverParams = serverData.parameters ?? {}
-        const hasEnhancedPrompts = draft.enhancedPrompts && Array.isArray(draft.enhancedPrompts)
-        const hasEnhancedCustomProps =
-            draft.enhancedCustomProperties && typeof draft.enhancedCustomProperties === "object"
-
-        // When enhanced data exists, use SERVER params as the base for conversion.
-        // This ensures that when the user manually reverts changes back to the original,
-        // the resulting parameters have the same key ordering as server data.
-        // Using draft.parameters as the base would fail because URL-hydrated draft
-        // parameters go through transformToRequestBody → toSnakeCaseDeep which may
-        // produce different key ordering than the original server parameters.
-        //
-        // When no enhanced data exists (e.g., right after URL hydration before seed),
-        // compare draft.parameters directly.
-        let draftParams: Record<string, unknown>
-        if (hasEnhancedPrompts || hasEnhancedCustomProps) {
-            draftParams = {...serverParams}
-        } else {
-            draftParams = {...(draft.parameters ?? {})}
-        }
-
-        // If draft has enhanced prompts, convert them back to parameters
-        // This captures any edits the user made through the enhanced prompt UI
-        if (hasEnhancedPrompts) {
-            draftParams = enhancedPromptsToParameters(draft.enhancedPrompts!, draftParams)
-        }
-
-        // If draft has enhanced custom properties, convert them back to parameters
-        if (hasEnhancedCustomProps) {
-            draftParams = enhancedCustomPropertiesToParameters(
-                draft.enhancedCustomProperties as Record<string, unknown>,
-                draftParams,
-            )
-        }
-
-        // Compare parameters (the source of truth)
-        // preserveNulls=true because null values are meaningful changes
         const strippedDraft = stripVolatileKeys(draftParams, true)
         const strippedServer = stripVolatileKeys(serverParams, true)
-        const draftParamsStr = JSON.stringify(strippedDraft)
-        const serverParamsStr = JSON.stringify(strippedServer)
 
-        return draftParamsStr !== serverParamsStr
+        return JSON.stringify(strippedDraft) !== JSON.stringify(strippedServer)
+    }),
+)
+
+/**
+ * Check if a local draft has actual changes compared to its base (source) revision.
+ * Used by the commit button to determine if there are real diffs to commit.
+ *
+ * For API-backed entities, delegates to isDirty.
+ * For local drafts, compares draft parameters against the source revision's server data.
+ */
+export const legacyAppRevisionHasChangesAtomFamily = atomFamily((revisionId: string) =>
+    atom<boolean>((get) => {
+        if (!isLocalDraftId(revisionId)) {
+            return get(legacyAppRevisionIsDirtyWithBridgeAtomFamily(revisionId))
+        }
+
+        const draftParams = get(legacyAppRevisionDraftParametersAtomFamily(revisionId))
+        if (!draftParams) return false
+
+        const sourceRefs = get(localDraftSourceRefsByIdAtom)[revisionId]
+        const sourceRevisionId = sourceRefs?.sourceRevisionId
+        if (!sourceRevisionId) return false
+
+        const baseServerData = get(legacyAppRevisionServerDataSelectorFamily(sourceRevisionId))
+        if (!baseServerData) return false
+
+        const baseParams = baseServerData.parameters ?? {}
+        const strippedDraft = stripVolatileKeys(draftParams, true)
+        const strippedBase = stripVolatileKeys(baseParams, true)
+
+        return JSON.stringify(strippedDraft) !== JSON.stringify(strippedBase)
     }),
 )
 
@@ -942,8 +1233,21 @@ export const updateLegacyAppRevisionAtom = atom(
             return
         }
 
+        // Accept both legacy payload shape (`{parameters}`) and bridge/workflow shape
+        // (`{data: {parameters}}`) to keep updates resilient across mixed routing paths.
+        const rawChanges = changes as Record<string, unknown>
+        const nestedParams =
+            (rawChanges.data as {parameters?: unknown} | undefined)?.parameters ?? undefined
+        const normalizedChanges: Partial<LegacyAppRevisionData> =
+            nestedParams !== undefined && rawChanges.parameters === undefined
+                ? ({
+                      ...changes,
+                      parameters: nestedParams as LegacyAppRevisionData["parameters"],
+                  } as Partial<LegacyAppRevisionData>)
+                : changes
+
         const updated = produce(base, (draft) => {
-            Object.assign(draft, changes)
+            Object.assign(draft, normalizedChanges)
         })
 
         set(getDraftAtom(revisionId), updated)
@@ -953,398 +1257,107 @@ export const updateLegacyAppRevisionAtom = atom(
 /**
  * Discard OSS app revision draft
  *
- * Clears both:
- * 1. The draft atom (local edits)
- * 2. The enhanced prompts/custom properties from server data atom
- *    (these may have been seeded during initial derivation from schema)
- *
+ * Clears the draft atom (local edits).
  * This ensures the UI falls back to the original query data.
  */
-export const discardLegacyAppRevisionDraftAtom = atom(null, (get, set, revisionId: string) => {
+export const discardLegacyAppRevisionDraftAtom = atom(null, (_get, set, revisionId: string) => {
     set(getDraftAtom(revisionId), null)
 
-    // 2. Clear enhanced prompts/custom properties from server data atom
-    // These may have been seeded during initial derivation from schema
-    // and need to be cleared so the UI re-derives from original query data
-    const serverData = get(legacyAppRevisionServerDataAtomFamily(revisionId))
-    if (serverData && (serverData.enhancedPrompts || serverData.enhancedCustomProperties)) {
-        const cleanedServerData = produce(serverData, (draft) => {
-            delete draft.enhancedPrompts
-            delete draft.enhancedCustomProperties
-        })
-        set(legacyAppRevisionServerDataAtomFamily(revisionId), cleanedServerData)
-    }
+    // Clear persisted draft from localStorage
+    clearPersistedDraft(revisionId)
 })
 
 // ============================================================================
-// ENHANCED PROMPTS/CUSTOM PROPERTIES ACTIONS (for OSS playground)
+// READ UTILITIES - Find property by __id (read counterpart to updatePropertyIn*)
 // ============================================================================
 
 /**
- * Set enhanced prompts for a revision.
- *
- * If this is the initial prompt seeding (no existing draft and server has no prompts),
- * we update the server data atom instead of creating a draft. This prevents the
- * "dirty" state from being triggered on page load when prompts are derived from schema.
+ * Recursively find a property by __id in an object tree.
+ * Read-only counterpart to `updatePropertyInObject`.
  */
-export const setEnhancedPromptsAtom = atom(
-    null,
-    (get, set, revisionId: string, prompts: unknown[]) => {
-        const currentDraft = get(legacyAppRevisionDraftAtomFamily(revisionId))
-        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
-        const base = currentDraft || serverData
+export function findPropertyInObject(obj: unknown, propertyId: string): unknown | undefined {
+    if (!obj || typeof obj !== "object") return undefined
 
-        if (!base) {
-            // Don't create a draft if there's no base - wait for server data
-            return
-        }
+    const record = obj as Record<string, unknown>
 
-        // Skip if prompts didn't actually change
-        // Use stripVolatileKeys to ignore __id and __test fields that change on every derivation
-        const currentPrompts = base.enhancedPrompts || []
-        const currentStr = JSON.stringify(stripVolatileKeys(currentPrompts))
-        const newStr = JSON.stringify(stripVolatileKeys(prompts))
-        if (currentStr === newStr) {
-            return
-        }
+    // Check if current object has matching __id
+    if ("__id" in record && record.__id === propertyId) {
+        return record
+    }
 
-        // If there's no draft and server data has no prompts, this is initial seeding
-        // Update the server data atom instead of creating a draft
-        if (
-            !currentDraft &&
-            (!serverData?.enhancedPrompts || serverData.enhancedPrompts.length === 0)
-        ) {
-            const updatedServerData = produce(serverData!, (draft) => {
-                draft.enhancedPrompts = prompts
-                syncInputKeysInPrompts(draft.enhancedPrompts as unknown[])
-            })
-            // Update the legacy server data atom (which feeds into serverDataSelector)
-            set(legacyAppRevisionServerDataAtomFamily(revisionId), updatedServerData)
-            return
-        }
+    // Recurse through properties
+    for (const key of Object.keys(record)) {
+        const value = record[key]
+        if (!value || typeof value !== "object") continue
 
-        // Otherwise, create/update the draft
-        const updated = produce(base, (draft) => {
-            draft.enhancedPrompts = prompts
-            syncInputKeysInPrompts(draft.enhancedPrompts as unknown[])
-        })
-
-        set(getDraftAtom(revisionId), updated)
-    },
-)
-
-/**
- * Mutate enhanced prompts using an Immer recipe
- */
-export const mutateEnhancedPromptsAtom = atom(
-    null,
-    (get, set, revisionId: string, recipe: (draft: unknown[]) => unknown[] | void) => {
-        const currentDraft = get(legacyAppRevisionDraftAtomFamily(revisionId))
-        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
-        const base = currentDraft || serverData
-
-        if (!base) {
-            return
-        }
-
-        const currentPrompts = base.enhancedPrompts || []
-        // Apply the recipe first, then sync input_keys on the result.
-        // The recipe may either mutate the Immer draft in place (returning void)
-        // or return a new array (functional style via .map()). We use produce
-        // for the recipe alone, then sync input_keys on the produced result.
-        const afterRecipe = produce(currentPrompts, recipe)
-        const updatedPrompts = produce(afterRecipe, (draft) => {
-            syncInputKeysInPrompts(draft as unknown[])
-        })
-
-        // Skip creating draft if prompts didn't actually change
-        // Use stripVolatileKeys to ignore __id and __test fields that change on every derivation
-        const currentStr = JSON.stringify(stripVolatileKeys(currentPrompts))
-        const updatedStr = JSON.stringify(stripVolatileKeys(updatedPrompts))
-        if (currentStr === updatedStr) {
-            return
-        }
-
-        const updated = produce(base, (draft) => {
-            draft.enhancedPrompts = updatedPrompts
-        })
-
-        set(getDraftAtom(revisionId), updated)
-    },
-)
-
-/**
- * Set enhanced custom properties for a revision.
- *
- * If this is the initial seeding (no existing draft and server has no custom properties),
- * we update the server data atom instead of creating a draft. This prevents the
- * "dirty" state from being triggered on page load when properties are derived from schema.
- */
-export const setEnhancedCustomPropertiesAtom = atom(
-    null,
-    (get, set, revisionId: string, customProperties: Record<string, unknown>) => {
-        const currentDraft = get(legacyAppRevisionDraftAtomFamily(revisionId))
-        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
-        const base = currentDraft || serverData
-
-        if (!base) {
-            // No base data yet - wait for server data
-            return
-        }
-
-        // Skip if custom properties didn't actually change
-        // Use stripVolatileKeys to ignore __id and __test fields that change on every derivation
-        const currentProps = base.enhancedCustomProperties || {}
-        const currentStr = JSON.stringify(stripVolatileKeys(currentProps))
-        const newStr = JSON.stringify(stripVolatileKeys(customProperties))
-        if (currentStr === newStr) {
-            return
-        }
-
-        // If there's no draft and server data has no custom properties, this is initial seeding
-        // Update the server data atom instead of creating a draft
-        if (
-            !currentDraft &&
-            (!serverData?.enhancedCustomProperties ||
-                Object.keys(serverData.enhancedCustomProperties).length === 0)
-        ) {
-            const updatedServerData = produce(serverData!, (draft) => {
-                draft.enhancedCustomProperties = customProperties
-            })
-            // Update the legacy server data atom (which feeds into serverDataSelector)
-            set(legacyAppRevisionServerDataAtomFamily(revisionId), updatedServerData)
-            return
-        }
-
-        // Otherwise, create/update the draft
-        const updated = produce(base, (draft) => {
-            draft.enhancedCustomProperties = customProperties
-        })
-
-        set(getDraftAtom(revisionId), updated)
-    },
-)
-
-/**
- * Mutate enhanced custom properties using an Immer recipe
- */
-export const mutateEnhancedCustomPropertiesAtom = atom(
-    null,
-    (get, set, revisionId: string, recipe: (draft: Record<string, unknown>) => void) => {
-        const currentDraft = get(legacyAppRevisionDraftAtomFamily(revisionId))
-        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
-        const base = currentDraft || serverData
-
-        if (!base) return
-
-        const currentProps = (base.enhancedCustomProperties as Record<string, unknown>) || {}
-        const updatedProps = produce(currentProps, recipe)
-
-        // Skip creating draft if custom properties didn't actually change
-        // Use stripVolatileKeys to ignore __id and __test fields that change on every derivation
-        const currentStr = JSON.stringify(stripVolatileKeys(currentProps))
-        const updatedStr = JSON.stringify(stripVolatileKeys(updatedProps))
-        if (currentStr === updatedStr) {
-            return
-        }
-
-        const updated = produce(base, (draft) => {
-            draft.enhancedCustomProperties = updatedProps
-        })
-
-        set(getDraftAtom(revisionId), updated)
-    },
-)
-
-/**
- * Update a property by __id in enhanced prompts
- */
-export const updatePropertyAtom = atom(
-    null,
-    (
-        get,
-        set,
-        params: {
-            revisionId: string
-            propertyId: string
-            value: unknown
-        },
-    ) => {
-        const {revisionId, propertyId, value} = params
-
-        const currentDraft = get(legacyAppRevisionDraftAtomFamily(revisionId))
-        const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
-        const base = currentDraft || serverData
-
-        if (!base) {
-            return
-        }
-
-        let propertyFound = false
-        const updated = produce(base, (draft) => {
-            // Try to find and update in enhanced prompts
-            if (draft.enhancedPrompts && Array.isArray(draft.enhancedPrompts)) {
-                const found = updatePropertyInArray(draft.enhancedPrompts, propertyId, value)
-                if (found) {
-                    // Recalculate input_keys from current message content
-                    syncInputKeysInPrompts(draft.enhancedPrompts as unknown[])
-                    propertyFound = true
-                    return
-                }
-            }
-
-            // Try to find and update in enhanced custom properties
-            if (draft.enhancedCustomProperties) {
-                const customProps = draft.enhancedCustomProperties as Record<string, unknown>
-                if (propertyId in customProps) {
-                    customProps[propertyId] = value
-                    propertyFound = true
-                    return
-                }
-
-                // Check if it's a nested property with __id
-                for (const [key, val] of Object.entries(customProps)) {
-                    if (
-                        val &&
-                        typeof val === "object" &&
-                        (val as {__id?: string}).__id === propertyId
-                    ) {
-                        // Preserve enhanced wrapper (__id, __metadata, schema) — only update .value
-                        const typedVal = val as {value?: unknown; [k: string]: unknown}
-                        if ("value" in typedVal) {
-                            typedVal.value = value
-                        } else {
-                            customProps[key] = value
-                        }
-                        propertyFound = true
-                        return
-                    }
-                }
-            }
-
-            // Handle custom property updates (format: "custom:propertyKey")
-            // Custom properties are derived from schema + parameters, so we update parameters directly
-            if (propertyId.startsWith("custom:")) {
-                const paramKey = propertyId.replace("custom:", "")
-                if (draft.parameters) {
-                    const params = draft.parameters as Record<string, unknown>
-                    // Update the parameter value directly
-                    // The value from the UI is the new value for this parameter
-                    params[paramKey] = value
-                    propertyFound = true
-                    return
-                }
-            }
-        })
-
-        // Only set draft if property was found and updated
-        if (!propertyFound) {
-            return
-        }
-
-        // Check if JSON actually changed (Immer may return same reference if no structural change)
-        const baseStr = JSON.stringify(base)
-        const updatedStr = JSON.stringify(updated)
-        if (baseStr === updatedStr) {
-            return
-        }
-
-        set(getDraftAtom(revisionId), updated)
-    },
-)
-
-/**
- * Helper to recursively find and update a property by __id in an object
- *
- * Searches:
- * - Direct properties with __id
- * - Nested objects (e.g., llmConfig.model, llmConfig.temperature)
- * - Arrays (recurses into them)
- *
- * When a property is found:
- * - If it has `value` directly, update that
- * - Otherwise replace the entire property
- */
-function updatePropertyInObject(
-    obj: Record<string, unknown>,
-    propertyId: string,
-    value: unknown,
-): boolean {
-    for (const key of Object.keys(obj)) {
-        const prop = obj[key]
-        if (!prop || typeof prop !== "object") continue
-
-        const typedProp = prop as {__id?: string; value?: unknown; [key: string]: unknown}
-
-        // Check if this property matches
-        if (typedProp.__id === propertyId) {
-            const hasValue = "value" in typedProp
-            if (hasValue) {
-                typedProp.value = value
-            } else {
-                obj[key] = value
-            }
-            return true
-        }
-
-        // Recurse into arrays
-        if (Array.isArray(prop)) {
-            if (updatePropertyInArray(prop, propertyId, value, 0)) {
-                return true
-            }
-        }
-        // Recurse into nested objects (e.g., llmConfig contains model, temperature, etc.)
-        else if (typeof prop === "object" && prop !== null) {
-            if (updatePropertyInObject(typedProp as Record<string, unknown>, propertyId, value)) {
-                return true
-            }
+        if (Array.isArray(value)) {
+            const found = findPropertyInArray(value, propertyId)
+            if (found !== undefined) return found
+        } else {
+            const found = findPropertyInObject(value, propertyId)
+            if (found !== undefined) return found
         }
     }
-    return false
+
+    return undefined
 }
 
 /**
- * Helper to recursively find and update a property by __id in an array
- *
- * Searches both:
- * - Array elements (items in arrays)
- * - Nested object properties (object values within items)
- *
- * When a property is found:
- * - If it has `value` directly, update that
- * - Otherwise replace the entire item
+ * Recursively find a property by __id in an array.
+ * Read-only counterpart to `updatePropertyInArray`.
  */
-function updatePropertyInArray(
-    arr: unknown[],
-    propertyId: string,
-    value: unknown,
-    depth = 0,
-): boolean {
-    for (let i = 0; i < arr.length; i++) {
-        const item = arr[i]
+export function findPropertyInArray(arr: unknown[], propertyId: string): unknown | undefined {
+    for (const item of arr) {
         if (!item || typeof item !== "object") continue
 
-        const typedItem = item as {
-            __id?: string
-            value?: unknown
-            [key: string]: unknown
-        }
-
-        // Check if this array item matches
-        if (typedItem.__id === propertyId) {
-            const hasValue = "value" in typedItem
-            if (hasValue) {
-                typedItem.value = value
-            } else {
-                arr[i] = value
-            }
-            return true
-        }
-
-        // Recurse into the object's properties (handles llmConfig.model, etc.)
-        if (updatePropertyInObject(typedItem as Record<string, unknown>, propertyId, value)) {
-            return true
-        }
+        const found = findPropertyInObject(item, propertyId)
+        if (found !== undefined) return found
     }
-    return false
+    return undefined
+}
+
+// ============================================================================
+// TEMPLATE FORMAT - Extract template format from enhanced prompts
+// ============================================================================
+
+export type PromptTemplateFormat = "curly" | "fstring" | "jinja2"
+
+const SUPPORTED_FORMATS: PromptTemplateFormat[] = ["curly", "fstring", "jinja2"]
+
+export const DEFAULT_TEMPLATE_FORMAT: PromptTemplateFormat = "curly"
+
+export function sanitizeTemplateFormat(value: unknown): PromptTemplateFormat | undefined {
+    if (typeof value !== "string") return undefined
+    const lowered = value.toLowerCase()
+    if (lowered === "jinja") return "jinja2"
+    return SUPPORTED_FORMATS.find((format) => format === lowered) ?? undefined
+}
+
+export function getTemplateFormatNode(prompt: unknown): unknown {
+    if (!prompt || typeof prompt !== "object") return undefined
+    const p = prompt as Record<string, unknown>
+    return (
+        p.templateFormat ??
+        p.template_format ??
+        (p.prompt as Record<string, unknown> | undefined)?.templateFormat ??
+        (p.prompt as Record<string, unknown> | undefined)?.template_format
+    )
+}
+
+export function getTemplateFormatValue(node: unknown): PromptTemplateFormat | undefined {
+    if (!node) return undefined
+    if (typeof node === "string") return sanitizeTemplateFormat(node)
+    if (typeof node === "object") {
+        const n = node as Record<string, unknown>
+        if (typeof n.value === "string") return sanitizeTemplateFormat(n.value)
+        if (typeof n.default === "string") return sanitizeTemplateFormat(n.default)
+    }
+    return undefined
+}
+
+export function getTemplateFormatPropertyId(node: unknown): string | undefined {
+    if (!node || typeof node !== "object") return undefined
+    const n = node as Record<string, unknown>
+    const candidate = n.__id ?? n.id
+    return typeof candidate === "string" ? candidate : undefined
 }

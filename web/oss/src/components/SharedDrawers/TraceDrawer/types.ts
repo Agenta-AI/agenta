@@ -2,7 +2,7 @@ import type {ReactNode} from "react"
 
 import {ButtonProps} from "antd"
 
-import {TestResult} from "@/oss/lib/shared/variant/transformer/types"
+import {TestResult} from "@/oss/lib/shared/variant/types"
 
 export interface TraceDrawerButtonProps extends ButtonProps {
     label?: ReactNode

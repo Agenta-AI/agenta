@@ -40,7 +40,7 @@ export function DraftTag({
     return (
         <Tag
             className={cn(
-                "flex items-center gap-1 font-normal bg-[#586673] text-white !m-0",
+                "flex items-center gap-1 font-normal bg-[#fffbe6] text-[#d48806] border-[#ffe58f] !m-0",
                 className,
             )}
             {...tagProps}

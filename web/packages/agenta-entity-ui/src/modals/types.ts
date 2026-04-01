@@ -16,7 +16,13 @@ import type {Atom, WritableAtom} from "jotai"
 /**
  * Supported entity types for modal operations
  */
-export type EntityType = "testset" | "revision" | "variant" | "evaluator" | "application"
+export type EntityType =
+    | "testset"
+    | "revision"
+    | "variant"
+    | "evaluator"
+    | "application"
+    | "simpleQueue"
 
 /**
  * Reference to an entity for modal operations
@@ -261,6 +267,23 @@ export interface CommitModalState {
     error: Error | null
 }
 
+export interface CommitModeOption {
+    id: string
+    label: string
+}
+
+export interface CommitSubmitResult {
+    success: boolean
+    newRevisionId?: string
+    error?: string
+}
+
+export interface CommitSubmitParams {
+    entity: EntityReference
+    message: string
+    mode?: string
+}
+
 /**
  * Props for EntityCommitModal component
  */
@@ -273,6 +296,24 @@ export interface EntityCommitModalProps {
     entity?: EntityReference
     /** Callback after successful commit */
     onSuccess?: (result: {newRevisionId?: string}) => void
+    /** Optional custom submit flow (replaces default adapter commitAtom call) */
+    onSubmit?: (params: CommitSubmitParams) => Promise<CommitSubmitResult>
+    /** Optional callback invoked after successful submit and modal close */
+    onAfterSuccess?: (result: CommitSubmitResult) => Promise<void> | void
+    /** Custom success toast message. Pass null to disable. */
+    successMessage?: string | null
+    /** Custom confirm button label */
+    submitLabel?: string
+    /** Optional mode selector shown in content */
+    commitModes?: CommitModeOption[]
+    /** Default selected mode */
+    defaultCommitMode?: string
+    /** Optional extra content rendered between mode selector and commit message */
+    renderModeContent?: (params: {mode?: string}) => ReactNode
+    /** Additional submit guard from caller (e.g. requires variant name or environment) */
+    canSubmit?: (params: {mode?: string}) => boolean
+    /** Label for the target in the version display when a non-default mode is selected (e.g. new variant name) */
+    modeLabel?: string
 }
 
 // ============================================================================
@@ -366,6 +407,7 @@ export function getEntityTypeLabel(
         variant: ["Variant", "Variants"],
         evaluator: ["Evaluator", "Evaluators"],
         application: ["Application", "Applications"],
+        simpleQueue: ["Annotation queue", "Annotation queues"],
     }
 
     const [singular, plural] = labels[type]

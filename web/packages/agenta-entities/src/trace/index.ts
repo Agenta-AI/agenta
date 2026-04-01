@@ -171,6 +171,10 @@ export {
 export {
     // Trace-level query atom (for fetching entire traces with all spans)
     traceEntityAtomFamily,
+    // Trace-level derived atoms (convenience: traceId → rootSpan / inputs / outputs)
+    traceRootSpanAtomFamily,
+    traceInputsAtomFamily,
+    traceOutputsAtomFamily,
     // Cache invalidation utility
     invalidateTraceEntityCache,
     // Error classes

@@ -136,6 +136,11 @@ export interface SearchablePopoverListProps<T> {
      * Additional class name for the container
      */
     className?: string
+
+    /**
+     * Additional class name applied to each EntityListItem
+     */
+    itemClassName?: string
 }
 
 // ============================================================================
@@ -171,6 +176,7 @@ export function SearchablePopoverList<T>({
     noMatchesMessage = "No matches",
     emptyMessage = "No items",
     className,
+    itemClassName,
 }: SearchablePopoverListProps<T>) {
     const [searchTerm, setSearchTerm] = useState("")
 
@@ -236,7 +242,8 @@ export function SearchablePopoverList<T>({
                                         label={label}
                                         labelNode={labelNode}
                                         isSelectable={false}
-                                        isSelected={false}
+                                        isSelected={isSelected}
+                                        className={itemClassName}
                                     />
                                 </div>
                             </Tooltip>
@@ -252,6 +259,7 @@ export function SearchablePopoverList<T>({
                             isSelected={isSelected}
                             onClick={() => onSelect(item)}
                             onSelect={() => onSelect(item)}
+                            className={itemClassName}
                         />
                     )
                 })}

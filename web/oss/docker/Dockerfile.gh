@@ -23,6 +23,10 @@ FROM base AS builder
 ENV NODE_OPTIONS="--max_old_space_size=4096"
 ENV TURBO_CACHE_DIR="/app/.turbo"
 
+COPY docker/run-turbo-build.sh /usr/local/bin/run-turbo-build.sh
+
+RUN chmod +x /usr/local/bin/run-turbo-build.sh
+
 # Copy package.json files first (changes less frequently than source)
 COPY oss/package.json ./oss/package.json
 COPY --parents packages/*/package.json ./
@@ -39,7 +43,9 @@ COPY oss/ ./oss/
 
 RUN --mount=type=cache,id=turbo-oss,target=/app/.turbo \
     --mount=type=cache,id=nextjs-oss,target=/app/oss/.next/cache \
-    pnpm turbo run build --filter=@agenta/oss
+    --mount=type=secret,id=turbo_team,required=false \
+    --mount=type=secret,id=turbo_token,required=false \
+    /usr/local/bin/run-turbo-build.sh @agenta/oss
 
 
 FROM node:20.18.0-slim AS runner
@@ -53,14 +59,13 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1 \
     NODE_ENV=production
 
-COPY --from=builder /app/oss/.next/standalone /app
-COPY --from=builder /app/oss/.next/static /app/oss/.next/static
-COPY --from=builder /app/oss/public /app/oss/public
-COPY ./entrypoint.sh /app/entrypoint.sh
-
 RUN groupadd --gid 10001 agenta && \
-    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta && \
-    chown -R agenta:agenta /app
+    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta
+
+COPY --chown=agenta:agenta --from=builder /app/oss/.next/standalone /app
+COPY --chown=agenta:agenta --from=builder /app/oss/.next/static /app/oss/.next/static
+COPY --chown=agenta:agenta --from=builder /app/oss/public /app/oss/public
+COPY --chown=agenta:agenta ./entrypoint.sh /app/entrypoint.sh
 
 USER 10001
 

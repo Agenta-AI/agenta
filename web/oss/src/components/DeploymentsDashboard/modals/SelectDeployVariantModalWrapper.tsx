@@ -1,3 +1,4 @@
+import {publishMutationAtom} from "@agenta/entities/legacyAppRevision"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import SelectDeployVariantModal from "@/oss/components/DeploymentsDashboard/components/Modal/SelectDeployVariantModal"
@@ -7,7 +8,6 @@ import {
     setSelectedRowKeysAtom,
 } from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
 import {openDeploymentConfirmationModalAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
-import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 
 const SelectDeployVariantModalWrapper = () => {
     const state = useAtomValue(selectDeployVariantStateAtom)

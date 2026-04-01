@@ -1,4 +1,4 @@
-import type {SimpleChatMessage} from "@/oss/components/ChatMessageEditor"
+import type {SimpleChatMessage} from "@agenta/shared/types"
 
 /**
  * Utility functions for parsing and detecting field data types

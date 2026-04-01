@@ -124,6 +124,36 @@ export interface RunnableSnapshotAdapter {
      * @returns The new local draft ID, or null if creation failed
      */
     createLocalDraftWithPatch?(sourceRevisionId: string, patch: RunnableDraftPatch): string | null
+
+    // ========================================================================
+    // EPHEMERAL ENTITY SUPPORT (optional)
+    // ========================================================================
+
+    /**
+     * Whether this adapter handles ephemeral (serverless) entities.
+     * Ephemeral entities carry their full data inline in URL snapshots
+     * instead of referencing a server-side revision.
+     */
+    readonly isEphemeral?: boolean
+
+    /**
+     * Serialize entity data for inline snapshot embedding.
+     * Only used when `isEphemeral` is true.
+     *
+     * @param entityId - The entity ID to serialize
+     * @returns The serialized entity data, or null if entity not found
+     */
+    serializeEntity?(entityId: string): Record<string, unknown> | null
+
+    /**
+     * Restore an entity from serialized data.
+     * Creates a new entity in the molecule store and returns its ID.
+     * Only used when `isEphemeral` is true.
+     *
+     * @param data - The serialized entity data from a snapshot
+     * @returns The new entity ID, or null if restoration failed
+     */
+    restoreEntity?(data: Record<string, unknown>): string | null
 }
 
 // ============================================================================

@@ -144,7 +144,6 @@ from oss.src.routers import (
 
 from oss.src.utils.env import env
 from entrypoints.worker_evaluations import evaluations_worker
-from entrypoints.worker_webhooks import webhooks_worker
 import oss.src.core.evaluations.tasks.live  # noqa: F401
 import oss.src.core.evaluations.tasks.legacy  # noqa: F401
 import oss.src.core.evaluations.tasks.batch  # noqa: F401
@@ -277,7 +276,6 @@ vault_service = VaultService(
 webhooks_service = WebhooksService(
     webhooks_dao=webhooks_dao,
     vault_service=vault_service,
-    webhooks_worker=webhooks_worker,
 )
 
 

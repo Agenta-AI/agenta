@@ -32,6 +32,10 @@ export interface SharedEditorProps extends BaseContainerProps {
     disabled?: boolean
     editorProps?: EditorProps
     useAntdInput?: boolean
+    /** Switch oversized rich-text inputs to cheaper plain-text handling paths. */
+    optimizeLargeInput?: boolean
+    /** Disable root container transition classes (useful in animated parent layouts) */
+    disableContainerTransition?: boolean
     antdInputProps?: SharedAntdInputProps
     error?: boolean
 
@@ -48,4 +52,6 @@ export interface SharedEditorProps extends BaseContainerProps {
     disableDebounce?: boolean
     /** Callback when a JSON property key is Cmd/Meta+clicked (for drill-in navigation) */
     onPropertyClick?: (path: string) => void
+    /** Callback when editor focus state changes */
+    onFocusChange?: (focused: boolean) => void
 }

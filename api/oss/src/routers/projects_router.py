@@ -68,8 +68,8 @@ async def _assert_org_owner(request: Request):
 
 
 def _get_oss_user_role(organization, user_id: str) -> str:
-    """Owner vs editor logic used across OSS endpoints."""
-    return "owner" if str(organization.owner_id) == str(user_id) else "editor"
+    """Owner vs admin logic used across OSS endpoints."""
+    return "owner" if str(organization.owner_id) == str(user_id) else "admin"
 
 
 async def _get_ee_membership_for_project(user_id, project_id):
@@ -242,10 +242,17 @@ async def get_project(
             if not project:
                 raise HTTPException(status_code=404, detail="Project not found")
 
-            organization = project.organization
+            if not project.organization_id:
+                raise HTTPException(
+                    status_code=404, detail="Project organization not found"
+                )
+
+            organization = await db_manager.fetch_organization_by_id(
+                organization_id=str(project.organization_id)
+            )
             if not organization:
-                organization = await db_manager.fetch_organization_by_id(
-                    organization_id=str(project.organization_id)
+                raise HTTPException(
+                    status_code=404, detail="Project organization not found"
                 )
 
             user_role = _get_oss_user_role(organization, request.state.user_id)

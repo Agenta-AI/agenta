@@ -5,7 +5,11 @@ description: "Learn how to deploy Agenta locally using Docker, either on port 80
 sidebar_position: 1
 ---
 
-This guide explains how to set up Agenta on your local machine, either using the default port 80 or a custom port.
+This guide explains how to set up Agenta on your local machine using Docker Compose, either using the default port 80 or a custom port.
+
+:::tip
+Looking to deploy on Kubernetes instead? See the [Deploy on Kubernetes](/self-host/guides/deploy-to-kubernetes) guide for Helm chart installation.
+:::
 
 ## Prerequisites
 
@@ -74,7 +78,7 @@ If Agenta doesn't start properly, check these common issues:
 6. Lack of memory provided to docker: If you are experiencing the web container restarting and dying unexpectedly, the most likely cause is that you are running out of memory. You may need to increase the memory allocated to docker (desktop).
 
 :::info
-To set up a development environment with features like hot-reloading, refer to our [Development Guide](/misc/contributing/development-mode).
+To set up a development environment with features like hot-reloading, refer to our [Development Guide](/contributing/guides/development-mode).
 ::: 
 
 Need help? Either:

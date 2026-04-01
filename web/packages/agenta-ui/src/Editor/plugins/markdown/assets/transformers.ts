@@ -28,17 +28,14 @@ import {
 } from "@lexical/table"
 import {$isParagraphNode, $isTextNode, ElementNode, LexicalNode} from "lexical"
 
+import {unescapeTemplateDelimiters} from "../utils/textCleanup"
+
 export function $convertToMarkdownStringCustom(
     transformers: Transformer[],
     node?: ElementNode,
     shouldPreserveNewLines?: boolean,
 ): string {
-    const markdown = originalConvert(transformers, node, shouldPreserveNewLines)
-
-    return markdown.replace(/{{(.*?)}}/g, (_, content) => {
-        const unescapedContent = content.replace(/\\([\\`*{}\[\]()#+\-.!_>])/g, "$1")
-        return `{{${unescapedContent}}}`
-    })
+    return unescapeTemplateDelimiters(originalConvert(transformers, node, shouldPreserveNewLines))
 }
 
 export const HR: ElementTransformer = {

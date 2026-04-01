@@ -45,12 +45,9 @@ import {
     type LocalLegacyAppRevision,
 } from "../core/factory"
 
-import {
-    // Commit abstraction
-    commitRevisionAtom,
-    type CommitRevisionParams,
-    type CommitResult,
-} from "./commit"
+import {createVariantAtom} from "./createVariant"
+import {deleteRevisionAtom} from "./deleteRevision"
+import {discardRevisionDraftAtom} from "./localDrafts"
 import {
     // Runnable extension atoms
     runnableAtoms,
@@ -67,10 +64,6 @@ import {
     revisionCustomPropertiesSchemaAtomFamily,
     revisionSchemaAtPathAtomFamily,
     revisionEndpointsAtomFamily,
-    // Enhanced custom properties
-    revisionEnhancedCustomPropertiesAtomFamily,
-    revisionCustomPropertyKeysAtomFamily,
-    type EnhancedCustomProperty,
 } from "./schemaAtoms"
 import {
     // Store atoms
@@ -83,6 +76,8 @@ import {
     legacyAppRevisionEntityWithBridgeAtomFamily,
     legacyAppRevisionServerDataSelectorFamily,
     legacyAppRevisionIsDirtyWithBridgeAtomFamily,
+    legacyAppRevisionHasChangesAtomFamily,
+    legacyAppRevisionDraftParametersAtomFamily,
     // List atoms
     appsListAtom,
     variantsListAtomFamily,
@@ -96,16 +91,12 @@ import {
     revisionsQueryAtomFamily,
     // Mutations
     updateLegacyAppRevisionAtom,
-    discardLegacyAppRevisionDraftAtom,
     // Server data management
     setServerDataAtom,
     clearServerDataAtom,
-    // Enhanced prompts/custom properties
-    setEnhancedPromptsAtom,
-    mutateEnhancedPromptsAtom,
-    setEnhancedCustomPropertiesAtom,
-    mutateEnhancedCustomPropertiesAtom,
-    updatePropertyAtom,
+    // Cache invalidation
+    revisionCacheVersionAtom,
+    latestAppRevisionIdAtom,
 } from "./store"
 
 // ============================================================================
@@ -212,14 +203,6 @@ export interface LegacyAppRevisionControllerDispatch {
     update: (changes: Partial<LegacyAppRevisionData>) => void
     /** Discard local draft changes */
     discard: () => void
-    /** Set enhanced prompts */
-    setEnhancedPrompts: (prompts: unknown[]) => void
-    /** Set enhanced custom properties */
-    setEnhancedCustomProperties: (props: Record<string, unknown>) => void
-    /** Update a property by __id */
-    updateProperty: (propertyId: string, value: unknown) => void
-    /** Commit changes to create a new revision */
-    commit: (params: Omit<CommitRevisionParams, "revisionId">) => Promise<CommitResult>
     /** Set execution mode */
     setExecutionMode: (mode: ExecutionMode) => void
 }
@@ -250,14 +233,9 @@ export type LegacyAppRevisionControllerResult = [
  *   if (state.isPending) return <Skeleton />
  *   if (!state.data) return <NotFound />
  *
- *   const handleChange = (propertyId: string, value: unknown) => {
- *     dispatch.updateProperty(propertyId, value)
- *   }
- *
  *   return (
  *     <div>
  *       <span>{state.isDirty ? 'Modified' : 'Saved'}</span>
- *       <PropertyEditor data={state.data} onChange={handleChange} />
  *       <Button onClick={dispatch.discard}>Discard</Button>
  *     </div>
  *   )
@@ -275,11 +253,7 @@ export function useLegacyAppRevisionController(
 
     // Get dispatch setters
     const setUpdate = useSetAtom(updateLegacyAppRevisionAtom)
-    const setDiscard = useSetAtom(discardLegacyAppRevisionDraftAtom)
-    const setEnhancedPromptsAtomSetter = useSetAtom(setEnhancedPromptsAtom)
-    const setEnhancedCustomPropertiesAtomSetter = useSetAtom(setEnhancedCustomPropertiesAtom)
-    const setUpdatePropertyAtomSetter = useSetAtom(updatePropertyAtom)
-    const setCommit = useSetAtom(commitRevisionAtom)
+    const setDiscard = useSetAtom(discardRevisionDraftAtom)
     const setExecutionModeAtom = useSetAtom(runnableReducers.setExecutionMode)
 
     // Build state object
@@ -297,26 +271,9 @@ export function useLegacyAppRevisionController(
         () => ({
             update: (changes: Partial<LegacyAppRevisionData>) => setUpdate(revisionId, changes),
             discard: () => setDiscard(revisionId),
-            setEnhancedPrompts: (prompts: unknown[]) =>
-                setEnhancedPromptsAtomSetter(revisionId, prompts),
-            setEnhancedCustomProperties: (props: Record<string, unknown>) =>
-                setEnhancedCustomPropertiesAtomSetter(revisionId, props),
-            updateProperty: (propertyId: string, value: unknown) =>
-                setUpdatePropertyAtomSetter({revisionId, propertyId, value}),
-            commit: (params: Omit<CommitRevisionParams, "revisionId">) =>
-                setCommit({...params, revisionId}),
             setExecutionMode: (mode: ExecutionMode) => setExecutionModeAtom(revisionId, mode),
         }),
-        [
-            revisionId,
-            setUpdate,
-            setDiscard,
-            setEnhancedPromptsAtomSetter,
-            setEnhancedCustomPropertiesAtomSetter,
-            setUpdatePropertyAtomSetter,
-            setCommit,
-            setExecutionModeAtom,
-        ],
+        [revisionId, setUpdate, setDiscard, setExecutionModeAtom],
     )
 
     return [state, dispatch]
@@ -346,8 +303,12 @@ export const legacyAppRevisionMolecule = {
         draft: legacyAppRevisionDraftAtomFamily,
         /** Entity atom (merged data) - bridge-aware, prefers synced data */
         data: legacyAppRevisionEntityWithBridgeAtomFamily,
-        /** Dirty state - bridge-aware */
+        /** Dirty state - bridge-aware (always true for local drafts, used for URL persistence) */
         isDirty: legacyAppRevisionIsDirtyWithBridgeAtomFamily,
+        /** Actual change detection (compares local draft vs base entity for commit button) */
+        hasChanges: legacyAppRevisionHasChangesAtomFamily,
+        /** Draft parameters (enhanced → raw conversion) */
+        draftParameters: legacyAppRevisionDraftParametersAtomFamily,
         /** Input ports derived from parameters template */
         inputPorts: legacyAppRevisionInputPortsAtomFamily,
         /** Server data (bridge or query) */
@@ -392,6 +353,11 @@ export const legacyAppRevisionMolecule = {
         runtimePrefix: runnableAtoms.runtimePrefix,
         /** Route path */
         routePath: runnableAtoms.routePath,
+        /** Pre-built request payload (config portion of API request body) */
+        requestPayload: runnableAtoms.requestPayload,
+
+        /** Latest server revision ID for the current app (app-scoped, not per-revision) */
+        latestRevisionId: latestAppRevisionIdAtom,
     },
 
     // ========================================================================
@@ -434,14 +400,6 @@ export const legacyAppRevisionMolecule = {
             revisionPromptSchemaAtomFamily(revisionId),
         customPropertiesSchema: (revisionId: string): Atom<EntitySchema | null> =>
             revisionCustomPropertiesSchemaAtomFamily(revisionId),
-        /** Enhanced custom properties with values (derived from schema + parameters) */
-        enhancedCustomProperties: (
-            revisionId: string,
-        ): Atom<Record<string, EnhancedCustomProperty>> =>
-            revisionEnhancedCustomPropertiesAtomFamily(revisionId),
-        /** Custom property keys for a revision */
-        customPropertyKeys: (revisionId: string): Atom<string[]> =>
-            revisionCustomPropertyKeysAtomFamily(revisionId),
         schemaAtPath: (params: {
             revisionId: string
             path: (string | number)[]
@@ -488,6 +446,9 @@ export const legacyAppRevisionMolecule = {
 
         /** Revisions query state for a specific variant */
         revisionsQuery: revisionsQueryAtomFamily,
+
+        /** Latest server revision ID for the current app */
+        latestRevisionId: latestAppRevisionIdAtom,
     },
 
     // ========================================================================
@@ -497,23 +458,13 @@ export const legacyAppRevisionMolecule = {
         /** Update revision draft */
         update: updateLegacyAppRevisionAtom,
         /** Discard revision draft */
-        discard: discardLegacyAppRevisionDraftAtom,
+        discard: discardRevisionDraftAtom,
         /** Set execution mode */
         setExecutionMode: runnableReducers.setExecutionMode,
         /** Set server data (for bridge sync) */
         setServerData: setServerDataAtom,
         /** Clear server data */
         clearServerData: clearServerDataAtom,
-        /** Set enhanced prompts */
-        setEnhancedPrompts: setEnhancedPromptsAtom,
-        /** Mutate enhanced prompts with Immer recipe */
-        mutateEnhancedPrompts: mutateEnhancedPromptsAtom,
-        /** Set enhanced custom properties */
-        setEnhancedCustomProperties: setEnhancedCustomPropertiesAtom,
-        /** Mutate enhanced custom properties with Immer recipe */
-        mutateEnhancedCustomProperties: mutateEnhancedCustomPropertiesAtom,
-        /** Update property by __id */
-        updateProperty: updatePropertyAtom,
     },
 
     // ========================================================================
@@ -521,32 +472,41 @@ export const legacyAppRevisionMolecule = {
     // ========================================================================
     actions: {
         update: updateLegacyAppRevisionAtom,
-        discard: discardLegacyAppRevisionDraftAtom,
+        discard: discardRevisionDraftAtom,
         setExecutionMode: runnableReducers.setExecutionMode,
         setServerData: setServerDataAtom,
         clearServerData: clearServerDataAtom,
-        setEnhancedPrompts: setEnhancedPromptsAtom,
-        mutateEnhancedPrompts: mutateEnhancedPromptsAtom,
-        setEnhancedCustomProperties: setEnhancedCustomPropertiesAtom,
-        mutateEnhancedCustomProperties: mutateEnhancedCustomPropertiesAtom,
-        updateProperty: updatePropertyAtom,
         /**
-         * Commit changes to create a new revision.
+         * Create a new variant from a base revision.
          *
-         * LEGACY: This action encapsulates the workaround for the API not
-         * returning new revision IDs. Will be replaced when migrating to appRevision.
+         * Entity-level action that handles: parameter resolution → API call →
+         * query invalidation → poll for new revision → callbacks.
          *
          * @example
          * ```typescript
-         * const result = await set(legacyAppRevisionMolecule.actions.commit, {
-         *   revisionId: currentId,
-         *   variantId,
-         *   parameters: { ag_config: {...} },
-         *   commitMessage: 'Updated prompts',
+         * const result = await set(legacyAppRevisionMolecule.actions.createVariant, {
+         *   baseRevisionId: 'rev-123',
+         *   newVariantName: 'My Fork',
+         *   appId: 'app-456',
+         *   commitMessage: 'Forked from rev-123',
          * })
          * ```
          */
-        commit: commitRevisionAtom,
+        createVariant: createVariantAtom,
+
+        /**
+         * Delete a single revision.
+         *
+         * Entity-level action that handles: API call → query invalidation → callbacks.
+         *
+         * @example
+         * ```typescript
+         * const result = await set(legacyAppRevisionMolecule.actions.deleteRevision, {
+         *   revisionId: 'rev-123',
+         * })
+         * ```
+         */
+        deleteRevision: deleteRevisionAtom,
 
         /**
          * Create a local draft by cloning an existing revision.
@@ -635,10 +595,10 @@ export const legacyAppRevisionMolecule = {
         },
         getChangesFromRoot: (
             entity: LegacyAppRevisionData | null,
-            _rootData: unknown,
+            rootData: unknown,
             path: DataPath,
-            value: unknown,
         ): Partial<LegacyAppRevisionData> | null => {
+            const value = getValueAtPathUtil(rootData, path)
             return getChangesFromPath(entity, path, value)
         },
     },
@@ -655,6 +615,11 @@ export const legacyAppRevisionMolecule = {
             getStore(options).get(legacyAppRevisionDraftAtomFamily(revisionId)),
         isDirty: (revisionId: string, options?: StoreOptions) =>
             getStore(options).get(legacyAppRevisionIsDirtyWithBridgeAtomFamily(revisionId)),
+        hasChanges: (revisionId: string, options?: StoreOptions) =>
+            getStore(options).get(legacyAppRevisionHasChangesAtomFamily(revisionId)),
+        /** Get draft parameters (enhanced → raw conversion) */
+        draftParameters: (revisionId: string, options?: StoreOptions) =>
+            getStore(options).get(legacyAppRevisionDraftParametersAtomFamily(revisionId)),
         /** Get input ports derived from parameters template */
         inputPorts: (revisionId: string, options?: StoreOptions) =>
             getStore(options).get(legacyAppRevisionInputPortsAtomFamily(revisionId)),
@@ -667,6 +632,9 @@ export const legacyAppRevisionMolecule = {
             runnableGet.invocationUrl(revisionId, options),
         agConfigSchema: (revisionId: string, options?: StoreOptions) =>
             getStore(options).get(revisionAgConfigSchemaAtomFamily(revisionId)),
+        /** Latest server revision ID for the current app */
+        latestRevisionId: (options?: StoreOptions) =>
+            getStore(options).get(latestAppRevisionIdAtom),
     },
 
     set: {
@@ -676,7 +644,7 @@ export const legacyAppRevisionMolecule = {
             options?: StoreOptions,
         ) => getStore(options).set(updateLegacyAppRevisionAtom, revisionId, changes),
         discard: (revisionId: string, options?: StoreOptions) =>
-            getStore(options).set(discardLegacyAppRevisionDraftAtom, revisionId),
+            getStore(options).set(discardRevisionDraftAtom, revisionId),
         // Execution mode
         executionMode: (revisionId: string, mode: ExecutionMode, options?: StoreOptions) =>
             runnableSet.executionMode(revisionId, mode, options),
@@ -685,27 +653,9 @@ export const legacyAppRevisionMolecule = {
             getStore(options).set(setServerDataAtom, revisionId, data),
         clearServerData: (revisionId: string, options?: StoreOptions) =>
             getStore(options).set(clearServerDataAtom, revisionId),
-        // Enhanced prompts/custom properties
-        setEnhancedPrompts: (revisionId: string, prompts: unknown[], options?: StoreOptions) =>
-            getStore(options).set(setEnhancedPromptsAtom, revisionId, prompts),
-        setEnhancedCustomProperties: (
-            revisionId: string,
-            customProperties: Record<string, unknown>,
-            options?: StoreOptions,
-        ) => getStore(options).set(setEnhancedCustomPropertiesAtom, revisionId, customProperties),
-        updateProperty: (
-            revisionId: string,
-            propertyId: string,
-            value: unknown,
-            options?: StoreOptions,
-        ) => getStore(options).set(updatePropertyAtom, {revisionId, propertyId, value}),
-        /**
-         * Commit changes to create a new revision (imperative API).
-         *
-         * LEGACY: Encapsulates the workaround for the API not returning new revision IDs.
-         */
-        commit: (params: CommitRevisionParams, options?: StoreOptions): Promise<CommitResult> =>
-            getStore(options).set(commitRevisionAtom, params),
+        /** Bump the revision cache version to force dependent atoms to re-evaluate */
+        invalidateCache: (options?: StoreOptions) =>
+            getStore(options).set(revisionCacheVersionAtom, (prev: number) => prev + 1),
     },
 
     // ========================================================================

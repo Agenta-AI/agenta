@@ -98,12 +98,12 @@ class ProjectRequest(BaseModel):
 
 OrganizationRole = Literal[
     "owner",
-    "viewer",
+    "admin",
+    "developer",
     "editor",
-    "evaluator",
-    "workspace_admin",
-    "deployment_manager",
-]  # update list
+    "annotator",
+    "viewer",
+]
 
 
 class OrganizationMembershipRequest(BaseModel):
@@ -114,13 +114,13 @@ class OrganizationMembershipRequest(BaseModel):
     organization_ref: Reference
 
 
-WorkspaceRole = Literal[  # update list
+WorkspaceRole = Literal[
     "owner",
-    "viewer",
+    "admin",
+    "developer",
     "editor",
-    "evaluator",
-    "workspace_admin",
-    "deployment_manager",
+    "annotator",
+    "viewer",
 ]
 
 
@@ -132,13 +132,13 @@ class WorkspaceMembershipRequest(BaseModel):
     workspace_ref: Reference
 
 
-ProjectRole = Literal[  # update list
+ProjectRole = Literal[
     "owner",
-    "viewer",
+    "admin",
+    "developer",
     "editor",
-    "evaluator",
-    "workspace_admin",
-    "deployment_manager",
+    "annotator",
+    "viewer",
 ]
 
 
@@ -161,6 +161,7 @@ async def legacy_create_organization(
 ) -> Union[OrganizationDB, WorkspaceDB]:
     async with engine.core_session() as session:
         create_org_data = payload.model_dump(exclude_unset=True)
+        create_org_data.pop("is_demo", None)
 
         create_org_data["flags"] = {
             "is_demo": payload.is_demo,

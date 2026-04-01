@@ -1,25 +1,11 @@
 /**
- * Evaluator Revision Selection Adapter (Legacy Runtime Configuration)
+ * Evaluator Revision Selection Adapter (Runtime Configuration)
  *
- * Adapter for selecting evaluator revisions through the hierarchy:
+ * 3-level adapter for selecting evaluator revisions:
  * Evaluator → Variant → Revision
  *
- * ## Current Implementation
- *
- * This adapter uses **runtime configuration** via `setEvaluatorRevisionAtoms()`
- * because the backend does not yet expose dedicated APIs for:
- * - `GET /evaluators/{evaluatorId}/variants`
- * - `GET /evaluator-variants/{variantId}/revisions`
- *
- * The consuming application must provide the atoms during initialization.
- *
- * ## Migration Plan
- *
- * When the backend APIs are available, this will be migrated to use the
- * relation-based pattern (like testset and appRevision adapters) via
- * `createThreeLevelAdapter()`. See:
- * - `@agenta/entities/evaluatorRevision/README.md` for the migration path
- * - `./appRevisionRelationAdapter.ts` for the target pattern
+ * The consuming application must provide atoms during initialization
+ * via `setEvaluatorRevisionAtoms()`.
  *
  * @see {@link setEvaluatorRevisionAtoms} for configuration
  */
@@ -60,10 +46,6 @@ let atomConfig: EvaluatorRevisionAtomConfig | null = null
 
 /**
  * Configure the adapter with actual atoms from the app.
- *
- * This is a **legacy pattern** required because the backend does not expose
- * dedicated APIs for evaluator variants and revisions. The consuming application
- * must provide atoms that implement the hierarchy.
  *
  * This should be called during app initialization, typically in `initializeSelectionSystem()`.
  *
@@ -131,26 +113,11 @@ function revisionsByVariantListAtom(variantId: string): Atom<ListQueryState<unkn
 // ============================================================================
 
 /**
- * Evaluator Revision selection adapter (legacy runtime-configured)
+ * Evaluator Revision selection adapter (3-level: Evaluator → Variant → Revision)
  *
- * Hierarchy: Evaluator → Variant → Revision
+ * Uses the `breadcrumb` EntityPicker variant for drill-down navigation.
  *
- * **Note:** This adapter requires runtime configuration via `setEvaluatorRevisionAtoms()`
- * before use. Unlike the relation-based `testsetAdapter` and `appRevisionAdapter`,
- * this adapter cannot be auto-configured because the backend lacks the required APIs.
- *
- * @example
- * ```typescript
- * import { evaluatorRevisionAdapter } from '@agenta/entity-ui/selection'
- * import { useCascadingMode } from '@agenta/entity-ui/selection'
- *
- * // Note: setEvaluatorRevisionAtoms must be called first!
- * const { levels, selection } = useCascadingMode({
- *   adapter: evaluatorRevisionAdapter,
- *   instanceId: 'my-selector',
- *   onSelect: (selection) => console.log('Selected evaluator revision:', selection),
- * })
- * ```
+ * **Note:** Requires runtime configuration via `setEvaluatorRevisionAtoms()`.
  */
 export const evaluatorRevisionAdapter = createAdapter<EvaluatorRevisionSelectionResult>({
     name: "evaluatorRevision",
@@ -199,9 +166,6 @@ export const evaluatorRevisionAdapter = createAdapter<EvaluatorRevisionSelection
             label: "Revision",
             autoSelectSingle: true,
             listAtomFamily: revisionsByVariantListAtom,
-            fieldMappings: {
-                version: "revision", // Evaluator revisions use 'revision' field
-            },
         }),
     ],
     selectableLevel: 2,

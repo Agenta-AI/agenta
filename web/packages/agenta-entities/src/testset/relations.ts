@@ -129,8 +129,10 @@ export const testsetToRevisionRelation: EntityRelation<Testset, RevisionListItem
     // Child molecule for fetching individual revisions
     // Note: Type assertion used because molecule data type (Revision)
     // differs from list item type (RevisionListItem)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    childMolecule: revisionMolecule as any,
+    childMolecule: revisionMolecule as unknown as EntityRelation<
+        Testset,
+        RevisionListItem
+    >["childMolecule"],
 
     // List atom for selection UI (returns RevisionListItem[])
     listAtomFamily: revisionListAtomFamily,
@@ -183,8 +185,10 @@ export const revisionToTestcaseRelation: EntityRelation<Revision, Testcase> = {
 
     // Child molecule for fetching individual testcases
     // Note: Type assertion used because testcaseMolecule uses a specific draft type
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    childMolecule: testcaseMolecule as any,
+    childMolecule: testcaseMolecule as unknown as EntityRelation<
+        Revision,
+        Testcase
+    >["childMolecule"],
 
     // Selection UI config (if testcases are ever selected in hierarchy)
     selection: {

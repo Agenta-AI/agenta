@@ -55,8 +55,8 @@ Master table of all variables across all interfaces and modes:
 | `AGENTA_API_KEY` | SDK | For integration | -- | API key for SDK authentication |
 | `TESTMAIL_API_KEY` | Web E2E | Yes | -- | Testmail API key for email auth flows |
 | `TESTMAIL_NAMESPACE` | Web E2E | Yes | -- | Testmail namespace |
-| `AGENTA_OSS_OWNER_PASSWORD` | Web E2E (OSS) | Yes | -- | OSS owner account password |
-| `AGENTA_OSS_OWNER_EMAIL` | Web E2E (OSS) | Optional | -- | OSS owner email |
+| `AGENTA_TEST_OSS_OWNER_PASSWORD` | Web E2E (OSS) | Yes | -- | OSS owner account password |
+| `AGENTA_TEST_OSS_OWNER_EMAIL` | Web E2E (OSS) | Optional | -- | OSS owner email |
 | `NEXT_PUBLIC_AGENTA_API_URL` | Web data layer | Yes | -- | API URL for frontend tests |
 
 ---
@@ -173,9 +173,8 @@ Only linting checks are active in CI:
 
 | Workflow | File | What it checks |
 |----------|------|---------------|
-| Python formatting | `.github/workflows/02-check-python-formatting.yml` | `ruff format` on `api/` and `sdk/` |
-| Python linting | `.github/workflows/03-check-python-linting.yml` | `ruff check` on `api/` and `sdk/` |
-| Frontend linting | `.github/workflows/04-check-frontend-linting.yml` | ESLint and Prettier on `web/` |
+| Code styling | `.github/workflows/11-check-code-styling.yml` | Python `ruff format --check` and `ruff check`, plus TypeScript Prettier and ESLint |
+| Unit tests | `.github/workflows/12-check-unit-tests.yml` | OSS unit checks for API, SDK, services, and web |
 
 No test execution workflows are currently active.
 

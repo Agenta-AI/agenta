@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
-import {ArrowsClockwiseIcon, DatabaseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
+import {ArrowsClockwiseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -10,8 +10,10 @@ import dynamic from "next/dynamic"
 
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {SortResult} from "@/oss/components/Filters/Sort"
+import AddActionsDropdown from "@/oss/components/SharedActions/AddActionsDropdown"
 import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {downloadCsv} from "@/oss/lib/helpers/fileManipulations"
 import {getNodeById} from "@/oss/lib/traces/observability_helpers"
 import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
@@ -110,6 +112,7 @@ const ObservabilityHeader = ({
     const [isExporting, setIsExporting] = useState(false)
     const exportAbortRef = useRef<AbortController | null>(null)
     const setDeleteModalState = useSetAtom(deleteTraceModalAtom)
+    const {canExportData} = useProjectPermissions()
 
     const {
         traces,
@@ -142,6 +145,17 @@ const ObservabilityHeader = ({
     const filterColumns = useMemo(
         () => getFilterColumns(attributeKeyOptions),
         [attributeKeyOptions],
+    )
+    const selectedTraceIds = useMemo(
+        () =>
+            Array.from(
+                new Set(
+                    selectedRowKeys
+                        .map((key) => getNodeById(traces, String(key))?.trace_id || "")
+                        .filter((traceId): traceId is string => Boolean(traceId)),
+                ),
+            ),
+        [traces, selectedRowKeys],
     )
 
     useEffect(() => {
@@ -278,6 +292,7 @@ const ObservabilityHeader = ({
         const exportKey = "observability-export"
 
         try {
+            if (!canExportData) return
             if (!traces.length) return
 
             const {currentApp} = getAppValues()
@@ -369,7 +384,7 @@ const ObservabilityHeader = ({
             exportAbortRef.current = null
             setIsExporting(false)
         }
-    }, [columns, filters, sort, traceTabs, traces])
+    }, [canExportData, columns, filters, sort, traceTabs, traces])
 
     const handleRefresh = async () => {
         if (componentType === "sessions") {
@@ -399,6 +414,10 @@ const ObservabilityHeader = ({
             },
         })
     }, [traces, selectedRowKeys, setDeleteModalState, setSelectedRowKeys, handleRefresh])
+
+    const handleQueueItemsAdded = useCallback(() => {
+        setSelectedRowKeys([])
+    }, [setSelectedRowKeys])
 
     return (
         <>
@@ -467,13 +486,21 @@ const ObservabilityHeader = ({
                                     </Radio.Group>
                                 </Space>
 
-                                <EnhancedButton
-                                    aria-label="Add selected traces to testset"
-                                    onClick={() => getTestsetTraceData()}
-                                    icon={<DatabaseIcon size={14} />}
-                                    disabled={traces.length === 0 || selectedRowKeys.length === 0}
-                                    tooltipProps={{title: "Add to testset"}}
-                                    data-tour="create-testset-button"
+                                <AddActionsDropdown
+                                    size="small"
+                                    dataTour="create-testset-button"
+                                    testsetAction={{
+                                        onSelect: getTestsetTraceData,
+                                        disabled:
+                                            traces.length === 0 || selectedRowKeys.length === 0,
+                                    }}
+                                    queueAction={{
+                                        itemType: "traces",
+                                        itemIds: selectedTraceIds,
+                                        disabled:
+                                            traces.length === 0 || selectedTraceIds.length === 0,
+                                        onItemsAdded: handleQueueItemsAdded,
+                                    }}
                                 />
                             </>
                         ) : null}
@@ -510,21 +537,23 @@ const ObservabilityHeader = ({
                             </Radio.Group>
                         </Space>
                         <Space>
-                            <Button
-                                type="text"
-                                onClick={() => {
-                                    if (isExporting) {
-                                        exportAbortRef.current?.abort()
-                                        return
-                                    }
+                            {canExportData ? (
+                                <Button
+                                    type="text"
+                                    onClick={() => {
+                                        if (isExporting) {
+                                            exportAbortRef.current?.abort()
+                                            return
+                                        }
 
-                                    onExport()
-                                }}
-                                icon={<ExportIcon size={14} className="mt-0.5" />}
-                                disabled={!isExporting && traces.length === 0}
-                            >
-                                {isExporting ? "Cancel export" : "Export"}
-                            </Button>
+                                        onExport()
+                                    }}
+                                    icon={<ExportIcon size={14} className="mt-0.5" />}
+                                    disabled={!isExporting && traces.length === 0}
+                                >
+                                    {isExporting ? "Cancel export" : "Export"}
+                                </Button>
+                            ) : null}
 
                             <EditColumns
                                 columns={columns}
@@ -541,14 +570,19 @@ const ObservabilityHeader = ({
                             >
                                 Delete
                             </Button>
-                            <Button
-                                onClick={() => getTestsetTraceData()}
-                                icon={<DatabaseIcon size={14} />}
-                                disabled={traces.length === 0 || selectedRowKeys.length === 0}
-                                data-tour="create-testset-button"
-                            >
-                                Add to testset
-                            </Button>
+                            <AddActionsDropdown
+                                dataTour="create-testset-button"
+                                testsetAction={{
+                                    onSelect: getTestsetTraceData,
+                                    disabled: traces.length === 0 || selectedRowKeys.length === 0,
+                                }}
+                                queueAction={{
+                                    itemType: "traces",
+                                    itemIds: selectedTraceIds,
+                                    disabled: traces.length === 0 || selectedTraceIds.length === 0,
+                                    onItemsAdded: handleQueueItemsAdded,
+                                }}
+                            />
                         </Space>
                     </div>
                 ) : null}

@@ -88,13 +88,13 @@ export const evaluationRunsTableContextAtom = atom<EvaluationRunsTableContext>((
             derivedPreviewFlags = {has_auto: true}
             break
         case "human":
-            derivedPreviewFlags = {has_human: true}
+            derivedPreviewFlags = {has_human: true, is_queue: false}
             break
         case "custom":
             derivedPreviewFlags = {has_custom: true}
             break
         default:
-            derivedPreviewFlags = undefined
+            derivedPreviewFlags = {is_queue: false}
     }
 
     const isAutoOrHuman = evaluationKind === "auto" || evaluationKind === "human"

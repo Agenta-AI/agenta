@@ -52,6 +52,10 @@ export interface ChatMessageEditorProps {
     editorType?: "border" | "borderless"
     /** Custom validation schema for JSON content */
     validationSchema?: Record<string, unknown>
+    /** Suspense fallback mode for editor plugins */
+    loadingFallback?: "skeleton" | "none" | "static"
+    /** Callback when editor focus state changes */
+    onFocusChange?: (focused: boolean) => void
 }
 
 /**
@@ -80,6 +84,8 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
     state = "filled",
     editorType = "border",
     validationSchema,
+    loadingFallback = "skeleton",
+    onFocusChange,
     ...props
 }) => {
     const selectOptions = useMemo(
@@ -133,9 +139,10 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
             editorClassName={editorClassName}
             placeholder={placeholder}
             disabled={disabled}
-            state={state}
+            state={disabled ? "readOnly" : state}
             className={cn("relative", flexLayouts.column, gapClasses.xs, "rounded-md", className)}
             footer={footer}
+            onFocusChange={onFocusChange}
             {...props}
             editorProps={{
                 codeOnly: isJSON,
@@ -145,6 +152,7 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
                 templateFormat,
                 showToolbar: false,
                 validationSchema: effectiveSchema,
+                loadingFallback,
             }}
             noProvider={true}
         />
@@ -163,7 +171,9 @@ const ChatMessageEditor: React.FC<ChatMessageEditorProps> = ({isJSON, isTool, ..
             tokens={props.tokens}
             templateFormat={props.templateFormat}
             showToolbar={false}
+            disabled={props.disabled}
             id={`${props.id}-${isJSON}`}
+            loadingFallback={props.loadingFallback}
         >
             <ChatMessageEditorInner isJSON={isJSON} {...props} />
         </EditorProvider>

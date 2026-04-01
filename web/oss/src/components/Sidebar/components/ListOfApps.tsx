@@ -26,8 +26,12 @@ const ListOfApps = ({collapsed}: ListOfAppsProps) => {
 
     const [dropdownOpen, setDropdownOpen] = useState(false)
 
-    const {data: foldersData} = useSWR(projectId ? ["folders", projectId] : null, () =>
-        queryFolders({folder: {}}, projectId),
+    const {data: foldersData} = useSWR(
+        projectId ? ["folders", projectId] : null,
+        () => queryFolders({folder: {}}, projectId),
+        {
+            revalidateOnFocus: false,
+        },
     )
 
     const {appMenuItems, appKeyMap} = useMemo(() => {

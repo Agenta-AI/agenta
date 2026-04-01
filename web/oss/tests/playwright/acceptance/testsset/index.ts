@@ -6,6 +6,9 @@ import {
     TestCoverage,
     TestPath,
     TestScope,
+    TestLensType,
+    TestCostType,
+    TestLicenseType,
 } from "@agenta/web-tests/playwright/config/testTags"
 
 interface SimpleTestset {
@@ -26,15 +29,38 @@ const testsetTests = () => {
                 createTagString("coverage", TestCoverage.LIGHT),
                 createTagString("coverage", TestCoverage.FULL),
                 createTagString("path", TestPath.HAPPY),
+                createTagString("lens", TestLensType.FUNCTIONAL),
+                createTagString("cost", TestCostType.Free),
+                createTagString("license", TestLicenseType.OSS),
             ],
         },
         async ({page, apiHelpers, uiHelpers}) => {
-            // 1. Navigate to testsets page
-            await page.goto("/testsets")
-            await uiHelpers.waitForPath("/testsets")
-            const testsets = await apiHelpers.getTestsets()
+            // 1. Navigate to testsets page via sidebar
+            await page.goto("/apps", {waitUntil: "domcontentloaded"})
 
-            await uiHelpers.expectText("Test sets", {role: "heading"})
+            // Set up API interception before clicking
+            const testsetsResponsePromise = page.waitForResponse(
+                (response) =>
+                    response.url().includes("/api/preview/testsets/query") &&
+                    response.request().method() === "POST",
+            )
+
+            const testSetsLink = page.locator('a:has-text("Test sets")').first()
+            await expect(testSetsLink).toBeVisible({timeout: 10000})
+            await testSetsLink.click()
+            await uiHelpers.waitForPath("/testsets")
+
+            const testsetsResponse = await testsetsResponsePromise
+            const testsetsData = await testsetsResponse.json()
+            const testsets = testsetsData.testsets
+
+            // Verify navigation and page title
+            await expect(
+                page.getByRole("heading", {name: /testsets|test sets/i}).first(),
+            ).toBeVisible({timeout: 10000})
+
+            // Skip if no testsets exist on this deployment
+            test.skip(!testsets || testsets.length === 0, "No testsets found on deployment")
 
             // 3. Verify testset is visible in table
             // Preview endpoint returns 'id' instead of '_id'
@@ -50,20 +76,21 @@ const testsetTests = () => {
             const testsetRow = testsetTable.getByRole("row", {name: testsetName})
             await expect(testsetRow).toBeVisible()
 
-            // 4. Click on testset row
-            await uiHelpers.clickTableRow(testsetName)
-
-            // 5. Fetch testset from API using preview endpoint
-            const testsetResponse = await apiHelpers.waitForApiResponse<{testset: SimpleTestset}>({
+            const testsetResponsePromise = apiHelpers.waitForApiResponse<{testset: SimpleTestset}>({
                 route: `/api/preview/simple/testsets/${testsetId}`,
                 method: "GET",
             })
 
+            // 4. Click on testset row
+            await uiHelpers.clickTableRow(testsetName)
+
             // 6. Verify testset page
             await uiHelpers.waitForPath(`/testsets/${testsetId}`)
-            await uiHelpers.expectText("Create a new Testset", {role: "heading"})
+            await expect(
+                page.getByRole("heading", {name: /testset|test set/i}).first(),
+            ).toBeVisible()
 
-            const response = await testsetResponse
+            const response = await testsetResponsePromise
             const testset = response.testset
             expect(testset.name).toBe(testsetName)
             // Preview endpoint returns data.testcases instead of csvdata

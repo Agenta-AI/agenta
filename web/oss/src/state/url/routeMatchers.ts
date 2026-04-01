@@ -3,6 +3,7 @@ const TRACE_ENABLED_PATH_MATCHERS = [
     "/traces",
     "/playground",
     "/evaluations",
+    "/annotations",
 ] as const
 const VARIANT_ENABLED_PATH_MATCHERS = ["/variants", "/overview"] as const
 

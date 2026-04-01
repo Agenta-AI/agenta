@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request, status, HTTPException, Depends
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import set_cache
+from oss.src.utils.caching import set_cache, invalidate_cache
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -369,6 +369,9 @@ class WorkflowsRouter:
             workflow_create=workflow_create_request.workflow,
         )
 
+        # Invalidate legacy caches so the registry/apps list reflects the new workflow
+        await invalidate_cache(project_id=request.state.project_id)
+
         workflow_response = WorkflowResponse(
             count=1 if workflow else 0,
             workflow=workflow,
@@ -461,6 +464,9 @@ class WorkflowsRouter:
             workflow_id=workflow_id,
         )
 
+        # Invalidate legacy caches so the registry/apps list reflects the change
+        await invalidate_cache(project_id=request.state.project_id)
+
         workflow_response = WorkflowResponse(
             count=1 if workflow else 0,
             workflow=workflow,
@@ -489,6 +495,9 @@ class WorkflowsRouter:
             #
             workflow_id=workflow_id,
         )
+
+        # Invalidate legacy caches so the registry/apps list reflects the change
+        await invalidate_cache(project_id=request.state.project_id)
 
         workflow_response = WorkflowResponse(
             count=1 if workflow else 0,
@@ -574,6 +583,9 @@ class WorkflowsRouter:
             #
             workflow_variant_create=workflow_variant_create_request.workflow_variant,
         )
+
+        # Invalidate legacy caches so the registry page reflects the new variant
+        await invalidate_cache(project_id=request.state.project_id)
 
         workflow_variant_response = WorkflowVariantResponse(
             count=1 if workflow_variant else 0,
@@ -669,6 +681,9 @@ class WorkflowsRouter:
             workflow_variant_id=workflow_variant_id,
         )
 
+        # Invalidate legacy caches so the registry/apps list reflects the change
+        await invalidate_cache(project_id=request.state.project_id)
+
         workflow_variant_response = WorkflowVariantResponse(
             count=1 if workflow_variant else 0,
             workflow_variant=workflow_variant,
@@ -697,6 +712,9 @@ class WorkflowsRouter:
             #
             workflow_variant_id=workflow_variant_id,
         )
+
+        # Invalidate legacy caches so the registry/apps list reflects the change
+        await invalidate_cache(project_id=request.state.project_id)
 
         workflow_variant_response = WorkflowVariantResponse(
             count=1 if workflow_variant else 0,
@@ -784,6 +802,9 @@ class WorkflowsRouter:
             workflow_fork=workflow_fork_request.workflow,
         )
 
+        # Invalidate legacy caches so the registry page reflects the forked variant
+        await invalidate_cache(project_id=request.state.project_id)
+
         workflow_variant_response = WorkflowVariantResponse(
             count=1 if workflow_variant else 0,
             workflow_variant=workflow_variant,
@@ -814,6 +835,9 @@ class WorkflowsRouter:
             #
             workflow_revision_create=workflow_revision_create_request.workflow_revision,
         )
+
+        # Invalidate legacy caches so the registry page reflects the new revision
+        await invalidate_cache(project_id=request.state.project_id)
 
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,
@@ -909,6 +933,9 @@ class WorkflowsRouter:
             workflow_revision_id=workflow_revision_id,
         )
 
+        # Invalidate legacy caches so the registry page reflects the change
+        await invalidate_cache(project_id=request.state.project_id)
+
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,
             workflow_revision=workflow_revision,
@@ -937,6 +964,9 @@ class WorkflowsRouter:
             #
             workflow_revision_id=workflow_revision_id,
         )
+
+        # Invalidate legacy caches so the registry page reflects the change
+        await invalidate_cache(project_id=request.state.project_id)
 
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,
@@ -1029,6 +1059,9 @@ class WorkflowsRouter:
             #
             workflow_revision_commit=workflow_revision_commit_request.workflow_revision,
         )
+
+        # Invalidate legacy caches so the registry page reflects the new revision
+        await invalidate_cache(project_id=request.state.project_id)
 
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,

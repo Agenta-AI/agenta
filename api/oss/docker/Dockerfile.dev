@@ -34,8 +34,11 @@ RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi
 
 #
-COPY ./oss /app/oss/
-COPY ./entrypoints /app/entrypoints/
+RUN groupadd --gid 10001 agenta && \
+    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta
+
+COPY --chown=agenta:agenta ./oss /app/oss/
+COPY --chown=agenta:agenta ./entrypoints /app/entrypoints/
 
 ENV PYTHONPATH=/sdk:$PYTHONPATH
 
@@ -46,7 +49,8 @@ RUN chmod +x /queries.sh \
     && chmod 0644 /etc/cron.d/queries-cron \
     && sed -i -e '$a\' /etc/cron.d/queries-cron \
     && sed -E 's/^(([^[:space:]]+[[:space:]]+){5})root[[:space:]]+/\1/' /etc/cron.d/queries-cron \
-        | sed 's| >> /proc/1/fd/1 2>&1||' > /app/crontab
+        | sed 's| >> /proc/1/fd/1 2>&1||' > /app/crontab \
+    && chown agenta:agenta /app/crontab
 
 #
 #
@@ -64,9 +68,6 @@ RUN chmod +x /queries.sh \
 #
 #
     
-RUN groupadd --gid 10001 agenta && \
-    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta && \
-    chown -R agenta:agenta /app
 
 USER 10001
 

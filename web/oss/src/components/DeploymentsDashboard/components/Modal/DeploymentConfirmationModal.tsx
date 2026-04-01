@@ -7,7 +7,7 @@ import {createUseStyles} from "react-jss"
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import CommitNote from "@/oss/components/Playground/assets/CommitNote"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {JSSTheme} from "@/oss/lib/Types"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({

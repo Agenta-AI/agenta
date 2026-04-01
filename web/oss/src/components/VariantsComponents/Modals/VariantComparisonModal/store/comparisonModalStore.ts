@@ -1,6 +1,7 @@
+import {appRevisionsWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
 import {atom, Atom} from "jotai"
 
-import {revisionListAtom} from "@/oss/components/Playground/state/atoms"
+import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 
 import {variantTableSelectionAtomFamily} from "../../../store/selectionAtoms"
 
@@ -97,6 +98,10 @@ export const closeComparisonModalAtom = atom(null, (_get, set) => {
 /** Resolves the compare list: explicit atom > selection keys matched against all revisions > fallback */
 export const comparisonModalCompareListAtom = atom((get) => {
     const state = get(comparisonModalAtom)
+    // Don't fetch revision data when the modal is closed — the fallback
+    // reads appRevisionsWithDraftsAtomFamily which triggers fetching ALL
+    // variants and ALL their revisions for the app.
+    if (!state.open) return []
     if (state.compareListAtom) return get(state.compareListAtom)
 
     // Resolve from selection scope + available revisions
@@ -111,13 +116,19 @@ export const comparisonModalCompareListAtom = atom((get) => {
     }
 
     // default to revisions list
-    return get(revisionListAtom)
+    const rawAppId = get(selectedAppIdAtom)
+    const appId = typeof rawAppId === "string" ? rawAppId : null
+    return appId ? get(appRevisionsWithDraftsAtomFamily(appId)) : []
 })
 
 export const comparisonModalAllVariantsAtom = atom((get) => {
     const state = get(comparisonModalAtom)
+    // Don't fetch revision data when the modal is closed
+    if (!state.open) return []
     if (state.allVariantsAtom) return get(state.allVariantsAtom)
     const all = get(comparisonAllRevisionsAtom)
     if (all.length > 0) return all
-    return get(revisionListAtom)
+    const rawAppId = get(selectedAppIdAtom)
+    const appId = typeof rawAppId === "string" ? rawAppId : null
+    return appId ? get(appRevisionsWithDraftsAtomFamily(appId)) : []
 })

@@ -10,6 +10,12 @@ import {
     type SetStateAction,
 } from "react"
 
+import {
+    legacyAppRevisionMolecule,
+    appRevisionsWithDraftsAtomFamily,
+    variantsListWithDraftsAtomFamily,
+    type RevisionListItemWithDrafts,
+} from "@agenta/entities/legacyAppRevision"
 import {CloseCircleOutlined, CloseOutlined} from "@ant-design/icons"
 import {Play} from "@phosphor-icons/react"
 import {Button, Input, Modal, Tabs, Tag, Tooltip, Typography} from "antd"
@@ -21,12 +27,10 @@ import {createUseStyles} from "react-jss"
 import VariantsTable from "@/oss/components/VariantsComponents/Table"
 import {useAppId} from "@/oss/hooks/useAppId"
 import useURL from "@/oss/hooks/useURL"
-import useAppVariantRevisions from "@/oss/lib/hooks/useAppVariantRevisions"
-import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import type {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import type {JSSTheme, ListAppsItem, Variant} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app/hooks"
 import {revision} from "@/oss/state/entities/testset"
-import {stablePromptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 
 import TabLabel from "../../../NewEvaluation/assets/TabLabel"
 import SelectAppSection from "../../../NewEvaluation/Components/SelectAppSection"
@@ -110,6 +114,43 @@ const NoResultsFound = dynamic(
     },
 )
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const toUnixMs = (value: unknown): number => {
+    if (typeof value !== "string" || !value) return 0
+    const ts = new Date(value).getTime()
+    return Number.isFinite(ts) ? ts : 0
+}
+
+const normalizeRevisionForTable = (
+    revision: RevisionListItemWithDrafts,
+): EnhancedVariant & {author?: string} => {
+    const author = (revision as any)?.author
+    const modifiedBy =
+        (revision as any)?.modifiedBy ??
+        (typeof author === "string" && author.trim().length > 0 ? author : "")
+    const modifiedById =
+        (revision as any)?.modifiedById ??
+        (typeof modifiedBy === "string" && UUID_REGEX.test(modifiedBy.trim()) ? modifiedBy : "")
+    const createdAtTimestamp = Number(
+        (revision as any)?.createdAtTimestamp || toUnixMs((revision as any)?.createdAt),
+    )
+    const updatedAtTimestamp = Number(
+        (revision as any)?.updatedAtTimestamp ||
+            toUnixMs((revision as any)?.updatedAt) ||
+            createdAtTimestamp,
+    )
+
+    return {
+        ...(revision as any),
+        variantName: (revision as any)?.variantName ?? "",
+        modifiedBy,
+        modifiedById,
+        createdAtTimestamp,
+        updatedAtTimestamp,
+    } as EnhancedVariant & {author?: string}
+}
+
 const EvaluatorVariantModal = ({
     variants: _variants,
     setSelectedVariant,
@@ -177,12 +218,52 @@ const EvaluatorVariantModal = ({
     )
     const normalizedTestsetColumns = useAtomValue(testcaseColumnsAtom)
 
-    const {variants: appVariantRevisions, isLoading: variantsLoading} = useAppVariantRevisions(
-        selectedAppId || null,
+    const appVariantRevisions = useAtomValue(
+        useMemo(() => appRevisionsWithDraftsAtomFamily(selectedAppId || ""), [selectedAppId]),
+    ) as RevisionListItemWithDrafts[]
+    const variantsWithDraftsState = useAtomValue(
+        useMemo(() => variantsListWithDraftsAtomFamily(selectedAppId || ""), [selectedAppId]),
+    )
+    const variantsLoading = variantsWithDraftsState.isPending
+
+    const variantCreatedAtById = useMemo(() => {
+        const map = new Map<string, number>()
+        ;(variantsWithDraftsState.data ?? []).forEach((variant: any) => {
+            if (!variant?.id || variant?.isLocalDraftGroup) return
+            const ts = Number(variant.createdAtTimestamp ?? variant.updatedAtTimestamp ?? 0)
+            if (ts > 0) {
+                map.set(String(variant.id), ts)
+            }
+        })
+        return map
+    }, [variantsWithDraftsState.data])
+
+    const variantUpdatedAtById = useMemo(() => {
+        const map = new Map<string, number>()
+        ;(variantsWithDraftsState.data ?? []).forEach((variant: any) => {
+            if (!variant?.id || variant?.isLocalDraftGroup) return
+            const ts = Number(variant.updatedAtTimestamp ?? variant.createdAtTimestamp ?? 0)
+            if (ts > 0) {
+                map.set(String(variant.id), ts)
+            }
+        })
+        return map
+    }, [variantsWithDraftsState.data])
+
+    const normalizedAppVariantRevisions = useMemo(
+        () => (appVariantRevisions ?? []).map((revision) => normalizeRevisionForTable(revision)),
+        [appVariantRevisions],
+    )
+    const serverAppVariantRevisions = useMemo(
+        () =>
+            normalizedAppVariantRevisions.filter(
+                (revision: any) => !revision?.isLocalDraft && Number(revision?.revision ?? 0) > 0,
+            ),
+        [normalizedAppVariantRevisions],
     )
 
     const {latestRevisions, revisionToVariantMap, revisionById, variantById} = useMemo(() => {
-        if (!appVariantRevisions?.length) {
+        if (!serverAppVariantRevisions?.length) {
             return {
                 latestRevisions: [] as EnhancedVariant[],
                 revisionToVariantMap: new Map<string, Variant>(),
@@ -193,7 +274,7 @@ const EvaluatorVariantModal = ({
 
         const grouped = new Map<string, EnhancedVariant[]>()
         const revisionLookup = new Map<string, EnhancedVariant>()
-        appVariantRevisions.forEach((rev) => {
+        serverAppVariantRevisions.forEach((rev) => {
             if (!rev?.variantId) return
             const key = rev.variantId
             const existing = grouped.get(key) ?? []
@@ -210,7 +291,7 @@ const EvaluatorVariantModal = ({
 
         grouped.forEach((revisions, variantId) => {
             const sorted = [...revisions].sort(
-                (a, b) => (b.updatedAtTimestamp ?? 0) - (a.updatedAtTimestamp ?? 0),
+                (a, b) => (b.createdAtTimestamp ?? 0) - (a.createdAtTimestamp ?? 0),
             )
             const baseRevision = sorted[0] ?? revisions[0]
             if (!baseRevision) return
@@ -225,10 +306,25 @@ const EvaluatorVariantModal = ({
                 }
             })
 
-            latest.push(baseRevision)
+            const variantCreatedAtTimestamp = variantCreatedAtById.get(variantId) ?? 0
+            const variantUpdatedAtTimestamp = variantUpdatedAtById.get(variantId) ?? 0
+            const latestRevisionCreatedAtTimestamp = Number(sorted[0]?.createdAtTimestamp ?? 0)
+            latest.push({
+                ...baseRevision,
+                // Variant table semantics:
+                // - createdAt = variant artifact creation
+                // - updatedAt = latest revision creation
+                createdAtTimestamp:
+                    variantCreatedAtTimestamp || Number(baseRevision.createdAtTimestamp ?? 0),
+                updatedAtTimestamp:
+                    latestRevisionCreatedAtTimestamp ||
+                    variantUpdatedAtTimestamp ||
+                    Number(baseRevision.updatedAtTimestamp ?? 0) ||
+                    Number(baseRevision.createdAtTimestamp ?? 0),
+            })
         })
 
-        latest.sort((a, b) => (b.updatedAtTimestamp ?? 0) - (a.updatedAtTimestamp ?? 0))
+        latest.sort((a, b) => (b.createdAtTimestamp ?? 0) - (a.createdAtTimestamp ?? 0))
 
         return {
             latestRevisions: latest,
@@ -236,7 +332,7 @@ const EvaluatorVariantModal = ({
             revisionById: revisionLookup,
             variantById: variantMap,
         }
-    }, [appVariantRevisions, selectedAppId])
+    }, [serverAppVariantRevisions, selectedAppId, variantCreatedAtById, variantUpdatedAtById])
 
     useEffect(() => {
         if (!selectedRowKeys.length) return
@@ -406,11 +502,16 @@ const EvaluatorVariantModal = ({
         onMetaChange: (id: string, meta: VariantDiagnostics) => void
     }) => {
         const revisionId = record?.id ? String(record.id) : ""
-        const stableVariablesAtom = useMemo(
-            () => stablePromptVariablesAtomFamily(revisionId || ""),
-            [revisionId],
+        const inputPorts = useAtomValue(
+            useMemo(
+                () => legacyAppRevisionMolecule.atoms.inputPorts(revisionId || ""),
+                [revisionId],
+            ),
+        ) as any[]
+        const variables = useMemo(
+            () => (inputPorts || []).map((p: any) => p.key) as string[],
+            [inputPorts],
         )
-        const variables = useAtomValue(stableVariablesAtom) as string[]
 
         const expectedVariables = useMemo(
             () =>
@@ -501,6 +602,7 @@ const EvaluatorVariantModal = ({
                     onRowClick={() => {}}
                     rowKey={"id"}
                     showStableName
+                    showUpdatedOn
                     showActionsDropdown={false}
                     rowClassName={(record) =>
                         clsx(

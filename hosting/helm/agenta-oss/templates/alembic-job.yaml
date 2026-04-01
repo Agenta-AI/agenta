@@ -1,0 +1,83 @@
+{{- if .Values.alembic.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "agenta.fullname" . }}-alembic
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: alembic
+  annotations:
+    # post-install/post-upgrade (not pre-) is intentional: pre-install hooks
+    # run before any release resources are created, so the PostgreSQL
+    # StatefulSet would not exist yet and the migration job would deadlock
+    # waiting for the database.  The tradeoff is that application pods may
+    # briefly start against an unmigrated schema; their init-containers
+    # wait for PostgreSQL readiness but not for Alembic completion.  In
+    # practice this is acceptable because the migration job finishes within
+    # seconds and Kubernetes will restart any pods that fail their startup
+    # probes during that window.
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  activeDeadlineSeconds: {{ .Values.alembic.activeDeadlineSeconds }}
+  backoffLimit: {{ .Values.alembic.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.alembic.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "agenta.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: alembic
+    spec:
+      {{- include "agenta.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- with .Values.alembic.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      restartPolicy: Never
+      {{- if .Values.postgresql.enabled }}
+      initContainers:
+        {{- include "agenta.waitForPostgres" . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: alembic
+          image: {{ include "agenta.apiImage" . }}
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          {{- with .Values.alembic.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - sh
+            - -c
+            - {{ printf "python -m %s" (include "agenta.alembicRunnerModule" .) | quote }}
+          env:
+            {{- include "agenta.commonEnv" . | nindent 12 }}
+            - name: ALEMBIC_AUTO_MIGRATIONS
+              value: "true"
+            - name: ALEMBIC_CFG_PATH_CORE
+              value: {{ include "agenta.alembicCfgPathCore" . | quote }}
+            - name: ALEMBIC_CFG_PATH_TRACING
+              value: {{ include "agenta.alembicCfgPathTracing" . | quote }}
+            {{- range $key, $val := .Values.alembic.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+          {{- with .Values.alembic.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.alembic.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.alembic.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.alembic.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

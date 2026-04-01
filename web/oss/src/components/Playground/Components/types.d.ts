@@ -1,6 +1,6 @@
 import {HTMLProps} from "react"
 
-import {EnhancedVariant} from "../../../lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "../../../lib/shared/variant/types"
 
 /**
  * Base interface for components that render as HTML containers

@@ -277,6 +277,8 @@ export const SYSTEM_FIELDS = new Set([
     "key",
     "testset_id",
     "set_id",
+    "testset_variant_id",
+    "revision_id",
     "created_at",
     "updated_at",
     "deleted_at",
@@ -287,6 +289,8 @@ export const SYSTEM_FIELDS = new Set([
     "tags",
     "meta",
     "__isSkeleton",
+    "__isNew",
+    "__dedup_id__",
     "testcase_dedup_id",
 ])
 

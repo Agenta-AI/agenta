@@ -1,9 +1,8 @@
 import {HTMLProps, ReactNode, useMemo} from "react"
 
+import {formatEntityDateTime} from "@agenta/entities/shared"
 import {Table, Tag, Typography} from "antd"
 import type {ColumnsType} from "antd/es/table"
-
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 import type {NewEvaluationAppOption} from "../types"
 
@@ -60,7 +59,7 @@ const SelectAppSection = ({
                     const displayDate = value || record.updatedAt || ""
                     return displayDate ? (
                         <Typography.Text type="secondary">
-                            {formatDay({date: displayDate, outputFormat: "DD MMM YYYY | h:mm a"})}
+                            {formatEntityDateTime(displayDate)}
                         </Typography.Text>
                     ) : (
                         <Typography.Text type="secondary">—</Typography.Text>

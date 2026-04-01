@@ -1,0 +1,58 @@
+---
+title: "Testing"
+description: "What to run locally before you open a pull request"
+sidebar_position: 2
+---
+
+Run the checks that match the area you changed. Do not open a pull request without testing the part of the product you touched.
+
+## What To Record In The PR
+
+Your pull request should say:
+
+- what you verified locally
+- what tests you added or updated
+- what still needs QA
+
+## API Tests
+
+From `api/`, you can run the acceptance suite or a smaller target:
+
+```bash
+AGENTA_API_URL=http://localhost:10180/api AGENTA_AUTH_KEY=change-me-auth \
+  python -m pytest oss/tests/pytest/ -v
+```
+
+```bash
+python -m pytest oss/tests/pytest/acceptance/workflows/ -v
+```
+
+## SDK Tests
+
+From `sdk/`, run the relevant pytest targets:
+
+```bash
+AGENTA_API_URL=http://localhost:10180/api AGENTA_AUTH_KEY=change-me-auth \
+  poetry run pytest tests/pytest/ -v
+```
+
+```bash
+poetry run pytest oss/tests/pytest/unit/ -v
+```
+
+## Web Tests
+
+From `web/tests/`, run the relevant Playwright suite:
+
+```bash
+AGENTA_WEB_URL=http://localhost:10180 \
+TESTMAIL_NAMESPACE=<your-namespace> \
+TESTMAIL_API_KEY=<your-key> \
+  npx playwright test ../oss/tests/playwright/acceptance/smoke.spec.ts
+```
+
+Web tests may need Testmail credentials. Check [web/tests/README.md](https://github.com/Agenta-AI/agenta/blob/main/web/tests/README.md) if you need the full setup.
+
+## More Detail
+
+For the full testing reference, read [docs/designs/testing/README.md](https://github.com/Agenta-AI/agenta/blob/main/docs/designs/testing/README.md). That document covers the full test layout, filters, and runner details across the monorepo.

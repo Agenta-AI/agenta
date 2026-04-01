@@ -363,7 +363,7 @@ class TestAppCreationManagement:
             list_of_status_codes.append(response.status_code)
 
         # Assert: Verify the response
-        assert list_of_status_codes.count(expected_status) == 3, (
+        assert list_of_status_codes.count(expected_status) == len(credential_headers), (
             f"Failed for case: {description}"
         )
 

@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {invalidateEvaluatorsListCache} from "@agenta/entities/evaluator"
 import {message} from "@agenta/ui/app-message"
 import {Plus} from "@phosphor-icons/react"
 import {Alert, Button, Form, Input, Typography} from "antd"
@@ -214,6 +215,7 @@ const CreateEvaluator = ({
 
                     await updateEvaluator(evaluator.id, payload)
                     await mutate()
+                    invalidateEvaluatorsListCache()
                     message.success("Evaluator updated successfully")
                     await onSuccess?.(payload.evaluator.slug)
                     return
@@ -221,6 +223,7 @@ const CreateEvaluator = ({
 
                 await createEvaluator(payloadData)
                 await mutate()
+                invalidateEvaluatorsListCache()
 
                 message.success("Evaluator created successfully")
                 recordWidgetEvent("evaluator_created")

@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {PageLayout} from "@agenta/ui"
 import {message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -35,8 +36,6 @@ import {useTemplates, useAppsData} from "@/oss/state/app"
 import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreation/status"
 import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
-
-import PageLayout from "../../PageLayout/PageLayout"
 
 import {getAppTypeIcon} from "./assets/iconHelpers"
 import {FolderTreeItem, slugify} from "./assets/utils"
@@ -113,8 +112,12 @@ const PromptsPage = () => {
         data: foldersData,
         isLoading: isLoadingFolders,
         mutate,
-    } = useSWR(projectId ? ["folders", projectId] : null, () =>
-        queryFolders({folder: {}}, projectId),
+    } = useSWR(
+        projectId ? ["folders", projectId] : null,
+        () => queryFolders({folder: {}}, projectId),
+        {
+            revalidateOnFocus: false,
+        },
     )
 
     const {

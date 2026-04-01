@@ -34,7 +34,7 @@ const EvaluatorMetrics = memo(({evaluator}: {evaluator: EvaluatorDto<"response">
         <div className="flex flex-wrap gap-2">
             {Object.entries(metrics).map(([key, value]) => {
                 return (
-                    <Tag bordered={false} key={key}>
+                    <Tag variant="filled" key={key}>
                         {key}
                     </Tag>
                 )

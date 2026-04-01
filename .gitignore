@@ -50,16 +50,13 @@ web/ee/public/__env.js
 web/oss/public/__env.js
 
 web/tests/results
+web/tests/reports
 web/oss/tests/results
 web/ee/tests/results
-api/tests/results/
 api/oss/tests/results/
 api/ee/tests/results/
-sdk/tests/results/
-tests/results/
 sdk/oss/tests/results/
 sdk/ee/tests/results/
-services/tests/results/
 services/oss/tests/results/
 services/ee/tests/results/
 .*
@@ -73,6 +70,9 @@ services/ee/tests/results/
 # Temporary SDK symlinks created by run.sh --local
 api/sdk
 services/sdk
+
+# Helm chart packages (built artifacts)
+agenta-oss-*.tgz
 
 # IDE/LSP config (local tooling)
 pyrightconfig.json
