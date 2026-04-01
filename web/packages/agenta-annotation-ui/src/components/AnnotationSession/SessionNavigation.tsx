@@ -96,12 +96,22 @@ const SessionNavigation = ({scenarioId, queueId, onCompleted}: SessionNavigation
 
     const handleMarkComplete = useCallback(async () => {
         try {
-            await submitAnnotations({scenarioId, queueId, markComplete: true})
+            await submitAnnotations({
+                scenarioId,
+                queueId,
+                markComplete: !isCompleted,
+            })
+
+            if (isCompleted) {
+                message.success("Updated feedback")
+                return
+            }
+
             onCompleted?.(scenarioId)
         } catch (err) {
             message.error((err as Error).message || "Failed to submit annotations")
         }
-    }, [submitAnnotations, scenarioId, queueId, onCompleted])
+    }, [submitAnnotations, scenarioId, queueId, isCompleted, onCompleted])
 
     const handleViewTrace = useCallback(() => {
         if (traceRef.traceId && navigation.openTraceDetail) {
@@ -204,11 +214,11 @@ const SessionNavigation = ({scenarioId, queueId, onCompleted}: SessionNavigation
                     <Button
                         type="primary"
                         onClick={handleMarkComplete}
-                        disabled={isSubmitting || isCompleted || !hasFilledMetrics}
+                        disabled={isSubmitting || !hasFilledMetrics}
                         loading={isSubmitting}
                         className="w-[130px]"
                     >
-                        {isCompleted ? "Completed" : "Mark completed"}
+                        {isCompleted ? "Update" : "Mark completed"}
                     </Button>
                 </div>
             </div>

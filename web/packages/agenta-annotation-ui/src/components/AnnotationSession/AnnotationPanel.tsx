@@ -135,12 +135,22 @@ const AnnotationPanel = memo(function AnnotationPanel({
     const handleMarkComplete = useCallback(async () => {
         if (!queueId) return
         try {
-            await submitAnnotations({scenarioId, queueId, markComplete: true})
+            await submitAnnotations({
+                scenarioId,
+                queueId,
+                markComplete: !isCompleted,
+            })
+
+            if (isCompleted) {
+                message.success("Updated feedback")
+                return
+            }
+
             onCompleted?.(scenarioId)
         } catch (err) {
             message.error((err as Error).message || "Failed to submit annotations")
         }
-    }, [submitAnnotations, scenarioId, queueId, onCompleted])
+    }, [submitAnnotations, scenarioId, queueId, isCompleted, onCompleted])
 
     // Build collapse items from evaluators
     const evaluatorSlugs = useMemo(
@@ -193,13 +203,12 @@ const AnnotationPanel = memo(function AnnotationPanel({
                         <EvaluatorSection
                             slug={slug}
                             metricFields={metricFields}
-                            readOnly={isCompleted}
                             onFieldChange={handleFieldChange}
                         />
                     ),
                 }
             })
-    }, [evaluators, metrics, isCompleted, handleFieldChange])
+    }, [evaluators, metrics, handleFieldChange])
 
     const panelHeader = (
         <div className="flex items-center justify-between px-3 py-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
@@ -304,10 +313,10 @@ const AnnotationPanel = memo(function AnnotationPanel({
                         type="primary"
                         block
                         onClick={handleMarkComplete}
-                        disabled={isSubmitting || isCompleted || !hasFilledMetrics}
+                        disabled={isSubmitting || !hasFilledMetrics}
                         loading={isSubmitting}
                     >
-                        {isCompleted ? "Completed" : "Mark completed"}
+                        {isCompleted ? "Update" : "Mark completed"}
                     </Button>
                 </div>
             )}

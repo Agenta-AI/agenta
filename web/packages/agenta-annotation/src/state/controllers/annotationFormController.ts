@@ -1248,11 +1248,13 @@ function fireMetricUpserts({
 // SUBMIT ATOM
 // ============================================================================
 
-/** Submit annotations and optionally mark scenario complete */
+/** Submit annotations and optionally mark a not-yet-completed scenario complete */
 const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotationsPayload) => {
     const {scenarioId, queueId, markComplete} = payload
     const rawProjectId = get(projectIdAtom)
     const traceSpan = get(traceSpanByScenarioAtomFamily(scenarioId))
+    const scenarioStatuses = get(annotationSessionController.selectors.scenarioStatuses())
+    const shouldMarkComplete = markComplete && scenarioStatuses[scenarioId] !== "success"
 
     const isTestcaseMode = !!traceSpan.testcaseId && !traceSpan.traceId
     if (!rawProjectId || (!traceSpan.traceId && !traceSpan.testcaseId)) {
@@ -1328,10 +1330,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
             }
 
             const existingAnn = existingBySlug.get(slug)
-            const linksKey = invocationStepKey || "invocation"
-
             if (existingAnn) {
-                let updatedLinks = existingAnn.links
                 const updatedTags = isTestcaseMode
                     ? mergeTestcaseAnnotationTags({
                           queueId,
@@ -1339,26 +1338,6 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                           outputKeys: Object.keys(outputs),
                       })
                     : existingAnn.meta?.tags
-
-                if (!isTestcaseMode) {
-                    if (!resolvedSpanId) {
-                        resolvedSpanId = await resolveTraceLinkSpanId({
-                            projectId,
-                            traceId,
-                            spanId,
-                        })
-                    }
-
-                    updatedLinks = resolvedSpanId
-                        ? {
-                              ...(existingAnn.links ?? {}),
-                              [linksKey]: {
-                                  trace_id: traceId,
-                                  span_id: resolvedSpanId,
-                              },
-                          }
-                        : existingAnn.links
-                }
 
                 promises.push(
                     updateAnnotation(projectId, existingAnn.trace_id, existingAnn.span_id, {
@@ -1377,11 +1356,53 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                                         tags: updatedTags,
                                     }
                                   : undefined,
-                            links: updatedLinks,
+                            references: existingAnn.references
+                                ? {
+                                      evaluator: {
+                                          id: existingAnn.references.evaluator?.id,
+                                          slug: existingAnn.references.evaluator?.slug,
+                                      },
+                                      ...(existingAnn.references.evaluator_revision
+                                          ? {
+                                                evaluator_revision: {
+                                                    id: existingAnn.references.evaluator_revision
+                                                        .id,
+                                                    slug: existingAnn.references.evaluator_revision
+                                                        .slug,
+                                                },
+                                            }
+                                          : {}),
+                                      ...(existingAnn.references.evaluator_variant
+                                          ? {
+                                                evaluator_variant: {
+                                                    id: existingAnn.references.evaluator_variant.id,
+                                                    slug: existingAnn.references.evaluator_variant
+                                                        .slug,
+                                                },
+                                            }
+                                          : {}),
+                                      ...(existingAnn.references.testset
+                                          ? {
+                                                testset: {
+                                                    id: existingAnn.references.testset.id,
+                                                },
+                                            }
+                                          : {}),
+                                      ...(existingAnn.references.testcase
+                                          ? {
+                                                testcase: {
+                                                    id: existingAnn.references.testcase.id,
+                                                },
+                                            }
+                                          : {}),
+                                  }
+                                : undefined,
+                            links: existingAnn.links,
                         },
                     }),
                 )
             } else {
+                const linksKey = invocationStepKey || "invocation"
                 const evalWorkflowId =
                     workflowIdBySlug.get(slug) ?? evaluator.workflow_id ?? evaluator.id
                 const stepRefs = stepRefsByEvalId.get(evalWorkflowId)
@@ -1461,8 +1482,8 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
 
         const responses = await Promise.all(promises)
 
-        // Phase 5: Mark completed + advance (don't block on post-submit ops)
-        if (markComplete && scenarioId) {
+        // Phase 5: First-time completion only (don't block on post-submit ops)
+        if (shouldMarkComplete && scenarioId) {
             annotationSessionController.set.markCompleted(scenarioId)
             if (get(annotationSessionController.selectors.focusAutoNext())) {
                 annotationSessionController.set.navigateNext()
