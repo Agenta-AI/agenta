@@ -1,7 +1,7 @@
 # Gap Analysis: Migrations — Active Migration Backlog
 
-> Status: active migration backlog
-> Date: 2026-03-31
+> Status: resolved — see status table below
+> Date: 2026-04-01
 > Companion: [gap-analysis.md](./gap-analysis.md), [gap.catalog.md](./gap.catalog.md), [plan.md](./plan.md)
 
 This document tracks migration work that remains in scope for the runnables rollout.
@@ -14,9 +14,26 @@ It is intentionally narrower than [gap.GMigrations.md](./gap.GMigrations.md), wh
 - No backward-compatibility shim is assumed by default.
 - If a break later proves to be a real bug in a concrete consumer, reopen it as a scoped bug in the relevant workstream instead of restoring broad compatibility blindly.
 
-## Active Migration Scope
+## Resolution Status (as of 2026-04-01)
+
+Full item-level status is tracked in [gap.GMigrations.md — Resolution Status](./gap.GMigrations.md#resolution-status-as-of-2026-04-01).
+
+Summary:
+
+- **DB migrations (M1, M3a, M3b, M3e):** DONE — Alembic migration `c2d3e4f5a6b7` handles URI backfills, flag normalization, legacy field stripping, and script flattening.
+- **Flag derivation (M2a, M2c, M2e):** DONE — flags are inferred at commit time, not stored.
+- **Flag rework (M2b, M2d):** WONTFIX — `is_human` stays; no `aggregate` param (implicit rule).
+- **API responses (M4a, M4b):** DONE — derived flags in revision DTOs.
+- **API filters (M4c):** WONTFIX — no `is_runnable` concept needed.
+- **Frontend (M5a, M5b, M5c):** TODO — legacy `/openapi.json` schema extraction path to be removed with frontend rework.
+- **Frontend (M5d):** WONTFIX — N/A.
+- **Legacy adapter/serving (M6a, M6b):** DONE.
+
+## Archived Migration Scope
 
 ### M1. Frontend and Consumer Alignment for Removed Runnable Fields
+
+> Status: deferred to catalog integration work
 
 **What:** Some API payload fields were intentionally removed or renamed in the runnable/catalog surface. That migration work now belongs to the consumer-alignment backlog rather than to the current branch findings list.
 
@@ -35,6 +52,8 @@ It is intentionally narrower than [gap.GMigrations.md](./gap.GMigrations.md), wh
 **Migration type:** Frontend / generated-type / consumer alignment
 
 ### M2. Database and Stored-Payload Migration Follow-Ups
+
+> Status: DONE — Alembic migration `c2d3e4f5a6b7`
 
 **What:** Runnable rollout still has explicit DB and stored-payload migration work that should be tracked as migration scope rather than as active code-review findings on every branch.
 

@@ -137,7 +137,7 @@ The heuristic fallback is fragile: any workflow with a `messages` input is class
 **1. SDK — URI-based** (`sdk/agenta/sdk/engines/running/utils.py:320-326`):
 
 ```python
-def is_custom_uri(uri):
+def is_user_custom_uri(uri):
     provider, kind, key, version = parse_uri(uri)
     return provider == "user" and kind == "custom"
 ```
@@ -174,7 +174,7 @@ The request serialization behavior (flat inputs vs `inputs`-wrapped) is the bigg
 
 ### Action
 
-- [ ] Derive `is_custom` from URI: `is_custom_uri(uri)` already exists in the SDK — use it at read time, stop storing it
+- [ ] Derive `is_custom` from URI: `is_user_custom_uri(uri)` already exists in the SDK — use it at read time, stop storing it
 - [ ] Separate request format from `is_custom`: wire format (flat vs wrapped inputs) should be driven by the interface schema
 - [ ] Separate caching/refresh policy from `is_custom`: key on whether the workflow has a remote `url`
 - [ ] Clean up `AnnotationOrigin` derivation to not depend on `is_custom` (see G16)
@@ -251,14 +251,14 @@ Both `is_custom` and `is_human` encode information that can be derived from the 
 ### Derivation Rules
 
 ```
-is_custom   ← is_custom_uri(uri)                              # URI family user:custom:*
+is_custom   ← is_user_custom_uri(uri)                              # URI family user:custom:*
 is_runnable ← agenta:* URI                         → true    # platform guarantees handlers
               user:* AND (has handler OR has url)  → true    # user code, engine present
               user:* AND no handler AND no url     → false   # user identity, no engine
               no URI                               → false   # legacy, backfill needed
 ```
 
-`is_custom_uri()` already exists in `sdk/agenta/sdk/engines/running/utils.py:320-326`. The derivation is available — it just isn't used at the DTO/API layer.
+`is_user_custom_uri()` already exists in `sdk/agenta/sdk/engines/running/utils.py:320-326`. The derivation is available — it just isn't used at the DTO/API layer.
 
 ### URI Key Alignment for `user:custom`
 
@@ -291,8 +291,8 @@ else AnnotationOrigin.AUTO
 Target (key off URI + runnability):
 
 ```python
-AnnotationOrigin.AUTO    if is_runnable and not is_custom_uri(uri)  # builtin, agenta-managed
-AnnotationOrigin.CUSTOM  if is_runnable and is_custom_uri(uri)      # user-deployed code
+AnnotationOrigin.AUTO    if is_runnable and not is_user_custom_uri(uri)  # builtin, agenta-managed
+AnnotationOrigin.CUSTOM  if is_runnable and is_user_custom_uri(uri)      # user-deployed code
 AnnotationOrigin.HUMAN   if not is_runnable                         # no engine, external annotation
 ```
 

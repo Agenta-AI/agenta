@@ -239,7 +239,7 @@ Non-runnable workflows with URIs are still useful:
 
 | Property | Derivation |
 |----------|-----------|
-| `is_custom` | `is_custom_uri(uri)` — `provider == "user" and kind == "custom"` |
+| `is_custom` | `is_user_custom_uri(uri)` — `provider == "user" and kind == "custom"` |
 | `is_builtin` | URI starts with `agenta:` |
 | `is_runnable` | `agenta:*` URI → always true. `user:*` URI → true if has handler or URL. No URI → false during migration, then eliminated by backfill. |
 | `has_interface` | `schemas is not None` (has input/output definitions) |
@@ -316,7 +316,7 @@ For builtins, the third URI field remains the builtin handler/catalog key, and t
 ### 6c. Stop Storing `is_custom` and `is_human` as Flags
 
 Both are derivable:
-- `is_custom` → `is_custom_uri(uri)` (already exists)
+- `is_custom` → `is_user_custom_uri(uri)` (already exists)
 - `is_human`-style classification → derive from the Agenta custom annotation URI family during this migration
 
 **Migration path:**

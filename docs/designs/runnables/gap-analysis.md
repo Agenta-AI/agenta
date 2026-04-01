@@ -419,7 +419,7 @@ Discovery for existing local revisions should still prefer persisted revision/qu
 
 1. **SDK — URI-based detection** (`sdk/agenta/sdk/workflows/utils.py:320-326`):
    ```python
-   def is_custom_uri(uri):
+   def is_user_custom_uri(uri):
        provider, kind, key, version = parse_uri(uri)
        return provider == "user" and kind == "custom"
    ```
@@ -570,7 +570,7 @@ no URI        → legacy / unresolved (current no-URI state is a bug to backfill
 `agenta:*` URIs are always runnable because the platform ships and registers their handlers. `user:*` URIs need a deployed engine — either a handler loaded in the SDK process or a reachable URL. No URI is currently a bug (human evaluators should have URIs but don't); in this design set it is a legacy state to backfill, not a target contract shape.
 
 The primary derivation:
-- **`is_custom`** → `is_custom_uri(uri)` — already exists in SDK (`sdk/agenta/sdk/workflows/utils.py:320`)
+- **`is_custom`** → `is_user_custom_uri(uri)` — already exists in SDK (`sdk/agenta/sdk/workflows/utils.py:320`)
 - **`is_runnable`** → `agenta:*` → always true; `user:*` → has handler OR has url; no URI → false
 
 ### G16b. `user:custom` URI Key = Variant Slug, Version = Revision Version
@@ -590,7 +590,7 @@ See [taxonomy.md](./taxonomy.md) for full details.
 ### G16c. What Needs to Change
 
 1. **Give all workflows URIs** — including human evaluators (default: `agenta:builtin:human:v0`, user-created: `user:custom:{variant_slug}:v{N}`)
-2. **`is_custom`** → derive from `is_custom_uri(uri)` (already exists)
+2. **`is_custom`** → derive from `is_user_custom_uri(uri)` (already exists)
 3. **`is_human`** → derive from `not is_runnable` (no handler AND no url) — NOT from URI absence
 4. **Align backend-defined `user:custom` URI key with variant slug**, version with revision version
 5. **Remove stored `is_custom`/`is_human` flags** — compute at read time

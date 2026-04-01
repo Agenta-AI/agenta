@@ -329,7 +329,7 @@ Client -> API (resolve variant -> deployment URL) -> SDK HTTP Service (/run or /
 
 | Flag | Defined In | Set By | Exposed Via |
 |------|-----------|--------|-------------|
-| `is_custom` | `WorkflowFlags` | SDK auto-detection (`is_custom_uri`) + `WorkflowDBE.is_custom` | Persisted in DB |
+| `is_custom` | `WorkflowFlags` | SDK auto-detection (`is_user_custom_uri`) + `WorkflowDBE.is_custom` | Persisted in DB |
 | `is_evaluator` | `WorkflowFlags` | `@ag.evaluator()` sets True, `@ag.application()` sets False | OpenAPI `x-agenta.flags`, `inspect()` |
 | `is_human` | `WorkflowFlags` | Not set anywhere currently | — |
 | `is_chat` | `WorkflowFlags` | `@ag.route(flags={"is_chat": True})` or auto-detect from `MessagesInput` | OpenAPI `x-agenta.flags`, `inspect()` |

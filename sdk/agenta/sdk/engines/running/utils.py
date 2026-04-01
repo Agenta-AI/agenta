@@ -477,7 +477,7 @@ def retrieve_configuration(uri: Optional[str] = None) -> Optional[dict]:
     return _get_with_latest(CONFIGURATION_REGISTRY, provider, kind, key, version)
 
 
-def is_custom_uri(uri: Optional[str] = None) -> bool:
+def is_user_custom_uri(uri: Optional[str] = None) -> bool:
     if not uri:
         return True
 

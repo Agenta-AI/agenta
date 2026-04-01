@@ -113,7 +113,7 @@ Use this checklist for every intentional contract break until the migration back
 - Frontend: infers `is_custom` from schema shape (fragile)
 
 **Target state:**
-- `is_custom` computed: `is_custom_uri(uri)` — already exists at `sdk/agenta/sdk/engines/running/utils.py:320-326`
+- `is_custom` computed: `is_user_custom_uri(uri)` — already exists at `sdk/agenta/sdk/engines/running/utils.py:320-326`
 - API DTO exposes `is_custom` as a computed/read-only property on `WorkflowFlags`
 - SDK stops writing `is_custom` into stored flags
 - Frontend reads `is_custom` from API response, not from schema inference
@@ -351,8 +351,8 @@ WHERE json_typeof(data->'script') = 'object'
 
 **Target state:**
   ```python
-  AnnotationOrigin.AUTO    if is_runnable and not is_custom_uri(uri)
-  AnnotationOrigin.CUSTOM  if is_runnable and is_custom_uri(uri)
+  AnnotationOrigin.AUTO    if is_runnable and not is_user_custom_uri(uri)
+  AnnotationOrigin.CUSTOM  if is_runnable and is_user_custom_uri(uri)
   AnnotationOrigin.HUMAN   if not is_runnable
   ```
 
@@ -533,27 +533,28 @@ M5a (frontend endpoint migration)
 
 ---
 
-## Priority Matrix
+## Resolution Status (as of 2026-04-01)
 
-| Migration | Category | Severity | Effort | Blocks | Priority |
-|-----------|----------|----------|--------|--------|----------|
-| M1a — Human evaluator URI backfill | URI | High | Small | M2b, M3d, M4b | 1 — foundational |
-| M1b — user:custom URI alignment | URI | Medium | Small | M2a | 1 — foundational |
-| M2a — is_custom derived | Flag | High | Small | M4a, M5c | 2 — depends on M1 |
-| M2b — is_human → is_runnable | Flag | Medium | Small | M4b, M4c | 2 — depends on M1a |
-| M3a — service/configuration → schemas/parameters | Data | Medium | Medium | M3c | 2 — data normalization |
-| M3b — script object → flat script + runtime | Data | High | Small | — | 2 — model/DB sync |
-| M3d — human evaluator default data shape | Data | Low | Small | — | 3 — cleanup |
-| M3e — AppType → URI mapping | Data | Medium | Medium | M6a | 3 — depends on M1 |
-| M4a — derived flags in API responses | API | High | Medium | M5b, M5c, M5d | 3 — depends on M2 |
-| M4b — AnnotationOrigin re-derivation | API | Medium | Small | — | 3 — depends on M2 |
-| M4c — is_runnable query filter | API | Low | Small | — | 4 — depends on M4a |
-| M5b — frontend flag source | Frontend | High | Medium | M5c, M5d | 4 — depends on M4a |
-| M5a — frontend endpoint URLs | Frontend | High | Large | M6b | 4 — depends on G12 |
-| M5c — request format from schema | Frontend | Medium | Medium | — | 5 — depends on M5b |
-| M5d — cache policy from URL | Frontend | Low | Small | — | 5 — depends on M5b |
-| M2c — annotate param removal | Flag | Low | Small | — | 5 — depends on G4/G9 |
-| M2d — aggregate wired to Accept | Flag | Medium | Medium | — | 5 — depends on G5 |
-| M2e — can_* prevention | Design | High | None | — | ongoing constraint |
-| M6a — legacy adapter removal | Adapter | Medium | Medium | — | 6 — after M3e |
-| M6b — legacy serving deprecation | Serving | High | Small | — | 6 — after M5a |
+| Migration | Status | Resolution |
+|-----------|--------|------------|
+| M1a — Human evaluator URI backfill | **DONE** | Alembic migration `c2d3e4f5a6b7` (rows 6, 7 → `agenta:custom:feedback:v0`) |
+| M1b — user:custom URI alignment | **DONE** | Alembic migration `c2d3e4f5a6b7` (row 14 — normalize existing `user:custom:*`) |
+| M2a — is_custom derived | **DONE** | `is_custom` inferred by `infer_flags_from_data()`, not stored. `is_user_custom_uri()` renamed. |
+| M2b — is_human → is_runnable | **WONTFIX** | `is_human` stays as-is. No `is_runnable` concept needed — runnability is implicit from URI + handler presence. |
+| M2c — annotate param removal | **DONE** | Not in `@workflow` decorator signature. |
+| M2d — aggregate wired to Accept | **WONTFIX** | No `aggregate` param — implicit aggregate rule by design. |
+| M2e — can_* prevention | **DONE** | Zero `can_*` flags in codebase. Ongoing design constraint. |
+| M3a — service/configuration → schemas/parameters | **DONE** | Model uses `schemas`/`parameters`. Alembic migration strips legacy keys. |
+| M3b — script object → flat script + runtime | **DONE** | Model has flat `script`/`runtime`. Alembic migration flattens dict form. |
+| M3c — inputs/outputs normalization | **DONE** | `JsonSchemas` has flat `inputs`/`outputs`. Schema inference in commit path. |
+| M3d — human evaluator default data shape | **DONE** | `defaults.py` uses modern shape with `uri` + `schemas.parameters`. |
+| M3e — AppType → URI mapping | **DONE** | Inline in one-time migration script only. No active `legacy_adapter.py`. |
+| M4a — derived flags in API responses | **DONE** | `WorkflowFlags` includes all derived flags in revision DTOs. |
+| M4b — AnnotationOrigin re-derivation | **DONE** | Uses inferred `is_custom`/`is_human` flags (no longer stored). |
+| M4c — is_runnable query filter | **WONTFIX** | No `is_runnable` concept (see M2b). |
+| M5a — frontend endpoint URLs | **TODO** | Legacy `/openapi.json` schema extraction path to be removed with frontend rework. |
+| M5b — frontend flag source | **TODO** | `schemaUtils.ts` still reads `x-agenta.flags` — dead code once openapi path removed. |
+| M5c — request format from schema | **TODO** | `transformToRequestBody` still uses `isCustom` — dead code once openapi path removed. |
+| M5d — cache policy from URL | **WONTFIX** | Not keyed on `is_custom` today. N/A. |
+| M6a — legacy adapter removal | **DONE** | No `legacy_adapter.py` file exists. |
+| M6b — legacy serving deprecation | **DONE** | Legacy endpoints not mounted in `routers.py`. |
