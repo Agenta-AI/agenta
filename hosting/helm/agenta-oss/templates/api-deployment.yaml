@@ -38,7 +38,7 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           command:
-            {{- if eq (include "agenta.edition" .) "oss" }}
+            {{- if .Values.observability.newRelic.licenseKey }}
             - newrelic-admin
             - run-program
             {{- end }}
