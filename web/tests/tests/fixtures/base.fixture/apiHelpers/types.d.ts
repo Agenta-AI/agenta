@@ -23,11 +23,24 @@ export interface ApiHandlerOptions<T> {
     responseHandler?: (data: T) => Promise<void> | void
 }
 
+export interface CreateTestsetInput {
+    name: string
+    rows: Array<Record<string, unknown>>
+    description?: string
+}
+
+export interface CreatedTestset {
+    id: string
+    name: string
+    revisionId?: string
+}
+
 export interface ApiHelpers {
     waitForApiResponse: <T>(options: ApiHandlerOptions<T>) => Promise<T>
     getApp: (type?: APP_TYPE) => Promise<ListAppsItem>
     getAppById: (appId: string) => Promise<ListAppsItem>
     getTestsets: () => Promise<testset[]>
+    createTestset: (input: CreateTestsetInput) => Promise<CreatedTestset>
     getVariants: (appId: string) => Promise<ApiVariant[]>
     getEvaluationRuns: () => Promise<any[]>
     getProjectScopedBasePath: () => string

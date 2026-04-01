@@ -33,7 +33,7 @@ export enum Role {
 }
 export type RunAutoEvalFixtureType = {
     evaluators: string[]
-    testset?: string
+    testset: string
     variants: string[]
 }
 

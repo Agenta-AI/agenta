@@ -39,7 +39,18 @@ const testWithEvaluationFixtures = baseTest.extend<EvaluationFixtures>({
                 await tab.click()
             }
 
-            // 2. Select Testset
+            // 2. Select Variant(s)
+            await goToStep("Variant")
+            const variantRow = page.getByRole("row").filter({
+                has: page
+                    .locator("td", {hasText: variants[0]})
+                    .locator(".ant-tag", {hasText: "v1"}),
+            })
+
+            await expect(variantRow).toBeVisible()
+            await variantRow.getByRole("checkbox").click()
+
+            // 3. Select Testset
             const selectedTestset = testset
 
             await goToStep("Test set")
@@ -53,17 +64,6 @@ const testWithEvaluationFixtures = baseTest.extend<EvaluationFixtures>({
                     .locator(".ant-tabs-tab", {hasText: "Test set"})
                     .locator(".ant-tag", {hasText: selectedTestset}),
             ).toBeVisible()
-
-            // 3. Select Variant(s)
-            await goToStep("Variant")
-            const variantRow = page.getByRole("row").filter({
-                has: page
-                    .locator("td", {hasText: variants[0]})
-                    .locator(".ant-tag", {hasText: "v1"}),
-            })
-
-            await expect(variantRow).toBeVisible()
-            await variantRow.getByRole("radio").check()
 
             // 4. Select Evaluator(s)
             await goToStep("Evaluator")

@@ -30,10 +30,27 @@ const testAutoEval = () => {
 
             // 2. Navigate to evaluation
             await navigateToEvaluation(appId)
+            const testset = await apiHelpers.createTestset({
+                name: `e2e auto eval completion ${Date.now()}`,
+                rows: [
+                    {
+                        input: "Say hello",
+                        correct_answer: "Hello",
+                    },
+                    {
+                        input: "Say goodbye",
+                        correct_answer: "Goodbye",
+                    },
+                ],
+            })
+
+            console.log("Testset created:", testset.name)
+            console.log("Variant name:", variantName)
 
             // 4. Run auto evaluation
             await runAutoEvaluation({
                 evaluators: ["Exact Match"],
+                testset: testset.name,
                 variants: [variantName],
             })
 
@@ -73,10 +90,20 @@ const testAutoEval = () => {
 
             // 2. Navigate to evaluation
             await navigateToEvaluation(appId)
+            const mismatchedTestset = await apiHelpers.createTestset({
+                name: `e2e auto eval mismatched ${Date.now()}`,
+                rows: [
+                    {
+                        input: "Say hello",
+                        correct_answer: "Hello",
+                    },
+                ],
+            })
 
             // 4. Run auto evaluation
             await runAutoEvaluation({
                 evaluators: ["Exact Match"],
+                testset: mismatchedTestset.name,
                 variants: [variantName],
             })
 

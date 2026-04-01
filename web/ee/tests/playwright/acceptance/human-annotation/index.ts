@@ -5,6 +5,12 @@ import {
     TestPath,
     TestScope,
 } from "@agenta/web-tests/playwright/config/testTags"
+import {getProjectScopedBasePath} from "tests/tests/fixtures/base.fixture/apiHelpers"
+
+const getRequiredVariantName = (name: string | null | undefined) => {
+    expect(name).toBeTruthy()
+    return name as string
+}
 
 const humanAnnotationTests = () => {
     baseHumanTest(
@@ -23,12 +29,18 @@ const humanAnnotationTests = () => {
             const appId = app.id
 
             const variants = await apiHelpers.getVariants(appId)
-            const variantName = variants[0].name || variants[0].variant_name
+            const variantName = getRequiredVariantName(variants[0]?.name)
 
             await navigateToHumanEvaluation(appId)
 
+            const mismatchedTestset = await apiHelpers.createTestset({
+                name: `e2e human eval mismatched ${Date.now()}`,
+                rows: [{input: "Say hello"}],
+            })
+
             await createHumanEvaluationRun({
                 variants: variantName,
+                testset: mismatchedTestset.name,
                 name: `e2e-human-${Date.now()}`,
             })
 
@@ -56,19 +68,29 @@ const humanAnnotationTests = () => {
             const appId = app.id
 
             const variants = await apiHelpers.getVariants(appId)
-            const variantName = variants[0].name || variants[0].variant_name
+            const variantName = getRequiredVariantName(variants[0]?.name)
 
             await navigateToHumanEvaluation(appId)
 
+            const testset = await apiHelpers.createTestset({
+                name: `e2e human eval completion ${Date.now()}`,
+                rows: [{input: "Say hello"}, {input: "Say goodbye"}, {input: "Tell me a joke"}],
+            })
+
             await createHumanEvaluationRun({
                 variants: variantName,
+                testset: testset.name,
                 name: `e2e-human-${Date.now()}`,
                 skipEvaluatorCreation: true,
             })
 
             await expect(page.locator(".ant-modal").first()).toHaveCount(0)
 
-            await expect(page).toHaveURL(/single_model_test\/.*scenarioId=.*/)
+            await expect
+                .poll(() => new URL(page.url()).pathname)
+                .toContain(`${getProjectScopedBasePath(page)}/apps/${appId}/evaluations/results/`)
+            await expect.poll(() => new URL(page.url()).searchParams.get("type")).toBe("human")
+            await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("focus")
         },
     )
 
@@ -91,7 +113,7 @@ const humanAnnotationTests = () => {
             runScenarioFromFocusView,
         }) => {
             const app = await apiHelpers.getApp()
-            const appId = app.app_id
+            const appId = app.id
 
             await navigateToHumanAnnotationRun(appId)
 
@@ -140,10 +162,9 @@ const humanAnnotationTests = () => {
             page,
             switchToTableView,
             annotateFromFocusView,
-            annotateFromTableView,
         }) => {
             const app = await apiHelpers.getApp()
-            const appId = app.app_id
+            const appId = app.id
 
             await navigateToHumanAnnotationRun(appId)
 
@@ -169,7 +190,7 @@ const humanAnnotationTests = () => {
         },
         async ({apiHelpers, navigateToHumanAnnotationRun, navigateBetweenScenarios}) => {
             const app = await apiHelpers.getApp()
-            const appId = app.app_id
+            const appId = app.id
 
             await navigateToHumanAnnotationRun(appId)
 

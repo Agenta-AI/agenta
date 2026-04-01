@@ -1,4 +1,4 @@
-import {expect, Page} from "@playwright/test"
+import {expect, Page, Response} from "@playwright/test"
 import {existsSync, readFileSync} from "fs"
 
 import {getProjectMetadataPath} from "../../../../playwright/config/runtime.ts"
@@ -39,7 +39,7 @@ interface ApiVariant {
     updated_at: string | null
 }
 import {EvaluationRun} from "../../../../../oss/src/lib/hooks/usePreviewEvaluations/types"
-import type {ApiHandlerOptions, ApiHelpers} from "./types"
+import type {ApiHandlerOptions, ApiHelpers, CreateTestsetInput, CreatedTestset} from "./types"
 
 const APP_TYPE_LABELS: Record<APP_TYPE, string> = {
     completion: "agenta:builtin:completion:v0",
@@ -52,6 +52,15 @@ const latestRevisionIdByAppId = new Map<string, string>()
 interface TestProjectMetadata {
     project_id?: string
     workspace_id?: string
+}
+
+interface SimpleTestsetApiResponse {
+    count: number
+    testset?: {
+        id?: string
+        name?: string
+        revision_id?: string
+    }
 }
 
 export const getKnownLatestRevisionId = (appId: string): string | null => {
@@ -99,6 +108,43 @@ export const getProjectScopedBasePath = (page: Page): string => {
     throw new Error(`Could not derive project scoped path from current URL: ${page.url()}`)
 }
 
+const getApiURL = (page: Page): string => {
+    if (process.env.AGENTA_API_URL) {
+        return process.env.AGENTA_API_URL
+    }
+
+    const currentUrl = page.url() || process.env.AGENTA_WEB_URL || "http://localhost:3000"
+    const parsed = new URL(currentUrl)
+    return `${parsed.origin}/api`
+}
+
+const getProjectId = (page: Page): string => {
+    const currentUrl = page.url()
+    if (currentUrl) {
+        const pathname = new URL(currentUrl).pathname
+        const match = pathname.match(/\/p\/([^/]+)/)
+        if (match?.[1]) {
+            return match[1]
+        }
+    }
+
+    const configuredUrl = process.env.AGENTA_WEB_URL
+    if (configuredUrl) {
+        const pathname = new URL(configuredUrl).pathname
+        const match = pathname.match(/\/p\/([^/]+)/)
+        if (match?.[1]) {
+            return match[1]
+        }
+    }
+
+    const testProject = readTestProjectMetadata()
+    if (testProject?.project_id) {
+        return testProject.project_id
+    }
+
+    throw new Error(`Could not derive project ID from current URL: ${page.url()}`)
+}
+
 export const waitForApiResponse = async <T>(page: Page, options: ApiHandlerOptions<T>) => {
     const {route, method = "POST", validateStatus = true, responseHandler} = options
 
@@ -130,6 +176,28 @@ export const waitForApiResponse = async <T>(page: Page, options: ApiHandlerOptio
     }
 
     return data
+}
+
+const waitForMatchingResponses = async (
+    page: Page,
+    predicate: (response: Response) => boolean,
+    count: number,
+) => {
+    return await new Promise<Response[]>((resolve) => {
+        const matches: Response[] = []
+
+        const handleResponse = (response: Response) => {
+            if (!predicate(response)) return
+
+            matches.push(response)
+            if (matches.length >= count) {
+                page.off("response", handleResponse)
+                resolve(matches)
+            }
+        }
+
+        page.on("response", handleResponse)
+    })
 }
 
 async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
@@ -207,29 +275,16 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
         )
     })
 
-    // 3. POST /preview/workflows/revisions/commit — seed revision (v0)
-    let revisionCommitCount = 0
-    const seedRevisionPromise = page.waitForResponse((response) => {
-        if (
-            !response.url().includes("/preview/workflows/revisions/commit") ||
-            response.request().method() !== "POST"
-        ) {
-            return false
-        }
-        revisionCommitCount++
-        return revisionCommitCount === 1
-    })
-
-    // 4. POST /preview/workflows/revisions/commit — data revision (v1)
-    const dataRevisionPromise = page.waitForResponse((response) => {
-        if (
-            !response.url().includes("/preview/workflows/revisions/commit") ||
-            response.request().method() !== "POST"
-        ) {
-            return false
-        }
-        return revisionCommitCount >= 1
-    })
+    // 3/4. POST /preview/workflows/revisions/commit — app creation commits twice:
+    // seed revision (v0), then the configured revision (v1). Collect both responses
+    // explicitly so the "latest revision" cache never resolves to the first commit.
+    const revisionCommitsPromise = waitForMatchingResponses(
+        page,
+        (response) =>
+            response.url().includes("/preview/workflows/revisions/commit") &&
+            response.request().method() === "POST",
+        2,
+    )
 
     const submitButton = dialog.getByRole("button", {
         name: "Create New Prompt",
@@ -252,10 +307,8 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
     expect(variantData.workflow_variant?.id).toBeTruthy()
 
     // Wait for both revision commits
-    const seedResponse = await seedRevisionPromise
+    const [seedResponse, dataResponse] = await revisionCommitsPromise
     expect(seedResponse.ok()).toBe(true)
-
-    const dataResponse = await dataRevisionPromise
     expect(dataResponse.ok()).toBe(true)
 
     const revisionData = await dataResponse.json()
@@ -352,6 +405,86 @@ export const getTestsets = async (page: Page) => {
     return testsets
 }
 
+export const createTestset = async (
+    page: Page,
+    {name, rows, description}: CreateTestsetInput,
+): Promise<CreatedTestset> => {
+    const projectId = getProjectId(page)
+    const slugBase = name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+    const slug = `${slugBase || "e2e-testset"}-${Date.now()}`
+
+    const response = await page.request.post(
+        `${getApiURL(page)}/preview/simple/testsets/?project_id=${projectId}`,
+        {
+            data: {
+                testset: {
+                    slug,
+                    name,
+                    description,
+                    data: {
+                        testcases: rows.map((row) => ({data: row})),
+                    },
+                },
+            },
+        },
+    )
+
+    expect(response.ok()).toBe(true)
+
+    const data = (await response.json()) as SimpleTestsetApiResponse
+    const testset = data.testset
+
+    if (!testset?.id || !testset.name) {
+        throw new Error(`Failed to create testset '${name}'. Response: ${JSON.stringify(data)}`)
+    }
+
+    const listQueryPayload = {
+        testset: {
+            name: testset.name,
+        },
+        windowing: {
+            limit: 10,
+            order: "descending" as const,
+        },
+    }
+    const queryUrl = `${getApiURL(page)}/preview/testsets/query?project_id=${projectId}`
+    const timeoutAt = Date.now() + 15000
+    let isVisibleInList = false
+
+    while (Date.now() < timeoutAt) {
+        const queryResponse = await page.request.post(queryUrl, {
+            data: listQueryPayload,
+        })
+        expect(queryResponse.ok()).toBe(true)
+
+        const queryData = (await queryResponse.json()) as {
+            testsets?: Array<{id?: string; name?: string}>
+        }
+        isVisibleInList = (queryData.testsets ?? []).some(
+            (item) => item.id === testset.id || item.name === testset.name,
+        )
+
+        if (isVisibleInList) {
+            break
+        }
+
+        await page.waitForTimeout(500)
+    }
+
+    if (!isVisibleInList) {
+        throw new Error(`Testset '${testset.name}' was created but never appeared in testsets list`)
+    }
+
+    return {
+        id: testset.id,
+        name: testset.name,
+        revisionId: testset.revision_id,
+    }
+}
+
 export const getVariants = async (page: Page, appId: string) => {
     await page.goto(`${getProjectScopedBasePath(page)}/apps`, {waitUntil: "domcontentloaded"})
     const overviewPath = `${getProjectScopedBasePath(page)}/apps/${appId}/overview`
@@ -427,6 +560,9 @@ export const apiHelpers = () => {
             },
             getTestsets: async () => {
                 return await getTestsets(page)
+            },
+            createTestset: async (input: CreateTestsetInput) => {
+                return await createTestset(page, input)
             },
             getVariants: async (appId: string) => {
                 return await getVariants(page, appId)
