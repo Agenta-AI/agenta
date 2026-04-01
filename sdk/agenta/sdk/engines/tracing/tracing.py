@@ -17,6 +17,7 @@ from opentelemetry.sdk.resources import Resource
 
 
 from agenta.sdk.utils.singleton import Singleton
+from agenta.sdk.utils.globals import get_global
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.engines.tracing.processors import (
@@ -31,9 +32,22 @@ from agenta.sdk.engines.tracing.conventions import Reference, is_valid_attribute
 from agenta.sdk.engines.tracing.propagation import extract, inject
 from agenta.sdk.utils.cache import TTLLRUCache
 
-
 log = get_module_logger(__name__)
 
+_warned = False
+
+def _warn_if_not_initialized(func_name: str):
+    global _warned
+
+    # Get tracing from global state
+    tracing = get_global("tracing", default=None)
+
+    if tracing is None and not _warned:
+        log.warning(
+            f"{func_name} called before ag.init(). "
+            "👉 Call ag.init() at the start of your application."
+        )
+        _warned = True
 
 _original_init = trace.TracerProvider.__init__
 
@@ -135,6 +149,7 @@ class Tracing(metaclass=Singleton):
         self.tracer: Tracer = self.tracer_provider.get_tracer("agenta.tracer")
 
     def get_current_span(self):
+        _warn_if_not_initialized("Tracing.get_current_span")
         _span = None
 
         with suppress():
@@ -150,6 +165,7 @@ class Tracing(metaclass=Singleton):
         attributes: Dict[str, Any],
         span: Optional[Span] = None,
     ):
+        _warn_if_not_initialized("Tracing.store_internals")
         with suppress():
             if span is None:
                 span = self.get_current_span()
@@ -164,6 +180,7 @@ class Tracing(metaclass=Singleton):
         refs: Dict[str, str],
         span: Optional[Span] = None,
     ):
+        _warn_if_not_initialized("Tracing.store_refs")
         with suppress():
             if span is None:
                 span = self.get_current_span()
@@ -186,6 +203,7 @@ class Tracing(metaclass=Singleton):
         meta: Dict[str, Any],
         span: Optional[Span] = None,
     ):
+        _warn_if_not_initialized("Tracing.store_meta")
         with suppress():
             if span is None:
                 span = self.get_current_span()
@@ -203,6 +221,7 @@ class Tracing(metaclass=Singleton):
         metrics: Dict[str, Any],
         span: Optional[Span] = None,
     ):
+        _warn_if_not_initialized("Tracing.store_metrics")
         with suppress():
             if span is None:
                 span = self.get_current_span()
