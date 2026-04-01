@@ -1,6 +1,7 @@
 from typing import Dict, List, Any
 from urllib.parse import urlparse
 
+from supertokens_python.recipe.emailpassword.types import InputFormField
 from supertokens_python import init, InputAppInfo, SupertokensConfig
 from supertokens_python.recipe import (
     emailpassword,
@@ -299,6 +300,14 @@ def init_supertokens():
                             id="actualEmail",
                             validate=validate_actual_email,
                             optional=True,
+                        ),
+                        InputFormField(
+                            id="password",
+                            validate=lambda value: (
+                                "Password must be at least 8 characters long"
+                                if len(value) < 8
+                                else None
+                            ),
                         ),
                     ]
                 ),
