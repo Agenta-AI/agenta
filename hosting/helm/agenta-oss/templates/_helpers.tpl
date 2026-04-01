@@ -333,6 +333,126 @@ imagePullSecrets:
 {{- end }}
 
 {{/* ================================================================
+   Shared web env vars (public-facing / derived flags)
+   ================================================================ */}}
+{{- define "agenta.webOptionalEnv" -}}
+- name: POSTHOG_API_KEY
+  value: {{ .Values.global.posthogApiKey | quote }}
+{{- with .Values.secrets.oauth }}
+{{- range $key, $val := . }}
+- name: {{ $key }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" $ }}
+      key: {{ $key }}
+      optional: true
+{{- end }}
+{{- end }}
+{{- if .Values.email.sendgrid.apiKey }}
+- name: SENDGRID_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: SENDGRID_API_KEY
+      optional: true
+{{- end }}
+- name: SENDGRID_FROM_ADDRESS
+  value: {{ .Values.email.sendgrid.fromAddress | quote }}
+{{- if .Values.integrations.composio.apiKey }}
+- name: COMPOSIO_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: COMPOSIO_API_KEY
+      optional: true
+{{- end }}
+- name: CLOUDFLARE_TURNSTILE_SITE_KEY
+  value: {{ .Values.captcha.turnstile.siteKey | quote }}
+{{- if .Values.captcha.turnstile.secretKey }}
+- name: CLOUDFLARE_TURNSTILE_SECRET_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: CLOUDFLARE_TURNSTILE_SECRET_KEY
+      optional: true
+{{- end }}
+{{- end }}
+
+{{/* ================================================================
+   Shared backend env vars (typed self-host config + escape hatches)
+   ================================================================ */}}
+{{- define "agenta.backendOptionalEnv" -}}
+- name: POSTHOG_API_KEY
+  value: {{ .Values.global.posthogApiKey | quote }}
+- name: SENDGRID_FROM_ADDRESS
+  value: {{ .Values.email.sendgrid.fromAddress | quote }}
+- name: COMPOSIO_API_URL
+  value: {{ .Values.integrations.composio.apiUrl | quote }}
+- name: CLOUDFLARE_TURNSTILE_SITE_KEY
+  value: {{ .Values.captcha.turnstile.siteKey | quote }}
+- name: AGENTA_ALLOWED_DOMAINS
+  value: {{ .Values.accessControl.allowedDomains | quote }}
+- name: AGENTA_BLOCKED_DOMAINS
+  value: {{ .Values.accessControl.blockedDomains | quote }}
+- name: AGENTA_BLOCKED_EMAILS
+  value: {{ .Values.accessControl.blockedEmails | quote }}
+- name: AGENTA_ORG_CREATION_ALLOWLIST
+  value: {{ .Values.accessControl.orgCreationAllowlist | quote }}
+{{- with .Values.secrets.oauth }}
+{{- range $key, $val := . }}
+- name: {{ $key }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" $ }}
+      key: {{ $key }}
+      optional: true
+{{- end }}
+{{- end }}
+{{- with .Values.secrets.llmProviders }}
+{{- range $key, $val := . }}
+- name: {{ $key }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" $ }}
+      key: {{ $key }}
+      optional: true
+{{- end }}
+{{- end }}
+{{- if .Values.email.sendgrid.apiKey }}
+- name: SENDGRID_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: SENDGRID_API_KEY
+      optional: true
+{{- end }}
+{{- if .Values.integrations.composio.apiKey }}
+- name: COMPOSIO_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: COMPOSIO_API_KEY
+      optional: true
+{{- end }}
+{{- if .Values.observability.newRelic.licenseKey }}
+- name: NEW_RELIC_LICENSE_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: NEW_RELIC_LICENSE_KEY
+      optional: true
+{{- end }}
+{{- if .Values.captcha.turnstile.secretKey }}
+- name: CLOUDFLARE_TURNSTILE_SECRET_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: CLOUDFLARE_TURNSTILE_SECRET_KEY
+      optional: true
+{{- end }}
+{{- end }}
+
+{{/* ================================================================
    Common environment variables shared by api, workers, cron, alembic
    ================================================================ */}}
 {{- define "agenta.commonEnv" -}}
@@ -393,28 +513,7 @@ imagePullSecrets:
       name: {{ include "agenta.secretName" . }}
       key: SUPERTOKENS_API_KEY
       optional: true
-- name: POSTHOG_API_KEY
-  value: {{ .Values.global.posthogApiKey | quote }}
-{{- with .Values.secrets.oauth }}
-{{- range $key, $val := . }}
-- name: {{ $key }}
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "agenta.secretName" $ }}
-      key: {{ $key }}
-      optional: true
-{{- end }}
-{{- end }}
-{{- with .Values.secrets.llmProviders }}
-{{- range $key, $val := . }}
-- name: {{ $key }}
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "agenta.secretName" $ }}
-      key: {{ $key }}
-      optional: true
-{{- end }}
-{{- end }}
+{{ include "agenta.backendOptionalEnv" . }}
 {{- end }}
 
 {{/* ================================================================

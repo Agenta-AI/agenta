@@ -44,14 +44,51 @@ secrets:
   agentaCryptKey: ""
   postgresPassword: ""
   supertokensApiKey: ""
-  # Extra OAuth env vars injected into application pods (key = env var name)
+  # Extra OAuth env vars injected into backend pods and the web pod.
   oauth: {}
   #   GOOGLE_OAUTH_CLIENT_ID: ""
   #   GOOGLE_OAUTH_CLIENT_SECRET: ""
-  # Extra LLM provider API keys injected into application pods
+  # Extra LLM provider API keys injected into backend pods only.
   llmProviders: {}
   #   OPENAI_API_KEY: ""
   #   ANTHROPIC_API_KEY: ""
+
+# =================================================================
+# Access control (backend-only)
+# =================================================================
+accessControl:
+  allowedDomains: ""
+  blockedDomains: ""
+  blockedEmails: ""
+  orgCreationAllowlist: ""
+
+# =================================================================
+# Email
+# =================================================================
+email:
+  sendgrid:
+    apiKey: ""
+    fromAddress: ""
+
+# =================================================================
+# Integrations / observability
+# =================================================================
+integrations:
+  composio:
+    apiKey: ""
+    apiUrl: "https://backend.composio.dev/api/v3"
+
+observability:
+  newRelic:
+    licenseKey: ""
+
+# =================================================================
+# Anti-bot (leave unset by default for self-hosted EE)
+# =================================================================
+captcha:
+  turnstile:
+    siteKey: ""
+    secretKey: ""
 
 # =================================================================
 # ServiceAccount
