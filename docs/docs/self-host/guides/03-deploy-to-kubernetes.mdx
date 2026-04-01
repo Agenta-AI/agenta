@@ -10,28 +10,7 @@ The Agenta Helm chart is **community-maintained** and currently in **beta**. If 
 
 This guide walks you through deploying Agenta on Kubernetes using the Helm chart. By the end, you will have a working Agenta instance running in your cluster.
 
-The chart supports both OSS and Enterprise Edition. Set `global.agentaLicense` to `oss` or `ee`.
-
 Database migrations run automatically as a post-install or post-upgrade hook.
-
-## What Gets Deployed
-
-The chart creates the following workloads inside your Kubernetes namespace:
-
-- **Web** frontend (Next.js)
-- **API** backend (FastAPI + Gunicorn)
-- **Services** backend (FastAPI + Gunicorn)
-- **Worker (tracing)** for OTLP trace ingestion
-- **Worker (evaluations)** for async evaluation jobs
-- **Worker (webhooks)** for webhook delivery
-- **Worker (events)** for async event processing
-- **Cron** for scheduled maintenance tasks
-- **PostgreSQL** (Bitnami subchart) with three databases
-- **Redis Volatile** for caching and pub/sub
-- **Redis Durable** for queues and persistent state
-- **SuperTokens** for authentication
-- **Alembic** migration job (post-install/post-upgrade hook)
-- **Ingress** resource for routing traffic to web, API, and services (when enabled)
 
 ## Prerequisites
 
@@ -103,7 +82,30 @@ Then open `http://localhost:3000` in your browser.
 
 If you want to expose Agenta through a public hostname, see [Set Up Ingress and TLS](#set-up-ingress-and-tls).
 
-## How-to Tasks
+
+::: info What gets deployed
+
+The chart creates the following workloads inside your Kubernetes namespace:
+
+- **Web** frontend (Next.js)
+- **API** backend (FastAPI + Gunicorn)
+- **Services** backend (FastAPI + Gunicorn)
+- **Worker (tracing)** for OTLP trace ingestion
+- **Worker (evaluations)** for async evaluation jobs
+- **Worker (webhooks)** for webhook delivery
+- **Worker (events)** for async event processing
+- **Cron** for scheduled maintenance tasks
+- **PostgreSQL** (Bitnami subchart) with three databases
+- **Redis Volatile** for caching and pub/sub
+- **Redis Durable** for queues and persistent state
+- **SuperTokens** for authentication
+- **Alembic** migration job (post-install/post-upgrade hook)
+- **Ingress** resource for routing traffic to web, API, and services (when enabled)
+
+:::
+
+
+## How-tos
 
 ### Use a Values File
 
@@ -130,15 +132,15 @@ helm install agenta hosting/helm/agenta-oss \
 
 Set `global.agentaLicense: ee` to deploy Enterprise Edition.
 
-Enterprise images are private packages in GHCR. Create the namespace and image pull secret first:
+Enterprise images are private packages that will be shared with you. Create the namespace and image pull secret first:
 
 ```bash
 kubectl create namespace agenta
 
 kubectl create secret docker-registry ghcr-pull-secret \
-  --docker-server=ghcr.io \
-  --docker-username=<github-username> \
-  --docker-password=<github-pat> \
+  --docker-server=<ee-server> \
+  --docker-username=<ee-username> \
+  --docker-password=<ee-pat> \
   --namespace agenta
 ```
 
@@ -182,7 +184,7 @@ To use an existing Kubernetes Secret instead of having the chart create one, set
 When `secrets.supertokensApiKey` is empty, the SuperTokens instance runs without authentication. Any pod that can reach the SuperTokens service can manage auth data. Set an API key for production deployments.
 :::
 
-### Component Images
+### Configuring Images
 
 | Value | Purpose | Default |
 |-------|---------|---------|
@@ -215,10 +217,6 @@ services:
 ```
 
 When these values are set, they override the edition-based defaults.
-
-:::caution
-For production, pin explicit image tags instead of relying on the chart default. This makes upgrades easier to audit and roll back.
-:::
 
 ### Component Toggles and Replicas
 
@@ -476,7 +474,7 @@ supertokens:
 
 ### Add LLM Provider Keys and OAuth
 
-Pass LLM API keys and OAuth credentials through the `secrets` section. These are stored in the Kubernetes Secret and injected as environment variables into the application pods.
+Pass LLM API keys and OAuth credentials through the `secrets` section. These are stored in the Kubernetes Secret and injected as environment variables into the application pods. They will be used as defaults for the users if they don't provide their API keys.
 
 ```yaml
 secrets:
