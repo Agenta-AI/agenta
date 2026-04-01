@@ -122,8 +122,9 @@ class AgentaSingleton:
         )
 
         if self.api_key is None:
-            log.info(
-                "Agenta -     API key: missing (if needed, set AGENTA_API_KEY environment variable or pass api_key parameter in ag.init())"
+            log.warning(
+                "Agenta API key is not set. Some features may not work properly. "
+                "Set AGENTA_API_KEY or pass api_key to ag.init()."
             )
 
         log.info("Agenta -     API URL: %s", self.api_url)
@@ -220,6 +221,7 @@ class AgentaSingleton:
             )
 
         return None
+    
 
 
 def init(
@@ -263,3 +265,11 @@ def init(
     )
 
     set_global(tracing=singleton.tracing)
+def _warn_if_not_initialized(func_name: str):
+    singleton = AgentaSingleton()
+    if singleton.tracing is None:
+        log.warning(
+            f"{func_name} called before ag.init(). "
+            "Call ag.init() before using instrumentation."
+        )
+
