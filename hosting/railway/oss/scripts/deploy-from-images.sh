@@ -179,7 +179,7 @@ render_api_like_wrapper worker-tracing '["python", "-m", "entrypoints.worker_tra
 render_api_like_wrapper worker-evaluations '["python", "-m", "entrypoints.worker_evaluations"]'
 render_api_like_wrapper worker-webhooks '["python", "-m", "entrypoints.worker_webhooks"]'
 render_api_like_wrapper worker-events '["python", "-m", "entrypoints.worker_events"]'
-render_api_like_wrapper cron '["supercronic", "/app/crontab"]'
+render_api_like_wrapper cron '["/usr/local/bin/supercronic", "/app/crontab"]'
 
 export RAILWAY_PROJECT_NAME="$PROJECT_NAME"
 export RAILWAY_ENVIRONMENT_NAME="$ENV_NAME"
