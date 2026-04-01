@@ -3,6 +3,7 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 import {
     archiveWorkflow,
     invalidateWorkflowsListCache,
+    invalidateEvaluatorsListCache,
     createEvaluatorFromTemplate,
     type EvaluatorCatalogTemplate,
 } from "@agenta/entities/workflow"
@@ -108,6 +109,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
 
     const refetchAll = useCallback(() => {
         clearEvaluatorWorkflowCache()
+        invalidateEvaluatorsListCache()
         refreshStore()
     }, [refreshStore])
 
@@ -185,6 +187,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
 
             await Promise.all(deleteTargetIds.map((id) => archiveWorkflow(projectId, id)))
             invalidateWorkflowsListCache()
+            invalidateEvaluatorsListCache()
             clearEvaluatorWorkflowCache()
 
             message.success(

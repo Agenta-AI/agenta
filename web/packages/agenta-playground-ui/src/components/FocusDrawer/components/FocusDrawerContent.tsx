@@ -92,7 +92,7 @@ function PrimaryOutput({rowId, entityId}: {rowId: string; entityId: string}) {
             currentResult={currentResult}
             traceId={traceId}
             repetitionProps={repetitionProps}
-            showEmptyPlaceholder={false}
+            showEmptyPlaceholder
             feedbackConfig={feedbackConfig}
         />
     )
@@ -377,12 +377,18 @@ const FocusDrawerContent = () => {
             {/* Output Section */}
             <Collapse
                 defaultActiveKey={["output"]}
-                expandIconPlacement="end"
+                expandIconPlacement="start"
                 bordered={false}
                 style={{background: "transparent", borderRadius: 0}}
                 styles={{
-                    header: {borderRadius: 0, userSelect: "none", padding: "10px 16px"},
-                    body: {borderRadius: 0, padding: "16px 24px"},
+                    header: {
+                        borderRadius: 6,
+                        userSelect: "none",
+                        padding: "10px 16px",
+                        background: "#FAFAFA",
+                        border: "1px solid rgba(5,23,41,0.06)",
+                    },
+                    body: {borderRadius: 0, padding: "12px 16px"},
                 }}
                 items={[
                     {

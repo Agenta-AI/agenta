@@ -30,6 +30,7 @@ import {type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {
     DrawerProvidersProvider,
     workflowRevisionDrawerAtom,
+    closeWorkflowRevisionDrawerAtom,
     workflowRevisionDrawerCallbackAtom,
     workflowRevisionDrawerEntityIdAtom,
     workflowRevisionDrawerExpandedAtom,
@@ -40,7 +41,7 @@ import {
 } from "@agenta/playground-ui/workflow-revision-drawer"
 import {EnvironmentTag} from "@agenta/ui"
 import {Rocket} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {Button, Typography, message} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -309,10 +310,15 @@ const useEvaluatorCommitCallback = () => {
     const drawerCallbackRef = useRef(drawerCallback)
     drawerCallbackRef.current = drawerCallback
 
+    const closeDrawer = useSetAtom(closeWorkflowRevisionDrawerAtom)
+    const closeDrawerRef = useRef(closeDrawer)
+    closeDrawerRef.current = closeDrawer
+
+    const isEvaluator = context === "evaluator-create" || context === "evaluator-view"
     const isEvaluatorCreate = context === "evaluator-create"
 
     useEffect(() => {
-        if (!isEvaluatorCreate) return
+        if (!isEvaluator) return
 
         const previousOnNewRevision = getWorkflowCommitCallbacks().onNewRevision
 
@@ -320,7 +326,17 @@ const useEvaluatorCommitCallback = () => {
             onNewRevision: async (result, params) => {
                 clearEvaluatorWorkflowCache()
                 await previousOnNewRevision?.(result, params)
-                drawerCallbackRef.current?.(result.newRevisionId)
+
+                if (isEvaluatorCreate) {
+                    drawerCallbackRef.current?.(result.newRevisionId)
+                    closeDrawerRef.current()
+                }
+
+                message.success(
+                    isEvaluatorCreate
+                        ? "Evaluator created successfully"
+                        : "Evaluator committed successfully",
+                )
             },
         })
 
@@ -329,7 +345,7 @@ const useEvaluatorCommitCallback = () => {
                 onNewRevision: previousOnNewRevision,
             })
         }
-    }, [isEvaluatorCreate])
+    }, [isEvaluator, isEvaluatorCreate])
 }
 
 // ================================================================

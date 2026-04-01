@@ -681,6 +681,7 @@ export const testsetsListQueryAtomFamily = atomFamily((searchQuery: string | nul
             enabled: get(sessionAtom) && Boolean(projectId),
             staleTime: 60_000,
             gcTime: 5 * 60_000,
+            refetchOnMount: "always",
         }
     }),
 )

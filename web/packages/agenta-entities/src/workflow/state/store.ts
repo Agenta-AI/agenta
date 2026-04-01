@@ -1851,11 +1851,13 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
  */
 export function invalidateWorkflowsListCache(options?: StoreOptions) {
     const store = getStore(options)
-    const queryAtom = appWorkflowsListQueryAtom
-    const current = store.get(queryAtom)
-    if (current?.refetch) {
-        current.refetch()
+    try {
+        const qc = store.get(queryClientAtom)
+        qc.invalidateQueries({queryKey: ["workflows", "apps"], exact: false})
+    } catch {
+        // queryClientAtom may not be initialized yet
     }
+    store.set(appWorkflowsListQueryAtom)
 }
 
 /**
@@ -1947,11 +1949,13 @@ export function seedCreatedWorkflowCache(
  */
 export function invalidateWorkflowCache(workflowId: string, options?: StoreOptions) {
     const store = getStore(options)
-    const queryAtom = workflowQueryAtomFamily(workflowId)
-    const current = store.get(queryAtom)
-    if (current?.refetch) {
-        current.refetch()
+    try {
+        const qc = store.get(queryClientAtom)
+        qc.invalidateQueries({queryKey: ["workflows", "revision", workflowId], exact: false})
+    } catch {
+        // queryClientAtom may not be initialized yet
     }
+    store.set(workflowQueryAtomFamily(workflowId))
 }
 
 /**
@@ -1963,9 +1967,14 @@ export function invalidateWorkflowRevisionsByWorkflowCache(
     options?: StoreOptions,
 ) {
     const store = getStore(options)
-    const queryAtom = workflowRevisionsByWorkflowQueryAtomFamily(workflowId)
-    const current = store.get(queryAtom)
-    if (current?.refetch) {
-        current.refetch()
+    try {
+        const qc = store.get(queryClientAtom)
+        qc.invalidateQueries({
+            queryKey: ["workflows", "revisionsByWorkflow", workflowId],
+            exact: false,
+        })
+    } catch {
+        // queryClientAtom may not be initialized yet
     }
+    store.set(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
 }
