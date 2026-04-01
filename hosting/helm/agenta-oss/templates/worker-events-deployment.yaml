@@ -1,26 +1,26 @@
-{{- if .Values.workerEvaluations.enabled }}
+{{- if .Values.workerEvents.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "agenta.fullname" . }}-worker-evaluations
+  name: {{ include "agenta.fullname" . }}-worker-events
   labels:
     {{- include "agenta.labels" . | nindent 4 }}
-    app.kubernetes.io/component: worker-evaluations
+    app.kubernetes.io/component: worker-events
 spec:
-  replicas: {{ .Values.workerEvaluations.replicas }}
+  replicas: {{ .Values.workerEvents.replicas }}
   selector:
     matchLabels:
       {{- include "agenta.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: worker-evaluations
+      app.kubernetes.io/component: worker-events
   template:
     metadata:
       labels:
         {{- include "agenta.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: worker-evaluations
+        app.kubernetes.io/component: worker-events
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
-      {{- with .Values.workerEvaluations.podSecurityContext }}
+      {{- with .Values.workerEvents.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -30,40 +30,40 @@ spec:
         {{- end }}
         {{- include "agenta.waitForRedis" . | nindent 8 }}
       containers:
-        - name: worker-evaluations
+        - name: worker-events
           image: {{ include "agenta.apiImage" . }}
           imagePullPolicy: {{ .Values.api.image.pullPolicy }}
-          {{- with .Values.workerEvaluations.securityContext }}
+          {{- with .Values.workerEvents.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          command: {{ if .Values.observability.newRelic.licenseKey }}["newrelic-admin", "run-program", "python", "-m", "entrypoints.worker_evaluations"]{{ else }}["python", "-m", "entrypoints.worker_evaluations"]{{ end }}
+          command: {{ if .Values.observability.newRelic.licenseKey }}["newrelic-admin", "run-program", "python", "-m", "entrypoints.worker_events"]{{ else }}["python", "-m", "entrypoints.worker_events"]{{ end }}
           env:
             {{- include "agenta.commonEnv" . | nindent 12 }}
-            {{- range $key, $val := .Values.workerEvaluations.env }}
+            {{- range $key, $val := .Values.workerEvents.env }}
             - name: {{ $key }}
               value: {{ $val | quote }}
             {{- end }}
           livenessProbe:
             exec:
-              command: ["pgrep", "-f", "entrypoints.worker_evaluations"]
+              command: ["pgrep", "-f", "entrypoints.worker_events"]
             initialDelaySeconds: 15
             periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 3
-          {{- with .Values.workerEvaluations.resources }}
+          {{- with .Values.workerEvents.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- with .Values.workerEvaluations.nodeSelector }}
+      {{- with .Values.workerEvents.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.workerEvaluations.tolerations }}
+      {{- with .Values.workerEvents.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.workerEvaluations.affinity }}
+      {{- with .Values.workerEvents.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
