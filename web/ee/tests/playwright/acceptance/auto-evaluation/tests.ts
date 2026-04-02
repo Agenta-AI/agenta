@@ -3,6 +3,8 @@ import {expect} from "@agenta/web-tests/utils"
 import {EvaluationFixtures, RunAutoEvalFixtureType} from "./assets/types"
 import {getProjectScopedBasePath} from "tests/tests/fixtures/base.fixture/apiHelpers"
 import type {Locator, Page} from "@playwright/test"
+import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
+import {EvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
 
 const AUTO_EVALUATION_TAB_LABEL = "Auto Evals"
 const AUTO_EVALUATION_EMPTY_STATE_TITLE = "Get Started with Evaluations"
@@ -10,8 +12,12 @@ const AUTO_EVALUATION_EMPTY_STATE_BUTTON_LABEL = /Run Evaluation/i
 const AUTO_EVALUATION_LIST_BUTTON_LABEL = /New evaluation/i
 const AUTO_EVALUATION_MODAL_TITLE = "New Auto Evaluation"
 const AUTO_EVALUATION_SUBMIT_BUTTON_LABEL = "Start Evaluation"
-const AUTO_EVALUATION_CREATE_BUTTON_LABELS = [/Run Evaluation/i, /New evaluation/i] as const
 const AUTO_RESULTS_TAB_LABELS = ["Overview", "Scenarios", "Configuration"] as const
+
+type EvaluationRunsResponse = {
+    runs: EvaluationRun[]
+    count: number
+}
 
 const getAutoEvaluationsPath = (page: Page, appId: string) =>
     `${getProjectScopedBasePath(page)}/apps/${appId}/evaluations`
@@ -35,15 +41,26 @@ const typeIntoLocator = async (locator: Locator, text: string) => {
     await locator.pressSequentially(text, {delay: 20})
 }
 
-const getAutoEvaluationCreateButton = async (page: Page) => {
-    for (const label of AUTO_EVALUATION_CREATE_BUTTON_LABELS) {
-        const button = page.getByRole("button", {name: label}).first()
-        if (await button.isVisible().catch(() => false)) {
-            return button
+const waitForEvaluationRuns = async (page: Page, appId: string) => {
+    const response = await page.waitForResponse((response) => {
+        if (
+            !response.url().includes("/api/preview/evaluations/runs/query") ||
+            response.request().method() !== "POST"
+        ) {
+            return false
         }
-    }
 
-    throw new Error("Could not find an auto evaluation create button.")
+        return new URL(response.url()).searchParams.get("app_id") === appId
+    })
+
+    expect(response.ok()).toBe(true)
+
+    return (await response.json()) as EvaluationRunsResponse
+}
+
+const getAutoEvaluationRuns = (evaluationRuns: EvaluationRunsResponse) => {
+    const runs = Array.isArray(evaluationRuns.runs) ? evaluationRuns.runs : []
+    return runs.filter((run) => deriveEvaluationKind(run) === "auto")
 }
 
 const ensureAutoEvaluationsContext = async (page: Page) => {
@@ -57,6 +74,54 @@ const ensureAutoEvaluationsContext = async (page: Page) => {
     }
 
     await expect(autoTab).toHaveAttribute("aria-selected", "true")
+}
+
+const goToAutoEvaluations = async (page: Page, appId: string) => {
+    const evaluationRunsPromise = waitForEvaluationRuns(page, appId)
+
+    await page.goto(getAutoEvaluationsUrl(page, appId), {waitUntil: "domcontentloaded"})
+
+    await expect.poll(() => new URL(page.url()).pathname).toBe(getAutoEvaluationsPath(page, appId))
+    await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBe("auto")
+    await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 10000})
+
+    const evaluationRuns = await evaluationRunsPromise
+    expect(Array.isArray(evaluationRuns.runs)).toBe(true)
+
+    return getAutoEvaluationRuns(evaluationRuns)
+}
+
+const getAutoEvaluationCreateButton = async (page: Page) => {
+    const emptyStateTitle = page.getByText(AUTO_EVALUATION_EMPTY_STATE_TITLE).first()
+    const emptyStateButton = page
+        .getByRole("button", {name: AUTO_EVALUATION_EMPTY_STATE_BUTTON_LABEL})
+        .first()
+    const listButton = page.getByRole("button", {name: AUTO_EVALUATION_LIST_BUTTON_LABEL}).first()
+
+    await expect
+        .poll(
+            async () => {
+                if (await emptyStateButton.isVisible().catch(() => false)) {
+                    return "empty"
+                }
+
+                if (await listButton.isVisible().catch(() => false)) {
+                    return "list"
+                }
+
+                return "none"
+            },
+            {timeout: 10000},
+        )
+        .not.toBe("none")
+
+    if (await emptyStateButton.isVisible().catch(() => false)) {
+        await expect(emptyStateTitle).toBeVisible()
+        return emptyStateButton
+    }
+
+    await expect(listButton).toBeVisible()
+    return listButton
 }
 
 const openAutoEvaluationModal = async (page: Page) => {
@@ -191,22 +256,16 @@ const openAutoEvaluationRunFromList = async ({
 const testWithEvaluationFixtures = baseTest.extend<EvaluationFixtures>({
     navigateToEvaluation: async ({page}, use) => {
         await use(async (appId: string) => {
-            await page.goto(getAutoEvaluationsUrl(page, appId), {waitUntil: "domcontentloaded"})
-            await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 10000})
-            await ensureAutoEvaluationsContext(page)
+            const autoEvaluationRuns = await goToAutoEvaluations(page, appId)
 
-            const listButton = page
-                .getByRole("button", {name: AUTO_EVALUATION_LIST_BUTTON_LABEL})
-                .first()
-            if (await listButton.isVisible().catch(() => false)) {
-                await expect(listButton).toBeVisible()
+            if (autoEvaluationRuns.length > 0) {
+                expect(autoEvaluationRuns.length).toBeGreaterThan(0)
+                await expect(await getAutoEvaluationCreateButton(page)).toBeVisible()
                 return
             }
 
-            await expect(page.getByText(AUTO_EVALUATION_EMPTY_STATE_TITLE).first()).toBeVisible()
-            await expect(
-                page.getByRole("button", {name: AUTO_EVALUATION_EMPTY_STATE_BUTTON_LABEL}).first(),
-            ).toBeVisible()
+            expect(autoEvaluationRuns).toHaveLength(0)
+            await expect(await getAutoEvaluationCreateButton(page)).toBeVisible()
         })
     },
 
