@@ -22,6 +22,8 @@ export type {
     ScenarioContext,
     UpdateMetricPayload,
     SubmitAnnotationsPayload,
+    EvaluatorStepRef,
+    EvaluatorResolutionState,
     SessionView,
     ScenarioEvaluatorKey,
     ScenarioMetricForEvaluator,

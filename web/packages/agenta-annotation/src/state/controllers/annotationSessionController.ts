@@ -80,6 +80,7 @@ import type {
     SessionView,
     ScenarioEvaluatorKey,
     ScenarioMetricForEvaluator,
+    EvaluatorStepRef,
 } from "../types"
 
 // ============================================================================
@@ -413,6 +414,31 @@ const evaluatorRevisionIdsAtom = atom<string[]>((get) => {
     const runId = get(activeRunIdAtom)
     if (!runId) return []
     return get(evaluationRunMolecule.selectors.evaluatorRevisionIds(runId))
+})
+
+/**
+ * Ordered evaluator references from annotation steps.
+ * Each entry preserves the queue's pinned evaluator revision while keeping the
+ * artifact/variant IDs needed for later annotation submits.
+ */
+const evaluatorStepRefsAtom = atom<EvaluatorStepRef[]>((get) => {
+    const runId = get(activeRunIdAtom)
+    if (!runId) return []
+
+    const annotationSteps = get(evaluationRunMolecule.selectors.annotationSteps(runId))
+
+    return annotationSteps
+        .map((step) => ({
+            workflowId: step.references?.evaluator?.id ?? null,
+            variantId: step.references?.evaluator_variant?.id ?? null,
+            revisionId: step.references?.evaluator_revision?.id ?? null,
+            slug:
+                step.references?.evaluator?.slug ??
+                step.references?.evaluator_revision?.slug ??
+                null,
+            stepKey: step.key ?? null,
+        }))
+        .filter((ref) => Boolean(ref.workflowId || ref.revisionId || ref.slug))
 })
 
 /** Evaluator metadata for queue-scoped testcase sync. */
@@ -2422,6 +2448,8 @@ export const annotationSessionController = {
         evaluatorIds: () => evaluatorIdsAtom,
         /** Evaluator revision IDs from evaluation run annotation steps */
         evaluatorRevisionIds: () => evaluatorRevisionIdsAtom,
+        /** Ordered evaluator refs from evaluation run annotation steps */
+        evaluatorStepRefs: () => evaluatorStepRefsAtom,
         /** Annotation column definitions derived from run mappings + steps */
         annotationColumnDefs: () => annotationColumnDefsAtom,
         /** Trace input keys discovered from the first scenario's trace data */
@@ -2522,6 +2550,7 @@ export const annotationSessionController = {
         scenarioStatuses: () => getStore().get(scenarioStatusesAtom),
         evaluatorIds: () => getStore().get(evaluatorIdsAtom),
         evaluatorRevisionIds: () => getStore().get(evaluatorRevisionIdsAtom),
+        evaluatorStepRefs: () => getStore().get(evaluatorStepRefsAtom),
         annotationColumnDefs: () => getStore().get(annotationColumnDefsAtom),
         traceInputKeys: () => getStore().get(traceInputKeysAtom),
         testcaseInputKeys: () => getStore().get(testcaseInputKeysAtom),
