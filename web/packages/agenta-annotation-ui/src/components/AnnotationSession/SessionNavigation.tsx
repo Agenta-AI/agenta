@@ -1,44 +1,83 @@
 /**
  * SessionNavigation
  *
- * Top navigation bar for the annotation session.
- * Previous/Next arrows, scenario selector dropdown, remaining count,
- * and trace info (span name, type, "View Full Trace" link) when applicable.
+ * Footer bar for the annotation session.
+ *
+ * Left:   scenario selector (N/Total format) | trace/testcase ID with copy button
+ * Right:  "Hide marked complete" toggle | "Auto next" toggle |
+ *         Prev button | Next button | Mark completed button
  */
 
 import {useCallback, useMemo} from "react"
 
-import {annotationSessionController} from "@agenta/annotation"
+import {annotationFormController, annotationSessionController} from "@agenta/annotation"
 import {traceRootSpanAtomFamily} from "@agenta/entities/trace"
-import {ArrowSquareOut, CaretLeft, CaretRight} from "@phosphor-icons/react"
-import {Button, Select, Switch, Typography} from "antd"
+import {message} from "@agenta/ui/app-message"
+import {CopyTooltip} from "@agenta/ui/copy-tooltip"
+import {ArrowSquareOut, CaretLeft, CaretRight, Copy} from "@phosphor-icons/react"
+import {Button, Select, Switch, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context"
 
-const SessionNavigation = () => {
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+/** Truncates an ID to "first8...last4" format for display */
+function truncateId(id: string): string {
+    if (id.length <= 14) return id
+    return `${id.slice(0, 5)}...${id.slice(-5)}`
+}
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+interface SessionNavigationProps {
+    scenarioId: string
+    queueId: string
+    onCompleted?: (scenarioId: string) => void
+}
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
+const SessionNavigation = ({scenarioId, queueId, onCompleted}: SessionNavigationProps) => {
     const navigation = useAnnotationNavigation()
 
     const hasNext = useAtomValue(annotationSessionController.selectors.hasNext())
     const hasPrev = useAtomValue(annotationSessionController.selectors.hasPrev())
-    const progress = useAtomValue(annotationSessionController.selectors.progress())
     const scenarioIds = useAtomValue(annotationSessionController.selectors.focusScenarioIds())
     const hideCompletedInFocus = useAtomValue(
         annotationSessionController.selectors.hideCompletedInFocus(),
     )
     const focusAutoNext = useAtomValue(annotationSessionController.selectors.focusAutoNext())
 
-    // Trace info for current scenario
     const currentScenarioId = useAtomValue(
         annotationSessionController.selectors.currentScenarioId(),
     )
     const currentVisibleIndex = currentScenarioId ? scenarioIds.indexOf(currentScenarioId) : -1
+    const totalScenarios = useAtomValue(annotationSessionController.selectors.scenarioIds()).length
+
     const queueKind = useAtomValue(annotationSessionController.selectors.queueKind())
     const traceRef = useAtomValue(
         annotationSessionController.selectors.scenarioTraceRef(currentScenarioId ?? ""),
     )
+    const testcaseRef = useAtomValue(
+        annotationSessionController.selectors.scenarioTestcaseRef(currentScenarioId ?? ""),
+    )
     const isTrace = queueKind === "traces" && !!traceRef.traceId
     const rootSpan = useAtomValue(traceRootSpanAtomFamily(isTrace ? traceRef.traceId : null))
+
+    // Mark-complete button state
+    const isSubmitting = useAtomValue(annotationFormController.selectors.isSubmitting(scenarioId))
+    const hasFilledMetrics = useAtomValue(
+        annotationFormController.selectors.hasFilledMetrics(scenarioId),
+    )
+    const isCompleted = useAtomValue(annotationSessionController.selectors.isCurrentCompleted())
+    const submitAnnotations = useSetAtom(annotationFormController.actions.submitAnnotations)
 
     const navigateNext = useSetAtom(annotationSessionController.actions.navigateNext)
     const navigatePrev = useSetAtom(annotationSessionController.actions.navigatePrev)
@@ -55,6 +94,25 @@ const SessionNavigation = () => {
         [navigateToIndex],
     )
 
+    const handleMarkComplete = useCallback(async () => {
+        try {
+            await submitAnnotations({
+                scenarioId,
+                queueId,
+                markComplete: !isCompleted,
+            })
+
+            if (isCompleted) {
+                message.success("Updated feedback")
+                return
+            }
+
+            onCompleted?.(scenarioId)
+        } catch (err) {
+            message.error((err as Error).message || "Failed to submit annotations")
+        }
+    }, [submitAnnotations, scenarioId, queueId, isCompleted, onCompleted])
+
     const handleViewTrace = useCallback(() => {
         if (traceRef.traceId && navigation.openTraceDetail) {
             navigation.openTraceDetail({
@@ -64,33 +122,21 @@ const SessionNavigation = () => {
         }
     }, [traceRef.traceId, rootSpan?.span_id, navigation])
 
+    const displayId = isTrace ? traceRef.traceId : testcaseRef.testcaseId
+
     const options = useMemo(
         () =>
             scenarioIds.map((_, index) => ({
                 value: index,
-                label: `Scenario #${index + 1}`,
+                label: `${index + 1} / ${totalScenarios}`,
             })),
-        [scenarioIds],
+        [scenarioIds, totalScenarios],
     )
 
     return (
-        <div className="w-full flex items-center justify-between gap-3 shrink-0">
-            <div className="flex items-center gap-3">
-                <Button
-                    type="text"
-                    size="small"
-                    icon={<CaretLeft size={16} />}
-                    onClick={() => navigatePrev()}
-                    disabled={!hasPrev}
-                />
-                <Button
-                    type="text"
-                    size="small"
-                    icon={<CaretRight size={16} />}
-                    onClick={() => navigateNext()}
-                    disabled={!hasNext}
-                />
-
+        <div className="w-full flex items-center justify-between gap-4">
+            {/* Left: scenario selector + ID */}
+            <div className="flex items-center gap-2 shrink-0">
                 <Select
                     value={
                         scenarioIds.length > 0 && currentVisibleIndex >= 0
@@ -100,59 +146,81 @@ const SessionNavigation = () => {
                     onChange={handleSelect}
                     options={options}
                     size="small"
-                    className="min-w-[140px]"
+                    className="min-w-[100px]"
                     popupMatchSelectWidth={false}
                     disabled={scenarioIds.length === 0}
                 />
 
-                <label className="inline-flex items-center gap-2 whitespace-nowrap">
-                    <Typography.Text type="secondary" className="text-xs">
-                        Hide completed
-                    </Typography.Text>
-                    <Switch
-                        size="small"
-                        checked={hideCompletedInFocus}
-                        onChange={setHideCompletedInFocus}
-                    />
-                </label>
-
-                <label className="inline-flex items-center gap-2 whitespace-nowrap">
-                    <Typography.Text type="secondary" className="text-xs">
-                        Auto next
-                    </Typography.Text>
-                    <Switch size="small" checked={focusAutoNext} onChange={setFocusAutoNext} />
-                </label>
-
-                <Typography.Text type="secondary" className="text-xs whitespace-nowrap">
-                    {progress.remaining} of {progress.total} remaining
-                </Typography.Text>
-            </div>
-
-            <div className="flex items-center gap-3">
-                {/* Trace info */}
-                {isTrace && rootSpan?.span_name && (
-                    <div className="flex items-center gap-2">
-                        <Typography.Text className="text-xs font-medium">
-                            {rootSpan.span_name}
-                        </Typography.Text>
-                        {rootSpan.span_type && (
-                            <Typography.Text type="secondary" className="text-xs">
-                                {rootSpan.span_type}
-                            </Typography.Text>
-                        )}
-                    </div>
+                {displayId && (
+                    <CopyTooltip
+                        copyText={displayId}
+                        title={isTrace ? "Copy trace ID" : "Copy testcase ID"}
+                    >
+                        <Tag className="!font-mono bg-default flex items-center gap-2">
+                            {truncateId(displayId)} <Copy size={12} />
+                        </Tag>
+                    </CopyTooltip>
                 )}
 
                 {isTrace && navigation.openTraceDetail && (
                     <Button
                         size="small"
                         type="text"
-                        icon={<ArrowSquareOut size={14} />}
+                        icon={<ArrowSquareOut size={13} />}
                         onClick={handleViewTrace}
-                    >
-                        View Full Trace
-                    </Button>
+                        className="!text-[#758391]"
+                    />
                 )}
+            </div>
+
+            {/* Right: switches + navigation + mark complete */}
+            <div className="flex items-center gap-4 shrink-0">
+                <label className="inline-flex items-center gap-2 cursor-pointer select-none whitespace-nowrap">
+                    <Switch
+                        size="small"
+                        checked={hideCompletedInFocus}
+                        onChange={setHideCompletedInFocus}
+                    />
+                    <Typography.Text type="secondary" className="text-xs">
+                        Hide marked complete
+                    </Typography.Text>
+                </label>
+
+                <label className="inline-flex items-center gap-2 cursor-pointer select-none whitespace-nowrap">
+                    <Switch size="small" checked={focusAutoNext} onChange={setFocusAutoNext} />
+                    <Typography.Text type="secondary" className="text-xs">
+                        Auto next
+                    </Typography.Text>
+                </label>
+
+                <div className="flex items-center gap-2">
+                    <Button
+                        size="small"
+                        icon={<CaretLeft size={13} />}
+                        onClick={() => navigatePrev()}
+                        disabled={!hasPrev}
+                    >
+                        Prev
+                    </Button>
+                    <Button
+                        size="small"
+                        onClick={() => navigateNext()}
+                        disabled={!hasNext}
+                        iconPosition="end"
+                        icon={<CaretRight size={13} />}
+                    >
+                        Next
+                    </Button>
+                    <Button
+                        type="primary"
+                        onClick={handleMarkComplete}
+                        disabled={isSubmitting || !hasFilledMetrics}
+                        loading={isSubmitting}
+                        className="w-[130px]"
+                    >
+                        {isCompleted ? "Update" : "Mark completed"}
+                    </Button>
+                </div>
             </div>
         </div>
     )

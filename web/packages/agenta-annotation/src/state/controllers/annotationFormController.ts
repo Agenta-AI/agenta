@@ -768,6 +768,12 @@ const isSubmittingAtomFamily = atomFamily(
     (a, b) => a === b,
 )
 
+/** Submission error per scenario (null = no error) */
+const submitErrorAtomFamily = atomFamily(
+    (_scenarioId: string) => atom<string | null>(null),
+    (a, b) => a === b,
+)
+
 // ============================================================================
 // DERIVED ATOMS
 // ============================================================================
@@ -1242,11 +1248,13 @@ function fireMetricUpserts({
 // SUBMIT ATOM
 // ============================================================================
 
-/** Submit annotations and optionally mark scenario complete */
+/** Submit annotations and optionally mark a not-yet-completed scenario complete */
 const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotationsPayload) => {
     const {scenarioId, queueId, markComplete} = payload
     const rawProjectId = get(projectIdAtom)
     const traceSpan = get(traceSpanByScenarioAtomFamily(scenarioId))
+    const scenarioStatuses = get(annotationSessionController.selectors.scenarioStatuses())
+    const shouldMarkComplete = markComplete && scenarioStatuses[scenarioId] !== "success"
 
     const isTestcaseMode = !!traceSpan.testcaseId && !traceSpan.traceId
     if (!rawProjectId || (!traceSpan.traceId && !traceSpan.testcaseId)) {
@@ -1258,6 +1266,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
     const spanId: string = traceSpan.spanId
 
     set(isSubmittingAtomFamily(scenarioId), true)
+    set(submitErrorAtomFamily(scenarioId), null)
 
     try {
         const metrics = get(effectiveMetricsAtomFamily(scenarioId))
@@ -1321,10 +1330,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
             }
 
             const existingAnn = existingBySlug.get(slug)
-            const linksKey = invocationStepKey || "invocation"
-
             if (existingAnn) {
-                let updatedLinks = existingAnn.links
                 const updatedTags = isTestcaseMode
                     ? mergeTestcaseAnnotationTags({
                           queueId,
@@ -1332,26 +1338,6 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                           outputKeys: Object.keys(outputs),
                       })
                     : existingAnn.meta?.tags
-
-                if (!isTestcaseMode) {
-                    if (!resolvedSpanId) {
-                        resolvedSpanId = await resolveTraceLinkSpanId({
-                            projectId,
-                            traceId,
-                            spanId,
-                        })
-                    }
-
-                    updatedLinks = resolvedSpanId
-                        ? {
-                              ...(existingAnn.links ?? {}),
-                              [linksKey]: {
-                                  trace_id: traceId,
-                                  span_id: resolvedSpanId,
-                              },
-                          }
-                        : existingAnn.links
-                }
 
                 promises.push(
                     updateAnnotation(projectId, existingAnn.trace_id, existingAnn.span_id, {
@@ -1370,11 +1356,53 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                                         tags: updatedTags,
                                     }
                                   : undefined,
-                            links: updatedLinks,
+                            references: existingAnn.references
+                                ? {
+                                      evaluator: {
+                                          id: existingAnn.references.evaluator?.id,
+                                          slug: existingAnn.references.evaluator?.slug,
+                                      },
+                                      ...(existingAnn.references.evaluator_revision
+                                          ? {
+                                                evaluator_revision: {
+                                                    id: existingAnn.references.evaluator_revision
+                                                        .id,
+                                                    slug: existingAnn.references.evaluator_revision
+                                                        .slug,
+                                                },
+                                            }
+                                          : {}),
+                                      ...(existingAnn.references.evaluator_variant
+                                          ? {
+                                                evaluator_variant: {
+                                                    id: existingAnn.references.evaluator_variant.id,
+                                                    slug: existingAnn.references.evaluator_variant
+                                                        .slug,
+                                                },
+                                            }
+                                          : {}),
+                                      ...(existingAnn.references.testset
+                                          ? {
+                                                testset: {
+                                                    id: existingAnn.references.testset.id,
+                                                },
+                                            }
+                                          : {}),
+                                      ...(existingAnn.references.testcase
+                                          ? {
+                                                testcase: {
+                                                    id: existingAnn.references.testcase.id,
+                                                },
+                                            }
+                                          : {}),
+                                  }
+                                : undefined,
+                            links: existingAnn.links,
                         },
                     }),
                 )
             } else {
+                const linksKey = invocationStepKey || "invocation"
                 const evalWorkflowId =
                     workflowIdBySlug.get(slug) ?? evaluator.workflow_id ?? evaluator.id
                 const stepRefs = stepRefsByEvalId.get(evalWorkflowId)
@@ -1454,8 +1482,8 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
 
         const responses = await Promise.all(promises)
 
-        // Phase 5: Mark completed + advance (don't block on post-submit ops)
-        if (markComplete && scenarioId) {
+        // Phase 5: First-time completion only (don't block on post-submit ops)
+        if (shouldMarkComplete && scenarioId) {
             annotationSessionController.set.markCompleted(scenarioId)
             if (get(annotationSessionController.selectors.focusAutoNext())) {
                 annotationSessionController.set.navigateNext()
@@ -1523,9 +1551,18 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                 exact: false,
             }),
         ])
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to submit annotations"
+        set(submitErrorAtomFamily(scenarioId), message)
+        throw err
     } finally {
         set(isSubmittingAtomFamily(scenarioId), false)
     }
+})
+
+/** Clear the submit error for a scenario */
+const clearSubmitErrorAtom = atom(null, (_get, set, scenarioId: string) => {
+    set(submitErrorAtomFamily(scenarioId), null)
 })
 
 /** Clear all form state (call on session close) */
@@ -1564,6 +1601,8 @@ export const annotationFormController = {
         hasFilledMetrics: (scenarioId: string) => hasFilledMetricsAtomFamily(scenarioId),
         /** Whether a submission is in progress */
         isSubmitting: (scenarioId: string) => isSubmittingAtomFamily(scenarioId),
+        /** Current submission error message, or null if no error */
+        submitError: (scenarioId: string) => submitErrorAtomFamily(scenarioId),
         /** Evaluator IDs for the session */
         evaluatorIds: () => evaluatorIdsAtom,
         /** Resolved evaluators (derived from evaluatorIds + molecule) */
@@ -1585,6 +1624,8 @@ export const annotationFormController = {
         resetEdits: resetEditsAtom,
         /** Submit annotations (and optionally mark complete) */
         submitAnnotations: submitAnnotationsAtom,
+        /** Clear the submit error for a scenario */
+        clearSubmitError: clearSubmitErrorAtom,
         /** Clear all form state */
         clearFormState: clearFormStateAtom,
     },
@@ -1600,6 +1641,7 @@ export const annotationFormController = {
         hasFilledMetrics: (scenarioId: string) =>
             getStore().get(hasFilledMetricsAtomFamily(scenarioId)),
         isSubmitting: (scenarioId: string) => getStore().get(isSubmittingAtomFamily(scenarioId)),
+        submitError: (scenarioId: string) => getStore().get(submitErrorAtomFamily(scenarioId)),
         evaluatorIds: () => getStore().get(evaluatorIdsAtom),
         evaluators: (scenarioId: string) => getStore().get(evaluatorsAtomFamily(scenarioId)),
     },
@@ -1613,6 +1655,7 @@ export const annotationFormController = {
         resetEdits: (scenarioId: string) => getStore().set(resetEditsAtom, scenarioId),
         submitAnnotations: (payload: SubmitAnnotationsPayload) =>
             getStore().set(submitAnnotationsAtom, payload),
+        clearSubmitError: (scenarioId: string) => getStore().set(clearSubmitErrorAtom, scenarioId),
         clearFormState: () => getStore().set(clearFormStateAtom),
     },
 }
