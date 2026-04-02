@@ -13,7 +13,6 @@ export {
     AddToQueuePopover,
     CreateQueueDrawer,
     ScenarioContent,
-    AnnotationTasksView,
 } from "./components"
 
 export {
