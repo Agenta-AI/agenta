@@ -28,12 +28,16 @@ export function resolveAnyOfSchema(
         const nonNullSchemas = anyOf.filter((s) => s.type !== "null")
         if (nonNullSchemas.length === 1) {
             // Merge the resolved schema with parent properties (title, description, enum, etc.)
+            // Pydantic v2 sometimes places numeric constraints on the parent anyOf wrapper
+            // rather than on the child schema, so we merge them from both levels.
+            const child = nonNullSchemas[0]
             return {
-                ...nonNullSchemas[0],
-                title: schema.title ?? nonNullSchemas[0].title,
-                description: schema.description ?? nonNullSchemas[0].description,
-                // Preserve enum from parent if not in child
-                enum: schema.enum ?? nonNullSchemas[0].enum,
+                ...child,
+                title: schema.title ?? child.title,
+                description: schema.description ?? child.description,
+                enum: schema.enum ?? child.enum,
+                minimum: child.minimum ?? schema.minimum,
+                maximum: child.maximum ?? schema.maximum,
             }
         }
         // Multiple non-null options - return the first one for now
@@ -47,11 +51,14 @@ export function resolveAnyOfSchema(
     if (oneOf && Array.isArray(oneOf)) {
         const nonNullSchemas = oneOf.filter((s) => s.type !== "null")
         if (nonNullSchemas.length === 1) {
+            const child = nonNullSchemas[0]
             return {
-                ...nonNullSchemas[0],
-                title: schema.title ?? nonNullSchemas[0].title,
-                description: schema.description ?? nonNullSchemas[0].description,
-                enum: schema.enum ?? nonNullSchemas[0].enum,
+                ...child,
+                title: schema.title ?? child.title,
+                description: schema.description ?? child.description,
+                enum: schema.enum ?? child.enum,
+                minimum: child.minimum ?? schema.minimum,
+                maximum: child.maximum ?? schema.maximum,
             }
         }
         if (nonNullSchemas.length > 0) {
