@@ -590,7 +590,7 @@ export const generateNewEvaluatorPayloadData = ({
             },
             flags: {
                 is_custom: false,
-                is_human: true,
+                is_feedback: true,
             },
             data: {
                 service: {

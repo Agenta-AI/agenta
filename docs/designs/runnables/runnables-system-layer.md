@@ -120,7 +120,7 @@ The plan expands the API contract with one canonical workflow contract family an
 - Streaming and batching are selected through HTTP content negotiation rather than request flags.
 - If a caller asks for a response media type the runnable cannot produce, the request fails explicitly.
 - If a caller needs batched behavior on top of a streaming response, batching is a caller-side utility concern.
-- `is_custom` and `is_human` are derived from URI families.
+- `is_custom` and `is_feedback` are derived from URI families.
 - chat behavior is derived from schemas, primarily through explicit `x-` schema parameters marking `message` / `messages` fields.
 - evaluator identity and evaluator capability are derived differently:
   - builtins derive from URI family / registry truth

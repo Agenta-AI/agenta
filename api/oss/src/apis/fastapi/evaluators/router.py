@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Request, status, Depends, HTTPException
@@ -12,16 +12,9 @@ from oss.src.core.shared.dtos import (
     Reference,
 )
 from oss.src.core.evaluators.dtos import (
-    EvaluatorQueryFlags,
     EvaluatorRevisionData,
     #
-    EvaluatorQuery,
-    #
-    SimpleEvaluatorData,
     SimpleEvaluatorQuery,
-    SimpleEvaluator,
-    #
-    SimpleEvaluatorFlags,
     SimpleEvaluatorQueryFlags,
 )
 from oss.src.core.evaluators.service import (
@@ -1769,77 +1762,15 @@ class SimpleEvaluatorsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        evaluator = await self.evaluators_service.fetch_evaluator(
-            project_id=UUID(request.state.project_id),
-            #
-            evaluator_ref=Reference(id=evaluator_id),
-        )
-
-        if not evaluator or not evaluator.id:
-            return SimpleEvaluatorResponse()
-
-        evaluator = await self.evaluators_service.archive_evaluator(  # type: ignore
+        simple_evaluator = await self.simple_evaluators_service.archive(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluator_id=evaluator.id,
-        )
-
-        if not evaluator or not evaluator.id:
-            return SimpleEvaluatorResponse()
-
-        evaluator_variant = await self.evaluators_service.fetch_evaluator_variant(
-            project_id=UUID(request.state.project_id),
-            #
-            evaluator_ref=Reference(id=evaluator.id),
-        )
-
-        if evaluator_variant is None:
-            return SimpleEvaluatorResponse()
-
-        evaluator_variant = await self.evaluators_service.archive_evaluator_variant(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            evaluator_variant_id=evaluator_variant.id,  # type: ignore
-        )
-
-        if evaluator_variant is None:
-            return SimpleEvaluatorResponse()
-
-        simple_evaluator_flags = (
-            SimpleEvaluatorFlags(
-                **evaluator.flags.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                    exclude_unset=True,
-                ),
-            )
-            if evaluator.flags
-            else SimpleEvaluatorFlags()
-        )
-
-        simple_evaluator = SimpleEvaluator(
-            id=evaluator.id,
-            slug=evaluator.slug,
-            #
-            created_at=evaluator.created_at,
-            updated_at=evaluator.updated_at,
-            deleted_at=evaluator.deleted_at,
-            created_by_id=evaluator.created_by_id,
-            updated_by_id=evaluator.updated_by_id,
-            deleted_by_id=evaluator.deleted_by_id,
-            #
-            name=evaluator.name,
-            description=evaluator.description,
-            #
-            flags=simple_evaluator_flags,
-            tags=evaluator.tags,
-            meta=evaluator.meta,
+            evaluator_id=evaluator_id,
         )
 
         simple_evaluator_response = SimpleEvaluatorResponse(
-            count=1,
+            count=1 if simple_evaluator else 0,
             evaluator=simple_evaluator,
         )
 
@@ -1860,77 +1791,11 @@ class SimpleEvaluatorsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        evaluator_ref = Reference(
-            id=evaluator_id,
-        )
-
-        evaluator = await self.evaluators_service.fetch_evaluator(
-            project_id=UUID(request.state.project_id),
-            #
-            evaluator_ref=evaluator_ref,
-        )
-
-        if evaluator is None or not evaluator.id:
-            return SimpleEvaluatorResponse()
-
-        evaluator = await self.evaluators_service.unarchive_evaluator(  # type: ignore
+        simple_evaluator = await self.simple_evaluators_service.unarchive(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            evaluator_id=evaluator.id,
-        )
-
-        if evaluator is None:
-            return SimpleEvaluatorResponse()
-
-        evaluator_variant = await self.evaluators_service.fetch_evaluator_variant(
-            project_id=UUID(request.state.project_id),
-            #
-            evaluator_ref=evaluator_ref,
-        )
-
-        if evaluator_variant is None:
-            return SimpleEvaluatorResponse()
-
-        evaluator_variant = await self.evaluators_service.unarchive_evaluator_variant(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            evaluator_variant_id=evaluator_variant.id,  # type: ignore
-        )
-
-        if evaluator_variant is None:
-            return SimpleEvaluatorResponse()
-
-        simple_evaluator_flags = (
-            SimpleEvaluatorFlags(
-                **evaluator.flags.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                    exclude_unset=True,
-                ),
-            )
-            if evaluator.flags
-            else SimpleEvaluatorFlags()
-        )
-
-        simple_evaluator = SimpleEvaluator(
-            id=evaluator.id,
-            slug=evaluator.slug,
-            #
-            created_at=evaluator.created_at,
-            updated_at=evaluator.updated_at,
-            deleted_at=evaluator.deleted_at,
-            created_by_id=evaluator.created_by_id,
-            updated_by_id=evaluator.updated_by_id,
-            deleted_by_id=evaluator.deleted_by_id,
-            #
-            name=evaluator.name,
-            description=evaluator.description,
-            #
-            flags=simple_evaluator_flags,
-            tags=evaluator.tags,
-            meta=evaluator.meta,
+            evaluator_id=evaluator_id,
         )
 
         simple_evaluator_response = SimpleEvaluatorResponse(
@@ -1976,111 +1841,16 @@ class SimpleEvaluatorsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        simple_evaluator_flags = (
-            simple_evaluator_query_request.evaluator.flags
-            if simple_evaluator_query_request.evaluator
-            else None
-        )
-
-        flags = simple_evaluator_flags or EvaluatorQueryFlags()
-
-        evaluator_query = EvaluatorQuery(
-            flags=flags,
-            tags=(
-                simple_evaluator_query_request.evaluator.tags
-                if simple_evaluator_query_request.evaluator
-                else None
-            ),
-            meta=(
-                simple_evaluator_query_request.evaluator.meta
-                if simple_evaluator_query_request.evaluator
-                else None
-            ),
-            #
-        )
-
-        evaluators = await self.evaluators_service.query_evaluators(
+        simple_evaluators = await self.simple_evaluators_service.query(
             project_id=UUID(request.state.project_id),
             #
-            evaluator_query=evaluator_query,
-            #
-            evaluator_refs=simple_evaluator_query_request.evaluator_refs,
+            simple_evaluator_query=simple_evaluator_query_request.evaluator,
+            simple_evaluator_refs=simple_evaluator_query_request.evaluator_refs,
             #
             include_archived=simple_evaluator_query_request.include_archived,
             #
             windowing=simple_evaluator_query_request.windowing,
         )
-
-        simple_evaluators: List[SimpleEvaluator] = []
-
-        for evaluator in evaluators:
-            evaluator_ref = Reference(
-                id=evaluator.id,
-            )
-
-            evaluator_variant = await self.evaluators_service.fetch_evaluator_variant(
-                project_id=UUID(request.state.project_id),
-                #
-                evaluator_ref=evaluator_ref,
-            )
-
-            if evaluator_variant is None:
-                continue
-
-            evaluator_variant_ref = Reference(
-                id=evaluator_variant.id,
-            )
-
-            evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                evaluator_ref=evaluator_ref,
-                evaluator_variant_ref=evaluator_variant_ref,
-            )
-
-            if evaluator_revision is None:
-                continue
-
-            simple_evaluator_flags = (
-                SimpleEvaluatorFlags(
-                    **evaluator.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                    ),
-                )
-                if evaluator.flags
-                else SimpleEvaluatorFlags()
-            )
-
-            simple_evaluator = SimpleEvaluator(
-                id=evaluator.id,
-                slug=evaluator.slug,
-                #
-                created_at=evaluator.created_at,
-                updated_at=evaluator.updated_at,
-                deleted_at=evaluator.deleted_at,
-                created_by_id=evaluator.created_by_id,
-                updated_by_id=evaluator.updated_by_id,
-                deleted_by_id=evaluator.deleted_by_id,
-                #
-                name=evaluator.name,
-                description=evaluator.description,
-                #
-                flags=simple_evaluator_flags,
-                tags=evaluator.tags,
-                meta=evaluator.meta,
-                #
-                data=SimpleEvaluatorData(
-                    **(
-                        evaluator_revision.data.model_dump(mode="json")
-                        if evaluator_revision.data
-                        else {}
-                    ),
-                ),
-            )
-
-            simple_evaluators.append(simple_evaluator)
 
         simple_evaluators_response = SimpleEvaluatorsResponse(
             count=len(simple_evaluators),

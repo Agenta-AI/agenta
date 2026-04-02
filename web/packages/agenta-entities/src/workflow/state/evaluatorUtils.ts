@@ -295,7 +295,7 @@ export const evaluatorConfigsListDataAtom = atom<Workflow[]>((get) => {
     return refs.filter((ref) => {
         const flags = ref.flags
         if (!flags) return true
-        if (flags.is_human) return false
+        if (flags.is_feedback) return false
         if (flags.is_custom) return false
         return true
     }) as Workflow[]
@@ -322,7 +322,7 @@ export const evaluatorConfigsQueryStateAtom = atom<ListQueryState<Workflow>>((ge
 
 /**
  * Query atom for human evaluator workflows.
- * Calls `queryWorkflows` with `flags: { is_evaluator: true, is_human: true }`.
+ * Calls `queryWorkflows` with `flags: { is_evaluator: true, is_feedback: true }`.
  *
  * Caches only thin references in TanStack Query.
  */
@@ -334,7 +334,7 @@ export const humanEvaluatorsListQueryAtom = atomWithQuery((get) => {
             if (!projectId) return {count: 0, refs: []}
             const response = await queryWorkflows({
                 projectId,
-                flags: {is_evaluator: true, is_human: true},
+                flags: {is_evaluator: true, is_feedback: true},
             })
             const workflows = response.workflows ?? []
 
@@ -671,7 +671,7 @@ export async function createEvaluatorFromTemplate(templateKey: string): Promise<
             is_hook: false,
             is_code: false,
             is_match: false,
-            is_human: false,
+            is_feedback: false,
             is_chat: false,
             has_url: false,
             has_script: false,
@@ -809,7 +809,7 @@ export const createHumanEvaluatorAtom = atom(
                 is_hook: false,
                 is_code: false,
                 is_match: false,
-                is_human: true,
+                is_feedback: true,
                 is_chat: false,
                 has_url: false,
                 has_script: false,
@@ -863,7 +863,7 @@ export const updateHumanEvaluatorAtom = atom(
                 is_base: false,
                 ...(params.flags ?? {}),
                 // Always enforce human evaluator flags — must not be overridden
-                is_human: true,
+                is_feedback: true,
                 is_evaluator: true,
             },
             meta: (params.meta ?? {}) as Record<string, unknown>,

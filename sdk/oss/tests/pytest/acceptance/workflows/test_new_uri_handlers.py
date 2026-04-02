@@ -2,7 +2,7 @@
 Acceptance tests for the canonical workflow handler URIs.
 
 Tests cover end-to-end happy paths for:
-- agenta:custom:trace:v0  — interface-only, raises HookV0Error on invocation
+- agenta:custom:feedback:v0  — interface-only, raises HookV0Error on invocation
 - agenta:custom:hook:v0   — webhook forwarder (POST to a URL in RunningContext)
 - agenta:custom:code:v0   — Python code evaluator
 - agenta:builtin:match:v0 — rule-based matcher
@@ -30,7 +30,7 @@ from agenta.sdk.workflows.handlers import (
     hook_v0,
     llm_v0,
     match_v0,
-    trace_v0,
+    feedback_v0,
 )
 from agenta.sdk.workflows.utils import retrieve_handler, retrieve_interface
 
@@ -53,43 +53,43 @@ def evaluate(body: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# TestTraceV0Acceptance
+# TestFeedbackV0Acceptance
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.acceptance
-class TestTraceV0Acceptance:
-    """Happy-path acceptance tests for agenta:custom:trace:v0."""
+class TestFeedbackV0Acceptance:
+    """Happy-path acceptance tests for agenta:custom:feedback:v0."""
 
     def test_registry_lookup_returns_callable(self):
-        """retrieve_handler('agenta:custom:trace:v0') resolves to a callable."""
-        handler = retrieve_handler("agenta:custom:trace:v0")
+        """retrieve_handler('agenta:custom:feedback:v0') resolves to a callable."""
+        handler = retrieve_handler("agenta:custom:feedback:v0")
         assert handler is not None
         assert callable(handler)
 
     def test_interface_registry_lookup_returns_interface(self):
-        """retrieve_interface('agenta:custom:trace:v0') resolves to revision data."""
-        revision = retrieve_interface("agenta:custom:trace:v0")
+        """retrieve_interface('agenta:custom:feedback:v0') resolves to revision data."""
+        revision = retrieve_interface("agenta:custom:feedback:v0")
         assert revision is not None
 
-    def test_calling_trace_v0_raises_hook_error(self):
-        """Direct invocation of trace_v0 raises HookV0Error (interface-only contract)."""
-        _trace_v0 = trace_v0.__wrapped__
+    def test_calling_feedback_v0_raises_hook_error(self):
+        """Direct invocation of feedback_v0 raises HookV0Error (interface-only contract)."""
+        _feedback_v0 = feedback_v0.__wrapped__
         with pytest.raises(HookV0Error):
-            run(_trace_v0())
+            run(_feedback_v0())
 
-    def test_calling_trace_v0_with_inputs_raises_hook_error(self):
-        """Even when called with realistic arguments, trace_v0 raises HookV0Error."""
-        _trace_v0 = trace_v0.__wrapped__
+    def test_calling_feedback_v0_with_inputs_raises_hook_error(self):
+        """Even when called with realistic arguments, feedback_v0 raises HookV0Error."""
+        _feedback_v0 = feedback_v0.__wrapped__
         with pytest.raises(HookV0Error):
-            run(_trace_v0(inputs={"question": "What is 2+2?"}, outputs="4"))
+            run(_feedback_v0(inputs={"question": "What is 2+2?"}, outputs="4"))
 
     def test_hook_error_message_references_uri(self):
-        """The raised HookV0Error message identifies the agenta:custom:trace:v0 URI."""
-        _trace_v0 = trace_v0.__wrapped__
+        """The raised HookV0Error message identifies the agenta:custom:feedback:v0 URI."""
+        _feedback_v0 = feedback_v0.__wrapped__
         with pytest.raises(HookV0Error) as exc_info:
-            run(_trace_v0())
-        assert "agenta:custom:trace:v0" in exc_info.value.message
+            run(_feedback_v0())
+        assert "agenta:custom:feedback:v0" in exc_info.value.message
 
 
 # ---------------------------------------------------------------------------

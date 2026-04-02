@@ -22,7 +22,7 @@ Summary:
 
 - **DB migrations (M1, M3a, M3b, M3e):** DONE — Alembic migration `d3e4f5a6b7c8` handles URI backfills, flag normalization, legacy field stripping, and script flattening.
 - **Flag derivation (M2a, M2c, M2e):** DONE — flags are inferred at commit time, not stored.
-- **Flag rework (M2b, M2d):** WONTFIX — `is_human` stays; no `aggregate` param (implicit rule).
+- **Flag rework (M2b, M2d):** WONTFIX — `is_feedback` stays; no `aggregate` param (implicit rule).
 - **API responses (M4a, M4b):** DONE — derived flags in revision DTOs.
 - **API filters (M4c):** WONTFIX — no `is_runnable` concept needed.
 - **Frontend (M5a, M5b, M5c):** TODO — legacy `/openapi.json` schema extraction path to be removed with frontend rework.

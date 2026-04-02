@@ -62,7 +62,7 @@ const PlaygroundVariantConfigHeader = ({
             createWorkflowRevisionAdapter({
                 skipVariantLevel: true,
                 excludeRevisionZero: true,
-                flags: {is_evaluator: false, is_human: false},
+                flags: {is_evaluator: false, is_feedback: false},
             }),
         [],
     )

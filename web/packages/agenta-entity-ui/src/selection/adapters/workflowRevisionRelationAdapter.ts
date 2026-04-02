@@ -75,7 +75,7 @@ function getWorkflowGroupKey(entity: unknown): string {
     if (flags?.is_evaluator) return "evaluator"
     if (flags?.is_chat) return "chat"
     if (flags?.is_custom) return "custom"
-    if (flags?.is_human) return "human"
+    if (flags?.is_feedback) return "human"
     return "completion"
 }
 
@@ -356,8 +356,8 @@ export interface CreateWorkflowRevisionAdapterOptions {
      * ```typescript
      * // Exclude human evaluators from the list
      * filterWorkflows: (entity) => {
-     *     const w = entity as { flags?: { is_human?: boolean } }
-     *     return !w.flags?.is_human
+     *     const w = entity as { flags?: { is_feedback?: boolean } }
+     *     return !w.flags?.is_feedback
      * }
      * ```
      */

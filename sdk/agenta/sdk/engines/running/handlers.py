@@ -937,7 +937,7 @@ class SinglePromptConfig(BaseModel):
 
 
 @instrument()
-async def trace_v0(
+async def feedback_v0(
     request: Optional[Data] = None,
     revision: Optional[Data] = None,
     inputs: Optional[Data] = None,
@@ -947,7 +947,7 @@ async def trace_v0(
     testcase: Optional[Data] = None,
 ) -> Any:
     """
-    Interface-only handler for agenta:custom:trace:v0.
+    Interface-only handler for agenta:custom:feedback:v0.
 
     Unified handler for invocation/annotation workflows where the response
     (app output or human annotation) arrives via external links rather than
@@ -957,7 +957,7 @@ async def trace_v0(
     It cannot be invoked directly.
     """
     raise HookV0Error(
-        message="agenta:custom:trace:v0 is interface-only and cannot be invoked directly.",
+        message="agenta:custom:feedback:v0 is interface-only and cannot be invoked directly.",
     )
 
 

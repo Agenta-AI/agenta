@@ -30,7 +30,7 @@ The goal is to get the new system to feature parity where needed while allowing 
 
 - [ ] Add URI-derived classification helpers for builtin vs custom families
 - [ ] Derive `is_custom` from URI family rather than from authored revision flags
-- [ ] Derive `is_human` from the `agenta:custom:annotation:v0` family rather than from authored revision flags
+- [ ] Derive `is_feedback` from the `agenta:custom:annotation:v0` family rather than from authored revision flags
 - [ ] Introduce `agenta:custom:invocation:v0` for Agenta-managed custom invocation definitions created through the simple-trace path
 - [ ] Backfill URIs for human/custom annotation families, Agenta-managed custom invocation families, and any remaining no-URI rows
 - [ ] Expose derived classification in inspect/query/revision responses
@@ -188,7 +188,7 @@ The goal is to get the new system to feature parity where needed while allowing 
 After checkpoint 1, all of the following are true:
 
 1. Every workflow has a URI (including human evaluators)
-2. `is_custom` / `is_human` style identity is derived from URI families and exposed in API responses as derived truth or materialized metadata
+2. `is_custom` / `is_feedback` style identity is derived from URI families and exposed in API responses as derived truth or materialized metadata
 3. Invoke supports explicit response media-type negotiation for JSON, SSE, NDJSON, and JSONL
 4. Unsupported requested media types fail explicitly
 5. Chat/message behavior is derivable from schemas and persisted revision truth rather than authored primary flags

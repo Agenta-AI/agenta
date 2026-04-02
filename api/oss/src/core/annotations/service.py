@@ -56,7 +56,7 @@ from oss.src.core.annotations.utils import validate_data_against_schema
 
 log = get_module_logger(__name__)
 
-ANNOTATION_URI = "agenta:custom:trace:v0"
+ANNOTATION_URI = "agenta:custom:feedback:v0"
 
 
 class AnnotationsService:
@@ -180,7 +180,7 @@ class AnnotationsService:
         annotation_flags = AnnotationFlags(
             is_evaluator=True,
             is_custom=annotation_create.origin == AnnotationOrigin.CUSTOM,
-            is_human=annotation_create.origin == AnnotationOrigin.HUMAN,
+            is_feedback=annotation_create.origin == AnnotationOrigin.HUMAN,
             is_sdk=annotation_create.channel == AnnotationChannel.SDK,
             is_web=annotation_create.channel == AnnotationChannel.WEB,
             is_evaluation=annotation_create.kind == AnnotationKind.EVAL,
@@ -214,7 +214,7 @@ class AnnotationsService:
             AnnotationOrigin.CUSTOM
             if annotation_flags.is_custom
             else AnnotationOrigin.HUMAN
-            if annotation_flags.is_human
+            if annotation_flags.is_feedback
             else AnnotationOrigin.AUTO
         )
 
@@ -405,7 +405,7 @@ class AnnotationsService:
         annotation_flags = AnnotationFlags(
             is_evaluator=True,
             is_custom=annotation.origin == AnnotationOrigin.CUSTOM,
-            is_human=annotation.origin == AnnotationOrigin.HUMAN,
+            is_feedback=annotation.origin == AnnotationOrigin.HUMAN,
             is_sdk=annotation.channel == AnnotationChannel.SDK,
             is_web=annotation.channel == AnnotationChannel.WEB,
             is_evaluation=annotation.kind == AnnotationKind.EVAL,
@@ -435,7 +435,7 @@ class AnnotationsService:
             AnnotationOrigin.CUSTOM
             if annotation_flags.is_custom
             else AnnotationOrigin.HUMAN
-            if annotation_flags.is_human
+            if annotation_flags.is_feedback
             else AnnotationOrigin.AUTO
         )
 
@@ -522,7 +522,9 @@ class AnnotationsService:
                 annotation_flags.is_custom = (
                     annotation.origin == AnnotationOrigin.CUSTOM
                 )
-                annotation_flags.is_human = annotation.origin == AnnotationOrigin.HUMAN
+                annotation_flags.is_feedback = (
+                    annotation.origin == AnnotationOrigin.HUMAN
+                )
 
             if annotation.channel:
                 annotation_flags.is_sdk = annotation.channel == AnnotationChannel.SDK
@@ -648,7 +650,7 @@ class AnnotationsService:
             (
                 parsed_trace.flags.get("is_custom")
                 and AnnotationOrigin.CUSTOM
-                or parsed_trace.flags.get("is_human")
+                or parsed_trace.flags.get("is_feedback")
                 and AnnotationOrigin.HUMAN
                 or AnnotationOrigin.AUTO
             )
@@ -832,7 +834,7 @@ class AnnotationsService:
                 (
                     parsed_trace.flags.get("is_custom")
                     and AnnotationOrigin.CUSTOM
-                    or parsed_trace.flags.get("is_human")
+                    or parsed_trace.flags.get("is_feedback")
                     and AnnotationOrigin.HUMAN
                     or AnnotationOrigin.AUTO
                 )

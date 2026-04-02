@@ -73,11 +73,11 @@ The table below lists each real difference between the current invocation and an
 | Create-time auto-provisioning | Can auto-create a simple application shell if revision lookup misses | Can auto-create a simple evaluator shell if revision lookup misses | Both paths need a backing workflow record | Unify the provisioning flow shape. Only the backing service and DTO family should differ |
 | Generated workflow data on auto-create | Should create a simple application with generated normalized schema contract, including outputs schema derived from the simple-trace payload shape | Creates a simple evaluator with generated `schemas.outputs` plus compatibility `service.format` | The backing workflow created by the simple-trace path must be self-describing in both domains | Apply the same normalized schema bootstrapping policy to both application-backed and evaluator-backed simple traces. Compatibility `service` can remain temporarily, but normalized schemas must be the source of truth |
 | Payload validation against backing workflow schema | Should validate invocation payload against the normalized backing application schema whenever the backing workflow already exists | Validates annotation payload against evaluator `service.format` schema | Once the backing workflow exists, both domains should enforce its contract | Move both sides to normalized revision-schema validation via shared helpers. Remove annotation dependence on legacy `service.format` and add the equivalent application-side validation |
-| Derived origin | Invocation fetch/query always reconstructs `origin=CUSTOM` | Annotation fetch/query reconstructs `origin` from `is_custom` / `is_human` flags into `CUSTOM`, `HUMAN`, or `AUTO` | Invocation path never modeled origin carefully; annotation path did | Define one shared simple-trace origin derivation helper, with domain-configurable mapping rules. Invocation should stop hardcoding `CUSTOM` |
+| Derived origin | Invocation fetch/query always reconstructs `origin=CUSTOM` | Annotation fetch/query reconstructs `origin` from `is_custom` / `is_feedback` flags into `CUSTOM`, `HUMAN`, or `AUTO` | Invocation path never modeled origin carefully; annotation path did | Define one shared simple-trace origin derivation helper, with domain-configurable mapping rules. Invocation should stop hardcoding `CUSTOM` |
 | Derived kind | `kind` derived from `is_evaluation` flag | Same | Shared simple-trace concept | Unify into one shared helper |
 | Derived channel | `channel` derived from `is_sdk` / `is_web` flags | Same | Shared simple-trace concept | Unify into one shared helper |
 | Query flags type | Uses `InvocationFlags`, which doubles as query flags | Uses `AnnotationQueryFlags` separately from `AnnotationFlags` | Annotation side already split write-flags from query-flags | Normalize both sides to distinct query-flag DTOs or remove that distinction in favor of one shared simple-trace query filter model |
-| Annotation-specific flags | No `is_custom` / `is_human` materialization on create/edit/query | Annotation create/edit/query materialize `is_custom`, `is_human`, `is_evaluator`, `is_evaluation` | Annotation stack was compensating for missing URI/family truth | Replace authored identity with URI-derived/materialized metadata. Keep only the metadata that must still be queryable |
+| Annotation-specific flags | No `is_custom` / `is_feedback` materialization on create/edit/query | Annotation create/edit/query materialize `is_custom`, `is_feedback`, `is_evaluator`, `is_evaluation` | Annotation stack was compensating for missing URI/family truth | Replace authored identity with URI-derived/materialized metadata. Keep only the metadata that must still be queryable |
 | Trace-type authorship | Previously set invocation trace type directly in service, now removed | Previously set annotation trace type directly in service, now removed | Legacy implementation detail | Already fixed. Keep removed |
 | CRUD over traces | `_create`, `_fetch`, `_edit`, `_delete`, `_query` are near-identical except for domain DTOs and reference names | Same | Accidental duplication | Extract one shared `SimpleTracesService` core for CRUD/query over trace-backed entities |
 | Router routes | Same route shape under `/invocations/*` | Same route shape under `/annotations/*` | Domain namespace differs, but the mechanics do not | Extract one generic router factory/base. Keep separate route prefixes |
@@ -224,7 +224,7 @@ Move toward:
 - materialized query metadata only where needed
 - one shared origin derivation rule set
 
-This is where `is_human` and `is_custom` finally stop being special annotation-only authored inputs.
+This is where `is_feedback` and `is_custom` finally stop being special annotation-only authored inputs.
 
 ### Phase 6. Move schema validation off legacy `service`
 
@@ -276,7 +276,7 @@ This is the actionable checklist.
 
 ### 7f. Flags and validation
 
-- [ ] Stop treating `is_human` / `is_custom` as authored inputs in simple-trace creation
+- [ ] Stop treating `is_feedback` / `is_custom` as authored inputs in simple-trace creation
 - [ ] Derive/materialize identity metadata from URI family instead
 - [ ] Replace annotation validation reads of `data.service.format` with normalized schema reads
 - [ ] Add the same normalized schema validation path for invocation-backed simple traces

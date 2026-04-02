@@ -17,7 +17,7 @@ const getEvaluatorIdentifier = (evaluator: any) => {
 }
 
 const isHumanEvaluator = (evaluator: any) => {
-    return Boolean(evaluator?.flags?.is_human || evaluator?.meta?.is_human)
+    return Boolean(evaluator?.flags?.is_feedback || evaluator?.meta?.is_feedback)
 }
 
 const useEvaluatorNavigation = () => {

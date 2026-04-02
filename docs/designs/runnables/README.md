@@ -125,7 +125,7 @@ Uses `@ag.workflow()` / `@ag.application()` / `@ag.evaluator()` decorator classe
 WorkflowFlags
   is_custom: bool = False
   is_evaluator: bool = False
-  is_human: bool = False
+  is_feedback: bool = False
   is_chat: bool = False
 
 JsonSchemas
@@ -331,7 +331,7 @@ Client -> API (resolve variant -> deployment URL) -> SDK HTTP Service (/run or /
 |------|-----------|--------|-------------|
 | `is_custom` | `WorkflowFlags` | SDK auto-detection (`is_user_custom_uri`) + `WorkflowDBE.is_custom` | Persisted in DB |
 | `is_evaluator` | `WorkflowFlags` | `@ag.evaluator()` sets True, `@ag.application()` sets False | OpenAPI `x-agenta.flags`, `inspect()` |
-| `is_human` | `WorkflowFlags` | Not set anywhere currently | — |
+| `is_feedback` | `WorkflowFlags` | Not set anywhere currently | — |
 | `is_chat` | `WorkflowFlags` | `@ag.route(flags={"is_chat": True})` or auto-detect from `MessagesInput` | OpenAPI `x-agenta.flags`, `inspect()` |
 
 ### 6.2 How Flags Are Exposed
@@ -507,7 +507,7 @@ This is the richest schema definition in the system, but it only covers builtins
 | 1 | **Two parallel HTTP serving systems** (serving.py vs running.py) | Confusion about which path is canonical |
 | 2 | **API inspect exists but doesn't cache** | `POST /workflows/inspect` delegates to SDK but doesn't persist/cache results |
 | 3 | **No OpenAPI-compatible endpoint in new system** | Legacy serving has `/openapi.json` with `x-agenta.flags`; new system has `/inspect` but not OpenAPI-formatted |
-| 4 | **Flags not persisted in DB** | Only `is_custom` stored; `is_evaluator`, `is_chat`, `is_human` are runtime-only |
+| 4 | **Flags not persisted in DB** | Only `is_custom` stored; `is_evaluator`, `is_chat`, `is_feedback` are runtime-only |
 | 5 | **Missing capability flags** | `can_stream`, `can_evaluate`, `can_chat`, `can_verbose` not defined |
 | 6 | **Request flags in invoke are underspecified** | The request model has `flags`, but invocation-mode semantics are not clearly defined on it |
 | 7 | **Trace scope is easy to overstate** | The plan should stay limited to passive incoming trace-context support inside SDK routing/running |

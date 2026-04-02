@@ -340,7 +340,7 @@ export const workflowProjectIdAtom = projectIdAtom
  *
  * Contains the superset of fields consumed by all list-level atoms:
  * - `id`, `name`, `slug` — display and lookup
- * - `flags` — filtering (is_evaluator, is_human, is_custom)
+ * - `flags` — filtering (is_evaluator, is_feedback, is_custom)
  * - `deleted_at` — archive filtering
  * - `description` — human evaluator list display
  * - `created_at` — sort order in some views
@@ -1596,7 +1596,7 @@ export const updateWorkflowDraftAtom = atom(
             topLevelParameters !== undefined ? topLevelParameters : nestedParameters
         const flags = serverData?.flags ?? current?.flags
         const shouldSyncPromptInputKeys =
-            !!flags && !flags.is_custom && !flags.is_evaluator && !flags.is_human
+            !!flags && !flags.is_custom && !flags.is_evaluator && !flags.is_feedback
         const normalizedUpdates =
             incomingParameters !== undefined
                 ? ({
@@ -1809,7 +1809,7 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
             is_hook: false,
             is_code: false,
             is_match: false,
-            is_human: false,
+            is_feedback: false,
             is_chat: isChat,
             has_url: false,
             has_script: false,

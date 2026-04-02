@@ -1,41 +1,102 @@
+import json
+from typing import Any, Optional
+
 import click
-from sqlalchemy import text, Connection
+from sqlalchemy import Connection, text
+
+from agenta.sdk.engines.running.utils import infer_url_from_uri, parse_uri
+
+
+REVISION_FLAG_KEYS = (
+    "is_managed",
+    "is_custom",
+    "is_llm",
+    "is_hook",
+    "is_code",
+    "is_match",
+    "is_feedback",
+    "is_chat",
+    "has_url",
+    "has_script",
+    "has_handler",
+)
+
+
+def _normalize_artifact_flags(
+    legacy_flags: Optional[dict[str, Any]],
+) -> dict[str, bool]:
+    is_evaluator = bool((legacy_flags or {}).get("is_evaluator", False))
+
+    return {
+        "is_application": not is_evaluator,
+        "is_evaluator": is_evaluator,
+        "is_snippet": False,
+    }
+
+
+def _normalize_revision_flags(
+    *,
+    legacy_flags: Optional[dict[str, Any]],
+    data: Optional[dict[str, Any]],
+) -> dict[str, bool]:
+    legacy_flags = legacy_flags or {}
+    data = data or {}
+
+    uri = data.get("uri") if isinstance(data, dict) else None
+    url = data.get("url") if isinstance(data, dict) else None
+    script = data.get("script") if isinstance(data, dict) else None
+
+    provider, kind, key, _version = parse_uri(uri) if uri else (None, None, None, None)
+
+    if not url and uri:
+        url = infer_url_from_uri(uri)
+
+    return {
+        "is_managed": provider == "agenta",
+        "is_custom": kind == "custom",
+        "is_llm": key == "llm",
+        "is_hook": key == "hook",
+        "is_code": key == "code",
+        "is_match": key == "match",
+        "is_feedback": key in {"feedback", "trace"}
+        or bool(legacy_flags.get("is_feedback") or legacy_flags.get("is_feedback")),
+        "is_chat": bool(legacy_flags.get("is_chat", False) or key == "chat"),
+        "has_url": bool(url),
+        "has_script": bool(script),
+        "has_handler": False,
+    }
 
 
 def upgrade_workflow_revisions(session: Connection) -> None:
-    """Backfill URIs, normalize flags, and strip legacy fields on workflow_revisions.
+    """Backfill workflow entities to the new flag ownership model.
 
     Phase 1 — No-URI rows: backfill URI based on flags/URL presence.
-    Phase 2 — Existing-URI rows: normalize flags and strip legacy JSONB keys.
+    Phase 2 — Existing-URI rows: normalize data fields.
+    Phase 3 — Rebuild flags:
+      - artifacts keep only role/discovery flags
+      - variants drop flags entirely
+      - revisions keep only revision-level flags with all keys explicit
 
     Convention:
       - data column is json; cast to jsonb for mutation, back to json for storage.
-      - flags column is jsonb; REPLACED entirely (not merged).
-        Only role flags are persisted: is_evaluator, is_application, is_snippet.
-        All other flags are inferred at commit/read time by infer_flags_from_data().
+      - role flags are no longer stored on revisions.
       - '-' removes a key (safe if absent).
       - '||' merges/overwrites at top level.
-      - Legacy 'service' and 'configuration' are dropped.
       - Legacy script dict {"runtime","content"} is flattened to top-level
         runtime + string script.
-
-    See docs/designs/runnables/migrations.sql for full analysis and row counts.
     """
 
     # ----------------------------------------------------------------
     # Phase 1: No-URI rows — backfill URI
     # ----------------------------------------------------------------
 
-    # Row 5: No URI + URL + custom non-evaluator → hook:v0
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET
-          data = (
-            (data::jsonb - 'script' - 'runtime' - 'service' - 'configuration')
-            || '{"uri": "agenta:builtin:hook:v0"}'::jsonb
-          )::json,
-          flags = '{"is_evaluator": false, "is_application": true, "is_snippet": false}'::jsonb
+        SET data = (
+          (data::jsonb - 'script' - 'runtime' - 'service' - 'configuration')
+          || '{"uri": "agenta:builtin:hook:v0"}'::jsonb
+        )::json
         WHERE data IS NOT NULL
           AND (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
           AND data::jsonb ->> 'url' IS NOT NULL
@@ -44,50 +105,47 @@ def upgrade_workflow_revisions(session: Connection) -> None:
     """)
     )
 
-    # Row 6: No URI + no URL + human non-custom evaluator → feedback:v0
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET
-          data = (
-            (data::jsonb - 'script' - 'runtime' - 'parameters' - 'service' - 'configuration')
-            || '{"uri": "agenta:custom:feedback:v0"}'::jsonb
-          )::json,
-          flags = '{"is_evaluator": true, "is_application": false, "is_snippet": false}'::jsonb
+        SET data = (
+          (data::jsonb - 'script' - 'runtime' - 'parameters' - 'service' - 'configuration')
+          || '{"uri": "agenta:custom:feedback:v0"}'::jsonb
+        )::json
         WHERE data IS NOT NULL
           AND (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
           AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
-          AND flags = '{"is_chat": false, "is_human": true, "is_custom": false, "is_evaluator": true}'::jsonb
+          AND COALESCE(flags->>'is_feedback', flags->>'is_feedback') = 'true'
+          AND COALESCE(flags->>'is_custom', 'false') = 'false'
+          AND COALESCE(flags->>'is_chat', 'false') = 'false'
+          AND flags->>'is_evaluator' = 'true'
     """)
     )
 
-    # Row 7: No URI + no URL + non-human custom evaluator → feedback:v0
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET
-          data = (
-            (data::jsonb - 'script' - 'runtime' - 'parameters' - 'service' - 'configuration')
-            || '{"uri": "agenta:custom:feedback:v0"}'::jsonb
-          )::json,
-          flags = '{"is_evaluator": true, "is_application": false, "is_snippet": false}'::jsonb
+        SET data = (
+          (data::jsonb - 'script' - 'runtime' - 'parameters' - 'service' - 'configuration')
+          || '{"uri": "agenta:custom:feedback:v0"}'::jsonb
+        )::json
         WHERE data IS NOT NULL
           AND (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
           AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
-          AND flags = '{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}'::jsonb
+          AND COALESCE(flags->>'is_feedback', flags->>'is_feedback', 'false') = 'false'
+          AND COALESCE(flags->>'is_custom', 'false') = 'true'
+          AND COALESCE(flags->>'is_chat', 'false') = 'false'
+          AND flags->>'is_evaluator' = 'true'
     """)
     )
 
-    # Row 11: No URI + no URL + chat fallback → chat:v0
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET
-          data = (
-            (data::jsonb - 'script' - 'runtime' - 'url' - 'headers' - 'service' - 'configuration')
-            || '{"uri": "agenta:builtin:chat:v0"}'::jsonb
-          )::json,
-          flags = '{"is_evaluator": false, "is_application": true, "is_snippet": false}'::jsonb
+        SET data = (
+          (data::jsonb - 'script' - 'runtime' - 'url' - 'headers' - 'service' - 'configuration')
+          || '{"uri": "agenta:builtin:chat:v0"}'::jsonb
+        )::json
         WHERE data IS NOT NULL
           AND (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
           AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
@@ -96,16 +154,13 @@ def upgrade_workflow_revisions(session: Connection) -> None:
     """)
     )
 
-    # Row 12: No URI + no URL + completion fallback → completion:v0
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET
-          data = (
-            (data::jsonb - 'script' - 'runtime' - 'url' - 'headers' - 'service' - 'configuration')
-            || '{"uri": "agenta:builtin:completion:v0"}'::jsonb
-          )::json,
-          flags = '{"is_evaluator": false, "is_application": true, "is_snippet": false}'::jsonb
+        SET data = (
+          (data::jsonb - 'script' - 'runtime' - 'url' - 'headers' - 'service' - 'configuration')
+          || '{"uri": "agenta:builtin:completion:v0"}'::jsonb
+        )::json
         WHERE data IS NOT NULL
           AND (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
           AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
@@ -115,27 +170,23 @@ def upgrade_workflow_revisions(session: Connection) -> None:
     """)
     )
 
-    # Row 13: No URI + no URL + custom non-evaluator local → user:custom:local:latest
-    # Flatten script dict if present.
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET
-          data = (
-            (data::jsonb - 'script' - 'service' - 'configuration')
-            || '{"uri": "user:custom:local:latest"}'::jsonb
-            || CASE
-                 WHEN jsonb_typeof(data::jsonb -> 'script') = 'object' THEN
-                   jsonb_build_object(
-                     'runtime', data::jsonb -> 'script' -> 'runtime',
-                     'script',  data::jsonb -> 'script' -> 'content'
-                   )
-                 WHEN data::jsonb -> 'script' IS NOT NULL THEN
-                   jsonb_build_object('script', data::jsonb -> 'script')
-                 ELSE '{}'::jsonb
-               END
-          )::json,
-          flags = '{"is_evaluator": false, "is_application": true, "is_snippet": false}'::jsonb
+        SET data = (
+          (data::jsonb - 'script' - 'service' - 'configuration')
+          || '{"uri": "user:custom:local:latest"}'::jsonb
+          || CASE
+               WHEN jsonb_typeof(data::jsonb -> 'script') = 'object' THEN
+                 jsonb_build_object(
+                   'runtime', data::jsonb -> 'script' -> 'runtime',
+                   'script',  data::jsonb -> 'script' -> 'content'
+                 )
+               WHEN data::jsonb -> 'script' IS NOT NULL THEN
+                 jsonb_build_object('script', data::jsonb -> 'script')
+               ELSE '{}'::jsonb
+             END
+        )::json
         WHERE data IS NOT NULL
           AND (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
           AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
@@ -146,16 +197,13 @@ def upgrade_workflow_revisions(session: Connection) -> None:
     """)
     )
 
-    # Row 15: No URI + Agenta service URL + chat → chat:v0
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET
-          data = (
-            (data::jsonb - 'script' - 'runtime' - 'url' - 'headers' - 'service' - 'configuration')
-            || '{"uri": "agenta:builtin:chat:v0"}'::jsonb
-          )::json,
-          flags = '{"is_evaluator": false, "is_application": true, "is_snippet": false}'::jsonb
+        SET data = (
+          (data::jsonb - 'script' - 'runtime' - 'url' - 'headers' - 'service' - 'configuration')
+          || '{"uri": "agenta:builtin:chat:v0"}'::jsonb
+        )::json
         WHERE data IS NOT NULL
           AND (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
           AND data::jsonb ->> 'url' IS NOT NULL
@@ -165,16 +213,13 @@ def upgrade_workflow_revisions(session: Connection) -> None:
     """)
     )
 
-    # Row 16: No URI + Agenta service URL + completion → completion:v0
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET
-          data = (
-            (data::jsonb - 'script' - 'runtime' - 'url' - 'headers' - 'service' - 'configuration')
-            || '{"uri": "agenta:builtin:completion:v0"}'::jsonb
-          )::json,
-          flags = '{"is_evaluator": false, "is_application": true, "is_snippet": false}'::jsonb
+        SET data = (
+          (data::jsonb - 'script' - 'runtime' - 'url' - 'headers' - 'service' - 'configuration')
+          || '{"uri": "agenta:builtin:completion:v0"}'::jsonb
+        )::json
         WHERE data IS NOT NULL
           AND (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
           AND data::jsonb ->> 'url' IS NOT NULL
@@ -185,80 +230,64 @@ def upgrade_workflow_revisions(session: Connection) -> None:
     )
 
     # ----------------------------------------------------------------
-    # Phase 2: Existing-URI rows — normalize flags and strip legacy fields
+    # Phase 2: Existing-URI rows — normalize data fields
     # ----------------------------------------------------------------
 
-    # Row 14: user:custom — replace flags, flatten script dict if present
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET
-          data = (
-            (data::jsonb - 'script' - 'service' - 'configuration')
-            || CASE
-                 WHEN jsonb_typeof(data::jsonb -> 'script') = 'object' THEN
-                   jsonb_build_object(
-                     'runtime', data::jsonb -> 'script' -> 'runtime',
-                     'script',  data::jsonb -> 'script' -> 'content'
-                   )
-                 WHEN data::jsonb -> 'script' IS NOT NULL THEN
-                   jsonb_build_object('script', data::jsonb -> 'script')
-                 ELSE '{}'::jsonb
-               END
-          )::json,
-          flags = jsonb_build_object(
-            'is_evaluator', COALESCE((flags->>'is_evaluator')::boolean, false),
-            'is_application', NOT COALESCE((flags->>'is_evaluator')::boolean, false),
-            'is_snippet', false
-          )
+        SET data = (
+          (data::jsonb - 'script' - 'service' - 'configuration')
+          || CASE
+               WHEN jsonb_typeof(data::jsonb -> 'script') = 'object' THEN
+                 jsonb_build_object(
+                   'runtime', data::jsonb -> 'script' -> 'runtime',
+                   'script',  data::jsonb -> 'script' -> 'content'
+                 )
+               WHEN data::jsonb -> 'script' IS NOT NULL THEN
+                 jsonb_build_object('script', data::jsonb -> 'script')
+               ELSE '{}'::jsonb
+             END
+        )::json
         WHERE data IS NOT NULL
           AND data::jsonb ->> 'uri' LIKE 'user:custom:%'
     """)
     )
 
-    # Row 8: auto_webhook_test:v0 — normalize fields
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET
-          data = (data::jsonb - 'script' - 'runtime' - 'service' - 'configuration')::json,
-          flags = '{"is_evaluator": true, "is_application": false, "is_snippet": false}'::jsonb
+        SET data = (data::jsonb - 'script' - 'runtime' - 'service' - 'configuration')::json
         WHERE data IS NOT NULL
           AND data::jsonb ->> 'uri' = 'agenta:builtin:auto_webhook_test:v0'
     """)
     )
 
-    # Row 9: auto_custom_code_run:v0 — normalize fields, flatten script dict
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET
-          data = (
-            (data::jsonb - 'url' - 'headers' - 'script' - 'service' - 'configuration')
-            || CASE
-                 WHEN jsonb_typeof(data::jsonb -> 'script') = 'object' THEN
-                   jsonb_build_object(
-                     'runtime', data::jsonb -> 'script' -> 'runtime',
-                     'script',  data::jsonb -> 'script' -> 'content'
-                   )
-                 WHEN data::jsonb -> 'script' IS NOT NULL THEN
-                   jsonb_build_object('script', data::jsonb -> 'script')
-                 ELSE '{}'::jsonb
-               END
-          )::json,
-          flags = '{"is_evaluator": true, "is_application": false, "is_snippet": false}'::jsonb
+        SET data = (
+          (data::jsonb - 'url' - 'headers' - 'script' - 'service' - 'configuration')
+          || CASE
+               WHEN jsonb_typeof(data::jsonb -> 'script') = 'object' THEN
+                 jsonb_build_object(
+                   'runtime', data::jsonb -> 'script' -> 'runtime',
+                   'script',  data::jsonb -> 'script' -> 'content'
+                 )
+               WHEN data::jsonb -> 'script' IS NOT NULL THEN
+                 jsonb_build_object('script', data::jsonb -> 'script')
+               ELSE '{}'::jsonb
+             END
+        )::json
         WHERE data IS NOT NULL
           AND data::jsonb ->> 'uri' = 'agenta:builtin:auto_custom_code_run:v0'
     """)
     )
 
-    # Row 10: Other builtin evaluator URIs — normalize fields
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET
-          data = (data::jsonb - 'url' - 'headers' - 'script' - 'runtime' - 'service' - 'configuration')::json,
-          flags = '{"is_evaluator": true, "is_application": false, "is_snippet": false}'::jsonb
+        SET data = (data::jsonb - 'url' - 'headers' - 'script' - 'runtime' - 'service' - 'configuration')::json
         WHERE data IS NOT NULL
           AND data::jsonb ->> 'uri' LIKE 'agenta:builtin:%'
           AND data::jsonb ->> 'uri' NOT IN (
@@ -273,69 +302,117 @@ def upgrade_workflow_revisions(session: Connection) -> None:
     """)
     )
 
-    # Row 4: hook:v0 — normalize fields (keep URI)
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET
-          data = (data::jsonb - 'script' - 'runtime' - 'service' - 'configuration')::json,
-          flags = '{"is_evaluator": false, "is_application": true, "is_snippet": false}'::jsonb
+        SET data = (data::jsonb - 'script' - 'runtime' - 'service' - 'configuration')::json
         WHERE data IS NOT NULL
           AND data::jsonb ->> 'uri' = 'agenta:builtin:hook:v0'
     """)
     )
 
-    # Row 3: code:v0 — normalize fields, flatten script dict
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET
-          data = (
-            (data::jsonb - 'url' - 'headers' - 'script' - 'service' - 'configuration')
-            || CASE
-                 WHEN jsonb_typeof(data::jsonb -> 'script') = 'object' THEN
-                   jsonb_build_object(
-                     'runtime', data::jsonb -> 'script' -> 'runtime',
-                     'script',  data::jsonb -> 'script' -> 'content'
-                   )
-                 WHEN data::jsonb -> 'script' IS NOT NULL THEN
-                   jsonb_build_object('script', data::jsonb -> 'script')
-                 ELSE '{}'::jsonb
-               END
-          )::json,
-          flags = '{"is_evaluator": false, "is_application": true, "is_snippet": false}'::jsonb
+        SET data = (
+          (data::jsonb - 'url' - 'headers' - 'script' - 'service' - 'configuration')
+          || CASE
+               WHEN jsonb_typeof(data::jsonb -> 'script') = 'object' THEN
+                 jsonb_build_object(
+                   'runtime', data::jsonb -> 'script' -> 'runtime',
+                   'script',  data::jsonb -> 'script' -> 'content'
+                 )
+               WHEN data::jsonb -> 'script' IS NOT NULL THEN
+                 jsonb_build_object('script', data::jsonb -> 'script')
+               ELSE '{}'::jsonb
+             END
+        )::json
         WHERE data IS NOT NULL
           AND data::jsonb ->> 'uri' = 'agenta:builtin:code:v0'
     """)
     )
 
-    # Row 1: chat:v0 — normalize fields
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET
-          data = (data::jsonb - 'script' - 'runtime' - 'url' - 'headers' - 'service' - 'configuration')::json,
-          flags = '{"is_evaluator": false, "is_application": true, "is_snippet": false}'::jsonb
+        SET data = (data::jsonb - 'script' - 'runtime' - 'url' - 'headers' - 'service' - 'configuration')::json
         WHERE data IS NOT NULL
           AND data::jsonb ->> 'uri' = 'agenta:builtin:chat:v0'
     """)
     )
 
-    # Row 2: completion:v0 — normalize fields
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET
-          data = (data::jsonb - 'script' - 'runtime' - 'url' - 'headers' - 'service' - 'configuration')::json,
-          flags = '{"is_evaluator": false, "is_application": true, "is_snippet": false}'::jsonb
+        SET data = (data::jsonb - 'script' - 'runtime' - 'url' - 'headers' - 'service' - 'configuration')::json
         WHERE data IS NOT NULL
           AND data::jsonb ->> 'uri' = 'agenta:builtin:completion:v0'
     """)
     )
 
+    # ----------------------------------------------------------------
+    # Phase 3: Rebuild flags for artifact / variant / revision ownership
+    # ----------------------------------------------------------------
+
+    session.execute(
+        text("""
+        UPDATE workflow_artifacts
+        SET flags = jsonb_build_object(
+          'is_evaluator', COALESCE((flags->>'is_evaluator')::boolean, false),
+          'is_application', NOT COALESCE((flags->>'is_evaluator')::boolean, false),
+          'is_snippet', false
+        )
+    """)
+    )
+
+    session.execute(
+        text("""
+        UPDATE workflow_variants
+        SET flags = NULL
+    """)
+    )
+
+    session.execute(
+        text("""
+        UPDATE workflow_revisions
+        SET
+          data = NULL,
+          flags = NULL
+        WHERE version = '0'
+    """)
+    )
+
+    revision_rows = session.execute(
+        text("""
+        SELECT project_id, id, data, flags
+        FROM workflow_revisions
+        WHERE version IS NULL OR version <> '0'
+    """)
+    ).mappings()
+
+    for row in revision_rows:
+        revision_flags = _normalize_revision_flags(
+            legacy_flags=row["flags"],
+            data=row["data"],
+        )
+
+        session.execute(
+            text("""
+            UPDATE workflow_revisions
+            SET flags = CAST(:flags AS jsonb)
+            WHERE project_id = :project_id
+              AND id = :id
+        """),
+            {
+                "project_id": row["project_id"],
+                "id": row["id"],
+                "flags": json.dumps(revision_flags),
+            },
+        )
+
     click.echo(
         click.style(
-            "Successfully backfilled workflow revision URIs and normalized flags.",
+            "Successfully backfilled workflow artifact, variant, and revision flags.",
             fg="green",
         ),
         color=True,
@@ -345,9 +422,8 @@ def upgrade_workflow_revisions(session: Connection) -> None:
 def downgrade_workflow_revisions(session: Connection) -> None:
     """Downgrade is not supported.
 
-    This migration destructively replaces flags (losing legacy values like
-    is_chat, is_human, is_custom) and strips JSONB keys (service, configuration).
-    The original values cannot be restored. Restore from backup if needed.
+    This migration destructively replaces flags and strips JSONB keys from
+    workflow revisions. The original values cannot be restored.
     """
 
     raise NotImplementedError(
