@@ -22,7 +22,7 @@
         "@agenta/entities": "workspace:../agenta-entities",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
-        "lodash": ">=4.17.23",
+        "lodash": ">=4.18.1",
         "lucide-react": "^0.475.0"
     },
     "devDependencies": {

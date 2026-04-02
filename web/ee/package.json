@@ -64,7 +64,7 @@
         "jotai-tanstack-query": "^0.11.0",
         "js-yaml": "^4.1.1",
         "jsonrepair": "^3.13.2",
-        "lodash": ">=4.17.23",
+        "lodash": ">=4.18.1",
         "postcss": "^8.5.6",
         "posthog-js": "^1.223.3",
         "rc-virtual-list": "^3.19.2",

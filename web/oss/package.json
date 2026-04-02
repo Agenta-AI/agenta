@@ -96,7 +96,7 @@
         "js-yaml": "^4.1.1",
         "jsonrepair": "^3.13.2",
         "lexical": "^0.40.0",
-        "lodash": "^4.17.23",
+        "lodash": "^4.18.1",
         "lucide-react": "^0.475.0",
         "motion": "^12.0.0",
         "next": "15.5.14",
