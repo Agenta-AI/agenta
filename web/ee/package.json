@@ -59,7 +59,7 @@
         "jotai": "^2.16.1",
         "jotai-eager": "^0.2.4",
         "jotai-family": "^1.0.1",
-        "jotai-immer": "^0.4.0",
+        "jotai-immer": "^0.4.3",
         "jotai-scheduler": "^0.0.5",
         "jotai-tanstack-query": "^0.11.0",
         "js-yaml": "^4.1.1",

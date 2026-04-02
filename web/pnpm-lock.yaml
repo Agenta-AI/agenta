@@ -240,7 +240,7 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1(jotai@2.19.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.14)(react@19.2.4))
       jotai-immer:
-        specifier: ^0.4.0
+        specifier: ^0.4.3
         version: 0.4.3(immer@10.2.0)(jotai@2.19.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.14)(react@19.2.4))
       jotai-scheduler:
         specifier: ^0.0.5
@@ -544,7 +544,7 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1(jotai@2.19.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.14)(react@19.2.4))
       jotai-immer:
-        specifier: ^0.4.0
+        specifier: ^0.4.3
         version: 0.4.3(immer@10.2.0)(jotai@2.19.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.14)(react@19.2.4))
       jotai-scheduler:
         specifier: ^0.0.5
@@ -1239,7 +1239,7 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1(jotai@2.19.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.14)(react@19.2.4))
       jotai-immer:
-        specifier: ^0.4.1
+        specifier: ^0.4.3
         version: 0.4.3(immer@11.1.4)(jotai@2.19.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.14)(react@19.2.4))
       jotai-scheduler:
         specifier: ^0.0.5
