@@ -614,7 +614,7 @@ function PlaygroundConfigSection({
                                                     return (
                                                         <NumberSliderControl
                                                             key={key}
-                                                            schema={propSchema}
+                                                            schema={resolved}
                                                             label={formatLabel(key)}
                                                             value={
                                                                 (promptModelInfo.llmConfigValue?.[
