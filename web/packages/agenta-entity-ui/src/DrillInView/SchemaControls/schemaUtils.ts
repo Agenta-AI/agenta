@@ -52,8 +52,14 @@ export function resolveAnyOfSchema(
                 title: schema.title ?? child.title,
                 description: schema.description ?? child.description,
                 enum: schema.enum ?? child.enum,
-                minimum: mergedMin(child.minimum as number | undefined, schema.minimum as number | undefined),
-                maximum: mergedMax(child.maximum as number | undefined, schema.maximum as number | undefined),
+                minimum: mergedMin(
+                    child.minimum as number | undefined,
+                    schema.minimum as number | undefined,
+                ),
+                maximum: mergedMax(
+                    child.maximum as number | undefined,
+                    schema.maximum as number | undefined,
+                ),
             }
         }
         // Multiple non-null options - return the first one for now
@@ -73,8 +79,14 @@ export function resolveAnyOfSchema(
                 title: schema.title ?? child.title,
                 description: schema.description ?? child.description,
                 enum: schema.enum ?? child.enum,
-                minimum: mergedMin(child.minimum as number | undefined, schema.minimum as number | undefined),
-                maximum: mergedMax(child.maximum as number | undefined, schema.maximum as number | undefined),
+                minimum: mergedMin(
+                    child.minimum as number | undefined,
+                    schema.minimum as number | undefined,
+                ),
+                maximum: mergedMax(
+                    child.maximum as number | undefined,
+                    schema.maximum as number | undefined,
+                ),
             }
         }
         if (nonNullSchemas.length > 0) {
