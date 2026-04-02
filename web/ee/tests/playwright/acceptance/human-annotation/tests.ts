@@ -1,236 +1,619 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
-import {expect, Locator} from "@agenta/web-tests/utils"
+import {expect} from "@agenta/web-tests/utils"
+import type {Locator, Page} from "@playwright/test"
 
-import type {HumanEvaluationFixtures, HumanEvaluationConfig} from "./assets/types"
-import {waitForApiResponse} from "tests/tests/fixtures/base.fixture/apiHelpers"
+import type {HumanEvaluationConfig, HumanEvaluationFixtures} from "./assets/types"
+import {getProjectScopedBasePath} from "tests/tests/fixtures/base.fixture/apiHelpers"
+import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 import {EvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
-import {SnakeToCamelCaseKeys} from "@/oss/lib/Types"
 
-const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
-    navigateToHumanEvaluation: async ({page, uiHelpers, apiHelpers}, use) => {
-        await use(async (appId: string) => {
-            await page.goto(`/apps/${appId}/evaluations?kind=human`)
-            await expect(page).toHaveURL(new RegExp(`/apps/${appId}/evaluations\\?kind=human`))
+type EvaluationRunsResponse = {
+    runs: EvaluationRun[]
+    count: number
+}
 
-            const evaluationRunsResponse = await waitForApiResponse<{
-                runs: SnakeToCamelCaseKeys<EvaluationRun>[]
-                count: number
-            }>(page, {
-                route: `/api/preview/evaluations/runs/query`,
-                method: "POST",
-            })
+const DEFAULT_HUMAN_EVALUATOR_METRIC_NAME = "isTestWorking"
+const DEFAULT_HUMAN_ANNOTATION_VALUE_LABEL = "True"
 
-            const evaluationRuns = await evaluationRunsResponse
+const HUMAN_EVALUATION_EMPTY_STATE_TITLE = "Get Started with Human Evaluation"
+const HUMAN_EVALUATION_EMPTY_STATE_BUTTON_LABEL = /Create Evaluation/i
+const HUMAN_EVALUATION_LIST_BUTTON_LABEL = /New evaluation/i
+const HUMAN_EVALUATION_TAB_LABEL = "Human Evals"
+const HUMAN_EVALUATION_MODAL_TITLE = "New Human Evaluation"
+const HUMAN_EVALUATION_SUBMIT_BUTTON_LABEL = "Start Evaluation"
+const HUMAN_RESULTS_TAB_LABELS = ["Overview", "Scenarios", "Configuration", "Annotate"] as const
+const EVALUATION_RESULTS_TOUR_ID = "evaluation-results-intro"
+const WIDGET_CLOSED_TOUR_ID = "onboarding-widget-closed-tour"
+const ONBOARDING_ACTIVE_USER_ID_KEY = "agenta:onboarding:active-user-id"
+const ONBOARDING_IS_NEW_USER_KEY_SUFFIX = "is-new-user"
+const ONBOARDING_WIDGET_STATUS_KEY_SUFFIX = "widget-status"
+const ONBOARDING_WIDGET_UI_KEY_SUFFIX = "widget-ui"
+const ONBOARDING_WIDGET_SEEN_CLOSE_TOOLTIP_KEY_SUFFIX = "widget-seen-close-tooltip"
+const ONBOARDING_WIDGET_DISMISSED_STATUS = "dismissed"
 
-            expect(Array.isArray(evaluationRuns.runs)).toBe(true)
+const HUMAN_EVALUATION_CREATE_BUTTON_LABELS = [
+    /Create Evaluation/i,
+    /New evaluation/i,
+    /Start new evaluation/i,
+] as const
 
-            await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 10000})
+const getHumanEvaluationsPath = (page: Page, appId: string) =>
+    `${getProjectScopedBasePath(page)}/apps/${appId}/evaluations`
 
-            if (evaluationRunsResponse.runs.length > 0) {
-                await page.locator(".ant-checkbox").first().click()
+const getHumanEvaluationsUrl = (page: Page, appId: string) =>
+    `${getHumanEvaluationsPath(page, appId)}?kind=human`
 
-                // click delete button
-                await uiHelpers.clickButton("Delete")
+const getHumanResultsPathPrefix = (page: Page, appId: string) =>
+    `${getHumanEvaluationsPath(page, appId)}/results/`
 
-                // confirm delete in modal
-                await uiHelpers.confirmModal("Delete")
+const getHumanAppIdFromEvaluationsPage = (page: Page) => {
+    const match = new URL(page.url()).pathname.match(/\/apps\/([^/]+)\/evaluations\/?$/)
+    expect(match).toBeTruthy()
+    return match?.[1] as string
+}
+
+const typeIntoLocator = async (locator: Locator, text: string) => {
+    await expect(locator).toBeVisible()
+    await locator.click()
+    await locator.fill("")
+    await locator.pressSequentially(text, {delay: 20})
+}
+
+const waitForEvaluationRuns = async (page: Page, appId: string) => {
+    const response = await page.waitForResponse((response) => {
+        if (
+            !response.url().includes("/api/preview/evaluations/runs/query") ||
+            response.request().method() !== "POST"
+        ) {
+            return false
+        }
+
+        return new URL(response.url()).searchParams.get("app_id") === appId
+    })
+
+    expect(response.ok()).toBe(true)
+
+    return (await response.json()) as EvaluationRunsResponse
+}
+
+const getHumanEvaluationRuns = (evaluationRuns: EvaluationRunsResponse) => {
+    const runs = Array.isArray(evaluationRuns.runs) ? evaluationRuns.runs : []
+
+    return runs.filter((run) => deriveEvaluationKind(run) === "human")
+}
+
+const getHumanEvaluationCreateButton = async (page: Page) => {
+    for (const label of HUMAN_EVALUATION_CREATE_BUTTON_LABELS) {
+        const button = page.getByRole("button", {name: label}).first()
+        if (await button.isVisible().catch(() => false)) {
+            return button
+        }
+    }
+
+    throw new Error("Could not find a human evaluation create button.")
+}
+
+const disableEvaluationResultsOnboardingState = async (page: Page) => {
+    await page.evaluate(
+        ({
+            activeUserIdKey,
+            evaluationResultsTourId,
+            widgetClosedTourId,
+            isNewUserKeySuffix,
+            widgetStatusKeySuffix,
+            widgetUiKeySuffix,
+            widgetSeenCloseTooltipKeySuffix,
+            dismissedWidgetStatus,
+        }: {
+            activeUserIdKey: string
+            evaluationResultsTourId: string
+            widgetClosedTourId: string
+            isNewUserKeySuffix: string
+            widgetStatusKeySuffix: string
+            widgetUiKeySuffix: string
+            widgetSeenCloseTooltipKeySuffix: string
+            dismissedWidgetStatus: string
+        }) => {
+            const userId = window.localStorage.getItem(activeUserIdKey)
+            if (!userId) {
+                return
             }
 
-            await expect(evaluationRunsResponse.runs.length).toBe(0)
+            const seenToursKey = `agenta:onboarding:${userId}:seen-tours`
+            const isNewUserKey = `agenta:onboarding:${userId}:${isNewUserKeySuffix}`
+            const widgetStatusKey = `agenta:onboarding:${userId}:${widgetStatusKeySuffix}`
+            const widgetUiKey = `agenta:onboarding:${userId}:${widgetUiKeySuffix}`
+            const widgetSeenCloseTooltipKey = `agenta:onboarding:${userId}:${widgetSeenCloseTooltipKeySuffix}`
 
+            const currentSeenTours = window.localStorage.getItem(seenToursKey)
+            let parsedSeenTours: Record<string, number | boolean> = {}
+
+            if (currentSeenTours) {
+                try {
+                    parsedSeenTours = JSON.parse(currentSeenTours) as Record<
+                        string,
+                        number | boolean
+                    >
+                } catch {
+                    parsedSeenTours = {}
+                }
+            }
+
+            window.localStorage.setItem(
+                seenToursKey,
+                JSON.stringify({
+                    ...parsedSeenTours,
+                    [evaluationResultsTourId]: Date.now(),
+                    [widgetClosedTourId]: Date.now(),
+                }),
+            )
+            window.localStorage.setItem(isNewUserKey, JSON.stringify(false))
+            window.localStorage.setItem(widgetStatusKey, JSON.stringify(dismissedWidgetStatus))
+            window.localStorage.setItem(
+                widgetUiKey,
+                JSON.stringify({
+                    isOpen: false,
+                    isMinimized: false,
+                }),
+            )
+            window.localStorage.setItem(widgetSeenCloseTooltipKey, JSON.stringify(true))
+        },
+        {
+            activeUserIdKey: ONBOARDING_ACTIVE_USER_ID_KEY,
+            evaluationResultsTourId: EVALUATION_RESULTS_TOUR_ID,
+            widgetClosedTourId: WIDGET_CLOSED_TOUR_ID,
+            isNewUserKeySuffix: ONBOARDING_IS_NEW_USER_KEY_SUFFIX,
+            widgetStatusKeySuffix: ONBOARDING_WIDGET_STATUS_KEY_SUFFIX,
+            widgetUiKeySuffix: ONBOARDING_WIDGET_UI_KEY_SUFFIX,
+            widgetSeenCloseTooltipKeySuffix: ONBOARDING_WIDGET_SEEN_CLOSE_TOOLTIP_KEY_SUFFIX,
+            dismissedWidgetStatus: ONBOARDING_WIDGET_DISMISSED_STATUS,
+        },
+    )
+}
+
+const dismissEvaluationResultsOnboarding = async (page: Page) => {
+    await disableEvaluationResultsOnboardingState(page)
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        const skipButton = page.getByRole("button", {name: "Skip"}).last()
+        if (await skipButton.isVisible().catch(() => false)) {
+            await skipButton.click()
+            await expect(skipButton).toBeHidden({timeout: 10000})
+        }
+
+        const widgetClosedTourButton = page.getByRole("button", {name: "Got it!"}).last()
+        if (await widgetClosedTourButton.isVisible().catch(() => false)) {
+            await widgetClosedTourButton.click()
+            await expect(widgetClosedTourButton).toBeHidden({timeout: 10000})
+        }
+
+        const onboardingWidget = page
+            .locator("section")
+            .filter({hasText: "Get started guide"})
+            .first()
+        if (await onboardingWidget.isVisible().catch(() => false)) {
+            const widgetCloseButton = onboardingWidget.locator("button.ant-btn").last()
+            if (await widgetCloseButton.isVisible().catch(() => false)) {
+                await widgetCloseButton.click({force: true})
+                await page.waitForTimeout(400)
+            }
+        }
+
+        const hasSkipButton = await skipButton.isVisible().catch(() => false)
+        const hasWidgetClosedTourButton = await widgetClosedTourButton
+            .isVisible()
+            .catch(() => false)
+        const hasOnboardingWidget = await onboardingWidget.isVisible().catch(() => false)
+        if (!hasSkipButton && !hasWidgetClosedTourButton && !hasOnboardingWidget) {
+            break
+        }
+    }
+}
+
+const goToHumanEvaluations = async (page: Page, appId: string) => {
+    const evaluationRunsPromise = waitForEvaluationRuns(page, appId)
+
+    await page.goto(getHumanEvaluationsUrl(page, appId), {waitUntil: "domcontentloaded"})
+
+    await expect.poll(() => new URL(page.url()).pathname).toBe(getHumanEvaluationsPath(page, appId))
+    await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBe("human")
+    await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 10000})
+
+    const evaluationRuns = await evaluationRunsPromise
+
+    expect(Array.isArray(evaluationRuns.runs)).toBe(true)
+
+    return getHumanEvaluationRuns(evaluationRuns)
+}
+
+const waitForHumanResultsPage = async (page: Page, appId: string) => {
+    await expect
+        .poll(() => new URL(page.url()).pathname)
+        .toContain(getHumanResultsPathPrefix(page, appId))
+    await expect.poll(() => new URL(page.url()).searchParams.get("type")).toBe("human")
+    await expect.poll(() => Boolean(new URL(page.url()).searchParams.get("scenarioId"))).toBe(true)
+
+    for (const tabLabel of HUMAN_RESULTS_TAB_LABELS) {
+        await expect(page.getByRole("tab", {name: tabLabel}).first()).toBeVisible()
+    }
+
+    await dismissEvaluationResultsOnboarding(page)
+}
+
+const ensureHumanEvaluationsContext = async (page: Page) => {
+    await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBe("human")
+
+    const humanTab = page.getByRole("tab", {name: HUMAN_EVALUATION_TAB_LABEL}).first()
+    await expect(humanTab).toBeVisible()
+
+    if ((await humanTab.getAttribute("aria-selected")) !== "true") {
+        await humanTab.click()
+    }
+
+    await expect(humanTab).toHaveAttribute("aria-selected", "true")
+}
+
+const openHumanAnnotateView = async (page: Page) => {
+    await dismissEvaluationResultsOnboarding(page)
+
+    const annotateTab = page.getByRole("tab", {name: "Annotate"}).first()
+    await expect(annotateTab).toBeVisible()
+
+    if ((await annotateTab.getAttribute("aria-selected")) !== "true") {
+        await annotateTab.click()
+    }
+
+    await expect(annotateTab).toHaveAttribute("aria-selected", "true")
+    await expect(page.locator("#focus-section-inputs")).toBeVisible()
+    await expect(page.locator("#focus-section-outputs")).toBeVisible()
+    await expect(page.locator("#focus-section-annotations")).toBeVisible()
+}
+
+const openHumanEvaluationModal = async (page: Page) => {
+    await ensureHumanEvaluationsContext(page)
+    await (await getHumanEvaluationCreateButton(page)).click()
+
+    const modal = page.locator(".ant-modal").first()
+    await expect(modal).toBeVisible()
+    await expect(modal.getByText(HUMAN_EVALUATION_MODAL_TITLE).first()).toBeVisible()
+    await expect(
+        modal.getByRole("button", {name: HUMAN_EVALUATION_SUBMIT_BUTTON_LABEL}).last(),
+    ).toBeVisible()
+
+    return modal
+}
+
+const goToHumanEvaluationStep = async (modal: Locator, step: string) => {
+    const stepTab = modal.getByRole("tab", {name: step})
+    await expect(stepTab).toBeVisible()
+    await stepTab.click()
+    await expect(stepTab).toHaveAttribute("aria-selected", "true")
+    await expect(modal.locator(".ant-tabs-tabpane-active").last()).toBeVisible()
+}
+
+const getActiveHumanEvaluationPane = (modal: Locator) =>
+    modal.locator(".ant-tabs-tabpane-active").last()
+
+const selectHumanEvaluationModalTableInput = async ({
+    modal,
+    rowText,
+    inputType,
+}: {
+    modal: Locator
+    rowText?: string | RegExp
+    inputType: "checkbox" | "radio"
+}) => {
+    const activePane = getActiveHumanEvaluationPane(modal)
+    const searchInput = activePane.locator('input[placeholder="Search"]').first()
+    const inputSelector = inputType === "radio" ? 'input[type="radio"]' : 'input[type="checkbox"]'
+    const controlSelector =
+        inputType === "radio"
+            ? ".ant-radio-wrapper, .ant-radio"
+            : ".ant-checkbox-wrapper, .ant-checkbox"
+
+    if (typeof rowText === "string" && (await searchInput.isVisible().catch(() => false))) {
+        await typeIntoLocator(searchInput, rowText)
+        await expect(searchInput).toHaveValue(rowText)
+        await expect
+            .poll(
+                async () =>
+                    await activePane.locator("[data-row-key]").filter({hasText: rowText}).count(),
+                {timeout: 30000},
+            )
+            .toBeGreaterThan(0)
+    }
+
+    const targetRow = rowText
+        ? activePane.locator("[data-row-key]").filter({hasText: rowText}).first()
+        : activePane.locator("[data-row-key]").first()
+    await expect(targetRow).toBeVisible({timeout: 30000})
+    const targetRowKey = await targetRow.getAttribute("data-row-key")
+
+    await expect
+        .poll(async () => await targetRow.locator(inputSelector).count(), {timeout: 30000})
+        .toBeGreaterThan(0)
+
+    const selectionInput = targetRow.locator(inputSelector).first()
+    const selectionControl = targetRow.locator(controlSelector).first()
+    const stableSelectionInput = targetRowKey
+        ? modal.locator(`[data-row-key="${targetRowKey}"]`).locator(inputSelector).first()
+        : selectionInput
+    const isSelected = await selectionInput.isChecked().catch(() => false)
+
+    if (!isSelected) {
+        if (await selectionControl.isVisible().catch(() => false)) {
+            await selectionControl.click({force: true})
+        } else {
+            await selectionInput.click({force: true})
+        }
+    }
+
+    if (inputType === "radio" && typeof rowText === "string") {
+        await expect
+            .poll(
+                async () => {
+                    if (await stableSelectionInput.isChecked().catch(() => false)) {
+                        return true
+                    }
+
+                    return (
+                        (await modal.locator(".ant-tabs-tab").filter({hasText: rowText}).count()) >
+                        0
+                    )
+                },
+                {timeout: 30000},
+            )
+            .toBe(true)
+        return
+    }
+
+    await expect(stableSelectionInput).toBeChecked({timeout: 30000})
+}
+
+const waitForHumanEvaluatorPane = async (modal: Locator) => {
+    const activePane = getActiveHumanEvaluationPane(modal)
+    const searchInput = activePane.locator('input[placeholder="Search"]').first()
+
+    await expect(searchInput).toBeVisible({timeout: 30000})
+    await expect
+        .poll(
+            async () => {
+                const rowCount = await activePane.locator("[data-row-key]").count()
+                if (rowCount > 0) return true
+
+                const hasEmptyState = await activePane
+                    .getByText("No evaluators yet")
+                    .first()
+                    .isVisible()
+                    .catch(() => false)
+                const hasNoSearchResults = await activePane
+                    .getByText("No evaluators match your search")
+                    .first()
+                    .isVisible()
+                    .catch(() => false)
+
+                return hasEmptyState || hasNoSearchResults
+            },
+            {timeout: 30000},
+        )
+        .toBe(true)
+
+    return activePane
+}
+
+const ensureSingleHumanEvaluatorSelection = async ({
+    modal,
+    evaluatorName,
+}: {
+    modal: Locator
+    evaluatorName?: string
+}) => {
+    await waitForHumanEvaluatorPane(modal)
+    await selectHumanEvaluationModalTableInput({
+        modal,
+        rowText: evaluatorName,
+        inputType: "checkbox",
+    })
+}
+
+const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
+    navigateToHumanEvaluation: async ({page}, use) => {
+        await use(async (appId: string) => {
+            const humanEvaluationRuns = await goToHumanEvaluations(page, appId)
+
+            if (humanEvaluationRuns.length > 0) {
+                expect(humanEvaluationRuns.length).toBeGreaterThan(0)
+                await expect(
+                    page.getByRole("button", {name: HUMAN_EVALUATION_LIST_BUTTON_LABEL}).first(),
+                ).toBeVisible()
+                return
+            }
+
+            expect(humanEvaluationRuns).toHaveLength(0)
+            await expect(page.getByText(HUMAN_EVALUATION_EMPTY_STATE_TITLE).first()).toBeVisible()
             await expect(
-                page.locator(".ant-btn-primary", {hasText: "Start new evaluation"}).first(),
+                page.getByRole("button", {name: HUMAN_EVALUATION_EMPTY_STATE_BUTTON_LABEL}).first(),
             ).toBeVisible()
         })
     },
 
-    navigateToHumanAnnotationRun: async ({page, uiHelpers, apiHelpers}, use) => {
-        await use(async (appId: string) => {
-            await page.goto(`/apps/${appId}/evaluations?kind=human`)
-            await expect(page).toHaveURL(new RegExp(`/apps/${appId}/evaluations\\?kind=human`))
+    createHumanEvaluationRun: async ({page}, use) => {
+        await use(async (config: HumanEvaluationConfig) => {
+            const modal = await openHumanEvaluationModal(page)
+            const appId = getHumanAppIdFromEvaluationsPage(page)
 
-            const runs = await apiHelpers.getEvaluationRuns()
-
-            await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 10000})
-
-            await page.locator(`tr[data-row-key="${runs[0].id}"]`).click()
-
-            await expect(page).toHaveURL(
-                new RegExp(`/apps/${appId}/evaluations/single_model_test/${runs[0].id}(\\?|$)`),
+            await typeIntoLocator(
+                modal.locator('input[placeholder="Enter a name"]').first(),
+                config.name,
             )
 
-            await expect(page.locator("h4").filter({hasText: runs[0].name})).toBeVisible()
-        })
-    },
+            await goToHumanEvaluationStep(modal, "Variant")
+            await selectHumanEvaluationModalTableInput({
+                modal,
+                rowText: config.variants,
+                inputType: "radio",
+            })
 
-    createHumanEvaluationRun: async ({page, uiHelpers}, use) => {
-        await use(async (config: HumanEvaluationConfig) => {
-            await uiHelpers.clickButton("Start new evaluation")
-            const modal = page.locator(".ant-modal").first()
-            await expect(modal).toBeVisible()
-
-            const goToStep = async (step: string) => {
-                await modal.getByRole("tab", {name: step}).click()
-            }
-
-            await uiHelpers.typeWithDelay('input[placeholder="Enter a name"]', config.name)
-
-            await goToStep("Test set")
-            await uiHelpers.selectTableRowInput({
+            await goToHumanEvaluationStep(modal, "Test set")
+            await selectHumanEvaluationModalTableInput({
+                modal,
                 rowText: config.testset,
                 inputType: "radio",
-                checked: true,
             })
 
-            await goToStep("Variant")
-            const variantRow = page.getByRole("row").filter({
-                has: page
-                    .locator("td", {hasText: config.variants})
-                    .locator(".ant-tag", {hasText: "v1"}),
-            })
+            await goToHumanEvaluationStep(modal, "Evaluators")
 
-            await expect(variantRow).toBeVisible()
-            await variantRow.getByRole("radio").check()
+            let evaluatorName: string | null = null
+            const evaluatorMetricName =
+                config.evaluatorMetricName ?? DEFAULT_HUMAN_EVALUATOR_METRIC_NAME
+            const evaluatorPane = await waitForHumanEvaluatorPane(modal)
+            const hasExistingEvaluator = (await evaluatorPane.locator("[data-row-key]").count()) > 0
 
-            await goToStep("Evaluator")
+            if (!config.skipEvaluatorCreation || !hasExistingEvaluator) {
+                evaluatorName = `evaluator-${Date.now()}`
 
-            const evaluatorName = "evaluator_test"
+                const createEvaluatorButton = modal
+                    .getByRole("button", {
+                        name: /Create (new|your first) evaluator/i,
+                    })
+                    .first()
+                await expect(createEvaluatorButton).toBeVisible()
+                await createEvaluatorButton.click()
 
-            if (!config.skipEvaluatorCreation) {
-                await uiHelpers.clickButton("Create new")
-                const evalDrawer = page.locator(".ant-drawer-content")
-                await expect(evalDrawer).toBeVisible()
-                await expect(evalDrawer).toContainText("Create new evaluator")
+                const evaluatorDrawer = page
+                    .locator(".ant-drawer-content-wrapper")
+                    .filter({
+                        has: page.locator('input[placeholder="Enter a unique slug"]'),
+                    })
+                    .last()
+                const evaluatorNameInput = evaluatorDrawer
+                    .locator('input[placeholder="Enter a name"]')
+                    .first()
+                const evaluatorSlugInput = evaluatorDrawer
+                    .locator('input[placeholder="Enter a unique slug"]')
+                    .first()
+                const feedbackNameInput = evaluatorDrawer
+                    .locator('input[placeholder="Enter a feedback name"]')
+                    .first()
 
-                await uiHelpers.typeWithDelay("#evaluatorName", evaluatorName)
-                await expect(page.locator("#evaluatorSlug")).toHaveValue(evaluatorName)
+                await expect(evaluatorDrawer).toBeVisible()
+                await expect(evaluatorSlugInput).toBeVisible()
 
-                await uiHelpers.typeWithDelay("#metrics_0_name", "isTestWorking")
+                await typeIntoLocator(evaluatorNameInput, evaluatorName)
+                await expect(evaluatorSlugInput).toHaveValue(evaluatorName)
+                await typeIntoLocator(feedbackNameInput, evaluatorMetricName)
 
-                await page.locator(".ant-select").click()
-
-                const dropdownOption = page.locator('div[title="Boolean (True/False)"]')
+                await evaluatorDrawer.locator(".ant-select").last().click()
+                const dropdownOption = page.getByText("Boolean (True/False)", {exact: true}).last()
                 await expect(dropdownOption).toBeVisible()
-
                 await dropdownOption.click()
 
-                await uiHelpers.clickButton("Save")
+                const createEvaluatorSubmitButton = evaluatorDrawer
+                    .getByRole("button", {name: "Create"})
+                    .last()
+                await expect(createEvaluatorSubmitButton).toBeEnabled()
+                await createEvaluatorSubmitButton.click()
 
-                await expect(evalDrawer).toHaveCount(0)
-
-                const successMessage = page
-                    .locator(".ant-message")
-                    .getByText("Evaluator created successfully")
-                await expect(successMessage).toBeVisible()
+                await expect(evaluatorSlugInput).toHaveCount(0)
+                await expect(
+                    page.locator(".ant-message").getByText("Evaluator created successfully"),
+                ).toBeVisible()
             }
 
-            await uiHelpers.selectTableRowInput({
-                rowText: evaluatorName,
-                inputType: "checkbox",
-                checked: true,
+            await ensureSingleHumanEvaluatorSelection({
+                modal,
+                evaluatorName: evaluatorName ?? undefined,
             })
 
-            await expect
-                .poll(async () => {
-                    return await page.locator(".ant-tabs-nav-list .ant-tag").count()
-                })
-                .toBe(3)
+            await disableEvaluationResultsOnboardingState(page)
 
-            const createButton = modal.getByRole("button", {name: "Create"}).last()
+            const createButton = modal
+                .getByRole("button", {name: HUMAN_EVALUATION_SUBMIT_BUTTON_LABEL})
+                .last()
+            await expect(createButton).toBeEnabled()
             await createButton.click()
-            await expect(createButton).toHaveClass(/ant-btn-loading/)
+
+            await waitForHumanResultsPage(page, appId)
         })
     },
 
-    verifyStatusUpdate: async ({page, uiHelpers}, use) => {
-        await use(async (row: Locator) => {
-            await expect(row.locator(".ant-table-cell").nth(1)).toHaveText(/Running|Incomplete/)
-            await expect(row.getByRole("button", {name: "Annotate"})).toBeVisible()
-        })
-    },
+    annotateCurrentHumanScenario: async ({page}, use) => {
+        await use(
+            async ({
+                metricLabel = DEFAULT_HUMAN_EVALUATOR_METRIC_NAME,
+                valueLabel = DEFAULT_HUMAN_ANNOTATION_VALUE_LABEL,
+            }: {
+                metricLabel?: string | RegExp
+                valueLabel?: string | RegExp
+            } = {}) => {
+                await openHumanAnnotateView(page)
+                await dismissEvaluationResultsOnboarding(page)
 
-    switchToTableView: async ({page, uiHelpers}, use) => {
-        await use(async () => {
-            await page.locator(".ant-radio-button-wrapper", {hasText: "Table View"}).click()
-            await expect(page).toHaveURL(/view=table/)
-        })
-    },
+                const annotationsCard = page.locator("#focus-section-annotations")
+                const overlayMessage = annotationsCard
+                    .getByText(/Generate output to annotate|Generating output/i)
+                    .first()
+                const runButton = annotationsCard.getByRole("button", {name: /^Run$/}).first()
 
-    runScenarioFromFocusView: async ({page, uiHelpers}, use) => {
-        await use(async () => {
-            await expect(page.locator("span").filter({hasText: "Pending"})).toBeVisible()
-            await page.getByRole("button", {name: "Run Scenario"}).first().click()
-            await expect(page.locator("span").filter({hasText: "Running"})).toBeVisible()
-            await expect(page.locator("span").filter({hasText: "Incomplete"}).first()).toBeVisible()
-        })
-    },
+                if (await runButton.isVisible().catch(() => false)) {
+                    await runButton.click()
+                }
 
-    annotateFromFocusView: async ({page}, use) => {
-        await use(async () => {
-            const collapseBox = page.locator(".ant-collapse-content-box")
-            await expect(collapseBox.getByText("isTestWorking")).toBeVisible()
+                await expect
+                    .poll(async () => await overlayMessage.isVisible().catch(() => false), {
+                        timeout: 60000,
+                    })
+                    .toBe(false)
 
-            await collapseBox.locator(".ant-radio-button-wrapper").first().click()
+                await dismissEvaluationResultsOnboarding(page)
 
-            const annotateBtn = page.getByRole("button", {name: "Annotate"})
-            await expect(annotateBtn).toBeEnabled()
+                const metricField = annotationsCard
+                    .locator(".playground-property-control")
+                    .filter({hasText: metricLabel})
+                    .first()
 
-            await annotateBtn.click()
+                await expect(metricField).toBeVisible({
+                    timeout: 60000,
+                })
 
-            await expect(page.locator("span", {hasText: "Annotating"}).first()).toBeVisible()
+                await dismissEvaluationResultsOnboarding(page)
 
-            await expect(page.locator("span", {hasText: "Success"})).toHaveCount(2)
-        })
-    },
+                const visibleBooleanOption = metricField
+                    .locator(".ant-radio-button-wrapper")
+                    .filter({hasText: valueLabel})
+                    .first()
+                await expect(visibleBooleanOption).toBeVisible()
+                await visibleBooleanOption.scrollIntoViewIfNeeded()
+                await visibleBooleanOption.click({force: true})
+                await expect(visibleBooleanOption).toHaveClass(/ant-radio-button-wrapper-checked/)
 
-    annotateFromTableView: async ({page}, use) => {
-        await use(async () => {
-            const row = page.locator(".ant-table-row").first()
+                const annotateButton = annotationsCard
+                    .getByRole("button", {name: "Annotate"})
+                    .first()
+                await expect(annotateButton).toBeEnabled()
+                await annotateButton.click()
 
-            await row.getByRole("button", {name: "Annotate"}).click()
+                await expect(
+                    page.locator(".ant-message").getByText("Annotations saved successfully"),
+                ).toBeVisible()
 
-            const drawer = page.locator(".ant-drawer-content")
-            await expect(drawer).toBeVisible()
-            await expect(drawer).toContainText("Annotate scenario")
-            await expect(drawer.getByText("isTestWorking")).toBeVisible()
-
-            await drawer.locator(".ant-radio-button-wrapper").first().click()
-
-            const annotateBtn = drawer.getByRole("button", {name: "Annotate"})
-            await expect(annotateBtn).toBeEnabled()
-            await annotateBtn.click()
-
-            await expect(drawer).toHaveCount(0)
-        })
-    },
-
-    navigateBetweenScenarios: async ({page}, use) => {
-        await use(async () => {
-            const prevBtn = page.getByRole("button", {name: "Prev"})
-            const nextBtn = page.getByRole("button", {name: "Next"})
-
-            // Initial state
-            await expect(prevBtn).toBeDisabled()
-            await expect(nextBtn).toBeEnabled()
-
-            // Navigate: 1 → 2
-            await expect(page.locator('span[title="Testcase: 1"]').first()).toBeVisible()
-            await nextBtn.click()
-            await expect(page.locator('span[title="Testcase: 2"]').first()).toBeVisible()
-
-            // Navigate: 2 → 3
-            await nextBtn.click()
-            await expect(page.locator('span[title="Testcase: 3"]').first()).toBeVisible()
-
-            // Backward: 3 → 2
-            await prevBtn.click()
-            await expect(page.locator('span[title="Testcase: 2"]').first()).toBeVisible()
-
-            // Backward: 2 → 1
-            await prevBtn.click()
-            await expect(page.locator('span[title="Testcase: 1"]').first()).toBeVisible()
-        })
+                await expect(
+                    page
+                        .locator(".ant-tag")
+                        .filter({hasText: /^success$/i})
+                        .first(),
+                ).toBeVisible({
+                    timeout: 60000,
+                })
+            },
+        )
     },
 })
 
-export {testWithHumanFixtures as test, expect}
+export {
+    testWithHumanFixtures as test,
+    expect,
+    openHumanEvaluationModal,
+    goToHumanEvaluationStep,
+    selectHumanEvaluationModalTableInput,
+}

@@ -11,6 +11,17 @@ import {
     TestLicenseType,
 } from "@agenta/web-tests/playwright/config/testTags"
 
+interface WorkflowRevision {
+    id: string
+    workflow_id?: string | null
+    version?: number | null
+}
+
+interface WorkflowRevisionsResponse {
+    workflow_revisions: WorkflowRevision[]
+    count?: number
+}
+
 const promptRegistryTests = () => {
     test(
         "should open prompt details from prompt registry",
@@ -27,38 +38,64 @@ const promptRegistryTests = () => {
             ],
         },
         async ({page, uiHelpers, apiHelpers}) => {
-            // 1. Get or create a completion app
             const app = await apiHelpers.getApp("completion")
             const appId = app.id
 
-            // 2. Navigate to the app-level Registry page
             const basePath = getProjectScopedBasePath(page)
+            const revisionsResponsePromise =
+                apiHelpers.waitForApiResponse<WorkflowRevisionsResponse>({
+                    route: "/api/preview/workflows/revisions/query",
+                    method: "POST",
+                })
+
             await page.goto(`${basePath}/apps/${appId}/variants`, {
                 waitUntil: "domcontentloaded",
             })
             await uiHelpers.expectPath(`/apps/${appId}/variants`)
 
-            // 3. Wait for the Registry table to load with at least one revision row
-            const firstRow = page.locator(".variant-table-row").first()
-            await expect(firstRow).toBeVisible({timeout: 30000})
+            const revisionsResponse = await revisionsResponsePromise
+            const revisions = revisionsResponse.workflow_revisions.filter(
+                (revision) => (revision.version ?? 0) > 0,
+            )
 
-            // 4. Click the first row to open the revision drawer
-            await firstRow.click()
+            test.skip(revisions.length === 0, "No workflow revisions found in registry")
 
-            // 5. Verify the "Workflow Revision" drawer opens
-            const drawer = page.locator(".ant-drawer").last()
+            const selectedRevision = revisions[0]
+            const revisionId = selectedRevision.id
+
+            const row = page.locator(`[data-row-key="${revisionId}"]`).first()
+            await expect(row).toBeVisible({timeout: 30000})
+            await row.click()
+
+            await page.waitForURL((url) => {
+                return (
+                    url.pathname.endsWith(`/apps/${appId}/variants`) &&
+                    url.searchParams.get("revisionId") === revisionId
+                )
+            })
+
+            const drawer = page.locator(".ant-drawer-content-wrapper").filter({
+                hasText: "Workflow Revision",
+            })
             await expect(drawer).toBeVisible({timeout: 15000})
             await expect(drawer.getByText("Workflow Revision").first()).toBeVisible({
                 timeout: 15000,
             })
 
-            // 6. Click the "Playground" button in the drawer header
             const playgroundButton = drawer.getByRole("button", {name: "Playground"})
             await expect(playgroundButton).toBeVisible({timeout: 15000})
             await playgroundButton.click()
 
-            // 7. Verify navigation to the playground page
-            await page.waitForURL(/\/apps\/.*\/playground/, {timeout: 15000})
+            await page.waitForURL(
+                (url) => {
+                    const revisionsParam = url.searchParams.get("revisions") ?? ""
+                    return (
+                        url.pathname.endsWith(`/apps/${appId}/playground`) &&
+                        revisionsParam.split(",").includes(revisionId)
+                    )
+                },
+                {timeout: 15000},
+            )
             await uiHelpers.expectPath(`/apps/${appId}/playground`)
         },
     )

@@ -32,6 +32,7 @@ export enum Role {
     FUNCTION = "function",
 }
 export type RunAutoEvalFixtureType = {
+    name?: string
     evaluators: string[]
     testset: string
     variants: string[]
@@ -39,5 +40,7 @@ export type RunAutoEvalFixtureType = {
 
 export interface EvaluationFixtures extends BaseFixture {
     navigateToEvaluation: (appId: string) => Promise<void>
-    runAutoEvaluation: (config: RunAutoEvalFixtureType) => Promise<void>
+    runAutoEvaluation: (
+        config: RunAutoEvalFixtureType,
+    ) => Promise<{name: string; runId: string | null}>
 }
