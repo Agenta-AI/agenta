@@ -143,6 +143,7 @@ Single message editor with role selector.
 | `headerRight` | `ReactNode` | - | Right side header content |
 | `headerBottom` | `ReactNode` | - | Below header content |
 | `footer` | `ReactNode` | - | Footer content |
+| `maxPasteChars` | `number` | `50000` | Blocks pastes that would make the message exceed this many characters |
 
 #### `ChatMessageList`
 
@@ -159,6 +160,7 @@ List of editable messages with add/remove controls.
 | `tokens` | `string[]` | `[]` | Available variables |
 | `templateFormat` | `'curly' \| 'fstring' \| 'jinja2'` | - | Variable syntax |
 | `ImagePreview` | `Component` | - | Custom image preview |
+| `maxPasteChars` | `number` | `50000` | Blocks pastes that would make a message exceed this many characters |
 
 #### `MarkdownToggleButton`
 

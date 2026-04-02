@@ -267,6 +267,11 @@ class EventsWorker:
 
                 # 3. Dispatch to webhooks (skip ACK/DEL on failure to allow retry)
                 if self.webhooks_dispatcher and batches:
+                    log.info(
+                        "[EVENTS] Dispatching webhooks",
+                        batches=len(batches),
+                        dispatcher=type(self.webhooks_dispatcher).__name__,
+                    )
                     try:
                         await self.webhooks_dispatcher.dispatch(batches=batches)
                     except Exception:
@@ -276,10 +281,16 @@ class EventsWorker:
                             batch_size=len(batch),
                         )
                         continue
+                else:
+                    log.info(
+                        "[EVENTS] Skipping webhook dispatch",
+                        has_dispatcher=self.webhooks_dispatcher is not None,
+                        batches=len(batches),
+                    )
 
                 # 4. ACK and DELETE processed messages
                 await self.ack_and_delete(processed_ids)
-                log.debug(
+                log.info(
                     "[EVENTS] Batch processed",
                     batch_size=len(batch),
                     ingested=ingested,
