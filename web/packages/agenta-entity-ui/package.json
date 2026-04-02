@@ -24,7 +24,8 @@
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
         "lodash": ">=4.17.23",
-        "lucide-react": "^0.479.0"
+        "lucide-react": "^0.479.0",
+        "zod": ">=3.0.0"
     },
     "devDependencies": {
         "@floating-ui/react": "^0.26.0",
@@ -74,7 +75,7 @@
         "@tanstack/react-query": ">=5.0.0",
         "@tanstack/react-virtual": ">=3.0.0",
         "antd": ">=5.0.0",
-        "axios": ">=1.0.0",
+        "axios": ">=1.13.5",
         "clsx": ">=2.0.0",
         "fast-deep-equal": ">=3.0.0",
         "immer": ">=10.0.0",

@@ -13,6 +13,23 @@ import type {SimpleChatMessage} from "@agenta/shared/types"
 // ============================================================================
 
 /**
+ * Intersect numeric bounds from parent and child schemas.
+ * In JSON Schema, wrapper keywords apply alongside anyOf/oneOf, so the effective
+ * bound is the tightest of both: min = max(parent, child), max = min(parent, child).
+ */
+function mergedMin(a: number | undefined, b: number | undefined): number | undefined {
+    if (a == null) return b
+    if (b == null) return a
+    return Math.max(a, b)
+}
+
+function mergedMax(a: number | undefined, b: number | undefined): number | undefined {
+    if (a == null) return b
+    if (b == null) return a
+    return Math.min(a, b)
+}
+
+/**
  * Resolve anyOf/oneOf schemas to get the actual non-null schema.
  * Handles nullable types like: anyOf: [{type: "number"}, {type: "null"}]
  */
@@ -28,12 +45,19 @@ export function resolveAnyOfSchema(
         const nonNullSchemas = anyOf.filter((s) => s.type !== "null")
         if (nonNullSchemas.length === 1) {
             // Merge the resolved schema with parent properties (title, description, enum, etc.)
+            // Numeric constraints are intersected (tightest range wins) per JSON Schema semantics.
+            const child = nonNullSchemas[0]
+            const childMin = child.minimum as number | undefined
+            const childMax = child.maximum as number | undefined
+            const parentMin = schema.minimum as number | undefined
+            const parentMax = schema.maximum as number | undefined
             return {
-                ...nonNullSchemas[0],
-                title: schema.title ?? nonNullSchemas[0].title,
-                description: schema.description ?? nonNullSchemas[0].description,
-                // Preserve enum from parent if not in child
-                enum: schema.enum ?? nonNullSchemas[0].enum,
+                ...child,
+                title: schema.title ?? child.title,
+                description: schema.description ?? child.description,
+                enum: schema.enum ?? child.enum,
+                minimum: mergedMin(childMin, parentMin),
+                maximum: mergedMax(childMax, parentMax),
             }
         }
         // Multiple non-null options - return the first one for now
@@ -47,11 +71,18 @@ export function resolveAnyOfSchema(
     if (oneOf && Array.isArray(oneOf)) {
         const nonNullSchemas = oneOf.filter((s) => s.type !== "null")
         if (nonNullSchemas.length === 1) {
+            const child = nonNullSchemas[0]
+            const childMin = child.minimum as number | undefined
+            const childMax = child.maximum as number | undefined
+            const parentMin = schema.minimum as number | undefined
+            const parentMax = schema.maximum as number | undefined
             return {
-                ...nonNullSchemas[0],
-                title: schema.title ?? nonNullSchemas[0].title,
-                description: schema.description ?? nonNullSchemas[0].description,
-                enum: schema.enum ?? nonNullSchemas[0].enum,
+                ...child,
+                title: schema.title ?? child.title,
+                description: schema.description ?? child.description,
+                enum: schema.enum ?? child.enum,
+                minimum: mergedMin(childMin, parentMin),
+                maximum: mergedMax(childMax, parentMax),
             }
         }
         if (nonNullSchemas.length > 0) {
