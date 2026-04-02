@@ -52,6 +52,16 @@ def test_normalize_revision_flags_defaults_missing_values_to_false():
     assert all(value is False for value in flags.values())
 
 
+def test_normalize_revision_flags_accepts_legacy_is_human_feedback_flag():
+    flags = _normalize_revision_flags(
+        legacy_flags={"is_human": True},
+        data={"uri": "agenta:custom:feedback:v0"},
+    )
+
+    assert tuple(flags.keys()) == REVISION_FLAG_KEYS
+    assert flags["is_feedback"] is True
+
+
 class _FakeResult:
     def __init__(self, rows):
         self._rows = rows

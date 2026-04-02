@@ -59,7 +59,7 @@ def _normalize_revision_flags(
         "is_code": key == "code",
         "is_match": key == "match",
         "is_feedback": key in {"feedback", "trace"}
-        or bool(legacy_flags.get("is_feedback") or legacy_flags.get("is_feedback")),
+        or bool(legacy_flags.get("is_feedback") or legacy_flags.get("is_human")),
         "is_chat": bool(legacy_flags.get("is_chat", False) or key == "chat"),
         "has_url": bool(url),
         "has_script": bool(script),
@@ -115,7 +115,7 @@ def upgrade_workflow_revisions(session: Connection) -> None:
         WHERE data IS NOT NULL
           AND (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
           AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
-          AND COALESCE(flags->>'is_feedback', flags->>'is_feedback') = 'true'
+          AND COALESCE(flags->>'is_feedback', flags->>'is_human') = 'true'
           AND COALESCE(flags->>'is_custom', 'false') = 'false'
           AND COALESCE(flags->>'is_chat', 'false') = 'false'
           AND flags->>'is_evaluator' = 'true'
@@ -132,7 +132,7 @@ def upgrade_workflow_revisions(session: Connection) -> None:
         WHERE data IS NOT NULL
           AND (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
           AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
-          AND COALESCE(flags->>'is_feedback', flags->>'is_feedback', 'false') = 'false'
+          AND COALESCE(flags->>'is_feedback', flags->>'is_human', 'false') = 'false'
           AND COALESCE(flags->>'is_custom', 'false') = 'true'
           AND COALESCE(flags->>'is_chat', 'false') = 'false'
           AND flags->>'is_evaluator' = 'true'
