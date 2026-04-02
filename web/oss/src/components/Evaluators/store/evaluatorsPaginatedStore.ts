@@ -111,8 +111,8 @@ async function ensureWorkflowIdCache(
 
     const flags =
         category === "human"
-            ? {is_evaluator: true as const, is_human: true as const}
-            : {is_evaluator: true as const, is_human: false as const}
+            ? {is_evaluator: true as const, is_feedback: true as const}
+            : {is_evaluator: true as const, is_feedback: false as const}
 
     const workflowsResponse = await queryWorkflows({
         projectId,

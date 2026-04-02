@@ -141,7 +141,7 @@ WHERE data IS NOT NULL
     NOT (data::jsonb ? 'url')
     OR data::jsonb ->> 'url' IS NULL
   )
-  AND flags = '{"is_chat": false, "is_human": true, "is_custom": false, "is_evaluator": true}'::jsonb;
+  AND flags = '{"is_chat": false, "is_feedback": true, "is_custom": false, "is_evaluator": true}'::jsonb;
 -- 1789
 
 SELECT *
@@ -155,7 +155,7 @@ WHERE data IS NOT NULL
     NOT (data::jsonb ? 'url')
     OR data::jsonb ->> 'url' IS NULL
   )
-  AND flags = '{"is_chat": false, "is_human": true, "is_custom": false, "is_evaluator": true}'::jsonb
+  AND flags = '{"is_chat": false, "is_feedback": true, "is_custom": false, "is_evaluator": true}'::jsonb
 ORDER BY created_at DESC
 LIMIT 10;
 --
@@ -174,7 +174,7 @@ WHERE data IS NOT NULL
     NOT (data::jsonb ? 'url')
     OR data::jsonb ->> 'url' IS NULL
   )
-  AND flags = '{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}'::jsonb;
+  AND flags = '{"is_chat": false, "is_feedback": false, "is_custom": true, "is_evaluator": true}'::jsonb;
 -- 32
   
 SELECT *
@@ -188,7 +188,7 @@ WHERE data IS NOT NULL
     NOT (data::jsonb ? 'url')
     OR data::jsonb ->> 'url' IS NULL
   )
-  AND flags = '{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}'::jsonb
+  AND flags = '{"is_chat": false, "is_feedback": false, "is_custom": true, "is_evaluator": true}'::jsonb
 ORDER BY created_at DESC
 LIMIT 10;
 --
@@ -525,14 +525,14 @@ WITH classified AS (
       ) AND (
         NOT (data::jsonb ? 'url')
         OR data::jsonb ->> 'url' IS NULL
-      ) AND flags = '{"is_chat": false, "is_human": true, "is_custom": false, "is_evaluator": true}'::jsonb THEN 'row-6'
+      ) AND flags = '{"is_chat": false, "is_feedback": true, "is_custom": false, "is_evaluator": true}'::jsonb THEN 'row-6'
       WHEN (
         NOT (data::jsonb ? 'uri')
         OR data::jsonb ->> 'uri' IS NULL
       ) AND (
         NOT (data::jsonb ? 'url')
         OR data::jsonb ->> 'url' IS NULL
-      ) AND flags = '{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}'::jsonb THEN 'row-7'
+      ) AND flags = '{"is_chat": false, "is_feedback": false, "is_custom": true, "is_evaluator": true}'::jsonb THEN 'row-7'
       WHEN data::jsonb ->> 'uri' IN ('agenta:builtin:auto_webhook_test:v0') THEN 'row-8'
       WHEN data::jsonb ->> 'uri' IN ('agenta:builtin:auto_custom_code_run:v0') THEN 'row-9'
       WHEN data::jsonb ->> 'uri' LIKE 'agenta:builtin:%' AND flags->>'is_evaluator' = 'true' THEN 'row-10'
@@ -592,7 +592,7 @@ ORDER BY bucket;
 --   flags column is jsonb; REPLACED entirely (not merged).
 --     Only user-defined role flags are persisted: is_evaluator, is_application, is_snippet.
 --     All other flags (is_managed, is_custom, is_llm, is_hook, is_code, is_match,
---     is_human, is_chat, has_url, has_script, has_handler) are inferred at
+--     is_feedback, is_chat, has_url, has_script, has_handler) are inferred at
 --     commit/read time by infer_flags_from_data().
 --   '-' removes a key (safe if absent).
 --   '||' merges/overwrites at top level.
@@ -646,14 +646,14 @@ SET
 WHERE data IS NOT NULL
   AND (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
   AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
-  AND flags = '{"is_chat": false, "is_human": true, "is_custom": false, "is_evaluator": true}'::jsonb;
+  AND flags = '{"is_chat": false, "is_feedback": true, "is_custom": false, "is_evaluator": true}'::jsonb;
 
 -- Check: original condition returns 0
 SELECT COUNT(*) AS remaining FROM workflow_revisions
 WHERE data IS NOT NULL
   AND (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
   AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
-  AND flags = '{"is_chat": false, "is_human": true, "is_custom": false, "is_evaluator": true}'::jsonb;
+  AND flags = '{"is_chat": false, "is_feedback": true, "is_custom": false, "is_evaluator": true}'::jsonb;
 
 -- COMMIT;
 -- ROLLBACK;
@@ -673,14 +673,14 @@ SET
 WHERE data IS NOT NULL
   AND (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
   AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
-  AND flags = '{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}'::jsonb;
+  AND flags = '{"is_chat": false, "is_feedback": false, "is_custom": true, "is_evaluator": true}'::jsonb;
 
 -- Check: original condition returns 0
 SELECT COUNT(*) AS remaining FROM workflow_revisions
 WHERE data IS NOT NULL
   AND (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
   AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
-  AND flags = '{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}'::jsonb;
+  AND flags = '{"is_chat": false, "is_feedback": false, "is_custom": true, "is_evaluator": true}'::jsonb;
 
 -- COMMIT;
 -- ROLLBACK;

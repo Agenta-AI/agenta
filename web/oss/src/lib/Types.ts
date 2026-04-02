@@ -376,7 +376,7 @@ interface SimpleEvaluatorData {
 interface SimpleEvaluatorFlags {
     is_custom?: boolean
     is_evaluator?: boolean
-    is_human?: boolean
+    is_feedback?: boolean
     requires_llm_api_keys?: boolean
     evaluator_key?: string
     color?: string

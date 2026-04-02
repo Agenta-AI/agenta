@@ -105,7 +105,7 @@ The no-URI population is not one thing. It breaks into several distinct buckets.
 Dominant bucket:
 
 - flags:
-  - `is_human=true`
+  - `is_feedback=true`
   - `is_evaluator=true`
 - count:
   - `1526`
@@ -118,7 +118,7 @@ Dominant bucket:
 Secondary bucket:
 
 - flags:
-  - `is_human=true`
+  - `is_feedback=true`
   - `is_evaluator=true`
 - count:
   - `64`
@@ -138,7 +138,7 @@ Interpretation:
 Flags:
 
 - `is_chat=false`
-- `is_human=false`
+- `is_feedback=false`
 - `is_custom=false`
 - `is_evaluator=false`
 
@@ -183,7 +183,7 @@ Target family:
 Flags:
 
 - `is_chat=true`
-- `is_human=false`
+- `is_feedback=false`
 - `is_custom=false`
 - `is_evaluator=false`
 
@@ -349,18 +349,18 @@ Values:
 | **2** | **`agenta:builtin:completion:v0`** | **`X`** | **`X`** | **`X`** | **`agenta:builtin:completion:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
 | **3** | **`agenta:builtin:code:v0`** | **`X`** | **`X`** | **`X`** | **`agenta:builtin:code:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":true}`** | **`preserve`** | **`null`** | **`preserve`** | **`preserve`** |
 | **4** | **`agenta:builtin:hook:v0`** | **`X`** | **`X`** | **`X`** | **`agenta:builtin:hook:v0`** | **`preserve`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":true}`** | **`preserve`** | **`preserve`** | **`preserve`** | **`null`** |
-| **5** | **`null`** | **`<url>`** | **`{"is_chat":X,"is_human":X,"is_custom":true,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:hook:v0`** | **`preserve`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`preserve`** | **`preserve`** | **`preserve`** | **`null`** |
-| **6** | **`null`** | **`null`** | **`{"is_chat":false,"is_human":true,"is_custom":false,"is_evaluator":true}`** | **`X`** | **`agenta:custom:feedback:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`backfill`** | **`null`** | **`null`** | **`null`** |
-| **7** | **`null`** | **`null`** | **`{"is_chat":false,"is_human":false,"is_custom":true,"is_evaluator":true}`** | **`X`** | **`agenta:custom:feedback:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`preserve`** | **`null`** | **`null`** | **`null`** |
-| **8** | **`<hook-variant-uri>`** | **`null`** | **`{"is_chat":false,"is_human":false,"is_custom":false,"is_evaluator":true}`** | **`X`** | **`<hook-variant-uri>`** | **`preserve`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`backfill`** | **`preserve`** | **`preserve`** | **`null`** |
-| **9** | **`<code-variant-uri>`** | **`null`** | **`{"is_chat":false,"is_human":false,"is_custom":false,"is_evaluator":true}`** | **`X`** | **`<code-variant-uri>`** | **`null`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`backfill`** | **`null`** | **`preserve`** | **`preserve`** |
-| **10** | **`agenta:builtin:*` (other)**  | **`null`** | **`{"is_chat":false,"is_human":false,"is_custom":false,"is_evaluator":true}`** | **`X`** | **`<preserve>`** | **`null`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`backfill`** | **`null`** | **`preserve`** | **`null`** |
-| **11** | **`null`** | **`null`** | **`{"is_chat":true,"is_human":X,"is_custom":X,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:chat:v0`** | **`null`** | **`{"is_chat":true,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
-| **12** | **`null`** | **`null`** | **`{"is_chat":false,"is_human":X,"is_custom":X,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:completion:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
-| **13** | **`null`** | **`null`** | **`{"is_chat":false,"is_human":X,"is_custom":true,"is_evaluator":false}`** | **`X`** | **`user:custom:local:latest`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`preserve`** |
+| **5** | **`null`** | **`<url>`** | **`{"is_chat":X,"is_feedback":X,"is_custom":true,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:hook:v0`** | **`preserve`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`preserve`** | **`preserve`** | **`preserve`** | **`null`** |
+| **6** | **`null`** | **`null`** | **`{"is_chat":false,"is_feedback":true,"is_custom":false,"is_evaluator":true}`** | **`X`** | **`agenta:custom:feedback:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`backfill`** | **`null`** | **`null`** | **`null`** |
+| **7** | **`null`** | **`null`** | **`{"is_chat":false,"is_feedback":false,"is_custom":true,"is_evaluator":true}`** | **`X`** | **`agenta:custom:feedback:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`preserve`** | **`null`** | **`null`** | **`null`** |
+| **8** | **`<hook-variant-uri>`** | **`null`** | **`{"is_chat":false,"is_feedback":false,"is_custom":false,"is_evaluator":true}`** | **`X`** | **`<hook-variant-uri>`** | **`preserve`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`backfill`** | **`preserve`** | **`preserve`** | **`null`** |
+| **9** | **`<code-variant-uri>`** | **`null`** | **`{"is_chat":false,"is_feedback":false,"is_custom":false,"is_evaluator":true}`** | **`X`** | **`<code-variant-uri>`** | **`null`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`backfill`** | **`null`** | **`preserve`** | **`preserve`** |
+| **10** | **`agenta:builtin:*` (other)**  | **`null`** | **`{"is_chat":false,"is_feedback":false,"is_custom":false,"is_evaluator":true}`** | **`X`** | **`<preserve>`** | **`null`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`backfill`** | **`null`** | **`preserve`** | **`null`** |
+| **11** | **`null`** | **`null`** | **`{"is_chat":true,"is_feedback":X,"is_custom":X,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:chat:v0`** | **`null`** | **`{"is_chat":true,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
+| **12** | **`null`** | **`null`** | **`{"is_chat":false,"is_feedback":X,"is_custom":X,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:completion:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
+| **13** | **`null`** | **`null`** | **`{"is_chat":false,"is_feedback":X,"is_custom":true,"is_evaluator":false}`** | **`X`** | **`user:custom:local:latest`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`preserve`** |
 | **14** | **`user:custom:*`** | **`X`** | **`{"is_evaluator":X}`** | **`X`** | **`<preserve>`** | **`preserve`** | **`preserve`** | **`preserve`** | **`preserve`** | **`preserve`** | **`preserve`** |
-| **15** | **`null`** | **`<<url>>`** | **`{"is_chat":true,"is_human":false,"is_custom":false,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:chat:v0`** | **`null`** | **`{"is_chat":true,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
-| **16** | **`null`** | **`<<url>>`** | **`{"is_chat":false,"is_human":false,"is_custom":false,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:completion:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
+| **15** | **`null`** | **`<<url>>`** | **`{"is_chat":true,"is_feedback":false,"is_custom":false,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:chat:v0`** | **`null`** | **`{"is_chat":true,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
+| **16** | **`null`** | **`<<url>>`** | **`{"is_chat":false,"is_feedback":false,"is_custom":false,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:completion:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
 
 Legacy-field note:
 
@@ -388,7 +388,7 @@ Flags note:
 
 - omitted keys in `Current Flags` and `Target Flags` mean `X`, not `false`
 - a key only appears when that row is constraining it to a concrete boolean value
-- `is_human` and `is_custom` are legacy identity flags, omitted from `Target Flags`
+- `is_feedback` and `is_custom` are legacy identity flags, omitted from `Target Flags`
   - they are preserved as-is during migration (same treatment as legacy `service` and `configuration`)
   - they will be dropped in a later phase together with other legacy fields
   - the long-term identity contract uses only `is_chat` and `is_evaluator` plus the URI family
@@ -633,7 +633,7 @@ WHERE data IS NOT NULL
     NOT (data::jsonb ? 'url')
     OR data::jsonb ->> 'url' IS NULL
   )
-  AND flags = '{"is_chat": false, "is_human": true, "is_custom": false, "is_evaluator": true}'::jsonb;
+  AND flags = '{"is_chat": false, "is_feedback": true, "is_custom": false, "is_evaluator": true}'::jsonb;
 ```
 
 ```sql
@@ -653,7 +653,7 @@ WHERE data IS NOT NULL
     NOT (data::jsonb ? 'url')
     OR data::jsonb ->> 'url' IS NULL
   )
-  AND flags = '{"is_chat": false, "is_human": true, "is_custom": false, "is_evaluator": true}'::jsonb
+  AND flags = '{"is_chat": false, "is_feedback": true, "is_custom": false, "is_evaluator": true}'::jsonb
 ORDER BY created_at DESC
 LIMIT 50;
 ```
@@ -677,7 +677,7 @@ WHERE data IS NOT NULL
     NOT (data::jsonb ? 'url')
     OR data::jsonb ->> 'url' IS NULL
   )
-  AND flags = '{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}'::jsonb;
+  AND flags = '{"is_chat": false, "is_feedback": false, "is_custom": true, "is_evaluator": true}'::jsonb;
 ```
 
 ```sql
@@ -697,7 +697,7 @@ WHERE data IS NOT NULL
     NOT (data::jsonb ? 'url')
     OR data::jsonb ->> 'url' IS NULL
   )
-  AND flags = '{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}'::jsonb
+  AND flags = '{"is_chat": false, "is_feedback": false, "is_custom": true, "is_evaluator": true}'::jsonb
 ORDER BY created_at DESC
 LIMIT 50;
 ```
@@ -1120,14 +1120,14 @@ WITH classified AS (
       ) AND (
         NOT (data::jsonb ? 'url')
         OR data::jsonb ->> 'url' IS NULL
-      ) AND flags = '{"is_chat": false, "is_human": true, "is_custom": false, "is_evaluator": true}'::jsonb THEN 'row-6'
+      ) AND flags = '{"is_chat": false, "is_feedback": true, "is_custom": false, "is_evaluator": true}'::jsonb THEN 'row-6'
       WHEN (
         NOT (data::jsonb ? 'uri')
         OR data::jsonb ->> 'uri' IS NULL
       ) AND (
         NOT (data::jsonb ? 'url')
         OR data::jsonb ->> 'url' IS NULL
-      ) AND flags = '{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}'::jsonb THEN 'row-7'
+      ) AND flags = '{"is_chat": false, "is_feedback": false, "is_custom": true, "is_evaluator": true}'::jsonb THEN 'row-7'
       WHEN data::jsonb ->> 'uri' IN ('agenta:builtin:auto_webhook_test:v0') THEN 'row-8'
       WHEN data::jsonb ->> 'uri' IN ('agenta:builtin:auto_custom_code_run:v0') THEN 'row-9'
       WHEN data::jsonb ->> 'uri' LIKE 'agenta:builtin:%' AND flags->>'is_evaluator' = 'true' THEN 'row-10'
@@ -1207,12 +1207,12 @@ WITH unclassified AS (
     AND NOT (
       (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
       AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
-      AND flags = '{"is_chat": false, "is_human": true, "is_custom": false, "is_evaluator": true}'::jsonb
+      AND flags = '{"is_chat": false, "is_feedback": true, "is_custom": false, "is_evaluator": true}'::jsonb
     )
     AND NOT (
       (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
       AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
-      AND flags = '{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}'::jsonb
+      AND flags = '{"is_chat": false, "is_feedback": false, "is_custom": true, "is_evaluator": true}'::jsonb
     )
     AND (data::jsonb ->> 'uri' IS DISTINCT FROM 'agenta:builtin:auto_webhook_test:v0')
     AND (data::jsonb ->> 'uri' IS DISTINCT FROM 'agenta:builtin:auto_custom_code_run:v0')
@@ -1663,8 +1663,8 @@ Resolved:
 Resolved:
 
 - only three user-defined role flags are persisted: `is_evaluator`, `is_application`, `is_snippet`
-- all other flags (`is_managed`, `is_custom`, `is_llm`, `is_hook`, `is_code`, `is_match`, `is_human`, `is_chat`, `has_url`, `has_script`, `has_handler`) are inferred at commit/read time by `infer_flags_from_data()`
-- legacy flags (`is_human`, `is_custom`, `is_chat`, `can_stream`, `can_evaluate`) are dropped entirely during migration, not preserved
+- all other flags (`is_managed`, `is_custom`, `is_llm`, `is_hook`, `is_code`, `is_match`, `is_feedback`, `is_chat`, `has_url`, `has_script`, `has_handler`) are inferred at commit/read time by `infer_flags_from_data()`
+- legacy flags (`is_feedback`, `is_custom`, `is_chat`, `can_stream`, `can_evaluate`) are dropped entirely during migration, not preserved
 
 ### 8. removal sequencing
 

@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from oss.src.core.embeds.service import EmbedsService
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.helpers import parse_url
 
@@ -38,6 +39,11 @@ from oss.src.core.git.dtos import (
     RevisionsLog,
 )
 from oss.src.core.workflows.dtos import (
+    WorkflowArtifactFlags,
+    WorkflowArtifactQueryFlags,
+    WorkflowVariantFlags,
+    WorkflowRevisionFlags,
+    WorkflowRevisionQueryFlags,
     WorkflowFlags,
     #
     Workflow,
@@ -61,6 +67,7 @@ from oss.src.core.workflows.dtos import (
     #
     SimpleWorkflow,
     SimpleWorkflowFlags,
+    SimpleWorkflowQueryFlags,
     SimpleWorkflowData,
     SimpleWorkflowCreate,
     SimpleWorkflowEdit,
@@ -96,6 +103,15 @@ log = get_module_logger(__name__)
 
 
 class WorkflowsService:
+    WORKFLOW_ARTIFACT_CACHE_TTL = 60
+    WORKFLOW_ARTIFACT_FLAG_KEYS = frozenset(
+        {
+            "is_application",
+            "is_evaluator",
+            "is_snippet",
+        }
+    )
+
     def __init__(
         self,
         *,
@@ -107,6 +123,251 @@ class WorkflowsService:
         self.workflows_dao = workflows_dao
         self.environments_service = environments_service
         self.embeds_service = embeds_service
+
+    @staticmethod
+    def _artifact_cache_key(artifact_id: UUID) -> str:
+        return str(artifact_id)
+
+    async def _get_cached_workflow(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+        include_archived: Optional[bool] = True,
+    ) -> Optional[Workflow]:
+        workflow = await get_cache(
+            namespace="artifact",
+            project_id=str(project_id),
+            key=self._artifact_cache_key(artifact_id),
+            model=Workflow,
+            ttl=self.WORKFLOW_ARTIFACT_CACHE_TTL,
+        )
+
+        if workflow is None:
+            return None
+
+        if include_archived is not True and workflow.deleted_at is not None:
+            return None
+
+        return workflow
+
+    async def _refresh_workflow_cache(
+        self,
+        *,
+        project_id: UUID,
+        workflow: Workflow,
+    ) -> None:
+        if not workflow.id:
+            return
+
+        cache_key = self._artifact_cache_key(workflow.id)
+
+        await invalidate_cache(
+            namespace="artifact",
+            project_id=str(project_id),
+            key=cache_key,
+        )
+        await set_cache(
+            namespace="artifact",
+            project_id=str(project_id),
+            key=cache_key,
+            value=workflow,
+            ttl=self.WORKFLOW_ARTIFACT_CACHE_TTL,
+        )
+
+    @classmethod
+    def _dump_flags(cls, flags: Optional[object]) -> dict:
+        if not flags:
+            return {}
+
+        if hasattr(flags, "model_dump"):
+            return flags.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude_unset=True,
+            )
+
+        if isinstance(flags, dict):
+            return {key: value for key, value in flags.items() if value is not None}
+
+        return {}
+
+    @classmethod
+    def _dump_stored_flags(cls, flags: Optional[object]) -> dict:
+        if not flags:
+            return {}
+
+        if hasattr(flags, "model_dump"):
+            return flags.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
+
+        if isinstance(flags, dict):
+            return {key: value for key, value in flags.items() if value is not None}
+
+        return {}
+
+    @classmethod
+    def _dump_stored_revision_flags(cls, flags: Optional[object]) -> dict:
+        return {
+            key: value
+            for key, value in cls._dump_stored_flags(flags).items()
+            if key not in cls.WORKFLOW_ARTIFACT_FLAG_KEYS
+        }
+
+    @classmethod
+    def _split_workflow_flag_values(
+        cls,
+        flags: Optional[object],
+    ) -> tuple[dict, dict]:
+        flag_values = cls._dump_flags(flags)
+        artifact_flag_values = {
+            key: value
+            for key, value in flag_values.items()
+            if key in cls.WORKFLOW_ARTIFACT_FLAG_KEYS
+        }
+        revision_flag_values = {
+            key: value
+            for key, value in flag_values.items()
+            if key not in cls.WORKFLOW_ARTIFACT_FLAG_KEYS
+        }
+        return artifact_flag_values, revision_flag_values
+
+    @classmethod
+    def _artifact_flags_from_any(
+        cls,
+        flags: Optional[object],
+    ) -> Optional[WorkflowArtifactFlags]:
+        artifact_flag_values, _ = cls._split_workflow_flag_values(flags)
+        return (
+            WorkflowArtifactFlags(**artifact_flag_values)
+            if artifact_flag_values
+            else None
+        )
+
+    @classmethod
+    def _artifact_query_flags_from_any(
+        cls,
+        flags: Optional[object],
+    ) -> Optional[WorkflowArtifactQueryFlags]:
+        artifact_flag_values, _ = cls._split_workflow_flag_values(flags)
+        return (
+            WorkflowArtifactQueryFlags(**artifact_flag_values)
+            if artifact_flag_values
+            else None
+        )
+
+    @classmethod
+    def _revision_flags_from_any(
+        cls,
+        flags: Optional[object],
+    ) -> Optional[WorkflowRevisionFlags]:
+        _, revision_flag_values = cls._split_workflow_flag_values(flags)
+        return (
+            WorkflowRevisionFlags(**revision_flag_values)
+            if revision_flag_values
+            else None
+        )
+
+    @classmethod
+    def _revision_query_flags_from_any(
+        cls,
+        flags: Optional[object],
+    ) -> Optional[WorkflowRevisionQueryFlags]:
+        _, revision_flag_values = cls._split_workflow_flag_values(flags)
+        return (
+            WorkflowRevisionQueryFlags(**revision_flag_values)
+            if revision_flag_values
+            else None
+        )
+
+    @classmethod
+    def _merge_workflow_flags(
+        cls,
+        *,
+        artifact_flags: Optional[object],
+        revision_flags: Optional[object],
+    ) -> Optional[WorkflowRevisionFlags]:
+        merged_flag_values = {
+            **cls._split_workflow_flag_values(artifact_flags)[0],
+            **cls._split_workflow_flag_values(revision_flags)[1],
+        }
+
+        return (
+            WorkflowRevisionFlags(**merged_flag_values) if merged_flag_values else None
+        )
+
+    @classmethod
+    def _matches_requested_flags(
+        cls,
+        *,
+        actual_flags: Optional[object],
+        requested_flags: Optional[object],
+    ) -> bool:
+        if not requested_flags:
+            return True
+
+        actual_flag_values = cls._dump_flags(actual_flags)
+        requested_flag_values = cls._dump_flags(requested_flags)
+
+        return all(
+            actual_flag_values.get(flag_name) == expected_value
+            for flag_name, expected_value in requested_flag_values.items()
+        )
+
+    async def _inject_artifact_flags_into_variant(
+        self,
+        *,
+        project_id: UUID,
+        variant: WorkflowVariant,
+        include_archived: Optional[bool] = True,
+    ) -> WorkflowVariant:
+        workflow = await self.fetch_workflow(
+            project_id=project_id,
+            #
+            workflow_ref=Reference(id=variant.workflow_id),
+            #
+            include_archived=include_archived,
+        )
+
+        return variant.model_copy(
+            update={
+                "flags": WorkflowVariantFlags(
+                    **(
+                        self._dump_flags(workflow.flags)
+                        if workflow and workflow.flags
+                        else {}
+                    )
+                )
+                if workflow and workflow.flags
+                else None
+            }
+        )
+
+    async def _inject_artifact_flags_into_revision(
+        self,
+        *,
+        project_id: UUID,
+        revision: WorkflowRevision,
+        include_archived: Optional[bool] = True,
+    ) -> WorkflowRevision:
+        workflow = await self.fetch_workflow(
+            project_id=project_id,
+            #
+            workflow_ref=Reference(id=revision.workflow_id),
+            #
+            include_archived=include_archived,
+        )
+
+        return revision.model_copy(
+            update={
+                "flags": self._merge_workflow_flags(
+                    artifact_flags=workflow.flags if workflow else None,
+                    revision_flags=revision.flags,
+                )
+            }
+        )
 
     @staticmethod
     def _get_revision_data(
@@ -280,8 +541,14 @@ class WorkflowsService:
         #
         workflow_id: Optional[UUID] = None,
     ) -> Optional[Workflow]:
+        artifact_flags = self._artifact_flags_from_any(workflow_create.flags)
         artifact_create = ArtifactCreate(
-            **workflow_create.model_dump(mode="json", exclude_none=True),
+            **workflow_create.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude={"flags"},
+            ),
+            flags=self._dump_stored_flags(artifact_flags) or None,
         )
 
         artifact = await self.workflows_dao.create_artifact(
@@ -298,6 +565,11 @@ class WorkflowsService:
 
         workflow = Workflow(**artifact.model_dump(mode="json"))
 
+        await self._refresh_workflow_cache(
+            project_id=project_id,
+            workflow=workflow,
+        )
+
         return workflow
 
     async def fetch_workflow(
@@ -309,6 +581,16 @@ class WorkflowsService:
         #
         include_archived: Optional[bool] = True,
     ) -> Optional[Workflow]:
+        if workflow_ref.id:
+            workflow = await self._get_cached_workflow(
+                project_id=project_id,
+                artifact_id=workflow_ref.id,
+                include_archived=include_archived,
+            )
+
+            if workflow is not None:
+                return workflow
+
         artifact = await self.workflows_dao.fetch_artifact(
             project_id=project_id,
             #
@@ -322,6 +604,11 @@ class WorkflowsService:
 
         workflow = Workflow(**artifact.model_dump(mode="json"))
 
+        await self._refresh_workflow_cache(
+            project_id=project_id,
+            workflow=workflow,
+        )
+
         return workflow
 
     async def edit_workflow(
@@ -332,8 +619,14 @@ class WorkflowsService:
         #
         workflow_edit: WorkflowEdit,
     ) -> Optional[Workflow]:
+        artifact_flags = self._artifact_flags_from_any(workflow_edit.flags)
         artifact_edit = ArtifactEdit(
-            **workflow_edit.model_dump(mode="json", exclude_none=True),
+            **workflow_edit.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude={"flags"},
+            ),
+            flags=self._dump_stored_flags(artifact_flags) or None,
         )
 
         artifact = await self.workflows_dao.edit_artifact(
@@ -347,6 +640,11 @@ class WorkflowsService:
             return None
 
         workflow = Workflow(**artifact.model_dump(mode="json"))
+
+        await self._refresh_workflow_cache(
+            project_id=project_id,
+            workflow=workflow,
+        )
 
         return workflow
 
@@ -365,7 +663,15 @@ class WorkflowsService:
     ) -> List[Workflow]:
         artifact_query = (
             ArtifactQuery(
-                **workflow_query.model_dump(mode="json", exclude_none=True),
+                **workflow_query.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude={"flags"},
+                ),
+                flags=self._dump_flags(
+                    self._artifact_query_flags_from_any(workflow_query.flags)
+                )
+                or None,
             )
             if workflow_query
             else ArtifactQuery()
@@ -391,12 +697,18 @@ class WorkflowsService:
             windowing=windowing,
         )
 
-        workflows = [
-            Workflow(
+        workflows = []
+
+        for artifact in artifacts:
+            workflow = Workflow(
                 **artifact.model_dump(mode="json"),
             )
-            for artifact in artifacts
-        ]
+            if not self._matches_requested_flags(
+                actual_flags=workflow.flags,
+                requested_flags=workflow_query.flags if workflow_query else None,
+            ):
+                continue
+            workflows.append(workflow)
 
         return workflows
 
@@ -420,6 +732,11 @@ class WorkflowsService:
 
         _workflow = Workflow(**artifact.model_dump(mode="json"))
 
+        await self._refresh_workflow_cache(
+            project_id=project_id,
+            workflow=_workflow,
+        )
+
         return _workflow
 
     async def unarchive_workflow(
@@ -442,6 +759,11 @@ class WorkflowsService:
 
         _workflow = Workflow(**artifact.model_dump(mode="json"))
 
+        await self._refresh_workflow_cache(
+            project_id=project_id,
+            workflow=_workflow,
+        )
+
         return _workflow
 
     # workflow variants --------------------------------------------------------
@@ -455,7 +777,11 @@ class WorkflowsService:
         workflow_variant_create: WorkflowVariantCreate,
     ) -> Optional[WorkflowVariant]:
         _variant_create = VariantCreate(
-            **workflow_variant_create.model_dump(mode="json", exclude_none=True),
+            **workflow_variant_create.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude={"flags"},
+            ),
         )
 
         variant = await self.workflows_dao.create_variant(
@@ -471,8 +797,10 @@ class WorkflowsService:
         _workflow_variant = WorkflowVariant(
             **variant.model_dump(mode="json"),
         )
-
-        return _workflow_variant
+        return await self._inject_artifact_flags_into_variant(
+            project_id=project_id,
+            variant=_workflow_variant,
+        )
 
     async def fetch_workflow_variant(
         self,
@@ -499,8 +827,11 @@ class WorkflowsService:
         _workflow_variant = WorkflowVariant(
             **variant.model_dump(mode="json"),
         )
-
-        return _workflow_variant
+        return await self._inject_artifact_flags_into_variant(
+            project_id=project_id,
+            variant=_workflow_variant,
+            include_archived=include_archived,
+        )
 
     async def edit_workflow_variant(
         self,
@@ -511,7 +842,11 @@ class WorkflowsService:
         workflow_variant_edit: WorkflowVariantEdit,
     ) -> Optional[WorkflowVariant]:
         _variant_edit = VariantEdit(
-            **workflow_variant_edit.model_dump(mode="json", exclude_none=True),
+            **workflow_variant_edit.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude={"flags"},
+            ),
         )
 
         variant = await self.workflows_dao.edit_variant(
@@ -527,8 +862,10 @@ class WorkflowsService:
         _workflow_variant = WorkflowVariant(
             **variant.model_dump(mode="json"),
         )
-
-        return _workflow_variant
+        return await self._inject_artifact_flags_into_variant(
+            project_id=project_id,
+            variant=_workflow_variant,
+        )
 
     async def query_workflow_variants(
         self,
@@ -546,7 +883,11 @@ class WorkflowsService:
     ) -> List[WorkflowVariant]:
         _variant_query = (
             VariantQuery(
-                **workflow_variant_query.model_dump(mode="json", exclude_none=True),
+                **workflow_variant_query.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude={"flags"},
+                ),
             )
             if workflow_variant_query
             else VariantQuery()
@@ -565,12 +906,24 @@ class WorkflowsService:
             windowing=windowing,
         )
 
-        _workflow_variants = [
-            WorkflowVariant(
-                **variant.model_dump(mode="json"),
+        _workflow_variants = []
+
+        for variant in variants:
+            workflow_variant = await self._inject_artifact_flags_into_variant(
+                project_id=project_id,
+                variant=WorkflowVariant(
+                    **variant.model_dump(mode="json"),
+                ),
+                include_archived=include_archived,
             )
-            for variant in variants
-        ]
+            if not self._matches_requested_flags(
+                actual_flags=workflow_variant.flags,
+                requested_flags=(
+                    workflow_variant_query.flags if workflow_variant_query else None
+                ),
+            ):
+                continue
+            _workflow_variants.append(workflow_variant)
 
         return _workflow_variants
 
@@ -599,8 +952,10 @@ class WorkflowsService:
         _workflow_variant = WorkflowVariant(
             **variant.model_dump(mode="json"),
         )
-
-        return _workflow_variant
+        return await self._inject_artifact_flags_into_variant(
+            project_id=project_id,
+            variant=_workflow_variant,
+        )
 
     async def archive_workflow_variant(
         self,
@@ -623,8 +978,10 @@ class WorkflowsService:
         _workflow_variant = WorkflowVariant(
             **variant.model_dump(mode="json"),
         )
-
-        return _workflow_variant
+        return await self._inject_artifact_flags_into_variant(
+            project_id=project_id,
+            variant=_workflow_variant,
+        )
 
     async def unarchive_workflow_variant(
         self,
@@ -647,8 +1004,10 @@ class WorkflowsService:
         _workdlow_variant = WorkflowVariant(
             **variant.model_dump(mode="json"),
         )
-
-        return _workdlow_variant
+        return await self._inject_artifact_flags_into_variant(
+            project_id=project_id,
+            variant=_workdlow_variant,
+        )
 
     # workflow revisions -------------------------------------------------------
 
@@ -661,7 +1020,12 @@ class WorkflowsService:
         workflow_revision_create: WorkflowRevisionCreate,
     ) -> Optional[WorkflowRevision]:
         _revision_create = RevisionCreate(
-            **workflow_revision_create.model_dump(mode="json", exclude_none=True),
+            **workflow_revision_create.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude={"flags"},
+            ),
+            flags=None,
         )
 
         revision = await self.workflows_dao.create_revision(
@@ -677,8 +1041,10 @@ class WorkflowsService:
         _workflow_revision = WorkflowRevision(
             **revision.model_dump(mode="json"),
         )
-
-        return _workflow_revision
+        return await self._inject_artifact_flags_into_revision(
+            project_id=project_id,
+            revision=_workflow_revision,
+        )
 
     async def fetch_workflow_revision(
         self,
@@ -742,8 +1108,11 @@ class WorkflowsService:
         _workflow_revision = WorkflowRevision(
             **revision.model_dump(mode="json"),
         )
-
-        return _workflow_revision
+        return await self._inject_artifact_flags_into_revision(
+            project_id=project_id,
+            revision=_workflow_revision,
+            include_archived=include_archived,
+        )
 
     async def retrieve_workflow_revision(
         self,
@@ -832,7 +1201,15 @@ class WorkflowsService:
         workflow_revision_edit: WorkflowRevisionEdit,
     ) -> Optional[WorkflowRevision]:
         _workflow_revision_edit = RevisionEdit(
-            **workflow_revision_edit.model_dump(mode="json", exclude_none=True),
+            **workflow_revision_edit.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude={"flags"},
+            ),
+            flags=self._dump_stored_revision_flags(
+                self._revision_flags_from_any(workflow_revision_edit.flags)
+            )
+            or None,
         )
 
         revision = await self.workflows_dao.edit_revision(
@@ -848,8 +1225,10 @@ class WorkflowsService:
         _workflow_revision = WorkflowRevision(
             **revision.model_dump(mode="json"),
         )
-
-        return _workflow_revision
+        return await self._inject_artifact_flags_into_revision(
+            project_id=project_id,
+            revision=_workflow_revision,
+        )
 
     async def query_workflow_revisions(
         self,
@@ -868,7 +1247,17 @@ class WorkflowsService:
     ) -> List[WorkflowRevision]:
         _revision_query = (
             RevisionQuery(
-                **workflow_revision_query.model_dump(mode="json", exclude_none=True),
+                **workflow_revision_query.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude={"flags"},
+                ),
+                flags=self._dump_flags(
+                    self._revision_query_flags_from_any(
+                        workflow_revision_query.flags,
+                    )
+                )
+                or None,
             )
             if workflow_revision_query
             else RevisionQuery()
@@ -888,12 +1277,24 @@ class WorkflowsService:
             windowing=windowing,
         )
 
-        _workflow_revisions = [
-            WorkflowRevision(
-                **revision.model_dump(mode="json"),
+        _workflow_revisions = []
+
+        for revision in revisions:
+            workflow_revision = await self._inject_artifact_flags_into_revision(
+                project_id=project_id,
+                revision=WorkflowRevision(
+                    **revision.model_dump(mode="json"),
+                ),
+                include_archived=include_archived,
             )
-            for revision in revisions
-        ]
+            if not self._matches_requested_flags(
+                actual_flags=workflow_revision.flags,
+                requested_flags=(
+                    workflow_revision_query.flags if workflow_revision_query else None
+                ),
+            ):
+                continue
+            _workflow_revisions.append(workflow_revision)
 
         return _workflow_revisions
 
@@ -944,18 +1345,22 @@ class WorkflowsService:
             if schemas_dict:
                 data = data.model_copy(update={"schemas": schemas_dict})
 
-        workflow_revision_commit = workflow_revision_commit.model_copy(
-            update={
-                "flags": infer_flags_from_data(
-                    flags=workflow_revision_commit.flags,
-                    data=data,
-                ),
-                "data": data,
-            }
-        )
-
         _revision_commit = RevisionCommit(
-            **workflow_revision_commit.model_dump(mode="json", exclude_none=True),
+            **workflow_revision_commit.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude={"flags", "data"},
+            ),
+            flags=self._dump_stored_revision_flags(
+                self._revision_flags_from_any(
+                    infer_flags_from_data(
+                        flags=workflow_revision_commit.flags,
+                        data=data,
+                    )
+                )
+            )
+            or None,
+            data=data.model_dump(mode="json", exclude_none=True) if data else None,
         )
 
         if not _revision_commit.artifact_id:
@@ -987,7 +1392,10 @@ class WorkflowsService:
             **revision.model_dump(mode="json"),
         )
 
-        return _workflow_revision
+        return await self._inject_artifact_flags_into_revision(
+            project_id=project_id,
+            revision=_workflow_revision,
+        )
 
     async def log_workflow_revisions(
         self,
@@ -1010,12 +1418,18 @@ class WorkflowsService:
             include_archived=include_archived,
         )
 
-        _workflow_revisions = [
-            WorkflowRevision(
-                **revision.model_dump(mode="json"),
+        _workflow_revisions = []
+
+        for revision in revisions:
+            _workflow_revisions.append(
+                await self._inject_artifact_flags_into_revision(
+                    project_id=project_id,
+                    revision=WorkflowRevision(
+                        **revision.model_dump(mode="json"),
+                    ),
+                    include_archived=include_archived,
+                )
             )
-            for revision in revisions
-        ]
 
         return _workflow_revisions
 
@@ -1041,7 +1455,10 @@ class WorkflowsService:
             **revision.model_dump(mode="json"),
         )
 
-        return _workflow_revision
+        return await self._inject_artifact_flags_into_revision(
+            project_id=project_id,
+            revision=_workflow_revision,
+        )
 
     async def unarchive_workflow_revision(
         self,
@@ -1065,7 +1482,10 @@ class WorkflowsService:
             **revision.model_dump(mode="json"),
         )
 
-        return _workflow_revision
+        return await self._inject_artifact_flags_into_revision(
+            project_id=project_id,
+            revision=_workflow_revision,
+        )
 
     # workflow services --------------------------------------------------------
 
@@ -1303,6 +1723,35 @@ class SimpleWorkflowsService:
         workflows_service: WorkflowsService,
     ):
         self.workflows_service = workflows_service
+
+    @staticmethod
+    def _matches_requested_simple_workflow_flags(
+        *,
+        simple_workflow: SimpleWorkflow,
+        requested_flags: Optional[SimpleWorkflowQueryFlags],
+    ) -> bool:
+        if not requested_flags:
+            return True
+
+        actual_flags = (
+            simple_workflow.flags.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude_unset=True,
+            )
+            if simple_workflow.flags
+            else {}
+        )
+        requested_flag_values = requested_flags.model_dump(
+            mode="json",
+            exclude_none=True,
+            exclude_unset=True,
+        )
+
+        return all(
+            actual_flags.get(flag_name) == expected_value
+            for flag_name, expected_value in requested_flag_values.items()
+        )
 
     # public -------------------------------------------------------------------
 
@@ -1621,8 +2070,28 @@ class SimpleWorkflowsService:
         if workflow_variant is None:
             return None
 
-        if simple_workflow_edit.data:
+        should_commit_revision = bool(simple_workflow_edit.model_fields_set - {"id"})
+
+        if should_commit_revision:
             workflow_revision_slug = uuid4().hex[-12:]
+
+            if simple_workflow_edit.data:
+                workflow_revision_data = WorkflowRevisionData(
+                    **simple_workflow_edit.data.model_dump(mode="json"),
+                )
+            else:
+                latest_workflow_revision = (
+                    await self.workflows_service.fetch_workflow_revision(
+                        project_id=project_id,
+                        #
+                        workflow_variant_ref=Reference(id=workflow_variant.id),
+                    )
+                )
+
+                if latest_workflow_revision is None:
+                    return None
+
+                workflow_revision_data = latest_workflow_revision.data
 
             workflow_revision_commit = WorkflowRevisionCommit(
                 slug=workflow_revision_slug,
@@ -1634,9 +2103,7 @@ class SimpleWorkflowsService:
                 tags=workflow_edit.tags,
                 meta=workflow_edit.meta,
                 #
-                data=WorkflowRevisionData(
-                    **simple_workflow_edit.data.model_dump(mode="json"),
-                ),
+                data=workflow_revision_data,
                 #
                 workflow_id=workflow.id,
                 workflow_variant_id=workflow_variant.id,
@@ -1659,18 +2126,6 @@ class SimpleWorkflowsService:
         if workflow_revision is None:
             return None
 
-        simple_workflow_flags = SimpleWorkflowFlags(
-            **(
-                workflow.flags.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                    exclude_unset=True,
-                )
-                if workflow.flags
-                else {}
-            )
-        )
-
         simple_workflow = SimpleWorkflow(
             id=workflow.id,
             slug=workflow.slug,
@@ -1685,7 +2140,17 @@ class SimpleWorkflowsService:
             updated_by_id=workflow.updated_by_id,
             deleted_by_id=workflow.deleted_by_id,
             #
-            flags=simple_workflow_flags,
+            flags=SimpleWorkflowFlags(
+                **(
+                    workflow_revision.flags.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                        exclude_unset=True,
+                    )
+                    if workflow_revision.flags
+                    else {}
+                )
+            ),
             meta=workflow.meta,
             tags=workflow.tags,
             #
@@ -1773,7 +2238,8 @@ class SimpleWorkflowsService:
             if simple_workflow_query
             else {}
         )
-        query_data.setdefault("flags", {})
+        requested_flags = simple_workflow_query.flags if simple_workflow_query else None
+        query_data.pop("flags", None)
         workflow_query = WorkflowQuery(**query_data)
 
         workflows = await self.workflows_service.query_workflows(
@@ -1795,6 +2261,12 @@ class SimpleWorkflowsService:
             )
 
             if simple_workflow:
+                if not self._matches_requested_simple_workflow_flags(
+                    simple_workflow=simple_workflow,
+                    requested_flags=requested_flags,
+                ):
+                    continue
+
                 simple_workflows.append(simple_workflow)
 
         return simple_workflows

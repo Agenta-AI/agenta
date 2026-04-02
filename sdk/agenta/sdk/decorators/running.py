@@ -630,7 +630,7 @@ class application(workflow):
         kwargs["flags"] = dict(
             # is_custom=False,  # None / False / missing is the same
             # is_evaluator=False,  # None / False / missing is the same
-            # is_human=False,  # None / False / missing is the same
+            # is_feedback=False,  # None / False / missing is the same
         )
 
         if "references" not in kwargs or not isinstance(kwargs["references"], dict):
@@ -730,7 +730,7 @@ class evaluator(workflow):
         kwargs["flags"] = dict(
             # is_custom=False,  # None / False / missing is the same
             is_evaluator=True,
-            # is_human=False,  # None / False / missing is the same
+            # is_feedback=False,  # None / False / missing is the same
         )
 
         if "references" not in kwargs or not isinstance(kwargs["references"], dict):

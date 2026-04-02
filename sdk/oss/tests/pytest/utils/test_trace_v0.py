@@ -1,8 +1,8 @@
 """
-Unit tests for the trace_v0 handler (agenta:custom:trace:v0).
+Unit tests for the feedback_v0 handler (agenta:custom:feedback:v0).
 
-trace_v0 is an interface-only handler — it exists as a registry/schema entry
-but cannot be invoked directly.  All call paths must raise HookV0Error.
+feedback_v0 is an interface-only handler — it exists as a registry/schema entry
+but cannot be invoked directly. All call paths must raise HookV0Error.
 """
 
 import asyncio
@@ -10,9 +10,9 @@ import asyncio
 import pytest
 
 from agenta.sdk.workflows.errors import HookV0Error
-from agenta.sdk.workflows.handlers import trace_v0
+from agenta.sdk.workflows.handlers import feedback_v0
 
-_trace_v0 = trace_v0.__wrapped__
+_feedback_v0 = feedback_v0.__wrapped__
 
 
 # ---------------------------------------------------------------------------
@@ -29,23 +29,23 @@ def run(coro):
 # ---------------------------------------------------------------------------
 
 
-class TestTraceV0InterfaceOnly:
+class TestFeedbackV0InterfaceOnly:
     def test_no_args_raises_hook_error(self):
         with pytest.raises(HookV0Error):
-            run(_trace_v0())
+            run(_feedback_v0())
 
     def test_with_inputs_raises_hook_error(self):
         with pytest.raises(HookV0Error):
-            run(_trace_v0(inputs={"q": "hello"}))
+            run(_feedback_v0(inputs={"q": "hello"}))
 
     def test_with_outputs_raises_hook_error(self):
         with pytest.raises(HookV0Error):
-            run(_trace_v0(outputs="some answer"))
+            run(_feedback_v0(outputs="some answer"))
 
     def test_with_all_args_raises_hook_error(self):
         with pytest.raises(HookV0Error):
             run(
-                _trace_v0(
+                _feedback_v0(
                     inputs={"q": "hello"},
                     parameters={"key": "val"},
                     outputs="answer",
@@ -56,5 +56,5 @@ class TestTraceV0InterfaceOnly:
 
     def test_error_message_mentions_uri(self):
         with pytest.raises(HookV0Error) as exc_info:
-            run(_trace_v0())
-        assert "agenta:custom:trace:v0" in exc_info.value.message
+            run(_feedback_v0())
+        assert "agenta:custom:feedback:v0" in exc_info.value.message

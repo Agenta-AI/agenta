@@ -21,9 +21,12 @@ from oss.src.core.workflows.dtos import (
     WorkflowCatalogTemplate,
     WorkflowCatalogPreset,
     #
-    WorkflowFlags,
-    WorkflowQueryFlags,
-    #
+    WorkflowArtifactFlags,
+    WorkflowArtifactQueryFlags,
+    WorkflowVariantFlags,
+    WorkflowVariantQueryFlags,
+    WorkflowRevisionFlags,
+    WorkflowRevisionQueryFlags,
     Workflow,
     WorkflowCreate,
     WorkflowEdit,
@@ -81,25 +84,61 @@ class EvaluatorRevisionIdAlias(AliasConfig):
 # globals ----------------------------------------------------------------------
 
 
-class EvaluatorFlags(WorkflowFlags):
+class EvaluatorArtifactFlags(WorkflowArtifactFlags):
     def __init__(self, **data):
         data["is_evaluator"] = True
 
         super().__init__(**data)
 
 
-class EvaluatorQueryFlags(WorkflowQueryFlags):
+class EvaluatorVariantFlags(WorkflowVariantFlags):
     def __init__(self, **data):
         data["is_evaluator"] = True
 
         super().__init__(**data)
+
+
+class EvaluatorRevisionFlags(WorkflowRevisionFlags):
+    def __init__(self, **data):
+        data["is_evaluator"] = True
+
+        super().__init__(**data)
+
+
+class EvaluatorArtifactQueryFlags(WorkflowArtifactQueryFlags):
+    def __init__(self, **data):
+        data["is_evaluator"] = True
+
+        super().__init__(**data)
+
+
+class EvaluatorVariantQueryFlags(WorkflowVariantQueryFlags):
+    def __init__(self, **data):
+        data["is_evaluator"] = True
+
+        super().__init__(**data)
+
+
+class EvaluatorRevisionQueryFlags(WorkflowRevisionQueryFlags):
+    def __init__(self, **data):
+        data["is_evaluator"] = True
+
+        super().__init__(**data)
+
+
+class EvaluatorFlags(EvaluatorRevisionFlags):
+    """Legacy full evaluator flag set."""
+
+
+class EvaluatorQueryFlags(EvaluatorRevisionQueryFlags):
+    """Legacy full evaluator query flag set."""
 
 
 # evaluators -------------------------------------------------------------------
 
 
 class Evaluator(Workflow):
-    flags: Optional[EvaluatorFlags] = None
+    flags: Optional[EvaluatorArtifactFlags] = None
 
 
 class EvaluatorCreate(WorkflowCreate):
@@ -111,7 +150,7 @@ class EvaluatorEdit(WorkflowEdit):
 
 
 class EvaluatorQuery(WorkflowQuery):
-    flags: Optional[EvaluatorQueryFlags] = None
+    flags: Optional[EvaluatorArtifactQueryFlags] = None
 
 
 # evaluator variants -----------------------------------------------------------
@@ -121,7 +160,7 @@ class EvaluatorVariant(
     WorkflowVariant,
     EvaluatorIdAlias,
 ):
-    flags: Optional[EvaluatorFlags] = None
+    flags: Optional[EvaluatorVariantFlags] = None
 
     def model_post_init(self, __context) -> None:
         sync_alias("evaluator_id", "workflow_id", self)
@@ -142,7 +181,7 @@ class EvaluatorVariantEdit(WorkflowVariantEdit):
 
 
 class EvaluatorVariantQuery(WorkflowVariantQuery):
-    flags: Optional[EvaluatorQueryFlags] = None
+    flags: Optional[EvaluatorVariantQueryFlags] = None
 
 
 # evaluator revisions ----------------------------------------------------------
@@ -157,7 +196,7 @@ class EvaluatorRevision(
     EvaluatorIdAlias,
     EvaluatorVariantIdAlias,
 ):
-    flags: Optional[EvaluatorFlags] = None
+    flags: Optional[EvaluatorRevisionFlags] = None
 
     data: Optional[EvaluatorRevisionData] = None
 
@@ -183,7 +222,7 @@ class EvaluatorRevisionEdit(WorkflowRevisionEdit):
 
 
 class EvaluatorRevisionQuery(WorkflowRevisionQuery):
-    flags: Optional[EvaluatorQueryFlags] = None
+    flags: Optional[EvaluatorRevisionQueryFlags] = None
 
 
 class EvaluatorRevisionCommit(
@@ -216,13 +255,13 @@ class EvaluatorRevisionsLog(
 
 
 class EvaluatorRevisionFork(WorkflowRevisionFork):
-    flags: Optional[EvaluatorFlags] = None
+    flags: Optional[EvaluatorRevisionFlags] = None
 
     data: Optional[EvaluatorRevisionData] = None
 
 
 class EvaluatorVariantFork(WorkflowVariantFork):
-    flags: Optional[EvaluatorFlags] = None
+    flags: Optional[EvaluatorVariantFlags] = None
 
 
 class EvaluatorRevisionForkAlias(AliasConfig):
@@ -264,11 +303,11 @@ class EvaluatorFork(
 # simple evaluators ------------------------------------------------------------
 
 
-class SimpleEvaluatorFlags(EvaluatorFlags):
+class SimpleEvaluatorFlags(EvaluatorRevisionFlags):
     pass
 
 
-class SimpleEvaluatorQueryFlags(EvaluatorQueryFlags):
+class SimpleEvaluatorQueryFlags(EvaluatorRevisionQueryFlags):
     pass
 
 

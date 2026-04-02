@@ -87,7 +87,12 @@ def _enrich_entry(
         enriched_data["schemas"] = enriched_schemas
         enriched["data"] = enriched_data
 
-    presets = metadata.get("presets") or metadata.get("settings_presets") or []
+    presets = (
+        metadata.get("presets")
+        or metadata.get("settings_presets")
+        or entry.get("presets")
+        or []
+    )
     enriched["presets"] = [
         _normalize_preset(
             {

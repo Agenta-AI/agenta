@@ -11,9 +11,9 @@
 
 Six gaps share one root cause: flags are authored rather than derived.
 
-- **G16** — `is_custom` and `is_human` are stored flags; they should derive from URI family and handler/URL presence
+- **G16** — `is_custom` and `is_feedback` are stored flags; they should derive from URI family and handler/URL presence
 - **G14** — `is_custom` is detected three independent ways; controls request format, caching, and annotation origin — wrong concerns
-- **G15** — `is_human` means "not runnable"; human evaluators have no URIs
+- **G15** — `is_feedback` means "not runnable"; human evaluators have no URIs
 - **G4** — `can_*` capability flags must not be added; capability derives from schema/HTTP/URI
 - **G11** — Frontend reads flags from legacy `/openapi.json` `x-agenta.flags`; new system not consumed
 - **G17** — Playground has no per-invocation mode toggles and no streaming response handling
@@ -30,7 +30,7 @@ Execution order: G16 → G14/G15 → G4 → G11 → G17.
 | `sdk/agenta/sdk/engines/running/utils.py` | `is_user_custom_uri()`, `parse_uri()` |
 | `sdk/agenta/sdk/decorators/running.py` | `@workflow`, `@evaluator`, flag injection, `annotate` param |
 | `api/oss/src/core/workflows/dtos.py` | API-side `WorkflowFlags`, `WorkflowQueryFlags` |
-| `api/oss/src/core/evaluators/defaults.py` | Default human evaluator seed (`is_human=True`, `uri=None`) |
+| `api/oss/src/core/evaluators/defaults.py` | Default human evaluator seed (`is_feedback=True`, `uri=None`) |
 | `api/oss/src/core/annotations/service.py` | `AnnotationOrigin` derivation from flags |
 | `api/oss/src/services/legacy_adapter.py` | `_template_key_to_flags()`, `_flags_to_app_type()` |
 | `api/oss/src/dbs/postgres/workflows/dbes.py` | Stored `flags` column on workflow revision DBE |
@@ -47,11 +47,11 @@ This is the foundation. All downstream work depends on URIs being present and cl
 
 ### S1. DB migration — backfill URIs for human evaluators
 
-Human evaluators currently have `uri=NULL` in workflow revision data. They need URIs before `is_human` can be derived from URI presence.
+Human evaluators currently have `uri=NULL` in workflow revision data. They need URIs before `is_feedback` can be derived from URI presence.
 
 **Target mappings:**
-- Default platform human evaluator (`is_human=True`, no variant slug / standard seed) → `agenta:builtin:human:v0`
-- User-created human evaluators (`is_human=True`, has variant slug) → `user:custom:{variant_slug}:v{revision_version}`
+- Default platform human evaluator (`is_feedback=True`, no variant slug / standard seed) → `agenta:builtin:human:v0`
+- User-created human evaluators (`is_feedback=True`, has variant slug) → `user:custom:{variant_slug}:v{revision_version}`
 
 **Migration logic:**
 ```sql
@@ -59,7 +59,7 @@ Human evaluators currently have `uri=NULL` in workflow revision data. They need 
 UPDATE workflow_revisions
 SET data = jsonb_set(data, '{uri}', '"agenta:builtin:human:v0"')
 WHERE data->>'uri' IS NULL
-  AND data->'flags'->>'is_human' = 'true'
+  AND data->'flags'->>'is_feedback' = 'true'
   AND <is_default_seed_condition>;
 
 -- User-created human evaluators
@@ -71,7 +71,7 @@ SET wr.data = jsonb_set(
     CONCAT('"user:custom:', v.slug, ':v', wr.version, '"')::jsonb
 )
 WHERE wr.data->>'uri' IS NULL
-  AND wr.data->'flags'->>'is_human' = 'true';
+  AND wr.data->'flags'->>'is_feedback' = 'true';
 ```
 
 **File:** new migration file in `api/oss/src/dbs/postgres/migrations/`
@@ -90,7 +90,7 @@ from agenta.sdk.engines.running.utils import is_user_custom_uri, parse_uri
 class WorkflowFlags(BaseModel):
     is_custom: bool = False
     is_evaluator: bool = False
-    is_human: bool = False
+    is_feedback: bool = False
     is_chat: bool = False
 
 class WorkflowDerivedFlags(BaseModel):
@@ -132,7 +132,7 @@ Replace flag-based derivation (lines 214-219) with URI + runnability:
 # Before
 origin = (
     AnnotationOrigin.CUSTOM if annotation_flags.is_custom
-    else AnnotationOrigin.HUMAN if annotation_flags.is_human
+    else AnnotationOrigin.HUMAN if annotation_flags.is_feedback
     else AnnotationOrigin.AUTO
 )
 
@@ -184,7 +184,7 @@ def _map_flags(dbe_data: dict) -> WorkflowFlags:
     return WorkflowFlags(
         is_custom=derived.is_custom,          # from URI, ignore stored value
         is_evaluator=stored_flags.get("is_evaluator", False),
-        is_human=not derived.is_runnable,     # from runnability, ignore stored value
+        is_feedback=not derived.is_runnable,     # from runnability, ignore stored value
         is_chat=stored_flags.get("is_chat", False),  # still stored for now
     )
 ```
@@ -285,7 +285,7 @@ class WorkflowFlags(BaseModel):
     # Evaluate behavior derives from trace ingestion routing.
     is_custom: bool = False
     is_evaluator: bool = False
-    is_human: bool = False   # deprecated: use is_runnable (derived)
+    is_feedback: bool = False   # deprecated: use is_runnable (derived)
     is_chat: bool = False
 ```
 
@@ -452,7 +452,7 @@ Any toggle that is shown when the capability is not available should be hidden o
 | `api/oss/src/core/workflows/dtos.py` | Add `WorkflowDerivedFlags`, `derive_flags()` | Phase 1 |
 | `api/oss/src/core/annotations/service.py` | Replace flag-based `AnnotationOrigin` with URI + runnability | Phase 1 |
 | `api/oss/src/core/workflows/service.py` | Generate `user:custom:{slug}:v{N}` URI at revision creation | Phase 1 |
-| `api/oss/src/dbs/postgres/workflows/mappings.py` | Compute `is_custom`/`is_human` from URI at read time | Phase 2 |
+| `api/oss/src/dbs/postgres/workflows/mappings.py` | Compute `is_custom`/`is_feedback` from URI at read time | Phase 2 |
 | `web/oss/src/lib/shared/variant/transformer/transformToRequestBody.ts` | Replace `isCustomFinal` with schema-driven format detection | Phase 2 |
 | Variant cache/refresh config | Replace `isCustom`-keyed policy with URL-presence-keyed | Phase 2 |
 | `sdk/agenta/sdk/decorators/running.py` | Remove `annotate` param from `@workflow` | Phase 3 |
@@ -545,12 +545,12 @@ URI components (from `parse_uri(uri)`): `provider : kind : key : version`
 
 | Flag | Rule | Examples |
 |------|------|---------|
-| `is_custom` | `kind == "custom"` | `agenta:custom:trace:v0` → T, `user:custom:my-app:v3` → T, `agenta:builtin:echo:v0` → F |
+| `is_custom` | `kind == "custom"` | `agenta:custom:feedback:v0` → T, `user:custom:my-app:v3` → T, `agenta:builtin:echo:v0` → F |
 | `is_managed` | `provider == "agenta"` | `agenta:*` → T, `user:custom:*` → F |
 
 Dropped as redundant: `is_builtin` (`not is_custom`), `is_internal` (`not is_managed`).
 
-Dropped as redundant: `is_human` (`is_managed and is_custom and is_human`).
+Dropped as redundant: `is_feedback` (`is_managed and is_custom and is_feedback`).
 
 **Key-based type flags** (derived from the `key` component, regardless of provider):
 
@@ -559,7 +559,7 @@ Dropped as redundant: `is_human` (`is_managed and is_custom and is_human`).
 | `is_llm` | `key == "llm"` | `agenta:builtin:llm:v0` → T |
 | `is_hook` | `key == "hook"` | `agenta:custom:hook:v0` → T |
 | `is_code` | `key == "code"` | `agenta:custom:code:v0` → T |
-| `is_human` | `key == "trace"` | `agenta:custom:trace:v0` → T |
+| `is_feedback` | `key == "trace"` | `agenta:custom:feedback:v0` → T |
 | `is_match` | `key == "match"` | `agenta:builtin:match:v0` → T |
 
 ---
@@ -580,7 +580,7 @@ A workflow is runnable if it has either a URL (remote endpoint) or a handler (lo
 | URI family | URL source | Handler source |
 |------------|------------|----------------|
 | `agenta:builtin:*` | Inferred by platform — always present | n/a |
-| `agenta:custom:trace:*` | None — not invocable | None |
+| `agenta:custom:feedback:*` | None — not invocable | None |
 | `agenta:custom:{code,hook}:*` | User-defined — may be absent | SDK registration — may be absent |
 | `user:custom:*` | User-defined — may be absent | SDK registration — may be absent |
 
@@ -609,7 +609,7 @@ Provided by the caller at creation or edit time. The lookup table defines defaul
 |-------------|------------------------|--------------------------|
 | `agenta:custom:code:*` | T | T |
 | `agenta:custom:hook:*` | T | T |
-| `agenta:custom:trace:*` | T | T |
+| `agenta:custom:feedback:*` | T | T |
 | `agenta:builtin:chat:*` | F | T |
 | `agenta:builtin:completion:*` | F | T |
 | `agenta:builtin:match:*` | T | F |
@@ -662,7 +662,7 @@ def infer_flags_from_data(
     is_llm   = key == "llm"
     is_hook  = key == "hook"
     is_code  = key == "code"
-    is_human = key == "trace"
+    is_feedback = key == "trace"
     is_match = key == "match"
 
     # Interface-derived
@@ -713,7 +713,7 @@ def infer_flags_from_data(
         is_llm=is_llm,
         is_hook=is_hook,
         is_code=is_code,
-        is_human=is_human,
+        is_feedback=is_feedback,
         is_match=is_match,
         # role
         is_evaluator=is_evaluator,
@@ -728,7 +728,7 @@ def infer_flags_from_data(
 
 ### Flag Matrix by URI Family
 
-| URI Pattern | `is_custom` | `is_managed` | `is_llm` | `is_hook` | `is_code` | `is_human` | `is_match` | `has_url` | `has_handler` | `has_script` | `is_evaluator` | `is_application` |
+| URI Pattern | `is_custom` | `is_managed` | `is_llm` | `is_hook` | `is_code` | `is_feedback` | `is_match` | `has_url` | `has_handler` | `has_script` | `is_evaluator` | `is_application` |
 |-------------|-------------|--------------|----------|-----------|-----------|------------|------------|-----------|---------------|--------------|----------------|-----------------|
 | `agenta:builtin:chat:*` | F | T | F | F | F | F | F | T | F | F | F | T |
 | `agenta:builtin:completion:*` | F | T | F | F | F | F | F | T | F | F | F | T |
@@ -737,7 +737,7 @@ def infer_flags_from_data(
 | `agenta:builtin:*` (all others) | F | T | F | F | F | F | F | T | F | F | T | F |
 | `agenta:custom:code:*` | T | T | F | F | T | F | F | ? | ? | ? | T | T |
 | `agenta:custom:hook:*` | T | T | F | T | F | F | F | ? | ? | ? | T | T |
-| `agenta:custom:trace:*` | T | T | F | F | F | T | F | F | F | F | T | T |
+| `agenta:custom:feedback:*` | T | T | F | F | F | T | F | F | F | F | T | T |
 | `user:custom:*` | T | F | F | F | F | F | F | ? | ? | ? | T | F |
 | `None` | F | F | F | F | F | F | F | F | F | F | T | F |
 
@@ -745,10 +745,10 @@ def infer_flags_from_data(
 
 ### Notes for Iteration
 
-- `is_human` and `is_match` are key-based type flags (`key == "trace"`, `key == "match"`). `is_human` is dropped — it was redundant with `is_managed and is_custom and is_human`.
+- `is_feedback` and `is_match` are key-based type flags (`key == "trace"`, `key == "match"`). `is_feedback` is dropped — it was redundant with `is_managed and is_custom and is_feedback`.
 - `is_evaluator` and `is_application` for `agenta:*` URIs use the lookup table `_AGENTA_ROLE_TABLE` — it is **positively exhaustive**: every known key is listed, unknown keys raise. `agenta:builtin:chat` and `agenta:builtin:completion` are the only application-only builtins; all other builtins are evaluator-only. Update the table whenever a new agenta URI key is introduced.
 - `is_evaluator` and `is_application` for `user:custom:*` are caller-provided at creation and edit time. If omitted by caller, they default to `False`. Do NOT infer them from URI for external workflows.
 - `is_structured` is a lightweight flag — it does not validate the schema, only checks presence. Schema validity is enforced by `WorkflowServiceInterface` model validator at parse time.
-- `WorkflowFlags` model must be extended with: `is_managed`, `is_human`, `is_match`, `has_url`, `has_handler`, `has_script`, `is_llm`, `is_hook`, `is_code`, `is_application`, `is_structured` before `infer_flags_from_data` can be implemented. Drop `is_builtin`, `is_external`, `is_internal`, `is_human` — all redundant composites of the remaining flags.
+- `WorkflowFlags` model must be extended with: `is_managed`, `is_feedback`, `is_match`, `has_url`, `has_handler`, `has_script`, `is_llm`, `is_hook`, `is_code`, `is_application`, `is_structured` before `infer_flags_from_data` can be implemented. Drop `is_builtin`, `is_external`, `is_internal`, `is_feedback` — all redundant composites of the remaining flags.
 - Call site: `api/oss/src/core/workflows/service.py` during `commit_revision` — replace manual flag construction with `infer_flags_from_data(...)`.
 - `AnnotationOrigin` derivation (S3) reads `flags.has_url`, `flags.has_handler`, and `flags.is_custom` from stored flags — no URI re-parse needed at annotation time.

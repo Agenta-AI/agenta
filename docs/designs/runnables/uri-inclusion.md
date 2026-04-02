@@ -106,7 +106,7 @@ The first row below captures the current built-in evaluator template family.
 When a cell needs multiple exact values, they should appear on separate lines
 inside the same cell, not collapsed into brackets.
 
-| URI | is_builtin | is_custom | is_application | is_evaluator | is_human | is_chat | can_chat | can_stream | can_batch | schemas.inputs | schemas.parameters | schemas.outputs |
+| URI | is_builtin | is_custom | is_application | is_evaluator | is_feedback | is_chat | can_chat | can_stream | can_batch | schemas.inputs | schemas.parameters | schemas.outputs |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `agenta:builtin:auto_exact_match:v0`<br>`agenta:builtin:auto_contains_json:v0`<br>`agenta:builtin:auto_similarity_match:v0`<br>`agenta:builtin:auto_semantic_similarity:v0`<br>`agenta:builtin:auto_regex_test:v0`<br>`agenta:builtin:field_match_test:v0`<br>`agenta:builtin:json_multi_field_match:v0`<br>`agenta:builtin:auto_json_diff:v0`<br>`agenta:builtin:auto_ai_critique:v0`<br>`agenta:builtin:auto_custom_code_run:v0`<br>`agenta:builtin:auto_webhook_test:v0`<br>`agenta:builtin:auto_levenshtein_distance:v0` | `true` | `false` | `false` | `true` | `false` | `false` | `false` | `false` | `true` | `in-catalog / required` | `in-catalog / required` | `in-catalog / required` |
 | `agenta:builtin:chat:v0` | `true` | `false` | `true` | `false` | `false` | `true` | `false` | `true` | `true` | `in-catalog / required` | `in-catalog / required` | `in-catalog / required` |

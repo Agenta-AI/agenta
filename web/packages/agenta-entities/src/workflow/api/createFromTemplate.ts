@@ -205,7 +205,7 @@ export async function createAppFromTemplate({
             is_chat: isChat,
             is_evaluator: false,
             is_custom: isCustomWorkflow || catalogKey === "CUSTOM",
-            is_human: false,
+            is_feedback: false,
         } as CreateWorkflowPayload["flags"],
         data: {
             uri: uri ?? undefined,

@@ -303,7 +303,7 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
     const evaluator = useAtomValue(workflowMolecule.selectors.data(evaluatorId))
 
     const displayName = evaluator?.name || evaluator?.slug || evaluatorId.slice(0, 8)
-    const isHuman = evaluator?.flags?.is_human ?? false
+    const isHuman = evaluator?.flags?.is_feedback ?? false
     const isCustom = evaluator?.flags?.is_custom ?? false
     const version = evaluator?.version
     const description = evaluator?.description
