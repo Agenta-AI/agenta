@@ -63,14 +63,9 @@ export function buildServiceUrlFromUri(uri: string | null | undefined): string |
     const apiUrl = getAgentaApiUrl()
     if (!apiUrl) return null
     const origin = apiUrl.replace(/\/api\/?$/, "")
-
-    // agenta:{kind}:{key}:{version} → {key}/{version}
-    const parts = uri.split(":")
-    if (parts.length < 4) return null
-
-    const key = parts[2]
-    const version = parts[3]
-    return `${origin}/services/${key}/${version}`
+    // agenta:{kind}:{key}:{version} → {kind}/{key}/{version}
+    const path = uri.replace(/^agenta:/, "").replace(/:/g, "/")
+    return `${origin}/services/${path}`
 }
 
 /**
