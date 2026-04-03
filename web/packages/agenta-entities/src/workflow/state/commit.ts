@@ -23,7 +23,7 @@
  */
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {generateId, stripAgentaMetadataDeep} from "@agenta/shared/utils"
+import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
 
 import {flattenEvaluatorConfiguration} from "../../runnable/evaluatorTransforms"
@@ -35,7 +35,7 @@ import {
     archiveWorkflowVariant,
     queryWorkflowRevisions,
 } from "../api"
-import type {Workflow} from "../core"
+import {generateSlug, type Workflow} from "../core"
 
 import {invalidateEvaluatorsListCache} from "./evaluatorUtils"
 import {
@@ -497,12 +497,13 @@ export const createWorkflowFromEphemeralAtom = atom(
             }
 
             // 2. Generate a unique slug (never use the template key)
-            const uniqueSlug = generateId().replace(/-/g, "").slice(0, 12)
+            const workflowName = name || entity.name || "Workflow"
+            const workflowSlug = generateSlug(workflowName)
 
             // 3. Create workflow via API
             const newWorkflow = await createWorkflowApi(projectId, {
-                slug: uniqueSlug,
-                name: name || entity.name || "Workflow",
+                slug: workflowSlug,
+                name: workflowName,
                 flags: entity.flags
                     ? {
                           is_application: entity.flags.is_application,
@@ -510,7 +511,7 @@ export const createWorkflowFromEphemeralAtom = atom(
                           is_snippet: entity.flags.is_snippet,
                       }
                     : undefined,
-                message: commitMessage ?? undefined,
+                message: commitMessage || undefined,
                 data: entity.data
                     ? {
                           uri: entity.data.uri,

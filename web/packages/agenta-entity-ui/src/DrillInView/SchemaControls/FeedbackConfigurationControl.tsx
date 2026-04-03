@@ -191,7 +191,7 @@ function parseJSONSchema(schemaValue: unknown): FeedbackConfig | null {
         } else if (scoreType === "string" && Array.isArray(scoreProperty.enum)) {
             responseFormat = "categorical"
             const enumValues = scoreProperty.enum as string[]
-            categories = enumValues.map((name) => ({name, description: ""}))
+            categories = enumValues.map((name) => ({name, description: null}))
         }
 
         // Check for reasoning field (can be named "comment" or "reasoning")
@@ -385,7 +385,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
 
     // Category handlers
     const addCategory = useCallback(() => {
-        const newCategories = [...categories, {name: "", description: ""}]
+        const newCategories = [...categories, {name: null, description: null}]
         setCategories(newCategories)
         emitSchemaChange({
             responseFormat,

@@ -819,7 +819,7 @@ export const createHumanEvaluatorAtom = atom(
         await createWorkflow(projectId, {
             slug: params.slug,
             name: params.name,
-            description: params.description ?? "",
+            description: params.description,
             flags: {is_evaluator: true},
             data: {
                 uri: "agenta:custom:feedback:v0",
