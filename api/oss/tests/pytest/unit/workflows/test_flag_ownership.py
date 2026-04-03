@@ -1,3 +1,4 @@
+import warnings
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -241,6 +242,65 @@ async def test_commit_workflow_revision_persists_only_revision_flags():
     assert "is_snippet" not in revision_commit.flags
     assert revision_commit.flags["is_managed"] is True
     assert revision_commit.flags["is_chat"] is False
+
+
+@pytest.mark.asyncio
+async def test_commit_workflow_revision_does_not_warn_when_merging_schemas():
+    workflows_dao = AsyncMock()
+    service = WorkflowsService(workflows_dao=workflows_dao)
+
+    artifact_id = uuid4()
+    variant_id = uuid4()
+    revision_id = uuid4()
+    workflows_dao.commit_revision.return_value = WorkflowRevision(
+        id=revision_id,
+        workflow_id=artifact_id,
+        workflow_variant_id=variant_id,
+        slug="rev",
+        flags=WorkflowRevisionFlags(is_chat=True, has_url=True),
+        data=WorkflowRevisionData(
+            uri="agenta:builtin:chat:v0", url="https://example.com/chat"
+        ),
+    )
+    workflows_dao.fetch_artifact.return_value = Workflow(
+        id=artifact_id,
+        slug="wf",
+        flags=WorkflowArtifactFlags(),
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+
+        await service.commit_workflow_revision(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflow_revision_commit=WorkflowRevisionCommit(
+                workflow_id=artifact_id,
+                workflow_variant_id=variant_id,
+                slug="rev",
+                data=WorkflowRevisionData(
+                    uri="agenta:builtin:chat:v0",
+                    schemas={
+                        "parameters": {
+                            "$schema": "https://json-schema.org/draft/2020-12/schema",
+                            "type": "object",
+                            "properties": {"temperature": {"type": "number"}},
+                        }
+                    },
+                ),
+            ),
+        )
+
+    serializer_warnings = [
+        warning
+        for warning in caught
+        if "Expected `JsonSchemas`" in str(warning.message)
+    ]
+    assert serializer_warnings == []
+
+    revision_commit = workflows_dao.commit_revision.await_args.kwargs["revision_commit"]
+    assert revision_commit.data is not None
+    assert revision_commit.data["schemas"]["parameters"]["type"] == "object"
 
 
 @pytest.mark.asyncio

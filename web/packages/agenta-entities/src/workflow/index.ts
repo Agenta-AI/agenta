@@ -89,6 +89,7 @@ export {
     isOnlineCapableEvaluator,
     collectEvaluatorCandidates,
     // Output schema utilities
+    resolveOutputSchema,
     resolveOutputSchemaProperties,
 } from "./core"
 

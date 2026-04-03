@@ -1,20 +1,11 @@
 import {SWRConfiguration} from "swr"
 
 export interface EvaluatorData {
-    service: {
-        agenta: string
-        format: {
-            type: string
-            $schema: string
-            required: string[]
-            properties: {
-                outputs: {
-                    type: string
-                    properties: Record<string, any>
-                    required: string[]
-                }
-            }
-        }
+    uri?: string
+    schemas?: {
+        outputs?: Record<string, any>
+        inputs?: Record<string, any>
+        parameters?: Record<string, any>
     }
 }
 

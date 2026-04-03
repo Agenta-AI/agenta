@@ -45,11 +45,13 @@ services:
             - ../../../web/ee/public:/app/ee/public
             - ../../../web/oss/src:/app/oss/src
             - ../../../web/oss/public:/app/oss/public
+            - ../../../web/packages:/app/packages
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+            WATCHPACK_POLLING: "true"
         # === NETWORK ============================================== #
         networks:
             - agenta-network
