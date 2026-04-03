@@ -412,6 +412,16 @@ async def fetch_trace(
                 project_id=project_id,
                 trace_id=trace_id,
             )
+            # spans = getattr(trace, "spans", None) if trace else None
+            # log.debug(
+            #     "[EVAL] [trace] fetch attempt",
+            #     trace_id=trace_id,
+            #     attempt=attempt + 1,
+            #     found=bool(trace),
+            #     spans_type=type(spans).__name__ if spans is not None else None,
+            #     span_count=len(spans) if isinstance(spans, dict) else None,
+            #     usable_root_span=_has_usable_root_span(trace) if trace else False,
+            # )
             if trace and _has_usable_root_span(trace):
                 return Trace(
                     **trace.model_dump(

@@ -61,20 +61,56 @@ log = get_module_logger(__name__)
 
 def _extract_root_span(trace: Optional[Any]) -> Optional[Any]:
     if not trace:
+        # log.debug("[TRACE]       [ROOT]", reason="missing-trace")
         return None
 
     spans = getattr(trace, "spans", None)
 
     if not isinstance(spans, dict):
+        # log.debug(
+        #     "[TRACE]       [ROOT]",
+        #     trace_id=str(getattr(trace, "trace_id", None))
+        #     if getattr(trace, "trace_id", None)
+        #     else None,
+        #     reason="spans-not-dict",
+        #     spans_type=type(spans).__name__ if spans is not None else None,
+        # )
         return None
 
     if not spans:
+        # log.debug(
+        #     "[TRACE]       [ROOT]",
+        #     trace_id=str(getattr(trace, "trace_id", None))
+        #     if getattr(trace, "trace_id", None)
+        #     else None,
+        #     reason="spans-empty",
+        # )
         return None
 
     root_span = list(spans.values())[0]
     if isinstance(root_span, list):
+        # log.debug(
+        #     "[TRACE]       [ROOT]",
+        #     trace_id=str(getattr(trace, "trace_id", None))
+        #     if getattr(trace, "trace_id", None)
+        #     else None,
+        #     reason="first-span-is-list",
+        #     span_keys=list(spans.keys()),
+        #     first_list_len=len(root_span),
+        # )
         return None
 
+    # log.debug(
+    #     "[TRACE]       [ROOT]",
+    #     trace_id=str(getattr(trace, "trace_id", None))
+    #     if getattr(trace, "trace_id", None)
+    #     else None,
+    #     reason="resolved",
+    #     span_keys=list(spans.keys()),
+    #     root_span_id=str(getattr(root_span, "span_id", None))
+    #     if getattr(root_span, "span_id", None)
+    #     else None,
+    # )
     return root_span
 
 
@@ -87,8 +123,23 @@ def _build_trace_context(
     trace_id = getattr(trace, "trace_id", None) if trace else None
 
     if not root_span or not trace_id:
+        # log.debug(
+        #     "[TRACE]       [CONTEXT]",
+        #     trace_id=str(trace_id) if trace_id else None,
+        #     has_root_span=bool(root_span),
+        #     has_error=bool(error),
+        #     error=error,
+        # )
         return None
 
+    # log.debug(
+    #     "[TRACE]       [CONTEXT]",
+    #     trace_id=str(trace_id),
+    #     span_id=str(getattr(root_span, "span_id", None))
+    #     if getattr(root_span, "span_id", None)
+    #     else None,
+    #     has_error=bool(error),
+    # )
     return {
         "trace": trace,
         "trace_id": str(trace_id),
@@ -241,6 +292,16 @@ async def evaluate_batch_testset(
         invocation_steps = [step for step in steps if step.type == "invocation"]
         annotation_steps = [step for step in steps if step.type == "annotation"]
 
+        log.info(
+            "[STEPS]       ",
+            run_id=run_id,
+            count=len(steps),
+            input_keys=[step.key for step in input_steps],
+            invocation_keys=[step.key for step in invocation_steps],
+            annotation_keys=[step.key for step in annotation_steps],
+            step_types=[getattr(step, "type", None) for step in steps],
+        )
+
         if not input_steps or len(invocation_steps) != 1:
             raise ValueError(
                 f"Evaluation run with id {run_id} must have at least one input and exactly one invocation step."
@@ -368,6 +429,22 @@ async def evaluate_batch_testset(
 
         # fetch evaluators -----------------------------------------------------
         evaluator_references = {step.key: step.references for step in annotation_steps}
+        # log.debug(
+        #     "[EVALUATORS]  ",
+        #     run_id=run_id,
+        #     count=len(annotation_steps),
+        #     refs={
+        #         step_key: (
+        #             {
+        #                 key: str(reference.id)
+        #                 if getattr(reference, "id", None)
+        #                 else None
+        #                 for key, reference in (references or {}).items()
+        #             }
+        #         )
+        #         for step_key, references in evaluator_references.items()
+        #     },
+        # )
 
         evaluators = {}
         for evaluator_key, evaluator_refs in evaluator_references.items():
@@ -376,6 +453,18 @@ async def evaluate_batch_testset(
                 #
                 workflow_revision_ref=evaluator_refs.get("evaluator_revision"),
             )
+        # log.debug(
+        #     "[EVALUATORS]  [FETCH]",
+        #     run_id=run_id,
+        #     resolved={
+        #         evaluator_key: (
+        #             str(evaluator_revision.id)
+        #             if evaluator_revision and evaluator_revision.id
+        #             else None
+        #         )
+        #         for evaluator_key, evaluator_revision in evaluators.items()
+        #     },
+        # )
         # ----------------------------------------------------------------------
 
         # create scenarios -----------------------------------------------------
@@ -631,12 +720,34 @@ async def evaluate_batch_testset(
                 annotation_step_key = annotation_step.key
 
                 if annotation_step.origin in {"human", "custom"}:
+                    # log.debug(
+                    #     "[EVALUATOR]   [SKIP]",
+                    #     run_id=run_id,
+                    #     scenario_id=scenario.id,
+                    #     step_key=annotation_step_key,
+                    #     origin=annotation_step.origin,
+                    #     reason="non-auto-origin",
+                    # )
                     scenario_has_pending = True
                     run_has_pending = True
                     continue
 
                 evaluator_revision = evaluators.get(annotation_step_key)
                 if not evaluator_revision:
+                    # log.warning(
+                    #     "[EVALUATOR]   [MISSING]",
+                    #     run_id=run_id,
+                    #     scenario_id=scenario.id,
+                    #     step_key=annotation_step_key,
+                    #     references={
+                    #         key: str(reference.id)
+                    #         if getattr(reference, "id", None)
+                    #         else None
+                    #         for key, reference in (
+                    #             evaluator_references.get(annotation_step_key, {}) or {}
+                    #         ).items()
+                    #     },
+                    # )
                     log.error(
                         f"Evaluator revision for {annotation_step_key} not found!"
                     )
@@ -690,6 +801,19 @@ async def evaluate_batch_testset(
                     shared_application_context = application_context_by_repeat.get(
                         repeat_indices[0]
                     )
+                    # log.debug(
+                    #     "[EVALUATOR]   [PLAN]",
+                    #     run_id=run_id,
+                    #     scenario_id=scenario.id,
+                    #     step_key=annotation_step_key,
+                    #     repeats=repeat_indices,
+                    #     is_split=is_split,
+                    #     has_shared_application_context=bool(shared_application_context),
+                    #     has_shared_root_span=bool(
+                    #         shared_application_context
+                    #         and shared_application_context.get("root_span")
+                    #     ),
+                    # )
                     if (
                         not shared_application_context
                         or not shared_application_context.get("root_span")
@@ -788,6 +912,15 @@ async def evaluate_batch_testset(
                         for repeat_idx in repeat_indices[
                             len(reusable_evaluator_traces) :
                         ]:
+                            # log.debug(
+                            #     "[EVALUATOR]   [INVOKE]",
+                            #     run_id=run_id,
+                            #     scenario_id=scenario.id,
+                            #     step_key=annotation_step_key,
+                            #     repeat_idx=repeat_idx,
+                            #     cached_reuse_count=len(reusable_evaluator_traces),
+                            #     trace_links=shared_links,
+                            # )
                             workflows_service_response = (
                                 await workflows_service.invoke_workflow(
                                     project_id=project_id,
@@ -848,6 +981,19 @@ async def evaluate_batch_testset(
                         application_context = application_context_by_repeat.get(
                             repeat_idx
                         )
+                        # log.debug(
+                        #     "[EVALUATOR]   [PLAN]",
+                        #     run_id=run_id,
+                        #     scenario_id=scenario.id,
+                        #     step_key=annotation_step_key,
+                        #     repeat_idx=repeat_idx,
+                        #     is_split=is_split,
+                        #     has_application_context=bool(application_context),
+                        #     has_root_span=bool(
+                        #         application_context
+                        #         and application_context.get("root_span")
+                        #     ),
+                        # )
                         if not application_context or not application_context.get(
                             "root_span"
                         ):
@@ -937,6 +1083,14 @@ async def evaluate_batch_testset(
                             )
                             continue
 
+                        # log.debug(
+                        #     "[EVALUATOR]   [INVOKE]",
+                        #     run_id=run_id,
+                        #     scenario_id=scenario.id,
+                        #     step_key=annotation_step_key,
+                        #     repeat_idx=repeat_idx,
+                        #     trace_links=links,
+                        # )
                         workflows_service_response = (
                             await workflows_service.invoke_workflow(
                                 project_id=project_id,
@@ -994,6 +1148,14 @@ async def evaluate_batch_testset(
                     user_id=user_id,
                     results=evaluator_results_create,
                 )
+                # log.debug(
+                #     "[EVALUATOR]   [RESULTS]",
+                #     run_id=run_id,
+                #     scenario_id=scenario.id,
+                #     step_key=annotation_step_key,
+                #     created=len(created_annotation_results),
+                #     expected=len(repeat_indices),
+                # )
 
                 if len(created_annotation_results) != len(repeat_indices):
                     raise ValueError(
