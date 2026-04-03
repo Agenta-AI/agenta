@@ -112,7 +112,6 @@ export function invalidateEvaluatorsListCache() {
         // queryClientAtom may not be initialized yet
     }
     store.set(evaluatorsListQueryAtom)
-    store.set(humanEvaluatorsListQueryAtom)
     // Notify any registered listeners (e.g. paginated store invalidation)
     _evaluatorMutationListeners.forEach((fn) => {
         try {
@@ -221,6 +220,30 @@ export const evaluatorKeyMapAtom = atom<Map<string, string>>((get) => {
     return map
 })
 
+interface EvaluatorRevisionFlags {
+    isFeedback: boolean
+    isCustom: boolean
+}
+
+const evaluatorRevisionFlagsMapAtom = atom<Map<string, EvaluatorRevisionFlags>>((get) => {
+    const evaluators = get(nonArchivedEvaluatorsAtom)
+    const map = new Map<string, EvaluatorRevisionFlags>()
+
+    for (const evaluator of evaluators) {
+        if (!evaluator.id) continue
+
+        const revisionQuery = get(workflowLatestRevisionQueryAtomFamily(evaluator.id))
+        const revisionFlags = revisionQuery.data?.flags
+
+        map.set(evaluator.id, {
+            isFeedback: Boolean(revisionFlags?.is_feedback),
+            isCustom: Boolean(revisionFlags?.is_custom),
+        })
+    }
+
+    return map
+})
+
 // ============================================================================
 // TEMPLATE LOOKUP
 // ============================================================================
@@ -292,11 +315,12 @@ export const evaluatorPresetsAtomFamily = atomFamily((templateKey: string | null
 export const evaluatorConfigsListDataAtom = atom<Workflow[]>((get) => {
     const query = get(evaluatorsListQueryAtom)
     const refs = query.data?.refs ?? []
+    const revisionFlagsMap = get(evaluatorRevisionFlagsMapAtom)
+
     return refs.filter((ref) => {
-        const flags = ref.flags
-        if (!flags) return true
-        if (flags.is_feedback) return false
-        if (flags.is_custom) return false
+        const revisionFlags = ref.id ? revisionFlagsMap.get(ref.id) : undefined
+        if (revisionFlags?.isFeedback) return false
+        if (revisionFlags?.isCustom) return false
         return true
     }) as Workflow[]
 })
@@ -326,25 +350,16 @@ export const evaluatorConfigsQueryStateAtom = atom<ListQueryState<Workflow>>((ge
  *
  * Caches only thin references in TanStack Query.
  */
-export const humanEvaluatorsListQueryAtom = atomWithQuery((get) => {
-    const projectId = get(workflowProjectIdAtom)
-    return {
-        queryKey: ["workflows", "evaluators", "human", "list", projectId],
-        queryFn: async (): Promise<WorkflowListRefsResponse> => {
-            if (!projectId) return {count: 0, refs: []}
-            const response = await queryWorkflows({
-                projectId,
-                flags: {is_evaluator: true, is_feedback: true},
-            })
-            const workflows = response.workflows ?? []
+export const humanEvaluatorsListQueryAtom = atom((get) => {
+    const query = get(evaluatorsListQueryAtom)
+    const refs = get(humanEvaluatorsListDataAtom)
 
-            return {
-                count: response.count ?? workflows.length,
-                refs: workflows.map(toWorkflowListRef),
-            }
+    return {
+        ...query,
+        data: {
+            count: refs.length,
+            refs: refs as WorkflowListRef[],
         },
-        enabled: get(sessionAtom) && !!projectId,
-        staleTime: 30_000,
     }
 })
 
@@ -353,9 +368,14 @@ export const humanEvaluatorsListQueryAtom = atomWithQuery((get) => {
  * Returns workflow-level objects directly from the query cache.
  */
 export const humanEvaluatorsListDataAtom = atom<Workflow[]>((get) => {
-    const query = get(humanEvaluatorsListQueryAtom)
+    const query = get(evaluatorsListQueryAtom)
     const refs = query.data?.refs ?? []
-    return refs as Workflow[]
+    const revisionFlagsMap = get(evaluatorRevisionFlagsMapAtom)
+
+    return refs.filter((ref) => {
+        const revisionFlags = ref.id ? revisionFlagsMap.get(ref.id) : undefined
+        return Boolean(revisionFlags?.isFeedback)
+    }) as Workflow[]
 })
 
 // ============================================================================

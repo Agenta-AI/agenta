@@ -1,6 +1,7 @@
 from typing import Any, Optional
 
 from oss.src.core.evaluators.dtos import SimpleEvaluatorData
+from oss.src.core.workflows.dtos import JsonSchemas
 from oss.src.resources.evaluators.evaluators import get_all_evaluators
 
 
@@ -87,9 +88,10 @@ def build_evaluator_data(
 
     settings_template = _get_settings_template(evaluator_key)
 
-    schemas: dict[str, Any] = {"outputs": outputs_schema}
-    if settings_template:
-        schemas["parameters"] = settings_template
+    schemas = JsonSchemas(
+        outputs=outputs_schema,
+        parameters=settings_template,
+    )
 
     script = (
         settings_values.get("code", None)

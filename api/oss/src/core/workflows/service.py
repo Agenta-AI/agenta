@@ -39,6 +39,7 @@ from oss.src.core.git.dtos import (
     RevisionsLog,
 )
 from oss.src.core.workflows.dtos import (
+    JsonSchemas,
     WorkflowArtifactFlags,
     WorkflowArtifactQueryFlags,
     WorkflowVariantFlags,
@@ -1343,7 +1344,7 @@ class WorkflowsService:
                     schemas_dict["outputs"] = inferred_outputs
 
             if schemas_dict:
-                data = data.model_copy(update={"schemas": schemas_dict})
+                data = data.model_copy(update={"schemas": JsonSchemas(**schemas_dict)})
 
         _revision_commit = RevisionCommit(
             **workflow_revision_commit.model_dump(
