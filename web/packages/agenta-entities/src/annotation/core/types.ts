@@ -94,6 +94,13 @@ export interface UpdateAnnotationPayload {
     annotation: {
         data: {outputs?: Record<string, unknown>}
         meta?: {name?: string; description?: string; tags?: string[]}
+        references?: {
+            evaluator: {id?: string; slug?: string}
+            evaluator_revision?: {id?: string; slug?: string}
+            testset?: {id?: string}
+            testcase?: {id?: string}
+            evaluator_variant?: {id?: string; slug?: string}
+        }
         links?: Record<string, {trace_id?: string; span_id?: string}>
     }
 }

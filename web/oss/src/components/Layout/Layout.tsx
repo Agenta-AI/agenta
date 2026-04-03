@@ -66,6 +66,7 @@ const AppWithVariants = memo(
         isTestsets,
         isEvaluator,
         isAnnotations,
+        isAnnotationDetails,
         appTheme,
         footerHeight,
         ...props
@@ -76,6 +77,7 @@ const AppWithVariants = memo(
         isEvaluator: boolean
         isTestsets: boolean
         isAnnotations: boolean
+        isAnnotationDetails: boolean
         classes: StyleClasses
         appTheme: string
         isPlayground?: boolean
@@ -216,7 +218,7 @@ const AppWithVariants = memo(
                                                     isTestsets ||
                                                     isAnnotations,
                                                 "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                    isPlayground || isAnnotations,
+                                                    isPlayground || isAnnotationDetails,
                                             },
                                         )}
                                     >
@@ -262,7 +264,7 @@ const AppWithVariants = memo(
                                             isTestsets ||
                                             isAnnotations,
                                         "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                            isPlayground || isEvaluator || isAnnotations,
+                                            isPlayground || isEvaluator || isAnnotationDetails,
                                     })}
                                 >
                                     <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -366,6 +368,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
         isAuthRoute,
         isEvaluator,
         isAnnotations,
+        isAnnotationDetails,
     } = useMemo(() => {
         const pathname = appState.pathname
         const asPath = appState.asPath
@@ -386,6 +389,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 pathname.includes("/evaluations") || selectedEvaluation === "human_annotation",
             isTestsets: pathname.includes("/testsets") || pathname.includes("/prompts"),
             isAnnotations: pathname.includes("/annotations"),
+            isAnnotationDetails: pathname.includes("/annotations/[queue_id]"),
         }
     }, [appState.asPath, appState.pathname, baseAppURL, query.selectedEvaluation])
 
@@ -409,6 +413,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                         isEvaluator={isEvaluator}
                         isTestsets={isTestsets}
                         isAnnotations={isAnnotations}
+                        isAnnotationDetails={isAnnotationDetails}
                         footerHeight={footerHeight}
                     >
                         {children}
