@@ -868,6 +868,9 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
         // Service URL: prefer stored url, fall back to building from URI
         const serviceUrl = storedUrl ?? buildServiceUrlFromUri(uri)
 
+        // Skip inspect when the revision has no service endpoint (has_url: false)
+        const hasUrl = serverData?.flags?.has_url ?? true
+
         // Skip inspect when the revision already carries all schemas inline.
         // The merge step (workflowEntityAtomFamily) gives server schemas
         // precedence, so fetching inspect would be redundant.
@@ -875,7 +878,8 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
         const hasAllSchemas =
             !!serverSchemas?.inputs && !!serverSchemas?.outputs && !!serverSchemas?.parameters
 
-        const isEnabled = get(sessionAtom) && !!projectId && !!uri && !!serviceUrl && !hasAllSchemas
+        const isEnabled =
+            get(sessionAtom) && !!projectId && !!uri && !!serviceUrl && hasUrl && !hasAllSchemas
 
         return {
             queryKey: ["workflows", "inspect", revisionId, uri, serviceUrl, projectId],

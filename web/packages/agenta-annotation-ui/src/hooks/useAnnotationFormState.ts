@@ -16,7 +16,7 @@
 import {useCallback, useEffect} from "react"
 
 import {annotationFormController} from "@agenta/annotation"
-import type {AnnotationMetrics} from "@agenta/annotation"
+import type {AnnotationMetrics, EvaluatorResolutionState} from "@agenta/annotation"
 import type {Annotation} from "@agenta/entities/annotation"
 import type {Workflow} from "@agenta/entities/workflow"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -45,6 +45,8 @@ interface UseAnnotationFormStateResult {
     metrics: AnnotationMetrics
     /** Resolved evaluator entities */
     evaluators: Workflow[]
+    /** Evaluator schema resolution state */
+    evaluatorResolution: EvaluatorResolutionState
     /** Whether there are unsaved changes */
     hasPendingChanges: boolean
     /** Update a single metric field */
@@ -63,8 +65,9 @@ interface UseAnnotationFormStateResult {
  * Sets scenario context into the controller on mount/change,
  * then reads derived state (metrics, pending changes, evaluators) via selectors.
  *
- * Workflow IDs are derived from `annotationSessionController.selectors.evaluatorIds()`
- * inside the form controller — no UI injection needed.
+ * Evaluator revision refs are derived from the session controller inside the
+ * form controller, so the form resolves the queue's pinned evaluator schemas
+ * without any UI-side fetch wiring.
  */
 export function useAnnotationFormState({
     scenarioId,
@@ -88,6 +91,9 @@ export function useAnnotationFormState({
     const hasPendingChanges = useAtomValue(
         annotationFormController.selectors.hasPendingChanges(scenarioId),
     )
+    const evaluatorResolution = useAtomValue(
+        annotationFormController.selectors.evaluatorResolution(),
+    )
     const evaluators = useAtomValue(annotationFormController.selectors.evaluators(scenarioId))
 
     // Wrapped actions that inject scenarioId
@@ -105,6 +111,7 @@ export function useAnnotationFormState({
     return {
         metrics,
         evaluators,
+        evaluatorResolution,
         hasPendingChanges,
         updateMetric,
         resetEdits,

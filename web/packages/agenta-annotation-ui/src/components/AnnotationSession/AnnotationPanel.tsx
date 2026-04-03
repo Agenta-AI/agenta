@@ -107,7 +107,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
         annotationSessionController.selectors.scenarioTestcaseRef(scenarioId),
     )
 
-    const {metrics, evaluators, updateMetric} = useAnnotationFormState({
+    const {metrics, evaluators, evaluatorResolution, updateMetric} = useAnnotationFormState({
         scenarioId,
         annotations,
         traceId: traceRef.traceId,
@@ -115,7 +115,9 @@ const AnnotationPanel = memo(function AnnotationPanel({
         testcaseId: testcaseRef.testcaseId,
     })
 
-    const evaluatorIds = useAtomValue(annotationSessionController.selectors.evaluatorIds())
+    const evaluatorStepRefs = useAtomValue(
+        annotationSessionController.selectors.evaluatorStepRefs(),
+    )
     const isSubmitting = useAtomValue(annotationFormController.selectors.isSubmitting(scenarioId))
     const hasFilledMetrics = useAtomValue(
         annotationFormController.selectors.hasFilledMetrics(scenarioId),
@@ -238,7 +240,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
         </div>
     )
 
-    if (evaluators.length === 0 && evaluatorIds.length > 0) {
+    if (evaluatorResolution.isPending && evaluatorStepRefs.length > 0 && evaluators.length === 0) {
         return (
             <div className="flex flex-col h-full border-l border-solid border-[var(--ant-color-border-secondary)]">
                 {panelHeader}
@@ -249,7 +251,20 @@ const AnnotationPanel = memo(function AnnotationPanel({
         )
     }
 
-    if (evaluatorIds.length === 0) {
+    if (!evaluatorResolution.isPending && evaluatorStepRefs.length > 0 && evaluators.length === 0) {
+        return (
+            <div className="flex flex-col h-full border-l border-solid border-[var(--ant-color-border-secondary)]">
+                {panelHeader}
+                <div className="flex-1 flex items-center justify-center p-4">
+                    <Typography.Text type="secondary">
+                        Could not load evaluator schemas for this queue
+                    </Typography.Text>
+                </div>
+            </div>
+        )
+    }
+
+    if (evaluatorStepRefs.length === 0) {
         return (
             <div className="flex flex-col h-full border-l border-solid border-[var(--ant-color-border-secondary)]">
                 {panelHeader}
@@ -279,6 +294,16 @@ const AnnotationPanel = memo(function AnnotationPanel({
                     onClose={() => setErrors((prev) => prev.filter((e) => e !== err))}
                 />
             ))}
+
+            {evaluatorResolution.hasError && evaluators.length > 0 && (
+                <Alert
+                    showIcon
+                    closable
+                    type="warning"
+                    message="Some evaluators could not be loaded. Loaded evaluator fields are still available."
+                    className="!rounded-none"
+                />
+            )}
 
             {/* Queue description helper + form fields */}
             <div className="flex-1 overflow-y-auto">
