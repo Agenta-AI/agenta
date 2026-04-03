@@ -1,5 +1,6 @@
 from oss.src.services.llm_apps_service import (
     _build_inspect_url,
+    _extract_batch_invoke_metadata,
     build_invoke_request,
     get_parameters_from_inspect,
     get_parameters_from_schemas,
@@ -168,6 +169,54 @@ def test_build_inspect_url_for_nested_route():
         )
         == "http://localhost:8080/service/summarize/inspect"
     )
+
+
+def test_extract_batch_invoke_metadata_prefers_revision_values():
+    parameters, schemas, is_chat = _extract_batch_invoke_metadata(
+        revision={
+            "data": {
+                "parameters": {"prompt": {"messages": [{"role": "system"}]}},
+                "schemas": {
+                    "inputs": {
+                        "type": "object",
+                        "properties": {"messages": {"x-ag-type-ref": "messages"}},
+                    }
+                },
+            },
+            "flags": {"is_chat": True},
+        },
+        parameters=None,
+        schemas=None,
+        is_chat=None,
+    )
+
+    assert parameters == {"prompt": {"messages": [{"role": "system"}]}}
+    assert schemas == {
+        "inputs": {
+            "type": "object",
+            "properties": {"messages": {"x-ag-type-ref": "messages"}},
+        }
+    }
+    assert is_chat is True
+
+
+def test_extract_batch_invoke_metadata_prefers_explicit_overrides():
+    parameters, schemas, is_chat = _extract_batch_invoke_metadata(
+        revision={
+            "data": {
+                "parameters": {"prompt": {"temperature": 0.1}},
+                "schemas": {"inputs": {"type": "object", "properties": {}}},
+            },
+            "flags": {"is_chat": False},
+        },
+        parameters={"prompt": {"temperature": 0.7}},
+        schemas={"inputs": {"type": "object", "properties": {"country": {}}}},
+        is_chat=True,
+    )
+
+    assert parameters == {"prompt": {"temperature": 0.7}}
+    assert schemas == {"inputs": {"type": "object", "properties": {"country": {}}}}
+    assert is_chat is True
 
 
 @pytest.mark.asyncio

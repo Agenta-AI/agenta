@@ -3,8 +3,8 @@ from uuid import UUID
 from asyncio import sleep
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.core.tracing.dtos import OTelSpansTree
 from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Trace
 from oss.src.core.shared.dtos import Traces
 from oss.src.core.tracing.utils.hashing import make_hash_id
 from oss.src.core.tracing.dtos import (
@@ -381,14 +381,30 @@ def effective_is_split(
     return is_split
 
 
+def _has_usable_root_span(trace: Any) -> bool:
+    spans = getattr(trace, "spans", None)
+    if not isinstance(spans, dict) or not spans:
+        return False
+
+    for span in spans.values():
+        if isinstance(span, list):
+            continue
+        if getattr(span, "span_id", None):
+            return True
+
+    return False
+
+
 async def fetch_trace(
     tracing_service,
     project_id: UUID,
     #
     trace_id: str,
-    max_retries: int = 5,
-    delay: float = 1.0,
-) -> Optional[OTelSpansTree]:
+    max_retries: int = 8,
+    delay: float = 0.5,
+    max_delay: float = 4.0,
+) -> Optional[Trace]:
+    current_delay = delay
     for attempt in range(max_retries):
         had_exception = False
         try:
@@ -396,8 +412,13 @@ async def fetch_trace(
                 project_id=project_id,
                 trace_id=trace_id,
             )
-            if trace:
-                return OTelSpansTree(spans=trace.spans)
+            if trace and _has_usable_root_span(trace):
+                return Trace(
+                    **trace.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                    )
+                )
 
         except Exception:  # pylint: disable=broad-exception-caught
             had_exception = True
@@ -410,10 +431,11 @@ async def fetch_trace(
                 )
 
         if attempt < max_retries - 1:
-            await sleep(delay)
+            await sleep(current_delay)
+            current_delay = min(current_delay * 2, max_delay)
         elif not had_exception:
             log.warning(
-                "[EVAL] [trace] empty trace response after retries",
+                "[EVAL] [trace] empty or incomplete trace response after retries",
                 trace_id=trace_id,
                 attempts=max_retries,
             )

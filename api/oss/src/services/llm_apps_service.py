@@ -574,11 +574,13 @@ async def run_with_retry(
 async def batch_invoke(
     uri: str,
     testset_data: List[Dict],
-    parameters: Dict,
+    *,
     rate_limit_config: Dict,
     user_id: str,
     project_id: str,
+    parameters: Optional[Dict] = None,
     scenarios: Optional[List[Dict]] = None,
+    revision: Optional[Any] = None,
     schemas: Optional[Dict[str, Any]] = None,
     is_chat: Optional[bool] = None,
     **kwargs,
@@ -595,6 +597,17 @@ async def batch_invoke(
     Returns:
         List[InvokationResult]: The list of app outputs after running all batches.
     """
+    (
+        effective_parameters,
+        effective_schemas,
+        effective_is_chat,
+    ) = _extract_batch_invoke_metadata(
+        revision=revision,
+        parameters=parameters,
+        schemas=schemas,
+        is_chat=is_chat,
+    )
+
     batch_size = rate_limit_config[
         "batch_size"
     ]  # Number of testset to make in each batch
@@ -629,8 +642,8 @@ async def batch_invoke(
     headers["ngrok-skip-browser-warning"] = "1"
 
     openapi_parameters, openapi_is_chat = get_parameters_from_schemas(
-        schemas=schemas,
-        is_chat=is_chat,
+        schemas=effective_schemas,
+        is_chat=effective_is_chat,
     )
 
     if not openapi_parameters:
@@ -675,7 +688,7 @@ async def batch_invoke(
                 run_with_retry(
                     uri,
                     testset_data[index],
-                    parameters,
+                    effective_parameters,
                     max_retries,
                     retry_delay,
                     openapi_parameters,
@@ -698,6 +711,45 @@ async def batch_invoke(
             await asyncio.sleep(delay_between_batches)
 
     return list_of_app_outputs
+
+
+def _to_json_dict(value: Any) -> Dict[str, Any]:
+    if hasattr(value, "model_dump"):
+        value = value.model_dump(mode="json", exclude_none=True)
+
+    return value if isinstance(value, dict) else {}
+
+
+def _extract_batch_invoke_metadata(
+    *,
+    revision: Optional[Any],
+    parameters: Optional[Dict[str, Any]],
+    schemas: Optional[Dict[str, Any]],
+    is_chat: Optional[bool],
+) -> tuple[Dict[str, Any], Optional[Dict[str, Any]], Optional[bool]]:
+    revision_dict = _to_json_dict(revision)
+    revision_data = _to_json_dict(revision_dict.get("data"))
+    revision_flags = _to_json_dict(revision_dict.get("flags"))
+
+    effective_parameters = parameters
+    if effective_parameters is None:
+        revision_parameters = revision_data.get("parameters")
+        effective_parameters = (
+            revision_parameters if isinstance(revision_parameters, dict) else {}
+        )
+
+    effective_schemas = schemas
+    if effective_schemas is None:
+        revision_schemas = revision_data.get("schemas")
+        effective_schemas = (
+            revision_schemas if isinstance(revision_schemas, dict) else None
+        )
+
+    effective_is_chat = is_chat
+    if effective_is_chat is None and "is_chat" in revision_flags:
+        effective_is_chat = bool(revision_flags["is_chat"])
+
+    return effective_parameters or {}, effective_schemas, effective_is_chat
 
 
 def get_parameters_from_schemas(

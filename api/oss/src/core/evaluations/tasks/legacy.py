@@ -60,10 +60,14 @@ log = get_module_logger(__name__)
 
 
 def _extract_root_span(trace: Optional[Any]) -> Optional[Any]:
-    if not trace or not isinstance(getattr(trace, "spans", None), dict):
+    if not trace:
         return None
 
-    spans = trace.spans
+    spans = getattr(trace, "spans", None)
+
+    if not isinstance(spans, dict):
+        return None
+
     if not spans:
         return None
 
@@ -362,15 +366,6 @@ async def evaluate_batch_testset(
         if uri is None:
             raise ValueError(f"Invalid URI for revision {application_revision_ref.id}!")
 
-        revision_parameters = (
-            application_revision.data.parameters if application_revision.data else None
-        )
-        if revision_parameters is None:
-            raise ValueError(
-                f"Revision parameters for revision {application_revision_ref.id} not found!"
-            )
-        # ----------------------------------------------------------------------
-
         # fetch evaluators -----------------------------------------------------
         evaluator_references = {step.key: step.references for step in annotation_steps}
 
@@ -509,7 +504,7 @@ async def evaluate_batch_testset(
                     testset_data=[
                         testcase_data for _ in range(missing_application_count)
                     ],  # type: ignore[arg-type]
-                    parameters=revision_parameters,  # type: ignore[arg-type]
+                    revision=application_revision,
                     uri=uri,
                     rate_limit_config=run_config,
                     application_id=str(application.id),
@@ -1282,15 +1277,6 @@ async def evaluate_batch_invocation(
         if uri is None:
             raise ValueError(f"Invalid URI for revision {application_revision_ref.id}!")
 
-        revision_parameters = (
-            application_revision.data.parameters if application_revision.data else None
-        )
-        if revision_parameters is None:
-            raise ValueError(
-                f"Revision parameters for revision {application_revision_ref.id} not found!"
-            )
-        # ----------------------------------------------------------------------
-
         # create scenarios -----------------------------------------------------
         scenarios = await evaluations_service.create_scenarios(
             project_id=project_id,
@@ -1383,7 +1369,7 @@ async def evaluate_batch_invocation(
                     testset_data=[
                         testcase_data for _ in range(len(missing_repeat_indices))
                     ],  # type: ignore[arg-type]
-                    parameters=revision_parameters,  # type: ignore[arg-type]
+                    revision=application_revision,
                     uri=uri,
                     rate_limit_config=run_config,
                     application_id=str(application.id),
