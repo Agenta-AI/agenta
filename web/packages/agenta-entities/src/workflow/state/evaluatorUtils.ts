@@ -743,8 +743,6 @@ export interface UpdateHumanEvaluatorParams {
     name: string
     description?: string
     metrics: HumanEvaluatorMetric[]
-    /** Existing flags to preserve */
-    flags?: Record<string, unknown>
     /** Existing meta to preserve */
     meta?: Record<string, unknown>
     /** Existing tags to preserve */
@@ -822,24 +820,11 @@ export const createHumanEvaluatorAtom = atom(
             slug: params.slug,
             name: params.name,
             description: params.description ?? "",
-            flags: {
-                is_managed: false,
-                is_custom: false,
-                is_llm: false,
-                is_hook: false,
-                is_code: false,
-                is_match: false,
-                is_feedback: true,
-                is_chat: false,
-                has_url: false,
-                has_script: false,
-                has_handler: false,
-                is_application: false,
-                is_evaluator: true,
-                is_snippet: false,
-                is_base: false,
+            flags: {is_evaluator: true},
+            data: {
+                uri: "agenta:custom:feedback:v0",
+                schemas: {outputs: outputsSchema},
             },
-            data: {schemas: {outputs: outputsSchema}},
         })
 
         invalidateWorkflowsListCache()
@@ -867,28 +852,13 @@ export const updateHumanEvaluatorAtom = atom(
             variantId: params.variantId,
             name: params.name,
             description: params.description,
-            flags: {
-                is_managed: false,
-                is_custom: false,
-                is_llm: false,
-                is_hook: false,
-                is_code: false,
-                is_match: false,
-                is_chat: false,
-                has_url: false,
-                has_script: false,
-                has_handler: false,
-                is_application: false,
-                is_snippet: false,
-                is_base: false,
-                ...(params.flags ?? {}),
-                // Always enforce human evaluator flags — must not be overridden
-                is_feedback: true,
-                is_evaluator: true,
-            },
+            flags: {is_evaluator: true},
             meta: (params.meta ?? {}) as Record<string, unknown>,
             tags: params.tags,
-            data: {schemas: {outputs: outputsSchema}},
+            data: {
+                uri: "agenta:custom:feedback:v0",
+                schemas: {outputs: outputsSchema},
+            },
         })
 
         invalidateWorkflowsListCache()

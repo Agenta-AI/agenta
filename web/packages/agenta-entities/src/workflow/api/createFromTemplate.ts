@@ -12,17 +12,11 @@
  * handles navigation and UI status updates.
  */
 
-import {generateId} from "@agenta/shared/utils"
-
 import {extractVariablesFromConfig} from "../../runnable/utils"
 import type {Workflow} from "../core"
+import {generateSlug} from "../core"
 
-import {
-    createWorkflow,
-    fetchWorkflowCatalogTemplates,
-    type CreateWorkflowPayload,
-    type WorkflowCatalogTemplate,
-} from "./api"
+import {createWorkflow, fetchWorkflowCatalogTemplates, type WorkflowCatalogTemplate} from "./api"
 
 // ============================================================================
 // Types
@@ -194,19 +188,14 @@ export async function createAppFromTemplate({
     onConfiguring?.()
 
     // Step 2: Create workflow with template data
-    const isChat = catalogKey === "chat" || !!template?.data?.uri?.includes(":chat:")
-    const slug = generateId().replace(/-/g, "").slice(0, 12)
+    const slug = generateSlug(appName)
 
     const workflow = await createWorkflow(projectId, {
         slug,
         name: appName,
         flags: {
             is_application: true,
-            is_chat: isChat,
-            is_evaluator: false,
-            is_custom: isCustomWorkflow || catalogKey === "CUSTOM",
-            is_feedback: false,
-        } as CreateWorkflowPayload["flags"],
+        },
         data: {
             uri: uri ?? undefined,
             url: serviceUrl ?? undefined,
@@ -214,7 +203,6 @@ export async function createAppFromTemplate({
             schemas: schemas ?? undefined,
         },
         meta: folderId ? {folder_id: folderId} : undefined,
-        message: "Initial commit from template",
     })
 
     return {

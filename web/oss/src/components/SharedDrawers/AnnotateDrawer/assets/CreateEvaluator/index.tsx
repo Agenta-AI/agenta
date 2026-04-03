@@ -205,7 +205,6 @@ const CreateEvaluator = ({
                         name: values.evaluatorName,
                         description: values.evaluatorDescription,
                         metrics,
-                        flags: evaluatorWithMeta.flags,
                         meta: evaluatorWithMeta.meta as Record<string, unknown> | undefined,
                         tags: normalizeTags(evaluatorWithMeta.tags),
                     })
