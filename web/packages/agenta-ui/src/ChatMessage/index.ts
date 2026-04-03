@@ -64,6 +64,8 @@ export {
     getAttachments,
 } from "@agenta/shared/utils"
 
+export {createSnippetPdfAttachment, type SnippetAttachment} from "./utils/snippetAttachment"
+
 // Components
 export {
     ChatMessageEditor,

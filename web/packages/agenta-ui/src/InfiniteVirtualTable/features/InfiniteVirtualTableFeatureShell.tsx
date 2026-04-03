@@ -1,9 +1,9 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
 import type {CSSProperties, Key, ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Trash} from "@phosphor-icons/react"
-import {Button, Grid, Pagination, Tabs, Tooltip} from "antd"
+import {Export, Trash} from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
+import {Button, Grid, Tabs, Tooltip} from "antd"
 
 import {cn} from "../../utils/styles"
 import ColumnVisibilityPopoverContent from "../components/columnVisibility/ColumnVisibilityPopoverContent"
@@ -519,7 +519,13 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         if (!enableExport || !exportAction || hideBuiltInButtons) return null
         const {disabled, disabledTooltip, label = "Export CSV"} = exportAction
         const button = (
-            <Button disabled={disabled} onClick={exportHandler} loading={isExporting}>
+            <Button
+                disabled={disabled}
+                onClick={exportHandler}
+                loading={isExporting}
+                icon={<Export size={14} />}
+                type="text"
+            >
                 {label}
             </Button>
         )
