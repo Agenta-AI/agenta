@@ -82,6 +82,7 @@ const SelectVariantSection = ({
             type: (evaluationType === "auto" ? "checkbox" : "radio") as "checkbox" | "radio",
             selectedRowKeys: displaySelectedKeys,
             onChange: (keys: React.Key[]) => onSelectVariant(keys),
+            selectOnRowClick: true,
         }),
         [displaySelectedKeys, onSelectVariant, evaluationType],
     )
