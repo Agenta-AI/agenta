@@ -3,7 +3,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {Export, Trash} from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
-import {Button, Grid, Tabs, Tooltip} from "antd"
+import {Button, Grid, Pagination, Tabs, Tooltip} from "antd"
 
 import {cn} from "../../utils/styles"
 import ColumnVisibilityPopoverContent from "../components/columnVisibility/ColumnVisibilityPopoverContent"

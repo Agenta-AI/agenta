@@ -70,10 +70,11 @@ const SelectAppSection = ({
 
     const rowSelection = useMemo(
         () => ({
-            type: "radio" as const,
+            type: "checkbox" as const,
             selectedRowKeys: selectedAppId ? [selectedAppId] : [],
             onChange: (keys: React.Key[]) => onSelectRow(keys),
             getCheckboxProps: () => ({disabled}),
+            selectOnRowClick: !disabled,
         }),
         [selectedAppId, onSelectRow, disabled],
     )
