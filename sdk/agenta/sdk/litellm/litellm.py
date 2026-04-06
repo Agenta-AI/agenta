@@ -9,6 +9,13 @@ from agenta.sdk.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
+def _content_already_has_thinking(content: Any) -> bool:
+    """Return True if content is already a block list containing thinking blocks."""
+    return isinstance(content, list) and any(
+        isinstance(b, dict) and b.get("type") == "thinking" for b in content
+    )
+
+
 def _extract_message_dict(message: Any) -> Dict[str, Any]:
     """Extract a message dict from a LiteLLM Message object.
 
@@ -17,6 +24,10 @@ def _extract_message_dict(message: Any) -> Dict[str, Any]:
     ``message.thinking_blocks`` holds the reasoning blocks separately.
     This function reconstructs a unified content list so that thinking
     blocks are preserved in the trace.
+
+    Some LiteLLM versions set *both* ``message.thinking_blocks`` *and* a
+    ``message.content`` list that already contains thinking blocks.
+    Reconstruction is skipped in that case to avoid duplicates.
     """
     msg_dict: Dict[str, Any] = {
         k: v for k, v in message.__dict__.items() if not k.startswith("_")
@@ -24,6 +35,11 @@ def _extract_message_dict(message: Any) -> Dict[str, Any]:
 
     thinking_blocks: Optional[List[Any]] = getattr(message, "thinking_blocks", None)
     if not thinking_blocks:
+        return msg_dict
+
+    # If content is already a block list with thinking entries, LiteLLM has
+    # already preserved them — no reconstruction needed.
+    if _content_already_has_thinking(msg_dict.get("content")):
         return msg_dict
 
     full_content: List[Dict[str, Any]] = []
