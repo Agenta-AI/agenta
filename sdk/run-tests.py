@@ -27,6 +27,10 @@ def _has_pytest_option(pytest_args: Optional[tuple], option: str) -> bool:
     return any(arg == option or arg.startswith(f"{option}=") for arg in pytest_args)
 
 
+def _resolve_license() -> str:
+    return "ee" if os.getenv("AGENTA_LICENSE") == "ee" else "oss"
+
+
 @click.command()
 @click.option(
     "--env-file",
@@ -44,14 +48,6 @@ def _has_pytest_option(pytest_args: Optional[tuple], option: str) -> bool:
     type=str,
     help="Access token for Agenta",
     envvar="AGENTA_AUTH_KEY",
-)
-@click.option(
-    "--license",
-    default="oss",
-    type=click.Choice(TYPES["license"]),
-    help="License [oss|ee]",
-    envvar="AGENTA_LICENSE",
-    show_default=True,
 )
 @click.option(
     "--coverage",
@@ -105,7 +101,6 @@ def _has_pytest_option(pytest_args: Optional[tuple], option: str) -> bool:
     type=click.UNPROCESSED,
 )
 def run_tests(
-    license: str,  # pylint: disable=redefined-builtin
     env_file: Optional[str] = None,
     api_url: Optional[str] = None,
     auth_key: Optional[str] = None,
@@ -137,9 +132,6 @@ def run_tests(
         # ----------------------------------------------------------------------
 
         click.echo(f"Loaded environment variables from {env_file}")
-        _license = os.getenv("AGENTA_LICENSE")
-        if _license in TYPES["license"]:
-            license = _license
         if not api_url:
             api_url = os.getenv("AGENTA_API_URL")
         if not auth_key:
@@ -153,6 +145,9 @@ def run_tests(
         L = len(auth_key)
         message = f"AGENTA_AUTH_KEY={auth_key[:2]}" + "." * (L - 4) + f"{auth_key[-2:]}"
         click.echo(message)
+
+    license = _resolve_license()
+    click.echo(f"AGENTA_LICENSE={license}")
 
     for name, value in [
         ("COVERAGE", coverage),

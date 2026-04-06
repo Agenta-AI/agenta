@@ -64,6 +64,8 @@ jobs:
       checks: write
       pull-requests: write
       contents: read
+    env:
+      AGENTA_LICENSE: oss
     steps:
       - uses: actions/checkout@v4
 
@@ -99,7 +101,7 @@ jobs:
       - name: Run SDK unit tests
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
         working-directory: sdk
-        run: poetry run python run-tests.py --license oss -- oss/tests/pytest/unit
+        run: poetry run python run-tests.py -- oss/tests/pytest/unit
 
       - name: Publish SDK unit test results
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages))
@@ -118,6 +120,8 @@ jobs:
       checks: write
       pull-requests: write
       contents: read
+    env:
+      AGENTA_LICENSE: oss
     steps:
       - uses: actions/checkout@v4
 
@@ -154,7 +158,7 @@ jobs:
       - name: Run API unit tests
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
         working-directory: api
-        run: poetry run python run-tests.py --license oss -- oss/tests/pytest/unit
+        run: poetry run python run-tests.py -- oss/tests/pytest/unit
 
       - name: Publish API unit test results
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages))
@@ -173,6 +177,8 @@ jobs:
       checks: write
       pull-requests: write
       contents: read
+    env:
+      AGENTA_LICENSE: oss
     steps:
       - uses: actions/checkout@v4
 
@@ -221,7 +227,7 @@ jobs:
       - name: Run services unit tests
         if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
         working-directory: services
-        run: poetry run python run-tests.py --license oss -- oss/tests/pytest/unit
+        run: poetry run python run-tests.py -- oss/tests/pytest/unit
 
       - name: Publish services unit test results
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
