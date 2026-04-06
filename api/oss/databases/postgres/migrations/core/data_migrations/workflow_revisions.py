@@ -5,6 +5,7 @@ import click
 from sqlalchemy import Connection, text
 
 from agenta.sdk.engines.running.utils import infer_url_from_uri, parse_uri
+from agenta.sdk.engines.running.utils import retrieve_interface
 
 
 REVISION_FLAG_KEYS = (
@@ -20,6 +21,81 @@ REVISION_FLAG_KEYS = (
     "has_script",
     "has_handler",
 )
+
+
+def _backfill_schemas_from_interface(
+    data: Optional[dict[str, Any]],
+) -> Optional[dict[str, Any]]:
+    if not isinstance(data, dict):
+        return data
+
+    data = _backfill_schemas_outputs_from_service_format(data)
+
+    uri = data.get("uri")
+    if not uri:
+        return data
+
+    interface = retrieve_interface(uri)
+    if not interface or not interface.schemas:
+        return data
+
+    interface_schemas = interface.schemas.model_dump(mode="json", exclude_none=True)
+    if not interface_schemas:
+        return data
+
+    normalized = json.loads(json.dumps(data))
+    schemas = normalized.get("schemas")
+    if not isinstance(schemas, dict):
+        schemas = {}
+
+    changed = False
+
+    for key in ("outputs", "parameters", "inputs"):
+        current_value = schemas.get(key)
+        if current_value is not None:
+            continue
+
+        interface_value = interface_schemas.get(key)
+        if interface_value is None:
+            continue
+
+        schemas[key] = interface_value
+        changed = True
+
+    if not changed:
+        return data
+
+    normalized["schemas"] = schemas
+    return normalized
+
+
+def _backfill_schemas_outputs_from_service_format(
+    data: Optional[dict[str, Any]],
+) -> Optional[dict[str, Any]]:
+    if not isinstance(data, dict):
+        return data
+
+    service = data.get("service")
+    if not isinstance(service, dict):
+        return data
+
+    service_format = service.get("format")
+    if service_format is None:
+        return data
+
+    schemas = data.get("schemas")
+    if isinstance(schemas, dict) and schemas.get("outputs") is not None:
+        return data
+
+    normalized = json.loads(json.dumps(data))
+    schemas = normalized.get("schemas")
+    if not isinstance(schemas, dict):
+        schemas = {}
+
+    schemas["outputs"] = service_format
+    normalized["schemas"] = schemas
+
+    return normalized
 
 
 def _normalize_artifact_flags(
@@ -94,8 +170,36 @@ def upgrade_workflow_revisions(session: Connection) -> None:
         text("""
         UPDATE workflow_revisions
         SET data = (
+          (data::jsonb - 'schemas')
+          || jsonb_build_object(
+               'schemas',
+               CASE
+                 WHEN jsonb_typeof(data::jsonb -> 'schemas') = 'object' THEN
+                   (data::jsonb -> 'schemas')
+                   || jsonb_build_object('outputs', data::jsonb -> 'service' -> 'format')
+                 ELSE
+                   jsonb_build_object('outputs', data::jsonb -> 'service' -> 'format')
+               END
+             )
+        )::json
+        WHERE data IS NOT NULL
+          AND data::jsonb ? 'service'
+          AND data::jsonb -> 'service' ? 'format'
+          AND (
+            NOT (data::jsonb ? 'schemas')
+            OR jsonb_typeof(data::jsonb -> 'schemas') = 'null'
+            OR NOT (data::jsonb -> 'schemas' ? 'outputs')
+            OR jsonb_typeof(data::jsonb -> 'schemas' -> 'outputs') = 'null'
+          )
+    """)
+    )
+
+    session.execute(
+        text("""
+        UPDATE workflow_revisions
+        SET data = (
           (data::jsonb - 'script' - 'runtime' - 'service' - 'configuration')
-          || '{"uri": "agenta:builtin:hook:v0"}'::jsonb
+          || '{"uri": "agenta:custom:hook:v0"}'::jsonb
         )::json
         WHERE data IS NOT NULL
           AND (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
@@ -236,6 +340,34 @@ def upgrade_workflow_revisions(session: Connection) -> None:
     session.execute(
         text("""
         UPDATE workflow_revisions
+        SET data = jsonb_set(
+          data::jsonb,
+          '{uri}',
+          '"agenta:custom:hook:v0"'::jsonb,
+          false
+        )::json
+        WHERE data IS NOT NULL
+          AND data::jsonb ->> 'uri' = 'agenta:builtin:hook:v0'
+    """)
+    )
+
+    session.execute(
+        text("""
+        UPDATE workflow_revisions
+        SET data = jsonb_set(
+          data::jsonb,
+          '{uri}',
+          '"agenta:custom:code:v0"'::jsonb,
+          false
+        )::json
+        WHERE data IS NOT NULL
+          AND data::jsonb ->> 'uri' = 'agenta:builtin:code:v0'
+    """)
+    )
+
+    session.execute(
+        text("""
+        UPDATE workflow_revisions
         SET data = (
           (data::jsonb - 'script' - 'service' - 'configuration')
           || CASE
@@ -293,8 +425,6 @@ def upgrade_workflow_revisions(session: Connection) -> None:
           AND data::jsonb ->> 'uri' NOT IN (
             'agenta:builtin:chat:v0',
             'agenta:builtin:completion:v0',
-            'agenta:builtin:code:v0',
-            'agenta:builtin:hook:v0',
             'agenta:builtin:auto_webhook_test:v0',
             'agenta:builtin:auto_custom_code_run:v0'
           )
@@ -307,7 +437,7 @@ def upgrade_workflow_revisions(session: Connection) -> None:
         UPDATE workflow_revisions
         SET data = (data::jsonb - 'script' - 'runtime' - 'service' - 'configuration')::json
         WHERE data IS NOT NULL
-          AND data::jsonb ->> 'uri' = 'agenta:builtin:hook:v0'
+          AND data::jsonb ->> 'uri' = 'agenta:custom:hook:v0'
     """)
     )
 
@@ -328,7 +458,7 @@ def upgrade_workflow_revisions(session: Connection) -> None:
              END
         )::json
         WHERE data IS NOT NULL
-          AND data::jsonb ->> 'uri' = 'agenta:builtin:code:v0'
+          AND data::jsonb ->> 'uri' = 'agenta:custom:code:v0'
     """)
     )
 
@@ -391,21 +521,25 @@ def upgrade_workflow_revisions(session: Connection) -> None:
     ).mappings()
 
     for row in revision_rows:
+        normalized_data = _backfill_schemas_from_interface(row["data"])
         revision_flags = _normalize_revision_flags(
             legacy_flags=row["flags"],
-            data=row["data"],
+            data=normalized_data,
         )
 
         session.execute(
             text("""
             UPDATE workflow_revisions
-            SET flags = CAST(:flags AS jsonb)
+            SET
+              data = CAST(:data AS json),
+              flags = CAST(:flags AS jsonb)
             WHERE project_id = :project_id
               AND id = :id
         """),
             {
                 "project_id": row["project_id"],
                 "id": row["id"],
+                "data": json.dumps(normalized_data),
                 "flags": json.dumps(revision_flags),
             },
         )
