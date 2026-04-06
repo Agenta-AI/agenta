@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "services"
-version = "0.95.1"
+version = "0.95.4"
 description = "Agenta Services (Chat & Completion)"
 authors = [
     "Mahmoud Mabrouk <mahmoud@agenta.ai>",
@@ -37,3 +37,6 @@ orjson = "^3"
 watchdog = { extras = ["watchmedo"], version = "^3" }
 pytest = "^8"
 pytest-asyncio = "^0.21"
+pytest-xdist = "^3"
+requests = "^2"
+python-dotenv = "^1"

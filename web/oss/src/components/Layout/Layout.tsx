@@ -1,30 +1,20 @@
-import {
-    memo,
-    Suspense,
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-    type ReactNode,
-    type RefObject,
-} from "react"
+import {memo, useCallback, useEffect, useRef, useState, type ReactNode, type RefObject} from "react"
 
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
-import {ConfigProvider, Layout, Modal, Skeleton, Space, theme} from "antd"
+import {ConfigProvider, Layout, Modal, Space, theme} from "antd"
 import clsx from "clsx"
+import {atom} from "jotai"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {selectAtom} from "jotai/utils"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import {ErrorBoundary} from "react-error-boundary"
-import {useLocalStorage, useResizeObserver} from "usehooks-ts"
+import {useResizeObserver} from "usehooks-ts"
 
 import useURL from "@/oss/hooks/useURL"
-import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {currentAppAtom} from "@/oss/state/app"
-import {requestNavigationAtom, useAppQuery, useAppState} from "@/oss/state/appState"
+import {appStateSnapshotAtom, requestNavigationAtom, useAppState} from "@/oss/state/appState"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
-import {useProfileData} from "@/oss/state/profile"
 import {getProjectValues, useProjectData} from "@/oss/state/project"
 import {
     cacheLastUsedProjectId,
@@ -33,15 +23,66 @@ import {
     lastNonDemoProjectAtom,
 } from "@/oss/state/project/selectors/project"
 
-import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
 import CustomWorkflowBanner from "../CustomWorkflow/CustomWorkflowBanner"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
 
 import BreadcrumbContainer from "./assets/Breadcrumbs"
 import {useStyles} from "./assets/styles"
 import ErrorFallback from "./ErrorFallback"
+import PostHogThemeCapture from "./PostHogThemeCapture"
 import {SidebarIsland} from "./SidebarIsland"
-import {getDeviceTheme, useAppTheme} from "./ThemeContextProvider"
+import {useAppTheme} from "./ThemeContextProvider"
+
+interface LayoutRouteFlags {
+    isAuthRoute: boolean
+    isAppRoute: boolean
+    isPlayground: boolean
+    isHumanEval: boolean
+    isEvaluator: boolean
+    /** isFullHeight — full-height constrained layout */
+    isFullHeight: boolean
+}
+
+const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
+    const snapshot = get(appStateSnapshotAtom)
+    const {pathname, query, routeLayer} = snapshot
+
+    const selectedEvaluation = Array.isArray(query.selectedEvaluation)
+        ? query.selectedEvaluation[0]
+        : query.selectedEvaluation
+
+    const isHumanEval =
+        pathname.includes("/evaluations") || selectedEvaluation === "human_annotation"
+    const isEvaluator = pathname.includes("/evaluators")
+    const isTestsets = pathname.includes("/testsets") || pathname.includes("/prompts")
+    const isAnnotations = pathname.includes("/annotations")
+    const isRegistry = pathname.includes("/variants")
+
+    return {
+        isAuthRoute:
+            pathname.includes("/auth") ||
+            pathname.includes("/post-signup") ||
+            pathname.includes("/get-started") ||
+            pathname.includes("/workspaces"),
+        isAppRoute: routeLayer === "app",
+        isPlayground: pathname.includes("/playground"),
+        isHumanEval,
+        isEvaluator,
+        isFullHeight: isHumanEval || isEvaluator || isTestsets || isAnnotations || isRegistry,
+    }
+})
+
+const selectedLayoutRouteFlagsAtom = selectAtom(
+    layoutRouteFlagsAtom,
+    (flags) => flags,
+    (a, b) =>
+        a.isAuthRoute === b.isAuthRoute &&
+        a.isAppRoute === b.isAppRoute &&
+        a.isPlayground === b.isPlayground &&
+        a.isHumanEval === b.isHumanEval &&
+        a.isEvaluator === b.isEvaluator &&
+        a.isFullHeight === b.isFullHeight,
+)
 
 const FooterIsland = dynamic(() => import("./FooterIsland").then((m) => m.FooterIsland), {
     ssr: false,
@@ -63,19 +104,16 @@ const AppWithVariants = memo(
         classes,
         isPlayground,
         isHumanEval,
-        isTestsets,
         isEvaluator,
-        isAnnotations,
+        isFullHeight,
         appTheme,
         footerHeight,
-        ...props
     }: {
         children: ReactNode
         isAppRoute: boolean
         isHumanEval: boolean
         isEvaluator: boolean
-        isTestsets: boolean
-        isAnnotations: boolean
+        isFullHeight: boolean
         classes: StyleClasses
         appTheme: string
         isPlayground?: boolean
@@ -83,6 +121,7 @@ const AppWithVariants = memo(
     }) => {
         const {baseAppURL} = useURL()
         const appState = useAppState()
+        const isAnnotations = appState.pathname.includes("/annotations")
         const lastNonSettingsRef = useRef<string | null>(null)
 
         useEffect(() => {
@@ -100,8 +139,6 @@ const AppWithVariants = memo(
         )
         const [isDemoReturnModalOpen, setDemoReturnModalOpen] = useState(false)
         const navigate = useSetAtom(requestNavigationAtom)
-        // const profileLoading = useAtomValue(profilePendingAtom)
-        // const {changeSelectedOrg} = useOrgData()
 
         useEffect(() => {
             if (project?.is_demo) return
@@ -149,11 +186,7 @@ const AppWithVariants = memo(
         }, [demoReturnHintDismissed, lastNonDemoProject, navigate, setDemoReturnHintPending])
 
         return (
-            <div
-                className={clsx([
-                    {"flex flex-col grow min-h-0": isHumanEval || isEvaluator || isAnnotations},
-                ])}
-            >
+            <div className={clsx([{"flex flex-col grow min-h-0": isFullHeight}])}>
                 <Modal
                     title="Want to revisit the demo?"
                     open={isDemoReturnModalOpen}
@@ -192,33 +225,24 @@ const AppWithVariants = memo(
                         <div
                             className={clsx([
                                 {
-                                    "grow flex flex-col min-h-0":
-                                        isHumanEval || isEvaluator || isTestsets || isAnnotations,
+                                    "grow flex flex-col min-h-0": isFullHeight,
                                 },
                             ])}
                         >
                             <BreadcrumbContainer
                                 appTheme={appTheme}
-                                appName={currentApp?.app_name || ""}
+                                appName={currentApp?.name ?? currentApp?.slug ?? ""}
                             />
                             {isAppRoute && !getProjectValues().projectId ? null : isAppRoute ? (
-                                <OldAppDeprecationBanner>
+                                <>
                                     <CustomWorkflowBanner />
                                     <Content
-                                        className={clsx(
-                                            "flex gap-4 flex-col w-full",
-                                            // "h-[calc(100%-30px)]",
-                                            {
-                                                "pb-0 mb-8": !isHumanEval && !isAnnotations,
-                                                "flex flex-col min-h-0 grow":
-                                                    isHumanEval ||
-                                                    isEvaluator ||
-                                                    isTestsets ||
-                                                    isAnnotations,
-                                                "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                    isPlayground || isAnnotations,
-                                            },
-                                        )}
+                                        className={clsx("flex gap-4 flex-col w-full", {
+                                            "pb-0 mb-8": !isFullHeight,
+                                            "flex flex-col min-h-0 grow": isFullHeight,
+                                            "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
+                                                isPlayground || isAnnotations,
+                                        })}
                                     >
                                         <ErrorBoundary FallbackComponent={ErrorFallback}>
                                             <ConfigProvider
@@ -229,10 +253,7 @@ const AppWithVariants = memo(
                                                             : theme.defaultAlgorithm,
                                                 }}
                                             >
-                                                {isHumanEval ||
-                                                isEvaluator ||
-                                                isTestsets ||
-                                                isAnnotations ? (
+                                                {isFullHeight ? (
                                                     <div
                                                         className={clsx(
                                                             "w-full flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px)] overflow-hidden",
@@ -246,23 +267,14 @@ const AppWithVariants = memo(
                                             </ConfigProvider>
                                         </ErrorBoundary>
                                     </Content>
-                                </OldAppDeprecationBanner>
+                                </>
                             ) : (
                                 <Content
                                     className={clsx("flex gap-4", "h-[calc(100%-30px)]", {
-                                        "pb-0 mb-8": !(
-                                            isHumanEval ||
-                                            isEvaluator ||
-                                            isTestsets ||
-                                            isAnnotations
-                                        ),
-                                        "flex flex-col min-h-0 grow":
-                                            isHumanEval ||
-                                            isEvaluator ||
-                                            isTestsets ||
-                                            isAnnotations,
+                                        "pb-0 mb-8": !isFullHeight,
+                                        "flex flex-col min-h-0 grow": isFullHeight,
                                         "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                            isPlayground || isEvaluator || isAnnotations,
+                                            isPlayground || isEvaluator,
                                     })}
                                 >
                                     <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -277,10 +289,7 @@ const AppWithVariants = memo(
                                             <div
                                                 className={clsx("w-full flex flex-col", {
                                                     "min-h-0 gap-6 h-[calc(100dvh-75px)] overflow-hidden":
-                                                        isHumanEval ||
-                                                        isEvaluator ||
-                                                        isTestsets ||
-                                                        isAnnotations,
+                                                        isFullHeight,
                                                 })}
                                             >
                                                 {children}
@@ -316,81 +325,21 @@ const AppWithVariants = memo(
 )
 
 const App: React.FC<LayoutProps> = ({children}) => {
-    // profile used for side-effects in children; values unused here
-    useProfileData()
     const {appTheme} = useAppTheme()
-    const {baseAppURL} = useURL()
     const ref = useRef<HTMLElement | null>(null)
     const {height: footerHeight} = useResizeObserver({
         ref: ref as RefObject<HTMLElement>,
         box: "border-box",
     })
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
-    const appState = useAppState()
-    const query = useAppQuery()
+    const {isHumanEval, isPlayground, isAppRoute, isAuthRoute, isEvaluator, isFullHeight} =
+        useAtomValue(selectedLayoutRouteFlagsAtom)
 
-    const isDarkTheme = appTheme === "dark"
     const [, contextHolder] = Modal.useModal()
-    const posthog = usePostHogAg()
-    const [hasCapturedTheme, setHasCapturedTheme] = useLocalStorage("hasCapturedTheme", false)
-
-    useEffect(() => {
-        if (!hasCapturedTheme) {
-            const deviceTheme = getDeviceTheme()
-
-            posthog?.capture("user_device_theme", {
-                $set: {deviceTheme},
-            })
-
-            setHasCapturedTheme(true)
-        }
-    }, [hasCapturedTheme])
-
-    useEffect(() => {
-        if (typeof window === "undefined") return
-
-        const body = document.body
-        body.classList.remove("dark-mode", "light-mode")
-        if (isDarkTheme) {
-            body.classList.add("dark-mode")
-        } else {
-            body.classList.add("light-mode")
-        }
-    }, [appTheme])
-
-    const {
-        isHumanEval,
-        isTestsets,
-        isPlayground,
-        isAppRoute,
-        isAuthRoute,
-        isEvaluator,
-        isAnnotations,
-    } = useMemo(() => {
-        const pathname = appState.pathname
-        const asPath = appState.asPath
-        const selectedEvaluation = Array.isArray(query.selectedEvaluation)
-            ? query.selectedEvaluation[0]
-            : query.selectedEvaluation
-        return {
-            isAuthRoute:
-                pathname.includes("/auth") ||
-                pathname.includes("/post-signup") ||
-                pathname.includes("/get-started") ||
-                pathname.includes("/workspaces"),
-            isAppRoute: baseAppURL ? asPath.startsWith(baseAppURL) : false,
-            isPlayground: pathname.includes("/playground"),
-            //  || pathname.includes("/evaluations/results"),
-            isEvaluator: pathname.includes("/evaluators/configure"),
-            isHumanEval:
-                pathname.includes("/evaluations") || selectedEvaluation === "human_annotation",
-            isTestsets: pathname.includes("/testsets") || pathname.includes("/prompts"),
-            isAnnotations: pathname.includes("/annotations"),
-        }
-    }, [appState.asPath, appState.pathname, baseAppURL, query.selectedEvaluation])
 
     return (
-        <Suspense fallback={<Skeleton />}>
+        <>
+            <PostHogThemeCapture />
             {typeof window === "undefined" ? null : isAuthRoute ? (
                 <Layout className={classes.layout}>
                     <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -407,8 +356,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                         isPlayground={isPlayground}
                         isHumanEval={isHumanEval}
                         isEvaluator={isEvaluator}
-                        isTestsets={isTestsets}
-                        isAnnotations={isAnnotations}
+                        isFullHeight={isFullHeight}
                         footerHeight={footerHeight}
                     >
                         {children}
@@ -416,7 +364,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                     </AppWithVariants>
                 </ProtectedRoute>
             )}
-        </Suspense>
+        </>
     )
 }
 

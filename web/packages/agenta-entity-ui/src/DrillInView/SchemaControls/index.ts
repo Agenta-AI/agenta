@@ -93,3 +93,6 @@ export {
     getOptionsFromSchema,
     type OptionGroup,
 } from "./schemaUtils"
+
+export {validateConfigAgainstSchema} from "./schemaValidator"
+export type {SchemaValidationError, SchemaValidationResult} from "./schemaValidator"

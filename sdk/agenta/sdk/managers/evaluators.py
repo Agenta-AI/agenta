@@ -164,13 +164,8 @@ async def aupsert(
 
         simple_evaluator_data = SimpleEvaluatorData(
             **(
-                req.interface.model_dump(mode="json", exclude_none=True)
-                if req and req.interface
-                else {}
-            ),
-            **(
-                req.configuration.model_dump(mode="json", exclude_none=True)
-                if req and req.configuration
+                (req.data.revision or {}).get("data") or {}
+                if req and req.data and req.data.revision
                 else {}
             ),
         )

@@ -1,12 +1,12 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {getValueAtPath} from "@agenta/entities/trace"
 import {message} from "@agenta/ui/app-message"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import yaml from "js-yaml"
 
 import {getYamlOrJson} from "@/oss/lib/helpers/utils"
 import {currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
-import {getValueAtPath} from "@/oss/state/entities/trace"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {createMappingId, Mapping, TestsetColumn, TestsetTraceData} from "../assets/types"

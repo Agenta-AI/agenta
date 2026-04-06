@@ -2,7 +2,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
-import {runnableBridge} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import type {DropdownButtonOption, DropdownButtonOptionStatus} from "@agenta/ui/components"
@@ -216,21 +216,17 @@ const DownstreamNodeCard = ({
 
     // Read output ports from the runnable bridge (includes per-field schema)
     const outputPorts = useAtomValue(
-        useMemo(
-            () => runnableBridge.forType(node.entityType).outputPorts(node.entityId),
-            [node.entityType, node.entityId],
-        ),
+        useMemo(() => workflowMolecule.selectors.outputPorts(node.entityId), [node.entityId]),
     )
-    const nodeData = useAtomValue(
-        useMemo(() => runnableBridge.data(node.entityId), [node.entityId]),
+    const nodeConfiguration = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.configuration(node.entityId), [node.entityId]),
     )
 
     const schemaMap = useMemo(() => {
         const map = buildSchemaMap(outputPorts)
         // Enrich score schema with feedback_config constraints (min/max)
-        const fbConfig = nodeData?.configuration?.feedback_config as
-            | Record<string, unknown>
-            | undefined
+        const fbConfig = (nodeConfiguration as Record<string, unknown> | undefined)
+            ?.feedback_config as Record<string, unknown> | undefined
         if (fbConfig) {
             const jsonSchema = fbConfig.json_schema as
                 | {schema?: {properties?: {score?: Record<string, unknown>}}}
@@ -242,7 +238,7 @@ const DownstreamNodeCard = ({
             }
         }
         return map
-    }, [outputPorts, nodeData])
+    }, [outputPorts, nodeConfiguration])
 
     const rawStatus = (fullResult?.status ?? "idle") as NodeStatus
 
@@ -293,7 +289,16 @@ const DownstreamNodeCard = ({
     }
 
     // Success -> extract and display value(s)
-    const entries = extractDisplayEntries(fullResult.output)
+    // Filter to only show fields defined in output ports (excludes backend-injected fields like "success")
+    const rawEntries = extractDisplayEntries(fullResult.output)
+    const entries =
+        rawEntries && outputPorts.length > 0
+            ? (() => {
+                  const portKeys = new Set(outputPorts.map((p) => p.key))
+                  const filtered = rawEntries.filter(([key]) => portKeys.has(key))
+                  return filtered.length > 0 ? filtered : rawEntries
+              })()
+            : rawEntries
 
     if (!entries || entries.length === 0) {
         return (
@@ -391,7 +396,9 @@ const SingleView = ({
     const schemaInputKeys = useAtomValue(
         executionItemController.selectors.schemaInputKeys,
     ) as string[]
-    const runnableQuery = useAtomValue(useMemo(() => runnableBridge.query(entityId), [entityId]))
+    const runnableQuery = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.query(entityId), [entityId]),
+    )
 
     // Chain nodes for per-step execution
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
@@ -498,15 +505,23 @@ const SingleView = ({
     }, [isBusy, status, currentDisplayResult])
 
     // Feedback config for schema-aware result rendering
-    const primaryData = useAtomValue(useMemo(() => runnableBridge.data(entityId), [entityId]))
+    const primaryConfiguration = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
+    )
     const feedbackConfig =
-        (primaryData?.configuration?.feedback_config as Record<string, unknown>) ?? null
+        ((primaryConfiguration as Record<string, unknown> | null)?.feedback_config as Record<
+            string,
+            unknown
+        >) ?? null
 
     // Version and draft state for the primary node label
-    const primaryVersion = (primaryData as Record<string, unknown> | null)?.version as
-        | number
-        | undefined
-    const primaryIsDirty = useAtomValue(useMemo(() => runnableBridge.isDirty(entityId), [entityId]))
+    const primaryWorkflowData = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.data(entityId), [entityId]),
+    )
+    const primaryVersion = primaryWorkflowData?.version as number | undefined
+    const primaryIsDirty = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.isDirty(entityId), [entityId]),
+    )
 
     const executionRowIds = useAtomValue(
         executionItemController.selectors.executionRowIds,
@@ -704,7 +719,7 @@ const SingleView = ({
                                             appType={appType}
                                             collapsed={isVariableInputCollapsed}
                                             containerRef={getVariableRef(id)}
-                                            className="*:!border-none w-full overflow-hidden"
+                                            className="*:!border-none overflow-hidden"
                                             onMarkdownToggleReady={(toggle) => {
                                                 setMarkdownToggles((prev) => ({
                                                     ...(prev[id] === (toggle ?? undefined)
@@ -778,9 +793,8 @@ const SingleView = ({
                                 />
                             </div>
                         </NodeResultCard>
-                        {/* Downstream nodes: only render when primary has been run */}
+                        {/* Downstream nodes: always render (idle state shows placeholder) */}
                         {(() => {
-                            if (!currentResult && !isBusy) return null
                             const downstreamNodes = nodes?.filter(
                                 (n) => n.depth > 0 && n.entityId !== entityId,
                             )

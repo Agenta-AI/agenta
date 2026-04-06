@@ -2,7 +2,7 @@
 
 ## Dev Environment Tips
 - If you make changes to the frontend, make sure to run `pnpm lint-fix` within the web folder
-- If you make changes to the API or SDK, make sure to run `ruff format` and `ruff check --fix` within the SDK or API folder
+- If you make changes to the API or SDK, make sure to run `ruff format` and `ruff check --fix` within the SDK or API folder (run from the repo root: `ruff format` then `ruff check`; fix all errors before committing)
 - If you update Ant Design tokens, run `pnpm generate:tailwind-tokens` in the web folder and commit the generated file
 
 ## Environment Config Conventions

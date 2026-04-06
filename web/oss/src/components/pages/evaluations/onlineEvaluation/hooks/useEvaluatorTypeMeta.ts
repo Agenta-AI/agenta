@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import {getColorPairFromStr} from "@/oss/lib/helpers/colors"
-import type {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
+import type {EvaluatorPreviewDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
 import {EVALUATOR_CATEGORY_LABEL_MAP} from "../constants"
 import type {EvaluatorDetails} from "../types"

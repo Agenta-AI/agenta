@@ -53,6 +53,7 @@ export {
     PlaygroundConfigSection,
     useDrillIn,
     type PlaygroundConfigSectionProps,
+    type ConfigViewMode,
     type ConfigSectionMoleculeAdapter,
     type EvaluatorPresetConfig,
     // Types - Molecule Config
@@ -399,10 +400,7 @@ export {
     type CreateHierarchyLevelOptions,
     type CreateSelectionAdapterOptions,
     type EvaluatorSelectionResult,
-    type LegacyAppRevisionSelectionResult,
-    type LegacyEvaluatorSelectionResult,
-    type EvaluatorRevisionSelectionResult,
-    type EvaluatorRevisionRelationSelectionResult,
+    type WorkflowRevisionSelectionResult,
     type TestsetSelectionResult,
     // Adapter factory
     createAdapter as createSelectionAdapter,
@@ -414,14 +412,9 @@ export {
     createAndRegisterAdapter as createAndRegisterSelectionAdapter,
     resolveAdapter as resolveSelectionAdapter,
     // Pre-built adapters
-    legacyAppRevisionAdapter,
+    workflowRevisionAdapter,
     evaluatorAdapter,
     setEvaluatorAtoms,
-    legacyEvaluatorAdapter,
-    setLegacyEvaluatorAtoms,
-    evaluatorRevisionAdapter,
-    setEvaluatorRevisionAtoms,
-    evaluatorRevisionRelationAdapter,
     testsetAdapter,
     // State
     selectionMolecule,
@@ -490,8 +483,6 @@ export {
     resetSelectionSystem,
     isSelectionSystemInitialized,
     type SelectionSystemConfig,
-    type LegacyEvaluatorSelectionConfig,
-    type EvaluatorRevisionSelectionConfig,
 } from "./selection"
 
 // ============================================================================
@@ -510,3 +501,17 @@ export {
     simpleQueueModalAdapter,
     variantModalAdapter,
 } from "./adapters"
+
+// ============================================================================
+// VARIANT DISPLAY COMPONENTS
+// ============================================================================
+
+export {
+    VariantNameCell,
+    VariantDetailsWithStatus,
+    EnvironmentStatus,
+    VariantDetails,
+    statusMap,
+    type VariantNameCellProps,
+    type VariantStatusInfo,
+} from "./variant"

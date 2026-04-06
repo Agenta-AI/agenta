@@ -1,7 +1,6 @@
+import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {CopySimple} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
-
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 
 interface RevisionChildTitleProps {
     revisionId: string

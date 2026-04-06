@@ -18,8 +18,7 @@
         "./queue-list": "./src/components/AnnotationQueuesView/index.tsx",
         "./session": "./src/components/AnnotationSession/index.tsx",
         "./create-drawer": "./src/components/CreateQueueDrawer/index.tsx",
-        "./add-to-queue": "./src/components/AddToQueuePopover/index.tsx",
-        "./tasks": "./src/components/AnnotationTasksView/index.tsx"
+        "./add-to-queue": "./src/components/AddToQueuePopover/index.tsx"
     },
     "dependencies": {
         "@agenta/annotation": "workspace:../agenta-annotation",

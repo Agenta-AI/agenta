@@ -33,7 +33,6 @@ from oss.src.models.db_models import OrganizationDB
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.shared.dtos import Reference
 from oss.src.utils.helpers import get_slug_from_name_and_id
-from oss.src.services.db_manager import fetch_evaluator_config
 
 
 # Define constants
@@ -66,15 +65,28 @@ def _transfer_evaluator_revision_data(
     )
 
 
+async def _fetch_evaluator_config(
+    *,
+    connection: AsyncConnection,
+    evaluator_config_id: UUID,
+) -> Optional[EvaluatorConfigDB]:
+    result = await connection.execute(
+        select(EvaluatorConfigDB).filter_by(id=evaluator_config_id)
+    )
+    return result.scalars().first()
+
+
 async def _transfer_evaluator(
     *,
+    connection: AsyncConnection,
     project_id: UUID,
     user_id: UUID,
     evaluator_id: UUID,
 ) -> Optional[SimpleEvaluator]:
     """Transfer an old evaluator config to the new workflow-based system."""
-    old_evaluator = await fetch_evaluator_config(
-        evaluator_config_id=str(evaluator_id),
+    old_evaluator = await _fetch_evaluator_config(
+        connection=connection,
+        evaluator_config_id=evaluator_id,
     )
 
     if old_evaluator is None:
@@ -257,6 +269,7 @@ async def migration_old_evaluator_configs_to_new_evaluator_configs(
 
                     # STEP 3: Migrate records using local transfer function
                     new_evaluator = await _transfer_evaluator(
+                        connection=connection,
                         project_id=old_evaluator.project_id,
                         user_id=owner,
                         evaluator_id=old_evaluator.id,

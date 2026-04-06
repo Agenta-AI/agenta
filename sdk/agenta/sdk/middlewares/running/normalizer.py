@@ -15,7 +15,7 @@ from agenta.sdk.models.workflows import (
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
 )
-from agenta.sdk.workflows.errors import ErrorStatus
+from agenta.sdk.engines.running.errors import ErrorStatus
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.contexts.tracing import TracingContext
 
@@ -35,7 +35,8 @@ class NormalizerMiddleware:
     2. **Response Normalization**: Transforms handler function results into standardized
        WorkflowServiceBatchResponse or WorkflowServiceStreamResponse objects by:
        - Handling various return types (plain values, awaitables, generators, async generators)
-       - Aggregating streaming results into batches when aggregate flag is set
+       - Always passing generators through as WorkflowServiceStreamResponse (batch/stream
+         decision is made at the routing boundary via Accept header negotiation)
        - Extracting trace_id and span_id from TracingContext for observability
        - Wrapping raw outputs in proper response structures
 
@@ -134,26 +135,6 @@ class NormalizerMiddleware:
             return result
 
         if isasyncgen(result):
-            if RunningContext.get().aggregate:
-                collected = [item async for item in result]
-
-                trace_id = None
-                span_id = None
-
-                with suppress():
-                    link = (TracingContext.get().link) or {}
-
-                    _trace_id = link.get("trace_id") if link else None  # in int format
-                    _span_id = link.get("span_id") if link else None  # in int format
-
-                    trace_id = UUID(int=_trace_id).hex if _trace_id else None
-                    span_id = UUID(int=_span_id).hex[16:] if _span_id else None
-
-                return WorkflowServiceBatchResponse(
-                    data=WorkflowServiceResponseData(outputs=collected),
-                    trace_id=trace_id,
-                    span_id=span_id,
-                )
 
             async def iterator():
                 async for item in result:
@@ -178,26 +159,6 @@ class NormalizerMiddleware:
             )
 
         if isgenerator(result):
-            if RunningContext.get().aggregate:
-                collected = list(result)
-
-                trace_id = None
-                span_id = None
-
-                with suppress():
-                    link = (TracingContext.get().link) or {}
-
-                    _trace_id = link.get("trace_id") if link else None  # in int format
-                    _span_id = link.get("span_id") if link else None  # in int format
-
-                    trace_id = UUID(int=_trace_id).hex if _trace_id else None
-                    span_id = UUID(int=_span_id).hex[16:] if _span_id else None
-
-                return WorkflowServiceBatchResponse(
-                    data=WorkflowServiceResponseData(outputs=collected),
-                    trace_id=trace_id,
-                    span_id=span_id,
-                )
 
             async def iterator():
                 for item in result:

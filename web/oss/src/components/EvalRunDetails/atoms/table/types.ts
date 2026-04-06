@@ -1,3 +1,5 @@
+import type {EvaluatorDefinition, MetricColumnDefinition} from "@agenta/entities/workflow"
+
 export type EvaluationColumnKind =
     | "meta"
     | "testset"
@@ -52,16 +54,6 @@ export interface EvaluationTableColumn {
     description?: string
 }
 
-export interface MetricColumnDefinition {
-    name: string
-    kind: "metric"
-    path: string
-    stepKey: string
-    metricType: string
-    displayLabel?: string
-    description?: string
-}
-
 export type EvaluationColumnGroupKind = "meta" | "input" | "invocation" | "annotation" | "metric"
 
 export interface EvaluationTableColumnGroup {
@@ -75,16 +67,6 @@ export interface EvaluationTableColumnGroup {
     staticMetricColumns?: MetricColumnDefinition[]
     /** Optional metadata for advanced rendering */
     meta?: Record<string, any>
-}
-
-export interface EvaluatorDefinition {
-    id: string
-    name: string
-    slug?: string
-    description?: string | null
-    version?: number | string | null
-    metrics: MetricColumnDefinition[]
-    raw?: any
 }
 
 export interface EvaluationTableColumnsResult {

@@ -1,14 +1,10 @@
-from typing import Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
 import agenta as ag
-from agenta.sdk.workflows.handlers import chat_v0
-from agenta.sdk.types import Message, PromptTemplate
-
-
-# Create isolated chat app with its own OpenAPI schema
-chat_app, chat_route = ag.create_app()
+from agenta.sdk.engines.running.handlers import chat_v0
+from agenta.sdk.types import Messages, PromptTemplate
 
 
 class ChatConfig(BaseModel):
@@ -19,18 +15,29 @@ class ChatConfig(BaseModel):
     )
 
 
-@chat_route("/", config_schema=ChatConfig, flags={"is_chat": True})
-async def chat(
-    inputs: Optional[Dict[str, str]] = None,
-    messages: Optional[List[Message]] = None,
+async def _chat(
+    inputs: Dict[str, Any],
+    messages: Optional[Messages] = None,
+    parameters: Optional[Dict] = None,
 ):
     if messages is None:
-        messages = []
+        messages = Messages()
 
-    config = ag.ConfigManager.get_from_route(schema=ChatConfig)
+    config = ChatConfig(**(parameters or {}))
 
     return await chat_v0(
         parameters=config.model_dump(mode="json", exclude_none=True),
         inputs=inputs,
         messages=messages,
     )
+
+
+def create_chat_app():
+    app = ag.create_app()
+    routed = ag.workflow(uri="agenta:builtin:chat:v0")(_chat)
+    ag.route("/", app=app, flags={"is_chat": True})(routed)
+    return app
+
+
+chat_app = create_chat_app()
+chat_v0_app = create_chat_app()

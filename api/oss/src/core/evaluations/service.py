@@ -144,6 +144,18 @@ METRICS_STEP_TYPES = {"invocation", "annotation"}
 DEFAULT_REFRESH_INTERVAL = 1  # minute(s)
 
 
+def _first_reference_id(
+    references: dict[str, Reference],
+    *keys: str,
+) -> Optional[UUID]:
+    for key in keys:
+        reference = references.get(key)
+        if isinstance(reference, Reference) and reference.id:
+            return reference.id
+
+    return None
+
+
 class EvaluationsService:
     def __init__(
         self,
@@ -237,6 +249,40 @@ class EvaluationsService:
         )
 
         return ext_runs
+
+    # - RUNTIME OBSERVABILITY --------------------------------------------------
+
+    async def is_run_executing(
+        self,
+        *,
+        run_id: UUID,
+    ) -> bool:
+        """
+        Return True if any active job locks exist for this run.
+
+        Checks Redis for eval:run:{run_id}:job:*:lock keys.
+        """
+        from oss.src.core.evaluations.runtime.locks import (
+            is_run_executing as _is_run_executing,
+        )
+
+        return await _is_run_executing(run_id=str(run_id))
+
+    async def has_run_mutation_lock(
+        self,
+        *,
+        run_id: UUID,
+    ) -> bool:
+        """
+        Return True if a mutation lock exists for this run.
+
+        Checks Redis for eval:run:{run_id}:lock.
+        """
+        from oss.src.core.evaluations.runtime.locks import (
+            has_mutation_lock as _has_mutation_lock,
+        )
+
+        return await _has_mutation_lock(run_id=str(run_id))
 
     async def create_run(
         self,
@@ -918,10 +964,16 @@ class EvaluationsService:
             log.warning("run or run.data or run.data.steps not found")
             return []
 
+        refreshable_steps: List[EvaluationRunDataStep] = [
+            step for step in run.data.steps if step.type in METRICS_STEP_TYPES
+        ]
+
+        steps_by_key: Dict[str, EvaluationRunDataStep] = {
+            step.key: step for step in refreshable_steps
+        }
+
         step_types_by_key: Dict[str, str] = {
-            step.key: step.type
-            for step in run.data.steps
-            if step.type in METRICS_STEP_TYPES
+            step.key: step.type for step in refreshable_steps
         }
 
         steps_metrics_keys: Dict[str, List[Dict[str, str]]] = {
@@ -949,7 +1001,23 @@ class EvaluationsService:
             )
 
             if not results:
-                log.warning(f"No results found for step_key: {step_key}")
+                step = steps_by_key.get(step_key)
+
+                if (
+                    step
+                    and step.type == "annotation"
+                    and step.origin in {"human", "custom"}
+                ):
+                    pass
+                else:
+                    log.warning(
+                        "No results found for step_key: %s",
+                        step_key,
+                        run_id=run_id,
+                        scenario_id=scenario_id,
+                        timestamp=timestamp,
+                        interval=interval,
+                    )
                 continue
 
             trace_ids: List[str] | None = [
@@ -965,10 +1033,7 @@ class EvaluationsService:
 
         inferred_metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}
 
-        for step in run.data.steps:
-            if step.type not in METRICS_STEP_TYPES:
-                continue
-
+        for step in refreshable_steps:
             steps_metrics_keys[step.key] = deepcopy(DEFAULT_METRICS)
 
             if step.type == "annotation":
@@ -989,22 +1054,15 @@ class EvaluationsService:
                     log.warning("Evaluator revision not found")
                     continue
 
-                outputs_schema = None
-                service_format = None
-
-                if evaluator_revision.data:
-                    if evaluator_revision.data.schemas:
-                        outputs_schema = evaluator_revision.data.schemas.outputs
-                    if evaluator_revision.data.service:
-                        service_format = evaluator_revision.data.service.get("format")
+                outputs_schema = (
+                    evaluator_revision.data.schemas.outputs
+                    if evaluator_revision.data and evaluator_revision.data.schemas
+                    else None
+                )
 
                 if outputs_schema:
                     metrics_keys = get_metrics_keys_from_schema(
                         schema=outputs_schema,
-                    )
-                elif service_format:
-                    metrics_keys = get_metrics_keys_from_schema(
-                        schema=service_format,
                     )
                 else:
                     trace_ids = steps_trace_ids.get(step.key)
@@ -1630,6 +1688,8 @@ class SimpleEvaluationsService:
                 is_live=evaluation.flags.is_live,
                 is_active=False,
                 is_queue=evaluation.flags.is_queue,
+                is_cached=evaluation.flags.is_cached,
+                is_split=evaluation.flags.is_split,
             )
 
             if not run_flags:
@@ -1808,6 +1868,8 @@ class SimpleEvaluationsService:
                 is_live=_evaluation.flags.is_live,
                 is_active=_evaluation.flags.is_active,
                 is_queue=_evaluation.flags.is_queue,
+                is_cached=_evaluation.flags.is_cached,
+                is_split=_evaluation.flags.is_split,
             )
 
             run_data = await self._make_evaluation_run_data(
@@ -1918,6 +1980,8 @@ class SimpleEvaluationsService:
             is_live=flags.get("is_live"),
             is_active=flags.get("is_active"),
             is_queue=flags.get("is_queue"),
+            is_cached=flags.get("is_cached"),
+            is_split=flags.get("is_split"),
             #
             has_queries=flags.get("has_queries"),
             has_testsets=flags.get("has_testsets"),
@@ -2844,6 +2908,8 @@ class SimpleEvaluationsService:
         is_live: Optional[bool] = None,
         is_active: Optional[bool] = None,
         is_queue: Optional[bool] = None,
+        is_cached: Optional[bool] = None,
+        is_split: Optional[bool] = None,
         has_queries: Optional[bool] = None,
         has_testsets: Optional[bool] = None,
         has_evaluators: Optional[bool] = None,
@@ -2856,6 +2922,8 @@ class SimpleEvaluationsService:
             is_live=is_live or False,
             is_active=is_active or False,
             is_queue=is_queue or False,
+            is_cached=is_cached or False,
+            is_split=is_split or False,
             has_queries=has_queries or False,
             has_testsets=has_testsets or False,
             has_evaluators=has_evaluators or False,
@@ -2871,6 +2939,8 @@ class SimpleEvaluationsService:
         is_live: Optional[bool] = None,
         is_active: Optional[bool] = None,
         is_queue: Optional[bool] = None,
+        is_cached: Optional[bool] = None,
+        is_split: Optional[bool] = None,
         has_queries: Optional[bool] = None,
         has_testsets: Optional[bool] = None,
         has_evaluators: Optional[bool] = None,
@@ -2886,6 +2956,8 @@ class SimpleEvaluationsService:
             is_live=is_live,
             is_active=is_active,
             is_queue=is_queue,
+            is_cached=is_cached,
+            is_split=is_split,
             has_queries=has_queries,
             has_testsets=has_testsets,
             has_evaluators=has_evaluators,
@@ -3025,31 +3097,40 @@ class SimpleEvaluationsService:
                 step_id = None
 
                 if step_type == "input":
-                    if "query_revision" in step_references:
-                        step_ref = step_references["query_revision"]
-                        if not isinstance(step_ref, Reference):
-                            continue
-                        step_id = step_ref.id
+                    step_id = _first_reference_id(
+                        step_references,
+                        "query_revision",
+                        "query_variant",
+                        "query",
+                    )
+                    if step_id:
                         query_steps[step_id] = step_origin  # type: ignore
-                    elif "testset_revision" in step_references:
-                        step_ref = step_references["testset_revision"]
-                        if not isinstance(step_ref, Reference):
-                            continue
-                        step_id = step_ref.id
+                    else:
+                        step_id = _first_reference_id(
+                            step_references,
+                            "testset_revision",
+                            "testset_variant",
+                            "testset",
+                        )
+                    if step_id:
                         testset_steps[step_id] = step_origin  # type: ignore
                 elif step_type == "invocation":
-                    if "application_revision" in step_references:
-                        step_ref = step_references["application_revision"]
-                        if not isinstance(step_ref, Reference):
-                            continue
-                        step_id = step_ref.id
+                    step_id = _first_reference_id(
+                        step_references,
+                        "application_revision",
+                        "application_variant",
+                        "application",
+                    )
+                    if step_id:
                         application_steps[step_id] = step_origin  # type: ignore
                 elif step_type == "annotation":
-                    if "evaluator_revision" in step_references:
-                        step_ref = step_references["evaluator_revision"]
-                        if not isinstance(step_ref, Reference):
-                            continue
-                        step_id = step_ref.id
+                    step_id = _first_reference_id(
+                        step_references,
+                        "evaluator_revision",
+                        "evaluator_variant",
+                        "evaluator",
+                    )
+                    if step_id:
                         evaluator_steps[step_id] = step_origin  # type: ignore
 
             evaluation_flags = SimpleEvaluationFlags(**run.flags.model_dump())

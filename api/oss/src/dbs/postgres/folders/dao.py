@@ -339,8 +339,11 @@ class FoldersDAO(FoldersDAOInterface):
                         FolderDBE.kind.in_([k.value for k in folder_query.kinds])
                     )
 
-            if folder_query.parent_id is not None:
-                stmt = stmt.filter(FolderDBE.parent_id == folder_query.parent_id)
+            if "parent_id" in folder_query.model_fields_set:
+                if folder_query.parent_id is None:
+                    stmt = stmt.filter(FolderDBE.parent_id.is_(None))
+                else:
+                    stmt = stmt.filter(FolderDBE.parent_id == folder_query.parent_id)
 
             if folder_query.parent_ids:
                 stmt = stmt.filter(FolderDBE.parent_id.in_(folder_query.parent_ids))

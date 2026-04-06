@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {uuidToSpanId} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
 import {Button, Card, Typography} from "antd"
@@ -7,7 +8,6 @@ import {useSetAtom} from "jotai"
 
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
-import {uuidToSpanId} from "@/oss/lib/traces/helpers"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
 import {upsertStepResultWithAnnotation} from "@/oss/services/evaluations/results/api"
 import {
@@ -487,7 +487,9 @@ const ScenarioAnnotationPanel = ({
                     </div>
                 ) : (
                     <Typography.Text type="secondary">
-                        To annotate, please generate output.
+                        {!hasInvocationOutput
+                            ? "Run the invocation to generate output before annotating."
+                            : "No evaluators configured for this run."}
                     </Typography.Text>
                 )}
             </Card>

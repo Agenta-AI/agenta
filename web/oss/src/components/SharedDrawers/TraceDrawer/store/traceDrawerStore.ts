@@ -1,3 +1,4 @@
+import {transformTracesResponseToTree, transformTracingResponse} from "@agenta/entities/trace"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithImmer} from "jotai-immer"
@@ -10,10 +11,6 @@ import {getNodeById, observabilityTransformer} from "@/oss/lib/traces/observabil
 import {queryAllAnnotations} from "@/oss/services/annotations/api"
 import {AgentaTreeDTO, TracesWithAnnotations} from "@/oss/services/observability/types"
 import {fetchPreviewTrace} from "@/oss/services/tracing/api"
-import {
-    transformTracesResponseToTree,
-    transformTracingResponse,
-} from "@/oss/services/tracing/lib/helpers"
 import {SpanLink, TracesResponse} from "@/oss/services/tracing/types"
 import {getOrgValues} from "@/oss/state/org"
 

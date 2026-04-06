@@ -116,7 +116,7 @@ def _force_reinit_sdk(host: str, api_key: str) -> None:
     event loop, and when pytest-asyncio creates a new loop for async tests,
     the old client reference becomes stale.
     """
-    from agenta.sdk.agenta_init import AgentaSingleton
+    from agenta.sdk.utils.init import AgentaSingleton
     from agenta.client.backend.client import AgentaApi, AsyncAgentaApi
 
     singleton = AgentaSingleton()

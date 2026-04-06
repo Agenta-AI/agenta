@@ -20,12 +20,11 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {safeStringify} from "@agenta/shared/utils"
 import {CollapseToggleButton, getCollapseStyle} from "@agenta/ui/components/presentational"
+import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {CopySimple, MinusCircle} from "@phosphor-icons/react"
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-
-import {useDrillInUI} from "../context/DrillInUIContext"
 
 import {TOOL_PROVIDERS_META, TOOL_SPECS, parseGatewayFunctionName, type ToolObj} from "./toolUtils"
 

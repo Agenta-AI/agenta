@@ -1,12 +1,11 @@
 import {useMemo} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
-import {revisionsListWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {workflowRevisionsListDataAtomFamily} from "@agenta/entities/workflow"
+import {EnvironmentStatus} from "@agenta/entity-ui"
 import {PencilSimpleLine} from "@phosphor-icons/react"
 import {Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
-
-import EnvironmentStatus from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 
 interface VariantGroupTitleProps {
     parent: {
@@ -63,8 +62,7 @@ const RegularVariantGroupTitle = ({
         () =>
             atom((get) => {
                 if (!parentId) return []
-                const revisionsQuery = get(revisionsListWithDraftsAtomFamily(parentId))
-                const revisions = revisionsQuery.data ?? []
+                const revisions = get(workflowRevisionsListDataAtomFamily(parentId))
 
                 const allDeployments: {name: string}[] = []
                 const seenEnvNames = new Set<string>()

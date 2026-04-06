@@ -1,9 +1,11 @@
 import type {Dispatch, SetStateAction} from "react"
 
-import type {Environment, Variant} from "@/oss/lib/Types"
+import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
+
+import type {Variant} from "@/oss/lib/Types"
 
 export interface DeploymentDrawerProps {
-    selectedEnvironment: Environment
+    selectedEnvironment: AppEnvironmentDeployment
     variants: Variant[]
     loadEnvironments: () => Promise<void>
     setQueryEnv: (val: string) => void

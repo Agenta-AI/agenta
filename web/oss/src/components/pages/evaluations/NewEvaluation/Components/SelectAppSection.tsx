@@ -1,121 +1,117 @@
-import {HTMLProps, ReactNode, useMemo} from "react"
+import {memo, useCallback, useMemo, useState} from "react"
 
-import {formatEntityDateTime} from "@agenta/entities/shared"
-import {Table, Tag, Typography} from "antd"
-import type {ColumnsType} from "antd/es/table"
+import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
+import {Input} from "antd"
+import clsx from "clsx"
+import {useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 
-import type {NewEvaluationAppOption} from "../types"
+import {createAppWorkflowColumns} from "@/oss/components/pages/app-management/components/appWorkflowColumns"
+import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
+import {
+    appWorkflowPaginatedStore,
+    appWorkflowSearchTermAtom,
+} from "@/oss/components/pages/app-management/store"
 
-const formatAppType = (type?: string | null) => {
-    if (!type) return null
-    const normalized = type.replace(/_/g, " ")
-    return normalized.charAt(0).toUpperCase() + normalized.slice(1)
+const NoResultsFound = dynamic(
+    () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
+    {ssr: false},
+)
+
+const EMPTY_ACTIONS = {
+    onOpen: () => {},
+    onDelete: () => {},
 }
 
-interface SelectAppSectionProps extends HTMLProps<HTMLDivElement> {
-    apps: NewEvaluationAppOption[]
+interface SelectAppSectionProps {
     selectedAppId: string
     onSelectApp: (value: string) => void
     disabled?: boolean
-    emptyText?: ReactNode
+    className?: string
 }
 
 const SelectAppSection = ({
-    apps,
     selectedAppId,
     onSelectApp,
     disabled,
     className,
-    emptyText,
 }: SelectAppSectionProps) => {
-    const columns: ColumnsType<NewEvaluationAppOption & {key: string}> = useMemo(() => {
-        return [
-            {
-                title: "Application",
-                dataIndex: "label",
-                key: "label",
-                render: (value: string) => <Typography.Text>{value}</Typography.Text>,
-            },
-            {
-                title: "Type",
-                dataIndex: "type",
-                key: "type",
-                width: 160,
-                render: (value: string | null | undefined) => {
-                    const label = formatAppType(value)
-                    return label ? (
-                        <Tag>{label}</Tag>
-                    ) : (
-                        <Typography.Text type="secondary">—</Typography.Text>
-                    )
-                },
-            },
-            {
-                title: "Created",
-                dataIndex: "createdAt",
-                key: "createdAt",
-                width: 240,
-                render: (value: string, record) => {
-                    const displayDate = value || record.updatedAt || ""
-                    return displayDate ? (
-                        <Typography.Text type="secondary">
-                            {formatEntityDateTime(displayDate)}
-                        </Typography.Text>
-                    ) : (
-                        <Typography.Text type="secondary">—</Typography.Text>
-                    )
-                },
-            },
-        ]
-    }, [])
+    const [searchTerm, setSearchTerm] = useState("")
+    const setStoreSearchTerm = useSetAtom(appWorkflowSearchTermAtom)
 
-    const dataSource = useMemo(
-        () =>
-            apps.map((app) => ({
-                key: app.value,
-                ...app,
-            })),
-        [apps],
+    const handleSearch = useCallback(
+        (value: string) => {
+            setSearchTerm(value)
+            setStoreSearchTerm(value)
+        },
+        [setStoreSearchTerm],
+    )
+
+    const table = useTableManager<AppWorkflowRow>({
+        datasetStore: appWorkflowPaginatedStore.store as never,
+        scopeId: "evaluation-app-selector",
+        pageSize: 50,
+        searchDeps: [searchTerm],
+        rowClassName: "variant-table-row",
+    })
+
+    const columns = useMemo(() => createAppWorkflowColumns(EMPTY_ACTIONS), [])
+
+    const onSelectRow = useCallback(
+        (selectedRowKeys: React.Key[]) => {
+            if (disabled) return
+            const selectedId = selectedRowKeys[0] as string | undefined
+            if (selectedId) {
+                onSelectApp(selectedId)
+            }
+        },
+        [disabled, onSelectApp],
+    )
+
+    const rowSelection = useMemo(
+        () => ({
+            type: "checkbox" as const,
+            selectedRowKeys: selectedAppId ? [selectedAppId] : [],
+            onChange: (keys: React.Key[]) => onSelectRow(keys),
+            getCheckboxProps: () => ({disabled}),
+            selectOnRowClick: !disabled,
+        }),
+        [selectedAppId, onSelectRow, disabled],
     )
 
     return (
-        <div className={className}>
-            <Table
-                size="small"
-                bordered
-                rowKey="value"
-                columns={columns}
-                dataSource={dataSource}
-                pagination={false}
-                scroll={{y: 300}}
-                rowClassName={() => (disabled ? "" : "cursor-pointer")}
-                onRow={(record) => ({
-                    onClick: () => {
-                        if (disabled || record.value === selectedAppId) return
-                        onSelectApp(record.value)
-                    },
-                })}
-                rowSelection={{
-                    type: "radio",
-                    columnWidth: 48,
-                    selectedRowKeys: selectedAppId ? [selectedAppId] : [],
-                    onChange: (selectedRowKeys) => {
-                        if (disabled) return
-                        const [key] = selectedRowKeys
-                        onSelectApp(key as string)
-                    },
-                    getCheckboxProps: () => ({disabled}),
-                }}
-                locale={{
-                    emptyText:
-                        emptyText ??
-                        (disabled
-                            ? "Application selection is locked in app scope"
-                            : "No applications available"),
-                }}
-            />
+        <div className={clsx(className)}>
+            <div className="flex items-start justify-between mb-2 gap-4">
+                <Input.Search
+                    placeholder="Search"
+                    className="w-[300px] [&_input]:!py-[3.1px]"
+                    value={searchTerm}
+                    onChange={(e) => handleSearch(e.target.value)}
+                />
+            </div>
+            <div className="h-[455px]">
+                <InfiniteVirtualTableFeatureShell<AppWorkflowRow>
+                    {...table.shellProps}
+                    columns={columns}
+                    rowSelection={rowSelection}
+                    enableExport={false}
+                    autoHeight
+                    locale={{
+                        emptyText: (
+                            <NoResultsFound
+                                className="!py-10"
+                                description={
+                                    disabled
+                                        ? "Application selection is locked in app scope"
+                                        : "No applications available"
+                                }
+                            />
+                        ),
+                    }}
+                />
+            </div>
         </div>
     )
 }
 
-export default SelectAppSection
+export default memo(SelectAppSection)

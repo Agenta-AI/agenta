@@ -413,10 +413,18 @@ export const updateChainProgressAtom = atom(
                     rootEntry?.status === "success" &&
                     (rootEntry.output || rootEntry.structuredOutput)
                 ) {
-                    // Wrap in {response: structuredOutput} to match the shape
+                    // Wrap in {response: {data: output}} to match the shape
                     // that deriveToolViewModelFromResult expects (reads result.response.data).
                     rootOutputPatch = {
-                        output: {response: rootEntry.structuredOutput},
+                        output: {
+                            response: {
+                                data:
+                                    rootEntry.output !== undefined
+                                        ? rootEntry.output
+                                        : (rootEntry.structuredOutput as Record<string, unknown>)
+                                              ?.data,
+                            },
+                        },
                         structuredOutput: rootEntry.structuredOutput,
                         traceId: rootEntry.traceId,
                         metrics: rootEntry.metrics,

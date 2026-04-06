@@ -22,10 +22,9 @@
         "./types": "./src/types/index.ts"
     },
     "dependencies": {
-        "@scalar/openapi-parser": "^0.24.13",
-        "dayjs": "^1.11.10",
+        "dayjs": "^1.11.20",
         "json5": "^2.2.3",
-        "jsonrepair": "^3.13.2",
+        "jsonrepair": "^3.13.3",
         "uuid": "^11.1.0"
     },
     "devDependencies": {
@@ -36,7 +35,7 @@
     },
     "peerDependencies": {
         "@tanstack/react-query": ">=5.0.0",
-        "axios": ">=1.0.0",
+        "axios": ">=1.13.5",
         "jotai": ">=2.0.0",
         "jotai-tanstack-query": ">=0.9.0",
         "react": ">=18.0.0"

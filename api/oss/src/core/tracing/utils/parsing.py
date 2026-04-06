@@ -280,7 +280,6 @@ def _parse_span_from_request(raw_span: OTelSpan) -> Optional[OTelFlatSpans]:
     ag = raw_span.attributes["ag"]
 
     type_attrs = AgTypeAttributes.model_validate(ag.get("type", {}))
-    raw_span.trace_type = type_attrs.trace or raw_span.trace_type
     raw_span.span_type = type_attrs.span or raw_span.span_type
 
     if raw_span.start_time and raw_span.end_time:

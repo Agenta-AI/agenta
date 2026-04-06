@@ -255,9 +255,10 @@ export const VariantRevisionLabel = memo(
         const effectiveApplicationId = explicitApplicationId ?? runApplicationId ?? null
 
         // Fetch variant details to use as fallbacks
+        // Prefer revisionId because workflowMolecule is keyed by revision ID
         const variantAtom = useMemo(
-            () => variantReferenceQueryAtomFamily(effectiveVariantId),
-            [effectiveVariantId],
+            () => variantReferenceQueryAtomFamily(effectiveRevisionId ?? effectiveVariantId),
+            [effectiveRevisionId, effectiveVariantId],
         )
         const variantQuery = useAtomValue(variantAtom)
         const variantResolved = variantQuery.data

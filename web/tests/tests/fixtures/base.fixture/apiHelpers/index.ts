@@ -5,13 +5,33 @@ import {getProjectMetadataPath} from "../../../../playwright/config/runtime.ts"
 import {UseFn} from "../../types"
 import {FixtureContext} from "../types"
 
-import {
-    ApiVariant,
-    APP_TYPE,
-    ListAppsItem,
-    SnakeToCamelCaseKeys,
-    testset,
-} from "../../../../../oss/src/lib/Types"
+import {SnakeToCamelCaseKeys, testset} from "../../../../../oss/src/lib/Types"
+
+type APP_TYPE = "completion" | "chat" | "custom"
+
+interface ListAppsItem {
+    app_id: string
+    app_name: string
+    app_type: APP_TYPE
+    [key: string]: any
+}
+
+interface ApiVariant {
+    app_id: string
+    app_name: string
+    variant_id: string
+    variant_name: string
+    project_id: string
+    parameters: Record<string, unknown>
+    base_name: string
+    base_id: string
+    config_name: string
+    uri: string
+    revision: number
+    created_at: string
+    updated_at: string
+    modified_by_id: string
+}
 import {EvaluationRun} from "../../../../../oss/src/lib/hooks/usePreviewEvaluations/types"
 import type {ApiHandlerOptions, ApiHelpers} from "./types"
 

@@ -1,27 +1,24 @@
-import {Key} from "react"
+import {useMemo} from "react"
 
-import {FolderIcon, PlusIcon, SquaresFourIcon, TrashIcon} from "@phosphor-icons/react"
-import {Dropdown, Input, Space, Button, MenuProps} from "antd"
-import {ColumnsType, TableProps} from "antd/es/table"
-
-import {
-    InfiniteVirtualTableFeatureShell,
+import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
+import type {
     InfiniteVirtualTableRowSelection,
     TableFeaturePagination,
     TableScopeConfig,
-} from "@/oss/components/InfiniteVirtualTable"
-import {InfiniteDatasetStore} from "@/oss/components/InfiniteVirtualTable/createInfiniteDatasetStore"
+} from "@agenta/ui/table"
+import {FolderIcon, PlusIcon, SquaresFourIcon, TrashIcon} from "@phosphor-icons/react"
+import {Button, Dropdown, Input, Space} from "antd"
+import type {MenuProps} from "antd"
+import type {ColumnsType, TableProps} from "antd/es/table"
 
-import {FolderTreeItem} from "../assets/utils"
-import {PromptsTableRow} from "../types"
+import type {FolderTreeItem} from "../assets/utils"
+import type {PromptsTableRow} from "../types"
 
 import SetupWorkflowIcon from "./SetupWorkflowIcon"
 
 interface PromptsTableSectionProps {
     columns: ColumnsType<PromptsTableRow>
-    datasetStore: InfiniteDatasetStore<PromptsTableRow, PromptsTableRow, {projectId: string | null}>
     tableRows: PromptsTableRow[]
-    rowKeyExtractor: (record: PromptsTableRow) => Key
     tableScope: TableScopeConfig
     tablePagination: TableFeaturePagination<PromptsTableRow>
     rowSelection: InfiniteVirtualTableRowSelection<PromptsTableRow>
@@ -38,7 +35,6 @@ interface PromptsTableSectionProps {
 export const PromptsTableSection = ({
     columns,
     tableRows,
-    rowKeyExtractor,
     tableScope,
     tablePagination,
     rowSelection,
@@ -50,93 +46,96 @@ export const PromptsTableSection = ({
     onOpenNewPrompt,
     onOpenNewFolder,
     onSetupWorkflow,
-    datasetStore,
 }: PromptsTableSectionProps) => {
-    const menuItems: MenuProps["items"] = [
-        {
-            key: "new_prompt",
-            icon: <SquaresFourIcon size={16} />,
-            label: "New prompt",
-            onClick: ({domEvent}) => {
-                domEvent.stopPropagation()
-                onOpenNewPrompt()
+    const menuItems: MenuProps["items"] = useMemo(
+        () => [
+            {
+                key: "new_prompt",
+                icon: <SquaresFourIcon size={16} />,
+                label: "New prompt",
+                onClick: ({domEvent}: {domEvent: React.MouseEvent | React.KeyboardEvent}) => {
+                    domEvent.stopPropagation()
+                    onOpenNewPrompt()
+                },
             },
-        },
-        {
-            key: "new_folder",
-            icon: <FolderIcon size={16} />,
-            label: "New folder",
-            onClick: ({domEvent}) => {
-                domEvent.stopPropagation()
-                onOpenNewFolder()
+            {
+                key: "new_folder",
+                icon: <FolderIcon size={16} />,
+                label: "New folder",
+                onClick: ({domEvent}: {domEvent: React.MouseEvent | React.KeyboardEvent}) => {
+                    domEvent.stopPropagation()
+                    onOpenNewFolder()
+                },
             },
-        },
-        {
-            type: "divider" as const,
-        },
-        {
-            key: "setup_workflow",
-            icon: <SetupWorkflowIcon />,
-            label: "Set up workflow",
-            onClick: ({domEvent}) => {
-                domEvent.stopPropagation()
-                onSetupWorkflow()
+            {
+                type: "divider" as const,
             },
-        },
-    ]
+            {
+                key: "setup_workflow",
+                icon: <SetupWorkflowIcon />,
+                label: "Set up workflow",
+                onClick: ({domEvent}: {domEvent: React.MouseEvent | React.KeyboardEvent}) => {
+                    domEvent.stopPropagation()
+                    onSetupWorkflow()
+                },
+            },
+        ],
+        [onOpenNewPrompt, onOpenNewFolder, onSetupWorkflow],
+    )
+
+    const filtersNode = useMemo(
+        () => (
+            <Input.Search
+                placeholder="Search"
+                allowClear
+                className="w-[400px]"
+                value={searchTerm}
+                onChange={(event) => onSearchChange(event.target.value)}
+            />
+        ),
+        [searchTerm, onSearchChange],
+    )
+
+    const primaryActionsNode = useMemo(
+        () => (
+            <Space>
+                <Button
+                    type="text"
+                    icon={<TrashIcon />}
+                    danger
+                    disabled={!selectedRow}
+                    onClick={onDeleteSelected}
+                >
+                    Delete
+                </Button>
+
+                <Dropdown
+                    trigger={["click"]}
+                    styles={{root: {width: 200}}}
+                    placement="bottomLeft"
+                    menu={{items: menuItems}}
+                >
+                    <Button icon={<PlusIcon />} type="primary">
+                        Create new
+                    </Button>
+                </Dropdown>
+            </Space>
+        ),
+        [menuItems, selectedRow, onDeleteSelected],
+    )
 
     return (
-        <div className="flex flex-col gap-2 grow min-h-0">
-            <div className="flex items-center justify-between">
-                <Space>
-                    <Input.Search
-                        placeholder="Search"
-                        allowClear
-                        className="w-[400px]"
-                        value={searchTerm}
-                        onChange={(event) => onSearchChange(event.target.value)}
-                    />
-                </Space>
-
-                <Space>
-                    <Button
-                        type="text"
-                        icon={<TrashIcon />}
-                        danger
-                        disabled={!selectedRow}
-                        onClick={onDeleteSelected}
-                    >
-                        Delete
-                    </Button>
-
-                    <Dropdown
-                        trigger={["click"]}
-                        styles={{
-                            root: {
-                                width: 200,
-                            },
-                        }}
-                        placement="bottomLeft"
-                        menu={{items: menuItems}}
-                    >
-                        <Button icon={<PlusIcon />} type="primary">
-                            Create new
-                        </Button>
-                    </Dropdown>
-                </Space>
-            </div>
-
-            <InfiniteVirtualTableFeatureShell<PromptsTableRow>
-                className="grow min-h-0 [&>div]:!gap-0 [&_.ant-table-cell]:!align-middle [&_.ant-table-container]:!border-b"
-                datasetStore={datasetStore}
-                tableScope={tableScope}
-                columns={columns}
-                rowKey={rowKeyExtractor}
-                dataSource={tableRows}
-                pagination={tablePagination}
-                rowSelection={rowSelection}
-                tableProps={tableProps}
-            />
-        </div>
+        <InfiniteVirtualTableFeatureShell<PromptsTableRow>
+            className="grow min-h-0 [&_.ant-table-cell]:!align-middle [&_.ant-table-container]:!border-b"
+            tableScope={tableScope}
+            columns={columns}
+            rowKey={(record) => record.key}
+            dataSource={tableRows}
+            pagination={tablePagination}
+            rowSelection={rowSelection}
+            tableProps={tableProps}
+            filters={filtersNode}
+            primaryActions={primaryActionsNode}
+        />
     )
 }

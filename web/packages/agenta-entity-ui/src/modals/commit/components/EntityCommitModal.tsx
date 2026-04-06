@@ -17,14 +17,17 @@ import {
     commitModalOpenAtom,
     commitModalContextAtom,
     commitModalEntityAtom,
+    commitModalEntityNameAtom,
     commitModalMessageAtom,
     commitModalCanProceedAtom,
     commitModalLoadingAtom,
+    commitModalActionLabelAtom,
     resetCommitModalAtom,
     closeCommitModalAtom,
     executeCommitAtom,
     setCommitErrorAtom,
     setCommitLoadingAtom,
+    setCommitEntityNameAtom,
 } from "../state"
 
 import {EntityCommitContent, type CommitModeOption} from "./EntityCommitContent"
@@ -69,6 +72,16 @@ export interface EntityCommitModalProps {
     commitMessageRequired?: boolean
     /** Label for the target in the version display when a non-default mode is selected (e.g. new variant name) */
     modeLabel?: string
+    /**
+     * Action label used throughout the modal (title, subtitle, message label, button).
+     * Defaults to "Commit". Set to "Create" for entity creation flows.
+     */
+    actionLabel?: string
+    /**
+     * When true, the entity name is shown as an editable input field.
+     * Useful for "Create" flows where the user should be able to rename before creating.
+     */
+    entityNameEditable?: boolean
 }
 
 /**
@@ -108,27 +121,32 @@ export function EntityCommitModal({
     onSubmit,
     onAfterSuccess,
     successMessage = "Changes committed successfully",
-    submitLabel = "Commit",
+    submitLabel,
     commitModes,
     defaultCommitMode,
     renderModeContent,
     canSubmit,
     commitMessageRequired = false,
     modeLabel,
+    actionLabel = "Commit",
+    entityNameEditable = false,
 }: EntityCommitModalProps) {
     const internalOpen = useAtomValue(commitModalOpenAtom)
     const context = useAtomValue(commitModalContextAtom)
     const currentEntity = useAtomValue(commitModalEntityAtom)
+    const entityName = useAtomValue(commitModalEntityNameAtom)
     const commitMessage = useAtomValue(commitModalMessageAtom)
     const canProceed = useAtomValue(commitModalCanProceedAtom)
     const isLoading = useAtomValue(commitModalLoadingAtom)
     const resetModal = useSetAtom(resetCommitModalAtom)
     const setEntity = useSetAtom(commitModalEntityAtom)
     const setMessage = useSetAtom(commitModalMessageAtom)
+    const setActionLabel = useSetAtom(commitModalActionLabelAtom)
     const closeModal = useSetAtom(closeCommitModalAtom)
     const executeCommit = useSetAtom(executeCommitAtom)
     const setCommitError = useSetAtom(setCommitErrorAtom)
     const setCommitLoading = useSetAtom(setCommitLoadingAtom)
+    const setEntityName = useSetAtom(setCommitEntityNameAtom)
     const wasExternallyOpenRef = useRef(false)
     const syncedEntityRef = useRef<{id: string; type: string} | null>(null)
     // Track current externalOpen value in a ref to avoid stale closures in afterClose callbacks
@@ -162,8 +180,10 @@ export function EntityCommitModal({
             syncedEntityRef.current = {id: externalEntity.id, type: externalEntity.type}
             setEntity(externalEntity)
             setMessage(initialMessage ?? "")
+            setActionLabel(actionLabel)
             setCommitError(null)
             setCommitLoading(false)
+            setEntityName(null)
         }
 
         if (!externalOpen) {
@@ -176,10 +196,13 @@ export function EntityCommitModal({
         externalOpen,
         externalEntity,
         initialMessage,
+        actionLabel,
         setEntity,
         setMessage,
+        setActionLabel,
         setCommitError,
         setCommitLoading,
+        setEntityName,
     ])
 
     useEffect(() => {
@@ -227,6 +250,7 @@ export function EntityCommitModal({
                     entity: currentEntity,
                     message: commitMessage.trim(),
                     mode: selectedMode,
+                    entityName: entityName || undefined,
                 })
 
                 if (!result.success) {
@@ -269,6 +293,7 @@ export function EntityCommitModal({
     }, [
         onSubmit,
         currentEntity,
+        entityName,
         setCommitLoading,
         setCommitError,
         commitMessage,
@@ -295,7 +320,7 @@ export function EntityCommitModal({
                     onConfirm={handleConfirm}
                     isLoading={isLoading}
                     canProceed={canProceedWithExtension}
-                    confirmLabel={submitLabel}
+                    confirmLabel={submitLabel ?? actionLabel}
                 />
             }
             width={hasDiffData ? 900 : 520}
@@ -314,6 +339,7 @@ export function EntityCommitModal({
                 onModeChange={setSelectedMode}
                 extraContent={renderModeContent?.({mode: selectedMode})}
                 modeLabel={modeLabel}
+                entityNameEditable={entityNameEditable}
             />
         </EnhancedModal>
     )

@@ -1,43 +1,57 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo} from "react"
 
 import {FolderOpenOutlined} from "@ant-design/icons"
 import {DataNode} from "antd/es/tree"
 
-import {ListAppsItem} from "@/oss/lib/Types"
-import {Folder} from "@/oss/services/folders/types"
+import type {Folder} from "@/oss/services/folders/types"
 
 import {getAppTypeIcon} from "../assets/iconHelpers"
-import {FolderTreeItem, buildFolderTree} from "../assets/utils"
-import {PromptsTableRow} from "../types"
+import {type FolderTreeItem, type FolderTreeNode, buildFolderTree} from "../assets/utils"
+import type {PromptsWorkflowRow} from "../store"
+import type {PromptsTableRow} from "../types"
 
 interface UsePromptsFolderTreeProps {
-    foldersData?: {folders?: Folder[]} | null
-    apps: ListAppsItem[]
+    /** Current view folders (scoped to current folder, or all when searching) */
+    folders: Folder[]
+    /** Current view workflows (scoped to current folder, or all when searching) */
+    workflows: PromptsWorkflowRow[]
+    /** All folders (for breadcrumbs, move modal, lookups) */
+    allFolders: Folder[]
     isLoadingFolders: boolean
-    isLoadingApps: boolean
+    isLoadingWorkflows: boolean
+    searchTerm: string
 }
 
 export const usePromptsFolderTree = ({
-    foldersData,
-    apps,
+    folders,
+    workflows,
+    allFolders,
     isLoadingFolders,
-    isLoadingApps,
+    isLoadingWorkflows,
+    searchTerm,
 }: UsePromptsFolderTreeProps) => {
-    const [searchTerm, setSearchTerm] = useState("")
-    const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
-
     const isLoadingInitialData = useMemo(
-        () => isLoadingFolders || isLoadingApps || !foldersData,
-        [foldersData, isLoadingApps, isLoadingFolders],
+        () => isLoadingFolders || isLoadingWorkflows,
+        [isLoadingFolders, isLoadingWorkflows],
     )
 
-    const {roots, foldersById} = useMemo(() => {
-        const folders = foldersData?.folders ?? []
+    const isSearching = searchTerm.trim().length > 0
 
-        return buildFolderTree(folders, apps)
-    }, [apps, foldersData])
+    // Build foldersById from ALL folders (needed for breadcrumbs, move modal, lookups)
+    const foldersById = useMemo(() => {
+        const map: Record<string, FolderTreeNode> = {}
+        for (const folder of allFolders) {
+            if (folder.id) {
+                map[folder.id] = {...folder, type: "folder", children: []}
+            }
+        }
+        return map
+    }, [allFolders])
 
+    // Tree data for the move modal (uses all folders)
     const treeData: DataNode[] = useMemo(() => {
+        const {roots} = buildFolderTree(allFolders, [])
+
         const buildNodes = (nodes: FolderTreeItem[]): DataNode[] =>
             nodes.map((node) => {
                 const isFolder = node.type === "folder"
@@ -47,15 +61,15 @@ export const usePromptsFolderTree = ({
                 const icon = isFolder ? (
                     <FolderOpenOutlined style={{fontSize: 16, color: "#1C2C3D"}} />
                 ) : (
-                    getAppTypeIcon(node.app_type)
+                    getAppTypeIcon(node.appType)
                 )
 
                 return {
-                    key: isFolder ? (node.id as string) : node.app_id,
+                    key: isFolder ? (node.id as string) : node.workflowId,
                     title: (
                         <div className="flex items-center gap-2 min-h-6 overflow-hidden">
                             <span className="flex items-center text-gray-400">{icon}</span>
-                            <span className="truncate">{isFolder ? node.name : node.app_name}</span>
+                            <span className="truncate">{node.name}</span>
                         </div>
                     ),
                     children: hasChildren ? childNodes : undefined,
@@ -66,7 +80,7 @@ export const usePromptsFolderTree = ({
             })
 
         return buildNodes(roots)
-    }, [roots])
+    }, [allFolders])
 
     const moveDestinationName = useCallback(
         (folderId: string | null) => (folderId ? (foldersById[folderId]?.name ?? folderId) : null),
@@ -74,7 +88,7 @@ export const usePromptsFolderTree = ({
     )
 
     const moveItemName = useCallback(
-        (item: FolderTreeItem | null) => item?.name ?? item?.app_name ?? null,
+        (item: {name?: string | null} | null) => item?.name ?? null,
         [],
     )
 
@@ -83,68 +97,67 @@ export const usePromptsFolderTree = ({
         [foldersById],
     )
 
-    const visibleRows: FolderTreeItem[] = useMemo(() => {
-        if (!currentFolderId) return roots
-        const current = foldersById[currentFolderId]
-        return current?.children ?? roots
-    }, [currentFolderId, roots, foldersById])
+    // Build display rows
+    // Browse mode: flat list of folders + workflows (already server-filtered)
+    // Search mode: build tree from all data, filter by search term
+    const displayRows: FolderTreeItem[] = useMemo(() => {
+        if (isSearching) {
+            // Search: build full tree then filter
+            const {roots} = buildFolderTree(folders, workflows)
+            const normalizedSearch = searchTerm.trim().toLowerCase()
 
-    const filteredRows: FolderTreeItem[] = useMemo(() => {
-        const normalizedSearchTerm = searchTerm.trim().toLowerCase()
-        const rowsToFilter = normalizedSearchTerm ? roots : visibleRows
+            const matchesSearch = (item: FolderTreeItem) =>
+                (item.name ?? "").toLowerCase().includes(normalizedSearch)
 
-        if (!normalizedSearchTerm) return rowsToFilter
+            const filterNode = (item: FolderTreeItem): FolderTreeItem | null => {
+                if (item.type === "folder") {
+                    const filteredChildren = (item.children ?? [])
+                        .map(filterNode)
+                        .filter(Boolean) as FolderTreeItem[]
 
-        const matchesSearch = (item: FolderTreeItem) => {
-            const name = item.type === "folder" ? item.name : item.app_name
-            return (name ?? "").toLowerCase().includes(normalizedSearchTerm)
-        }
-
-        const filterNode = (item: FolderTreeItem): FolderTreeItem | null => {
-            if (item.type === "folder") {
-                const filteredChildren = (item.children ?? [])
-                    .map(filterNode)
-                    .filter(Boolean) as FolderTreeItem[]
-
-                if (matchesSearch(item) || filteredChildren.length) {
-                    return {
-                        ...item,
-                        children: filteredChildren,
+                    if (matchesSearch(item) || filteredChildren.length) {
+                        return {...item, children: filteredChildren}
                     }
+                    return null
                 }
-
-                return null
+                return matchesSearch(item) ? item : null
             }
 
-            return matchesSearch(item) ? item : null
+            return roots.map(filterNode).filter(Boolean) as FolderTreeItem[]
         }
 
-        return rowsToFilter.map(filterNode).filter(Boolean) as FolderTreeItem[]
-    }, [roots, searchTerm, visibleRows])
+        // Browse: flat list — folders first, then workflows
+        const folderItems: FolderTreeItem[] = folders.map((f) => ({
+            ...f,
+            type: "folder" as const,
+            children: [],
+        }))
+        const workflowItems: FolderTreeItem[] = workflows.map((w) => ({
+            ...w,
+            type: "app" as const,
+        }))
+        return [...folderItems, ...workflowItems]
+    }, [folders, workflows, isSearching, searchTerm])
 
     const searchExpandedRowKeys = useMemo(() => {
-        if (!searchTerm.trim()) return []
+        if (!isSearching) return []
 
         const expanded: string[] = []
-
         const collectFolderIds = (items: FolderTreeItem[]) => {
             items.forEach((item) => {
                 if (item.type !== "folder") return
-
                 if (item.children && item.children.length > 0) {
                     expanded.push(item.id as string)
                     collectFolderIds(item.children)
                 }
             })
         }
-
-        collectFolderIds(filteredRows)
-
+        collectFolderIds(displayRows)
         return expanded
-    }, [filteredRows, searchTerm])
+    }, [displayRows, isSearching])
 
     const getRowKey = useCallback(
-        (item: FolderTreeItem) => (item.type === "folder" ? (item.id as string) : item.app_id),
+        (item: FolderTreeItem) => (item.type === "folder" ? (item.id as string) : item.workflowId),
         [],
     )
 
@@ -152,11 +165,11 @@ export const usePromptsFolderTree = ({
         if (isLoadingInitialData) return []
 
         const sanitizeNode = (item: FolderTreeItem): PromptsTableRow => {
-            const baseNode: PromptsTableRow = {
+            const baseNode = {
                 ...item,
                 key: getRowKey(item),
-                __isSkeleton: false,
-            }
+                __isSkeleton: false as const,
+            } as PromptsTableRow
 
             if (item.type !== "folder") {
                 return baseNode
@@ -175,8 +188,8 @@ export const usePromptsFolderTree = ({
             }
         }
 
-        return filteredRows.map(sanitizeNode)
-    }, [filteredRows, getRowKey, isLoadingInitialData])
+        return displayRows.map(sanitizeNode)
+    }, [displayRows, getRowKey, isLoadingInitialData])
 
     const flattenedTableRows = useMemo(() => {
         const items: PromptsTableRow[] = []
@@ -196,19 +209,12 @@ export const usePromptsFolderTree = ({
     }, [tableRows])
 
     return {
-        currentFolderId,
-        setCurrentFolderId,
-        searchTerm,
-        setSearchTerm,
         foldersById,
-        roots,
         treeData,
         moveDestinationName,
         moveItemName,
         deleteFolderName,
         isLoadingInitialData,
-        visibleRows,
-        filteredRows,
         searchExpandedRowKeys,
         tableRows,
         flattenedTableRows,

@@ -1,6 +1,6 @@
 {
     "name": "agenta-web",
-    "version": "0.95.1",
+    "version": "0.95.4",
     "workspaces": [
         "ee",
         "oss",
@@ -9,25 +9,24 @@
         "packages/*"
     ],
     "dependencies": {
-        "@scalar/openapi-parser": "^0.24.13",
         "ajv-formats": "^3.0.1",
         "jotai-eager": "^0.2.4",
         "jotai-history": "^0.5.0",
         "jotai-transaction": "^0.2.0",
         "json5": "^2.2.3",
-        "next": "15.5.10"
+        "next": "15.5.14"
     },
     "devDependencies": {
         "@agenta/ee": "workspace:./ee",
         "@agenta/oss": "workspace:./oss",
-        "@eslint/eslintrc": "^3.3.3",
+        "@eslint/eslintrc": "^3.3.5",
         "@eslint/js": "^9.39.2",
         "@lexical/eslint-plugin": "^0.40.0",
-        "@next/eslint-plugin-next": "15.5.10",
-        "@typescript-eslint/eslint-plugin": "^8.50.0",
-        "@typescript-eslint/parser": "^8.50.0",
+        "@next/eslint-plugin-next": "15.5.14",
+        "@typescript-eslint/eslint-plugin": "^8.58.0",
+        "@typescript-eslint/parser": "^8.58.0",
         "eslint": "^9.39.2",
-        "eslint-config-next": "15.5.10",
+        "eslint-config-next": "15.5.14",
         "eslint-config-prettier": "^10.1.8",
         "eslint-plugin-import": "^2.32.0",
         "eslint-plugin-prettier": "^5.5.4",
@@ -41,8 +40,8 @@
         "ts-node": "^10.9.2",
         "tsconfig-paths": "^4.2.0",
         "tsx": "^4.21.0",
-        "turbo": "2.8.10",
-        "typescript-eslint": "^8.50.0"
+        "turbo": "2.8.20",
+        "typescript-eslint": "^8.58.0"
     },
     "packageManager": "pnpm@10.30.0",
     "scripts": {
@@ -81,13 +80,17 @@
             "prismjs@<1.30.0": ">=1.30.0",
             "@babel/runtime@<7.26.10": ">=7.26.10",
             "mdast-util-to-hast@<13.2.1": ">=13.2.1",
+            "diff@>=4.0.0 <4.0.4": ">=4.0.4",
             "lodash@<4.17.23": ">=4.17.23",
             "lodash-es@<4.17.23": ">=4.17.23",
-            "minimatch": "10.2.2",
-            "axios@<1.13.5": ">=1.13.5"
-        },
-        "patchedDependencies": {
-            "minimatch@10.2.2": "patches/minimatch@10.2.2.patch"
+            "minimatch": "5.1.8",
+            "glob@>=10.2.0 <10.5.0": ">=10.5.0",
+            "picomatch": "4.0.4",
+            "picomatch@4.0.3": "4.0.4",
+            "webpack@>=5.49.0 <=5.104.0": ">=5.104.1",
+            "yaml@>=2.0.0 <2.8.3": ">=2.8.3",
+            "flatted": "3.4.2",
+            "axios": "1.13.5"
         }
     }
 }

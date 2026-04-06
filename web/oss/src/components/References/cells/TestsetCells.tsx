@@ -1,6 +1,8 @@
 import {useMemo} from "react"
 
+import {testsetMolecule} from "@agenta/entities/testset"
 import {Tag} from "antd"
+import {getDefaultStore} from "jotai"
 import {useAtomValue} from "jotai"
 
 import {
@@ -13,7 +15,12 @@ import {getSlotByRoleOrdinal} from "@/oss/components/EvaluationRunsTablePOC/util
 import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 import {revision} from "@/oss/state/entities/testset"
 
-import usePreviewTestsetReference from "../hooks/usePreviewTestsetReference"
+// Entity molecule atoms must be read from the default store because they depend on
+// sessionAtom/projectIdAtom which are only reliably set there. Components inside
+// scoped Jotai stores (e.g. EvaluationRunsTableStoreProvider) would otherwise
+// read stale defaults from the scoped store's isolated atom graph.
+const defaultStore = getDefaultStore()
+const useDefaultAtomValue: typeof useAtomValue = (atom) => useAtomValue(atom, {store: defaultStore})
 
 const CELL_CLASS = "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2"
 
@@ -21,6 +28,32 @@ export const PreviewTestsetCellSkeleton = () => <SkeletonLine width="65%" />
 
 const normalize = (value: string | null | undefined) =>
     typeof value === "string" && value.trim().length ? value.trim() : null
+
+const extractTestsetRevisionId = (
+    stepReferences: Record<string, unknown> | null | undefined,
+    testsetId: string | null | undefined,
+): string | null => {
+    if (!stepReferences || !testsetId) return null
+    for (const stepKey of Object.keys(stepReferences)) {
+        const refs = (stepReferences as Record<string, any>)[stepKey]
+        if (!refs || typeof refs !== "object") continue
+        const directMatch = refs.testset ?? refs.test_set ?? refs.testsetVariant
+        if (directMatch && directMatch.id === testsetId) {
+            const revisionRef = refs.testsetRevision ?? refs.testset_revision
+            return revisionRef && typeof revisionRef.id === "string" ? revisionRef.id : null
+        }
+        const arrayRefs = refs.testsets
+        if (Array.isArray(arrayRefs)) {
+            for (const entry of arrayRefs) {
+                if (entry && entry.id === testsetId) {
+                    const revisionRef = refs.testsetRevision ?? refs.testset_revision
+                    return revisionRef && typeof revisionRef.id === "string" ? revisionRef.id : null
+                }
+            }
+        }
+    }
+    return null
+}
 
 const PreviewTestsetCellContent = ({
     record,
@@ -31,41 +64,49 @@ const PreviewTestsetCellContent = ({
     isVisible: boolean
     descriptor?: ReferenceColumnDescriptor
 }) => {
-    const runId = record.preview?.id ?? record.runId
-    const canFetch = Boolean(runId)
-    const {
-        summary,
-        testsetNames: _testsetNames,
-        stepReferences,
-        isLoading: summaryLoading,
-    } = useRunRowSummary(record, isVisible)
+    const {summary, stepReferences, isLoading: summaryLoading} = useRunRowSummary(record, isVisible)
     const referenceSequence = useRunRowReferences(record)
     const slot =
         descriptor && descriptor.role === "testset"
             ? getSlotByRoleOrdinal(referenceSequence, descriptor.role, descriptor.roleOrdinal)
             : null
-    const slotTestsetId = slot?.values.find((value) => value.id)?.id ?? null
+    const slotTestsetValue = slot?.values.find((value) => value.id) ?? null
+    const slotTestsetId = slotTestsetValue?.id ?? null
+    // Look for revision value in the testset slot (e.g. source: "testsetRevision")
+    const slotRevisionValue =
+        slot?.values.find((value) => value.source?.toLowerCase().includes("revision")) ?? null
 
     const firstTestsetId = slotTestsetId ?? summary?.testsetIds?.[0] ?? null
 
-    const {reference, isLoading: referenceLoading} = usePreviewTestsetReference(
-        {
-            projectId: record.projectId,
-            testsetId: firstTestsetId,
-            stepReferences,
-        },
-        {enabled: canFetch && Boolean(firstTestsetId)},
+    // Use testset molecule directly — accessing triggers fetch automatically
+    const testsetDataAtom = useMemo(
+        () => testsetMolecule.dataOptional(firstTestsetId),
+        [firstTestsetId],
+    )
+    const testsetQueryAtom = useMemo(
+        () => testsetMolecule.queryOptional(firstTestsetId),
+        [firstTestsetId],
+    )
+    const testsetData = useDefaultAtomValue(testsetDataAtom)
+    const testsetQuery = useDefaultAtomValue(testsetQueryAtom)
+
+    // Extract revision ID from step references (legacy path)
+    const embeddedRevisionId = useMemo(
+        () => extractTestsetRevisionId(stepReferences ?? null, firstTestsetId ?? null),
+        [stepReferences, firstTestsetId],
     )
 
-    // Fetch revision entity if we have a revisionId
-    const revisionId = reference?.revisionId ?? null
+    // Prefer slot revision value, then embedded revision from step references
+    const revisionId = slotRevisionValue?.id ?? embeddedRevisionId
     const revisionDataAtom = useMemo(() => revision.selectors.data(revisionId ?? ""), [revisionId])
-    const revisionEntity = useAtomValue(revisionDataAtom)
+    const revisionEntity = useDefaultAtomValue(revisionDataAtom)
     const revisionVersion = revisionId ? revisionEntity?.version : null
 
-    const primaryName = normalize(reference?.name)
+    const primaryName = normalize(testsetData?.name)
     const label = primaryName ?? "—"
-    if (summaryLoading || referenceLoading) {
+    const isTestsetLoading = Boolean(firstTestsetId && !testsetData && testsetQuery?.isPending)
+
+    if (summaryLoading || isTestsetLoading) {
         return <PreviewTestsetCellSkeleton />
     }
 

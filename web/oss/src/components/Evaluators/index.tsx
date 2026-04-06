@@ -1,63 +1,79 @@
-import {memo, useCallback, useEffect, useMemo, useState, type ChangeEvent, type Key} from "react"
+import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
+import {
+    archiveWorkflow,
+    invalidateWorkflowsListCache,
+    invalidateEvaluatorsListCache,
+    createEvaluatorFromTemplate,
+    type EvaluatorCatalogTemplate,
+} from "@agenta/entities/workflow"
+import {workflowRevisionDrawerNavigationIdsAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {PageLayout} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
-import {DeleteOutlined, PlusOutlined} from "@ant-design/icons"
+import {PlusOutlined} from "@ant-design/icons"
 import {ChartDonutIcon, ListChecksIcon} from "@phosphor-icons/react"
 import {Button, Input, Space} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
-import {useRouter} from "next/router"
-import {useLocalStorage} from "usehooks-ts"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
-import {AnnotateDrawerSteps} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/enum"
 import {useQueryParam} from "@/oss/hooks/useQuery"
-import useURL from "@/oss/hooks/useURL"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {
     onboardingWidgetActivationAtom,
     setOnboardingWidgetActivationAtom,
 } from "@/oss/lib/onboarding"
-import {deleteEvaluatorConfig} from "@/oss/services/evaluations/api"
-import {deleteHumanEvaluator} from "@/oss/services/evaluators"
-import {useProjectData} from "@/oss/state/project/hooks"
+import {useQueryParamState} from "@/oss/state/appState"
+import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStore"
+import {getProjectValues} from "@/oss/state/project"
 
-import {
-    DEFAULT_EVALUATOR_TAB,
-    EVALUATOR_TABLE_STORAGE_PREFIX,
-    EVALUATOR_TABS,
-} from "./assets/constants"
-import getColumns from "./assets/getColumns"
-import {EvaluatorCategory, EvaluatorRegistryRow} from "./assets/types"
+import {DEFAULT_EVALUATOR_TAB, EVALUATOR_TABS} from "./assets/constants"
+import type {EvaluatorCategory} from "./assets/types"
 import DeleteEvaluatorsModal from "./components/DeleteEvaluatorsModal"
-import SelectEvaluatorModal from "./components/SelectEvaluatorModal"
-import useEvaluatorsRegistryData from "./hooks/useEvaluatorsRegistryData"
-
-const AnnotateDrawer = dynamic(() => import("@/oss/components/SharedDrawers/AnnotateDrawer"), {
-    ssr: false,
-})
+import EvaluatorTemplateDropdown from "./components/EvaluatorTemplateDropdown"
+import {openHumanEvaluatorDrawerAtom} from "./Drawers/HumanEvaluatorDrawer/store"
+import {evaluatorCategoryAtom, evaluatorSearchTermAtom} from "./store/evaluatorFilterAtoms"
+import type {EvaluatorTableRow} from "./store/evaluatorsPaginatedStore"
+import {
+    evaluatorsPaginatedStore,
+    clearEvaluatorWorkflowCache,
+} from "./store/evaluatorsPaginatedStore"
+import EvaluatorsTable from "./Table/EvaluatorsTable"
 
 const isValidEvaluatorTab = (value: string): value is EvaluatorCategory => {
     return EVALUATOR_TABS.some(({key}) => key === value)
 }
 
 const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) => {
-    const {projectId} = useProjectData()
-    const router = useRouter()
-    const {projectURL} = useURL()
-    const storageKey = useMemo(
-        () => `${EVALUATOR_TABLE_STORAGE_PREFIX}-${scope}-${projectId || "global"}-tab`,
-        [projectId, scope],
-    )
-    const [activeTab, setActiveTab] = useLocalStorage<EvaluatorCategory>(
-        storageKey,
-        DEFAULT_EVALUATOR_TAB,
-    )
+    // Tab state: atom drives the paginated store's metaAtom, query param syncs URL
+    const [activeTab, setActiveTab] = useAtom(evaluatorCategoryAtom)
     const [tabState, setTabState] = useQueryParam("tab", activeTab)
     const onboardingWidgetActivation = useAtomValue(onboardingWidgetActivationAtom)
     const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
+
+    // Search: atom drives the paginated store's metaAtom
+    const [searchTerm, setSearchTerm] = useAtom(evaluatorSearchTermAtom)
+    const refreshStore = useSetAtom(evaluatorsPaginatedStore.actions.refresh)
+
+    // URL-driven drawer (same pattern as variants registry)
+    const [, setQueryRevision] = useQueryParamState("revisionId")
+    const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
+    const openHumanDrawer = useSetAtom(openHumanEvaluatorDrawerAtom)
+
+    // Navigation: keep drawer prev/next list in sync with visible table rows
+    const EVAL_CONTROLLER_PARAMS = useMemo(() => ({scopeId: "evaluators", pageSize: 50}), [])
+    const evalTableState = useAtomValue(
+        evaluatorsPaginatedStore.selectors.state(EVAL_CONTROLLER_PARAMS),
+    )
+    const setNavigationIds = useSetAtom(workflowRevisionDrawerNavigationIdsAtom)
+
+    useEffect(() => {
+        const navIds = evalTableState.rows
+            .map((r) => r.revisionId)
+            .filter((id): id is string => Boolean(id))
+        if (navIds.length > 0) {
+            setNavigationIds(navIds)
+        }
+    }, [evalTableState.rows, setNavigationIds])
 
     useEffect(() => {
         if (isValidEvaluatorTab(tabState)) {
@@ -82,202 +98,144 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
         if (onboardingWidgetActivation !== "create-evaluator") return
         setActiveTab("automatic")
         setTabState("automatic")
-        setIsSelectEvaluatorModalOpen(true)
         setOnboardingWidgetActivation(null)
     }, [onboardingWidgetActivation, setActiveTab, setTabState, setOnboardingWidgetActivation])
 
-    // states
-    const [searchTerm, setSearchTerm] = useState("")
-    const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
+    // Modal states
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
-    const [isSelectEvaluatorModalOpen, setIsSelectEvaluatorModalOpen] = useState(false)
-    const [isAnnotateDrawerOpen, setIsAnnotateDrawerOpen] = useState(false)
-    const [drawerMode, setDrawerMode] = useState<"create" | "edit">("create")
-    const [evaluatorToEdit, setEvaluatorToEdit] = useState<EvaluatorRegistryRow["raw"] | null>(null)
+    const [deleteTargetIds, setDeleteTargetIds] = useState<string[]>([])
+    const [deleteTargetRevisionIds, setDeleteTargetRevisionIds] = useState<string[]>([])
 
-    const {rows, isLoading, refetchAll} = useEvaluatorsRegistryData(activeTab)
-
-    const rowsById = useMemo(() => {
-        return new Map(rows.map((row) => [row.id, row]))
-    }, [rows])
-
-    useEffect(() => {
-        setSelectedRowKeys((prev) => {
-            const validKeys = prev.filter((key) => rowsById.has(String(key)))
-            return validKeys.length === prev.length ? prev : validKeys
-        })
-    }, [rowsById])
-
-    const filteredRows = useMemo(() => {
-        if (!searchTerm) return rows
-
-        return rows.filter((row) => {
-            const haystack = [
-                row.name,
-                row.slug,
-                row.typeBadge.label,
-                row.versionLabel,
-                row.modifiedBy,
-                ...row.tags,
-            ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase()
-
-            return haystack.includes(searchTerm.trim().toLowerCase())
-        })
-    }, [rows, searchTerm])
-
-    const selectedRows = useMemo(
-        () => selectedRowKeys.map((key) => rowsById.get(String(key))).filter(Boolean),
-        [selectedRowKeys, rowsById],
-    ) as EvaluatorRegistryRow[]
-
-    const selectedNames = useMemo(() => selectedRows.map((row) => row.name), [selectedRows])
+    const refetchAll = useCallback(() => {
+        clearEvaluatorWorkflowCache()
+        invalidateEvaluatorsListCache()
+        refreshStore()
+    }, [refreshStore])
 
     const onTabChange = useCallback(
         (value: EvaluatorCategory) => {
             setActiveTab(value)
-            setSelectedRowKeys([])
             setTabState(value)
         },
         [setActiveTab, setTabState],
     )
 
-    const onSearch = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-        setSearchTerm(event.target.value)
-    }, [])
-
     const handleOpenHumanDrawer = useCallback(() => {
-        setDrawerMode("create")
-        setEvaluatorToEdit(null)
-        setIsAnnotateDrawerOpen(true)
-    }, [])
+        openHumanDrawer({
+            mode: "create",
+            onSuccess: () => refetchAll(),
+        })
+    }, [openHumanDrawer, refetchAll])
 
-    const handleOpenCreateModal = useCallback(() => {
-        if (activeTab === "human") {
-            handleOpenHumanDrawer()
-            return
-        }
-        setIsSelectEvaluatorModalOpen(true)
-    }, [activeTab, handleOpenHumanDrawer])
+    const handleSelectTemplate = useCallback(
+        async (evaluator: EvaluatorCatalogTemplate) => {
+            const templateKey = evaluator.key
+            if (!templateKey) {
+                message.error("Unable to open evaluator template")
+                return
+            }
 
-    const handleCloseSelectModal = useCallback(() => {
-        setIsSelectEvaluatorModalOpen(false)
-    }, [])
+            const localId = await createEvaluatorFromTemplate(templateKey)
+            if (!localId) {
+                message.error("Unable to create evaluator from template")
+                return
+            }
 
-    const closeAnnotateDrawer = useCallback(() => {
-        setIsAnnotateDrawerOpen(false)
-        setEvaluatorToEdit(null)
-        setDrawerMode("create")
-    }, [])
+            openEvaluatorDrawer({
+                entityId: localId,
+                mode: "create",
+                onEvaluatorCreated: () => refetchAll(),
+            })
+        },
+        [openEvaluatorDrawer],
+    )
 
-    const onSavedEvaluator = useCallback(
-        async (_slug?: string) => {
-            try {
-                await refetchAll()
-            } catch (error) {
-                console.error(error)
-            } finally {
-                closeAnnotateDrawer()
+    const handleRowClick = useCallback(
+        (record: EvaluatorTableRow) => {
+            if (activeTab === "human") {
+                openHumanDrawer({
+                    mode: "edit",
+                    workflowId: record.workflowId,
+                    revisionId: record.revisionId,
+                    onSuccess: () => refetchAll(),
+                })
+            } else {
+                const revisionId = record.revisionId || record.workflowId
+                if (revisionId) {
+                    setQueryRevision(revisionId, {shallow: true})
+                }
             }
         },
-        [refetchAll, closeAnnotateDrawer],
-    )
-
-    const openDrawerForRecord = useCallback(
-        (record: EvaluatorRegistryRow) => {
-            if (activeTab !== "human") return
-            setDrawerMode("edit")
-            setEvaluatorToEdit(record.raw)
-            setIsAnnotateDrawerOpen(true)
-        },
-        [activeTab],
-    )
-
-    const handleNavigateToConfigure = useCallback(
-        async (record: EvaluatorRegistryRow) => {
-            const raw = record.raw as EvaluatorRegistryRow["raw"] & {kind?: string}
-            const isConfig = raw && raw.kind === "config"
-            const targetId = isConfig ? record.id : (record.slug as string)
-
-            await router.push(`${projectURL}/evaluators/configure/${encodeURIComponent(targetId)}`)
-        },
-        [projectURL, router],
-    )
-
-    const createEvaluatorDrawerProps = useMemo(
-        () => ({
-            mode: drawerMode,
-            evaluator: drawerMode === "edit" ? evaluatorToEdit || undefined : undefined,
-            onSuccess: onSavedEvaluator,
-            skipPostCreateStepChange: drawerMode === "create",
-        }),
-        [drawerMode, evaluatorToEdit, onSavedEvaluator],
+        [activeTab, openHumanDrawer, refetchAll, setQueryRevision],
     )
 
     const handleConfirmDelete = useCallback(async () => {
-        if (!selectedRows.length) return
-        const ids = selectedRows.map((row) => row.id).filter(Boolean) as string[]
-        if (!ids.length) return
+        if (!deleteTargetIds.length) return
 
         try {
             setIsDeleting(true)
+            const {projectId} = getProjectValues()
 
-            if (activeTab === "human") {
-                await Promise.all(ids.map((id) => deleteHumanEvaluator(id)))
-            } else {
+            if (activeTab !== "human") {
                 const canDelete = await checkIfResourceValidForDeletion({
                     resourceType: "evaluator_config",
-                    resourceIds: ids,
+                    resourceIds: deleteTargetIds,
                 })
                 if (!canDelete) return
-
-                await Promise.all(ids.map((id) => deleteEvaluatorConfig(id)))
             }
 
+            await Promise.all(deleteTargetIds.map((id) => archiveWorkflow(projectId, id)))
+            invalidateWorkflowsListCache()
+            invalidateEvaluatorsListCache()
+            clearEvaluatorWorkflowCache()
+
             message.success(
-                ids.length === 1 ? "Evaluator deleted" : `${ids.length} evaluators deleted`,
+                deleteTargetIds.length === 1
+                    ? "Evaluator deleted"
+                    : `${deleteTargetIds.length} evaluators deleted`,
             )
 
-            setSelectedRowKeys([])
-            await refetchAll()
+            refetchAll()
         } catch (error) {
             console.error(error)
             message.error("Failed to delete evaluators")
         } finally {
             setIsDeleting(false)
             setIsDeleteModalOpen(false)
+            setDeleteTargetIds([])
+            setDeleteTargetRevisionIds([])
         }
-    }, [selectedRows, refetchAll, activeTab])
+    }, [deleteTargetIds, refetchAll, activeTab])
 
-    const handleRowDelete = useCallback(
-        (record: EvaluatorRegistryRow) => {
-            if (!record?.id) return
-            setSelectedRowKeys([record.id])
-            setIsDeleteModalOpen(true)
-        },
-        [setIsDeleteModalOpen, setSelectedRowKeys],
-    )
-
-    const tableColumns = useMemo(
-        () =>
-            getColumns({
-                category: activeTab,
-                onEdit: openDrawerForRecord,
-                onConfigure: handleNavigateToConfigure,
-                onDelete: handleRowDelete,
-            }),
-        [activeTab],
+    const columnActions = useMemo(
+        () => ({
+            handleConfigure: (record: EvaluatorTableRow) => {
+                const revisionId = record.revisionId || record.workflowId
+                if (revisionId) {
+                    setQueryRevision(revisionId, {shallow: true})
+                }
+            },
+            handleEdit: (record: EvaluatorTableRow) => {
+                openHumanDrawer({
+                    mode: "edit",
+                    workflowId: record.workflowId,
+                    revisionId: record.revisionId,
+                    onSuccess: () => refetchAll(),
+                })
+            },
+            handleDelete: (record: EvaluatorTableRow) => {
+                if (!record.workflowId) return
+                setDeleteTargetIds([record.workflowId])
+                setDeleteTargetRevisionIds([record.revisionId])
+                setIsDeleteModalOpen(true)
+            },
+        }),
+        [setQueryRevision, openHumanDrawer, refetchAll],
     )
 
     const activeTabLabel = useMemo(() => {
         return EVALUATOR_TABS.find((tab) => tab.key === activeTab)?.label || "Evaluators"
-    }, [activeTab])
-
-    useEffect(() => {
-        setSelectedRowKeys([])
     }, [activeTab])
 
     const breadcrumbKey = scope === "project" ? "projectPage" : "appPage"
@@ -291,7 +249,6 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
         [breadcrumbKey, activeTabLabel],
     )
 
-    const isDeleteDisabled = selectedRowKeys.length === 0
     const evaluatorTabItems = useMemo(
         () =>
             EVALUATOR_TABS.map((tab) => ({
@@ -314,88 +271,63 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
         [activeTab, evaluatorTabItems, onTabChange],
     )
 
-    return (
-        <PageLayout title="Evaluators" headerTabsProps={headerTabsProps}>
-            <div className="flex flex-col gap-2">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <Input.Search
-                        allowClear
-                        placeholder="Search"
-                        value={searchTerm}
-                        onChange={onSearch}
-                        className="w-[320px]"
-                    />
+    const filters = useMemo(
+        () => (
+            <Input.Search
+                allowClear
+                placeholder="Search"
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-[320px]"
+            />
+        ),
+        [setSearchTerm],
+    )
 
-                    <Space>
-                        <Button
-                            icon={<DeleteOutlined />}
-                            disabled={isDeleteDisabled}
-                            type="text"
-                            danger
-                            onClick={() => setIsDeleteModalOpen(true)}
-                        >
-                            Delete
-                        </Button>
-                        <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            onClick={handleOpenCreateModal}
-                        >
-                            Create new
-                        </Button>
-                    </Space>
-                </div>
-                <EnhancedTable
-                    uniqueKey={EVALUATOR_TABLE_STORAGE_PREFIX}
-                    loading={isLoading}
-                    columns={tableColumns}
-                    dataSource={filteredRows}
-                    rowKey={(record) => record.id}
-                    rowSelection={{
-                        type: "checkbox",
-                        columnWidth: 48,
-                        fixed: "left",
-                        selectedRowKeys,
-                        onChange: (keys) => setSelectedRowKeys(keys as Key[]),
-                    }}
-                    tableLayout="fixed"
-                    virtualized
-                    className="flex-1"
-                    onRow={(record) => ({
-                        className: "cursor-pointer",
-                        onClick: () => {
-                            activeTab === "human"
-                                ? openDrawerForRecord(record)
-                                : handleNavigateToConfigure(record)
-                        },
-                    })}
-                />
-            </div>
+    const primaryActions = useMemo(
+        () => (
+            <Space>
+                {activeTab === "human" ? (
+                    <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenHumanDrawer}>
+                        Create new
+                    </Button>
+                ) : (
+                    <EvaluatorTemplateDropdown
+                        onSelect={handleSelectTemplate}
+                        trigger={
+                            <Button type="primary" icon={<PlusOutlined />}>
+                                Create new
+                            </Button>
+                        }
+                    />
+                )}
+            </Space>
+        ),
+        [activeTab, handleOpenHumanDrawer, handleSelectTemplate],
+    )
+
+    return (
+        <PageLayout title="Evaluators" headerTabsProps={headerTabsProps} className="grow min-h-0">
+            <EvaluatorsTable
+                category={activeTab}
+                onRowClick={handleRowClick}
+                actions={columnActions}
+                searchDeps={[searchTerm]}
+                filters={filters}
+                primaryActions={primaryActions}
+                displayMode="grouped"
+            />
 
             <DeleteEvaluatorsModal
                 open={isDeleteModalOpen}
                 onCancel={() => {
                     setIsDeleteModalOpen(false)
-                    setSelectedRowKeys([])
+                    setDeleteTargetIds([])
+                    setDeleteTargetRevisionIds([])
                 }}
                 onConfirm={handleConfirmDelete}
                 confirmLoading={isDeleting}
-                selectedCount={selectedRowKeys.length}
-                selectedNames={selectedNames}
-            />
-
-            <SelectEvaluatorModal
-                open={isSelectEvaluatorModalOpen}
-                onCancel={handleCloseSelectModal}
-            />
-
-            <AnnotateDrawer
-                open={isAnnotateDrawerOpen}
-                onClose={closeAnnotateDrawer}
-                showOnly={{createEvaluatorUi: true}}
-                initialStep={AnnotateDrawerSteps.CREATE_EVALUATOR}
-                createEvaluatorProps={createEvaluatorDrawerProps}
-                closeOnLayoutClick={false}
+                selectedCount={deleteTargetIds.length}
+                revisionIds={deleteTargetRevisionIds}
             />
         </PageLayout>
     )

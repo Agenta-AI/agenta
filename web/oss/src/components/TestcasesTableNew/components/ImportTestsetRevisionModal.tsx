@@ -223,6 +223,7 @@ export function ImportTestsetRevisionModal({
             title="Import file as new revision"
             open={open}
             onCancel={handleClose}
+            centered
             footer={
                 fileProgress
                     ? [

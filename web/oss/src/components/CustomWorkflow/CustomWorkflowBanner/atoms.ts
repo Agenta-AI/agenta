@@ -1,67 +1,85 @@
 /**
  * App Status atoms for CustomWorkflowBanner
  *
- * Detects whether a custom workflow app is reachable by probing
- * its OpenAPI schema endpoint. The banner is shown when the probe fails.
+ * Detects whether a custom workflow app is reachable by calling
+ * its /inspect endpoint. The banner is shown when the probe fails.
  */
 
-import {
-    fetchRevisionSchemaWithProbe,
-    variantsListAtomFamily,
-} from "@agenta/entities/legacyAppRevision"
+import {inspectWorkflow} from "@agenta/entities/workflow"
+import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {currentAppAtom} from "@/oss/state/app"
-import {currentAppContextAtom, selectedAppIdAtom} from "@/oss/state/app/selectors/app"
+import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
 
-interface UriState {
-    runtimePrefix: string
-    routePath?: string
-    schema: any
-}
-
-const appUriStateQueryAtom = atomWithQuery<UriState | undefined>((get) => {
+const appReachabilityQueryAtom = atomWithQuery<boolean>((get) => {
     const currentAppId = get(selectedAppIdAtom)
     const appId = typeof currentAppId === "string" ? currentAppId : ""
-    const variants = appId ? get(variantsListAtomFamily(appId)) : []
-    const firstUri = (variants[0] as any)?.uri as string | undefined
-    const appType = get(currentAppContextAtom)?.appType || null
-    const isCustomApp = appType === "custom"
+    const currentApp = get(currentAppAtom)
+    const isCustomApp = !!currentApp?.flags?.is_custom
+    const projectId = get(projectIdAtom)
+
+    // Only probe reachability for custom workflow apps.
+    if (!isCustomApp || !appId || !projectId) {
+        return {
+            queryKey: ["appReachability", appId, ""],
+            queryFn: async () => false,
+            enabled: false,
+        }
+    }
 
     const appState = get(appStateSnapshotAtom)
     const isPlayground = appState.pathname?.includes("/playground")
     const isVariantDrawer = appState.pathname?.includes("/variants")
-    const shouldSkipLegacyFetch = isPlayground || isVariantDrawer
+    const isAppsPage = appState.pathname?.endsWith("/apps")
+    const shouldSkip = isPlayground || isVariantDrawer || isAppsPage
+
+    // Only subscribe to the revisions atom when we actually need it.
+    const revision = !shouldSkip
+        ? get(workflowRevisionsByWorkflowListDataAtomFamily(appId))[0]
+        : undefined
+
+    const uri = revision?.data?.uri as string | undefined
+    const serviceUrl = revision?.data?.url as string | undefined
+
+    const canProbe = !!uri && !!serviceUrl && !shouldSkip
 
     return {
-        queryKey: ["appSpec", appId, firstUri ?? ""],
+        queryKey: ["appReachability", appId, uri ?? "", serviceUrl ?? "", projectId],
         queryFn: async () => {
-            if (!firstUri) return undefined
-            const result = await fetchRevisionSchemaWithProbe(firstUri)
-            if (!result) throw new Error("openapi.json not found")
-            return result as UriState
+            if (!uri || !serviceUrl || !projectId) return false
+            try {
+                const result = await inspectWorkflow(uri, projectId, serviceUrl)
+                // Any non-empty response means the service is reachable
+                return !!result && Object.keys(result).length > 0
+            } catch {
+                return false
+            }
         },
-        staleTime: isCustomApp ? undefined : 1000 * 60 * 5,
-        placeholderData: (previousData) => previousData,
-        enabled: !!firstUri && !shouldSkipLegacyFetch,
-        refetchInterval: isCustomApp ? 1000 * 60 * 1 : false,
+        placeholderData: (previousData: boolean | undefined) => previousData,
+        enabled: canProbe,
+        refetchInterval: 1000 * 60 * 1,
     }
 })
 
-const appStatusLoadingAtom = selectAtom(appUriStateQueryAtom, (q: any) => !q?.isFetched, Object.is)
+const appStatusLoadingAtom = selectAtom(
+    appReachabilityQueryAtom,
+    (q: any) => !q?.isFetched,
+    Object.is,
+)
 
 const appStatusAtom = atom((get) => {
-    const q: any = get(appUriStateQueryAtom)
-    const hasSchema = Boolean(q?.data?.schema ?? q?.schema)
-    return (q?.status ?? "loading") === "success" && hasSchema
+    const q: any = get(appReachabilityQueryAtom)
+    return (q?.status ?? "loading") === "success" && q?.data === true
 })
 
 export const customWorkflowBannerVisibleAtom = atom((get) => {
     const currentApp = get(currentAppAtom)
     const isAppUp = get(appStatusAtom)
     const isLoading = get(appStatusLoadingAtom)
-    return currentApp?.app_type === "custom" && !isLoading && !isAppUp
+    return !!currentApp?.flags?.is_custom && !isLoading && !isAppUp
 })

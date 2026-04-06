@@ -1,16 +1,13 @@
-import {ComponentProps, ReactNode, useState} from "react"
+import {ComponentProps, ReactNode, useMemo, useState} from "react"
 
-import {appRevisionsWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {environmentsListQueryAtomFamily} from "@agenta/entities/environment"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {Button, Divider, Drawer} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
-import {createUseStyles} from "react-jss"
 
-import {envRevisionsAtom} from "@/oss/components/DeploymentsDashboard/atoms"
+import {deploymentsDrawerStateAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentDrawerStore"
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import {useAppId} from "@/oss/hooks/useAppId"
-import {JSSTheme} from "@/oss/lib/Types"
 
 import UseApiContent from "../../assets/UseApiContent"
 import VariantUseApiContent from "../../assets/VariantUseApiContent"
@@ -21,10 +18,8 @@ import DrawerTitle from "./assets/DrawerTitle"
 
 type DeploymentsDrawerProps = {
     mainContent?: ReactNode
-    // Prefer passing envName to render title efficiently; headerContent kept for backward-compat
     envName?: string
     headerContent?: ReactNode
-    // Optional: pass a revision id to render details lazily
     selectedRevisionId?: string
     expandable?: boolean
     initialWidth?: number
@@ -32,15 +27,6 @@ type DeploymentsDrawerProps = {
     drawerVariantId?: string
     mode?: "deployment" | "variant"
 } & ComponentProps<typeof Drawer>
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    // Title and subtitle styles moved to DrawerTitle/DrawerDetails components
-    drawerContainer: {
-        "& .ant-drawer-body": {
-            padding: 0,
-        },
-    },
-}))
 
 interface DeploymentsDrawerTitleProps extends Pick<
     DeploymentsDrawerProps,
@@ -70,10 +56,10 @@ const DeploymentsDrawerTitle = ({
             {expandable && (
                 <Button
                     onClick={() => {
-                        if (drawerWidth === initialWidth) {
+                        if (drawerWidth === (initialWidth ?? 1200)) {
                             setDrawerWidth(1920)
                         } else {
-                            setDrawerWidth(initialWidth)
+                            setDrawerWidth(initialWidth ?? 1200)
                         }
                     }}
                     type="text"
@@ -100,12 +86,30 @@ const DeploymentsDrawerContent = ({
     drawerVariantId,
     mode = "deployment",
 }: DeploymentsDrawerProps) => {
-    const appId = useAppId()
-    const variants = useAtomValue(appRevisionsWithDraftsAtomFamily(appId || "")) as any[]
-    const envRevisions = useAtomValue(envRevisionsAtom)
+    const drawerState = useAtomValue(deploymentsDrawerStateAtom)
+    const envName = drawerState.envName || ""
+
+    // Resolve deployed revision ID from environment entities
+    const entityEnvironments = useAtomValue(environmentsListQueryAtomFamily(false))
+    const deployedRevisionId = useMemo(() => {
+        if (!envName) return null
+        const envs = entityEnvironments.data?.environments ?? []
+        const env = envs.find(
+            (e) =>
+                e.name === envName ||
+                e.slug === envName ||
+                e.name?.toLowerCase() === envName.toLowerCase(),
+        )
+        if (!env) return null
+
+        const refs = env.data?.references ?? {}
+        const firstKey = Object.keys(refs)[0]
+        const appRef = firstKey ? refs[firstKey] : null
+        return appRef?.application_revision?.id ?? null
+    }, [envName, entityEnvironments.data])
+
     const openSelectDeployVariantModal = useSetAtom(openSelectDeployVariantModalAtom)
-    const handleOpenSelectDeployVariantModal = () =>
-        openSelectDeployVariantModal({variants, envRevisions: envRevisions})
+    const handleOpenSelectDeployVariantModal = () => openSelectDeployVariantModal({envName})
 
     const isVariantMode = mode === "variant"
     const initialVariantRevisionId = drawerVariantId || selectedRevisionId
@@ -115,23 +119,13 @@ const DeploymentsDrawerContent = ({
             return <VariantUseApiContent initialRevisionId={initialVariantRevisionId} />
         }
 
-        if (envRevisions) {
-            return (
-                <UseApiContent
-                    handleOpenSelectDeployVariantModal={handleOpenSelectDeployVariantModal}
-                    variants={variants}
-                    revisionId={drawerVariantId}
-                    selectedEnvironment={envRevisions}
-                />
-            )
-        }
-
         return (
-            <div className="p-4">
-                <div className="animate-pulse h-4 w-48 bg-gray-200 rounded mb-3" />
-                <div className="animate-pulse h-4 w-72 bg-gray-200 rounded mb-2" />
-                <div className="animate-pulse h-4 w-64 bg-gray-200 rounded" />
-            </div>
+            <UseApiContent
+                handleOpenSelectDeployVariantModal={handleOpenSelectDeployVariantModal}
+                revisionId={drawerVariantId}
+                deployedRevisionId={deployedRevisionId}
+                envName={envName}
+            />
         )
     }
 
@@ -177,7 +171,6 @@ const DeploymentsDrawer = ({
     mode = "deployment",
     ...props
 }: DeploymentsDrawerProps) => {
-    const classes = useStyles()
     const [drawerWidth, setDrawerWidth] = useState(initialWidth)
 
     return (
@@ -185,7 +178,7 @@ const DeploymentsDrawer = ({
             closeIcon={null}
             destroyOnHidden
             width={drawerWidth}
-            className={classes.drawerContainer}
+            className="[&_.ant-drawer-body]:p-0"
             title={
                 <DeploymentsDrawerTitle
                     drawerWidth={drawerWidth}

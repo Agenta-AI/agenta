@@ -17,8 +17,8 @@
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 import {dereferenceSchema, generateId} from "@agenta/shared/utils"
 
-import {extractAllEndpointSchemas, type OpenAPISpec} from "../../legacyAppRevision/api/schemaUtils"
 import {parseRevisionUri, safeParseWithLogging} from "../../shared"
+import {extractAllEndpointSchemas, type OpenAPISpec} from "../../shared/openapi"
 import {
     workflowSchema,
     workflowResponseSchema,
@@ -63,6 +63,8 @@ const selectMostRecentWorkflowRevision = (
 
     for (const workflow of workflows) {
         if (!workflow) continue
+        // Skip v0 revisions (auto-created initial revisions with no useful data)
+        if ((workflow.version ?? 0) === 0) continue
         const score = getWorkflowRecencyScore(workflow)
         if (!latest || score > latestScore) {
             latest = workflow
@@ -87,18 +89,35 @@ const selectMostRecentWorkflowRevision = (
  */
 export async function queryWorkflows({
     projectId,
+    name,
     flags,
+    folderId,
     includeArchived = false,
+    windowing,
 }: WorkflowListParams): Promise<WorkflowsResponse> {
     if (!projectId) {
         return {count: 0, workflows: []}
     }
 
+    // Build the workflow query object.
+    // folder_id is only included when folderId is explicitly provided (not undefined).
+    // null → root-level items (IS NULL), string → items in that folder.
+    const hasFolderFilter = folderId !== undefined
+    const hasWorkflowQuery = Boolean(name || flags || hasFolderFilter)
+    const workflowQuery = hasWorkflowQuery
+        ? {
+              ...(name ? {name} : {}),
+              ...(flags ? {flags} : {}),
+              ...(hasFolderFilter ? {folder_id: folderId} : {}),
+          }
+        : undefined
+
     const response = await axios.post(
         `${getAgentaApiUrl()}/preview/workflows/query`,
         {
-            workflow: flags ? {flags} : undefined,
+            workflow: workflowQuery,
             include_archived: includeArchived,
+            windowing: windowing ?? undefined,
         },
         {params: {project_id: projectId}},
     )
@@ -162,6 +181,15 @@ export async function queryWorkflowVariants(
 // ============================================================================
 
 /**
+ * Windowing parameters for paginated revision queries.
+ */
+export interface WorkflowRevisionWindowing {
+    next?: string | null
+    limit?: number
+    order?: string
+}
+
+/**
  * Query workflow revisions directly by workflow ID.
  * Skips the variant level — used for the 2-level selection hierarchy.
  *
@@ -170,22 +198,57 @@ export async function queryWorkflowVariants(
  * @param workflowId - The workflow ID
  * @param projectId - Project ID
  * @param flags - Optional query flags for filtering
+ * @param windowing - Optional windowing params for pagination
  * @returns Revisions response with workflow_revisions array
  */
 export async function queryWorkflowRevisionsByWorkflow(
     workflowId: string,
     projectId: string,
     flags?: WorkflowQueryFlags,
+    windowing?: WorkflowRevisionWindowing,
+    /** Optional name filter — server applies ilike matching */
+    name?: string,
 ): Promise<WorkflowRevisionsResponse> {
-    if (!projectId || !workflowId) {
+    return queryWorkflowRevisionsByWorkflows([workflowId], projectId, flags, windowing, name)
+}
+
+/**
+ * Query workflow revisions across multiple workflows.
+ *
+ * Endpoint: `POST /preview/workflows/revisions/query`
+ *
+ * @param workflowIds - Array of workflow IDs to fetch revisions for
+ * @param projectId - Project ID
+ * @param flags - Optional query flags for filtering
+ * @param windowing - Optional windowing params for cursor-based pagination
+ * @returns Revisions response with workflow_revisions array and windowing cursor
+ */
+export async function queryWorkflowRevisionsByWorkflows(
+    workflowIds: string[],
+    projectId: string,
+    flags?: WorkflowQueryFlags,
+    windowing?: WorkflowRevisionWindowing,
+    /** Optional name filter — server applies ilike matching */
+    name?: string,
+): Promise<WorkflowRevisionsResponse> {
+    if (!projectId || workflowIds.length === 0) {
         return {count: 0, workflow_revisions: []}
     }
+
+    const hasRevisionQuery = flags || name
+    const workflowRevision = hasRevisionQuery
+        ? {
+              ...(flags ? {flags} : {}),
+              ...(name ? {name} : {}),
+          }
+        : undefined
 
     const response = await axios.post(
         `${getAgentaApiUrl()}/preview/workflows/revisions/query`,
         {
-            workflow_refs: [{id: workflowId}],
-            workflow_revision: flags ? {flags} : undefined,
+            workflow_refs: workflowIds.map((id) => ({id})),
+            workflow_revision: workflowRevision,
+            ...(windowing ? {windowing} : {}),
         },
         {params: {project_id: projectId}},
     )
@@ -193,7 +256,7 @@ export async function queryWorkflowRevisionsByWorkflow(
     const validated = safeParseWithLogging(
         workflowRevisionsResponseSchema,
         response.data,
-        "[queryWorkflowRevisionsByWorkflow]",
+        "[queryWorkflowRevisionsByWorkflows]",
     )
     if (!validated) {
         return {count: 0, workflow_revisions: []}
@@ -286,6 +349,19 @@ export async function fetchWorkflowRevisionById(
  */
 export interface InspectWorkflowResponse {
     version?: string
+    /** New shape (feat/extend-runnables): revision contains the resolved data */
+    revision?: {
+        uri?: string
+        url?: string
+        headers?: Record<string, unknown>
+        schemas?: {
+            parameters?: Record<string, unknown>
+            inputs?: Record<string, unknown>
+            outputs?: Record<string, unknown>
+        }
+        parameters?: Record<string, unknown>
+    }
+    /** @deprecated Old shape — kept for backward compat during migration */
     interface?: {
         version?: string
         uri?: string
@@ -307,27 +383,34 @@ export interface InspectWorkflowResponse {
  * Inspect a workflow to resolve the full interface schema (including inputs).
  *
  * Revision data from the query endpoint often lacks `schemas.inputs`.
- * The inspect endpoint resolves the full schema from the handler registered
- * for the given URI.
+ * The inspect endpoint on the service URL resolves the full schema from
+ * the handler registered for the given URI.
  *
- * Endpoint: `POST /preview/workflows/inspect`
+ * Calls `POST {serviceUrl}/inspect` directly on the service.
  *
  * @param uri - The workflow URI (e.g., "agenta:builtin:auto_exact_match:v0")
  * @param projectId - Project ID
+ * @param serviceUrl - The service URL from `workflowRevision.data.url`
  * @returns Resolved interface with full schemas
  */
 export async function inspectWorkflow(
     uri: string,
     projectId: string,
+    serviceUrl?: string | null,
 ): Promise<InspectWorkflowResponse> {
     if (!projectId || !uri) {
         return {}
     }
 
+    const baseUrl = serviceUrl?.replace(/\/+$/, "")
+    if (!baseUrl) {
+        return {}
+    }
+
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/workflows/inspect`,
+        `${baseUrl}/inspect`,
         {
-            interface: {uri},
+            revision: {uri},
         },
         {params: {project_id: projectId}},
     )
@@ -507,6 +590,14 @@ export async function fetchWorkflow({id, projectId}: WorkflowDetailParams): Prom
 // ============================================================================
 
 /**
+ * Role flags settable by the frontend — the only flags the FE may send.
+ * URI-derived and interface-derived flags are computed by the backend from revision data.
+ */
+export type WorkflowRoleFlags = Partial<
+    Pick<NonNullable<WorkflowFlags>, "is_application" | "is_evaluator" | "is_snippet">
+>
+
+/**
  * Request body for creating a workflow.
  *
  * Maps to backend `WorkflowCreateRequest` + `WorkflowRevisionCommitRequest`.
@@ -516,9 +607,11 @@ export interface CreateWorkflowPayload {
     slug: string
     name: string
     description?: string | null
-    flags?: WorkflowFlags
+    flags?: WorkflowRoleFlags
     tags?: string[] | null
     meta?: Record<string, unknown> | null
+    /** Commit message for the initial revision */
+    message?: string | null
     data?: {
         uri?: string | null
         url?: string | null
@@ -575,16 +668,58 @@ export async function createWorkflow(
 
     const workflowId = validatedWorkflow.workflow.id
 
-    // Step 2: Commit the initial revision with data
+    // Step 2: Create a default variant (revisions require a variant_id)
+    const variantResponse = await axios.post(
+        `${getAgentaApiUrl()}/preview/workflows/variants/`,
+        {
+            workflow_variant: {
+                workflow_id: workflowId,
+                slug: generateId().replace(/-/g, "").slice(0, 12),
+                name: payload.name,
+            },
+        },
+        {params: {project_id: projectId}},
+    )
+
+    const validatedVariant = safeParseWithLogging(
+        workflowVariantResponseSchema,
+        variantResponse.data,
+        "[createWorkflow:variant]",
+    )
+    if (!validatedVariant?.workflow_variant) {
+        throw new Error("[createWorkflow] Failed to create workflow variant")
+    }
+
+    const variantId = validatedVariant.workflow_variant.id
+
+    // Step 3: Commit seed revision (v0) — tables dismiss v0, so the
+    // user-visible first version must be v1.
     if (payload.data) {
+        await axios.post(
+            `${getAgentaApiUrl()}/preview/workflows/revisions/commit`,
+            {
+                workflow_revision: {
+                    workflow_id: workflowId,
+                    workflow_variant_id: variantId,
+                    slug: generateId().replace(/-/g, "").slice(0, 12),
+                    name: payload.name,
+                    message: "Initial commit",
+                },
+            },
+            {params: {project_id: projectId}},
+        )
+
+        // Step 4: Commit actual data revision (v1) with full parameters
         const commitResponse = await axios.post(
             `${getAgentaApiUrl()}/preview/workflows/revisions/commit`,
             {
                 workflow_revision: {
                     workflow_id: workflowId,
+                    workflow_variant_id: variantId,
                     slug: generateId().replace(/-/g, "").slice(0, 12),
-                    flags: payload.flags,
+                    name: payload.name,
                     data: payload.data,
+                    message: payload.message ?? undefined,
                 },
             },
             {params: {project_id: projectId}},
@@ -668,7 +803,7 @@ export interface UpdateWorkflowPayload {
     variantId?: string | null
     name?: string | null
     description?: string | null
-    flags?: WorkflowFlags
+    flags?: WorkflowRoleFlags
     tags?: string[] | null
     meta?: Record<string, unknown> | null
     /** Commit message for the new revision */
@@ -730,7 +865,6 @@ export async function updateWorkflow(
                     workflow_variant_id: payload.variantId ?? undefined,
                     slug: generateId().replace(/-/g, "").slice(0, 12),
                     name: payload.name ?? undefined,
-                    flags: payload.flags,
                     data: payload.data,
                     message: payload.message ?? undefined,
                 },
@@ -770,7 +904,6 @@ export interface CommitWorkflowRevisionPayload {
     variantId?: string
     slug?: string
     name?: string
-    flags?: WorkflowFlags
     data: NonNullable<UpdateWorkflowPayload["data"]>
     message?: string
 }
@@ -787,7 +920,6 @@ export async function commitWorkflowRevisionApi(
                 workflow_variant_id: payload.variantId ?? undefined,
                 slug: payload.slug ?? generateId().replace(/-/g, "").slice(0, 12),
                 name: payload.name ?? undefined,
-                flags: payload.flags,
                 data: payload.data,
                 message: payload.message ?? undefined,
             },
@@ -949,6 +1081,9 @@ export async function fetchWorkflowsBatch(
         `${getAgentaApiUrl()}/preview/workflows/revisions/query`,
         {
             workflow_refs: workflowIds.map((id) => ({id})),
+            // When fetching for a single workflow, limit to 1 (latest) to reduce payload.
+            // With multiple workflows the global limit would cut across all, so skip it.
+            ...(workflowIds.length === 1 ? {windowing: {limit: 1, order: "descending"}} : {}),
         },
         {params: {project_id: projectId}},
     )
@@ -983,4 +1118,151 @@ export async function fetchWorkflowsBatch(
     }
 
     return results
+}
+
+/**
+ * Batch fetch workflow revisions by revision IDs.
+ *
+ * Uses the revision query endpoint with workflow_revision_refs to fetch
+ * specific revisions by their IDs in a single request.
+ *
+ * Endpoint: `POST /preview/workflows/revisions/query`
+ *
+ * @param projectId - Project ID
+ * @param revisionIds - Array of revision IDs to fetch
+ * @returns Map of revision ID → Workflow
+ */
+export async function fetchWorkflowRevisionsByIdsBatch(
+    projectId: string,
+    revisionIds: string[],
+): Promise<Map<string, Workflow>> {
+    const results = new Map<string, Workflow>()
+
+    if (!projectId || revisionIds.length === 0) return results
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/preview/workflows/revisions/query`,
+        {
+            workflow_revision_refs: revisionIds.map((id) => ({id})),
+        },
+        {params: {project_id: projectId}},
+    )
+
+    const validated = safeParseWithLogging(
+        workflowRevisionsResponseSchema,
+        response.data,
+        "[fetchWorkflowRevisionsByIdsBatch]",
+    )
+    if (!validated) return results
+
+    for (const raw of validated.workflow_revisions) {
+        try {
+            const workflow = safeParseWithLogging(
+                workflowSchema,
+                raw,
+                "[fetchWorkflowRevisionsByIdsBatch:item]",
+            )
+            if (workflow) {
+                results.set(workflow.id, workflow)
+            }
+        } catch (e) {
+            console.error("[fetchWorkflowRevisionsByIdsBatch] Failed to parse workflow:", e, raw)
+        }
+    }
+
+    return results
+}
+
+/**
+ * Fetch the full dereferenced JSON Schema for an x-ag-type-ref target.
+ *
+ * Used to resolve semantic refs (e.g. "prompt-template") into
+ * rich sub-property schemas so the frontend can render proper config controls.
+ *
+ * @param agType - The referenced ag-type key, e.g. "prompt-template"
+ * @returns The dereferenced JSON Schema for the ag-type
+ */
+export async function fetchAgTypeSchema(agType: string): Promise<Record<string, unknown>> {
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/workflows/catalog/types/${encodeURIComponent(agType)}`,
+    )
+    const jsonSchema = response.data?.type?.json_schema
+
+    if (!jsonSchema || typeof jsonSchema !== "object") {
+        throw new Error(`[fetchAgTypeSchema] Invalid catalog type response for agType=${agType}`)
+    }
+
+    return jsonSchema as Record<string, unknown>
+}
+
+// ============================================================================
+// WORKFLOW CATALOG
+// ============================================================================
+
+export interface WorkflowCatalogFlags {
+    is_archived?: boolean
+    is_recommended?: boolean
+    is_application?: boolean
+    is_evaluator?: boolean
+    is_snippet?: boolean
+}
+
+export interface WorkflowCatalogTemplate {
+    key: string
+    name?: string | null
+    description?: string | null
+    categories?: string[] | null
+    flags?: WorkflowCatalogFlags | null
+    data?: {
+        uri?: string
+        schemas?: {
+            parameters?: Record<string, unknown>
+            inputs?: Record<string, unknown>
+            outputs?: Record<string, unknown>
+        }
+    } | null
+    presets?: WorkflowCatalogPreset[] | null
+}
+
+export interface WorkflowCatalogPreset {
+    key: string
+    name?: string | null
+    description?: string | null
+    categories?: string[] | null
+    flags?: WorkflowCatalogFlags | null
+    data?: {
+        uri?: string
+        parameters?: Record<string, unknown>
+    } | null
+}
+
+export interface WorkflowCatalogTemplatesResponse {
+    count: number
+    templates: WorkflowCatalogTemplate[]
+}
+
+/**
+ * Fetch workflow catalog templates with optional flag filtering.
+ *
+ * @param params.isApplication - Filter for application templates (completion, chat, etc.)
+ * @param params.isEvaluator - Filter for evaluator templates
+ * @param params.isSnippet - Filter for snippet templates
+ */
+export async function fetchWorkflowCatalogTemplates(params?: {
+    isApplication?: boolean
+    isEvaluator?: boolean
+    isSnippet?: boolean
+    includeArchived?: boolean
+}): Promise<WorkflowCatalogTemplatesResponse> {
+    const queryParams: Record<string, unknown> = {}
+    if (params?.isApplication !== undefined) queryParams.is_application = params.isApplication
+    if (params?.isEvaluator !== undefined) queryParams.is_evaluator = params.isEvaluator
+    if (params?.isSnippet !== undefined) queryParams.is_snippet = params.isSnippet
+    if (params?.includeArchived !== undefined) queryParams.include_archived = params.includeArchived
+
+    const response = await axios.get<WorkflowCatalogTemplatesResponse>(
+        `${getAgentaApiUrl()}/workflows/catalog/templates/`,
+        {params: queryParams},
+    )
+    return response.data ?? {count: 0, templates: []}
 }

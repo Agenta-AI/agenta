@@ -1,0 +1,7 @@
+interface:
+  display_name: "Triage Findings"
+  short_description: "Plan the next findings step"
+  default_prompt: "Use $triage-findings with url=<github-pr-url> to review the current findings, ask the missing follow-up questions, and decide whether to scan, test, sync, or resolve next."
+
+policy:
+  allow_implicit_invocation: true

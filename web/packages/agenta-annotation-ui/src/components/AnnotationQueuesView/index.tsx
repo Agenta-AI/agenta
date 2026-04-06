@@ -31,7 +31,6 @@ import {
 import CreateQueueDrawer from "../CreateQueueDrawer"
 import QueueStatusTag from "../QueueStatusTag"
 
-import AssignmentsCell from "./cells/AssignmentsCell"
 import CreatedByCell from "./cells/CreatedByCell"
 import QueueProgressCell from "./cells/QueueProgressCell"
 
@@ -65,32 +64,6 @@ function resolveUserDisplayName(userId: string | null | undefined) {
     const candidate = user?.username ?? user?.name ?? user?.email
 
     return typeof candidate === "string" && candidate.trim().length > 0 ? candidate.trim() : "—"
-}
-
-function formatAssignments(assignments: string[][] | null | undefined) {
-    if (!assignments || !Array.isArray(assignments)) return "All"
-
-    const uniqueIds = new Set<string>()
-    for (const repeat of assignments) {
-        if (!Array.isArray(repeat)) continue
-        for (const userId of repeat) {
-            if (typeof userId === "string" && userId) {
-                uniqueIds.add(userId)
-            }
-        }
-    }
-
-    if (uniqueIds.size === 0) return "All"
-
-    return Array.from(uniqueIds)
-        .map((userId) => {
-            const user = getDefaultStore().get(userByIdFamily(userId))
-            const candidate = user?.username ?? user?.name ?? user?.email
-            return typeof candidate === "string" && candidate.trim().length > 0
-                ? candidate.trim()
-                : userId
-        })
-        .join(", ")
 }
 
 function formatReviewed(queueId: string) {
@@ -372,20 +345,6 @@ const AnnotationQueuesView = () => {
                 },
                 {
                     type: "text",
-                    key: "assignments",
-                    title: "Assignees",
-                    width: 180,
-                    render: (_value, record) => {
-                        if (record.__isSkeleton) return null
-                        return (
-                            <div className="h-full flex items-center">
-                                <AssignmentsCell assignments={record.data?.assignments} />
-                            </div>
-                        )
-                    },
-                },
-                {
-                    type: "text",
                     key: "description",
                     title: "Description",
                     width: 280,
@@ -528,8 +487,6 @@ const AnnotationQueuesView = () => {
                         return formatReviewed(row.id)
                     case "status":
                         return formatQueueStatus(row.id, row.status ?? null)
-                    case "assignments":
-                        return formatAssignments(row.data?.assignments)
                     case "created_by":
                         return resolveUserDisplayName(row.created_by_id)
                     default:

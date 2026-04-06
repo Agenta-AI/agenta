@@ -18,7 +18,7 @@ def mock_data(authed_api):
         "flags": {
             "is_custom": False,
             "is_evaluator": False,
-            "is_human": False,
+            "is_feedback": False,
         },
         "tags": {
             "tag1": "value1",
@@ -53,7 +53,7 @@ def mock_data(authed_api):
         "flags": {
             "is_custom": False,
             "is_evaluator": True,
-            "is_human": False,
+            "is_feedback": False,
         },
         "tags": {
             "tag1": "value1",

@@ -270,6 +270,7 @@ export {
 // ============================================================================
 
 export {useSelectionState, type UseSelectionStateResult} from "./hooks"
+export {useDefaultStoreAtomValue} from "./hooks"
 
 // ============================================================================
 // COPY TOOLTIP - Tooltip with click-to-copy functionality

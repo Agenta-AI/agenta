@@ -1,5 +1,6 @@
 import React from "react"
 
+import {formatCompactNumber} from "@agenta/shared/utils"
 import {theme} from "antd"
 import {
     Area,
@@ -10,8 +11,6 @@ import {
     XAxis,
     YAxis,
 } from "recharts"
-
-import {formatCompactNumber} from "@/oss/lib/helpers/formatters"
 
 interface CustomAreaChartProps {
     data: any[]

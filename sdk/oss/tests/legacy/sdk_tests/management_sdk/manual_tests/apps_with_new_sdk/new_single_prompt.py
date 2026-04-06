@@ -43,9 +43,9 @@ async def llm_call(messages: List[Dict[str, Any]], maxtokens):
 
 @ag.route("/", config_schema=MyConfig)
 @ag.instrument()
-async def chat(inputs: ag.MessagesInput = ag.MessagesInput()) -> Dict[str, Any]:
+async def chat(inputs: ag.Messages = ag.Messages()) -> Dict[str, Any]:
     config = ag.ConfigManager.get_from_route(schema=MyConfig)
-    messages = [{"role": "system", "content": config.prompt_system}] + inputs
+    messages = [{"role": "system", "content": config.prompt_system}] + inputs.root
     max_tokens = config.max_tokens if config.max_tokens != -1 else None
     response = await llm_call(
         messages=messages,

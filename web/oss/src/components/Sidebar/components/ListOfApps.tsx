@@ -1,18 +1,13 @@
-import {memo, useMemo, useState} from "react"
+import {memo, useCallback, useMemo, useState} from "react"
 
-import {FolderIcon} from "@phosphor-icons/react"
 import {CaretDown} from "@phosphor-icons/react"
-import {Button, Dropdown, MenuProps, theme} from "antd"
+import {Button, Dropdown, MenuProps} from "antd"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
-import useSWR from "swr"
 
-import {queryFolders} from "@/oss/services/folders"
 import {useAppsData} from "@/oss/state/app"
 import {routerAppNavigationAtom} from "@/oss/state/app/atoms/fetcher"
-import {useProjectData} from "@/oss/state/project"
-
-import {buildFolderTree, FolderTreeItem} from "../../pages/prompts/assets/utils"
+import {useAppState} from "@/oss/state/appState"
 
 interface ListOfAppsProps {
     collapsed: boolean
@@ -20,102 +15,50 @@ interface ListOfAppsProps {
 
 const ListOfApps = ({collapsed}: ListOfAppsProps) => {
     const {currentApp, apps, recentlyVisitedAppId} = useAppsData()
-    const {projectId} = useProjectData()
+    const {appId: routedAppId} = useAppState()
     const navigateToApp = useSetAtom(routerAppNavigationAtom)
-    const {token} = theme.useToken()
 
     const [dropdownOpen, setDropdownOpen] = useState(false)
 
-    const {data: foldersData} = useSWR(
-        projectId ? ["folders", projectId] : null,
-        () => queryFolders({folder: {}}, projectId),
-        {
-            revalidateOnFocus: false,
-        },
-    )
-
     const {appMenuItems, appKeyMap} = useMemo(() => {
-        const folders = foldersData?.folders ?? []
-        const {roots} = buildFolderTree(folders, apps)
         const keyMap: Record<string, string> = {}
-        const items: MenuProps["items"] = []
+        const items: MenuProps["items"] = (apps ?? []).map((app) => {
+            const key = `app:${app.id}`
+            const label = app.name ?? app.slug ?? app.id
+            keyMap[key] = app.id
+            return {
+                key,
+                label: (
+                    <div className="w-full max-w-[400px]">
+                        <span className="truncate block" title={label}>
+                            {label}
+                        </span>
+                    </div>
+                ),
+            }
+        })
 
-        const flatten = (nodes: FolderTreeItem[], depth: number) => {
-            nodes.forEach((node) => {
-                if (node.type === "folder") {
-                    items.push({
-                        key: `folder:${node.id}`,
-                        disabled: true,
-                        label: (
-                            <div
-                                className="flex items-center gap-1.5 w-full max-w-[400px]"
-                                style={{paddingLeft: depth > 0 ? depth * 12 : 0}}
-                            >
-                                <FolderIcon
-                                    size={13}
-                                    weight="fill"
-                                    style={{color: token.colorTextTertiary, flexShrink: 0}}
-                                />
-                                <span
-                                    className="truncate text-xs"
-                                    style={{color: token.colorTextTertiary}}
-                                    title={node.name}
-                                >
-                                    {node.name}
-                                </span>
-                            </div>
-                        ),
-                        style: {
-                            cursor: "default",
-                            minHeight: 28,
-                            lineHeight: "28px",
-                            margin: 0,
-                            padding: "0 12px",
-                            opacity: 1,
-                        },
-                    })
-                    flatten(node.children ?? [], depth + 1)
-                } else {
-                    const key = `app:${node.app_id}`
-                    keyMap[key] = node.app_id
-                    items.push({
-                        key,
-                        label: (
-                            <div
-                                className="w-full max-w-[400px]"
-                                style={{paddingLeft: depth > 0 ? depth * 12 : 0}}
-                            >
-                                <span className="truncate block" title={node.app_name}>
-                                    {node.app_name}
-                                </span>
-                            </div>
-                        ),
-                    })
-                }
-            })
-        }
+        return {appMenuItems: items, appKeyMap: keyMap}
+    }, [apps])
 
-        flatten(roots, 0)
-
-        return {
-            appMenuItems: items,
-            appKeyMap: keyMap,
-        }
-    }, [apps, foldersData, token])
-
-    const selectedAppId = currentApp?.app_id || recentlyVisitedAppId
+    const selectedAppId = currentApp?.id || routedAppId || recentlyVisitedAppId
     const selectedKey = selectedAppId ? [`app:${selectedAppId}`] : undefined
 
-    const handleMenuClick: MenuProps["onClick"] = ({key}) => {
-        const appId = appKeyMap[key]
-        if (appId) {
-            setDropdownOpen(false)
-            navigateToApp(appId)
-        }
-    }
+    const handleMenuClick: MenuProps["onClick"] = useCallback(
+        ({key}: {key: string}) => {
+            const appId = appKeyMap[key]
+            if (appId) {
+                setDropdownOpen(false)
+                navigateToApp(appId)
+            }
+        },
+        [appKeyMap, navigateToApp],
+    )
 
     const appLabel =
-        (selectedAppId && apps?.find((app) => app.app_id === selectedAppId)?.app_name) ||
+        currentApp?.name ??
+        currentApp?.slug ??
+        (selectedAppId && (apps?.find((app) => app.id === selectedAppId)?.name ?? selectedAppId)) ??
         "Select app"
 
     return (
