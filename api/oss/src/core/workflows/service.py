@@ -1026,7 +1026,10 @@ class WorkflowsService:
                 exclude_none=True,
                 exclude={"flags"},
             ),
-            flags=None,
+            flags=self._dump_stored_revision_flags(
+                self._revision_flags_from_any(workflow_revision_create.flags)
+            )
+            or None,
         )
 
         revision = await self.workflows_dao.create_revision(

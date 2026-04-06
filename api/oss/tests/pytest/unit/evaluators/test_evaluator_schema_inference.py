@@ -1,11 +1,16 @@
 from unittest.mock import AsyncMock, patch
 
 from oss.src.core.evaluators.dtos import SimpleEvaluatorData
-from oss.src.core.evaluators.service import EvaluatorsService
+from oss.src.core.evaluators.service import (
+    EvaluatorsService,
+    SimpleEvaluatorsService,
+)
 
 
 def test_normalize_evaluator_data_overlays_inferred_schema_parts():
-    service = EvaluatorsService(workflows_service=AsyncMock())
+    service = SimpleEvaluatorsService(
+        evaluators_service=EvaluatorsService(workflows_service=AsyncMock())
+    )
     input_data = SimpleEvaluatorData(
         uri="agenta:builtin:auto_ai_critique:v0",
         parameters={"json_schema": {"schema": {"type": "object"}}},
@@ -28,5 +33,5 @@ def test_normalize_evaluator_data_overlays_inferred_schema_parts():
         normalized = service._normalize_evaluator_data(input_data)
 
     assert normalized is not None
-    assert normalized.schemas["parameters"] == {"inferred": True}
-    assert normalized.schemas["outputs"]["type"] == "object"
+    assert normalized.schemas.parameters == {"inferred": True}
+    assert normalized.schemas.outputs["type"] == "object"

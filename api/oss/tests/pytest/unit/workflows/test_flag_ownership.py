@@ -124,7 +124,7 @@ async def test_fetch_workflow_revision_injects_artifact_flags():
 
 
 @pytest.mark.asyncio
-async def test_create_workflow_revision_v0_persists_no_revision_flags():
+async def test_create_workflow_revision_v0_persists_explicit_revision_flags():
     workflows_dao = AsyncMock()
     service = WorkflowsService(workflows_dao=workflows_dao)
 
@@ -156,7 +156,19 @@ async def test_create_workflow_revision_v0_persists_no_revision_flags():
     )
 
     revision_create = workflows_dao.create_revision.await_args.kwargs["revision_create"]
-    assert revision_create.flags is None
+    assert revision_create.flags == {
+        "is_managed": False,
+        "is_custom": True,
+        "is_llm": False,
+        "is_hook": False,
+        "is_code": False,
+        "is_match": False,
+        "is_feedback": False,
+        "is_chat": True,
+        "has_url": False,
+        "has_script": False,
+        "has_handler": False,
+    }
     assert workflow_revision is not None
     assert workflow_revision.flags == WorkflowRevisionFlags(is_application=True)
 

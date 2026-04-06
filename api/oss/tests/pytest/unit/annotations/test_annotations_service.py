@@ -1,9 +1,13 @@
+import sys
 from datetime import datetime, timezone
 from types import SimpleNamespace
+import types
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
+
+sys.modules.setdefault("genson", types.SimpleNamespace(SchemaBuilder=object))
 
 from oss.src.core.annotations.service import AnnotationsService
 from oss.src.core.annotations.types import (
@@ -33,7 +37,7 @@ async def test_edit_returns_updated_references_and_links():
         simple_evaluators_service=AsyncMock(),
         tracing_service=AsyncMock(),
     )
-    service.fetch = AsyncMock(
+    service._fetch_annotation = AsyncMock(
         return_value=Annotation(
             trace_id="old-trace",
             span_id="old-span",

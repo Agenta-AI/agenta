@@ -423,12 +423,22 @@ async def fetch_trace(
             #     usable_root_span=_has_usable_root_span(trace) if trace else False,
             # )
             if trace and _has_usable_root_span(trace):
-                return Trace(
-                    **trace.model_dump(
+                if isinstance(trace, Trace):
+                    return trace
+
+                if hasattr(trace, "model_dump"):
+                    trace_payload = trace.model_dump(
                         mode="json",
                         exclude_none=True,
                     )
-                )
+                else:
+                    trace_payload = {
+                        key: value
+                        for key, value in vars(trace).items()
+                        if value is not None
+                    }
+
+                return Trace(**trace_payload)
 
         except Exception:  # pylint: disable=broad-exception-caught
             had_exception = True

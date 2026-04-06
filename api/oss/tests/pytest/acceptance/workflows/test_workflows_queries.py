@@ -16,9 +16,9 @@ def mock_data(authed_api):
         "name": f"Workflow {workflow_slug}",
         "description": "Workflow Description",
         "flags": {
-            "is_custom": False,
+            "is_application": True,
             "is_evaluator": False,
-            "is_feedback": False,
+            "is_snippet": False,
         },
         "tags": {
             "tag1": "value1",
@@ -51,9 +51,9 @@ def mock_data(authed_api):
         "name": f"Workflow {workflow_slug}",
         "description": "Workflow Description",
         "flags": {
-            "is_custom": False,
+            "is_application": False,
             "is_evaluator": True,
-            "is_feedback": False,
+            "is_snippet": False,
         },
         "tags": {
             "tag1": "value1",
@@ -265,7 +265,7 @@ class TestWorkflowsQueries:
             "/preview/workflows/query",
             json={
                 "workflow": {
-                    "flags": {"is_custom": True},
+                    "flags": {"is_snippet": True},
                     "tags": {"_marker": marker},
                 },
             },

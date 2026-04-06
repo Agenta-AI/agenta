@@ -9,7 +9,11 @@ from oss.src.core.invocations.service import InvocationsService
 
 @pytest.mark.asyncio
 async def test_invocation_query_does_not_force_evaluator_flag():
-    service = InvocationsService(tracing_service=AsyncMock())
+    service = InvocationsService(
+        applications_service=AsyncMock(),
+        simple_applications_service=AsyncMock(),
+        tracing_service=AsyncMock(),
+    )
     service._query_invocation = AsyncMock(return_value=[])
 
     await service.query(project_id=uuid4())

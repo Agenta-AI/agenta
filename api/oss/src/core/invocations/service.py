@@ -41,6 +41,7 @@ from oss.src.core.invocations.types import (
     InvocationReferences,
     InvocationLinks,
     InvocationFlags,
+    InvocationQueryFlags,
     #
     Invocation,
     InvocationCreate,
@@ -432,7 +433,7 @@ class InvocationsService:
         windowing: Optional[Windowing] = None,
     ):
         invocation = invocation_query if invocation_query else None
-        invocation_flags = InvocationFlags()
+        invocation_flags = InvocationQueryFlags()
 
         if invocation:
             if invocation.channel:

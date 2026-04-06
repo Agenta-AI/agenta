@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -80,6 +81,12 @@ async def test_deploy_application_revision_uses_environment_retrieve(monkeypatch
         applications_router_module,
         "invalidate_cache",
         _noop_invalidate_cache,
+    )
+    monkeypatch.setattr(
+        applications_router_module,
+        "check_action_access",
+        AsyncMock(return_value=True),
+        raising=False,
     )
 
     request = SimpleNamespace(

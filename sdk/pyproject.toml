@@ -48,15 +48,17 @@ daytona = "^0.161"
 [tool.poetry.group.dev.dependencies]
 posthog = "^7"
 questionary = "^2"
-pytest = "^9"
 setuptools = "^80"
-pytest-asyncio = "^1"
-mypy = "^1"
-pytest-xdist = "^3"
 uvicorn = "^0.38"
 requests = "^2"
 pexpect = "^4"
 boto3 = "^1"
+click = "^8"
+pytest = "^8"
+pytest-asyncio = "^0.21"
+pytest-xdist = "^3"
+pytest-mock = "^3"
+pytest-html = "^4"
 
 [build-system]
 requires = ["poetry-core"]

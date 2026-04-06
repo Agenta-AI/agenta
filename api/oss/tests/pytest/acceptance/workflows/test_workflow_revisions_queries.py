@@ -15,9 +15,9 @@ def mock_data(authed_api):
         "name": f"Workflow {workflow_slug}",
         "description": "Workflow Description",
         "flags": {
-            "is_custom": False,
+            "is_application": True,
             "is_evaluator": False,
-            "is_feedback": False,
+            "is_snippet": False,
         },
         "tags": {
             "tag1": "value1",
@@ -52,9 +52,9 @@ def mock_data(authed_api):
                 "name": f"Workflow Variant {workflow_variant_slug}",
                 "description": "Workflow Variant Description",
                 "flags": {
-                    "is_custom": False,
+                    "is_application": True,
                     "is_evaluator": False,
-                    "is_feedback": False,
+                    "is_snippet": False,
                 },
                 "tags": {
                     "tag1": "value1",
@@ -86,9 +86,7 @@ def mock_data(authed_api):
                 "name": f"Workflow Revision {workflow_revision_slug}",
                 "description": "Workflow Revision Description",
                 "flags": {
-                    "is_custom": False,
-                    "is_evaluator": False,
-                    "is_feedback": False,
+                    "is_custom": True,
                 },
                 "tags": {
                     "tag1": "value1",
@@ -124,8 +122,6 @@ def mock_data(authed_api):
                 "description": "Workflow Revision Description",
                 "flags": {
                     "is_custom": False,
-                    "is_evaluator": False,
-                    "is_feedback": False,
                 },
                 "tags": {
                     "tag1": "value3",
@@ -317,7 +313,7 @@ class TestWorkflowRevisionsQueries:
             "/preview/workflows/revisions/query",
             json={
                 "workflow_revision": {
-                    "flags": mock_data["workflow_revisions"][0]["flags"],
+                    "flags": {"is_application": True},
                     "tags": {"_marker": marker},
                 },
             },
@@ -340,7 +336,7 @@ class TestWorkflowRevisionsQueries:
             "/preview/workflows/revisions/query",
             json={
                 "workflow_revision": {
-                    "flags": {"is_custom": True},
+                    "flags": {"is_snippet": True},
                     "tags": {"_marker": marker},
                 },
             },

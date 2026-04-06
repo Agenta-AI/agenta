@@ -116,12 +116,24 @@ def _job_id() -> str:
 
 def _genson_patch():
     module = types.ModuleType("genson")
+    live_module = types.ModuleType("oss.src.core.evaluations.tasks.live")
 
     class SchemaBuilder: ...
+    async def evaluate_live_query(*args, **kwargs):
+        return None
 
     module.SchemaBuilder = SchemaBuilder
+    live_module.evaluate_live_query = evaluate_live_query
     stack = ExitStack()
-    stack.enter_context(patch.dict(sys.modules, {"genson": module}))
+    stack.enter_context(
+        patch.dict(
+            sys.modules,
+            {
+                "genson": module,
+                "oss.src.core.evaluations.tasks.live": live_module,
+            },
+        )
+    )
 
     try:
         import agenta.sdk.models.workflows as workflow_models
