@@ -27,7 +27,9 @@ RUN --mount=type=cache,id=pip-api,target=/root/.cache/pip \
     python -m venv /opt/venv \
     && . /opt/venv/bin/activate \
     && poetry export --only main --without-hashes --format requirements.txt --output /tmp/requirements.txt \
-    && pip install -r /tmp/requirements.txt \
+    && grep -viE '^agenta([[:space:]]|\\[|@|[<>=!~])' /tmp/requirements.txt > /tmp/requirements.runtime.txt \
+    && pip install -r /tmp/requirements.runtime.txt \
+    && rm -f /tmp/requirements.runtime.txt \
     && rm -f /tmp/requirements.txt \
     && (pip uninstall -y pip setuptools 2>/dev/null || true) \
     && SITE=$(python -c 'import site; print(site.getsitepackages()[0])') \
