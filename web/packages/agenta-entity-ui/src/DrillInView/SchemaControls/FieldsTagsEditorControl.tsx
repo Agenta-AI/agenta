@@ -13,7 +13,7 @@
 
 import {memo, useCallback, useState} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {Plus} from "@phosphor-icons/react"
 import {Button, Input, Tag, Tooltip, Typography} from "antd"

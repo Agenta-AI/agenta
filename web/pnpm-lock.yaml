@@ -737,7 +737,7 @@ importers:
         specifier: workspace:../agenta-ui
         version: link:../agenta-ui
       '@phosphor-icons/react':
-        specifier: '>=2.0.0'
+        specifier: ^2.1.10
         version: 2.1.10(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       antd:
         specifier: '>=5.0.0'
@@ -928,7 +928,7 @@ importers:
         specifier: '>=5.0.0'
         version: 6.1.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@phosphor-icons/react':
-        specifier: '>=2.0.0'
+        specifier: ^2.1.10
         version: 2.1.10(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@tanstack/react-query':
         specifier: '>=5.0.0'
@@ -1119,7 +1119,7 @@ importers:
         specifier: '>=5.0.0'
         version: 6.1.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@phosphor-icons/react':
-        specifier: '>=2.0.0'
+        specifier: ^2.1.10
         version: 2.1.10(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       antd:
         specifier: '>=5.0.0'

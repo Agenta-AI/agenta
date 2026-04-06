@@ -7,7 +7,7 @@
 
 import {memo} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
 import {cn, textColors} from "@agenta/ui/styles"
 import {Info} from "@phosphor-icons/react"
 import {Switch, Tooltip, Typography} from "antd"

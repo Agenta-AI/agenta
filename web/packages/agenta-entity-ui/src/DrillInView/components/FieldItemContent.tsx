@@ -9,7 +9,7 @@
 
 import {useCallback, useMemo} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
 import type {PathItem} from "@agenta/shared/utils"
 import {formatLabel} from "@agenta/ui/drill-in"
 

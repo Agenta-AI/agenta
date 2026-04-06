@@ -5,7 +5,7 @@
  * Used by SchemaPropertyRenderer, PromptSchemaControl, and other schema-driven components.
  */
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
 import type {SimpleChatMessage} from "@agenta/shared/types"
 
 // ============================================================================

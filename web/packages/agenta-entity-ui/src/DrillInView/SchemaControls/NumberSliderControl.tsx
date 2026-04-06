@@ -10,7 +10,7 @@
 
 import {memo, useCallback, useEffect, useState} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
 import {cn, flexLayouts, gapClasses, textColors} from "@agenta/ui/styles"
 import {InputNumber, Slider, Tooltip, Typography} from "antd"
 
