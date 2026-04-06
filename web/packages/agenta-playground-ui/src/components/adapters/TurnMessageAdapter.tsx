@@ -609,20 +609,29 @@ const TurnMessageAdapter: React.FC<Props> = ({
 
     const msgId = msg?.id
     useEffect(() => {
-        // Auto-collapse tool/assistant-with-tool-calls messages that already
-        // have content (loaded from history). Messages created blank (for user
-        // input) stay expanded. Keyed on msgId so this only runs once per
-        // message identity — never mid-edit as the user types.
+        // Auto-collapse generated tool/assistant-with-tool-calls messages.
+        // We use autoMinimizedRef so a message is only auto-collapsed ONCE
+        // to not override explicit user interactions to open it later.
         if (autoMinimizedRef.current) return
-        const isCollapsible = isToolKind || (kind === "assistant" && toolPayloads.length > 0)
-        if (!isCollapsible) return
-        const hasExistingContent = Boolean(
+
+        // 1. If it's an Assistant message that has generated tool_calls payload
+        const isAssistantWithTools = kind === "assistant" && toolPayloads.length > 0
+
+        // 2. If it's a generated Tool response message and it has actual content
+        const hasTextContent = Boolean(
             msg?.content && (typeof msg.content !== "string" || msg.content.length > 0),
         )
-        if (!hasExistingContent) return
+        const isGeneratedToolOutput = isToolKind && hasTextContent
+
+        const readyToCollapse = isAssistantWithTools || isGeneratedToolOutput
+
+        if (!readyToCollapse) return
+
         setIsMessageCollapsed(true)
         autoMinimizedRef.current = true
-    }, [msgId]) // intentionally only msgId — avoid re-running as user types
+
+        // Observe msg?.content so streaming/delayed text updates re-trigger the collapse check
+    }, [msgId, kind, isToolKind, toolPayloads.length, msg?.content])
 
     return (
         <>
