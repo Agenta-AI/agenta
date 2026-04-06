@@ -1,5 +1,6 @@
 from oss.databases.postgres.migrations.core.data_migrations.workflow_revisions import (
     REVISION_FLAG_KEYS,
+    _backfill_schemas_from_interface,
     _normalize_artifact_flags,
     _normalize_revision_flags,
     upgrade_workflow_revisions,
@@ -62,6 +63,34 @@ def test_normalize_revision_flags_accepts_legacy_is_human_feedback_flag():
     assert flags["is_feedback"] is True
 
 
+def test_backfill_schemas_from_interface_adds_builtin_chat_schemas():
+    data = _backfill_schemas_from_interface({"uri": "agenta:builtin:chat:v0"})
+
+    assert data["schemas"]["outputs"] is not None
+    assert data["schemas"]["parameters"] is not None
+    assert data["schemas"]["inputs"] is not None
+
+
+def test_backfill_schemas_from_interface_adds_exact_match_parameters_schema():
+    data = _backfill_schemas_from_interface(
+        {"uri": "agenta:builtin:auto_exact_match:v0"}
+    )
+
+    assert data["schemas"]["outputs"] is not None
+    assert data["schemas"]["parameters"] is not None
+    assert "inputs" not in data["schemas"]
+
+
+def test_backfill_schemas_from_interface_preserves_contains_json_exception():
+    data = _backfill_schemas_from_interface(
+        {"uri": "agenta:builtin:auto_contains_json:v0"}
+    )
+
+    assert data["schemas"]["outputs"] is not None
+    assert "parameters" not in data["schemas"]
+    assert "inputs" not in data["schemas"]
+
+
 class _FakeResult:
     def __init__(self, rows):
         self._rows = rows
@@ -89,5 +118,16 @@ def test_upgrade_workflow_revisions_explicitly_nulls_v0_data_and_flags():
     assert any(
         "SET\n          data = NULL,\n          flags = NULL\n        WHERE version = '0'"
         in statement
+        for statement, _params in session.statements
+    )
+
+
+def test_upgrade_workflow_revisions_extracts_service_outputs_before_stripping_service():
+    session = _FakeSession()
+
+    upgrade_workflow_revisions(session)
+
+    assert any(
+        "service' -> 'format'" in statement and "'{schemas,outputs}'" in statement
         for statement, _params in session.statements
     )

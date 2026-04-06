@@ -5,6 +5,7 @@ import click
 from sqlalchemy import Connection, text
 
 from agenta.sdk.engines.running.utils import infer_url_from_uri, parse_uri
+from agenta.sdk.engines.running.utils import retrieve_interface
 
 
 REVISION_FLAG_KEYS = (
@@ -20,6 +21,60 @@ REVISION_FLAG_KEYS = (
     "has_script",
     "has_handler",
 )
+
+
+def _backfill_schemas_from_interface(
+    data: Optional[dict[str, Any]],
+) -> Optional[dict[str, Any]]:
+    if not isinstance(data, dict):
+        return data
+
+    uri = data.get("uri")
+    if not uri:
+        return data
+
+    provider, kind, key, _version = parse_uri(uri)
+    interface = retrieve_interface(uri)
+    if not interface or not interface.schemas:
+        return data
+
+    interface_schemas = interface.schemas.model_dump(mode="json", exclude_none=True)
+    if not interface_schemas:
+        return data
+
+    normalized = json.loads(json.dumps(data))
+    schemas = normalized.get("schemas")
+    if not isinstance(schemas, dict):
+        schemas = {}
+
+    changed = False
+
+    for key in ("outputs", "parameters", "inputs"):
+        current_value = schemas.get(key)
+        if current_value is not None:
+            continue
+
+        interface_value = interface_schemas.get(key)
+        if interface_value is None:
+            continue
+
+        # Keep the explicit legacy contains-json exception the user called out.
+        if (
+            key == "parameters"
+            and provider == "agenta"
+            and kind == "builtin"
+            and data.get("uri") == "agenta:builtin:auto_contains_json:v0"
+        ):
+            continue
+
+        schemas[key] = interface_value
+        changed = True
+
+    if not changed:
+        return data
+
+    normalized["schemas"] = schemas
+    return normalized
 
 
 def _normalize_artifact_flags(
@@ -89,6 +144,27 @@ def upgrade_workflow_revisions(session: Connection) -> None:
     # ----------------------------------------------------------------
     # Phase 1: No-URI rows — backfill URI
     # ----------------------------------------------------------------
+
+    session.execute(
+        text("""
+        UPDATE workflow_revisions
+        SET data = jsonb_set(
+          data::jsonb,
+          '{schemas,outputs}',
+          data::jsonb -> 'service' -> 'format',
+          true
+        )::json
+        WHERE data IS NOT NULL
+          AND data::jsonb ? 'service'
+          AND data::jsonb -> 'service' ? 'format'
+          AND (
+            NOT (data::jsonb ? 'schemas')
+            OR jsonb_typeof(data::jsonb -> 'schemas') = 'null'
+            OR NOT (data::jsonb -> 'schemas' ? 'outputs')
+            OR jsonb_typeof(data::jsonb -> 'schemas' -> 'outputs') = 'null'
+          )
+    """)
+    )
 
     session.execute(
         text("""
@@ -391,21 +467,25 @@ def upgrade_workflow_revisions(session: Connection) -> None:
     ).mappings()
 
     for row in revision_rows:
+        normalized_data = _backfill_schemas_from_interface(row["data"])
         revision_flags = _normalize_revision_flags(
             legacy_flags=row["flags"],
-            data=row["data"],
+            data=normalized_data,
         )
 
         session.execute(
             text("""
             UPDATE workflow_revisions
-            SET flags = CAST(:flags AS jsonb)
+            SET
+              data = CAST(:data AS json),
+              flags = CAST(:flags AS jsonb)
             WHERE project_id = :project_id
               AND id = :id
         """),
             {
                 "project_id": row["project_id"],
                 "id": row["id"],
+                "data": json.dumps(normalized_data),
                 "flags": json.dumps(revision_flags),
             },
         )
