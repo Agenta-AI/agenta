@@ -74,9 +74,7 @@ const CompletionMode = ({
             )}
 
             {withControls && viewType !== "comparison" ? (
-                <div
-                    className="flex items-center gap-2 px-4 pt-3 pb-4"
-                >
+                <div className="flex items-center gap-2 px-4 pt-3 pb-4">
                     <AddButton size="small" label="Test case" onClick={() => handleAddNewRow()} />
                 </div>
             ) : null}
