@@ -7,12 +7,14 @@ Tests cover upsert/retrieve flows against the preview application endpoints.
 import asyncio
 
 import pytest
+import agenta as ag
 
 from agenta.sdk.managers import applications
 
 pytestmark = [pytest.mark.acceptance, pytest.mark.asyncio]
 
 
+@ag.application()
 def _application_handler(prompt: str) -> str:
     return prompt
 

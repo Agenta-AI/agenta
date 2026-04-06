@@ -3,7 +3,7 @@ Unit tests for the hook_v0 handler (agenta:builtin:hook:v0).
 
 Tests are organised into:
 
-1. URL resolution — missing URL, URL from RunningContext.interface.url.
+1. URL resolution — missing URL, URL from RunningContext revision data.
 2. URL validation — blocked IP ranges, invalid schemes, valid http/https.
 3. Payload construction — which fields appear in the JSON body based on arguments.
 4. Response parsing — JSON response, plain-text fallback.

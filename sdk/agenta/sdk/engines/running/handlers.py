@@ -2046,8 +2046,15 @@ async def chat_v0(
 
 @instrument(ignore_inputs=["parameters"])
 async def hook_v0(
+    request: Optional[Data] = None,
+    revision: Optional[Data] = None,
+    #
     parameters: Optional[Data] = None,
     inputs: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+    #
+    trace: Optional[Data] = None,
+    testcase: Optional[Data] = None,
 ) -> Any:
     """
     Webhook-based application handler for CUSTOM app types.
@@ -2057,16 +2064,29 @@ async def hook_v0(
     revision data), not from ``parameters``.
 
     Args:
+        request: Optional canonical request envelope.
+        revision: Optional revision data containing the webhook URL.
         parameters: Configuration parameters forwarded to the webhook.
         inputs: Inputs to forward to the webhook.
+        outputs: Optional outputs to forward to the webhook.
+        trace: Optional trace data to forward to the webhook.
+        testcase: Optional testcase data to forward to the webhook.
 
     Returns:
         The response from the webhook.
     """
     from agenta.sdk.contexts.running import RunningContext
 
+    def _extract_webhook_url(value: Optional[Data]) -> Optional[str]:
+        if isinstance(value, dict):
+            data = value.get("data") if "data" in value else value
+            if isinstance(data, dict):
+                url = data.get("url")
+                return str(url) if url else None
+        return None
+
     ctx = RunningContext.get()
-    webhook_url = ctx.interface.url if ctx.interface else None
+    webhook_url = _extract_webhook_url(revision) or _extract_webhook_url(ctx.revision)
 
     if not webhook_url:
         raise MissingConfigurationParameterV0Error(path="url")
@@ -2085,6 +2105,12 @@ async def hook_v0(
         "inputs": inputs or {},
         "parameters": parameters or {},
     }
+    if outputs is not None:
+        json_payload["outputs"] = outputs
+    if trace is not None:
+        json_payload["trace"] = trace
+    if testcase is not None:
+        json_payload["testcase"] = testcase
 
     async with httpx.AsyncClient() as client:
         try:
