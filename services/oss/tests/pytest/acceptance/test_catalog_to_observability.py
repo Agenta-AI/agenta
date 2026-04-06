@@ -79,7 +79,12 @@ def _query_default_environment(mod_api) -> dict:
 
 
 def _invoke_by_env(
-    mod_services_api, *, environment_slug: str, workflow_slug: str, data: dict
+    mod_services_api,
+    *,
+    environment_slug: str,
+    workflow_slug: str,
+    data: dict,
+    allow_llm_failure: bool = False,
 ) -> dict:
     """POST /invoke via environment ref + selector key and return response payload."""
     body = {
@@ -99,13 +104,19 @@ def _invoke_by_env(
         f"Inspect failed ({inspect_resp.status_code}): {inspect_resp.text[:500]}"
     )
     resp = mod_services_api("POST", "/invoke", json=body)
+    _maybe_xfail_for_llm_provider_error(resp, allow_llm_failure=allow_llm_failure)
     assert resp.status_code == 200, (
         f"Invoke failed ({resp.status_code}): {resp.text[:500]}"
     )
     return resp.json()
 
 
-def _invoke_with_inspect(mod_services_api, *, body: dict) -> dict:
+def _invoke_with_inspect(
+    mod_services_api,
+    *,
+    body: dict,
+    allow_llm_failure: bool = False,
+) -> dict:
     inspect_body = {}
     for key in ("version", "references", "selector", "flags", "tags", "meta"):
         if key in body:
@@ -121,13 +132,21 @@ def _invoke_with_inspect(mod_services_api, *, body: dict) -> dict:
     )
 
     resp = mod_services_api("POST", "/invoke", json=body)
+    _maybe_xfail_for_llm_provider_error(resp, allow_llm_failure=allow_llm_failure)
     assert resp.status_code == 200, (
         f"Invoke failed ({resp.status_code}): {resp.text[:500]}"
     )
     return resp.json()
 
 
-def _invoke_inline(mod_services_api, *, uri: str, parameters: dict, data: dict) -> dict:
+def _invoke_inline(
+    mod_services_api,
+    *,
+    uri: str,
+    parameters: dict,
+    data: dict,
+    allow_llm_failure: bool = False,
+) -> dict:
     """POST /invoke with URI + parameters inline and return response payload."""
     revision = {"data": {"uri": uri, "parameters": parameters}}
     return _invoke_with_inspect(
@@ -138,7 +157,31 @@ def _invoke_inline(mod_services_api, *, uri: str, parameters: dict, data: dict) 
                 "revision": revision,
             }
         },
+        allow_llm_failure=allow_llm_failure,
     )
+
+
+def _maybe_xfail_for_llm_provider_error(resp, *, allow_llm_failure: bool = False) -> None:
+    if not allow_llm_failure:
+        return
+
+    text = (getattr(resp, "text", "") or "")[:2000]
+    markers = (
+        "RateLimitError",
+        "AuthenticationError",
+        "insufficient_quota",
+        "exceeded your current quota",
+        "prompt-completion-error",
+        "No API key found for model",
+        "Incorrect API key provided",
+        "api_key client option must be set",
+        "OPENAI_API_KEY environment variable",
+        "invalid_api_key",
+    )
+    if resp.status_code in {400, 401, 424, 429, 500} and any(
+        marker in text for marker in markers
+    ):
+        pytest.xfail("live LLM provider unavailable or quota exhausted")
 
 
 def _fetch_trace(
@@ -547,6 +590,7 @@ class TestCompletionToEvaluatorChain:
             environment_slug=ctx["environment_slug"],
             workflow_slug=ctx["workflow_slug"],
             data={"inputs": {"country": "France"}},
+            allow_llm_failure=True,
         )
         trace_id = payload.get("trace_id")
         assert trace_id, f"Completion invoke missing trace_id: {payload}"
@@ -561,6 +605,7 @@ class TestCompletionToEvaluatorChain:
             environment_slug=ctx["environment_slug"],
             workflow_slug=ctx["workflow_slug"],
             data={"inputs": {"country": "France"}},
+            allow_llm_failure=True,
         )
         trace_id = payload["trace_id"]
         trace = _fetch_trace(mod_api, trace_id)
@@ -584,6 +629,7 @@ class TestCompletionToEvaluatorChain:
             environment_slug=ctx["environment_slug"],
             workflow_slug=ctx["workflow_slug"],
             data={"inputs": {"country": "France"}},
+            allow_llm_failure=True,
         )
         completion_trace_id = completion_payload["trace_id"]
         completion_span_id = completion_payload["span_id"]
@@ -613,6 +659,7 @@ class TestCompletionToEvaluatorChain:
                     },
                 }
             },
+            allow_llm_failure=True,
         )
         eval_trace_id = eval_payload.get("trace_id")
 
