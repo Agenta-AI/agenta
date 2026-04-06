@@ -29,6 +29,8 @@ def _backfill_schemas_from_interface(
     if not isinstance(data, dict):
         return data
 
+    data = _backfill_schemas_outputs_from_service_format(data)
+
     uri = data.get("uri")
     if not uri:
         return data
@@ -74,6 +76,35 @@ def _backfill_schemas_from_interface(
         return data
 
     normalized["schemas"] = schemas
+    return normalized
+
+
+def _backfill_schemas_outputs_from_service_format(
+    data: Optional[dict[str, Any]],
+) -> Optional[dict[str, Any]]:
+    if not isinstance(data, dict):
+        return data
+
+    service = data.get("service")
+    if not isinstance(service, dict):
+        return data
+
+    service_format = service.get("format")
+    if service_format is None:
+        return data
+
+    schemas = data.get("schemas")
+    if isinstance(schemas, dict) and schemas.get("outputs") is not None:
+        return data
+
+    normalized = json.loads(json.dumps(data))
+    schemas = normalized.get("schemas")
+    if not isinstance(schemas, dict):
+        schemas = {}
+
+    schemas["outputs"] = service_format
+    normalized["schemas"] = schemas
+
     return normalized
 
 
@@ -148,11 +179,18 @@ def upgrade_workflow_revisions(session: Connection) -> None:
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET data = jsonb_set(
-          data::jsonb,
-          '{schemas,outputs}',
-          data::jsonb -> 'service' -> 'format',
-          true
+        SET data = (
+          (data::jsonb - 'schemas')
+          || jsonb_build_object(
+               'schemas',
+               CASE
+                 WHEN jsonb_typeof(data::jsonb -> 'schemas') = 'object' THEN
+                   (data::jsonb -> 'schemas')
+                   || jsonb_build_object('outputs', data::jsonb -> 'service' -> 'format')
+                 ELSE
+                   jsonb_build_object('outputs', data::jsonb -> 'service' -> 'format')
+               END
+             )
         )::json
         WHERE data IS NOT NULL
           AND data::jsonb ? 'service'
@@ -171,7 +209,7 @@ def upgrade_workflow_revisions(session: Connection) -> None:
         UPDATE workflow_revisions
         SET data = (
           (data::jsonb - 'script' - 'runtime' - 'service' - 'configuration')
-          || '{"uri": "agenta:builtin:hook:v0"}'::jsonb
+          || '{"uri": "agenta:custom:hook:v0"}'::jsonb
         )::json
         WHERE data IS NOT NULL
           AND (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
@@ -369,8 +407,6 @@ def upgrade_workflow_revisions(session: Connection) -> None:
           AND data::jsonb ->> 'uri' NOT IN (
             'agenta:builtin:chat:v0',
             'agenta:builtin:completion:v0',
-            'agenta:builtin:code:v0',
-            'agenta:builtin:hook:v0',
             'agenta:builtin:auto_webhook_test:v0',
             'agenta:builtin:auto_custom_code_run:v0'
           )
@@ -383,7 +419,7 @@ def upgrade_workflow_revisions(session: Connection) -> None:
         UPDATE workflow_revisions
         SET data = (data::jsonb - 'script' - 'runtime' - 'service' - 'configuration')::json
         WHERE data IS NOT NULL
-          AND data::jsonb ->> 'uri' = 'agenta:builtin:hook:v0'
+          AND data::jsonb ->> 'uri' = 'agenta:custom:hook:v0'
     """)
     )
 
@@ -404,7 +440,7 @@ def upgrade_workflow_revisions(session: Connection) -> None:
              END
         )::json
         WHERE data IS NOT NULL
-          AND data::jsonb ->> 'uri' = 'agenta:builtin:code:v0'
+          AND data::jsonb ->> 'uri' = 'agenta:custom:code:v0'
     """)
     )
 
