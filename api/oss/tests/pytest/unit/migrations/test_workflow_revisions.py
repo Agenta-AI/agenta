@@ -82,13 +82,13 @@ def test_backfill_schemas_from_interface_adds_exact_match_parameters_schema():
     assert "inputs" not in data["schemas"]
 
 
-def test_backfill_schemas_from_interface_preserves_contains_json_exception():
+def test_backfill_schemas_from_interface_adds_contains_json_parameters_schema():
     data = _backfill_schemas_from_interface(
         {"uri": "agenta:builtin:auto_contains_json:v0"}
     )
 
     assert data["schemas"]["outputs"] is not None
-    assert "parameters" not in data["schemas"]
+    assert data["schemas"]["parameters"] is not None
     assert "inputs" not in data["schemas"]
 
 
@@ -187,4 +187,6 @@ def test_upgrade_workflow_revisions_uses_custom_uris_for_hook_and_code():
 
     assert "agenta:custom:hook:v0" in statements
     assert "agenta:custom:code:v0" in statements
-    assert "agenta:builtin:hook:v0" not in statements
+    assert "'{uri}'" in statements
+    assert '"agenta:custom:hook:v0"' in statements
+    assert '"agenta:custom:code:v0"' in statements

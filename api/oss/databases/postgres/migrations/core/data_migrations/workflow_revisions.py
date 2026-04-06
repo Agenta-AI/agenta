@@ -35,7 +35,6 @@ def _backfill_schemas_from_interface(
     if not uri:
         return data
 
-    provider, kind, key, _version = parse_uri(uri)
     interface = retrieve_interface(uri)
     if not interface or not interface.schemas:
         return data
@@ -58,15 +57,6 @@ def _backfill_schemas_from_interface(
 
         interface_value = interface_schemas.get(key)
         if interface_value is None:
-            continue
-
-        # Keep the explicit legacy contains-json exception the user called out.
-        if (
-            key == "parameters"
-            and provider == "agenta"
-            and kind == "builtin"
-            and data.get("uri") == "agenta:builtin:auto_contains_json:v0"
-        ):
             continue
 
         schemas[key] = interface_value
@@ -346,6 +336,34 @@ def upgrade_workflow_revisions(session: Connection) -> None:
     # ----------------------------------------------------------------
     # Phase 2: Existing-URI rows — normalize data fields
     # ----------------------------------------------------------------
+
+    session.execute(
+        text("""
+        UPDATE workflow_revisions
+        SET data = jsonb_set(
+          data::jsonb,
+          '{uri}',
+          '"agenta:custom:hook:v0"'::jsonb,
+          false
+        )::json
+        WHERE data IS NOT NULL
+          AND data::jsonb ->> 'uri' = 'agenta:builtin:hook:v0'
+    """)
+    )
+
+    session.execute(
+        text("""
+        UPDATE workflow_revisions
+        SET data = jsonb_set(
+          data::jsonb,
+          '{uri}',
+          '"agenta:custom:code:v0"'::jsonb,
+          false
+        )::json
+        WHERE data IS NOT NULL
+          AND data::jsonb ->> 'uri' = 'agenta:builtin:code:v0'
+    """)
+    )
 
     session.execute(
         text("""
