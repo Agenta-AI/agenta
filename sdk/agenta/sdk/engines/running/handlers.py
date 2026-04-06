@@ -31,11 +31,8 @@ from agenta.sdk.models.shared import Data
 from agenta.sdk.engines.running.sandbox import execute_code_safely
 from agenta.sdk.engines.running.templates import EVALUATOR_TEMPLATES
 from agenta.sdk.engines.running.errors import (
-    CodeV0Error,
     CustomCodeServerV0Error,
     ErrorStatus,
-    HookV0Error,
-    SnippetV0Error,
     InvalidConfigurationParametersV0Error,
     InvalidConfigurationParameterV0Error,
     InvalidInputsV0Error,
@@ -44,7 +41,6 @@ from agenta.sdk.engines.running.errors import (
     InvalidSecretsV0Error,
     JSONDiffV0Error,
     LevenshteinDistanceV0Error,
-    MatchV0Error,
     MissingConfigurationParameterV0Error,
     MissingInputV0Error,
     PromptCompletionV0Error,
@@ -54,6 +50,10 @@ from agenta.sdk.engines.running.errors import (
     SyntacticSimilarityV0Error,
     WebhookClientV0Error,
     WebhookServerV0Error,
+    MatchV0Error,
+    CodeV0Error,
+    ConfigV0Error,
+    FeedbackV0Error,
 )
 
 log = get_module_logger(__name__)
@@ -62,8 +62,6 @@ _WEBHOOK_RESPONSE_MAX_BYTES = 1 * 1024 * 1024.0  # 1 MB
 _WEBHOOK_ALLOW_INSECURE = (
     os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE") or "true"
 ).lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
-
-# --- HELPERS
 
 
 def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
@@ -141,97 +139,20 @@ def _compute_similarity(embedding_1: List[float], embedding_2: List[float]) -> f
     return dot / (norm1 * norm2)
 
 
-def detect_scheme(expr: str) -> str:
-    """Return 'json-path', 'json-pointer', or 'dot-notation' based on the placeholder prefix."""
-    if expr.startswith("$"):
-        return "json-path"
-    if expr.startswith("/"):
-        return "json-pointer"
-    return "dot-notation"
+# ========= Scheme detection =========
 
 
-def resolve_dot_notation(expr: str, data: dict) -> object:
-    if "[" in expr or "]" in expr:
-        raise KeyError(f"Bracket syntax is not supported in dot-notation: {expr!r}")
-
-    # First, check if the expression exists as a literal key (e.g., "topic.story" as a single key)
-    # This allows users to use dots in their variable names without nested access
-    if expr in data:
-        return data[expr]
-
-    # If not found as a literal key, try to parse as dot-notation path
-    cur = data
-    for token in (p for p in expr.split(".") if p):
-        if isinstance(cur, list) and token.isdigit():
-            cur = cur[int(token)]
-        else:
-            if not isinstance(cur, dict):
-                raise KeyError(
-                    f"Cannot access key {token!r} on non-dict while resolving {expr!r}"
-                )
-            if token not in cur:
-                raise KeyError(f"Missing key {token!r} while resolving {expr!r}")
-            cur = cur[token]
-    return cur
+from agenta.sdk.utils.resolvers import (  # noqa: E402
+    detect_scheme,  # noqa: F401
+    resolve_dot_notation,  # noqa: F401
+    resolve_json_path,  # noqa: F401
+    resolve_json_pointer,  # noqa: F401
+    resolve_json_selector,  # noqa: F401
+    resolve_any,  # noqa: F401
+)
 
 
-def resolve_json_path(expr: str, data: dict) -> object:
-    json_path, _ = _load_jsonpath()
-    if json_path is None:
-        raise ImportError("python-jsonpath is required for json-path ($...)")
-
-    if not (expr == "$" or expr.startswith("$.") or expr.startswith("$[")):
-        raise ValueError(
-            f"Invalid json-path expression {expr!r}. "
-            "Must start with '$', '$.' or '$[' (no implicit normalization)."
-        )
-
-    # Use package-level APIf
-    results = json_path.findall(expr, data)  # always returns a list
-    return results[0] if len(results) == 1 else results
-
-
-def resolve_json_pointer(expr: str, data: Dict[str, Any]) -> Any:
-    """Resolve a JSON Pointer; returns a single value."""
-    _, json_pointer = _load_jsonpath()
-    if json_pointer is None:
-        raise ImportError("python-jsonpath is required for json-pointer (/...)")
-    return json_pointer(expr).resolve(data)
-
-
-def resolve_any(expr: str, data: Dict[str, Any]) -> Any:
-    """Dispatch to the right resolver based on detected scheme."""
-    scheme = detect_scheme(expr)
-    if scheme == "json-path":
-        return resolve_json_path(expr, data)
-    if scheme == "json-pointer":
-        return resolve_json_pointer(expr, data)
-    return resolve_dot_notation(expr, data)
-
-
-def resolve_json_selector(value: Any, data: Dict[str, Any]) -> Any:
-    """Resolve a value that may be a JSON Path or JSON Pointer expression.
-
-    - Strings starting with ``$`` are resolved as JSON Path against *data*.
-    - Strings starting with ``/`` are resolved as JSON Pointer against *data*.
-    - Everything else (plain strings, numbers, dicts, …) is returned as-is.
-
-    On resolution failure (missing library, invalid syntax, missing path, etc.),
-    this helper returns ``None`` instead of raising, as expected by webhook
-    callers and design spec.
-    """
-    if isinstance(value, str):
-        try:
-            if value.startswith("$"):
-                return resolve_json_path(value, data)
-            if value.startswith("/"):
-                return resolve_json_pointer(value, data)
-        except Exception as exc:
-            # Selector resolution is intentionally non-throwing; log at debug
-            # level and signal failure via ``None``.
-            log.debug("Failed to resolve JSON selector %r: %s", value, exc)
-            return None
-    return value
+# ========= Placeholder & coercion helpers =========
 
 
 def extract_placeholders(template: str) -> Iterable[str]:
@@ -426,1587 +347,6 @@ def _compare_jsons(
         return 0.0
 
 
-def _resolve_reference_value(reference: Any, request: Dict[str, Any]) -> Any:
-    """Resolve a reference that may be a JSONPath/Pointer selector or a literal value.
-
-    Per design spec: if the string starts with '$' (JSONPath) or '/' (JSON Pointer),
-    resolve it from the request context. Otherwise treat as a literal.
-    """
-    if not isinstance(reference, str):
-        return reference
-    if reference.startswith("$.") or reference == "$" or reference.startswith("$["):
-        try:
-            return resolve_json_path(reference, request)
-        except Exception:
-            return reference  # fall back to literal on resolution failure
-    if reference.startswith("/"):
-        try:
-            return resolve_json_pointer(reference, request)
-        except Exception:
-            return reference
-    return reference
-
-
-def _make_match_result(
-    success: bool,
-    score: float,
-    error: Optional[str] = None,
-    children: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    result: Dict[str, Any] = {
-        "success": success,
-        "score": score,
-        "error": error,
-    }
-    if children is not None:
-        result.update(children)
-    return result
-
-
-def _execute_match_valid(actual: Any, mode: str) -> Tuple[bool, float]:
-    """match=valid: check that the value at target conforms to mode."""
-    if mode == "text":
-        success = isinstance(actual, str)
-    elif mode == "json":
-        if isinstance(actual, (dict, list)):
-            success = True
-        elif isinstance(actual, str):
-            try:
-                json.loads(actual)
-                success = True
-            except json.JSONDecodeError:
-                success = False
-        else:
-            success = False
-    else:
-        success = False
-    return success, 1.0 if success else 0.0
-
-
-def _coerce_to_str(value: Any) -> str:
-    if isinstance(value, str):
-        return value
-    if isinstance(value, (dict, list)):
-        return json.dumps(value, sort_keys=True)
-    return str(value) if value is not None else ""
-
-
-def _execute_match_exact(
-    actual: Any,
-    reference: Any,
-    case_sensitive: bool,
-) -> Tuple[bool, float]:
-    """mode=exact: direct equality comparison."""
-    actual_str = _coerce_to_str(actual)
-    ref_str = _coerce_to_str(reference)
-    if not case_sensitive:
-        actual_str = actual_str.lower()
-        ref_str = ref_str.lower()
-    success = actual_str == ref_str
-    return success, 1.0 if success else 0.0
-
-
-def _execute_match_starts_with(
-    actual: Any,
-    reference: Any,
-    case_sensitive: bool,
-) -> Tuple[bool, float]:
-    """mode=starts_with: prefix check."""
-    actual_str = _coerce_to_str(actual)
-    ref_str = _coerce_to_str(reference)
-    if not case_sensitive:
-        actual_str = actual_str.lower()
-        ref_str = ref_str.lower()
-    success = actual_str.startswith(ref_str)
-    return success, 1.0 if success else 0.0
-
-
-def _execute_match_ends_with(
-    actual: Any,
-    reference: Any,
-    case_sensitive: bool,
-) -> Tuple[bool, float]:
-    """mode=ends_with: suffix check."""
-    actual_str = _coerce_to_str(actual)
-    ref_str = _coerce_to_str(reference)
-    if not case_sensitive:
-        actual_str = actual_str.lower()
-        ref_str = ref_str.lower()
-    success = actual_str.endswith(ref_str)
-    return success, 1.0 if success else 0.0
-
-
-def _execute_match_contains(
-    actual: Any,
-    reference: Any,
-    references: Optional[List[Any]],
-    match_mode: str,
-    case_sensitive: bool,
-) -> Tuple[bool, float]:
-    """mode=contains: substring check, single or multi-value."""
-    actual_str = _coerce_to_str(actual)
-    if not case_sensitive:
-        actual_str = actual_str.lower()
-
-    if references:
-        checks = []
-        for ref in references:
-            ref_str = _coerce_to_str(ref)
-            if not case_sensitive:
-                ref_str = ref_str.lower()
-            checks.append(ref_str in actual_str)
-        success = any(checks) if match_mode == "any" else all(checks)
-    else:
-        ref_str = _coerce_to_str(reference)
-        if not case_sensitive:
-            ref_str = ref_str.lower()
-        success = ref_str in actual_str
-
-    return success, 1.0 if success else 0.0
-
-
-def _execute_match_regex(
-    actual: Any,
-    reference: Any,
-    case_sensitive: bool,
-) -> Tuple[bool, float]:
-    """mode=regex: apply the reference as a regex pattern against the actual value."""
-    # Coerce actual to string
-    if isinstance(actual, str):
-        actual_str = actual
-    elif isinstance(actual, (dict, list)):
-        actual_str = json.dumps(actual, sort_keys=True)
-    else:
-        actual_str = str(actual) if actual is not None else ""
-
-    # Reference is the regex pattern (after resolution)
-    if not isinstance(reference, str):
-        pattern_str = str(reference) if reference is not None else ""
-    else:
-        pattern_str = reference
-
-    flags = 0 if case_sensitive else re.IGNORECASE
-    try:
-        pattern = re.compile(pattern_str, flags=flags)
-    except re.error as e:
-        raise RegexPatternV0Error(pattern=pattern_str) from e
-
-    matched = bool(pattern.search(actual_str))
-    return matched, 1.0 if matched else 0.0
-
-
-def _execute_match_similarity_sync(
-    actual: Any,
-    reference: Any,
-    similarity: str,
-    case_sensitive: bool,
-) -> float:
-    """match=similarity for jaccard and levenshtein similarities (synchronous)."""
-    actual_str = (
-        actual if isinstance(actual, str) else json.dumps(actual, sort_keys=True)
-    )
-    ref_str = (
-        reference
-        if isinstance(reference, str)
-        else json.dumps(reference, sort_keys=True)
-    )
-
-    if not case_sensitive:
-        actual_str = actual_str.lower()
-        ref_str = ref_str.lower()
-
-    if similarity == "jaccard":
-        # Design note: named "jaccard" but uses SequenceMatcher for legacy parity
-        matcher = SequenceMatcher(None, actual_str, ref_str)
-        return float(matcher.ratio())
-
-    elif similarity == "levenshtein":
-        if len(ref_str) == 0:
-            dist = len(actual_str)
-        else:
-            prev_row = list(range(len(ref_str) + 1))
-            for i, c1 in enumerate(actual_str):
-                curr_row = [i + 1]
-                for j, c2 in enumerate(ref_str):
-                    insert = prev_row[j + 1] + 1
-                    delete = curr_row[j] + 1
-                    substitute = prev_row[j] + (c1 != c2)
-                    curr_row.append(min(insert, delete, substitute))
-                prev_row = curr_row
-            dist = prev_row[-1]
-        max_len = max(len(actual_str), len(ref_str))
-        return 1.0 if max_len == 0 else 1.0 - (dist / max_len)
-
-    else:
-        raise MatchV0Error(
-            message=f"Unknown similarity metric: {similarity!r}. Expected 'jaccard', 'levenshtein', or 'cosine'."
-        )
-
-
-async def _execute_match_similarity_cosine(
-    actual: Any,
-    reference: Any,
-    embedding_model: str,
-) -> float:
-    """mode=similarity with distance=cosine (async, requires OpenAI)."""
-    actual_str = (
-        actual if isinstance(actual, str) else json.dumps(actual, sort_keys=True)
-    )
-    ref_str = (
-        reference
-        if isinstance(reference, str)
-        else json.dumps(reference, sort_keys=True)
-    )
-
-    secrets, _, _ = await SecretsManager.retrieve_secrets()
-
-    openai_api_key = None
-    if isinstance(secrets, list):
-        for secret in secrets:
-            if secret.get("kind") == "provider_key":
-                secret_data = secret.get("data", {})
-                if secret_data.get("kind") == "openai":
-                    provider_data = secret_data.get("provider", {})
-                    openai_api_key = provider_data.get("key") or openai_api_key
-
-    AsyncOpenAI, OpenAIError = _load_openai()
-    try:
-        openai = AsyncOpenAI(api_key=openai_api_key)
-    except OpenAIError as e:
-        raise OpenAIError("OpenAIException - " + e.args[0])
-
-    output_embedding = await _compute_embedding(openai, embedding_model, actual_str)
-    reference_embedding = await _compute_embedding(openai, embedding_model, ref_str)
-    return float(_compute_similarity(output_embedding, reference_embedding))
-
-
-def _execute_match_diff(
-    target: Any,
-    reference: Any,
-    diff: str,
-    case_sensitive: bool,
-) -> float:
-    """match=diff: scored comparison over flattened JSON fields."""
-    # Parse JSON strings if needed
-    if isinstance(target, str):
-        try:
-            target = json.loads(target)
-        except json.JSONDecodeError:
-            return 0.0
-    if isinstance(reference, str):
-        try:
-            reference = json.loads(reference)
-        except json.JSONDecodeError:
-            return 0.0
-
-    if not isinstance(target, (dict, list)) or not isinstance(reference, (dict, list)):
-        return 0.0
-
-    settings = {
-        "compare_schema_only": diff == "schema",
-        "predict_keys": diff == "strict",
-        "case_insensitive_keys": not case_sensitive,
-    }
-    return _compare_jsons(
-        ground_truth=reference,
-        app_output=target,
-        settings_values=settings,
-    )
-
-
-def _aggregate_child_results(
-    child_matchers: List[Dict],
-    child_results: List[Dict],
-    score: str,
-    success: str,
-    threshold: float,
-) -> Tuple[bool, float]:
-    """Aggregate child matcher results.
-
-    Score aggregation (score):
-      - "weighted" → weighted mean (weight per matcher, defaults to 1)
-      - "min"      → minimum child score
-      - "max"      → maximum child score
-
-    Success aggregation (success):
-      - "all"       → all child successes must be True
-      - "any"       → at least one child success must be True
-      - "threshold" → aggregated score >= threshold
-    """
-    if not child_results:
-        return True, 1.0
-
-    scores = [r["score"] for r in child_results]
-    if score == "min":
-        agg_score = min(scores)
-    elif score == "max":
-        agg_score = max(scores)
-    else:  # "weighted" or default
-        weights = [float(m.get("weight", 1.0)) for m in child_matchers]
-        total_weight = sum(weights) if sum(weights) > 0 else 1.0
-        agg_score = sum(s * w for s, w in zip(scores, weights)) / total_weight
-
-    successes = [r["success"] for r in child_results]
-    if success == "any":
-        agg_success = any(successes)
-    elif success == "threshold":
-        agg_success = agg_score >= threshold
-    else:  # "all" or default
-        agg_success = all(successes)
-
-    return agg_success, agg_score
-
-
-async def _execute_match_node(
-    matcher: Dict[str, Any],
-    request: Dict[str, Any],
-) -> Dict[str, Any]:
-    """Execute a single matcher node, recursing into children when present."""
-    target = str(matcher.get("target", ""))
-    mode = str(matcher.get("mode", "text"))
-    match_type = str(matcher.get("match", "valid"))
-    case_sensitive = matcher.get("case_sensitive", True) is True
-    threshold = float(matcher.get("threshold", 1.0))
-
-    # Execute child matchers depth-first
-    child_matchers: List[Dict] = matcher.get("matchers") or []
-    children: Dict[str, Any] = {}
-    for child in child_matchers:
-        child_result = await _execute_match_node(child, request)
-        children[str(child.get("key", ""))] = child_result
-
-    # Resolve the actual value at target path
-    try:
-        actual = resolve_any(target, request)
-    except Exception as e:
-        return _make_match_result(
-            False,
-            0.0,
-            error=f"Target resolution failed for '{target}': {e}",
-            children=children or None,
-        )
-
-    # If node has children, aggregate and return (own mode provides context only)
-    if children:
-        score_agg = str(matcher.get("score", "weighted"))
-        success_agg = str(matcher.get("success", "threshold"))
-        agg_success, agg_score = _aggregate_child_results(
-            child_matchers, list(children.values()), score_agg, success_agg, threshold
-        )
-        return _make_match_result(agg_success, agg_score, children=children)
-
-    # No children: execute own mode
-    reference_expr = matcher.get("reference")
-    reference: Any = None
-    if reference_expr is not None:
-        reference = _resolve_reference_value(reference_expr, request)
-
-    # Resolve multi-value reference list
-    references_exprs: Optional[List] = matcher.get("references")
-    references: Optional[List[Any]] = None
-    if references_exprs is not None:
-        references = [_resolve_reference_value(s, request) for s in references_exprs]
-
-    contains_mode = str(matcher.get("contains", "all"))
-
-    try:
-        if match_type == "valid":
-            success, score = _execute_match_valid(actual, mode)
-
-        elif match_type == "exact":
-            success, score = _execute_match_exact(actual, reference, case_sensitive)
-
-        elif match_type == "starts_with":
-            success, score = _execute_match_starts_with(
-                actual, reference, case_sensitive
-            )
-
-        elif match_type == "ends_with":
-            success, score = _execute_match_ends_with(actual, reference, case_sensitive)
-
-        elif match_type == "contains":
-            success, score = _execute_match_contains(
-                actual, reference, references, contains_mode, case_sensitive
-            )
-
-        elif match_type == "regex":
-            success, score = _execute_match_regex(actual, reference, case_sensitive)
-
-        elif match_type == "similarity":
-            similarity = str(matcher.get("similarity", "jaccard"))
-            if similarity == "cosine":
-                embedding_model = "text-embedding-3-small"
-                score = await _execute_match_similarity_cosine(
-                    actual, reference, embedding_model
-                )
-            else:
-                score = _execute_match_similarity_sync(
-                    actual, reference, similarity, case_sensitive
-                )
-            success = score >= threshold
-
-        elif match_type == "diff":
-            diff_mode = str(matcher.get("diff", "full"))
-            score = _execute_match_diff(
-                actual,
-                reference,
-                diff_mode,
-                case_sensitive,
-            )
-            success = score >= threshold
-
-        else:
-            raise MatchV0Error(
-                message=f"Unknown match: {match_type!r}. Expected one of: 'valid', 'exact', 'starts_with', 'ends_with', 'contains', 'regex', 'similarity', 'diff'."
-            )
-
-        return _make_match_result(success, score)
-
-    except ErrorStatus as e:
-        return _make_match_result(False, 0.0, error=e.message)
-    except Exception as e:
-        return _make_match_result(False, 0.0, error=str(e))
-
-
-def _apply_responses_bridge_if_needed(
-    formatted_prompt: PromptTemplate, provider_settings: Dict
-) -> Dict:
-    """
-    Checks if web_search_preview tool is present and applies responses bridge if needed.
-
-    If a web_search_preview, code_execution, or mcp tool is detected, this function
-    modifies the provider_settings to use the responses bridge by prepending
-    'openai/responses/' to the model name.
-
-    Args:
-        formatted_prompt: The formatted prompt template containing LLM config and tools
-        provider_settings: The provider settings dictionary that may be modified
-
-    Returns:
-        The provider_settings dictionary, potentially modified to use responses bridge
-    """
-    tools = formatted_prompt.llm_config.tools
-    if tools:
-        for tool in tools:
-            if isinstance(tool, dict) and tool.get("type") in [
-                "web_search_preview",
-                "code_execution",
-                "mcp",
-            ]:
-                model_val = provider_settings.get("model")
-                if model_val and "/" not in model_val:
-                    provider_settings["model"] = f"openai/responses/{model_val}"
-    return provider_settings
-
-
-def _get_nested_value(obj: Any, path: str) -> Any:
-    """
-    Get value from nested object using resolve_any() with graceful None on failure.
-
-    Supports multiple path formats:
-        - Dot notation: "user.address.city", "items.0.name"
-        - JSON Path: "$.user.address.city", "$.items[0].name"
-        - JSON Pointer: "/user/address/city", "/items/0/name"
-
-    Args:
-        obj: The object to traverse (dict or list)
-        path: Path expression in any supported format
-
-    Returns:
-        The value at the path, or None if path doesn't exist or resolution fails
-    """
-    if obj is None:
-        return None
-
-    try:
-        return resolve_any(path, obj)
-    except (KeyError, IndexError, ValueError, TypeError, ImportError):
-        return None
-
-
-class SinglePromptConfig(BaseModel):
-    prompt: PromptTemplate = Field(
-        default=PromptTemplate(
-            system_prompt="You are an expert in geography",
-            user_prompt="What is the capital of {{country}}?",
-        )
-    )
-
-
-# --- NEW URI
-
-
-@instrument()
-async def feedback_v0(
-    request: Optional[Data] = None,
-    revision: Optional[Data] = None,
-    inputs: Optional[Data] = None,
-    parameters: Optional[Data] = None,
-    outputs: Optional[Union[Data, str]] = None,
-    trace: Optional[Data] = None,
-    testcase: Optional[Data] = None,
-) -> Any:
-    """
-    Interface-only handler for agenta:custom:feedback:v0.
-
-    Unified handler for invocation/annotation workflows where the response
-    (app output or human annotation) arrives via external links rather than
-    a direct return value.
-
-    This URI exists as a schema/interface registry entry only.
-    It cannot be invoked directly.
-    """
-    raise HookV0Error(
-        message="agenta:custom:feedback:v0 is interface-only and cannot be invoked directly.",
-    )
-
-
-@instrument(ignore_inputs=["parameters"])
-async def hook_v0(
-    request: Optional[Data] = None,
-    revision: Optional[Data] = None,
-    inputs: Optional[Data] = None,
-    parameters: Optional[Data] = None,
-    outputs: Optional[Union[Data, str]] = None,
-    trace: Optional[Data] = None,
-    testcase: Optional[Data] = None,
-) -> Any:
-    """
-    Webhook-based handler for CUSTOM app types and evaluators.
-
-    Forwards the full workflow request to an external webhook URL and returns
-    the response.  The webhook URL is read from the workflow interface (``url``
-    field in revision data), not from ``parameters``.
-
-    Complies with the canonical Workflow Request shape so it can serve as
-    both an app handler (inputs → webhook → outputs) and an evaluator handler
-    (inputs + outputs + trace → webhook → evaluation result).
-
-    Args:
-        request:    Raw request object (unused, available for introspection).
-        revision:   Revision data (unused, available for introspection).
-        inputs:     Inputs forwarded to the webhook.
-        parameters: Configuration parameters forwarded to the webhook.
-        outputs:    App outputs forwarded to the webhook (evaluator use-case).
-        trace:      Trace data forwarded to the webhook (evaluator use-case).
-        testcase:   Testcase data forwarded to the webhook (evaluator use-case).
-
-    Returns:
-        The JSON-decoded (or raw text) response from the webhook.
-    """
-    from agenta.sdk.contexts.running import RunningContext
-
-    ctx = RunningContext.get()
-    revision = ctx.revision
-    if isinstance(revision, dict):
-        webhook_url = revision.get("url")
-    else:
-        webhook_url = getattr(revision, "url", None)
-
-    if not webhook_url:
-        raise MissingConfigurationParameterV0Error(path="url")
-
-    webhook_url = str(webhook_url)
-    try:
-        _validate_webhook_url(webhook_url)
-    except ValueError as exc:
-        raise InvalidConfigurationParameterV0Error(
-            path="url",
-            expected="http/https URL",
-            got=webhook_url,
-        ) from exc
-
-    json_payload: Dict[str, Any] = {
-        "inputs": inputs or {},
-        "parameters": parameters or {},
-    }
-    if outputs is not None:
-        json_payload["outputs"] = outputs
-    if trace is not None:
-        json_payload["trace"] = trace
-    if testcase is not None:
-        json_payload["testcase"] = testcase
-
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(
-                url=webhook_url,
-                json=json_payload,
-                timeout=httpx.Timeout(30.0, connect=5.0),
-            )
-        except Exception as e:
-            raise WebhookClientV0Error(
-                message=str(e),
-            ) from e
-
-        if response.status_code != 200:
-            try:
-                message = response.json()
-            except Exception:
-                message = response.text
-            raise WebhookServerV0Error(
-                code=response.status_code,
-                message=message,
-            )
-
-        content_length = response.headers.get("content-length")
-        if content_length and int(content_length) > _WEBHOOK_RESPONSE_MAX_BYTES:
-            raise WebhookClientV0Error(message="Webhook response exceeded size limit.")
-
-        response_bytes = response.content
-        if len(response_bytes) > _WEBHOOK_RESPONSE_MAX_BYTES:
-            raise WebhookClientV0Error(message="Webhook response exceeded size limit.")
-
-        try:
-            return json.loads(response_bytes)
-        except Exception:
-            return response_bytes.decode("utf-8")
-
-
-@instrument()
-async def code_v0(
-    request: Optional[Data] = None,
-    revision: Optional[Data] = None,
-    #
-    inputs: Optional[Data] = None,
-    parameters: Optional[Data] = None,
-    outputs: Optional[Union[Data, str]] = None,
-    #
-    trace: Optional[Data] = None,
-    testcase: Optional[Data] = None,
-) -> Any:
-    """
-    Code evaluator using the canonical evaluate(inputs, outputs, trace) interface.
-
-    Executes ``parameters["code"]`` as ``evaluate(inputs, outputs, trace)``
-    and normalises the return value to a typed evaluation result.
-
-    Parameters:
-        code:      Python (or JS/TS) source containing an ``evaluate`` function.
-        runtime:   Execution runtime — ``"python"`` (default), ``"javascript"``,
-                   or ``"typescript"``.
-        threshold: Score threshold for success when the code returns a number.
-                   Defaults to 0.5.
-
-    Returns:
-        ``{"score": float, "success": bool}``  when code returns a number.
-        ``{"success": bool}``                  when code returns a bool.
-        The raw dict / str                     when code returns one of those.
-    """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
-
-    if "code" not in parameters:
-        raise MissingConfigurationParameterV0Error(path="code")
-
-    code = str(parameters["code"])
-    runtime = str(parameters.get("runtime") or "python")
-
-    if runtime not in ["python", "javascript", "typescript"]:
-        raise InvalidConfigurationParameterV0Error(
-            path="runtime",
-            expected=["python", "javascript", "typescript"],
-            got=runtime,
-        )
-
-    threshold = float(parameters.get("threshold") or 0.5)
-
-    if outputs is not None and not isinstance(outputs, (str, dict)):
-        raise InvalidOutputsV0Error(expected=["dict", "str", "None"], got=outputs)
-
-    try:
-        _result = execute_code_safely(
-            app_params={},
-            inputs=inputs or {},
-            output=outputs,
-            correct_answer=None,
-            code=code,
-            runtime=runtime,
-            templates=EVALUATOR_TEMPLATES.get("v1", {}),
-            version="2",
-            trace=trace,
-        )
-    except ErrorStatus:
-        raise
-    except Exception as e:
-        raise CodeV0Error(
-            message=str(e),
-            stacktrace=traceback.format_exc(),
-        ) from e
-
-    if isinstance(_result, bool):
-        return {"success": _result}
-
-    if isinstance(_result, (int, float)):
-        score = float(_result)
-        return {"score": score, "success": score >= threshold}
-
-    if isinstance(_result, (dict, str)):
-        return _result
-
-    raise InvalidOutputsV0Error(
-        expected=["dict", "str", "int", "float", "bool"], got=_result
-    )
-
-
-@instrument()
-async def config_v0(
-    request: Optional[Data] = None,
-    revision: Optional[Data] = None,
-    inputs: Optional[Data] = None,
-    parameters: Optional[Data] = None,
-    outputs: Optional[Union[Data, str]] = None,
-    trace: Optional[Data] = None,
-    testcase: Optional[Data] = None,
-) -> Any:
-    """
-    Interface-only handler for agenta:custom:snippet:v0.
-
-    Snippets are stored code fragments — they are not directly invocable.
-    """
-    raise SnippetV0Error(
-        message="agenta:custom:snippet:v0 is not runnable.",
-    )
-
-
-@instrument()
-async def match_v0(
-    request: Optional[Data] = None,
-    revision: Optional[Data] = None,
-    inputs: Optional[Data] = None,
-    parameters: Optional[Data] = None,
-    outputs: Optional[Union[Data, str]] = None,
-    trace: Optional[Data] = None,
-    testcase: Optional[Data] = None,
-) -> Any:
-    """
-    Match evaluator with recursive matcher tree (agenta:builtin:match:v0).
-
-    Consolidates the following legacy builtin evaluators:
-    - auto_exact_match     → mode="text", match="exact", string=ESCAPED_VALUE
-    - auto_regex_test      → mode="text", match="regex"
-    - auto_starts_with     → mode="text", match="regex", string="^PREFIX"
-    - auto_ends_with       → mode="text", match="regex", string="SUFFIX$"
-    - auto_contains        → mode="text", match="regex", string="SUBSTRING"
-    - auto_contains_any    → mode="text", match="regex", string="(OPT1|OPT2|...)"
-    - auto_contains_all    → mode="text", match="regex", string="(?=.*S1)(?=.*S2).*"
-    - auto_similarity_match    → mode="text", match="similarity", similarity="jaccard"
-    - auto_semantic_similarity → mode="text", match="similarity", similarity="cosine"
-    - auto_levenshtein_distance → mode="text", match="similarity", similarity="levenshtein"
-    - field_match_test     → mode="text", match="regex", target="$.outputs.FIELD"
-    - json_multi_field_match → mode="json", match="diff" + child matchers
-    - auto_contains_json   → mode="json", match="valid"
-    - auto_json_diff       → mode="json", match="diff"
-
-    Parameters:
-        parameters: {"matchers": [...]}  — recursive matcher tree
-        inputs:     testcase inputs (accessible as $.inputs.*)
-        outputs:    workflow outputs (accessible as $.outputs or $.outputs.*)
-        trace:      trace data (accessible as $.trace.*)
-
-    Returns:
-        {key: result_node, ..., "score": float, "success": bool}  — flat result dict
-    """
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
-
-    if "matchers" not in parameters:
-        raise MissingConfigurationParameterV0Error(path="matchers")
-
-    matchers = parameters["matchers"]
-    if not isinstance(matchers, list):
-        raise InvalidConfigurationParameterV0Error(
-            path="matchers", expected="list", got=matchers
-        )
-
-    # Build request context for path resolution
-    request: Dict[str, Any] = {}
-    if inputs is not None:
-        request["inputs"] = inputs
-    if outputs is not None:
-        request["outputs"] = outputs
-    if trace is not None:
-        request["trace"] = trace
-
-    score_agg = str(parameters.get("score", "weighted"))
-    success_agg = str(parameters.get("success", "threshold"))
-    threshold = float(parameters.get("threshold", 1.0))
-
-    results: Dict[str, Any] = {}
-    for matcher in matchers:
-        result = await _execute_match_node(matcher, request)
-        results[str(matcher.get("key", ""))] = result
-
-    if not results:
-        return {"score": 1.0, "success": True}
-
-    scores = [r["score"] for r in results.values()]
-    if score_agg == "min":
-        root_score = min(scores)
-    elif score_agg == "max":
-        root_score = max(scores)
-    else:  # "weighted"
-        weights = [float(m.get("weight", 1.0)) for m in matchers]
-        total_weight = sum(weights) if sum(weights) > 0 else 1.0
-        root_score = sum(s * w for s, w in zip(scores, weights)) / total_weight
-
-    successes = [r["success"] for r in results.values()]
-    if success_agg == "any":
-        root_success = any(successes)
-    elif success_agg == "threshold":
-        root_success = root_score >= threshold
-    else:  # "all"
-        root_success = all(successes)
-
-    return {
-        **results,
-        "score": root_score,
-        "success": root_success,
-    }
-
-
-# ---------------------------------------------------------------------------
-# llm_v0 helpers
-# ---------------------------------------------------------------------------
-
-
-def _merge_usage(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
-    """Merge two LiteLLM usage dicts by summing numeric fields."""
-    result = dict(a)
-    for k, v in b.items():
-        if isinstance(v, (int, float)):
-            result[k] = result.get(k, 0) + v
-        else:
-            result[k] = v
-    return result
-
-
-def _merge_consent(
-    param_consent: Optional[Dict[str, Any]],
-    input_consent: Optional[Dict[str, Any]],
-) -> Optional[Dict[str, Any]]:
-    """
-    Merge parameter-level consent policy with per-run consent input.
-    Returns None when both are absent (no consent gate).
-    """
-    if param_consent is None and not input_consent:
-        return None
-    base = dict(param_consent or {})
-    override = dict(input_consent or {})
-    # Merge decisions by key
-    base_decisions = dict(base.get("decisions") or {})
-    override_decisions = dict(override.get("decisions") or {})
-    merged = {**base, **override, "decisions": {**base_decisions, **override_decisions}}
-    return merged
-
-
-def _apply_variables(
-    messages: List[Dict[str, Any]],
-    variables: Dict[str, Any],
-    template_format: str,
-) -> List[Dict[str, Any]]:
-    """Apply template variable substitution to message content strings."""
-    if not variables:
-        return messages
-    result = []
-    for msg in messages:
-        content = msg.get("content")
-        if isinstance(content, str):
-            try:
-                content = _format_with_template(
-                    content=content,
-                    format=template_format,
-                    kwargs=variables,
-                )
-            except Exception as e:
-                raise PromptFormattingV0Error(
-                    message=str(e),
-                    stacktrace=traceback.format_exc(),
-                ) from e
-        result.append({**msg, "content": content})
-    return result
-
-
-def _build_llm_tools(tools_config: Optional[Dict[str, Any]]) -> Optional[List[Dict]]:
-    """Convert tools config into a litellm-compatible tools list."""
-    if not tools_config:
-        return None
-    internal_names: List[str] = list(tools_config.get("internal") or [])
-    external_defs: List[Dict] = list(tools_config.get("external") or [])
-    tool_defs = list(external_defs)
-    # Register built-in internal tool schemas
-    _INTERNAL_TOOL_SCHEMAS: Dict[str, Dict] = {
-        "files.list": {
-            "type": "function",
-            "function": {
-                "name": "files.list",
-                "description": "List files in a directory.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "path": {"type": "string", "default": "."},
-                        "pattern": {"type": "string"},
-                    },
-                },
-            },
-        },
-        "files.read": {
-            "type": "function",
-            "function": {
-                "name": "files.read",
-                "description": "Read the contents of a file.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "path": {"type": "string"},
-                    },
-                    "required": ["path"],
-                },
-            },
-        },
-        "files.search": {
-            "type": "function",
-            "function": {
-                "name": "files.search",
-                "description": "Search for text in files.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": {"type": "string"},
-                        "path": {"type": "string", "default": "."},
-                    },
-                    "required": ["query"],
-                },
-            },
-        },
-        "control.terminate": {
-            "type": "function",
-            "function": {
-                "name": "control.terminate",
-                "description": "Signal that the agent considers the run complete.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "summary": {"type": "string"},
-                    },
-                },
-            },
-        },
-        "control.request_consent": {
-            "type": "function",
-            "function": {
-                "name": "control.request_consent",
-                "description": "Ask the caller to collect consent for an internal tool call.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "tool_call_id": {"type": "string"},
-                        "tool_name": {"type": "string"},
-                        "arguments": {},
-                        "reason": {"type": "string"},
-                    },
-                    "required": ["tool_call_id", "tool_name"],
-                },
-            },
-        },
-    }
-    for name in internal_names:
-        schema = _INTERNAL_TOOL_SCHEMAS.get(name)
-        if schema:
-            tool_defs.append(schema)
-    return tool_defs or None
-
-
-async def _execute_internal_tool(
-    name: str,
-    arguments: Dict[str, Any],
-    files_config: Optional[Dict[str, Any]],
-    context: Dict[str, Any],
-) -> Any:
-    """Execute an internal tool and return its result."""
-    import glob as _glob
-    import os as _os
-
-    fc = files_config or {}
-    roots: List[str] = list(fc.get("roots") or ["."])
-    allow_globs: List[str] = list(fc.get("allow_globs") or ["**/*"])
-    deny_globs: List[str] = list(fc.get("deny_globs") or [])
-    max_file_bytes: int = int(fc.get("max_file_bytes") or 65536)
-    max_total_bytes: int = int(fc.get("max_total_bytes_per_turn") or 262144)
-    include_hidden: bool = bool(fc.get("include_hidden", False))
-
-    def _is_allowed(path: str) -> bool:
-        import fnmatch
-
-        if not include_hidden:
-            parts = path.replace("\\", "/").split("/")
-            if any(p.startswith(".") for p in parts):
-                return False
-        allowed = any(fnmatch.fnmatch(path, pat) for pat in allow_globs)
-        denied = any(fnmatch.fnmatch(path, pat) for pat in deny_globs)
-        return allowed and not denied
-
-    if name == "files.list":
-        path = str(arguments.get("path") or ".")
-        pattern = str(arguments.get("pattern") or "**/*")
-        results = []
-        for root in roots:
-            search_root = _os.path.join(root, path)
-            for match in _glob.glob(
-                _os.path.join(search_root, pattern), recursive=True
-            ):
-                rel = _os.path.relpath(match, root)
-                if _is_allowed(rel) and _os.path.isfile(match):
-                    results.append(rel)
-        return {"files": results}
-
-    if name == "files.read":
-        path = str(arguments.get("path") or "")
-        for root in roots:
-            full = _os.path.join(root, path)
-            if not _os.path.isfile(full):
-                continue
-            rel = _os.path.relpath(full, root)
-            if not _is_allowed(rel):
-                return {"error": f"Access denied: {path}"}
-            size = _os.path.getsize(full)
-            if size > max_file_bytes:
-                return {
-                    "error": f"File too large: {size} bytes (limit {max_file_bytes})"
-                }
-            with open(full, "r", encoding="utf-8", errors="replace") as fh:
-                return {"path": path, "content": fh.read()}
-        return {"error": f"File not found: {path}"}
-
-    if name == "files.search":
-        query = str(arguments.get("query") or "")
-        path = str(arguments.get("path") or ".")
-        matches = []
-        total_bytes = 0
-        for root in roots:
-            search_root = _os.path.join(root, path)
-            for fpath in _glob.glob(_os.path.join(search_root, "**/*"), recursive=True):
-                if not _os.path.isfile(fpath):
-                    continue
-                rel = _os.path.relpath(fpath, root)
-                if not _is_allowed(rel):
-                    continue
-                try:
-                    with open(fpath, "r", encoding="utf-8", errors="replace") as fh:
-                        for lineno, line in enumerate(fh, 1):
-                            if query in line:
-                                entry = f"{rel}:{lineno}: {line.rstrip()}"
-                                total_bytes += len(entry)
-                                if total_bytes > max_total_bytes:
-                                    return {"matches": matches, "truncated": True}
-                                matches.append(entry)
-                except OSError:
-                    continue
-        return {"matches": matches}
-
-    return {"error": f"Unknown internal tool: {name}"}
-
-
-def _first_without_consent(
-    tool_calls: List[Dict[str, Any]],
-    consent_state: Optional[Dict[str, Any]],
-) -> Optional[Dict[str, Any]]:
-    """Return the first tool call that lacks consent, or None if all are approved."""
-    if consent_state is None:
-        return None
-    mode = consent_state.get("mode") or "per_call"
-    if mode == "allow_all":
-        return None
-    if mode == "deny_all":
-        return tool_calls[0] if tool_calls else None
-    allowed_tools: List[str] = list(consent_state.get("allowed_tools") or [])
-    denied_tools: List[str] = list(consent_state.get("denied_tools") or [])
-    decisions: Dict[str, Any] = dict(consent_state.get("decisions") or {})
-    for tc in tool_calls:
-        fn_name = (tc.get("function") or {}).get("name", "")
-        if fn_name in denied_tools:
-            return tc
-        if fn_name in allowed_tools:
-            continue
-        tc_id = tc.get("id", "")
-        decision = decisions.get(tc_id) or decisions.get(fn_name)
-        if not decision or decision.get("decision") != "allow":
-            return tc
-    return None
-
-
-def _make_consent_request_call(missing: Dict[str, Any]) -> Dict[str, Any]:
-    """Construct a control.request_consent tool call for a missing-consent internal call."""
-    fn = missing.get("function") or {}
-    return {
-        "id": f"consent_{missing.get('id', 'unknown')}",
-        "type": "function",
-        "function": {
-            "name": "control.request_consent",
-            "arguments": json.dumps(
-                {
-                    "tool_call_id": missing.get("id", ""),
-                    "tool_name": fn.get("name", ""),
-                    "arguments": fn.get("arguments", "{}"),
-                }
-            ),
-        },
-    }
-
-
-async def _call_llm_with_fallback(
-    llms: List[Dict[str, Any]],
-    messages: List[Dict[str, Any]],
-    tools: Optional[List[Dict]],
-) -> tuple:
-    """
-    Try each LLM entry in order.
-    Falls back on authentication, rate limit, and availability errors.
-    Returns (assistant_message_dict, usage_dict).
-    Raises LLMUnavailableV0Error if all entries fail.
-    """
-    from agenta.sdk.engines.running.errors import LLMUnavailableV0Error
-
-    litellm = _load_litellm()
-    if not litellm:
-        raise ImportError("litellm is required for llm_v0.")
-
-    _retriable = tuple(
-        cls
-        for name in (
-            "AuthenticationError",
-            "RateLimitError",
-            "ServiceUnavailableError",
-            "NotFoundError",
-        )
-        if (cls := getattr(litellm, name, None)) is not None
-    )
-
-    secrets, _, _ = await SecretsManager.retrieve_secrets()
-    if secrets and isinstance(secrets, list):
-        for secret in secrets:
-            if secret.get("kind") != "provider_key":
-                continue
-            data = secret.get("data", {})
-            kind = data.get("kind")
-            key = data.get("provider", {}).get("key")
-            if kind == "openai" and key:
-                litellm.openai_key = key
-            elif kind == "anthropic" and key:
-                litellm.anthropic_key = key
-            elif kind == "openrouter" and key:
-                litellm.openrouter_key = key
-            elif kind == "cohere" and key:
-                litellm.cohere_key = key
-            elif kind == "azure" and key:
-                litellm.azure_key = key
-            elif kind == "groq" and key:
-                litellm.groq_key = key
-
-    last_error = None
-    for llm_config in llms:
-        model = llm_config.get("model")
-        if not model:
-            continue
-        kwargs: Dict[str, Any] = {"model": str(model), "messages": messages}
-        if tools:
-            kwargs["tools"] = tools
-            if llm_config.get("tool_choice"):
-                kwargs["tool_choice"] = llm_config["tool_choice"]
-        for field in (
-            "temperature",
-            "max_tokens",
-            "top_p",
-            "frequency_penalty",
-            "presence_penalty",
-            "reasoning_effort",
-        ):
-            val = llm_config.get(field)
-            if val is not None:
-                kwargs[field] = val
-        try:
-            response = await litellm.acompletion(**kwargs)
-            msg = response.choices[0].message
-            assistant_message = (
-                msg.model_dump(exclude_none=True)
-                if hasattr(msg, "model_dump")
-                else dict(msg)
-            )
-            usage = (
-                dict(response.usage)
-                if hasattr(response, "usage") and response.usage
-                else {}
-            )
-            return assistant_message, usage
-        except _retriable as exc:
-            last_error = exc
-            continue
-        except Exception:
-            raise
-
-    raise LLMUnavailableV0Error(
-        message=f"All LLM entries exhausted. Last error: {last_error}"
-    )
-
-
-# ---------------------------------------------------------------------------
-# llm_v0 — unified prompt + agent handler
-# ---------------------------------------------------------------------------
-
-
-@instrument()
-async def llm_v0(
-    request: Optional[Data] = None,
-    revision: Optional[Data] = None,
-    inputs: Optional[Data] = None,
-    parameters: Optional[Data] = None,
-    outputs: Optional[Union[Data, str]] = None,
-    trace: Optional[Data] = None,
-    testcase: Optional[Data] = None,
-) -> Any:
-    """
-    Unified LLM handler covering single-call prompt mode and multi-step agent loop.
-
-    Parameters (stored per revision):
-        llms:            Ordered list of LLM configs. Runtime tries each in order on
-                         auth / rate-limit / availability errors.
-        messages:        System/initial messages. Template substitution applied.
-        template_format: "curly" (default), "fstring", or "jinja2".
-        loop:            null → single LLM call (prompt mode).
-                         dict → agent loop config with max_iterations etc.
-        tools:           {"internal": [...], "external": [...]}. null → no tools.
-        consent:         Consent policy dict. null → auto-approve all internal tools.
-        response:        {"stream": false}.
-
-    Inputs (per invocation):
-        messages:   Incremental messages appended after parameters.messages.
-        variables:  Template variables substituted into all messages.
-        context:    Structured context merged with parameters.context.
-        consent:    Consent decisions merged with parameters.consent.
-
-    Returns always:
-        {
-            "status":  {"code": int, "type": str, "message": str},
-            "messages": [...],   # full message history
-            "context":  {...},
-            "consent":  {...},
-            "usage":    {...},
-        }
-    """
-    from agenta.sdk.engines.running.errors import LLMUnavailableV0Error
-
-    # --- Validate parameters
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
-
-    llms = parameters.get("llms")
-    if not llms or not isinstance(llms, list):
-        raise InvalidConfigurationParameterV0Error(
-            path="llms", expected="non-empty list", got=llms
-        )
-
-    param_messages: List[Dict] = Messages.model_validate(
-        parameters.get("messages") or []
-    ).model_dump(exclude_none=True)
-    template_format = str(parameters.get("template_format") or "curly")
-    loop_config: Optional[Dict] = parameters.get("loop")
-    tools_config: Optional[Dict] = parameters.get("tools")
-    param_consent: Optional[Dict] = parameters.get("consent")
-    param_context: Dict = dict(parameters.get("context") or {})
-
-    # --- Parse inputs
-    run_inputs: Dict = dict(inputs or {})
-    if inputs is not None and not isinstance(inputs, dict):
-        raise InvalidInputsV0Error(expected="dict", got=inputs)
-
-    input_messages: List[Dict] = Messages.model_validate(
-        run_inputs.get("messages") or []
-    ).model_dump(exclude_none=True)
-    variables: Dict = dict(run_inputs.get("variables") or {})
-    input_context: Dict = dict(run_inputs.get("context") or {})
-    input_consent: Optional[Dict] = run_inputs.get("consent")
-
-    # --- Apply template variables and build message list
-    fmt_param_messages = _apply_variables(param_messages, variables, template_format)
-    fmt_input_messages = _apply_variables(input_messages, variables, template_format)
-    all_messages: List[Dict] = [*fmt_param_messages, *fmt_input_messages]
-
-    # --- Merge context and consent
-    context: Dict = {**param_context, **input_context}
-    consent_state: Optional[Dict] = _merge_consent(param_consent, input_consent)
-
-    usage: Dict[str, Any] = {}
-
-    # =========================================================================
-    # PROMPT MODE: loop = null → single LLM call, return immediately
-    # =========================================================================
-    if loop_config is None:
-        try:
-            assistant_message, call_usage = await _call_llm_with_fallback(
-                llms=llms,
-                messages=all_messages,
-                tools=_build_llm_tools(tools_config),
-            )
-        except LLMUnavailableV0Error:
-            raise
-        usage = _merge_usage(usage, call_usage)
-        return {
-            "status": {"code": 200, "type": "success", "message": "completed"},
-            "messages": [*all_messages, assistant_message],
-            "context": context,
-            "consent": consent_state or {},
-            "usage": usage,
-        }
-
-    # =========================================================================
-    # AGENT MODE: loop present → multi-step loop
-    # =========================================================================
-    max_iterations = int(loop_config.get("max_iterations") or 8)
-    max_internal_calls = int(loop_config.get("max_internal_tool_calls") or 16)
-    max_consecutive_errors = int(loop_config.get("max_consecutive_errors") or 2)
-    allow_implicit_stop = bool(loop_config.get("allow_implicit_stop", True))
-
-    internal_names: set = set(list((tools_config or {}).get("internal") or []))
-    external_names: set = set(list((tools_config or {}).get("external") or []))
-
-    state: Dict[str, Any] = {
-        "messages": all_messages,
-        "context": context,
-        "consent": consent_state,
-        "iterations": 0,
-        "internal_tool_calls": 0,
-        "consecutive_errors": 0,
-    }
-
-    def _envelope(status_code: int, status_type: str, status_message: str) -> Dict:
-        return {
-            "status": {
-                "code": status_code,
-                "type": status_type,
-                "message": status_message,
-            },
-            "messages": state["messages"],
-            "context": state["context"],
-            "consent": state["consent"] or {},
-            "usage": usage,
-        }
-
-    while True:
-        if state["iterations"] >= max_iterations:
-            return _envelope(500, "failure", "iterations_exhausted")
-        if state["internal_tool_calls"] >= max_internal_calls:
-            return _envelope(500, "failure", "calls_exhausted")
-
-        state["iterations"] += 1
-
-        try:
-            assistant_message, call_usage = await _call_llm_with_fallback(
-                llms=llms,
-                messages=state["messages"],
-                tools=_build_llm_tools(tools_config),
-            )
-            state["consecutive_errors"] = 0
-        except LLMUnavailableV0Error:
-            return _envelope(503, "failure", "llm_unavailable")
-        except Exception:
-            state["consecutive_errors"] += 1
-            if state["consecutive_errors"] >= max_consecutive_errors:
-                return _envelope(500, "failure", "error_raised")
-            continue
-
-        usage = _merge_usage(usage, call_usage)
-        state["messages"] = [*state["messages"], assistant_message]
-
-        tool_calls: List[Dict] = list(assistant_message.get("tool_calls") or [])
-
-        # No tool calls
-        if not tool_calls:
-            if allow_implicit_stop:
-                return _envelope(200, "success", "completed")
-            continue
-
-        # control.terminate
-        if any(
-            (tc.get("function") or {}).get("name") == "control.terminate"
-            for tc in tool_calls
-        ):
-            return _envelope(200, "success", "completed")
-
-        # Classify tool calls
-        external_calls = [
-            tc
-            for tc in tool_calls
-            if (tc.get("function") or {}).get("name") in external_names
-        ]
-        internal_calls = [
-            tc
-            for tc in tool_calls
-            if (tc.get("function") or {}).get("name") in internal_names
-        ]
-
-        # External tool calls → pause and return to caller
-        if external_calls:
-            return _envelope(202, "awaiting", "tool_requested")
-
-        # Consent gate for internal tools
-        if state["consent"] is not None:
-            missing = _first_without_consent(internal_calls, state["consent"])
-            if missing:
-                consent_call = _make_consent_request_call(missing)
-                last = dict(state["messages"][-1])
-                last_tool_calls = list(last.get("tool_calls") or []) + [consent_call]
-                state["messages"] = [
-                    *state["messages"][:-1],
-                    {**last, "tool_calls": last_tool_calls},
-                ]
-                return _envelope(202, "awaiting", "consent_requested")
-
-        # Execute internal tools
-        for tc in internal_calls:
-            fn = tc.get("function") or {}
-            fn_name = fn.get("name", "")
-            try:
-                fn_args = json.loads(fn.get("arguments") or "{}")
-            except (json.JSONDecodeError, ValueError):
-                fn_args = {}
-            result = await _execute_internal_tool(
-                name=fn_name,
-                arguments=fn_args,
-                files_config=parameters.get("files"),
-                context=state["context"],
-            )
-            state["internal_tool_calls"] += 1
-            state["messages"] = [
-                *state["messages"],
-                {
-                    "role": "tool",
-                    "tool_call_id": tc.get("id", ""),
-                    "content": json.dumps(result)
-                    if not isinstance(result, str)
-                    else result,
-                },
-            ]
-
-
-# --- OLD URI
-
-
-@instrument(ignore_inputs=["parameters"])
-async def chat_v0(
-    parameters: Data,
-    inputs: Dict[str, Any],
-    messages: Optional[Messages] = None,
-):
-    params: Dict[str, Any] = {**(parameters or {})}
-
-    config = SinglePromptConfig(**params)
-    if config.prompt.input_keys is not None:
-        required_keys = set(config.prompt.input_keys)
-        provided_keys = set(inputs.keys())
-
-        if required_keys != provided_keys:
-            raise InvalidInputsV0Error(
-                expected=sorted(required_keys),
-                got=sorted(provided_keys),
-            )
-
-    formatted_prompt = config.prompt.format(**inputs)
-    openai_kwargs = formatted_prompt.to_openai_kwargs()
-
-    if messages is not None:
-        openai_kwargs["messages"].extend(messages.model_dump(exclude_none=True))
-
-    await SecretsManager.ensure_secrets_in_workflow()
-
-    provider_settings = SecretsManager.get_provider_settings_from_workflow(
-        config.prompt.llm_config.model
-    )
-
-    if not provider_settings:
-        model = getattr(
-            getattr(getattr(config, "prompt", None), "llm_config", None), "model", None
-        )
-        raise InvalidSecretsV0Error(expected="dict", got=provider_settings, model=model)
-
-    provider_settings = _apply_responses_bridge_if_needed(
-        formatted_prompt, provider_settings
-    )
-
-    with mockllm.user_aws_credentials_from(provider_settings):
-        response = await mockllm.acompletion(
-            **{
-                k: v for k, v in openai_kwargs.items() if k != "model"
-            },  # we should use the model_name from provider_settings
-            **provider_settings,
-        )
-
-    return response.choices[0].message.model_dump(exclude_none=True)  # type: ignore
-
-
-@instrument(ignore_inputs=["parameters"])
-async def completion_v0(
-    parameters: Data,
-    inputs: Dict[str, Any],
-) -> Any:
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
-
-    if "prompt" not in parameters:
-        raise MissingConfigurationParameterV0Error(path="prompt")
-
-    params: Dict[str, Any] = {**(parameters or {})}
-
-    config = SinglePromptConfig(**params)
-    if config.prompt.input_keys is not None:
-        required_keys = set(config.prompt.input_keys)
-        provided_keys = set(inputs.keys())
-
-        if required_keys != provided_keys:
-            raise InvalidInputsV0Error(
-                expected=sorted(required_keys),
-                got=sorted(provided_keys),
-            )
-
-    await SecretsManager.ensure_secrets_in_workflow()
-
-    provider_settings = SecretsManager.get_provider_settings_from_workflow(
-        config.prompt.llm_config.model
-    )
-
-    if not provider_settings:
-        model = getattr(
-            getattr(getattr(config, "prompt", None), "llm_config", None), "model", None
-        )
-        raise InvalidSecretsV0Error(expected="dict", got=provider_settings, model=model)
-
-    formatted_prompt = config.prompt.format(**inputs)
-
-    provider_settings = _apply_responses_bridge_if_needed(
-        formatted_prompt, provider_settings
-    )
-
-    with mockllm.user_aws_credentials_from(provider_settings):
-        response = await mockllm.acompletion(
-            **{
-                k: v
-                for k, v in formatted_prompt.to_openai_kwargs().items()
-                if k != "model"
-            },
-            **provider_settings,
-        )
-
-    message = response.choices[0].message  # type: ignore
-
-    if message.content is not None:
-        return message.content
-    if hasattr(message, "refusal") and message.refusal is not None:  # type: ignore
-        return message.refusal  # type: ignore
-    if hasattr(message, "parsed") and message.parsed is not None:  # type: ignore
-        return message.parsed  # type: ignore
-    if hasattr(message, "tool_calls") and message.tool_calls is not None:
-        return [tool_call.dict() for tool_call in message.tool_calls]
-
-
 @instrument()
 def echo_v0(aloha: Any):
     return {"got": aloha}
@@ -2179,6 +519,31 @@ def field_match_test_v0(
     return {"success": success}
 
 
+def _get_nested_value(obj: Any, path: str) -> Any:
+    """
+    Get value from nested object using resolve_any() with graceful None on failure.
+
+    Supports multiple path formats:
+        - Dot notation: "user.address.city", "items.0.name"
+        - JSON Path: "$.user.address.city", "$.items[0].name"
+        - JSON Pointer: "/user/address/city", "/items/0/name"
+
+    Args:
+        obj: The object to traverse (dict or list)
+        path: Path expression in any supported format
+
+    Returns:
+        The value at the path, or None if path doesn't exist or resolution fails
+    """
+    if obj is None:
+        return None
+
+    try:
+        return resolve_any(path, obj)
+    except (KeyError, IndexError, ValueError, TypeError, ImportError):
+        return None
+
+
 @instrument()
 def json_multi_field_match_v0(
     parameters: Optional[Data] = None,
@@ -2291,7 +656,6 @@ def json_multi_field_match_v0(
 
     # Aggregate score is the percentage of matching fields
     results["aggregate_score"] = matches / len(fields) if fields else 0.0
-    results["success"] = matches == len(fields) if fields else True
     # --------------------------------------------------------------------------
 
     return results
@@ -2803,12 +1167,6 @@ async def auto_ai_critique_v0(
         }
 
     if isinstance(_outputs, dict):
-        if "success" not in _outputs:
-            score = _outputs.get("score")
-            if isinstance(score, bool):
-                _outputs["success"] = score
-            elif isinstance(score, (int, float)) and not isinstance(score, bool):
-                _outputs["success"] = score >= threshold
         return _outputs
 
     raise InvalidOutputsV0Error(expected=["dict", "str", "int", "float"], got=_outputs)
@@ -3525,3 +1883,1535 @@ async def auto_semantic_similarity_v0(
     raise SemanticSimilarityV0Error(
         message=f"semantic-similarity error: got ({type(_outputs)}) {_outputs}, expected (int, float)."
     )
+
+
+class SinglePromptConfig(BaseModel):
+    prompt: PromptTemplate = Field(
+        default=PromptTemplate(
+            system_prompt="You are an expert in geography",
+            user_prompt="What is the capital of {{country}}?",
+        )
+    )
+
+
+def _apply_responses_bridge_if_needed(
+    formatted_prompt: PromptTemplate, provider_settings: Dict
+) -> Dict:
+    """
+    Checks if web_search_preview tool is present and applies responses bridge if needed.
+
+    If a web_search_preview, code_execution, or mcp tool is detected, this function
+    modifies the provider_settings to use the responses bridge by prepending
+    'openai/responses/' to the model name.
+
+    Args:
+        formatted_prompt: The formatted prompt template containing LLM config and tools
+        provider_settings: The provider settings dictionary that may be modified
+
+    Returns:
+        The provider_settings dictionary, potentially modified to use responses bridge
+    """
+    tools = formatted_prompt.llm_config.tools
+    if tools:
+        for tool in tools:
+            if isinstance(tool, dict) and tool.get("type") in [
+                "web_search_preview",
+                "code_execution",
+                "mcp",
+            ]:
+                model_val = provider_settings.get("model")
+                if model_val and "/" not in model_val:
+                    provider_settings["model"] = f"openai/responses/{model_val}"
+    return provider_settings
+
+
+@instrument(ignore_inputs=["parameters"])
+async def completion_v0(
+    parameters: Data,
+    inputs: Dict[str, str],
+) -> Any:
+    if parameters is None or not isinstance(parameters, dict):
+        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+
+    if "prompt" not in parameters:
+        raise MissingConfigurationParameterV0Error(path="prompt")
+
+    params: Dict[str, Any] = {**(parameters or {})}
+
+    config = SinglePromptConfig(**params)
+    if config.prompt.input_keys is not None:
+        required_keys = set(config.prompt.input_keys)
+        provided_keys = set(inputs.keys())
+
+        if required_keys != provided_keys:
+            raise InvalidInputsV0Error(
+                expected=sorted(required_keys),
+                got=sorted(provided_keys),
+            )
+
+    await SecretsManager.ensure_secrets_in_workflow()
+
+    provider_settings = SecretsManager.get_provider_settings_from_workflow(
+        config.prompt.llm_config.model
+    )
+
+    if not provider_settings:
+        model = getattr(
+            getattr(getattr(config, "prompt", None), "llm_config", None), "model", None
+        )
+        raise InvalidSecretsV0Error(expected="dict", got=provider_settings, model=model)
+
+    formatted_prompt = config.prompt.format(**inputs)
+
+    provider_settings = _apply_responses_bridge_if_needed(
+        formatted_prompt, provider_settings
+    )
+
+    with mockllm.user_aws_credentials_from(provider_settings):
+        response = await mockllm.acompletion(
+            **{
+                k: v
+                for k, v in formatted_prompt.to_openai_kwargs().items()
+                if k != "model"
+            },
+            **provider_settings,
+        )
+
+    message = response.choices[0].message  # type: ignore
+
+    if message.content is not None:
+        return message.content
+    if hasattr(message, "refusal") and message.refusal is not None:  # type: ignore
+        return message.refusal  # type: ignore
+    if hasattr(message, "parsed") and message.parsed is not None:  # type: ignore
+        return message.parsed  # type: ignore
+    if hasattr(message, "tool_calls") and message.tool_calls is not None:
+        return [tool_call.dict() for tool_call in message.tool_calls]
+
+
+@instrument(ignore_inputs=["parameters"])
+async def chat_v0(
+    parameters: Data,
+    inputs: Optional[Dict[str, str]] = None,
+    messages: Optional[List[Message]] = None,
+):
+    params: Dict[str, Any] = {**(parameters or {})}
+
+    config = SinglePromptConfig(**params)
+    if config.prompt.input_keys is not None:
+        required_keys = set(config.prompt.input_keys)
+        provided_keys = set(inputs.keys()) if inputs is not None else set()
+
+        if required_keys != provided_keys:
+            raise InvalidInputsV0Error(
+                expected=sorted(required_keys),
+                got=sorted(provided_keys),
+            )
+
+    if inputs is not None:
+        formatted_prompt = config.prompt.format(**inputs)
+    else:
+        formatted_prompt = config.prompt
+    openai_kwargs = formatted_prompt.to_openai_kwargs()
+
+    if messages is not None:
+        openai_kwargs["messages"].extend(messages)
+
+    await SecretsManager.ensure_secrets_in_workflow()
+
+    provider_settings = SecretsManager.get_provider_settings_from_workflow(
+        config.prompt.llm_config.model
+    )
+
+    if not provider_settings:
+        model = getattr(
+            getattr(getattr(config, "prompt", None), "llm_config", None), "model", None
+        )
+        raise InvalidSecretsV0Error(expected="dict", got=provider_settings, model=model)
+
+    provider_settings = _apply_responses_bridge_if_needed(
+        formatted_prompt, provider_settings
+    )
+
+    with mockllm.user_aws_credentials_from(provider_settings):
+        response = await mockllm.acompletion(
+            **{
+                k: v for k, v in openai_kwargs.items() if k != "model"
+            },  # we should use the model_name from provider_settings
+            **provider_settings,
+        )
+
+    return response.choices[0].message.model_dump(exclude_none=True)  # type: ignore
+
+
+@instrument(ignore_inputs=["parameters"])
+async def hook_v0(
+    parameters: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+) -> Any:
+    """
+    Webhook-based application handler for CUSTOM app types.
+
+    Forwards the request to an external webhook URL and returns the response.
+    The webhook URL is read from the workflow interface (``url`` field in
+    revision data), not from ``parameters``.
+
+    Args:
+        parameters: Configuration parameters forwarded to the webhook.
+        inputs: Inputs to forward to the webhook.
+
+    Returns:
+        The response from the webhook.
+    """
+    from agenta.sdk.contexts.running import RunningContext
+
+    ctx = RunningContext.get()
+    webhook_url = ctx.interface.url if ctx.interface else None
+
+    if not webhook_url:
+        raise MissingConfigurationParameterV0Error(path="url")
+
+    webhook_url = str(webhook_url)
+    try:
+        _validate_webhook_url(webhook_url)
+    except ValueError as exc:
+        raise InvalidConfigurationParameterV0Error(
+            path="url",
+            expected="http/https URL",
+            got=webhook_url,
+        ) from exc
+
+    json_payload = {
+        "inputs": inputs or {},
+        "parameters": parameters or {},
+    }
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                url=webhook_url,
+                json=json_payload,
+                timeout=httpx.Timeout(30.0, connect=5.0),
+            )
+        except Exception as e:
+            raise WebhookClientV0Error(
+                message=str(e),
+            ) from e
+
+        if response.status_code != 200:
+            try:
+                message = response.json()
+            except Exception:
+                message = response.text
+            raise WebhookServerV0Error(
+                code=response.status_code,
+                message=message,
+            )
+
+        content_length = response.headers.get("content-length")
+        if content_length and int(content_length) > _WEBHOOK_RESPONSE_MAX_BYTES:
+            raise WebhookClientV0Error(message="Webhook response exceeded size limit.")
+
+        response_bytes = response.content
+        if len(response_bytes) > _WEBHOOK_RESPONSE_MAX_BYTES:
+            raise WebhookClientV0Error(message="Webhook response exceeded size limit.")
+
+        try:
+            return json.loads(response_bytes)
+        except Exception:
+            return response_bytes.decode("utf-8")
+
+
+def _resolve_reference_value(reference: Any, request: Dict[str, Any]) -> Any:
+    """Resolve a reference that may be a JSONPath/Pointer selector or a literal value.
+
+    Per design spec: if the string starts with '$' (JSONPath) or '/' (JSON Pointer),
+    resolve it from the request context. Otherwise treat as a literal.
+    """
+    if not isinstance(reference, str):
+        return reference
+    if reference.startswith("$.") or reference == "$" or reference.startswith("$["):
+        try:
+            return resolve_json_path(reference, request)
+        except Exception:
+            return reference  # fall back to literal on resolution failure
+    if reference.startswith("/"):
+        try:
+            return resolve_json_pointer(reference, request)
+        except Exception:
+            return reference
+    return reference
+
+
+def _make_match_result(
+    success: bool,
+    score: float,
+    error: Optional[str] = None,
+    children: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    result: Dict[str, Any] = {
+        "success": success,
+        "score": score,
+        "error": error,
+    }
+    if children is not None:
+        result.update(children)
+    return result
+
+
+def _execute_match_valid(actual: Any, mode: str) -> Tuple[bool, float]:
+    """match=valid: check that the value at target conforms to mode."""
+    if mode == "text":
+        success = isinstance(actual, str)
+    elif mode == "json":
+        if isinstance(actual, (dict, list)):
+            success = True
+        elif isinstance(actual, str):
+            try:
+                json.loads(actual)
+                success = True
+            except json.JSONDecodeError:
+                success = False
+        else:
+            success = False
+    else:
+        success = False
+    return success, 1.0 if success else 0.0
+
+
+def _coerce_to_str(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, sort_keys=True)
+    return str(value) if value is not None else ""
+
+
+def _execute_match_exact(
+    actual: Any,
+    reference: Any,
+    case_sensitive: bool,
+) -> Tuple[bool, float]:
+    """mode=exact: direct equality comparison."""
+    actual_str = _coerce_to_str(actual)
+    ref_str = _coerce_to_str(reference)
+    if not case_sensitive:
+        actual_str = actual_str.lower()
+        ref_str = ref_str.lower()
+    success = actual_str == ref_str
+    return success, 1.0 if success else 0.0
+
+
+def _execute_match_starts_with(
+    actual: Any,
+    reference: Any,
+    case_sensitive: bool,
+) -> Tuple[bool, float]:
+    """mode=starts_with: prefix check."""
+    actual_str = _coerce_to_str(actual)
+    ref_str = _coerce_to_str(reference)
+    if not case_sensitive:
+        actual_str = actual_str.lower()
+        ref_str = ref_str.lower()
+    success = actual_str.startswith(ref_str)
+    return success, 1.0 if success else 0.0
+
+
+def _execute_match_ends_with(
+    actual: Any,
+    reference: Any,
+    case_sensitive: bool,
+) -> Tuple[bool, float]:
+    """mode=ends_with: suffix check."""
+    actual_str = _coerce_to_str(actual)
+    ref_str = _coerce_to_str(reference)
+    if not case_sensitive:
+        actual_str = actual_str.lower()
+        ref_str = ref_str.lower()
+    success = actual_str.endswith(ref_str)
+    return success, 1.0 if success else 0.0
+
+
+def _execute_match_contains(
+    actual: Any,
+    reference: Any,
+    references: Optional[List[Any]],
+    match_mode: str,
+    case_sensitive: bool,
+) -> Tuple[bool, float]:
+    """mode=contains: substring check, single or multi-value."""
+    actual_str = _coerce_to_str(actual)
+    if not case_sensitive:
+        actual_str = actual_str.lower()
+
+    if references:
+        checks = []
+        for ref in references:
+            ref_str = _coerce_to_str(ref)
+            if not case_sensitive:
+                ref_str = ref_str.lower()
+            checks.append(ref_str in actual_str)
+        success = any(checks) if match_mode == "any" else all(checks)
+    else:
+        ref_str = _coerce_to_str(reference)
+        if not case_sensitive:
+            ref_str = ref_str.lower()
+        success = ref_str in actual_str
+
+    return success, 1.0 if success else 0.0
+
+
+def _execute_match_regex(
+    actual: Any,
+    reference: Any,
+    case_sensitive: bool,
+) -> Tuple[bool, float]:
+    """mode=regex: apply the reference as a regex pattern against the actual value."""
+    # Coerce actual to string
+    if isinstance(actual, str):
+        actual_str = actual
+    elif isinstance(actual, (dict, list)):
+        actual_str = json.dumps(actual, sort_keys=True)
+    else:
+        actual_str = str(actual) if actual is not None else ""
+
+    # Reference is the regex pattern (after resolution)
+    if not isinstance(reference, str):
+        pattern_str = str(reference) if reference is not None else ""
+    else:
+        pattern_str = reference
+
+    flags = 0 if case_sensitive else re.IGNORECASE
+    try:
+        pattern = re.compile(pattern_str, flags=flags)
+    except re.error as e:
+        raise RegexPatternV0Error(pattern=pattern_str) from e
+
+    matched = bool(pattern.search(actual_str))
+    return matched, 1.0 if matched else 0.0
+
+
+def _execute_match_similarity_sync(
+    actual: Any,
+    reference: Any,
+    similarity: str,
+    case_sensitive: bool,
+) -> float:
+    """match=similarity for jaccard and levenshtein similarities (synchronous)."""
+    actual_str = (
+        actual if isinstance(actual, str) else json.dumps(actual, sort_keys=True)
+    )
+    ref_str = (
+        reference
+        if isinstance(reference, str)
+        else json.dumps(reference, sort_keys=True)
+    )
+
+    if not case_sensitive:
+        actual_str = actual_str.lower()
+        ref_str = ref_str.lower()
+
+    if similarity == "jaccard":
+        # Design note: named "jaccard" but uses SequenceMatcher for legacy parity
+        matcher = SequenceMatcher(None, actual_str, ref_str)
+        return float(matcher.ratio())
+
+    elif similarity == "levenshtein":
+        if len(ref_str) == 0:
+            dist = len(actual_str)
+        else:
+            prev_row = list(range(len(ref_str) + 1))
+            for i, c1 in enumerate(actual_str):
+                curr_row = [i + 1]
+                for j, c2 in enumerate(ref_str):
+                    insert = prev_row[j + 1] + 1
+                    delete = curr_row[j] + 1
+                    substitute = prev_row[j] + (c1 != c2)
+                    curr_row.append(min(insert, delete, substitute))
+                prev_row = curr_row
+            dist = prev_row[-1]
+        max_len = max(len(actual_str), len(ref_str))
+        return 1.0 if max_len == 0 else 1.0 - (dist / max_len)
+
+    else:
+        raise MatchV0Error(
+            message=f"Unknown similarity metric: {similarity!r}. Expected 'jaccard', 'levenshtein', or 'cosine'."
+        )
+
+
+async def _execute_match_similarity_cosine(
+    actual: Any,
+    reference: Any,
+    embedding_model: str,
+) -> float:
+    """mode=similarity with distance=cosine (async, requires OpenAI)."""
+    actual_str = (
+        actual if isinstance(actual, str) else json.dumps(actual, sort_keys=True)
+    )
+    ref_str = (
+        reference
+        if isinstance(reference, str)
+        else json.dumps(reference, sort_keys=True)
+    )
+
+    secrets, _, _ = await SecretsManager.retrieve_secrets()
+
+    openai_api_key = None
+    if isinstance(secrets, list):
+        for secret in secrets:
+            if secret.get("kind") == "provider_key":
+                secret_data = secret.get("data", {})
+                if secret_data.get("kind") == "openai":
+                    provider_data = secret_data.get("provider", {})
+                    openai_api_key = provider_data.get("key") or openai_api_key
+
+    AsyncOpenAI, OpenAIError = _load_openai()
+    try:
+        openai = AsyncOpenAI(api_key=openai_api_key)
+    except OpenAIError as e:
+        raise OpenAIError("OpenAIException - " + e.args[0])
+
+    output_embedding = await _compute_embedding(openai, embedding_model, actual_str)
+    reference_embedding = await _compute_embedding(openai, embedding_model, ref_str)
+    return float(_compute_similarity(output_embedding, reference_embedding))
+
+
+def _execute_match_diff(
+    target: Any,
+    reference: Any,
+    diff: str,
+    case_sensitive: bool,
+) -> float:
+    """match=diff: scored comparison over flattened JSON fields."""
+    # Parse JSON strings if needed
+    if isinstance(target, str):
+        try:
+            target = json.loads(target)
+        except json.JSONDecodeError:
+            return 0.0
+    if isinstance(reference, str):
+        try:
+            reference = json.loads(reference)
+        except json.JSONDecodeError:
+            return 0.0
+
+    if not isinstance(target, (dict, list)) or not isinstance(reference, (dict, list)):
+        return 0.0
+
+    settings = {
+        "compare_schema_only": diff == "schema",
+        "predict_keys": diff == "strict",
+        "case_insensitive_keys": not case_sensitive,
+    }
+    return _compare_jsons(
+        ground_truth=reference,
+        app_output=target,
+        settings_values=settings,
+    )
+
+
+def _aggregate_child_results(
+    child_matchers: List[Dict],
+    child_results: List[Dict],
+    score: str,
+    success: str,
+    threshold: float,
+) -> Tuple[bool, float]:
+    """Aggregate child matcher results.
+
+    Score aggregation (score):
+      - "weighted" → weighted mean (weight per matcher, defaults to 1)
+      - "min"      → minimum child score
+      - "max"      → maximum child score
+
+    Success aggregation (success):
+      - "all"       → all child successes must be True
+      - "any"       → at least one child success must be True
+      - "threshold" → aggregated score >= threshold
+    """
+    if not child_results:
+        return True, 1.0
+
+    scores = [r["score"] for r in child_results]
+    if score == "min":
+        agg_score = min(scores)
+    elif score == "max":
+        agg_score = max(scores)
+    else:  # "weighted" or default
+        weights = [float(m.get("weight", 1.0)) for m in child_matchers]
+        total_weight = sum(weights) if sum(weights) > 0 else 1.0
+        agg_score = sum(s * w for s, w in zip(scores, weights)) / total_weight
+
+    successes = [r["success"] for r in child_results]
+    if success == "any":
+        agg_success = any(successes)
+    elif success == "threshold":
+        agg_success = agg_score >= threshold
+    else:  # "all" or default
+        agg_success = all(successes)
+
+    return agg_success, agg_score
+
+
+async def _execute_match_node(
+    matcher: Dict[str, Any],
+    request: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Execute a single matcher node, recursing into children when present."""
+    target = str(matcher.get("target", ""))
+    mode = str(matcher.get("mode", "text"))
+    match_type = str(matcher.get("match", "valid"))
+    case_sensitive = matcher.get("case_sensitive", True) is True
+    threshold = float(matcher.get("threshold", 1.0))
+
+    # Execute child matchers depth-first
+    child_matchers: List[Dict] = matcher.get("matchers") or []
+    children: Dict[str, Any] = {}
+    for child in child_matchers:
+        child_result = await _execute_match_node(child, request)
+        children[str(child.get("key", ""))] = child_result
+
+    # Resolve the actual value at target path
+    try:
+        actual = resolve_any(target, request)
+    except Exception as e:
+        return _make_match_result(
+            False,
+            0.0,
+            error=f"Target resolution failed for '{target}': {e}",
+            children=children or None,
+        )
+
+    # If node has children, aggregate and return (own mode provides context only)
+    if children:
+        score_agg = str(matcher.get("score", "weighted"))
+        success_agg = str(matcher.get("success", "threshold"))
+        agg_success, agg_score = _aggregate_child_results(
+            child_matchers, list(children.values()), score_agg, success_agg, threshold
+        )
+        return _make_match_result(agg_success, agg_score, children=children)
+
+    # No children: execute own mode
+    reference_expr = matcher.get("reference")
+    reference: Any = None
+    if reference_expr is not None:
+        reference = _resolve_reference_value(reference_expr, request)
+
+    # Resolve multi-value reference list
+    references_exprs: Optional[List] = matcher.get("references")
+    references: Optional[List[Any]] = None
+    if references_exprs is not None:
+        references = [_resolve_reference_value(s, request) for s in references_exprs]
+
+    contains_mode = str(matcher.get("contains", "all"))
+
+    try:
+        if match_type == "valid":
+            success, score = _execute_match_valid(actual, mode)
+
+        elif match_type == "exact":
+            success, score = _execute_match_exact(actual, reference, case_sensitive)
+
+        elif match_type == "starts_with":
+            success, score = _execute_match_starts_with(
+                actual, reference, case_sensitive
+            )
+
+        elif match_type == "ends_with":
+            success, score = _execute_match_ends_with(actual, reference, case_sensitive)
+
+        elif match_type == "contains":
+            success, score = _execute_match_contains(
+                actual, reference, references, contains_mode, case_sensitive
+            )
+
+        elif match_type == "regex":
+            success, score = _execute_match_regex(actual, reference, case_sensitive)
+
+        elif match_type == "similarity":
+            similarity = str(matcher.get("similarity", "jaccard"))
+            if similarity == "cosine":
+                embedding_model = "text-embedding-3-small"
+                score = await _execute_match_similarity_cosine(
+                    actual, reference, embedding_model
+                )
+            else:
+                score = _execute_match_similarity_sync(
+                    actual, reference, similarity, case_sensitive
+                )
+            success = score >= threshold
+
+        elif match_type == "diff":
+            diff_mode = str(matcher.get("diff", "full"))
+            score = _execute_match_diff(
+                actual,
+                reference,
+                diff_mode,
+                case_sensitive,
+            )
+            success = score >= threshold
+
+        else:
+            raise MatchV0Error(
+                message=f"Unknown match: {match_type!r}. Expected one of: 'valid', 'exact', 'starts_with', 'ends_with', 'contains', 'regex', 'similarity', 'diff'."
+            )
+
+        return _make_match_result(success, score)
+
+    except ErrorStatus as e:
+        return _make_match_result(False, 0.0, error=e.message)
+    except Exception as e:
+        return _make_match_result(False, 0.0, error=str(e))
+
+
+# --- NEW URI
+
+
+@instrument()
+async def feedback_v0(
+    request: Optional[Data] = None,
+    revision: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+    parameters: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+    trace: Optional[Data] = None,
+    testcase: Optional[Data] = None,
+) -> Any:
+    """
+    Interface-only handler for agenta:custom:feedback:v0.
+
+    Unified handler for invocation/annotation workflows where the response
+    (app output or human annotation) arrives via external links rather than
+    a direct return value.
+
+    This URI exists as a schema/interface registry entry only.
+    It cannot be invoked directly.
+    """
+    raise FeedbackV0Error(
+        message="agenta:custom:feedback:v0 is interface-only and cannot be invoked directly.",
+    )
+
+
+@instrument(ignore_inputs=["parameters"])
+async def code_v0(
+    request: Optional[Data] = None,
+    revision: Optional[Data] = None,
+    #
+    inputs: Optional[Data] = None,
+    parameters: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+    #
+    trace: Optional[Data] = None,
+    testcase: Optional[Data] = None,
+) -> Any:
+    """
+    Code evaluator using the canonical evaluate(inputs, outputs, trace) interface.
+
+    Executes ``parameters["code"]`` as ``evaluate(inputs, outputs, trace)``
+    and normalises the return value to a typed evaluation result.
+
+    Parameters:
+        code:      Python (or JS/TS) source containing an ``evaluate`` function.
+        runtime:   Execution runtime — ``"python"`` (default), ``"javascript"``,
+                   or ``"typescript"``.
+        threshold: Score threshold for success when the code returns a number.
+                   Defaults to 0.5.
+
+    Returns:
+        ``{"score": float, "success": bool}``  when code returns a number.
+        ``{"success": bool}``                  when code returns a bool.
+        The raw dict / str                     when code returns one of those.
+    """
+    if parameters is None or not isinstance(parameters, dict):
+        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+
+    if "code" not in parameters:
+        raise MissingConfigurationParameterV0Error(path="code")
+
+    code = str(parameters["code"])
+    runtime = str(parameters.get("runtime") or "python")
+
+    if runtime not in ["python", "javascript", "typescript"]:
+        raise InvalidConfigurationParameterV0Error(
+            path="runtime",
+            expected=["python", "javascript", "typescript"],
+            got=runtime,
+        )
+
+    threshold = float(parameters.get("threshold") or 0.5)
+
+    if outputs is not None and not isinstance(outputs, (str, dict)):
+        raise InvalidOutputsV0Error(expected=["dict", "str", "None"], got=outputs)
+
+    try:
+        _result = execute_code_safely(
+            app_params={},
+            inputs=inputs or {},
+            output=outputs,
+            correct_answer=None,
+            code=code,
+            runtime=runtime,
+            templates=EVALUATOR_TEMPLATES.get("v1", {}),
+            version="2",
+            trace=trace,
+        )
+    except ErrorStatus:
+        raise
+    except Exception as e:
+        raise CodeV0Error(
+            message=str(e),
+            stacktrace=traceback.format_exc(),
+        ) from e
+
+    if isinstance(_result, bool):
+        return {"success": _result}
+
+    if isinstance(_result, (int, float)):
+        score = float(_result)
+        return {"score": score, "success": score >= threshold}
+
+    if isinstance(_result, (dict, str)):
+        return _result
+
+    raise InvalidOutputsV0Error(
+        expected=["dict", "str", "int", "float", "bool"], got=_result
+    )
+
+
+@instrument()
+@instrument()
+async def config_v0(
+    request: Optional[Data] = None,
+    revision: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+    parameters: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+    trace: Optional[Data] = None,
+    testcase: Optional[Data] = None,
+) -> Any:
+    """
+    Interface-only handler for agenta:custom:config:v0.
+
+    Configurations are not directly invocable.
+    """
+    raise ConfigV0Error(
+        message="agenta:custom:config:v0 is not runnable.",
+    )
+
+
+async def match_v0(
+    request: Optional[Data] = None,
+    revision: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+    parameters: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+    trace: Optional[Data] = None,
+    testcase: Optional[Data] = None,
+) -> Any:
+    """
+    Match evaluator with recursive matcher tree (agenta:builtin:match:v0).
+
+    Consolidates the following legacy builtin evaluators:
+    - auto_exact_match     → mode="text", match="exact", string=ESCAPED_VALUE
+    - auto_regex_test      → mode="text", match="regex"
+    - auto_starts_with     → mode="text", match="regex", string="^PREFIX"
+    - auto_ends_with       → mode="text", match="regex", string="SUFFIX$"
+    - auto_contains        → mode="text", match="regex", string="SUBSTRING"
+    - auto_contains_any    → mode="text", match="regex", string="(OPT1|OPT2|...)"
+    - auto_contains_all    → mode="text", match="regex", string="(?=.*S1)(?=.*S2).*"
+    - auto_similarity_match    → mode="text", match="similarity", similarity="jaccard"
+    - auto_semantic_similarity → mode="text", match="similarity", similarity="cosine"
+    - auto_levenshtein_distance → mode="text", match="similarity", similarity="levenshtein"
+    - field_match_test     → mode="text", match="regex", target="$.outputs.FIELD"
+    - json_multi_field_match → mode="json", match="diff" + child matchers
+    - auto_contains_json   → mode="json", match="valid"
+    - auto_json_diff       → mode="json", match="diff"
+
+    Parameters:
+        parameters: {"matchers": [...]}  — recursive matcher tree
+        inputs:     testcase inputs (accessible as $.inputs.*)
+        outputs:    workflow outputs (accessible as $.outputs or $.outputs.*)
+        trace:      trace data (accessible as $.trace.*)
+
+    Returns:
+        {key: result_node, ..., "score": float, "success": bool}  — flat result dict
+    """
+    if parameters is None or not isinstance(parameters, dict):
+        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+
+    if "matchers" not in parameters:
+        raise MissingConfigurationParameterV0Error(path="matchers")
+
+    matchers = parameters["matchers"]
+    if not isinstance(matchers, list):
+        raise InvalidConfigurationParameterV0Error(
+            path="matchers", expected="list", got=matchers
+        )
+
+    # Build request context for path resolution
+    request: Dict[str, Any] = {}
+    if inputs is not None:
+        request["inputs"] = inputs
+    if outputs is not None:
+        request["outputs"] = outputs
+    if trace is not None:
+        request["trace"] = trace
+
+    score_agg = str(parameters.get("score", "weighted"))
+    success_agg = str(parameters.get("success", "threshold"))
+    threshold = float(parameters.get("threshold", 1.0))
+
+    results: Dict[str, Any] = {}
+    for matcher in matchers:
+        result = await _execute_match_node(matcher, request)
+        results[str(matcher.get("key", ""))] = result
+
+    if not results:
+        return {"score": 1.0, "success": True}
+
+    scores = [r["score"] for r in results.values()]
+    if score_agg == "min":
+        root_score = min(scores)
+    elif score_agg == "max":
+        root_score = max(scores)
+    else:  # "weighted"
+        weights = [float(m.get("weight", 1.0)) for m in matchers]
+        total_weight = sum(weights) if sum(weights) > 0 else 1.0
+        root_score = sum(s * w for s, w in zip(scores, weights)) / total_weight
+
+    successes = [r["success"] for r in results.values()]
+    if success_agg == "any":
+        root_success = any(successes)
+    elif success_agg == "threshold":
+        root_success = root_score >= threshold
+    else:  # "all"
+        root_success = all(successes)
+
+    return {
+        **results,
+        "score": root_score,
+        "success": root_success,
+    }
+
+
+# ---------------------------------------------------------------------------
+# llm_v0 helpers
+# ---------------------------------------------------------------------------
+
+
+def _merge_usage(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge two LiteLLM usage dicts by summing numeric fields."""
+    result = dict(a)
+    for k, v in b.items():
+        if isinstance(v, (int, float)):
+            result[k] = result.get(k, 0) + v
+        else:
+            result[k] = v
+    return result
+
+
+def _merge_consent(
+    param_consent: Optional[Dict[str, Any]],
+    input_consent: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """
+    Merge parameter-level consent policy with per-run consent input.
+    Returns None when both are absent (no consent gate).
+    """
+    if param_consent is None and not input_consent:
+        return None
+    base = dict(param_consent or {})
+    override = dict(input_consent or {})
+    # Merge decisions by key
+    base_decisions = dict(base.get("decisions") or {})
+    override_decisions = dict(override.get("decisions") or {})
+    merged = {**base, **override, "decisions": {**base_decisions, **override_decisions}}
+    return merged
+
+
+def _apply_variables(
+    messages: List[Dict[str, Any]],
+    variables: Dict[str, Any],
+    template_format: str,
+) -> List[Dict[str, Any]]:
+    """Apply template variable substitution to message content strings."""
+    if not variables:
+        return messages
+    result = []
+    for msg in messages:
+        content = msg.get("content")
+        if isinstance(content, str):
+            try:
+                content = _format_with_template(
+                    content=content,
+                    format=template_format,
+                    kwargs=variables,
+                )
+            except Exception as e:
+                raise PromptFormattingV0Error(
+                    message=str(e),
+                    stacktrace=traceback.format_exc(),
+                ) from e
+        result.append({**msg, "content": content})
+    return result
+
+
+def _build_llm_tools(tools_config: Optional[Dict[str, Any]]) -> Optional[List[Dict]]:
+    """Convert tools config into a litellm-compatible tools list."""
+    if not tools_config:
+        return None
+    internal_names: List[str] = list(tools_config.get("internal") or [])
+    external_defs: List[Dict] = list(tools_config.get("external") or [])
+    tool_defs = list(external_defs)
+    # Register built-in internal tool schemas
+    _INTERNAL_TOOL_SCHEMAS: Dict[str, Dict] = {
+        "files.list": {
+            "type": "function",
+            "function": {
+                "name": "files.list",
+                "description": "List files in a directory.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "default": "."},
+                        "pattern": {"type": "string"},
+                    },
+                },
+            },
+        },
+        "files.read": {
+            "type": "function",
+            "function": {
+                "name": "files.read",
+                "description": "Read the contents of a file.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                    },
+                    "required": ["path"],
+                },
+            },
+        },
+        "files.search": {
+            "type": "function",
+            "function": {
+                "name": "files.search",
+                "description": "Search for text in files.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string"},
+                        "path": {"type": "string", "default": "."},
+                    },
+                    "required": ["query"],
+                },
+            },
+        },
+        "control.terminate": {
+            "type": "function",
+            "function": {
+                "name": "control.terminate",
+                "description": "Signal that the agent considers the run complete.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "summary": {"type": "string"},
+                    },
+                },
+            },
+        },
+        "control.request_consent": {
+            "type": "function",
+            "function": {
+                "name": "control.request_consent",
+                "description": "Ask the caller to collect consent for an internal tool call.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "tool_call_id": {"type": "string"},
+                        "tool_name": {"type": "string"},
+                        "arguments": {},
+                        "reason": {"type": "string"},
+                    },
+                    "required": ["tool_call_id", "tool_name"],
+                },
+            },
+        },
+    }
+    for name in internal_names:
+        schema = _INTERNAL_TOOL_SCHEMAS.get(name)
+        if schema:
+            tool_defs.append(schema)
+    return tool_defs or None
+
+
+async def _execute_internal_tool(
+    name: str,
+    arguments: Dict[str, Any],
+    files_config: Optional[Dict[str, Any]],
+    context: Dict[str, Any],
+) -> Any:
+    """Execute an internal tool and return its result."""
+    import glob as _glob
+    import os as _os
+
+    fc = files_config or {}
+    roots: List[str] = list(fc.get("roots") or ["."])
+    allow_globs: List[str] = list(fc.get("allow_globs") or ["**/*"])
+    deny_globs: List[str] = list(fc.get("deny_globs") or [])
+    max_file_bytes: int = int(fc.get("max_file_bytes") or 65536)
+    max_total_bytes: int = int(fc.get("max_total_bytes_per_turn") or 262144)
+    include_hidden: bool = bool(fc.get("include_hidden", False))
+
+    def _is_allowed(path: str) -> bool:
+        import fnmatch
+
+        if not include_hidden:
+            parts = path.replace("\\", "/").split("/")
+            if any(p.startswith(".") for p in parts):
+                return False
+        allowed = any(fnmatch.fnmatch(path, pat) for pat in allow_globs)
+        denied = any(fnmatch.fnmatch(path, pat) for pat in deny_globs)
+        return allowed and not denied
+
+    if name == "files.list":
+        path = str(arguments.get("path") or ".")
+        pattern = str(arguments.get("pattern") or "**/*")
+        results = []
+        for root in roots:
+            search_root = _os.path.join(root, path)
+            for match in _glob.glob(
+                _os.path.join(search_root, pattern), recursive=True
+            ):
+                rel = _os.path.relpath(match, root)
+                if _is_allowed(rel) and _os.path.isfile(match):
+                    results.append(rel)
+        return {"files": results}
+
+    if name == "files.read":
+        path = str(arguments.get("path") or "")
+        for root in roots:
+            full = _os.path.join(root, path)
+            if not _os.path.isfile(full):
+                continue
+            rel = _os.path.relpath(full, root)
+            if not _is_allowed(rel):
+                return {"error": f"Access denied: {path}"}
+            size = _os.path.getsize(full)
+            if size > max_file_bytes:
+                return {
+                    "error": f"File too large: {size} bytes (limit {max_file_bytes})"
+                }
+            with open(full, "r", encoding="utf-8", errors="replace") as fh:
+                return {"path": path, "content": fh.read()}
+        return {"error": f"File not found: {path}"}
+
+    if name == "files.search":
+        query = str(arguments.get("query") or "")
+        path = str(arguments.get("path") or ".")
+        matches = []
+        total_bytes = 0
+        for root in roots:
+            search_root = _os.path.join(root, path)
+            for fpath in _glob.glob(_os.path.join(search_root, "**/*"), recursive=True):
+                if not _os.path.isfile(fpath):
+                    continue
+                rel = _os.path.relpath(fpath, root)
+                if not _is_allowed(rel):
+                    continue
+                try:
+                    with open(fpath, "r", encoding="utf-8", errors="replace") as fh:
+                        for lineno, line in enumerate(fh, 1):
+                            if query in line:
+                                entry = f"{rel}:{lineno}: {line.rstrip()}"
+                                total_bytes += len(entry)
+                                if total_bytes > max_total_bytes:
+                                    return {"matches": matches, "truncated": True}
+                                matches.append(entry)
+                except OSError:
+                    continue
+        return {"matches": matches}
+
+    return {"error": f"Unknown internal tool: {name}"}
+
+
+def _first_without_consent(
+    tool_calls: List[Dict[str, Any]],
+    consent_state: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Return the first tool call that lacks consent, or None if all are approved."""
+    if consent_state is None:
+        return None
+    mode = consent_state.get("mode") or "per_call"
+    if mode == "allow_all":
+        return None
+    if mode == "deny_all":
+        return tool_calls[0] if tool_calls else None
+    allowed_tools: List[str] = list(consent_state.get("allowed_tools") or [])
+    denied_tools: List[str] = list(consent_state.get("denied_tools") or [])
+    decisions: Dict[str, Any] = dict(consent_state.get("decisions") or {})
+    for tc in tool_calls:
+        fn_name = (tc.get("function") or {}).get("name", "")
+        if fn_name in denied_tools:
+            return tc
+        if fn_name in allowed_tools:
+            continue
+        tc_id = tc.get("id", "")
+        decision = decisions.get(tc_id) or decisions.get(fn_name)
+        if not decision or decision.get("decision") != "allow":
+            return tc
+    return None
+
+
+def _make_consent_request_call(missing: Dict[str, Any]) -> Dict[str, Any]:
+    """Construct a control.request_consent tool call for a missing-consent internal call."""
+    fn = missing.get("function") or {}
+    return {
+        "id": f"consent_{missing.get('id', 'unknown')}",
+        "type": "function",
+        "function": {
+            "name": "control.request_consent",
+            "arguments": json.dumps(
+                {
+                    "tool_call_id": missing.get("id", ""),
+                    "tool_name": fn.get("name", ""),
+                    "arguments": fn.get("arguments", "{}"),
+                }
+            ),
+        },
+    }
+
+
+async def _call_llm_with_fallback(
+    llms: List[Dict[str, Any]],
+    messages: List[Dict[str, Any]],
+    tools: Optional[List[Dict]],
+) -> tuple:
+    """
+    Try each LLM entry in order.
+    Falls back on authentication, rate limit, and availability errors.
+    Returns (assistant_message_dict, usage_dict).
+    Raises LLMUnavailableV0Error if all entries fail.
+    """
+    from agenta.sdk.engines.running.errors import LLMUnavailableV0Error
+
+    litellm = _load_litellm()
+    if not litellm:
+        raise ImportError("litellm is required for llm_v0.")
+
+    _retriable = tuple(
+        cls
+        for name in (
+            "AuthenticationError",
+            "RateLimitError",
+            "ServiceUnavailableError",
+            "NotFoundError",
+        )
+        if (cls := getattr(litellm, name, None)) is not None
+    )
+
+    secrets, _, _ = await SecretsManager.retrieve_secrets()
+    if secrets and isinstance(secrets, list):
+        for secret in secrets:
+            if secret.get("kind") != "provider_key":
+                continue
+            data = secret.get("data", {})
+            kind = data.get("kind")
+            key = data.get("provider", {}).get("key")
+            if kind == "openai" and key:
+                litellm.openai_key = key
+            elif kind == "anthropic" and key:
+                litellm.anthropic_key = key
+            elif kind == "openrouter" and key:
+                litellm.openrouter_key = key
+            elif kind == "cohere" and key:
+                litellm.cohere_key = key
+            elif kind == "azure" and key:
+                litellm.azure_key = key
+            elif kind == "groq" and key:
+                litellm.groq_key = key
+
+    last_error = None
+    for llm_config in llms:
+        model = llm_config.get("model")
+        if not model:
+            continue
+        kwargs: Dict[str, Any] = {"model": str(model), "messages": messages}
+        if tools:
+            kwargs["tools"] = tools
+            if llm_config.get("tool_choice"):
+                kwargs["tool_choice"] = llm_config["tool_choice"]
+        for field in (
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "frequency_penalty",
+            "presence_penalty",
+            "reasoning_effort",
+        ):
+            val = llm_config.get(field)
+            if val is not None:
+                kwargs[field] = val
+        try:
+            response = await litellm.acompletion(**kwargs)
+            msg = response.choices[0].message
+            assistant_message = (
+                msg.model_dump(exclude_none=True)
+                if hasattr(msg, "model_dump")
+                else dict(msg)
+            )
+            usage = (
+                dict(response.usage)
+                if hasattr(response, "usage") and response.usage
+                else {}
+            )
+            return assistant_message, usage
+        except _retriable as exc:
+            last_error = exc
+            continue
+        except Exception:
+            raise
+
+    raise LLMUnavailableV0Error(
+        message=f"All LLM entries exhausted. Last error: {last_error}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# llm_v0 — unified prompt + agent handler
+# ---------------------------------------------------------------------------
+
+
+@instrument()
+async def llm_v0(
+    request: Optional[Data] = None,
+    revision: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+    parameters: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+    trace: Optional[Data] = None,
+    testcase: Optional[Data] = None,
+) -> Any:
+    """
+    Unified LLM handler covering single-call prompt mode and multi-step agent loop.
+
+    Parameters (stored per revision):
+        llms:            Ordered list of LLM configs. Runtime tries each in order on
+                         auth / rate-limit / availability errors.
+        messages:        System/initial messages. Template substitution applied.
+        template_format: "curly" (default), "fstring", or "jinja2".
+        loop:            null → single LLM call (prompt mode).
+                         dict → agent loop config with max_iterations etc.
+        tools:           {"internal": [...], "external": [...]}. null → no tools.
+        consent:         Consent policy dict. null → auto-approve all internal tools.
+        response:        {"stream": false}.
+
+    Inputs (per invocation):
+        messages:   Incremental messages appended after parameters.messages.
+        variables:  Template variables substituted into all messages.
+        context:    Structured context merged with parameters.context.
+        consent:    Consent decisions merged with parameters.consent.
+
+    Returns always:
+        {
+            "status":  {"code": int, "type": str, "message": str},
+            "messages": [...],   # full message history
+            "context":  {...},
+            "consent":  {...},
+            "usage":    {...},
+        }
+    """
+    from agenta.sdk.engines.running.errors import LLMUnavailableV0Error
+
+    # --- Validate parameters
+    if parameters is None or not isinstance(parameters, dict):
+        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+
+    llms = parameters.get("llms")
+    if not llms or not isinstance(llms, list):
+        raise InvalidConfigurationParameterV0Error(
+            path="llms", expected="non-empty list", got=llms
+        )
+
+    param_messages: List[Dict] = Messages.model_validate(
+        parameters.get("messages") or []
+    ).model_dump(exclude_none=True)
+    template_format = str(parameters.get("template_format") or "curly")
+    loop_config: Optional[Dict] = parameters.get("loop")
+    tools_config: Optional[Dict] = parameters.get("tools")
+    param_consent: Optional[Dict] = parameters.get("consent")
+    param_context: Dict = dict(parameters.get("context") or {})
+
+    # --- Parse inputs
+    run_inputs: Dict = dict(inputs or {})
+    if inputs is not None and not isinstance(inputs, dict):
+        raise InvalidInputsV0Error(expected="dict", got=inputs)
+
+    input_messages: List[Dict] = Messages.model_validate(
+        run_inputs.get("messages") or []
+    ).model_dump(exclude_none=True)
+    variables: Dict = dict(run_inputs.get("variables") or {})
+    input_context: Dict = dict(run_inputs.get("context") or {})
+    input_consent: Optional[Dict] = run_inputs.get("consent")
+
+    # --- Apply template variables and build message list
+    fmt_param_messages = _apply_variables(param_messages, variables, template_format)
+    fmt_input_messages = _apply_variables(input_messages, variables, template_format)
+    all_messages: List[Dict] = [*fmt_param_messages, *fmt_input_messages]
+
+    # --- Merge context and consent
+    context: Dict = {**param_context, **input_context}
+    consent_state: Optional[Dict] = _merge_consent(param_consent, input_consent)
+
+    usage: Dict[str, Any] = {}
+
+    # =========================================================================
+    # PROMPT MODE: loop = null → single LLM call, return immediately
+    # =========================================================================
+    if loop_config is None:
+        try:
+            assistant_message, call_usage = await _call_llm_with_fallback(
+                llms=llms,
+                messages=all_messages,
+                tools=_build_llm_tools(tools_config),
+            )
+        except LLMUnavailableV0Error:
+            raise
+        usage = _merge_usage(usage, call_usage)
+        return {
+            "status": {"code": 200, "type": "success", "message": "completed"},
+            "messages": [*all_messages, assistant_message],
+            "context": context,
+            "consent": consent_state or {},
+            "usage": usage,
+        }
+
+    # =========================================================================
+    # AGENT MODE: loop present → multi-step loop
+    # =========================================================================
+    max_iterations = int(loop_config.get("max_iterations") or 8)
+    max_internal_calls = int(loop_config.get("max_internal_tool_calls") or 16)
+    max_consecutive_errors = int(loop_config.get("max_consecutive_errors") or 2)
+    allow_implicit_stop = bool(loop_config.get("allow_implicit_stop", True))
+
+    internal_names: set = set(list((tools_config or {}).get("internal") or []))
+    external_names: set = set(list((tools_config or {}).get("external") or []))
+
+    state: Dict[str, Any] = {
+        "messages": all_messages,
+        "context": context,
+        "consent": consent_state,
+        "iterations": 0,
+        "internal_tool_calls": 0,
+        "consecutive_errors": 0,
+    }
+
+    def _envelope(status_code: int, status_type: str, status_message: str) -> Dict:
+        return {
+            "status": {
+                "code": status_code,
+                "type": status_type,
+                "message": status_message,
+            },
+            "messages": state["messages"],
+            "context": state["context"],
+            "consent": state["consent"] or {},
+            "usage": usage,
+        }
+
+    while True:
+        if state["iterations"] >= max_iterations:
+            return _envelope(500, "failure", "iterations_exhausted")
+        if state["internal_tool_calls"] >= max_internal_calls:
+            return _envelope(500, "failure", "calls_exhausted")
+
+        state["iterations"] += 1
+
+        try:
+            assistant_message, call_usage = await _call_llm_with_fallback(
+                llms=llms,
+                messages=state["messages"],
+                tools=_build_llm_tools(tools_config),
+            )
+            state["consecutive_errors"] = 0
+        except LLMUnavailableV0Error:
+            return _envelope(503, "failure", "llm_unavailable")
+        except Exception:
+            state["consecutive_errors"] += 1
+            if state["consecutive_errors"] >= max_consecutive_errors:
+                return _envelope(500, "failure", "error_raised")
+            continue
+
+        usage = _merge_usage(usage, call_usage)
+        state["messages"] = [*state["messages"], assistant_message]
+
+        tool_calls: List[Dict] = list(assistant_message.get("tool_calls") or [])
+
+        # No tool calls
+        if not tool_calls:
+            if allow_implicit_stop:
+                return _envelope(200, "success", "completed")
+            continue
+
+        # control.terminate
+        if any(
+            (tc.get("function") or {}).get("name") == "control.terminate"
+            for tc in tool_calls
+        ):
+            return _envelope(200, "success", "completed")
+
+        # Classify tool calls
+        external_calls = [
+            tc
+            for tc in tool_calls
+            if (tc.get("function") or {}).get("name") in external_names
+        ]
+        internal_calls = [
+            tc
+            for tc in tool_calls
+            if (tc.get("function") or {}).get("name") in internal_names
+        ]
+
+        # External tool calls → pause and return to caller
+        if external_calls:
+            return _envelope(202, "awaiting", "tool_requested")
+
+        # Consent gate for internal tools
+        if state["consent"] is not None:
+            missing = _first_without_consent(internal_calls, state["consent"])
+            if missing:
+                consent_call = _make_consent_request_call(missing)
+                last = dict(state["messages"][-1])
+                last_tool_calls = list(last.get("tool_calls") or []) + [consent_call]
+                state["messages"] = [
+                    *state["messages"][:-1],
+                    {**last, "tool_calls": last_tool_calls},
+                ]
+                return _envelope(202, "awaiting", "consent_requested")
+
+        # Execute internal tools
+        for tc in internal_calls:
+            fn = tc.get("function") or {}
+            fn_name = fn.get("name", "")
+            try:
+                fn_args = json.loads(fn.get("arguments") or "{}")
+            except (json.JSONDecodeError, ValueError):
+                fn_args = {}
+            result = await _execute_internal_tool(
+                name=fn_name,
+                arguments=fn_args,
+                files_config=parameters.get("files"),
+                context=state["context"],
+            )
+            state["internal_tool_calls"] += 1
+            state["messages"] = [
+                *state["messages"],
+                {
+                    "role": "tool",
+                    "tool_call_id": tc.get("id", ""),
+                    "content": json.dumps(result)
+                    if not isinstance(result, str)
+                    else result,
+                },
+            ]

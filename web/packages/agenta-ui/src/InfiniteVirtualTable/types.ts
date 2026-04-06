@@ -196,6 +196,8 @@ export interface InfiniteVirtualTableRowSelection<RecordType> {
     ) => React.ReactNode
     /** Custom cell props for the selection column */
     onCell?: (record: RecordType, index?: number) => React.TdHTMLAttributes<HTMLTableCellElement>
+    /** When true, clicking anywhere on a row toggles its selection (checkbox/radio) */
+    selectOnRowClick?: boolean
 }
 
 export interface InfiniteVirtualTableKeyboardSelectionShortcuts {

@@ -20,6 +20,7 @@ import {Editor, isLargeRichTextDocument} from "../Editor"
 import type {SharedEditorProps} from "./types"
 
 const LARGE_INPUT_EXTERNAL_COMMIT_DELAY_MS = 180
+const DEFAULT_MAX_TEXT_PASTE_CHARS = 50_000
 
 function looksLikePlainTextContent(value: string): boolean {
     if (!value) {
@@ -51,6 +52,48 @@ function getSelectionOffsets(rootElement: HTMLElement): {start: number; end: num
     const start = prefixRange.toString().length
     const end = start + range.toString().length
     return {start, end}
+}
+
+function getInputSelectionOffsets(
+    element: HTMLInputElement | HTMLTextAreaElement,
+): {start: number; end: number} | null {
+    const start = element.selectionStart
+    const end = element.selectionEnd
+
+    if (typeof start !== "number" || typeof end !== "number") {
+        return null
+    }
+
+    return {start, end}
+}
+
+function getTargetSelectionOffsets(
+    target: EventTarget | null,
+): {start: number; end: number} | null {
+    if (!(target instanceof HTMLElement)) {
+        return null
+    }
+
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+        return getInputSelectionOffsets(target)
+    }
+
+    const contentEditable = target.closest(".editor-input") as HTMLElement | null
+    if (!contentEditable) {
+        return null
+    }
+
+    return getSelectionOffsets(contentEditable)
+}
+
+function formatCharacterCount(value: number): string {
+    return value.toLocaleString()
+}
+
+function buildPasteLimitErrorMessage(nextLength: number, maxPasteChars: number): string {
+    const overBy = nextLength - maxPasteChars
+
+    return `Paste blocked. This would exceed the ${formatCharacterCount(maxPasteChars)}-character limit by ${formatCharacterCount(overBy)} characters (${formatCharacterCount(nextLength)} total). Reduce the pasted content and try again.`
 }
 
 function applyPasteToValue(
@@ -113,6 +156,8 @@ const SharedEditor = ({
     error,
     useAntdInput = false,
     optimizeLargeInput = false,
+    maxPasteChars,
+    onPasteLimitExceeded,
     disableContainerTransition = false,
     noProvider = false,
     debug = false,
@@ -130,12 +175,19 @@ const SharedEditor = ({
     const normalizedInitialValue = initialValue ?? ""
     const controlledValue = value !== undefined ? value : normalizedInitialValue
     const shouldOptimizeLargeInput = optimizeLargeInput && !editorProps?.codeOnly
+    const effectiveMaxPasteChars =
+        typeof maxPasteChars === "number"
+            ? maxPasteChars
+            : !editorProps?.codeOnly
+              ? DEFAULT_MAX_TEXT_PASTE_CHARS
+              : undefined
 
     const [isEditorFocused, setIsEditorFocused] = useState(false)
     const [forcePlainTextFallback, setForcePlainTextFallback] = useState(
         shouldOptimizeLargeInput && isLargeRichTextDocument(controlledValue),
     )
     const [isHandlingLargePaste, setIsHandlingLargePaste] = useState(false)
+    const [pasteLimitError, setPasteLimitError] = useState<string | null>(null)
 
     const [localValue, setLocalValue] = useDebounceInput<string>(
         controlledValue,
@@ -187,6 +239,7 @@ const SharedEditor = ({
 
     const handleLocalValueChange = useCallback(
         (nextValue: string) => {
+            setPasteLimitError(null)
             setLocalValue(nextValue)
             commitExternalChange(nextValue)
         },
@@ -220,13 +273,53 @@ const SharedEditor = ({
 
     const usesPlainTextInput = useAntdInput || forcePlainTextFallback
 
-    const handleLargePasteCapture = useCallback(
+    const handlePasteCapture = useCallback(
         (event: ClipboardEvent<HTMLDivElement>) => {
-            if (disabled || !shouldOptimizeLargeInput || usesPlainTextInput) {
+            if (disabled) {
                 return
             }
 
             const pastedText = event.clipboardData?.getData("text/plain") ?? ""
+            if (!pastedText) {
+                return
+            }
+
+            const nextValue = applyPasteToValue(
+                localValue,
+                pastedText,
+                getTargetSelectionOffsets(event.target),
+            )
+
+            if (
+                typeof effectiveMaxPasteChars === "number" &&
+                nextValue.length > effectiveMaxPasteChars
+            ) {
+                event.preventDefault()
+                event.stopPropagation()
+                const handled = onPasteLimitExceeded?.({
+                    pastedText,
+                    currentValue: localValue,
+                    nextValue,
+                    nextLength: nextValue.length,
+                    maxPasteChars: effectiveMaxPasteChars,
+                    overBy: nextValue.length - effectiveMaxPasteChars,
+                })
+                if (handled === true) {
+                    setPasteLimitError(null)
+                    return
+                }
+                setPasteLimitError(
+                    buildPasteLimitErrorMessage(nextValue.length, effectiveMaxPasteChars),
+                )
+                return
+            }
+
+            setPasteLimitError(null)
+
+            if (!shouldOptimizeLargeInput || usesPlainTextInput) {
+                return
+            }
+
             if (!isLargeRichTextDocument(pastedText)) {
                 return
             }
@@ -244,12 +337,6 @@ const SharedEditor = ({
 
             event.preventDefault()
             event.stopPropagation()
-
-            const nextValue = applyPasteToValue(
-                localValue,
-                pastedText,
-                getSelectionOffsets(contentEditable),
-            )
 
             setIsHandlingLargePaste(true)
 
@@ -286,8 +373,10 @@ const SharedEditor = ({
         },
         [
             disabled,
+            effectiveMaxPasteChars,
             handleLocalValueChange,
             localValue,
+            onPasteLimitExceeded,
             shouldOptimizeLargeInput,
             usesPlainTextInput,
         ],
@@ -354,7 +443,7 @@ const SharedEditor = ({
                     transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
                 } as React.CSSProperties
             }
-            onPasteCapture={handleLargePasteCapture}
+            onPasteCapture={handlePasteCapture}
             onFocus={() => {
                 setIsEditorFocused(true)
                 onFocusChange?.(true)
@@ -444,6 +533,10 @@ const SharedEditor = ({
                     onPropertyClick={onPropertyClick}
                 />
             )}
+
+            {pasteLimitError ? (
+                <div className="mt-2 text-[13px] leading-5 text-[#D61010]">{pasteLimitError}</div>
+            ) : null}
 
             {footer}
         </div>

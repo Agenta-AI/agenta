@@ -784,7 +784,7 @@ const TestsetsTable = ({
     const rowSelection = useMemo(() => {
         if (isSelectMode) {
             return {
-                type: "radio" as const,
+                type: "checkbox" as const,
                 selectedRowKeys: selectedRowKey ? [selectedRowKey] : [],
                 getCheckboxProps: (record: TestsetTableRow) => ({
                     disabled: Boolean(record.__isSkeleton),

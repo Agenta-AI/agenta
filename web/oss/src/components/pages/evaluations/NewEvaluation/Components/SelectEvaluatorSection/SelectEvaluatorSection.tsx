@@ -126,6 +126,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
             type: "checkbox" as const,
             selectedRowKeys: displaySelectedKeys,
             onChange: (keys: React.Key[]) => onSelectEvalConfig(keys),
+            selectOnRowClick: true,
         }),
         [displaySelectedKeys, onSelectEvalConfig],
     )
