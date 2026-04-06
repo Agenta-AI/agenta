@@ -161,7 +161,9 @@ def _invoke_inline(
     )
 
 
-def _maybe_xfail_for_llm_provider_error(resp, *, allow_llm_failure: bool = False) -> None:
+def _maybe_xfail_for_llm_provider_error(
+    resp, *, allow_llm_failure: bool = False
+) -> None:
     if not allow_llm_failure:
         return
 

@@ -119,6 +119,7 @@ def _genson_patch():
     live_module = types.ModuleType("oss.src.core.evaluations.tasks.live")
 
     class SchemaBuilder: ...
+
     async def evaluate_live_query(*args, **kwargs):
         return None
 
