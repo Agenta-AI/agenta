@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Any, Dict, List, Optional
 from opentelemetry.trace import SpanKind
 
 import agenta as ag
@@ -7,6 +7,47 @@ from agenta.sdk.tracing.spans import CustomSpan
 from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
+
+
+def _extract_message_dict(message: Any) -> Dict[str, Any]:
+    """Extract a message dict from a LiteLLM Message object.
+
+    In newer LiteLLM versions, Anthropic extended-thinking responses split
+    the content: ``message.content`` holds only the final text while
+    ``message.thinking_blocks`` holds the reasoning blocks separately.
+    This function reconstructs a unified content list so that thinking
+    blocks are preserved in the trace.
+    """
+    msg_dict: Dict[str, Any] = {
+        k: v for k, v in message.__dict__.items() if not k.startswith("_")
+    }
+
+    thinking_blocks: Optional[List[Any]] = getattr(message, "thinking_blocks", None)
+    if not thinking_blocks:
+        return msg_dict
+
+    full_content: List[Dict[str, Any]] = []
+
+    for block in thinking_blocks:
+        if isinstance(block, dict):
+            thinking_text = block.get("thinking")
+            if thinking_text is not None:
+                full_content.append(
+                    {"type": "thinking", "thinking": str(thinking_text)}
+                )
+        elif hasattr(block, "thinking") and block.thinking is not None:
+            full_content.append({"type": "thinking", "thinking": str(block.thinking)})
+
+    text_content = msg_dict.get("content")
+    if isinstance(text_content, str) and text_content:
+        full_content.append({"type": "text", "text": text_content})
+    elif isinstance(text_content, list):
+        full_content.extend(text_content)
+
+    if full_content:
+        msg_dict["content"] = full_content
+
+    return msg_dict
 
 
 def litellm_handler():
@@ -142,7 +183,7 @@ def litellm_handler():
             try:
                 result = []
                 for choice in response_obj.choices:
-                    message = choice.message.__dict__
+                    message = _extract_message_dict(choice.message)
                     result.append(message)
 
                 outputs = {"completion": result}
@@ -279,7 +320,7 @@ def litellm_handler():
             try:
                 result = []
                 for choice in response_obj.choices:
-                    message = choice.message.__dict__
+                    message = _extract_message_dict(choice.message)
                     result.append(message)
 
                 outputs = {"completion": result}
