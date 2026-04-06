@@ -18,7 +18,7 @@ build-backend = "poetry.core.masonry.api"
 python = "^3.11"
 
 # Agenta SDK
-agenta = ">=0.94.8"
+agenta = ">=0.95.0"
 
 # Core framework dependencies
 fastapi = ">=0.135"
@@ -55,7 +55,7 @@ cachetools = "^7"
 supertokens-python = "^0.31"
 openai = "^2"
 sendgrid = "^6"
-stripe = "^14"
+stripe = "^15"
 posthog = "^7"
 newrelic = "^12"
 dnspython = "^2"
