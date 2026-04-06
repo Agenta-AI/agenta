@@ -742,6 +742,9 @@ importers:
       antd:
         specifier: '>=5.0.0'
         version: 6.3.5(date-fns@3.6.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      dayjs:
+        specifier: ^1.11.20
+        version: 1.11.20
       jotai:
         specifier: '>=2.0.0'
         version: 2.19.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.14)(react@19.2.4)

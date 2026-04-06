@@ -75,10 +75,7 @@ const CompletionMode = ({
 
             {withControls && viewType !== "comparison" ? (
                 <div
-                    className={clsx([
-                        "flex items-center gap-2 px-4 pt-3",
-                        {"pb-4": viewType !== "comparison", "pb-3": viewType === "comparison"},
-                    ])}
+                    className="flex items-center gap-2 px-4 pt-3 pb-4"
                 >
                     <AddButton size="small" label="Test case" onClick={() => handleAddNewRow()} />
                 </div>

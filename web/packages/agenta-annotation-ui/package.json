@@ -26,7 +26,8 @@
         "@agenta/entity-ui": "workspace:../agenta-entity-ui",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
-        "@phosphor-icons/react": "^2.1.10"
+        "@phosphor-icons/react": "^2.1.10",
+        "dayjs": "^1.11.20"
     },
     "peerDependencies": {
         "@phosphor-icons/react": ">=2.0.0",

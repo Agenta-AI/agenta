@@ -545,7 +545,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                           }),
                           record,
                       ]
-                rowSelection.onChange(nextKeys, nextRows)
+                rowSelection.onChange(nextKeys as Key[], nextRows)
             }
         },
         [selectOnRowClick, rowSelection, rowKey, dataSource],

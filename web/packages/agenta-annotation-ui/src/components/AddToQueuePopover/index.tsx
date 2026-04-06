@@ -8,6 +8,7 @@ import {
     type SimpleQueue,
 } from "@agenta/entities/simpleQueue"
 import {dayjs} from "@agenta/shared/utils"
+import "dayjs/plugin/relativeTime"
 import {message} from "@agenta/ui/app-message"
 import {Plus} from "@phosphor-icons/react"
 import {Button, Divider, Input, Popover, Skeleton, Typography} from "antd"
@@ -74,7 +75,7 @@ const QueueListContent = ({
 
     const cachedQueues = useMemo(
         () =>
-            paginatedState.rows.filter((row): row is SimpleQueue => {
+            paginatedState.rows.filter((row) => {
                 return !row.__isSkeleton && typeof row.id === "string"
             }),
         [paginatedState.rows],
