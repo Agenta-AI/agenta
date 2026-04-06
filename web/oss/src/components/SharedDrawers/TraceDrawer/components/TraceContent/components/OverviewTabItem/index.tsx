@@ -1,7 +1,8 @@
-import {useMemo} from "react"
+import {useMemo, useState} from "react"
 
 import {Space} from "antd"
 import {useAtomValue} from "jotai"
+import {CaretDown, CaretRight} from "@phosphor-icons/react"
 
 import {TraceSpanDrillInView} from "@/oss/components/DrillInView"
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
@@ -23,6 +24,9 @@ interface RoleMessage {
     role?: string
     content?: unknown
     contents?: {message_content?: {text?: string}}[]
+    tool_calls?: unknown[]
+    tool_call_id?: string
+    name?: string
     [key: string]: unknown
 }
 
@@ -31,6 +35,279 @@ interface MessageGroup {
     path: string[]
     messages: RoleMessage[]
 }
+
+// ============================================================================
+// Content block types (Anthropic multi-modal format)
+// ============================================================================
+
+interface ContentBlock {
+    type: string
+    text?: string
+    thinking?: string
+    id?: string
+    name?: string
+    input?: unknown
+    [key: string]: unknown
+}
+
+interface OpenAIToolCall {
+    id?: string
+    type?: string
+    function?: {
+        name?: string
+        arguments?: string | Record<string, unknown>
+    }
+    name?: string
+    input?: unknown
+}
+
+interface ParsedContentBlocks {
+    textParts: string[]
+    thinkingParts: string[]
+    toolUseParts: {id?: string; name?: string; args?: unknown}[]
+}
+
+// ============================================================================
+// Complex content helpers
+// ============================================================================
+
+const isContentBlockArray = (content: unknown): content is ContentBlock[] => {
+    if (!Array.isArray(content) || content.length === 0) return false
+    return content.some(
+        (b) => b && typeof b === "object" && typeof (b as Record<string, unknown>).type === "string",
+    )
+}
+
+const parseContentBlocks = (content: unknown): ParsedContentBlocks | null => {
+    if (!isContentBlockArray(content)) return null
+
+    const result: ParsedContentBlocks = {textParts: [], thinkingParts: [], toolUseParts: []}
+
+    for (const block of content) {
+        if (block.type === "thinking" && typeof block.thinking === "string") {
+            result.thinkingParts.push(block.thinking)
+        } else if (block.type === "text" && typeof block.text === "string") {
+            result.textParts.push(block.text)
+        } else if (block.type === "tool_use") {
+            result.toolUseParts.push({
+                id: typeof block.id === "string" ? block.id : undefined,
+                name: typeof block.name === "string" ? block.name : undefined,
+                args: block.input,
+            })
+        }
+    }
+
+    return result
+}
+
+const getOpenAIToolCalls = (message: RoleMessage): OpenAIToolCall[] => {
+    if (!Array.isArray(message.tool_calls)) return []
+    return message.tool_calls as OpenAIToolCall[]
+}
+
+const hasComplexMessageContent = (message: RoleMessage): boolean => {
+    if (Array.isArray(message.content)) {
+        const parsed = parseContentBlocks(message.content)
+        if (parsed && (parsed.thinkingParts.length > 0 || parsed.toolUseParts.length > 0)) {
+            return true
+        }
+    }
+    return getOpenAIToolCalls(message).length > 0
+}
+
+const formatToolArgs = (args: unknown): string => {
+    if (args === null || args === undefined) return "{}"
+    if (typeof args === "string") {
+        try {
+            return JSON.stringify(JSON.parse(args), null, 2)
+        } catch {
+            return args
+        }
+    }
+    try {
+        return JSON.stringify(args, null, 2)
+    } catch {
+        return String(args)
+    }
+}
+
+// Format gateway tool slugs: tools__provider__integration__action__connection
+const formatToolName = (name: string | undefined): string => {
+    if (!name) return "tool"
+    const parts = name.split("__")
+    if (parts.length === 5 && parts[0] === "tools") {
+        return `${parts[2]} / ${parts[3]} / ${parts[4]}`
+    }
+    return name
+}
+
+// ============================================================================
+// Sub-components
+// ============================================================================
+
+const ReasoningSection = ({parts}: {parts: string[]}) => {
+    const [isExpanded, setIsExpanded] = useState(false)
+    const fullText = parts.join("\n\n")
+    const preview = fullText.slice(0, 100)
+
+    return (
+        <div className="rounded-md border border-[#FFE4AA] bg-[#FFFDF0] overflow-hidden">
+            <button
+                type="button"
+                onClick={() => setIsExpanded((prev) => !prev)}
+                className="flex items-center gap-2 px-3 py-2 w-full text-left hover:bg-[#FFF8DC] transition-colors cursor-pointer border-0 bg-transparent"
+            >
+                {isExpanded ? (
+                    <CaretDown size={12} className="text-[#92610C] shrink-0" />
+                ) : (
+                    <CaretRight size={12} className="text-[#92610C] shrink-0" />
+                )}
+                <span className="text-xs font-semibold text-[#92610C]">Reasoning</span>
+                {!isExpanded && (
+                    <span className="text-xs text-[#B5851A] opacity-70 truncate">
+                        {preview}
+                        {fullText.length > 100 ? "…" : ""}
+                    </span>
+                )}
+            </button>
+            {isExpanded && (
+                <div className="px-3 pb-3 pt-1 border-t border-[#FFE4AA]">
+                    <pre className="text-xs text-gray-700 whitespace-pre-wrap break-words font-sans leading-relaxed m-0">
+                        {fullText}
+                    </pre>
+                </div>
+            )}
+        </div>
+    )
+}
+
+const ToolCallRow = ({
+    name,
+    callId,
+    args,
+}: {
+    name?: string
+    callId?: string
+    args?: unknown
+}) => {
+    const displayName = formatToolName(name)
+    const formattedArgs = formatToolArgs(args)
+
+    return (
+        <div className="rounded-md border border-[#C2D6EE] bg-[#F0F7FF] overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2">
+                <span
+                    className="font-mono text-xs font-semibold text-[#0D5BA3]"
+                    title={name !== displayName ? name : undefined}
+                >
+                    {displayName}
+                </span>
+                {callId && (
+                    <span
+                        className="text-[10px] text-gray-400 font-mono truncate max-w-[200px]"
+                        title={callId}
+                    >
+                        {callId}
+                    </span>
+                )}
+            </div>
+            <div className="border-t border-[#C2D6EE] px-3 py-2">
+                <pre className="text-xs text-gray-700 overflow-auto max-h-[240px] font-mono leading-relaxed m-0">
+                    {formattedArgs}
+                </pre>
+            </div>
+        </div>
+    )
+}
+
+/** Renders a message that contains reasoning blocks and/or tool calls */
+const ComplexMessagePanel = ({
+    message,
+    keyPrefix,
+    bgColor,
+}: {
+    message: RoleMessage
+    keyPrefix: string
+    bgColor?: string
+}) => {
+    const role = message.role || "assistant"
+
+    // Parse Anthropic-style content blocks
+    const parsedBlocks = Array.isArray(message.content) ? parseContentBlocks(message.content) : null
+
+    // Text content: from parsed blocks or plain string
+    const textContent =
+        parsedBlocks && parsedBlocks.textParts.length > 0
+            ? parsedBlocks.textParts.join("\n")
+            : typeof message.content === "string"
+              ? message.content
+              : null
+
+    const thinkingParts = parsedBlocks?.thinkingParts ?? []
+
+    // Tool calls: Anthropic tool_use blocks + OpenAI tool_calls
+    const toolCalls: {id?: string; name?: string; args?: unknown}[] = [
+        ...(parsedBlocks?.toolUseParts ?? []),
+        ...getOpenAIToolCalls(message).map((tc) => ({
+            id: tc.id,
+            name: tc.function?.name ?? (typeof tc.name === "string" ? tc.name : undefined),
+            args: tc.function?.arguments ?? tc.input,
+        })),
+    ]
+
+    return (
+        <div
+            className="rounded-md border border-[rgba(5,23,41,0.06)] overflow-hidden"
+            style={{backgroundColor: bgColor || "#fff"}}
+        >
+            {/* Role header */}
+            <div className="flex items-center px-3 py-2 border-b border-[rgba(5,23,41,0.06)] bg-white">
+                <span className="text-xs font-medium capitalize text-gray-700">{role}</span>
+                {message.tool_call_id && (
+                    <span
+                        className="ml-2 text-[10px] font-mono text-gray-400 truncate max-w-[240px]"
+                        title={String(message.tool_call_id)}
+                    >
+                        {String(message.tool_call_id)}
+                    </span>
+                )}
+            </div>
+
+            {/* Content area */}
+            <div className="flex flex-col gap-2 p-3">
+                {/* Reasoning blocks (Anthropic thinking) */}
+                {thinkingParts.length > 0 && (
+                    <ReasoningSection key={`${keyPrefix}-reasoning`} parts={thinkingParts} />
+                )}
+
+                {/* Text content */}
+                {textContent && (
+                    <div className="text-sm text-gray-800 whitespace-pre-wrap break-words leading-relaxed">
+                        {textContent}
+                    </div>
+                )}
+
+                {/* Tool call rows */}
+                {toolCalls.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                        {toolCalls.map((tc, idx) => (
+                            <ToolCallRow
+                                key={`${keyPrefix}-tool-${idx}`}
+                                name={tc.name}
+                                callId={tc.id}
+                                args={tc.args}
+                            />
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+}
+
+// ============================================================================
+// Message group collection helpers
+// ============================================================================
 
 const MESSAGE_KEY_HINTS = new Set(["messages", "prompt", "completion"])
 
@@ -181,6 +458,10 @@ const getMessageContent = (message: RoleMessage): unknown => {
     return undefined
 }
 
+// ============================================================================
+// Main component
+// ============================================================================
+
 const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
     // Use trace drill-in API for data access while preserving existing UI rendering.
     const entityWithDrillIn = traceSpan as typeof traceSpan & {
@@ -285,12 +566,25 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                         <Space orientation="vertical" className="w-full" size={12}>
                             {inputMessageGroups.map((group) =>
                                 group.messages.map((message, index) => {
+                                    const msgKey = `${group.key}-input-message-${index}`
+
+                                    // Complex message: has reasoning blocks or tool calls
+                                    if (hasComplexMessageContent(message)) {
+                                        return (
+                                            <ComplexMessagePanel
+                                                key={msgKey}
+                                                message={message}
+                                                keyPrefix={msgKey}
+                                            />
+                                        )
+                                    }
+
                                     const content = getMessageContent(message)
                                     if (content !== undefined) {
                                         if (spanEntityId) {
                                             return (
                                                 <TraceSpanDrillInView
-                                                    key={`${group.key}-input-message-${index}`}
+                                                    key={msgKey}
                                                     spanId={spanEntityId}
                                                     title={message.role || "message"}
                                                     editable={false}
@@ -303,7 +597,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
 
                                         return (
                                             <AccordionTreePanel
-                                                key={`${group.key}-input-message-${index}`}
+                                                key={msgKey}
                                                 label={message.role || "message"}
                                                 value={content}
                                                 enableFormatSwitcher
@@ -316,7 +610,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                                     if (spanEntityId) {
                                         return (
                                             <TraceSpanDrillInView
-                                                key={`${group.key}-input-message-${index}`}
+                                                key={msgKey}
                                                 spanId={spanEntityId}
                                                 title={role || "message"}
                                                 editable={false}
@@ -329,7 +623,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
 
                                     return (
                                         <AccordionTreePanel
-                                            key={`${group.key}-input-message-${index}`}
+                                            key={msgKey}
                                             label={role || "message"}
                                             value={messageWithoutRole}
                                             enableFormatSwitcher
@@ -365,12 +659,26 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                         <Space orientation="vertical" className="w-full" size={12}>
                             {outputMessageGroups.map((group) =>
                                 group.messages.map((message, index) => {
+                                    const msgKey = `${group.key}-output-message-${index}`
+
+                                    // Complex message: has reasoning blocks or tool calls
+                                    if (hasComplexMessageContent(message)) {
+                                        return (
+                                            <ComplexMessagePanel
+                                                key={msgKey}
+                                                message={message}
+                                                keyPrefix={msgKey}
+                                                bgColor="#E6FFFB"
+                                            />
+                                        )
+                                    }
+
                                     const content = getMessageContent(message)
                                     if (content !== undefined) {
                                         if (spanEntityId) {
                                             return (
                                                 <TraceSpanDrillInView
-                                                    key={`${group.key}-output-message-${index}`}
+                                                    key={msgKey}
                                                     spanId={spanEntityId}
                                                     title={message.role || "assistant"}
                                                     editable={false}
@@ -383,7 +691,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
 
                                         return (
                                             <AccordionTreePanel
-                                                key={`${group.key}-output-message-${index}`}
+                                                key={msgKey}
                                                 label={message.role || "assistant"}
                                                 value={content}
                                                 enableFormatSwitcher
@@ -397,7 +705,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                                     if (spanEntityId) {
                                         return (
                                             <TraceSpanDrillInView
-                                                key={`${group.key}-output-message-${index}`}
+                                                key={msgKey}
                                                 spanId={spanEntityId}
                                                 title={role || "assistant"}
                                                 editable={false}
@@ -410,7 +718,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
 
                                     return (
                                         <AccordionTreePanel
-                                            key={`${group.key}-output-message-${index}`}
+                                            key={msgKey}
                                             label={role || "assistant"}
                                             value={messageWithoutRole}
                                             enableFormatSwitcher
