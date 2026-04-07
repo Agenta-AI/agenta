@@ -1,9 +1,10 @@
 """backfill workflow revision URIs and normalize flags
 
 Backfill missing URIs on workflow_revisions based on legacy flags and URL
-presence.  Normalize flags to the canonical role set (is_evaluator,
-is_application, is_snippet) and strip legacy JSONB keys (service,
-configuration, script-as-object).
+presence. Normalize flags to the canonical role set (is_evaluator,
+is_application, is_snippet), strip legacy JSONB keys (service,
+configuration, script-as-object, data.version), and clear workflow meta
+content in artifacts, variants, and revisions.
 
 Phase 1 — rows with no URI get a URI assigned from flags/URL heuristics.
 Phase 2 — rows with an existing URI get flags and legacy fields normalized.

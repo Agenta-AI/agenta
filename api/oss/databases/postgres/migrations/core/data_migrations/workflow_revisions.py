@@ -480,6 +480,15 @@ def upgrade_workflow_revisions(session: Connection) -> None:
     """)
     )
 
+    session.execute(
+        text("""
+        UPDATE workflow_revisions
+        SET data = (data::jsonb - 'version')::json
+        WHERE data IS NOT NULL
+          AND data::jsonb ? 'version'
+    """)
+    )
+
     # ----------------------------------------------------------------
     # Phase 3: Rebuild flags for artifact / variant / revision ownership
     # ----------------------------------------------------------------
@@ -543,6 +552,9 @@ def upgrade_workflow_revisions(session: Connection) -> None:
                 "flags": json.dumps(revision_flags),
             },
         )
+
+    for table in ("workflow_artifacts", "workflow_variants", "workflow_revisions"):
+        session.execute(text(f"UPDATE {table} SET meta = NULL"))
 
     click.echo(
         click.style(

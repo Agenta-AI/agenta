@@ -1,40 +1,35 @@
-# PR 4022 Synced Findings
+# PR 4117 Synced Findings
 
-> PR: `Agenta-AI/agenta#4022` (`[feat] Clean up workflows`)
-> Branch reviewed locally: `feat/extend-runnables`
-> Base compared: `origin/main`
-> Head synced: `2348dc148`
-> Synced on: `2026-03-31`
+> PR: `Agenta-AI/agenta#4117` (`[feat] Migrate workflows, registries, and playgrounds`)
+> Branch: `frontend-feat/evaluator-playground-integration`
+> Base: `release/v0.96.0`
+> Head synced: `a0fec101a`
+> Synced on: `2026-04-07`
+> Previous record: PR 4022 (`feat/extend-runnables`, synced `2026-03-31`, all findings closed)
 
 ## Sources
 
-- Local review: `docs/designs/runnables/CR.md`
-- Remote PR: `https://github.com/Agenta-AI/agenta/pull/4022`
-- Remote review comments and thread state through `2026-03-31`
+- Local review: `docs/designs/runnables/CR.md` (PR 4022)
+- Remote PR 4022: `https://github.com/Agenta-AI/agenta/pull/4022` (closed, historical)
+- Remote PR 4117: `https://github.com/Agenta-AI/agenta/pull/4117`
+- Copilot review threads on PR 4117 through `2026-04-07`
 
 ## Sync Summary
 
-- This file is the canonical synced findings record for PR 4022.
-- The local review in `CR.md` already captured nearly all substantive PR feedback through thread IDs `2991025310`.
-- The Mar 31, 2026 PR delta did not introduce a new top-level defect beyond the already-confirmed workflow-catalog boolean-override issue.
-- Remote thread `3016391904` is a duplicate/source refresh for `F5`.
-- Remote thread `3016391939` reiterates the existing low-priority `.pre-commit-config.yaml` reproducibility concern and was not promoted to a new top-level finding.
-- Remote thread `3016391966` is process-only scope/title feedback and was not promoted to a code finding.
-- The later Mar 31, 2026 review delta introduced two new top-level findings:
-  - `F19`, now fixed, for dropped evaluator repeats if selected cached trace entries were later rejected as unusable
-  - `F20`, now fixed, for deploy still using `fetch_environment_revision(...)` instead of the newer retrieval path
-- `F14` is no longer treated as an active branch finding; the remaining work is tracked as scoped backlog in `gap.catalog.md` and `gap.migrations.md`.
-- Late Mar 31 comments `3016846465` and `3016980223` are duplicate/source refreshes for `F15`.
-- Late Mar 31 comments `3016846423` and `3016980136` describe the same workflow-catalog startup/per-build inefficiency and were merged into `F21`, now fixed.
-- Late Mar 31 comments `3016846597` and `3016980261` are process-only PR scope/title feedback and were not promoted to code findings.
-- Very late Mar 31 comment `3017096727` is an additional source refresh for `F21`.
-- Very late Mar 31 comment `3017096638` introduced `F22`, which is now closed as an intentional contract break with no backward-compatibility expectation.
-- Very late Mar 31 comment `3017096701` flags `log.warn(...)` usage in live evaluations, but it was not promoted to a top-level finding because the project logger explicitly exposes `warn()` and the concern is deprecation/style-only in the current codebase context.
-- As of the latest sync on `2026-03-31`, there are no unresolved PR threads that map to `[CLOSED]` findings in this file.
-- The latest triage pass promoted two new findings and both are now fixed:
-  - `F23` for broad exception handling in default evaluator bootstrap
-  - `F24` for trace-type propagation reordering spans in mixed-trace batches
-- SDK export compatibility and tracing API contract changes remain unresolved policy questions and were not promoted yet.
+- This file is the canonical synced findings record, updated from PR 4022 to PR 4117.
+- PR 4022 findings are fully closed and preserved in the Closed Findings section below.
+- PR 4117 (`[feat] Migrate workflows, registries, and playgrounds`) targets `release/v0.96.0` and covers the frontend migration, evaluator playground integration, workflow catalog, tracing hashes, and evaluation runtime locking.
+- Copilot reviewed 88 of 1261 changed files and generated 7 review threads:
+  - Thread `3043605385`: `ground_truth_key` Copilot concern — no frontend consumer exists; only dead backend code used this flag. Promoted to **F25**, closed as `stale`.
+  - Thread `3043605455`: `application_refs` adapter O(n²) membership test — fixed by switching to a `seen_dbe_ids` set. Promoted to **F26**, now `fixed`.
+  - Thread `3043605474`: `retrieve_environment_revision` logs at INFO on every call — previously noted in CR.md but not promoted; now has an explicit thread. Promoted to **F27**.
+  - Thread `3043605492`: `.pre-commit-config.yaml` switches to `language: system` — addresses the open question from PR 4022. Promoted to **F28**.
+  - Thread `3043605526`: `log.warn` deprecated in favor of `log.warning` in `live.py:720` — previously noted (PR 4022 thread `3017096701`), still not promoted; updated in Notes.
+  - Threads `3043605546` + `3043605562`: Workflow catalog `_catalog` lazy init at `catalog.py:138,157` is not thread-safe — a new gap in the F21 fix. Promoted to **F29**.
+- PR 4022 open questions carried forward:
+  - SDK export compatibility (`agenta.sdk.types`, removed `config` export) — still unresolved policy.
+  - Tracing API contract changes (`POST /traces` now 202, `PUT /traces/{trace_id}`) — still unresolved policy.
+  - Pre-commit reproducibility concern promoted from open question to F28 given the explicit PR 4117 thread.
 
 ## Rules
 
@@ -44,23 +39,83 @@
 
 ## Notes
 
-- `.pre-commit-config.yaml` reproducibility concerns remain low-priority and already tracked in thread disposition; the Mar 31 thread `3016391939` does not change the finding set.
-- PR scope/title comments remain process-only; the Mar 31 thread `3016391966` reinforces existing scope feedback but is not a code defect.
-- The live-evaluation `log.warn(...)` comment (`3017096701`) remains an unresolved code-review thread, but it is currently treated as logger-style cleanup rather than a branch-specific defect.
-- Annotation edit `NameError` comments (`2949000424`, `2960191040`, `2962294526`) were not promoted because current HEAD still fetches the existing annotation before constructing the edited response.
-- Lock-key packing comments (`2997692596`, `2997692639`) were not promoted because current acquire/renew/release and metadata scan paths all use the same packed `cache:...:lock:eval:...` naming scheme.
-- Missing-environment-revision comments (`2954804899`, `2954804934`) were not promoted because current handlers already raise explicit `404` before dereferencing revision contents.
-- Absolute local filesystem link comments on `docs/design/legacy-adapter-migration/route-gap-analysis.md` (`2960191060`, `2960191090`, `2960191112`) are outdated and outside the active runnables findings scope.
+- PR 4022 findings are fully closed. The PR 4022 review was against `feat/extend-runnables` on `origin/main`.
+- PR 4117 targets `release/v0.96.0` with `frontend-feat/evaluator-playground-integration` as the frontend migration and evaluator playground follow-on.
+- `log.warn(...)` in `live.py:720` (PR 4117 thread `3043605526`, also PR 4022 thread `3017096701`) flags a real Python deprecation. The standard call is `log.warning()`. Not promoted to a finding; treat as style cleanup during any edit of that file.
+- Copilot suppressed one low-confidence comment about `evaluator_query` variable reuse in `api/oss/src/core/evaluators/service.py` — naming confusion between the loop variable and a constructed `SimpleEvaluator`. Not promoted; clean up if touching that scope.
+- PR 4022 historical notes (annotation NameError, lock-key packing, missing-environment-revision, absolute local filesystem links) remain accurate for that branch and are preserved in the closed findings section below.
 
 ## Open Questions
 
-- Should the pre-commit reproducibility concern be promoted from thread-disposition-only tracking into a top-level `P3` finding, or remain an open-low note?
-- Should SDK compatibility be preserved for `agenta.sdk.types` and the removed `config` export on this branch, or is that public export break intentional?
+- Should SDK export compatibility be preserved for `agenta.sdk.types` and the removed `config` export, or is that public export break intentional for this release?
 - Should the tracing API contract changes (`POST /traces` now `202`, added `PUT /traces/{trace_id}`, legacy span-route changes) be treated as accepted migration-scope breaks and tracked in backlog, or should this branch preserve backward-compatible behavior?
 
 ## Open Findings
 
 ## Closed Findings
+
+### [CLOSED] F29. Workflow catalog lazy init thread-safety
+
+- Severity: `P2`
+- Confidence: `medium`
+- Status: `wontfix`
+- Category: `Correctness`, `Robustness`
+- Summary: Module-level `_catalog` lazy init is not guarded against concurrent builds. Deferred — acceptable under the current forked-worker process model; revisit if the process model changes.
+- Sources:
+  - PR threads `3043605546`, `3043605562`
+  - Closed finding F21 (PR 4022)
+
+### [CLOSED] F28. `.pre-commit-config.yaml` `language: system` reproducibility
+
+- Severity: `P3`
+- Confidence: `high`
+- Status: `wontfix`
+- Category: `Compatibility`, `Process`
+- Summary: Pre-commit hooks now use `language: system` instead of pinned upstream hooks. Accepted as-is for now.
+- Sources:
+  - PR thread `3043605492`
+
+### [CLOSED] F27. `retrieve_environment_revision` INFO logs on high-frequency path
+
+- Severity: `P3`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Performance`, `Maintainability`
+- Summary: All 5 `log.info` calls inside `retrieve_environment_revision` commented out.
+- Evidence:
+  - `api/oss/src/core/environments/service.py:590-672`
+- Files:
+  - `api/oss/src/core/environments/service.py`
+- Sources:
+  - PR thread `3043605474`
+
+### [CLOSED] F26. `application_refs` adapter O(n²) membership test
+
+- Severity: `P3`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Performance`
+- Summary: The `application_refs` post-fetch filtering adapter used `if dbe not in filtered_dbes` (list membership, O(n)) inside nested loops. Fixed by tracking seen revision IDs in a `seen_dbe_ids: set[UUID]` and guarding with `if dbe.id not in seen_dbe_ids`.
+- Evidence:
+  - `api/oss/src/dbs/postgres/git/dao.py:1294-1333`
+- Files:
+  - `api/oss/src/dbs/postgres/git/dao.py`
+- Cause: Deduplication guard used list membership rather than set membership.
+- Suggested Fix: None.
+- Sources:
+  - PR thread `3043605455`
+  - Closed finding F15 (PR 4022)
+
+### [CLOSED] F25. `ground_truth_key` Copilot concern — stale
+
+- Severity: `P3`
+- Confidence: `low`
+- Status: `stale`
+- Category: `Compatibility`
+- Summary: Copilot flagged the removal of `ground_truth_key: True` from evaluator schemas as a potential frontend regression. Investigation found no frontend consumer of this flag. The only backend consumers were `db_manager.add_default_simple_evaluators()` (dead code, never called) and a historical data migration. The active evaluator seeding path (`defaults.py`) does not use the flag. The frontend reads `correct_answer_key` from evaluator settings values, not from the schema flag. No action needed.
+- Sources:
+  - PR thread `3043605385`
+  - Closed finding F14 (PR 4022)
 
 ### [CLOSED] F23. Default evaluator bootstrap masks real failures behind broad exception handling
 

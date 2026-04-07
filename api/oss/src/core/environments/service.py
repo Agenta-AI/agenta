@@ -587,13 +587,13 @@ class EnvironmentsService:
         then fetches the default variant and latest revision.
         Optionally resolves embedded references when resolve=True.
         """
-        log.info(
-            "retrieve_environment_revision: environment_ref=%r environment_variant_ref=%r environment_revision_ref=%r resolve=%r",
-            environment_ref,
-            environment_variant_ref,
-            environment_revision_ref,
-            resolve,
-        )
+        # log.info(
+        #     "retrieve_environment_revision: environment_ref=%r environment_variant_ref=%r environment_revision_ref=%r resolve=%r",
+        #     environment_ref,
+        #     environment_variant_ref,
+        #     environment_revision_ref,
+        #     resolve,
+        # )
 
         if (
             not environment_ref
@@ -612,10 +612,10 @@ class EnvironmentsService:
                 project_id=project_id,
                 environment_ref=environment_ref,
             )
-            log.info(
-                "retrieve_environment_revision: environment=%r",
-                environment and environment.id,
-            )
+            # log.info(
+            #     "retrieve_environment_revision: environment=%r",
+            #     environment and environment.id,
+            # )
 
             if not environment:
                 return None, None
@@ -624,10 +624,10 @@ class EnvironmentsService:
                 project_id=project_id,
                 environment_ref=Reference(id=environment.id),
             )
-            log.info(
-                "retrieve_environment_revision: environment_variant=%r",
-                environment_variant and environment_variant.id,
-            )
+            # log.info(
+            #     "retrieve_environment_revision: environment_variant=%r",
+            #     environment_variant and environment_variant.id,
+            # )
 
             if not environment_variant:
                 return None, None
@@ -640,7 +640,7 @@ class EnvironmentsService:
             variant_ref=environment_variant_ref,
             revision_ref=environment_revision_ref,
         )
-        log.info("retrieve_environment_revision: revision=%r", revision and revision.id)
+        # log.info("retrieve_environment_revision: revision=%r", revision and revision.id)
 
         if not revision:
             return None, None
@@ -667,10 +667,10 @@ class EnvironmentsService:
         if environment_revision.data:
             environment_revision.data = EnvironmentRevisionData(**resolved_config)
 
-        log.info(
-            "retrieve_environment_revision: resolved resolution_info=%r",
-            resolution_info,
-        )
+        # log.info(
+        #     "retrieve_environment_revision: resolved resolution_info=%r",
+        #     resolution_info,
+        # )
 
         return environment_revision, resolution_info
 

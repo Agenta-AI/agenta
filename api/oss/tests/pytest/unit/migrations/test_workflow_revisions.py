@@ -190,3 +190,26 @@ def test_upgrade_workflow_revisions_uses_custom_uris_for_hook_and_code():
     assert "'{uri}'" in statements
     assert '"agenta:custom:hook:v0"' in statements
     assert '"agenta:custom:code:v0"' in statements
+
+
+def test_upgrade_workflow_revisions_drops_legacy_data_version_key():
+    session = _FakeSession()
+
+    upgrade_workflow_revisions(session)
+
+    assert any(
+        "SET data = (data::jsonb - 'version')::json" in statement
+        for statement, _params in session.statements
+    )
+
+
+def test_upgrade_workflow_revisions_clears_workflow_meta_content():
+    session = _FakeSession()
+
+    upgrade_workflow_revisions(session)
+
+    statements = "\n".join(statement for statement, _params in session.statements)
+
+    assert "UPDATE workflow_artifacts SET meta = NULL" in statements
+    assert "UPDATE workflow_variants SET meta = NULL" in statements
+    assert "UPDATE workflow_revisions SET meta = NULL" in statements
