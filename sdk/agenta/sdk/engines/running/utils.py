@@ -222,8 +222,24 @@ CATALOG_REGISTRY: dict = dict(
                 )
             ),
             #
-            chat=dict(v0=_catalog_entry()),
-            completion=dict(v0=_catalog_entry()),
+            chat=dict(
+                v0=dict(
+                    name="chat",
+                    description="Single-prompt application for multi-turn conversations.",
+                    categories=None,
+                    flags=None,
+                    presets=[],
+                )
+            ),
+            completion=dict(
+                v0=dict(
+                    name="completion",
+                    description="Single-prompt application for single-turn completions (text generation, classification, etc.).",
+                    categories=None,
+                    flags=None,
+                    presets=[],
+                )
+            ),
             #
             echo=dict(v0=_catalog_entry()),
             auto_exact_match=dict(v0=_catalog_entry()),
