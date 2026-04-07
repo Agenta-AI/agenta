@@ -218,18 +218,6 @@ class WorkflowsService:
         }
 
     @classmethod
-    def _stored_revision_flags_for_data(
-        cls,
-        *,
-        flags: Optional[object],
-        data: Optional[object],
-    ) -> Optional[dict]:
-        if data is None:
-            return None
-
-        return cls._dump_stored_revision_flags(flags) or None
-
-    @classmethod
     def _split_workflow_flag_values(
         cls,
         flags: Optional[object],
@@ -1038,10 +1026,10 @@ class WorkflowsService:
                 exclude_none=True,
                 exclude={"flags"},
             ),
-            flags=self._stored_revision_flags_for_data(
-                flags=self._revision_flags_from_any(workflow_revision_create.flags),
-                data=getattr(workflow_revision_create, "data", None),
-            ),
+            flags=self._dump_stored_revision_flags(
+                self._revision_flags_from_any(workflow_revision_create.flags)
+            )
+            or None,
         )
 
         revision = await self.workflows_dao.create_revision(
@@ -1222,10 +1210,10 @@ class WorkflowsService:
                 exclude_none=True,
                 exclude={"flags"},
             ),
-            flags=self._stored_revision_flags_for_data(
-                flags=self._revision_flags_from_any(workflow_revision_edit.flags),
-                data=getattr(workflow_revision_edit, "data", None),
-            ),
+            flags=self._dump_stored_revision_flags(
+                self._revision_flags_from_any(workflow_revision_edit.flags)
+            )
+            or None,
         )
 
         revision = await self.workflows_dao.edit_revision(
@@ -1367,17 +1355,15 @@ class WorkflowsService:
                 exclude_none=True,
                 exclude={"flags", "data"},
             ),
-            flags=self._stored_revision_flags_for_data(
-                flags=self._revision_flags_from_any(
+            flags=self._dump_stored_revision_flags(
+                self._revision_flags_from_any(
                     infer_flags_from_data(
                         flags=workflow_revision_commit.flags,
                         data=data,
                     )
                 )
-                if data is not None
-                else None,
-                data=data,
-            ),
+            )
+            or None,
             data=data.model_dump(mode="json", exclude_none=True) if data else None,
         )
 

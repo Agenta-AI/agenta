@@ -531,13 +531,9 @@ def upgrade_workflow_revisions(session: Connection) -> None:
 
     for row in revision_rows:
         normalized_data = _backfill_schemas_from_interface(row["data"])
-        revision_flags = (
-            _normalize_revision_flags(
-                legacy_flags=row["flags"],
-                data=normalized_data,
-            )
-            if normalized_data is not None
-            else None
+        revision_flags = _normalize_revision_flags(
+            legacy_flags=row["flags"],
+            data=normalized_data,
         )
 
         session.execute(
@@ -552,12 +548,8 @@ def upgrade_workflow_revisions(session: Connection) -> None:
             {
                 "project_id": row["project_id"],
                 "id": row["id"],
-                "data": json.dumps(normalized_data)
-                if normalized_data is not None
-                else None,
-                "flags": json.dumps(revision_flags)
-                if revision_flags is not None
-                else None,
+                "data": json.dumps(normalized_data),
+                "flags": json.dumps(revision_flags),
             },
         )
 
