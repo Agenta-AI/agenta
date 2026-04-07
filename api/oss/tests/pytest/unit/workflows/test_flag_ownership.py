@@ -255,6 +255,7 @@ async def test_commit_workflow_revision_persists_only_revision_flags():
     assert revision_commit.flags["is_managed"] is True
     assert revision_commit.flags["is_chat"] is False
 
+
 @pytest.mark.asyncio
 async def test_commit_workflow_revision_does_not_warn_when_merging_schemas():
     workflows_dao = AsyncMock()
