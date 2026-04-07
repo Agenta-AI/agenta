@@ -27,7 +27,7 @@ RUN --mount=type=cache,id=pip-api,target=/root/.cache/pip \
     python -m venv /opt/venv \
     && . /opt/venv/bin/activate \
     && poetry export --only main --without-hashes --format requirements.txt --output /tmp/requirements.txt \
-    && grep -viE '^agenta([[:space:]]|\\[|@|[<>=!~])' /tmp/requirements.txt > /tmp/requirements.runtime.txt \
+    && grep -viE '^agenta($|[[:space:]@<>=!~\\[])' /tmp/requirements.txt > /tmp/requirements.runtime.txt \
     && pip install -r /tmp/requirements.runtime.txt \
     && rm -f /tmp/requirements.runtime.txt \
     && rm -f /tmp/requirements.txt \
