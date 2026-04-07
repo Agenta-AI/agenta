@@ -143,13 +143,14 @@ class _FakeResult:
 
 
 class _FakeSession:
-    def __init__(self):
+    def __init__(self, rows=None):
         self.statements = []
+        self._rows = rows or []
 
     def execute(self, statement, params=None):
         self.statements.append((str(statement), params))
         if "SELECT project_id, id, data, flags" in str(statement):
-            return _FakeResult([])
+            return _FakeResult(self._rows)
         return _FakeResult([])
 
 
@@ -213,3 +214,29 @@ def test_upgrade_workflow_revisions_clears_workflow_meta_content():
     assert "UPDATE workflow_artifacts SET meta = NULL" in statements
     assert "UPDATE workflow_variants SET meta = NULL" in statements
     assert "UPDATE workflow_revisions SET meta = NULL" in statements
+
+
+def test_upgrade_workflow_revisions_keeps_null_data_and_flags_as_sql_null():
+    session = _FakeSession(
+        rows=[
+            {
+                "project_id": "project-1",
+                "id": "revision-1",
+                "data": None,
+                "flags": {"is_chat": True},
+            }
+        ]
+    )
+
+    upgrade_workflow_revisions(session)
+
+    update_params = [
+        params
+        for statement, params in session.statements
+        if "UPDATE workflow_revisions" in statement
+        and "CAST(:data AS json)" in statement
+        and params is not None
+    ]
+
+    assert update_params[-1]["data"] is None
+    assert update_params[-1]["flags"] is None

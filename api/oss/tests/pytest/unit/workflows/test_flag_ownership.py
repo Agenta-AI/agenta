@@ -124,7 +124,7 @@ async def test_fetch_workflow_revision_injects_artifact_flags():
 
 
 @pytest.mark.asyncio
-async def test_create_workflow_revision_v0_persists_explicit_revision_flags():
+async def test_create_workflow_revision_v0_persists_no_revision_flags_without_data():
     workflows_dao = AsyncMock()
     service = WorkflowsService(workflows_dao=workflows_dao)
 
@@ -156,19 +156,7 @@ async def test_create_workflow_revision_v0_persists_explicit_revision_flags():
     )
 
     revision_create = workflows_dao.create_revision.await_args.kwargs["revision_create"]
-    assert revision_create.flags == {
-        "is_managed": False,
-        "is_custom": True,
-        "is_llm": False,
-        "is_hook": False,
-        "is_code": False,
-        "is_match": False,
-        "is_feedback": False,
-        "is_chat": True,
-        "has_url": False,
-        "has_script": False,
-        "has_handler": False,
-    }
+    assert revision_create.flags is None
     assert workflow_revision is not None
     assert workflow_revision.flags == WorkflowRevisionFlags(is_application=True)
 
@@ -204,11 +192,7 @@ async def test_edit_workflow_revision_persists_only_revision_flags():
     )
 
     revision_edit = workflows_dao.edit_revision.await_args.kwargs["revision_edit"]
-    assert revision_edit.flags is not None
-    assert "is_application" not in revision_edit.flags
-    assert "is_evaluator" not in revision_edit.flags
-    assert "is_snippet" not in revision_edit.flags
-    assert revision_edit.flags["is_chat"] is True
+    assert revision_edit.flags is None
 
 
 @pytest.mark.asyncio
@@ -254,6 +238,44 @@ async def test_commit_workflow_revision_persists_only_revision_flags():
     assert "is_snippet" not in revision_commit.flags
     assert revision_commit.flags["is_managed"] is True
     assert revision_commit.flags["is_chat"] is False
+
+
+@pytest.mark.asyncio
+async def test_commit_workflow_revision_persists_no_revision_flags_without_data():
+    workflows_dao = AsyncMock()
+    service = WorkflowsService(workflows_dao=workflows_dao)
+
+    artifact_id = uuid4()
+    variant_id = uuid4()
+    revision_id = uuid4()
+    workflows_dao.commit_revision.return_value = WorkflowRevision(
+        id=revision_id,
+        workflow_id=artifact_id,
+        workflow_variant_id=variant_id,
+        slug="rev",
+        flags=None,
+        data=None,
+    )
+    workflows_dao.fetch_artifact.return_value = Workflow(
+        id=artifact_id,
+        slug="wf",
+        flags=WorkflowArtifactFlags(is_application=True),
+    )
+
+    await service.commit_workflow_revision(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        workflow_revision_commit=WorkflowRevisionCommit(
+            workflow_id=artifact_id,
+            workflow_variant_id=variant_id,
+            slug="rev",
+            flags=WorkflowFlags(is_application=True, is_chat=True),
+            data=None,
+        ),
+    )
+
+    revision_commit = workflows_dao.commit_revision.await_args.kwargs["revision_commit"]
+    assert revision_commit.flags is None
 
 
 @pytest.mark.asyncio
