@@ -37,7 +37,7 @@ const playgroundTests = () => {
             await testProviderHelpers.ensureTestProvider()
 
             const app = await apiHelpers.getApp("completion")
-            const appId = app.app_id
+            const appId = app.id
 
             await navigateToPlayground(appId)
 
@@ -68,7 +68,7 @@ const playgroundTests = () => {
             await testProviderHelpers.ensureTestProvider()
 
             const app = await apiHelpers.getApp("chat")
-            const appId = app.app_id
+            const appId = app.id
 
             await navigateToPlayground(appId)
 
@@ -98,7 +98,7 @@ const playgroundTests = () => {
             }) => {
                 // 1. get the app
                 const app = await apiHelpers.getApp("completion")
-                const appId = app.app_id
+                const appId = app.id
 
                 // 2. navigate to playground
                 await navigateToPlayground(appId)

@@ -1,5 +1,6 @@
 import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {expect} from "@agenta/web-tests/utils"
+import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 import {
     createTagString,
     TestCoverage,
@@ -9,6 +10,17 @@ import {
     TestCostType,
     TestLicenseType,
 } from "@agenta/web-tests/playwright/config/testTags"
+
+interface WorkflowRevision {
+    id: string
+    workflow_id?: string | null
+    version?: number | null
+}
+
+interface WorkflowRevisionsResponse {
+    workflow_revisions: WorkflowRevision[]
+    count?: number
+}
 
 const promptRegistryTests = () => {
     test(
@@ -25,33 +37,66 @@ const promptRegistryTests = () => {
                 createTagString("license", TestLicenseType.OSS),
             ],
         },
-        async ({page, uiHelpers}) => {
-            // Navigate to /apps (which redirects to workspace-scoped URL)
-            await page.goto("/apps", {waitUntil: "domcontentloaded"})
+        async ({page, uiHelpers, apiHelpers}) => {
+            const app = await apiHelpers.getApp("completion")
+            const appId = app.id
 
-            // Click "Prompts" in sidebar to go to the prompts table
-            const promptsLink = page.locator('a:has-text("Prompts")').first()
-            await expect(promptsLink).toBeVisible({timeout: 10000})
-            await promptsLink.click()
+            const basePath = getProjectScopedBasePath(page)
+            const revisionsResponsePromise =
+                apiHelpers.waitForApiResponse<WorkflowRevisionsResponse>({
+                    route: "/api/preview/workflows/revisions/query",
+                    method: "POST",
+                })
 
-            await uiHelpers.expectPath("/prompts")
+            await page.goto(`${basePath}/apps/${appId}/variants`, {
+                waitUntil: "domcontentloaded",
+            })
+            await uiHelpers.expectPath(`/apps/${appId}/variants`)
 
-            // Verify the Prompts heading is visible
-            await expect(page.getByRole("heading", {name: /prompts/i}).first()).toBeVisible({
+            const revisionsResponse = await revisionsResponsePromise
+            const revisions = revisionsResponse.workflow_revisions.filter(
+                (revision) => (revision.version ?? 0) > 0,
+            )
+
+            test.skip(revisions.length === 0, "No workflow revisions found in registry")
+
+            const selectedRevision = revisions[0]
+            const revisionId = selectedRevision.id
+
+            const row = page.locator(`[data-row-key="${revisionId}"]`).first()
+            await expect(row).toBeVisible({timeout: 30000})
+            await row.click()
+
+            await page.waitForURL((url) => {
+                return (
+                    url.pathname.endsWith(`/apps/${appId}/variants`) &&
+                    url.searchParams.get("revisionId") === revisionId
+                )
+            })
+
+            const drawer = page.locator(".ant-drawer-content-wrapper").filter({
+                hasText: "Workflow Revision",
+            })
+            await expect(drawer).toBeVisible({timeout: 15000})
+            await expect(drawer.getByText("Workflow Revision").first()).toBeVisible({
                 timeout: 15000,
             })
 
-            // Verify the prompts table is visible (uses div-based rows)
-            const promptsTable = page.getByRole("table").first()
-            await expect(promptsTable).toBeVisible()
+            const playgroundButton = drawer.getByRole("button", {name: "Playground"})
+            await expect(playgroundButton).toBeVisible({timeout: 15000})
+            await playgroundButton.click()
 
-            // Click the first app row - this navigates to the app overview page
-            const firstAppRow = page.locator('[class*="cursor"]').first()
-            await expect(firstAppRow).toBeVisible()
-            await firstAppRow.click()
-
-            // Verify navigation to the app overview page
-            await uiHelpers.expectPath("/overview")
+            await page.waitForURL(
+                (url) => {
+                    const revisionsParam = url.searchParams.get("revisions") ?? ""
+                    return (
+                        url.pathname.endsWith(`/apps/${appId}/playground`) &&
+                        revisionsParam.split(",").includes(revisionId)
+                    )
+                },
+                {timeout: 15000},
+            )
+            await uiHelpers.expectPath(`/apps/${appId}/playground`)
         },
     )
 }

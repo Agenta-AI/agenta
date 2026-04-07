@@ -14,8 +14,32 @@ import {
 interface SimpleTestset {
     id: string
     name: string
-    data?: {
-        testcases: Array<{id: string; data: Record<string, unknown>}>
+    _id?: string
+}
+
+interface TestsetsQueryResponse {
+    testsets: SimpleTestset[]
+}
+
+interface TestsetRevision {
+    id: string
+    version: number | string
+    testset_id: string
+}
+
+interface TestsetRevisionsResponse {
+    testset_revisions: TestsetRevision[]
+}
+
+interface TestcasesQueryResponse {
+    count?: number
+    testcases?: Array<{id: string; data?: Record<string, unknown>}>
+}
+
+interface TestsetRevisionDetailResponse {
+    testset_revision: {
+        id: string
+        testset_id: string
     }
 }
 
@@ -35,10 +59,8 @@ const testsetTests = () => {
             ],
         },
         async ({page, apiHelpers, uiHelpers}) => {
-            // 1. Navigate to testsets page via sidebar
             await page.goto("/apps", {waitUntil: "domcontentloaded"})
 
-            // Set up API interception before clicking
             const testsetsResponsePromise = page.waitForResponse(
                 (response) =>
                     response.url().includes("/api/preview/testsets/query") &&
@@ -51,19 +73,15 @@ const testsetTests = () => {
             await uiHelpers.waitForPath("/testsets")
 
             const testsetsResponse = await testsetsResponsePromise
-            const testsetsData = await testsetsResponse.json()
+            const testsetsData = (await testsetsResponse.json()) as TestsetsQueryResponse
             const testsets = testsetsData.testsets
 
-            // Verify navigation and page title
-            await expect(
-                page.getByRole("heading", {name: /testsets|test sets/i}).first(),
-            ).toBeVisible({timeout: 10000})
+            await expect(page.getByRole("heading", {name: "Testsets"})).toBeVisible({
+                timeout: 10000,
+            })
 
-            // Skip if no testsets exist on this deployment
             test.skip(!testsets || testsets.length === 0, "No testsets found on deployment")
 
-            // 3. Verify testset is visible in table
-            // Preview endpoint returns 'id' instead of '_id'
             const testsetId = testsets[0].id || testsets[0]._id
             const testsetName = testsets[0].name
 
@@ -72,29 +90,48 @@ const testsetTests = () => {
                 throw new Error("Testset ID not found")
             }
 
-            const testsetTable = page.getByRole("table").filter({hasText: testsetName})
-            const testsetRow = testsetTable.getByRole("row", {name: testsetName})
+            const testsetRow = page.locator("[data-row-key]").filter({hasText: testsetName}).first()
             await expect(testsetRow).toBeVisible()
 
-            const testsetResponsePromise = apiHelpers.waitForApiResponse<{testset: SimpleTestset}>({
-                route: `/api/preview/simple/testsets/${testsetId}`,
-                method: "GET",
+            const revisionsResponsePromise =
+                apiHelpers.waitForApiResponse<TestsetRevisionsResponse>({
+                    route: "/api/preview/testsets/revisions/query",
+                    method: "POST",
+                })
+            const revisionDetailResponsePromise =
+                apiHelpers.waitForApiResponse<TestsetRevisionDetailResponse>({
+                    route: "/api/preview/testsets/revisions/",
+                    method: "GET",
+                })
+            const testcasesResponsePromise = apiHelpers.waitForApiResponse<TestcasesQueryResponse>({
+                route: "/api/preview/testcases/query",
+                method: "POST",
             })
 
-            // 4. Click on testset row
-            await uiHelpers.clickTableRow(testsetName)
+            await testsetRow.click()
 
-            // 6. Verify testset page
-            await uiHelpers.waitForPath(`/testsets/${testsetId}`)
-            await expect(
-                page.getByRole("heading", {name: /testset|test set/i}).first(),
-            ).toBeVisible()
+            const revisionsResponse = await revisionsResponsePromise
+            const revisions = revisionsResponse.testset_revisions.filter(
+                (revision) => Number(revision.version) !== 0,
+            )
 
-            const response = await testsetResponsePromise
-            const testset = response.testset
-            expect(testset.name).toBe(testsetName)
-            // Preview endpoint returns data.testcases instead of csvdata
-            expect(testset.data?.testcases?.length).toBeGreaterThan(0)
+            expect(revisions.length).toBeGreaterThan(0)
+
+            const latestRevision = revisions[0]
+            expect(latestRevision.testset_id).toBe(testsetId)
+
+            await uiHelpers.waitForPath(`/testsets/${latestRevision.id}`)
+
+            const revisionDetailResponse = await revisionDetailResponsePromise
+            expect(revisionDetailResponse.testset_revision.id).toBe(latestRevision.id)
+            expect(revisionDetailResponse.testset_revision.testset_id).toBe(testsetId)
+
+            const testcasesResponse = await testcasesResponsePromise
+            expect(
+                testcasesResponse.count ?? testcasesResponse.testcases?.length ?? 0,
+            ).toBeGreaterThan(0)
+
+            await expect(page.getByRole("heading", {name: testsetName}).first()).toBeVisible()
         },
     )
 }
