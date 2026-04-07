@@ -3,7 +3,7 @@
 > PR: `Agenta-AI/agenta#4117` (`[feat] Migrate workflows, registries, and playgrounds`)
 > Branch: `frontend-feat/evaluator-playground-integration`
 > Base: `release/v0.96.0`
-> Head synced: `a0fec101a`
+> Head synced: `314cdc622`
 > Synced on: `2026-04-07`
 > Previous record: PR 4022 (`feat/extend-runnables`, synced `2026-03-31`, all findings closed)
 
@@ -22,10 +22,11 @@
 - Copilot reviewed 88 of 1261 changed files and generated 7 review threads:
   - Thread `3043605385`: `ground_truth_key` Copilot concern — no frontend consumer exists; only dead backend code used this flag. Promoted to **F25**, closed as `stale`.
   - Thread `3043605455`: `application_refs` adapter O(n²) membership test — fixed by switching to a `seen_dbe_ids` set. Promoted to **F26**, now `fixed`.
-  - Thread `3043605474`: `retrieve_environment_revision` logs at INFO on every call — previously noted in CR.md but not promoted; now has an explicit thread. Promoted to **F27**.
-  - Thread `3043605492`: `.pre-commit-config.yaml` switches to `language: system` — addresses the open question from PR 4022. Promoted to **F28**.
+  - Thread `3043605474`: `retrieve_environment_revision` INFO logs on hot path — all 5 commented out. Promoted to **F27**, now `fixed`.
+  - Thread `3043605492`: `.pre-commit-config.yaml` `language: system` — accepted as-is. Promoted to **F28**, `wontfix`.
   - Thread `3043605526`: `log.warn` deprecated in favor of `log.warning` in `live.py:720` — previously noted (PR 4022 thread `3017096701`), still not promoted; updated in Notes.
-  - Threads `3043605546` + `3043605562`: Workflow catalog `_catalog` lazy init at `catalog.py:138,157` is not thread-safe — a new gap in the F21 fix. Promoted to **F29**.
+  - Threads `3043605546` + `3043605562`: Catalog lazy init thread-safety — deferred. Promoted to **F29**, `wontfix`.
+- Head advanced to `314cdc622` (commit `run CR resolve`): migration strips `data.version` from `workflow_revisions` and clears `meta` on all three workflow tables; tests added. No new findings.
 - PR 4022 open questions carried forward:
   - SDK export compatibility (`agenta.sdk.types`, removed `config` export) — still unresolved policy.
   - Tracing API contract changes (`POST /traces` now 202, `PUT /traces/{trace_id}`) — still unresolved policy.
