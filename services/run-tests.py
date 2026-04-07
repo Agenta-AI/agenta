@@ -1,93 +1,194 @@
 #!/usr/bin/env python3
-from __future__ import annotations
-
 from typing import Optional
 import os
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit, urlunsplit
-from urllib.request import urlopen
-
+import subprocess
 import click
+
 from dotenv import load_dotenv
 
 
-def derive_services_url(api_url: str) -> str:
-    parsed = urlsplit(api_url)
-    path = parsed.path.rstrip("/")
-    if path.endswith("/api"):
-        path = path[: -len("/api")]
+TYPES = {
+    "license": ["ee", "oss"],
+    "coverage": ["smoke", "full"],
+    "lens": ["functional", "performance", "security"],
+    "plan": ["hobby", "pro", "business", "enterprise"],
+    "role": ["owner", "admin", "editor", "viewer"],
+    "path": ["happy", "grumpy"],
+    "case": ["typical", "edge"],
+    "speed": ["fast", "slow"],
+    "cost": ["free", "paid"],
+}
 
-    services_path = f"{path}/services" if path else "/services"
-    return urlunsplit((parsed.scheme, parsed.netloc, services_path, "", ""))
+
+def _has_pytest_option(pytest_args: Optional[tuple], option: str) -> bool:
+    if not pytest_args:
+        return False
+
+    return any(arg == option or arg.startswith(f"{option}=") for arg in pytest_args)
 
 
-def check_health(url: str, timeout: float) -> None:
-    try:
-        with urlopen(url, timeout=timeout) as response:
-            status = response.getcode()
-            if status >= 400:
-                raise click.ClickException(f"{url} returned HTTP {status}")
-    except HTTPError as exc:
-        raise click.ClickException(f"{url} returned HTTP {exc.code}") from exc
-    except URLError as exc:
-        reason = getattr(exc, "reason", str(exc))
-        raise click.ClickException(f"Failed to reach {url}: {reason}") from exc
+def _resolve_license() -> str:
+    return "ee" if os.getenv("AGENTA_LICENSE") == "ee" else "oss"
 
 
 @click.command()
 @click.option(
     "--env-file",
     type=click.Path(exists=True, dir_okay=False),
-    help="Path to a .env.* file with AGENTA_SERVICES_URL or AGENTA_API_URL",
+    help="Path to a .env.* file with AGENTA_API_URL and AGENTA_AUTH_KEY",
 )
 @click.option(
-    "--base-url",
+    "--api-url",
     type=str,
-    help="Services base URL",
-    envvar=["AGENTA_SERVICES_URL", "SERVICE_BASE_URL"],
+    help="API URL for Agenta",
+    envvar="AGENTA_API_URL",
 )
 @click.option(
-    "--timeout",
-    type=float,
-    default=10.0,
+    "--auth-key",
+    type=str,
+    help="Access token for Agenta",
+    envvar="AGENTA_AUTH_KEY",
+)
+@click.option(
+    "--coverage",
+    type=click.Choice(TYPES["coverage"]),
+    help="Coverage [smoke|full] (full = no coverage marker filter)",
     show_default=True,
-    help="HTTP timeout in seconds",
+)
+@click.option(
+    "--lens",
+    type=click.Choice(TYPES["lens"]),
+    help="Lens [functional|performance|security]",
+    show_default=True,
+)
+@click.option(
+    "--plan",
+    type=click.Choice(TYPES["plan"]),
+    help="Plan [hobby|pro|business|enterprise]",
+)
+@click.option(
+    "--role",
+    type=click.Choice(TYPES["role"]),
+    help="Role [owner|admin|editor|viewer]",
+)
+@click.option(
+    "--path",
+    type=click.Choice(TYPES["path"]),
+    help="Path [happy|grumpy]",
+)
+@click.option(
+    "--case",
+    type=click.Choice(TYPES["case"]),
+    help="Case [typical|edge]",
+)
+@click.option(
+    "--speed",
+    type=click.Choice(TYPES["speed"]),
+    help="Speed [fast|slow]",
+)
+@click.option(
+    "--cost",
+    type=click.Choice(TYPES["cost"]),
+    help="Cost [free|paid]",
+)
+@click.option(
+    "--scope",
+    help="Scope [...]",
+)
+@click.argument(
+    "pytest_args",
+    nargs=-1,
+    type=click.UNPROCESSED,
 )
 def run_tests(
     env_file: Optional[str] = None,
-    base_url: Optional[str] = None,
-    timeout: float = 10.0,
-) -> None:
+    api_url: Optional[str] = None,
+    auth_key: Optional[str] = None,
+    coverage: Optional[str] = None,
+    lens: Optional[str] = None,
+    plan: Optional[str] = None,
+    role: Optional[str] = None,
+    path: Optional[str] = None,
+    case: Optional[str] = None,
+    speed: Optional[str] = None,
+    cost: Optional[str] = None,
+    scope: Optional[str] = None,
+    pytest_args: Optional[tuple] = None,
+):
     """
-    Run services smoke checks.
+    Run pytest with dynamic markers and environment configuration.
+
+    Additional args after '--' are passed directly to pytest.
     """
+    marker_args = []
+
     if env_file:
         load_dotenv(env_file)
         click.echo(f"Loaded environment variables from {env_file}")
-        if not base_url:
-            base_url = os.getenv("AGENTA_SERVICES_URL") or os.getenv("SERVICE_BASE_URL")
+        if not api_url:
+            api_url = os.getenv("AGENTA_API_URL")
+        if not auth_key:
+            auth_key = os.getenv("AGENTA_AUTH_KEY")
 
-    if not base_url:
-        api_url = os.getenv("AGENTA_API_URL")
-        if api_url:
-            base_url = derive_services_url(api_url)
-            click.echo(
-                f"AGENTA_SERVICES_URL not set; derived from AGENTA_API_URL -> {base_url}"
-            )
+    if api_url:
+        os.environ["AGENTA_API_URL"] = api_url
+        click.echo(f"AGENTA_API_URL={api_url}")
+    if auth_key:
+        os.environ["AGENTA_AUTH_KEY"] = auth_key
+        L = len(auth_key)
+        message = f"AGENTA_AUTH_KEY={auth_key[:2]}" + "." * (L - 4) + f"{auth_key[-2:]}"
+        click.echo(message)
 
-    if not base_url:
-        base_url = "http://localhost/services"
+    license = _resolve_license()
+    click.echo(f"AGENTA_LICENSE={license}")
 
-    base_url = base_url.rstrip("/")
-    click.echo(f"AGENTA_SERVICES_URL={base_url}")
+    for name, value in [
+        ("COVERAGE", coverage),
+        ("LENS", lens),
+        ("PLAN", plan),
+        ("ROLE", role),
+        ("PATH", path),
+        ("CASE", case),
+        ("SPEED", speed),
+        ("COST", cost),
+        ("SCOPE", scope),
+    ]:
+        if value:
+            if name == "COVERAGE" and value == "full":
+                os.environ.pop("COVERAGE", None)
+                click.echo("COVERAGE=full (coverage markers disabled)")
+                continue
+            os.environ[name] = value
+            click.echo(f"{name}={value}")
+            marker_args.append(f"{name.lower()}_{value}")
 
-    checks = ["/chat/health", "/completion/health"]
-    for path in checks:
-        url = f"{base_url}{path}"
-        check_health(url, timeout)
-        click.echo(f"OK {url}")
+    if license == "ee":
+        test_dirs = ["oss/tests/pytest", "ee/tests/pytest"]
+    else:
+        test_dirs = [f"{license}/tests/pytest"]
 
-    click.echo("Services smoke checks passed")
+    extra_paths = [a for a in (pytest_args or []) if not a.startswith("-")]
+    cmd = ["pytest"] + (extra_paths if extra_paths else test_dirs)
+
+    if marker_args:
+        marker_expr = " and ".join(marker_args)
+        cmd += ["-m", marker_expr]
+
+    results_dir = os.path.join(license, "tests", "results")
+    os.makedirs(results_dir, exist_ok=True)
+
+    if not _has_pytest_option(pytest_args, "--junit-xml"):
+        cmd.append(f"--junit-xml={results_dir}/junit.xml")
+    if not _has_pytest_option(pytest_args, "--html"):
+        cmd.append(f"--html={results_dir}/report.html")
+
+    if pytest_args:
+        flags_only = [a for a in pytest_args if a.startswith("-")]
+        cmd += flags_only
+
+    click.echo(f"Executing: {' '.join(cmd)}")
+
+    subprocess.run(cmd, check=True)
 
 
 if __name__ == "__main__":

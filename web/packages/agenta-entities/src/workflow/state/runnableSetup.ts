@@ -21,10 +21,8 @@
  *
  * ## Workflow Invocation
  *
- * Workflows can be invoked via:
- * - Custom URL: `data.url` (webhook/custom endpoint)
- * - Native: `POST /preview/workflows/invoke` (uses URI from data.uri)
- * - Evaluator legacy: `POST /evaluators/{key}/run/` (if flags.is_evaluator && uri)
+ * All workflow types (apps and evaluators) are invoked via:
+ * - `POST {serviceUrl}/invoke` (service URL from data.url or built from data.uri)
  *
  * @packageDocumentation
  */
@@ -34,16 +32,18 @@ import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
+import {flattenEvaluatorConfiguration} from "../../runnable/evaluatorTransforms"
 import type {RequestPayloadData} from "../../runnable/types"
 import {extractVariablesFromConfig} from "../../runnable/utils"
 import type {StoreOptions} from "../../shared"
 import {parseRevisionUri} from "../../shared"
 
-import {resolveBuiltinAppServiceUrl} from "./helpers"
+import {buildServiceUrlFromUri, resolveBuiltinAppServiceUrl} from "./helpers"
 import {
     workflowAppSchemaAtomFamily,
+    workflowBaseEntityAtomFamily,
     workflowEntityAtomFamily,
-    workflowServiceSchemaForRevisionAtomFamily,
+    workflowIsDirtyAtomFamily,
 } from "./store"
 
 // Re-export for external consumers
@@ -90,12 +90,29 @@ function extractInputKeysFromConfigInputKeys(agConfig: Record<string, unknown>):
 
 /**
  * Execution mode for workflows.
- * Determined by `flags.is_chat`: true → "chat", false → "completion".
+ *
+ * Checks in order:
+ * 1. `flags.is_chat` — explicit flag from the backend
+ * 2. `data.schemas.inputs` — if the input schema has a `messages` property,
+ *    the workflow is a chat app (the flag may lag behind the schema data)
  */
 export const executionModeAtomFamily = atomFamily((workflowId: string) =>
     atom<"chat" | "completion">((get) => {
-        const entity = get(workflowEntityAtomFamily(workflowId))
-        return entity?.flags?.is_chat ? "chat" : "completion"
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
+        if (entity?.flags?.is_chat) return "chat"
+
+        // Fallback: detect chat mode from input schema.
+        // Only the INPUT schema (not the parameters schema) distinguishes chat from
+        // completion — chat apps accept `messages` as input, while completion apps
+        // have prompt template messages in parameters but take simple variables as input.
+        const inputSchema = entity?.data?.schemas?.inputs as
+            | Record<string, unknown>
+            | null
+            | undefined
+        const inputProps = inputSchema?.properties as Record<string, unknown> | null | undefined
+        if (inputProps?.messages) return "chat"
+
+        return "completion"
     }),
 )
 
@@ -105,15 +122,11 @@ export const executionModeAtomFamily = atomFamily((workflowId: string) =>
 
 /**
  * Route path derived from the app schema.
- * Prefers the prefetched service schema for builtin apps (completion/chat),
- * falls back to per-revision OpenAPI fetch for custom apps.
+ * Only populated for legacy custom apps (no URI) that use the OpenAPI fallback.
+ * Workflows with URIs use the unified invoke endpoint and don't need a route path.
  */
 export const appRoutePathAtomFamily = atomFamily((workflowId: string) =>
     atom<string>((get) => {
-        const serviceResult = get(workflowServiceSchemaForRevisionAtomFamily(workflowId))
-        if (serviceResult.isServiceType) {
-            return serviceResult.schemas?.routePath || ""
-        }
         const appSchemaQuery = get(workflowAppSchemaAtomFamily(workflowId))
         return appSchemaQuery.data?.routePath || ""
     }),
@@ -121,16 +134,11 @@ export const appRoutePathAtomFamily = atomFamily((workflowId: string) =>
 
 /**
  * Raw dereferenced OpenAPI spec from the app schema.
- * Prefers the prefetched service schema for builtin apps (completion/chat),
- * falls back to per-revision OpenAPI fetch for custom apps.
- * Needed by `buildRequestBody()` for input mapping and custom workflow detection.
+ * Only populated for legacy custom apps (no URI) that use the OpenAPI fallback.
+ * Needed by `buildRequestBody()` for legacy input mapping.
  */
 export const appOpenApiSchemaAtomFamily = atomFamily((workflowId: string) =>
     atom<unknown | null>((get) => {
-        const serviceResult = get(workflowServiceSchemaForRevisionAtomFamily(workflowId))
-        if (serviceResult.isServiceType) {
-            return serviceResult.schemas?.openApiSchema ?? null
-        }
         const appSchemaQuery = get(workflowAppSchemaAtomFamily(workflowId))
         return appSchemaQuery.data?.openApiSchema ?? null
     }),
@@ -143,54 +151,64 @@ export const appOpenApiSchemaAtomFamily = atomFamily((workflowId: string) =>
 /**
  * Invocation URL for workflow execution.
  *
- * Resolution order:
- * - **App workflows** (non-evaluator with `data.url`): `{runtimePrefix}/{routePath}/test`
- * - **Evaluator workflows** with `data.url`: URL as-is
- * - **URI-based workflows**: `/preview/workflows/invoke`
+ * Calls `POST {serviceUrl}/invoke` directly on the service dispatcher,
+ * mirroring how `/inspect` works. The service URL is resolved from
+ * `data.url` (stored) or built from `data.uri` via `buildServiceUrlFromUri`.
+ *
+ * Unified for all workflow types (apps and evaluators).
  */
 export const invocationUrlAtomFamily = atomFamily((workflowId: string) =>
     atom<string | null>((get) => {
-        const entity = get(workflowEntityAtomFamily(workflowId))
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
         if (!entity?.data) return null
 
-        const isEvaluator = entity.flags?.is_evaluator ?? false
+        // Resolve service URL: prefer stored url, fall back to building from URI
+        const serviceUrl =
+            entity.data.url?.replace(/\/+$/, "") ?? buildServiceUrlFromUri(entity.data.uri)
 
-        // --- Builtin app URL resolution (migration fix) ---
-        // For non-evaluator builtin apps (URI like "agenta:builtin:completion:v0"),
-        // derive URL from the current domain instead of potentially stale data.url.
-        // TODO: Remove once backend migration patches all revision data.url values.
-        const resolvedBuiltinUrl = resolveBuiltinAppServiceUrl(entity)
-
-        // App workflows with URL: build invocation URL from runtimePrefix + routePath
-        // Use resolved builtin URL if available, otherwise fall back to data.url
-        const effectiveAppUrl = resolvedBuiltinUrl ?? entity.data.url
-        if (effectiveAppUrl && !isEvaluator) {
-            const routePath = get(appRoutePathAtomFamily(workflowId))
-            const parsed = parseRevisionUri(effectiveAppUrl)
-            if (!parsed) return `${effectiveAppUrl}/test`
-
-            const prefix = parsed.runtimePrefix.replace(/\/$/, "")
-            const cleanRoutePath = (routePath || parsed.routePath || "")
-                .replace(/^\//, "")
-                .replace(/\/$/, "")
-
-            if (cleanRoutePath) {
-                return `${prefix}/${cleanRoutePath}/test`
-            }
-            return `${prefix}/test`
-        }
-
-        // Evaluator workflows with URL: return URL as-is
-        if (entity.data.url && isEvaluator) {
-            return entity.data.url
-        }
-
-        // URI-based invocation (evaluators and workflows without URL)
-        if (entity.data.uri) {
-            return `${getAgentaApiUrl()}/preview/workflows/invoke`
+        if (serviceUrl) {
+            return `${serviceUrl}/invoke`
         }
 
         return null
+    }),
+)
+
+/**
+ * Deployment URL for code snippets and external API usage.
+ *
+ * Unlike `invocationUrlAtomFamily` (used for playground execution via the
+ * unified invoke endpoint), this returns the user-facing service URL with
+ * `/run` suffix that resolves config from deployed environments.
+ *
+ * Used by the deployment dashboard to generate code snippets.
+ */
+export const deploymentUrlAtomFamily = atomFamily((workflowId: string) =>
+    atom<string | null>((get) => {
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
+        if (!entity?.data) return null
+
+        const resolvedBuiltinUrl = resolveBuiltinAppServiceUrl(entity)
+        const effectiveAppUrl = resolvedBuiltinUrl ?? entity.data.url
+        if (!effectiveAppUrl) return null
+
+        const routePath = get(appRoutePathAtomFamily(workflowId))
+        const parsed = parseRevisionUri(effectiveAppUrl)
+        if (!parsed) return `${effectiveAppUrl}/run`
+
+        const apiUrl = getAgentaApiUrl()
+        const currentOrigin = apiUrl ? apiUrl.replace(/\/api\/?$/, "") : null
+        const storedOrigin = parsed.runtimePrefix.replace(/\/$/, "")
+        const prefix =
+            currentOrigin && currentOrigin !== storedOrigin ? currentOrigin : storedOrigin
+        const cleanRoutePath = (routePath || parsed.routePath || "")
+            .replace(/^\//, "")
+            .replace(/\/$/, "")
+
+        if (cleanRoutePath) {
+            return `${prefix}/${cleanRoutePath}/run`
+        }
+        return `${prefix}/run`
     }),
 )
 
@@ -241,7 +259,7 @@ export const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
  */
 export const configurationAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | null>((get) => {
-        const entity = get(workflowEntityAtomFamily(workflowId))
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
         return entity?.data?.parameters ?? entity?.data?.configuration ?? null
     }),
 )
@@ -256,7 +274,7 @@ export const configurationAtomFamily = atomFamily((workflowId: string) =>
  */
 export const workflowUriAtomFamily = atomFamily((workflowId: string) =>
     atom<string | null>((get) => {
-        const entity = get(workflowEntityAtomFamily(workflowId))
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
         return entity?.data?.uri ?? null
     }),
 )
@@ -269,10 +287,12 @@ export const workflowUriAtomFamily = atomFamily((workflowId: string) =>
  * Request payload for workflow execution.
  *
  * - **Evaluator workflows** use the `{interface, configuration, data}` format
- *   (`__rawBody: true`) for `/preview/workflows/invoke`.
- * - **App workflows** return `RequestPayloadData` so the standard
- *   `buildRequestBody()` path constructs the `{ag_config, inputs}` format
- *   expected by their `/test` endpoints.
+ *   (`__rawBody: true`) for `{serviceUrl}/invoke`.
+ * - **App workflows** use `__rawBody` with `__appWorkflow` marker.
+ *   The execution pipeline builds inputs via `buildRequestBody()` then
+ *   wraps them into the invoke format. Metadata needed for `buildRequestBody()`
+ *   is passed in `__meta`.
+ * - **Ephemeral (base) workflows** return `RequestPayloadData` for trace replay.
  */
 export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | RequestPayloadData | null>((get) => {
@@ -280,19 +300,92 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
         if (!entity?.data) return null
 
         const isEvaluator = entity.flags?.is_evaluator ?? false
+        const isBase = entity.flags?.is_base ?? false
+
+        // ── Ephemeral (base) workflows: build payload from trace data ──
+        if (isBase) {
+            const isChat = entity.flags?.is_chat ?? false
+            const params = entity.data.parameters as Record<string, unknown>
+            const runtimePrefix = isChat ? "services/chat" : "services/completion"
+
+            // Extract variables from parameters (input_keys from prompt configs)
+            const variables: string[] = []
+            for (const value of Object.values(params)) {
+                if (value && typeof value === "object") {
+                    const nested = value as Record<string, unknown>
+                    if (Array.isArray(nested.input_keys)) {
+                        for (const k of nested.input_keys) {
+                            if (typeof k === "string" && !variables.includes(k)) {
+                                variables.push(k)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Fallback: use trace input keys from meta
+            if (variables.length === 0) {
+                const meta = entity.meta as Record<string, unknown> | null | undefined
+                const inputs = meta?.inputs as Record<string, unknown> | undefined
+                if (inputs) {
+                    for (const key of Object.keys(inputs)) {
+                        if (isChat && key === "messages") continue
+                        variables.push(key)
+                    }
+                }
+            }
+
+            // Build references from meta.sourceRef for trace attribution
+            const meta = entity.meta as Record<string, unknown> | null | undefined
+            const sourceRef = meta?.sourceRef as
+                | {type?: string; id?: string; slug?: string}
+                | undefined
+            const references: Record<string, {id?: string; slug?: string}> = {}
+            if (sourceRef?.id) {
+                const refType = sourceRef.type ?? "application"
+                references[refType] = {
+                    id: sourceRef.id,
+                    ...(sourceRef.slug ? {slug: sourceRef.slug} : {}),
+                }
+            }
+
+            return {
+                ag_config: params,
+                isChat,
+                appType: isChat ? "chat" : "completion",
+                invocationUrl: null,
+                runtimePrefix,
+                variables,
+                spec: null,
+                routePath: undefined,
+                isCustom: false,
+                appId: sourceRef?.id ?? null,
+                references: Object.keys(references).length > 0 ? references : undefined,
+            } satisfies RequestPayloadData
+        }
 
         // ── Evaluator workflows: use __rawBody format ──
+        // The entity store may hold nested params (prompt.messages format) from
+        // the UI nesting transform or from v3+ evaluators that store nested natively.
+        // The backend invoke endpoint expects flat params (prompt_template format),
+        // so we flatten before building the request body.
         if (isEvaluator) {
             const uri = entity.data.uri
             const url = entity.data.url
             if (!uri && !url) return null
 
-            const parameters = entity.data.parameters ?? entity.data.configuration ?? {}
+            const rawParams = (entity.data.parameters ?? entity.data.configuration ?? {}) as Record<
+                string,
+                unknown
+            >
+            const parameters = flattenEvaluatorConfiguration(rawParams, null)
+
+            // Only include interface when invoking by URI (not when using data.url directly)
+            const iface = uri && !url ? {uri} : undefined
+
             return {
                 __rawBody: true,
-                interface: uri ? {uri} : {url},
-                configuration:
-                    parameters && Object.keys(parameters).length > 0 ? {parameters} : undefined,
+                ...(iface ? {interface: iface} : {}),
                 data: {
                     inputs: {},
                     outputs: {},
@@ -301,15 +394,11 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
             }
         }
 
-        // ── App workflows: return RequestPayloadData for buildRequestBody() ──
-        const invocationUrl = get(invocationUrlAtomFamily(workflowId))
+        // ── App workflows: __rawBody format for {serviceUrl}/invoke ──
         const isChat = entity.flags?.is_chat ?? false
         const openApiSchema = get(appOpenApiSchemaAtomFamily(workflowId))
         const routePath = get(appRoutePathAtomFamily(workflowId))
 
-        // --- Builtin app URL resolution (migration fix) ---
-        // Use corrected URL for builtin apps with stale data.url.
-        // TODO: Remove once backend migration is complete.
         const resolvedUrl = resolveBuiltinAppServiceUrl(entity)
         const effectiveUrl = resolvedUrl ?? entity.data.url
         const parsed = effectiveUrl ? parseRevisionUri(effectiveUrl) : null
@@ -318,9 +407,7 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
         const params = entity.data.parameters as Record<string, unknown> | undefined
         const agConfig = (params?.ag_config as Record<string, unknown>) || params || {}
 
-        // Primary source of truth follows workflow input-port logic:
-        // 1) schema input keys, 2) prompt-template variables.
-        // Final fallback: persisted input_keys from ag_config.
+        // Derive input variables: schema keys → prompt-template vars → persisted input_keys
         const schemaVariables = extractSchemaInputKeys(entity.data?.schemas?.inputs)
         const promptVariables =
             schemaVariables.length > 0 ? [] : extractVariablesFromConfig(agConfig)
@@ -335,31 +422,52 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
         }
 
         // Build references used by execution + tracing.
+        // Only include variant/revision refs when there are no local draft changes,
+        // since draft changes haven't been committed to the server yet.
         const appId = entity.workflow_id ?? null
-        const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
+        const isDirty = get(workflowIsDirtyAtomFamily(workflowId))
         const references: Record<string, Record<string, string | undefined>> = {}
         if (appId) {
             references.application = {id: appId}
         }
-        if (variantId) {
-            references.application_variant = {id: variantId}
-        }
-        if (entity.id) {
-            references.application_revision = {id: entity.id}
+        if (!isDirty) {
+            const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
+            if (variantId) {
+                references.application_variant = {id: variantId}
+            }
+            if (entity.id) {
+                references.application_revision = {id: entity.id}
+            }
         }
 
+        // Only include interface when invoking by URI (not when using data.url directly,
+        // since the URL is already encoded in the invocation endpoint).
+        const uri = entity.data.uri
+        const url = entity.data.url
+        const iface = uri && !url ? {uri} : undefined
+
+        // Parameters go under data (not configuration).
+        // data.inputs will be populated at execution time by buildExecutionItem.
         return {
-            ag_config: agConfig,
-            isChat,
-            appType: null,
-            invocationUrl,
-            runtimePrefix: parsed?.runtimePrefix ?? null,
-            variables,
-            spec: openApiSchema,
-            routePath: routePath || undefined,
-            appId,
+            __rawBody: true,
+            __appWorkflow: true, // Marker for buildExecutionItem to apply app-specific transforms
+            ...(iface ? {interface: iface} : {}),
+            data: {
+                inputs: {},
+                parameters: agConfig && Object.keys(agConfig).length > 0 ? agConfig : undefined,
+            },
             references: Object.keys(references).length > 0 ? references : undefined,
-        } satisfies RequestPayloadData
+            // Pass through metadata needed by execution pipeline
+            __meta: {
+                isChat,
+                variables,
+                spec: openApiSchema,
+                routePath: routePath || undefined,
+                runtimePrefix: parsed?.runtimePrefix ?? null,
+                appId,
+                agConfig,
+            },
+        }
     }),
 )
 
@@ -373,6 +481,7 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
 export const runnableAtoms = {
     executionMode: executionModeAtomFamily,
     invocationUrl: invocationUrlAtomFamily,
+    deploymentUrl: deploymentUrlAtomFamily,
     inputSchema: inputSchemaAtomFamily,
     outputSchema: outputSchemaAtomFamily,
     parametersSchema: parametersSchemaAtomFamily,
@@ -389,6 +498,8 @@ export const runnableGet = {
         getStore(options).get(executionModeAtomFamily(workflowId)),
     invocationUrl: (workflowId: string, options?: StoreOptions) =>
         getStore(options).get(invocationUrlAtomFamily(workflowId)),
+    deploymentUrl: (workflowId: string, options?: StoreOptions) =>
+        getStore(options).get(deploymentUrlAtomFamily(workflowId)),
     configuration: (workflowId: string, options?: StoreOptions) =>
         getStore(options).get(configurationAtomFamily(workflowId)),
     uri: (workflowId: string, options?: StoreOptions) =>

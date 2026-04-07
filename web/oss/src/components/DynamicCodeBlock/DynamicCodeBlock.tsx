@@ -1,13 +1,12 @@
 import {useState} from "react"
 
+import {CopyButton} from "@agenta/ui"
 import {DownOutlined} from "@ant-design/icons"
 import {Button, Dropdown, MenuProps, Space, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
 import CodeBlock from "@/oss/components/DynamicCodeBlock/CodeBlock"
 import {LanguageItem} from "@/oss/lib/Types"
-
-import CopyButton from "../CopyButton/CopyButton"
 
 interface DynamicCodeBlockProps {
     codeSnippets: Record<string, string>

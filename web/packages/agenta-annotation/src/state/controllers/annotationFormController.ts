@@ -45,7 +45,6 @@ import {
     type EvaluationResult,
     type EvaluationRunDataStep,
 } from "@agenta/entities/evaluationRun"
-import {evaluatorQueryAtomFamily, type Evaluator} from "@agenta/entities/evaluator"
 import {
     invalidateScenarioProgressCache,
     invalidateSimpleQueueCache,
@@ -53,6 +52,11 @@ import {
     simpleQueuePaginatedStore,
 } from "@agenta/entities/simpleQueue"
 import {fetchPreviewTrace, type TraceSpan} from "@agenta/entities/trace"
+import {
+    workflowLatestRevisionQueryAtomFamily,
+    workflowQueryAtomFamily,
+    type Workflow,
+} from "@agenta/entities/workflow"
 import {axios, getAgentaApiUrl, queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import deepEqual from "fast-deep-equal"
@@ -67,6 +71,8 @@ import type {
     ScenarioContext,
     UpdateMetricPayload,
     SubmitAnnotationsPayload,
+    EvaluatorResolutionState,
+    EvaluatorStepRef,
 } from "../types"
 
 import {annotationSessionController} from "./annotationSessionController"
@@ -81,7 +87,7 @@ const USEABLE_METRIC_TYPES = ["number", "integer", "float", "boolean", "string",
  * Extract the outputs schema from an evaluator entity.
  * Handles both new (`data.schemas.outputs`) and legacy (`data.service.format.properties.outputs`) paths.
  */
-export function getOutputsSchema(evaluator: Evaluator): {
+export function getOutputsSchema(evaluator: Workflow): {
     properties?: Record<string, unknown>
     required?: string[]
 } {
@@ -112,7 +118,7 @@ export function getOutputsSchema(evaluator: Evaluator): {
  * Derive empty form fields from an evaluator's output schema.
  */
 export function getMetricFieldsFromEvaluator(
-    evaluator: Evaluator,
+    evaluator: Workflow,
 ): Record<string, AnnotationMetricField> {
     const schema = getOutputsSchema(evaluator)?.properties ?? {}
     const fields: Record<string, AnnotationMetricField> = {}
@@ -176,7 +182,7 @@ export function getMetricFieldsFromEvaluator(
  */
 export function getMetricsFromAnnotation(
     annotation: Annotation,
-    evaluator: Evaluator,
+    evaluator: Workflow,
 ): Record<string, AnnotationMetricField> {
     const schema = getOutputsSchema(evaluator)?.properties ?? {}
     const rawOutputs = (annotation.data?.outputs as Record<string, unknown>) ?? {}
@@ -669,30 +675,108 @@ async function resolveTraceLinkSpanId({
  *
  * Accepts a Jotai `get` function for reactive reads — this creates proper
  * subscriptions so derived atoms re-evaluate when evaluator data arrives.
- *
- * NOTE: Uses workflow IDs resolved via `evaluatorQueryAtomFamily` (same path as
- * the queues table EvaluatorNamesCell). This fetches the latest revision by
- * workflow ID, which contains the output schemas needed for form fields.
  */
+interface ResolvedEvaluatorRef {
+    workflowId: string | null
+    variantId: string | null
+    revisionId: string | null
+    stepKey: string | null
+    evaluator: Workflow
+}
+
+interface ResolvedEvaluators {
+    evaluators: Workflow[]
+    resolvedRefs: ResolvedEvaluatorRef[]
+    evaluatorResolution: EvaluatorResolutionState
+}
+
+interface BaselineComputationResult extends ResolvedEvaluators {
+    baseline: AnnotationMetrics
+}
+
+function normalizeResolvedEvaluator(ref: EvaluatorStepRef, evaluator: Workflow): Workflow {
+    const variantId = evaluator.workflow_variant_id ?? evaluator.variant_id ?? ref.variantId ?? null
+    return {
+        ...evaluator,
+        slug: evaluator.slug ?? ref.slug ?? null,
+        workflow_id: evaluator.workflow_id ?? ref.workflowId ?? null,
+        workflow_variant_id: variantId,
+        variant_id: variantId,
+        revision_id: evaluator.revision_id ?? ref.revisionId ?? evaluator.id ?? null,
+    }
+}
+
+function resolveEvaluators(get: Getter, evaluatorStepRefs: EvaluatorStepRef[]): ResolvedEvaluators {
+    const resolvedRefs: ResolvedEvaluatorRef[] = []
+    let isPending = false
+    let hasError = false
+
+    for (const ref of evaluatorStepRefs) {
+        const revisionId = ref.revisionId ?? null
+        const workflowId = ref.workflowId ?? null
+
+        if (!revisionId && !workflowId) {
+            hasError = true
+            continue
+        }
+
+        const query = revisionId
+            ? get(workflowQueryAtomFamily(revisionId))
+            : workflowId
+              ? get(workflowLatestRevisionQueryAtomFamily(workflowId))
+              : null
+
+        if (!query) {
+            hasError = true
+            continue
+        }
+
+        if (query.isPending && !query.data) {
+            isPending = true
+        }
+
+        if (query.isError || (!query.data && !query.isPending)) {
+            hasError = true
+        }
+
+        if (!query.data) continue
+
+        const evaluator = normalizeResolvedEvaluator(ref, query.data)
+
+        resolvedRefs.push({
+            workflowId: evaluator.workflow_id ?? ref.workflowId ?? null,
+            variantId:
+                evaluator.workflow_variant_id ?? evaluator.variant_id ?? ref.variantId ?? null,
+            revisionId: evaluator.id ?? ref.revisionId ?? null,
+            stepKey: ref.stepKey ?? null,
+            evaluator,
+        })
+    }
+
+    return {
+        evaluators: resolvedRefs.map((entry) => entry.evaluator),
+        resolvedRefs,
+        evaluatorResolution: {isPending, hasError},
+    }
+}
+
 function computeBaseline(
     get: Getter,
-    evaluatorWorkflowIds: string[],
+    evaluatorStepRefs: EvaluatorStepRef[],
     annotations: Annotation[],
-): {baseline: AnnotationMetrics; evaluators: Evaluator[]} {
-    // Resolve evaluators reactively by workflow ID — creates subscriptions
-    // Uses the same atom family as the queues table (proven working path)
-    const evaluators: Evaluator[] = []
-    const evaluatorMap = new Map<string, Evaluator>()
+): BaselineComputationResult {
+    const {evaluators, resolvedRefs, evaluatorResolution} = resolveEvaluators(
+        get,
+        evaluatorStepRefs,
+    )
+    const evaluatorMap = new Map<string, Workflow>()
 
-    for (const workflowId of evaluatorWorkflowIds) {
-        if (!workflowId) continue
-        const query = get(evaluatorQueryAtomFamily(workflowId))
-        const evalData = query.data ?? null
-        if (evalData) {
-            evaluators.push(evalData)
-            if (evalData.slug) evaluatorMap.set(evalData.slug, evalData)
-            if (evalData.id) evaluatorMap.set(evalData.id, evalData)
-        }
+    for (const resolved of resolvedRefs) {
+        const evaluator = resolved.evaluator
+        if (evaluator.slug) evaluatorMap.set(evaluator.slug, evaluator)
+        if (resolved.workflowId) evaluatorMap.set(resolved.workflowId, evaluator)
+        if (resolved.revisionId) evaluatorMap.set(resolved.revisionId, evaluator)
+        if (evaluator.id) evaluatorMap.set(evaluator.id, evaluator)
     }
 
     const result: AnnotationMetrics = {}
@@ -722,11 +806,12 @@ function computeBaseline(
         const slug = evaluator.slug
         if (!slug) continue
         if (annotatedKeys.has(slug)) continue
-        if (evaluator.id && annotatedKeys.has(evaluator.id)) continue
+        const workflowId = evaluator.workflow_id ?? null
+        if (workflowId && annotatedKeys.has(workflowId)) continue
         result[slug] = getMetricFieldsFromEvaluator(evaluator)
     }
 
-    return {baseline: result, evaluators}
+    return {baseline: result, evaluators, resolvedRefs, evaluatorResolution}
 }
 
 // ============================================================================
@@ -734,13 +819,12 @@ function computeBaseline(
 // ============================================================================
 
 /**
- * Evaluator workflow IDs — derived from session controller.
- * Uses the same resolution path as the queues table (evaluatorIds = workflow/artifact IDs).
- * These are resolved via evaluatorMolecule / evaluatorQueryAtomFamily which fetches
- * the latest revision by workflow ID.
+ * Ordered evaluator step refs — derived from session controller.
+ * Each entry preserves the queue's pinned revision and the artifact ID needed
+ * for annotation submit payloads.
  */
-const evaluatorIdsAtom = atom<string[]>((get) =>
-    get(annotationSessionController.selectors.evaluatorIds()),
+const evaluatorStepRefsAtom = atom<EvaluatorStepRef[]>((get) =>
+    get(annotationSessionController.selectors.evaluatorStepRefs()),
 )
 
 /** Annotations per scenario */
@@ -782,9 +866,9 @@ const submitErrorAtomFamily = atomFamily(
 const baselineAtomFamily = atomFamily(
     (scenarioId: string) =>
         atom((get) => {
-            const evalIds = get(evaluatorIdsAtom)
+            const evaluatorRefs = get(evaluatorStepRefsAtom)
             const annotations = get(annotationsByScenarioAtomFamily(scenarioId))
-            return computeBaseline(get, evalIds, annotations)
+            return computeBaseline(get, evaluatorRefs, annotations)
         }),
     (a, b) => a === b,
 )
@@ -865,6 +949,14 @@ const evaluatorsAtomFamily = atomFamily(
     (a, b) => a === b,
 )
 
+/** Evaluator resolution state — session-scoped (does not vary per scenario) */
+const evaluatorResolutionAtom = atom<EvaluatorResolutionState>((get) => {
+    const refs = get(evaluatorStepRefsAtom)
+    if (refs.length === 0) return {isPending: false, hasError: false}
+    const {evaluatorResolution} = resolveEvaluators(get, refs)
+    return evaluatorResolution
+})
+
 // ============================================================================
 // ACTION ATOMS
 // ============================================================================
@@ -883,7 +975,7 @@ const setScenarioContextAtom = atom(null, (get, set, ctx: ScenarioContext) => {
     if (prevAnnotations !== ctx.annotations && prevAnnotations.length > 0) {
         const edits = get(editsAtomFamily(ctx.scenarioId))
         if (Object.keys(edits).length > 0) {
-            const {baseline} = computeBaseline(get, get(evaluatorIdsAtom), ctx.annotations)
+            const {baseline} = computeBaseline(get, get(evaluatorStepRefsAtom), ctx.annotations)
             const remainingEdits: AnnotationMetrics = {}
             let hasRemaining = false
 
@@ -942,31 +1034,30 @@ const resetEditsAtom = atom(null, (_get, set, scenarioId: string) => {
 // ============================================================================
 
 interface EvaluatorMaps {
-    evaluatorMap: Map<string, Evaluator>
+    evaluatorMap: Map<string, Workflow>
     workflowIdBySlug: Map<string, string>
 }
 
 /**
- * Build evaluator slug → evaluator and slug → workflowId maps from query atoms.
- * evaluatorQueryAtomFamily returns revision data where `evaluator.id` is the
- * REVISION ID, not the workflow/artifact ID. The backend expects the workflow ID
- * in annotation references, so we track both mappings.
+ * Build evaluator slug → evaluator and slug → workflowId maps from resolved
+ * evaluator revisions. The backend expects artifact/workflow IDs in
+ * `references.evaluator.id`, so we preserve that mapping separately.
  */
-function buildEvaluatorMaps(
-    evalIds: string[],
-    getEvaluator: (workflowId: string) => Evaluator | null,
-): EvaluatorMaps {
-    const evaluatorMap = new Map<string, Evaluator>()
+function buildEvaluatorMaps(resolvedRefs: ResolvedEvaluatorRef[]): EvaluatorMaps {
+    const evaluatorMap = new Map<string, Workflow>()
     const workflowIdBySlug = new Map<string, string>()
-    for (const workflowId of evalIds) {
-        const evalData = getEvaluator(workflowId)
-        if (evalData) {
-            if (evalData.slug) {
-                evaluatorMap.set(evalData.slug, evalData)
-                workflowIdBySlug.set(evalData.slug, workflowId)
-            }
-            if (evalData.id) evaluatorMap.set(evalData.id, evalData)
+    for (const resolved of resolvedRefs) {
+        const evalData = resolved.evaluator
+        const workflowId = resolved.workflowId ?? evalData.workflow_id ?? null
+
+        if (evalData.slug) {
+            evaluatorMap.set(evalData.slug, evalData)
+            if (workflowId) workflowIdBySlug.set(evalData.slug, workflowId)
         }
+
+        if (workflowId) evaluatorMap.set(workflowId, evalData)
+        if (resolved.revisionId) evaluatorMap.set(resolved.revisionId, evalData)
+        if (evalData.id) evaluatorMap.set(evalData.id, evalData)
     }
     return {evaluatorMap, workflowIdBySlug}
 }
@@ -1019,7 +1110,7 @@ function matchExistingAnnotations({
 }: {
     isTestcaseMode: boolean
     existingAnnotations: Annotation[]
-    evaluatorMap: Map<string, Evaluator>
+    evaluatorMap: Map<string, Workflow>
     workflowIdBySlug: Map<string, string>
     queueId: string
 }): Map<string, Annotation> {
@@ -1115,7 +1206,7 @@ function buildSubmittedEntries({
     responses,
 }: {
     metrics: AnnotationMetrics
-    evaluatorMap: Map<string, Evaluator>
+    evaluatorMap: Map<string, Workflow>
     existingBySlug: Map<string, Annotation>
     responses: unknown[]
 }): SubmittedEntry[] {
@@ -1274,15 +1365,12 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
         if (!hasFilledMetrics) {
             throw new Error("Select or enter at least one annotation value")
         }
-        const evalIds = get(evaluatorIdsAtom)
+        const {resolvedRefs} = get(baselineAtomFamily(scenarioId))
         const existingAnnotations =
             get(annotationSessionController.selectors.scenarioAnnotations(scenarioId)) ?? []
 
         // Phase 1: Build lookup maps
-        const {evaluatorMap, workflowIdBySlug} = buildEvaluatorMaps(
-            evalIds,
-            (wfId) => get(evaluatorQueryAtomFamily(wfId)).data ?? null,
-        )
+        const {evaluatorMap, workflowIdBySlug} = buildEvaluatorMaps(resolvedRefs)
 
         const activeRunId = get(annotationSessionController.selectors.activeRunId())
         const annotationSteps = activeRunId
@@ -1567,8 +1655,8 @@ const clearSubmitErrorAtom = atom(null, (_get, set, scenarioId: string) => {
 
 /** Clear all form state (call on session close) */
 const clearFormStateAtom = atom(null, () => {
-    // evaluatorIdsAtom is derived from session controller — clears automatically
-    // when session is closed (activeQueueIdAtom → null → runId → null → empty [])
+    // Evaluator refs are derived from the session controller and clear
+    // automatically when the active queue/run is cleared.
 })
 
 // ============================================================================
@@ -1604,8 +1692,10 @@ export const annotationFormController = {
         /** Current submission error message, or null if no error */
         submitError: (scenarioId: string) => submitErrorAtomFamily(scenarioId),
         /** Evaluator IDs for the session */
-        evaluatorIds: () => evaluatorIdsAtom,
-        /** Resolved evaluators (derived from evaluatorIds + molecule) */
+        evaluatorIds: () => annotationSessionController.selectors.evaluatorIds(),
+        /** Evaluator resolution state (pending/error) — session-scoped */
+        evaluatorResolution: () => evaluatorResolutionAtom,
+        /** Resolved evaluators (derived from evaluator step refs + revision queries) */
         evaluators: (scenarioId: string) => evaluatorsAtomFamily(scenarioId),
         /** Baseline metrics (from annotations + evaluator schemas) */
         baseline: (scenarioId: string) =>
@@ -1642,7 +1732,8 @@ export const annotationFormController = {
             getStore().get(hasFilledMetricsAtomFamily(scenarioId)),
         isSubmitting: (scenarioId: string) => getStore().get(isSubmittingAtomFamily(scenarioId)),
         submitError: (scenarioId: string) => getStore().get(submitErrorAtomFamily(scenarioId)),
-        evaluatorIds: () => getStore().get(evaluatorIdsAtom),
+        evaluatorIds: () => getStore().get(annotationSessionController.selectors.evaluatorIds()),
+        evaluatorResolution: () => getStore().get(evaluatorResolutionAtom),
         evaluators: (scenarioId: string) => getStore().get(evaluatorsAtomFamily(scenarioId)),
     },
 

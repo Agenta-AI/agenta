@@ -39,8 +39,8 @@ async def llm_call(messages: List[Dict[str, Any]], max_tokens: int):
 
 @ag.entrypoint
 @ag.instrument()
-async def chat(inputs: ag.MessagesInput = ag.MessagesInput()) -> Dict[str, Any]:
-    messages = [{"role": "system", "content": ag.config.prompt_system}] + inputs
+async def chat(inputs: ag.Messages = ag.Messages()) -> Dict[str, Any]:
+    messages = [{"role": "system", "content": ag.config.prompt_system}] + inputs.root
     max_tokens = ag.config.max_tokens if ag.config.max_tokens != -1 else None
     response = await llm_call(
         messages=messages,

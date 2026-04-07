@@ -12,7 +12,7 @@ API keys owned by project members with role `viewer` or `evaluator` are deleted
 before the rename because those roles are not permitted to hold API keys.
 
 Revision ID: b1c2d3e4f5a6
-Revises: f0a1b2c3d4e5
+Revises: ac23de45fa67
 Create Date: 2026-03-27 00:00:00.000000
 
 """
@@ -28,7 +28,7 @@ from oss.databases.postgres.migrations.core.data_migrations.roles import (
 
 # revision identifiers, used by Alembic.
 revision: str = "b1c2d3e4f5a6"
-down_revision: Union[str, None] = "f0a1b2c3d4e5"
+down_revision: Union[str, None] = "ac23de45fa67"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

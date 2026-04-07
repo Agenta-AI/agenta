@@ -1,0 +1,7 @@
+interface:
+  display_name: "Test Codebase"
+  short_description: "Run validation and turn outcomes into findings"
+  default_prompt: "Use $test-codebase with depth=deep to run the relevant validation paths for this branch and convert failures or missing coverage into findings."
+
+policy:
+  allow_implicit_invocation: true

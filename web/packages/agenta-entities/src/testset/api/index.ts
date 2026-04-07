@@ -13,6 +13,7 @@ export {
     fetchRevisionsBatch,
     // Testset
     fetchTestsetsList,
+    fetchTestsetsBatch,
     fetchTestsetDetail,
     // Variant
     fetchVariantDetail,

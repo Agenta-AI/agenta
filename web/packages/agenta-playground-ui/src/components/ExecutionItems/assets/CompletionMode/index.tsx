@@ -56,6 +56,7 @@ const CompletionMode = ({
                     rowId={rowId || executionRowIds[0]}
                     className={rowClassName}
                     appType={appType}
+                    showAddRowButton={withControls}
                     renderTestsetButton={renderTestsetButton}
                 />
             ) : (
@@ -72,13 +73,8 @@ const CompletionMode = ({
                 ))
             )}
 
-            {withControls ? (
-                <div
-                    className={clsx([
-                        "flex items-center gap-2 px-4 pt-3",
-                        {"pb-4": viewType !== "comparison", "pb-3": viewType === "comparison"},
-                    ])}
-                >
+            {withControls && viewType !== "comparison" ? (
+                <div className="flex items-center gap-2 px-4 pt-3 pb-4">
                     <AddButton size="small" label="Test case" onClick={() => handleAddNewRow()} />
                 </div>
             ) : null}

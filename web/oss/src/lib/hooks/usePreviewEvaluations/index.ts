@@ -1,7 +1,7 @@
 /* eslint-disable import/order */
-import {useCallback, useEffect, useMemo} from "react"
+import {useCallback, useMemo} from "react"
 
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 import {useSWRConfig} from "swr"
@@ -16,7 +16,6 @@ import {slugify} from "@/oss/lib/utils/slugify"
 import {createEvaluationRunConfig} from "@/oss/services/evaluationRuns/api"
 import {CreateEvaluationRunInput} from "@/oss/services/evaluationRuns/api/types"
 import {getProjectValues} from "@/oss/state/project"
-import {setProjectVariantReferencesAtom} from "@/oss/state/projectVariantConfig"
 import {fetchRevision} from "@/oss/state/entities/testset"
 import {
     testcasesResponseSchema,
@@ -25,7 +24,6 @@ import {
 
 import {primePreviewRunCache} from "./assets/previewRunBatcher"
 import {fetchPreviewRunsShared} from "./assets/previewRunsRequest"
-import {collectProjectVariantReferences} from "./projectVariantConfigs"
 
 const EMPTY_RUNS: any[] = []
 export interface PreviewEvaluationRunsData {
@@ -262,21 +260,6 @@ const usePreviewEvaluations = ({
             error: queryEnabled ? evaluationRunsQuery.error : undefined,
         }
     }, [evaluationRunsQuery, queryEnabled, isEnrichmentPending])
-    const setProjectVariantReferences = useSetAtom(setProjectVariantReferencesAtom)
-
-    useEffect(() => {
-        if (!projectId) {
-            setProjectVariantReferences([])
-            return
-        }
-        if (appId) {
-            setProjectVariantReferences([])
-            return
-        }
-        const references = collectProjectVariantReferences(rawRuns, projectId)
-        setProjectVariantReferences(references)
-        // prefetchProjectVariantConfigs(references)
-    }, [appId, projectId, rawRuns, setProjectVariantReferences])
 
     /**
      * Helper to create scenarios for a given run and testset.

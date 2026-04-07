@@ -19,8 +19,6 @@
  * ```
  */
 
-import {baseRunnableSnapshotAdapter} from "@agenta/entities/baseRunnable/snapshotAdapter"
-import {legacyAppRevisionSnapshotAdapter} from "@agenta/entities/legacyAppRevision"
 import {loadableStateAtomFamily} from "@agenta/entities/loadable"
 import {
     snapshotAdapterRegistry,
@@ -48,8 +46,6 @@ import {derivedLoadableIdAtom} from "../execution/selectors"
 
 // Ensure adapters are registered before any snapshot operations.
 // Cannot rely on side-effect imports — tree-shaken by sideEffects: false.
-snapshotAdapterRegistry.register(legacyAppRevisionSnapshotAdapter)
-snapshotAdapterRegistry.register(baseRunnableSnapshotAdapter)
 snapshotAdapterRegistry.register(workflowSnapshotAdapter)
 
 // ============================================================================
@@ -64,7 +60,7 @@ export interface SnapshotSelectionInput {
     id: string
     /** Runnable type for this revision */
     runnableType: RunnableType
-    /** Playground entity type (e.g., "legacyAppRevision", "evaluatorRevision") */
+    /** Playground entity type (e.g., "workflow", "evaluator") */
     entityType?: string
     /** Node depth in the playground graph (0 = root) */
     depth?: number
@@ -180,8 +176,9 @@ const createSnapshotAtom = atom(
                     continue
                 }
 
-                // Handle ephemeral entities (no server state, data serialized inline)
-                if (adapter.isEphemeral && adapter.serializeEntity) {
+                // Handle ephemeral entities (no server state, data serialized inline).
+                // Try serializeEntity first — adapter returns non-null for ephemeral entities.
+                if (adapter.serializeEntity) {
                     const data = adapter.serializeEntity(revisionId)
                     if (data) {
                         snapshotSelection.push({
@@ -190,9 +187,11 @@ const createSnapshotAtom = atom(
                             data,
                             ...selectionMetadata,
                         })
-                    } else {
-                        warnings.push(`Failed to serialize ephemeral entity: ${revisionId}`)
+                        continue
                     }
+                    // Non-ephemeral entity — fall through to draft/commit path
+                } else if (adapter.isEphemeral) {
+                    warnings.push(`Ephemeral adapter without serializeEntity: ${revisionId}`)
                     continue
                 }
 

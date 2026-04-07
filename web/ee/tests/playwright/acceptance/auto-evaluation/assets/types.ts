@@ -1,10 +1,11 @@
 import {GenerationChatRow, GenerationInputRow} from "@/oss/components/Playground/state/types"
-import type {ConfigMetadata, OpenAPISpec} from "@agenta/entities/legacyAppRevision"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
+import type {ConfigMetadata} from "@agenta/entities/shared/execution"
+import type {OpenAPISpec} from "@agenta/entities/shared/openapi"
+import type {Workflow} from "@agenta/entities/workflow"
 import {BaseFixture} from "@agenta/web-tests/tests/fixtures/base.fixture/types"
 
 export type InvokedVariant = {
-    variant: EnhancedVariant
+    variant: Workflow
     allMetadata: Record<string, ConfigMetadata>
     inputRow: GenerationInputRow
     messageRow?: GenerationChatRow
@@ -31,12 +32,15 @@ export enum Role {
     FUNCTION = "function",
 }
 export type RunAutoEvalFixtureType = {
+    name?: string
     evaluators: string[]
-    testset?: string
+    testset: string
     variants: string[]
 }
 
 export interface EvaluationFixtures extends BaseFixture {
     navigateToEvaluation: (appId: string) => Promise<void>
-    runAutoEvaluation: (config: RunAutoEvalFixtureType) => Promise<void>
+    runAutoEvaluation: (
+        config: RunAutoEvalFixtureType,
+    ) => Promise<{name: string; runId: string | null}>
 }

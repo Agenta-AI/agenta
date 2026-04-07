@@ -39,6 +39,11 @@ export type TreeSelectPopupContentProps<TSelection = EntitySelectionResult> = Om
      * @default false
      */
     showDate?: boolean
+    /**
+     * Parent IDs to expand initially (when defaultExpandAll is false).
+     * Children for these parents will be fetched on mount.
+     */
+    initialExpandedKeys?: string[]
 }
 
 // ============================================================================
@@ -71,6 +76,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
     popupFooter,
     width = 280,
     showDate = false,
+    initialExpandedKeys,
 }: TreeSelectPopupContentProps<TSelection>) {
     const generatedId = useId()
     const instanceId = providedInstanceId ?? generatedId
@@ -100,6 +106,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
         renderChildTitle,
         renderSelectedLabel,
         defaultExpandAll,
+        initialExpandedKeys,
         parentFilter,
         childFilter,
         showDate,

@@ -1,0 +1,19 @@
+@host = http://localhost
+@token = change-me-auth
+@api_url = {{host}}/api
+@services_url = {{host}}/services
+
+###
+# @name create_account
+POST {{api_url}}/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+# LIST EVALUATOR CATALOG TYPES
+GET {{api_url}}/evaluators/catalog/types/
+Content-Type: application/json
+Authorization: {{authorization}}

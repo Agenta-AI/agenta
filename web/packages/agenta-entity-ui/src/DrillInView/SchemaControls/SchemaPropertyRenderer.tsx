@@ -14,15 +14,16 @@
 
 import {memo, useMemo} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
+import {formatLabel} from "@agenta/ui/drill-in"
 import {Typography} from "antd"
 import clsx from "clsx"
 
-import {formatLabel} from "../utils"
-
 import {BooleanToggleControl} from "./BooleanToggleControl"
+import {CodeEditorControl} from "./CodeEditorControl"
 import {EnumSelectControl} from "./EnumSelectControl"
 import {FeedbackConfigurationControl} from "./FeedbackConfigurationControl"
+import {FieldsTagsEditorControl} from "./FieldsTagsEditorControl"
 import {GroupedChoiceControl} from "./GroupedChoiceControl"
 import {MessagesSchemaControl, isMessagesSchema} from "./MessagesSchemaControl"
 import {NumberSliderControl} from "./NumberSliderControl"
@@ -85,6 +86,7 @@ function getControlType(
     | "enum"
     | "boolean"
     | "textarea"
+    | "code"
     | "object"
     | "object_inline"
     | "array"
@@ -92,6 +94,7 @@ function getControlType(
     | "prompt"
     | "grouped_choice"
     | "feedback_config"
+    | "fields_tags_editor"
     | "unknown" {
     if (forceType) return forceType
 
@@ -99,6 +102,9 @@ function getControlType(
     const xParam = schema?.["x-parameter"] as string | undefined
     if (xParam === "feedback_config") {
         return "feedback_config"
+    }
+    if (xParam === "fields_tags_editor") {
+        return "fields_tags_editor"
     }
 
     // When schema is null, fall back to value-based detection
@@ -155,13 +161,18 @@ function getControlType(
         case "integer":
             return "number"
 
-        case "string":
-            // Check for multiline hint
+        case "string": {
+            // Check for code editor hint
             const xParams = schema?.["x-parameters"] as SchemaProperty["x-parameters"]
-            if (xParams?.multiline === true || xParams?.code === true) {
+            if (xParams?.code === true) {
+                return "code"
+            }
+            // Check for multiline hint
+            if (xParams?.multiline === true) {
                 return "textarea"
             }
             return "text"
+        }
 
         case "object":
             // Check if object should be rendered inline (e.g., llm_config)
@@ -311,6 +322,20 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                 />
             )
 
+        case "code":
+            return (
+                <CodeEditorControl
+                    schema={resolvedSchema}
+                    label={displayLabel}
+                    value={value as string | null}
+                    onChange={(v) => onChange(v)}
+                    description={tooltipDesc}
+                    withTooltip={withTooltip}
+                    disabled={disabled}
+                    className={className}
+                />
+            )
+
         case "textarea":
             return (
                 <TextInputControl
@@ -411,6 +436,7 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                     }}
                     disabled={disabled}
                     className={className}
+                    entityId={entityId}
                 />
             )
 
@@ -429,6 +455,20 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                         properties (click to expand)
                     </Typography.Text>
                 </div>
+            )
+
+        case "fields_tags_editor":
+            return (
+                <FieldsTagsEditorControl
+                    schema={resolvedSchema}
+                    label={displayLabel}
+                    value={Array.isArray(value) ? (value as string[]) : []}
+                    onChange={(v) => onChange(v)}
+                    description={tooltipDesc}
+                    withTooltip={withTooltip}
+                    disabled={disabled}
+                    className={className}
+                />
             )
 
         case "array":

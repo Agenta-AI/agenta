@@ -188,7 +188,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     if (portType === "number" || portType === "integer") {
         const numValue = value !== "" && value != null ? Number(value) : undefined
         return (
-            <div ref={containerRef} style={getCollapseStyle(collapsed)}>
+            <div ref={containerRef} className="w-full" style={getCollapseStyle(collapsed)}>
                 <div
                     className={clsx(
                         "relative flex flex-col gap-1",
@@ -220,7 +220,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     // Boolean type → Switch
     if (portType === "boolean") {
         return (
-            <div ref={containerRef} style={getCollapseStyle(collapsed)}>
+            <div ref={containerRef} className="w-full" style={getCollapseStyle(collapsed)}>
                 <div
                     className={clsx(
                         "relative flex flex-col gap-1",
@@ -254,7 +254,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
         : {enableResize: false, boundWidth: true, ...editorProps}
 
     return (
-        <div ref={containerRef} style={getCollapseStyle(collapsed)}>
+        <div ref={containerRef} className="w-full" style={getCollapseStyle(collapsed)}>
             <EditorProvider
                 id={editorId}
                 initialValue={effectiveValue}

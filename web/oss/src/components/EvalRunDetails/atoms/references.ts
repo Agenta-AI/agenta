@@ -1,185 +1,59 @@
-import {atomFamily} from "jotai/utils"
-import {atomWithQuery} from "jotai-tanstack-query"
+/**
+ * EvalRunDetails Reference Atoms
+ *
+ * Thin wrappers around entity-backed reference atoms from the shared References module.
+ * These wrappers auto-resolve projectId from effectiveProjectIdAtom so consumers
+ * can pass a single ID parameter (preserving the existing API).
+ *
+ * No separate API calls are made — all data comes from entity molecules
+ * that are already fetched and cached.
+ */
 
-import axios from "@/oss/lib/api/assets/axiosConfig"
+import {atom} from "jotai"
+import {atomFamily} from "jotai/utils"
+
+import {
+    appReferenceAtomFamily,
+    variantReferenceAtomFamily,
+    previewTestsetReferenceAtomFamily,
+} from "@/oss/components/References/atoms/entityReferences"
 
 import {effectiveProjectIdAtom} from "./run"
 
-export interface ApplicationReference {
-    id: string
-    name?: string | null
-    slug?: string | null
-}
+// Re-export reference types for consumers
+export type {AppReference as ApplicationReference} from "@/oss/components/References/atoms/entityReferences"
+export type {VariantReference} from "@/oss/components/References/atoms/entityReferences"
+export type {TestsetReference} from "@/oss/components/References/atoms/entityReferences"
 
-export interface VariantReference {
-    id: string
-    name?: string | null
-    slug?: string | null
-    revision?: number | string | null
-}
-
-export interface TestsetReference {
-    id: string
-    name?: string | null
-    slug?: string | null
-    testcaseCount?: number | null
-    columns?: string[]
-}
-
-const normalizeApplication = (value: any, fallbackId: string): ApplicationReference => {
-    const source = value?.app ?? value ?? {}
-    return {
-        id: source?.id ?? fallbackId,
-        name: source?.name ?? source?.app_name ?? null,
-        slug: source?.slug ?? source?.app_slug ?? null,
-    }
-}
-
-const normalizeVariant = (value: any, fallbackId: string): VariantReference => {
-    const source = value?.variant ?? value ?? {}
-    return {
-        id: source?.id ?? fallbackId,
-        name: source?.variant_name ?? source?.name ?? source?.slug ?? null,
-        slug: source?.slug ?? null,
-        revision: source?.revision ?? source?.version ?? null,
-    }
-}
-
-const normalizeTestset = (value: any, fallbackId: string): TestsetReference => {
-    const source = value?.testset ?? value ?? {}
-    const rawTestcases = Array.isArray(source?.testcases) ? source.testcases : []
-    const rawIds = Array.isArray(source?.testcase_ids) ? source.testcase_ids : []
-    const responseCount = typeof value?.count === "number" ? value.count : null
-    const explicitColumns = Array.isArray(source?.columns)
-        ? source.columns
-        : Array.isArray(source?.meta?.columns)
-          ? source.meta.columns
-          : null
-
-    let derivedColumns: string[] | undefined
-    if (explicitColumns && explicitColumns.length) {
-        derivedColumns = Array.from(new Set(explicitColumns.map(String)))
-    } else if (rawTestcases.length) {
-        const columnSet = new Set<string>()
-        rawTestcases.forEach((testcase: any) => {
-            if (!testcase || typeof testcase !== "object") return
-            Object.keys(testcase).forEach((key) => {
-                if (!key || key === "testcase_id" || key.startsWith("__")) return
-                columnSet.add(key)
-            })
-            const nestedData = testcase?.data
-            if (nestedData && typeof nestedData === "object") {
-                Object.keys(nestedData).forEach((key) => {
-                    if (!key || key.startsWith("__")) return
-                    columnSet.add(key)
-                })
-            }
-        })
-        if (columnSet.size) {
-            derivedColumns = Array.from(columnSet).sort()
-        }
-    }
-
-    const testcaseCount = responseCount ?? (rawTestcases.length || rawIds.length || null)
-
-    return {
-        id: source?.id ?? fallbackId,
-        name: source?.name ?? null,
-        slug: source?.slug ?? null,
-        testcaseCount,
-        columns: derivedColumns,
-    }
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Application Reference (backed by workflowsListQueryStateAtom)
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const applicationReferenceQueryAtomFamily = atomFamily((appId: string | null | undefined) =>
-    atomWithQuery<ApplicationReference | null>((get) => {
+    atom((get) => {
         const projectId = get(effectiveProjectIdAtom)
-        return {
-            queryKey: ["preview", "evaluation", "application-details", projectId, appId],
-            enabled: Boolean(projectId && appId),
-            staleTime: 60_000,
-            gcTime: 5 * 60 * 1000,
-            refetchOnWindowFocus: false,
-            refetchOnReconnect: false,
-            queryFn: async () => {
-                if (!projectId || !appId) return null
-                try {
-                    const response = await axios.get(`/apps/${appId}`, {
-                        params: {project_id: projectId},
-                        _ignoreError: true,
-                    } as any)
-                    return normalizeApplication(response.data, appId)
-                } catch (error) {
-                    console.warn("[EvalRunDetails2] Failed to resolve application", {
-                        projectId,
-                        appId,
-                        error,
-                    })
-                    return {id: appId}
-                }
-            },
-        }
+        return get(appReferenceAtomFamily({projectId, appId}))
     }),
 )
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Variant Reference (backed by workflowMolecule)
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const variantReferenceQueryAtomFamily = atomFamily((variantId: string | null | undefined) =>
-    atomWithQuery<VariantReference | null>((get) => {
+    atom((get) => {
         const projectId = get(effectiveProjectIdAtom)
-        return {
-            queryKey: ["preview", "evaluation", "variant-details", projectId, variantId],
-            enabled: Boolean(projectId && variantId),
-            staleTime: 60_000,
-            gcTime: 5 * 60 * 1000,
-            refetchOnWindowFocus: false,
-            refetchOnReconnect: false,
-            queryFn: async () => {
-                if (!projectId || !variantId) return null
-                try {
-                    const response = await axios.get(`/variants/${variantId}`, {
-                        params: {project_id: projectId},
-                        _ignoreError: true,
-                    } as any)
-                    return normalizeVariant(response.data, variantId)
-                } catch (error) {
-                    console.warn("[EvalRunDetails2] Failed to resolve variant", {
-                        projectId,
-                        variantId,
-                        error,
-                    })
-                    return {id: variantId}
-                }
-            },
-        }
+        return get(variantReferenceAtomFamily({projectId, variantId}))
     }),
 )
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Testset Reference (backed by testsetQueryAtomFamily)
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const testsetReferenceQueryAtomFamily = atomFamily((testsetId: string | null | undefined) =>
-    atomWithQuery<TestsetReference | null>((get) => {
+    atom((get) => {
         const projectId = get(effectiveProjectIdAtom)
-        return {
-            queryKey: ["preview", "evaluation", "testset-details", projectId, testsetId],
-            enabled: Boolean(projectId && testsetId),
-            staleTime: 60_000,
-            gcTime: 5 * 60 * 1000,
-            refetchOnWindowFocus: false,
-            refetchOnReconnect: false,
-            queryFn: async () => {
-                if (!projectId || !testsetId) return null
-                try {
-                    const response = await axios.get(`/preview/testsets/${testsetId}`, {
-                        params: {project_id: projectId},
-                        _ignoreError: true,
-                    } as any)
-                    return normalizeTestset(response.data, testsetId)
-                } catch (error) {
-                    console.warn("[EvalRunDetails2] Failed to resolve testset", {
-                        projectId,
-                        testsetId,
-                        error,
-                    })
-                    return {id: testsetId}
-                }
-            },
-        }
+        return get(previewTestsetReferenceAtomFamily({projectId, testsetId}))
     }),
 )

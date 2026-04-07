@@ -1,50 +1,51 @@
-import {useCallback} from "react"
+import {useCallback, useMemo} from "react"
 
-import {SwapOutlined} from "@ant-design/icons"
 import {Rocket} from "@phosphor-icons/react"
-import {Button, Space, Typography} from "antd"
+import {Button, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
 
-import {
-    openComparisonModalAtom,
-    comparisonSelectionScopeAtom,
-} from "@/oss/components/VariantsComponents/Modals/VariantComparisonModal/store/comparisonModalStore"
-import {selectedVariantsCountAtom} from "@/oss/components/VariantsComponents/store/selectionAtoms"
-import VariantsTable from "@/oss/components/VariantsComponents/Table"
+import type {RegistryRevisionRow} from "@/oss/components/VariantsComponents/store/registryStore"
+import type {RegistryColumnActions} from "@/oss/components/VariantsComponents/Table/assets/registryColumns"
+import RegistryTable from "@/oss/components/VariantsComponents/Table/RegistryTable"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQuery} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
-import type {EnhancedVariant} from "@/oss/lib/shared/variant/types"
-
-import {recentRevisionsOverviewAtom, revisionsReadyAtom} from "./atoms"
 
 const {Title} = Typography
 
 const VariantsOverview = () => {
     const [, updateQuery] = useQuery()
     const {appURL} = useURL()
-
-    // Drawer open/close is handled in VariantDrawerWrapper based on URL param
-    const openComparisonModal = useSetAtom(openComparisonModalAtom)
-    const setComparisonSelectionScope = useSetAtom(comparisonSelectionScopeAtom)
-    const isRevisionsReady = useAtomValue(revisionsReadyAtom)
-    const slicedVariantList = useAtomValue(recentRevisionsOverviewAtom)
-    const selectionScope = "overview/recent"
-    const selectedCount = useAtomValue(selectedVariantsCountAtom(selectionScope))
     const {goToPlayground} = usePlaygroundNavigation()
 
-    const handleNavigation = useCallback(
-        (record?: EnhancedVariant) => {
-            const revisionId = record ? ((record as any)?._revisionId ?? record.id) : undefined
-            if (revisionId) {
-                goToPlayground(revisionId)
+    const handleRowClick = useCallback(
+        (record: RegistryRevisionRow) => {
+            updateQuery({
+                revisionId: record.revisionId,
+                drawerType: "variant",
+            })
+        },
+        [updateQuery],
+    )
+
+    const handleOpenInPlayground = useCallback(
+        (record: RegistryRevisionRow) => {
+            if (record.revisionId) {
+                goToPlayground(record.revisionId)
             } else {
                 goToPlayground()
             }
         },
         [goToPlayground],
+    )
+
+    const columnActions = useMemo<RegistryColumnActions>(
+        () => ({
+            handleOpenDetails: handleRowClick,
+            handleOpenInPlayground,
+        }),
+        [handleRowClick, handleOpenInPlayground],
     )
 
     return (
@@ -54,53 +55,23 @@ const VariantsOverview = () => {
                     Recent Prompts
                 </Title>
 
-                <Space>
-                    <Button
-                        type="link"
-                        disabled={selectedCount !== 2}
-                        icon={<SwapOutlined />}
-                        onClick={() => {
-                            setComparisonSelectionScope(selectionScope)
-                            openComparisonModal()
-                        }}
-                    >
-                        Compare
-                    </Button>
-
-                    <Button
-                        type="primary"
-                        icon={<Rocket size={14} className="mt-[3px]" />}
-                        onClick={() => handleNavigation()}
-                    >
-                        Playground
-                    </Button>
-                </Space>
+                <Button
+                    type="primary"
+                    icon={<Rocket size={14} className="mt-[3px]" />}
+                    onClick={() => goToPlayground()}
+                >
+                    Playground
+                </Button>
             </div>
 
-            <VariantsTable
-                showEnvBadges
-                showStableName
-                variants={slicedVariantList}
-                onRowClick={(variant: EnhancedVariant) => {
-                    // Cosmetic URL update for deep linking
-                    updateQuery({
-                        revisionId: (variant as any)._revisionId ?? variant.id,
-                        drawerType: "variant",
-                    })
-                }}
-                selectionScope={selectionScope}
-                isLoading={!isRevisionsReady}
-                handleOpenDetails={(record: EnhancedVariant) => {
-                    // Cosmetic URL update for deep linking
-                    updateQuery({
-                        revisionId: (record as any)._revisionId ?? record.id,
-                        drawerType: "variant",
-                    })
-                }}
-                handleOpenInPlayground={(record: EnhancedVariant) => {
-                    handleNavigation(record)
-                }}
+            <RegistryTable
+                onRowClick={handleRowClick}
+                actions={columnActions}
+                scopeId="overview-recent"
+                pageSize={5}
+                columnVisibilityStorageKey="agenta:overview-registry:column-visibility"
             />
+
             <div className="flex justify-end">
                 <Link href={`${appURL}/variants`} prefetch className="underline">
                     View all prompts →

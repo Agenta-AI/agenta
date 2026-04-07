@@ -1,121 +1,65 @@
-import {ComponentProps, Dispatch, Key, SetStateAction, useMemo, useState} from "react"
+import {useMemo} from "react"
 
-import {CloseOutlined} from "@ant-design/icons"
-import {Button, Input, Modal, Typography} from "antd"
-import {createUseStyles} from "react-jss"
+import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
+import {Input} from "antd"
 
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
-import VariantsTable from "@/oss/components/VariantsComponents/Table"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
-import {DeploymentRevisions} from "@/oss/lib/Types"
-import {JSSTheme} from "@/oss/lib/Types"
+import type {RegistryRevisionRow} from "@/oss/components/VariantsComponents/store/registryStore"
+import {registryPaginatedStore} from "@/oss/components/VariantsComponents/store/registryStore"
+import {createRegistryColumns} from "@/oss/components/VariantsComponents/Table/assets/registryColumns"
 
-type SelectDeployVariantModalProps = {
-    variants: EnhancedVariant[]
-    envRevisions: DeploymentRevisions | undefined
-    setIsDeployVariantModalOpen: Dispatch<SetStateAction<boolean>>
-    setSelectedRowKeys: Dispatch<SetStateAction<Key[]>>
-    selectedRowKeys: Key[]
-} & ComponentProps<typeof Modal>
+const EMPTY_ACTIONS = {}
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    title: {
-        fontSize: theme.fontSizeLG,
-        fontWeight: theme.fontWeightStrong,
-        lineHeight: theme.lineHeightLG,
-        textTransform: "capitalize",
-    },
-    container: {
-        "& .ant-modal-container": {
-            height: 600,
-            overflow: "auto",
-        },
-    },
-    table: {
-        "& .ant-table-thead > tr > th": {
-            height: 32,
-            padding: "0 16px",
-        },
-        "& .ant-table-tbody > tr > td": {
-            height: 48,
-            padding: "0 16px",
-        },
-    },
-}))
+interface SelectDeployVariantModalContentProps {
+    setSelectedRowKeys: (keys: (string | number)[]) => void
+    selectedRowKeys: (string | number)[]
+    searchTerm: string
+    onSearchChange: (value: string) => void
+}
 
-const SelectDeployVariantModal = ({
-    variants,
-    envRevisions,
-    setIsDeployVariantModalOpen,
+const SelectDeployVariantModalContent = ({
     setSelectedRowKeys,
     selectedRowKeys,
-    ...props
-}: SelectDeployVariantModalProps) => {
-    const classes = useStyles()
-    const [searchTerm, setSearchTerm] = useState("")
+    searchTerm,
+    onSearchChange,
+}: SelectDeployVariantModalContentProps) => {
+    const table = useTableManager<RegistryRevisionRow>({
+        datasetStore: registryPaginatedStore.store as never,
+        scopeId: "deploy-variant-selector",
+        pageSize: 50,
+        searchDeps: [searchTerm],
+        rowClassName: "variant-table-row",
+    })
 
-    const filtered = useMemo(() => {
-        if (!searchTerm) return variants
-        if (variants) {
-            return variants.filter(
-                (item) =>
-                    item.variantName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    item.commitMessage?.toLowerCase().includes(searchTerm.toLowerCase()),
-            )
-        }
-    }, [searchTerm, variants])
+    const columns = useMemo(() => createRegistryColumns(EMPTY_ACTIONS), [])
+
+    // Override row selection to radio mode with external state
+    const rowSelection = useMemo(
+        () => ({
+            type: "radio" as const,
+            selectedRowKeys: selectedRowKeys as React.Key[],
+            onChange: (keys: React.Key[]) => setSelectedRowKeys(keys as (string | number)[]),
+        }),
+        [selectedRowKeys, setSelectedRowKeys],
+    )
 
     return (
-        <EnhancedModal
-            closeIcon={null}
-            title={
-                <div className="flex items-center justify-between">
-                    <Typography.Text className={classes.title}>
-                        Deploy {envRevisions?.name}
-                    </Typography.Text>
-                    <Button
-                        onClick={() => props.onCancel?.({} as any)}
-                        type="text"
-                        icon={<CloseOutlined />}
-                    />
-                </div>
-            }
-            okButtonProps={{
-                disabled: !selectedRowKeys.length,
-                onClick: () => setIsDeployVariantModalOpen(true),
-            }}
-            okText="Deploy"
-            width={1200}
-            height={600}
-            className={classes.container}
-            {...props}
-        >
-            <div className="flex flex-col gap-4 flex-1 mt-4">
-                <Input.Search
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search"
-                    allowClear
-                    className="w-[400px]"
-                />
+        <div className="flex flex-col gap-4 flex-1 mt-4 h-[500px]">
+            <Input.Search
+                value={searchTerm}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder="Search"
+                allowClear
+                className="w-[400px]"
+            />
 
-                <VariantsTable
-                    variants={filtered || []}
-                    rowSelection={{
-                        selectedRowKeys,
-                        onChange: (value) => setSelectedRowKeys(value),
-                        type: "radio",
-                    }}
-                    isLoading={false}
-                    onRowClick={() => null}
-                    rowKey={"id"}
-                    className={classes.table}
-                    showActionsDropdown={false}
-                    showEnvBadges
-                />
-            </div>
-        </EnhancedModal>
+            <InfiniteVirtualTableFeatureShell<RegistryRevisionRow>
+                {...table.shellProps}
+                columns={columns}
+                rowSelection={rowSelection}
+                autoHeight
+            />
+        </div>
     )
 }
 
-export default SelectDeployVariantModal
+export default SelectDeployVariantModalContent

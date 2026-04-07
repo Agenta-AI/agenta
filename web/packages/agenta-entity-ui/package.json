@@ -16,14 +16,17 @@
         "./drill-in": "./src/DrillInView/index.ts",
         "./modals": "./src/modals/index.ts",
         "./selection": "./src/selection/index.ts",
-        "./testcase": "./src/testcase/index.ts"
+        "./testcase": "./src/testcase/index.ts",
+        "./variant": "./src/variant/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
+        "@phosphor-icons/react": "^2.1.10",
         "lodash": ">=4.17.23",
-        "lucide-react": "^0.475.0"
+        "lucide-react": "^0.479.0",
+        "zod": ">=3.0.0"
     },
     "devDependencies": {
         "@floating-ui/react": "^0.26.0",

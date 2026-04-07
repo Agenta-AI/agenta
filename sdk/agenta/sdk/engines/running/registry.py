@@ -2,7 +2,7 @@ from typing import Union
 from json import dumps
 
 from agenta.sdk.utils.logging import get_module_logger
-from agenta.sdk.workflows.types import Data
+from agenta.sdk.engines.running.types import Data
 
 
 log = get_module_logger(__name__)

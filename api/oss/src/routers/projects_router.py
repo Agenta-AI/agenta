@@ -329,11 +329,11 @@ async def create_project(
             set_default=payload.make_default,
         )
 
-        # Create default human evaluator for the new project
+        # Create default evaluators for the new project
         # Import here to avoid circular import at module load time
-        from oss.src.core.evaluators.defaults import create_default_human_evaluator
+        from oss.src.core.evaluators.defaults import create_default_evaluators
 
-        await create_default_human_evaluator(
+        await create_default_evaluators(
             project_id=project.id,
             user_id=UUID(request.state.user_id),
         )
@@ -367,11 +367,11 @@ async def create_project(
         set_default=payload.make_default,
     )
 
-    # Create default human evaluator for the new project
+    # Create default evaluators for the new project
     # Import here to avoid circular import at module load time
-    from oss.src.core.evaluators.defaults import create_default_human_evaluator
+    from oss.src.core.evaluators.defaults import create_default_evaluators
 
-    await create_default_human_evaluator(
+    await create_default_evaluators(
         project_id=project.id,
         user_id=UUID(request.state.user_id),
     )

@@ -1,20 +1,19 @@
 import {memo, useEffect} from "react"
 
-import {
-    chatServiceSchemaAtom,
-    completionServiceSchemaAtom,
-    revisionCacheVersionAtom,
-} from "@agenta/entities/legacyAppRevision"
 import {setUserAtoms} from "@agenta/entities/shared/user"
-import {playgroundRevisionsReadyAtom} from "@agenta/playground/state"
+import {executionItemController} from "@agenta/playground"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import Router from "next/router"
 
+import {getJWT} from "@/oss/services/api"
 import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appState"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {urlQuerySyncAtom} from "@/oss/state/url/test"
 import {workspaceMembersAtom} from "@/oss/state/workspace/atoms/selectors"
+
+// Side-effect: registers selection callback and workflow commit/archive callbacks
+import "@/oss/state/newPlayground/workflowEntityBridge"
 
 // Initialize user atoms for @agenta/entities shared user resolution
 // This enables UserAuthorLabel and other user resolution features
@@ -63,8 +62,8 @@ const EditAppModalWrapper = dynamic(
     {ssr: false},
 )
 
-const VariantDrawerWrapper = dynamic(
-    () => import("@/oss/components/VariantsComponents/Drawers/VariantDrawer/VariantDrawerWrapper"),
+const WorkflowRevisionDrawerWrapper = dynamic(
+    () => import("@/oss/components/WorkflowRevisionDrawerWrapper"),
     {ssr: false},
 )
 
@@ -95,6 +94,8 @@ const CustomWorkflowModalMount = dynamic(
     () => import("@/oss/components/CustomWorkflow/CustomWorkflowModalMount"),
     {ssr: false},
 )
+
+// EvaluatorDrawersWrapper replaced by WorkflowRevisionDrawerWrapper
 
 const OnboardingWidget = dynamic(
     () => import("@/oss/components/Onboarding/Widget/OnboardingWidget"),
@@ -184,50 +185,29 @@ const NavigationCommandListener = () => {
     return null
 }
 
-/**
- * Bumps the revision cache version when playground revision list queries settle.
- *
- * On non-playground pages (overview, deployments), `playgroundRevisionsReadyAtom`
- * still subscribes to `variantsQueryAtomFamily` and `revisionsQueryAtomFamily`,
- * which populate the TanStack Query cache with RevisionListItems (including
- * variantId, appId, URI). Without this bump, `revisionListItemFromCacheAtomFamily`
- * never re-scans the cache, so deeplinked drawer revisions fall through to the
- * slow `directQueryAtomFamily` path that returns data without URI enrichment.
- *
- * This mirrors what the playground URL hydration does in `playground.ts:500`.
- */
-const RevisionCacheSync = () => {
-    const isReady = useAtomValue(playgroundRevisionsReadyAtom)
-    const bumpCacheVersion = useSetAtom(revisionCacheVersionAtom)
-
-    useEffect(() => {
-        if (isReady) {
-            bumpCacheVersion((prev: number) => prev + 1)
-        }
-    }, [isReady, bumpCacheVersion])
-
-    return null
+/** Stable ref: returns auth headers for worker HTTP requests */
+const getAuthHeaders = async () => {
+    const jwt = await getJWT()
+    return jwt ? {Authorization: `Bearer ${jwt}`} : {}
 }
 
 const AppGlobalWrappers = () => {
     useAtomValue(urlQuerySyncAtom)
 
-    // Eagerly prefetch service schemas for completion/chat apps.
-    // These atoms use atomWithQuery — subscribing here triggers the fetch
-    // at app startup rather than waiting until a revision is selected.
-    useAtomValue(completionServiceSchemaAtom)
-    useAtomValue(chatServiceSchemaAtom)
+    // Register auth headers provider once globally for playground execution workers
+    const setHeaders = useSetAtom(executionItemController.actions.setExecutionHeaders)
+    useEffect(() => {
+        setHeaders(() => getAuthHeaders)
+    }, [setHeaders])
 
-    // Pre-heat metadata for service schemas as soon as they resolve.
     return (
         <EntityModalsProvider>
             <NavigationCommandListener />
-            <RevisionCacheSync />
             <TraceDrawer />
             <EvalRunFocusDrawerPreview />
             <DeleteAppModalWrapper />
             <EditAppModalWrapper />
-            <VariantDrawerWrapper />
+            <WorkflowRevisionDrawerWrapper />
             <VariantComparisonModalWrapper />
             <DeleteEvaluationModalWrapper />
             <DeployVariantModalWrapper />
@@ -236,6 +216,7 @@ const AppGlobalWrappers = () => {
             <DeploymentConfirmationModalWrapper />
             <DeploymentsDrawerWrapper />
             <CustomWorkflowModalMount />
+            {/* EvaluatorDrawersWrapper merged into WorkflowRevisionDrawerWrapper */}
             <OnboardingWidget />
         </EntityModalsProvider>
     )

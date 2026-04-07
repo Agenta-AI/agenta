@@ -1,6 +1,13 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 import type {ReactNode} from "react"
 
+import {
+    evaluatorConfigsListDataAtom,
+    evaluatorsListDataAtom,
+    evaluatorsListQueryAtom,
+    evaluatorTemplatesDataAtom,
+    evaluatorTemplatesQueryAtom,
+} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {Button, Collapse, DatePicker, Form, Input, Select, Switch, Tooltip, Typography} from "antd"
 import dayjs from "dayjs"
@@ -13,12 +20,8 @@ import {v4 as uuidv4} from "uuid"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import getFilterColumns from "@/oss/components/pages/observability/assets/getFilterColumns"
-import {evaluatorConfigsAtom} from "@/oss/lib/atoms/evaluation"
 import {getColorPairFromStr} from "@/oss/lib/helpers/colors"
-import useEvaluators from "@/oss/lib/hooks/useEvaluators"
-import type {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
-import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
-import type {Evaluator, Filter} from "@/oss/lib/Types"
+import type {Filter} from "@/oss/lib/Types"
 
 import {
     createSimpleEvaluation,
@@ -56,19 +59,23 @@ const {RangePicker} = DatePicker
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 
 const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawerProps) => {
-    const {evaluatorsSwr: baseEvaluatorsSwr} = useFetchEvaluatorsData({appId: ""})
+    const baseEvaluatorTemplatesQuery = useAtomValue(evaluatorTemplatesQueryAtom)
+    const baseEvaluators = useAtomValue(evaluatorTemplatesDataAtom) ?? []
     const queryClient = useAtomValue(queryClientAtom)
     const classes = useDrawerStyles()
     const [form] = Form.useForm()
     const filterColumns = useMemo(() => getFilterColumns(), [])
     const [filters, setFilters] = useAtom(onlineEvalFiltersAtom)
     const resetFilters = useSetAtom(resetOnlineEvalFiltersAtom)
-    // Load preview evaluators (with IDs) to map config URI key -> evaluator.id
-    const previewEvaluatorsSwr = useEvaluators({preview: true, queries: {is_human: false}})
-    const baseEvaluators = (baseEvaluatorsSwr.data as Evaluator[] | undefined) ?? []
-    const evaluators = useAtomValue(evaluatorConfigsAtom)
-    const previewEvaluators = (previewEvaluatorsSwr.data as EvaluatorPreviewDto[] | undefined) ?? []
-    const selectedEvaluatorId = Form.useWatch("evaluator", form)
+    // Load evaluators (with IDs) to map config URI key -> evaluator.id
+    const allEvaluatorsList = useAtomValue(evaluatorsListDataAtom)
+    const allEvaluatorsQuery = useAtomValue(evaluatorsListQueryAtom)
+    const evaluators = useAtomValue(evaluatorConfigsListDataAtom)
+    const previewEvaluators = useMemo(
+        () => (allEvaluatorsList || []).filter((e) => e.flags?.is_feedback !== true),
+        [allEvaluatorsList],
+    )
+    const selectedEvaluatorRevisionId = Form.useWatch("evaluator", form)
     const samplingRate = Form.useWatch("sampling_rate", form)
     const isHistorical = Form.useWatch("historical", form) ?? false
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -81,19 +88,19 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
         evaluatorTypeLookup,
     } = useEvaluatorSelection({
         evaluators: evaluators || [],
-        selectedEvaluatorId,
+        selectedEvaluatorRevisionId,
         previewEvaluators,
         baseEvaluators,
     })
 
     // Auto-generate name when evaluator is selected
     useEffect(() => {
-        if (!selectedEvaluatorId) return
+        if (!selectedEvaluatorRevisionId) return
         const selectedOption = evaluatorOptions.find(
-            (option) => option?.value === selectedEvaluatorId,
+            (option) => option?.value === selectedEvaluatorRevisionId,
         )
         const fullEvaluator =
-            matchedPreviewEvaluator && matchedPreviewEvaluator.id === selectedEvaluatorId
+            matchedPreviewEvaluator && matchedPreviewEvaluator.id === selectedEvaluatorRevisionId
                 ? matchedPreviewEvaluator
                 : selectedEvaluatorConfig
 
@@ -110,13 +117,13 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
         }
 
         console.log("[OnlineEvaluationDrawer] Evaluator selected", {
-            evaluatorId: selectedEvaluatorId,
+            evaluatorRevisionId: selectedEvaluatorRevisionId,
             evaluatorLabel: selectedOption?.label,
             evaluatorOption: selectedOption,
             evaluatorConfig: fullEvaluator,
         })
     }, [
-        selectedEvaluatorId,
+        selectedEvaluatorRevisionId,
         evaluatorOptions,
         matchedPreviewEvaluator,
         selectedEvaluatorConfig,
@@ -124,7 +131,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
     ])
 
     const evaluatorDetails = useEvaluatorDetails({
-        evaluator: matchedPreviewEvaluator as any,
+        evaluator: matchedPreviewEvaluator,
         config: selectedEvaluatorConfig,
         evaluatorTypeLookup,
     })
@@ -157,10 +164,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
     const hasPrompt = evaluatorDetails.promptSections.length > 0
     const hasOutputs = (evaluatorDetails.outputs?.length ?? 0) > 0
     const isLoadingEvaluators =
-        previewEvaluatorsSwr.isLoading ||
-        previewEvaluatorsSwr.isPending ||
-        baseEvaluatorsSwr.isLoading ||
-        baseEvaluatorsSwr.isPending
+        (allEvaluatorsQuery.isPending ?? false) || (baseEvaluatorTemplatesQuery.isPending ?? false)
     const hasEvaluatorOptions = evaluatorOptions.length > 0
     const workspaceId = useMemo(() => {
         const value = router.query.workspace_id
@@ -319,13 +323,12 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 throw new Error("Unable to resolve query revision for online evaluation.")
             }
 
-            // Prefer preview evaluator artifact id; fall back to selected config id if preview not available
-            const evaluatorStepId =
-                selectedEvaluatorId ??
+            const evaluatorRevisionStepId =
+                selectedEvaluatorRevisionId ??
                 (selectedEvaluatorConfig as any)?.id ??
                 matchedPreviewEvaluator?.id
 
-            if (!evaluatorStepId) {
+            if (!evaluatorRevisionStepId) {
                 throw new Error("Please select an evaluator.")
             }
 
@@ -339,9 +342,9 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 },
                 data: {
                     status: "pending",
-                    // Per API docs, use arrays of IDs for steps
+                    // Step references use revision IDs directly.
                     query_steps: {[queryRevisionId]: "auto"},
-                    evaluator_steps: {[evaluatorStepId]: "auto"},
+                    evaluator_steps: {[evaluatorRevisionStepId]: "auto"},
                     repeats: 1,
                 },
             }
@@ -350,7 +353,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 console.debug("[OnlineEvaluationDrawer] submission payload", {
                     queryPayload,
                     queryRevisionId,
-                    evaluatorStepId,
+                    evaluatorRevisionStepId,
                     evaluationPayload,
                     selectedEvaluatorConfig,
                     matchedPreviewEvaluator,

@@ -1,6 +1,6 @@
-import {formatCurrency, formatLatency} from "@agenta/oss/src/lib/helpers/formatters"
 import {isDemo} from "@agenta/oss/src/lib/helpers/utils"
 import {GenericObject, TypedValue, _Evaluation} from "@agenta/oss/src/lib/Types"
+import {formatCurrency, formatLatency} from "@agenta/shared/utils"
 import dayjs from "dayjs"
 import capitalize from "lodash/capitalize"
 import round from "lodash/round"
@@ -140,45 +140,6 @@ const getCustomComparator = (type: CellDataType) => (valueA: string, valueB: str
         default:
             return 0
     }
-}
-
-export const mapTestcaseAndEvalValues = (
-    settingsValues: Record<string, any>,
-    selectedTestcase: Record<string, any>,
-) => {
-    const testcaseObj: Record<string, any> = {}
-    const evalMapObj: Record<string, any> = {}
-
-    Object.entries(settingsValues).forEach(([key, value]) => {
-        if (typeof value === "string" && value.startsWith("testcase.")) {
-            testcaseObj[key] = selectedTestcase[value.split(".")[1]]
-        } else {
-            evalMapObj[key] = value
-        }
-    })
-
-    return {testcaseObj, evalMapObj}
-}
-
-export const transformTraceKeysInSettings = (
-    settingsValues: Record<string, any>,
-): Record<string, any> => {
-    return Object.keys(settingsValues).reduce(
-        (acc, curr) => {
-            if (
-                !acc[curr] &&
-                typeof settingsValues[curr] === "string" &&
-                settingsValues[curr].startsWith("trace.")
-            ) {
-                acc[curr] = settingsValues[curr].replace("trace.", "")
-            } else {
-                acc[curr] = settingsValues[curr]
-            }
-
-            return acc
-        },
-        {} as Record<string, any>,
-    )
 }
 
 export const getEvaluatorTags = () => {

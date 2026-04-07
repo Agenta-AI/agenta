@@ -21,7 +21,10 @@ addRow(loadableId, { prompt: 'Hello, world!' })
 
 // Connect to a testset (sets connectedSourceType: 'testcase')
 const connect = useSetAtom(loadableController.actions.connectToSource)
-connect(loadableId, testsetRevisionId, 'MyTestset v1', testcases)
+connect(loadableId, testsetRevisionId, 'MyTestset v1')
+
+// Optional: pass preloaded testcases to hydrate cache immediately
+connect(loadableId, testsetRevisionId, 'MyTestset v1', preloadedTestcases)
 ```
 
 ## Architecture
@@ -46,7 +49,7 @@ The loadable system uses a **bridge pattern** with clear abstraction layers:
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Entity Molecules                            │
-│   testcaseMolecule, appRevisionMolecule, revisionMolecule...   │
+│   testcaseMolecule, workflowMolecule, revisionMolecule...      │
 │   (Entity-specific data access, mutations, dirty tracking)      │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -69,7 +72,7 @@ The loadable system uses a **bridge pattern** with clear abstraction layers:
 1. **Pure state** (`store.ts`): Jotai atoms with no entity dependencies
 2. **Controller** (`controller.ts`): Bridges entity molecules to unified selectors/actions
 3. **Bridge** (`bridge.ts`): Minimal wrapper exposing the controller API
-4. **Factory** (`shared/createEntityBridge.ts`): Creates bridges with configurable sources
+4. **Factory** (`shared/entityBridge.ts`): Creates bridges with configurable sources
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -115,12 +118,21 @@ The loadable system uses a **bridge pattern** with clear abstraction layers:
 | `removeRow` | `(loadableId, rowId)` | Remove a row |
 | `setActiveRow` | `(loadableId, rowId)` | Select a row |
 | `setRows` | `(loadableId, rows)` | Replace all rows |
+| `importRows` | `(loadableId, rows)` | Import rows without changing source connection |
+| `clearRows` | `(loadableId)` | Remove all rows |
 | `setColumns` | `(loadableId, columns)` | Set column definitions |
-| `connectToSource` | `(loadableId, sourceId, sourceName, sourceType)` | Connect to entity |
+| `initializeWithColumns` | `(loadableId, columns)` | Initialize columns only when empty |
+| `addColumn` | `(loadableId, column)` | Add a column |
+| `removeColumn` | `(loadableId, columnKey)` | Remove a column |
+| `connectToSource` | `(loadableId, sourceId, sourceName?, testcases?)` | Connect to a testcase source |
 | `disconnect` | `(loadableId)` | Switch to local mode |
+| `discardChanges` | `(loadableId)` | Discard local changes |
+| `commitChanges` | `(loadableId, options?)` | Commit pending testcase changes |
+| `saveAsNewTestset` | `(loadableId, options?)` | Persist local rows as a new testset |
 | `linkToRunnable` | `(loadableId, runnableType, runnableId)` | Link for column derivation |
-| `setExecutionResult` | `(loadableId, rowId, result)` | Store execution result |
-| `clearExecutionResults` | `(loadableId)` | Clear all results |
+| `unlinkFromRunnable` | `(loadableId)` | Remove runnable link |
+| `setRowExecutionResult` | `(loadableId, rowId, result)` | Store execution result |
+| `clearRowExecutionResult` | `(loadableId, rowId)` | Clear execution result for one row |
 
 ## Source Types
 
@@ -132,17 +144,12 @@ Connects to testset testcases via `testcaseMolecule`.
 // When connected, rows are derived from testcaseMolecule
 // The connectToSource action sets connectedSourceType: 'testcase'
 const connect = useSetAtom(loadableController.actions.connectToSource)
-connect(loadableId, revisionId, 'TestsetName v1', testcases)
+connect(loadableId, revisionId, 'TestsetName v1')
 ```
 
 ### trace (Future)
 
-Will connect to trace spans as loadable data.
-
-```typescript
-// Coming soon
-connect(loadableId, traceId, 'TraceSpan', 'trace')
-```
+Trace sources are planned but not wired into `loadableController` yet.
 
 ## Custom Sources
 
@@ -240,7 +247,8 @@ loadable.rows → connectedRowsAtomFamily → testcaseMolecule.atoms.displayRowI
                                         → testcaseMolecule.selectors.data(id)
 
 // Local mode flow:
-loadable.rows → loadableStateAtomFamily.rows (direct)
+loadable.rows → testcaseMolecule.atoms.displayRowIds (local IDs)
+             → testcaseMolecule.selectors.data(id)
 ```
 
 This allows the loadable to:
@@ -293,7 +301,7 @@ const columns = useAtomValue(loadableController.selectors.columns(loadableId))
 The derivation flow:
 
 ```text
-appRevisionMolecule.selectors.inputPorts(revisionId)
+workflowMolecule.selectors.inputPorts(revisionId)
     → extracts variables from agConfig template (e.g., {{topic}})
     → loadableColumnsFromRunnableAtomFamily transforms to columns
     → loadable columns include both derived + existing data columns
@@ -306,7 +314,7 @@ State synchronization should happen **within atoms**, not in React components:
 ```typescript
 // ❌ ANTI-PATTERN - Component responsible for keeping state in sync
 function PlaygroundContent() {
-    const inputPorts = useAtomValue(runnableBridge.inputPorts(revisionId))
+    const inputPorts = useAtomValue(workflowMolecule.selectors.inputPorts(revisionId))
     const setColumns = useSetAtom(loadableController.actions.setColumns)
 
     // This couples state correctness to component lifecycle!
@@ -376,7 +384,7 @@ const handleConnect = () => {
 
 // ✅ CORRECT - Single compound action
 const connectToSource = useSetAtom(loadableController.actions.connectToSource)
-connectToSource(loadableId, sourceId, sourceName, 'testcase')
+connectToSource(loadableId, sourceId, sourceName)
 // Internally bundles all state updates atomically
 ```
 

@@ -16,9 +16,9 @@
  * @module execution/displayedEntities
  */
 
-import {runnableBridge} from "@agenta/entities/runnable"
 import type {RequestPayloadData} from "@agenta/entities/runnable"
 import {isLocalDraftId} from "@agenta/entities/shared"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import isEqual from "fast-deep-equal"
 import {atom} from "jotai"
 import {selectAtom} from "jotai/utils"
@@ -34,7 +34,7 @@ import {isPlaceholderId} from "../controllers/playgroundSnapshotController"
  * Indicates whether all selected playground entities have resolved their
  * initial data load.
  *
- * Per-entity check: each selected entity's `runnableBridge.query()` must
+ * Per-entity check: each selected entity's `workflowMolecule.selectors.query()` must
  * have finished loading (not pending). Placeholder IDs and local drafts
  * are considered immediately ready.
  *
@@ -48,8 +48,7 @@ export const playgroundRevisionsReadyAtom = atom((get) => {
     return nodes.every((node) => {
         if (isPlaceholderId(node.entityId)) return true
         if (isLocalDraftId(node.entityId)) return true
-        const scoped = runnableBridge.forType(node.entityType)
-        const query = get(scoped.query(node.entityId))
+        const query = get(workflowMolecule.selectors.query(node.entityId))
         return !query.isPending
     })
 })
@@ -114,7 +113,7 @@ export const playgroundStatusAtom = atom<PlaygroundStatus>((get) => {
  * An entity ID is kept if:
  * 1. It's a placeholder ID (pending selection)
  * 2. It's a local draft ID (detected by pure prefix check)
- * 3. Its `runnableBridge.query(id)` has data OR is still pending
+ * 3. Its `workflowMolecule.selectors.query(id)` has data OR is still pending
  *
  * Stale IDs (query resolved with no data) are filtered out.
  */
@@ -124,8 +123,7 @@ export const displayedEntityIdsAtom = selectAtom(
         return nodes.map((node) => {
             if (isPlaceholderId(node.entityId)) return {id: node.entityId, keep: true}
             if (isLocalDraftId(node.entityId)) return {id: node.entityId, keep: true}
-            const scoped = runnableBridge.forType(node.entityType)
-            const query = get(scoped.query(node.entityId))
+            const query = get(workflowMolecule.selectors.query(node.entityId))
             // Keep if data exists or still loading
             const keep = !!query.data || query.isPending
             return {id: node.entityId, keep}
@@ -141,7 +139,7 @@ export const displayedEntityIdsAtom = selectAtom(
  *
  * An entity ID is kept only when:
  * 1. It's a local draft ID
- * 2. Its `runnableBridge.query(id)` has resolved data
+ * 2. Its `workflowMolecule.selectors.query(id)` has resolved data
  *
  * Placeholder IDs and pending entities are intentionally excluded so UI can
  * remain in loading state until details are available.
@@ -152,8 +150,7 @@ export const resolvedEntityIdsAtom = selectAtom(
         return nodes.map((node) => {
             if (isPlaceholderId(node.entityId)) return {id: node.entityId, keep: false}
             if (isLocalDraftId(node.entityId)) return {id: node.entityId, keep: true}
-            const scoped = runnableBridge.forType(node.entityType)
-            const query = get(scoped.query(node.entityId))
+            const query = get(workflowMolecule.selectors.query(node.entityId))
             const keep = !!query.data
             return {id: node.entityId, keep}
         })
@@ -213,8 +210,9 @@ export const schemaInputKeysAtom = selectAtom(
         const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
         if (!rootNode) return [] as string[]
 
-        const scoped = runnableBridge.forType(rootNode.entityType)
-        const payload = get(scoped.requestPayload(rootNode.entityId)) as RequestPayloadData | null
+        const payload = get(
+            workflowMolecule.selectors.requestPayload(rootNode.entityId),
+        ) as RequestPayloadData | null
         return payload?.variables || ([] as string[])
     }),
     (keys) => keys,

@@ -184,15 +184,23 @@ class GitDAO(GitDAOInterface):
             now = datetime.now(timezone.utc)
             artifact_dbe.updated_at = now  # type: ignore
             artifact_dbe.updated_by_id = user_id  # type: ignore
-            #
-            artifact_dbe.flags = artifact_edit.flags  # type: ignore
-            artifact_dbe.tags = artifact_edit.tags  # type: ignore
-            artifact_dbe.meta = artifact_edit.meta  # type: ignore
-            #
-            artifact_dbe.name = artifact_edit.name  # type: ignore
-            artifact_dbe.description = artifact_edit.description  # type: ignore
-            #
-            artifact_dbe.folder_id = artifact_edit.folder_id  # type: ignore
+
+            # Only update fields that were explicitly set in the edit request.
+            # This prevents partial edits (e.g., moving to a folder) from
+            # wiping unrelated fields (flags, name, etc.) to None.
+            _set = artifact_edit.model_fields_set
+            if "flags" in _set:
+                artifact_dbe.flags = artifact_edit.flags  # type: ignore
+            if "tags" in _set:
+                artifact_dbe.tags = artifact_edit.tags  # type: ignore
+            if "meta" in _set:
+                artifact_dbe.meta = artifact_edit.meta  # type: ignore
+            if "name" in _set:
+                artifact_dbe.name = artifact_edit.name  # type: ignore
+            if "description" in _set:
+                artifact_dbe.description = artifact_edit.description  # type: ignore
+            if "folder_id" in _set:
+                artifact_dbe.folder_id = artifact_edit.folder_id  # type: ignore
 
             await session.commit()
 
@@ -325,6 +333,16 @@ class GitDAO(GitDAOInterface):
                 if artifact_slugs:
                     stmt = stmt.filter(
                         self.ArtifactDBE.slug.in_(artifact_slugs)  # type: ignore
+                    )
+
+            if "folder_id" in artifact_query.model_fields_set:
+                if artifact_query.folder_id is None:
+                    stmt = stmt.filter(
+                        self.ArtifactDBE.folder_id.is_(None)  # type: ignore
+                    )
+                else:
+                    stmt = stmt.filter(
+                        self.ArtifactDBE.folder_id == artifact_query.folder_id  # type: ignore
                     )
 
             if artifact_query.flags:
@@ -566,6 +584,23 @@ class GitDAO(GitDAOInterface):
             variant_dbe.deleted_at = now
             variant_dbe.deleted_by_id = user_id
 
+            # Cascade soft-delete to all child revisions so they no longer
+            # appear in revision queries that filter on deleted_at.
+            await session.execute(
+                update(self.RevisionDBE)
+                .where(
+                    self.RevisionDBE.project_id == project_id,  # type: ignore
+                    self.RevisionDBE.variant_id == variant_id,  # type: ignore
+                    self.RevisionDBE.deleted_at.is_(None),  # type: ignore
+                )
+                .values(
+                    updated_at=now,
+                    updated_by_id=user_id,
+                    deleted_at=now,
+                    deleted_by_id=user_id,
+                )
+            )
+
             await session.commit()
 
             await session.refresh(variant_dbe)
@@ -607,6 +642,22 @@ class GitDAO(GitDAOInterface):
             variant_dbe.deleted_at = None
             variant_dbe.updated_by_id = user_id
             variant_dbe.deleted_by_id = None
+
+            # Cascade unarchive to all child revisions that were soft-deleted.
+            await session.execute(
+                update(self.RevisionDBE)
+                .where(
+                    self.RevisionDBE.project_id == project_id,  # type: ignore
+                    self.RevisionDBE.variant_id == variant_id,  # type: ignore
+                    self.RevisionDBE.deleted_at.isnot(None),  # type: ignore
+                )
+                .values(
+                    updated_at=now,
+                    updated_by_id=user_id,
+                    deleted_at=None,
+                    deleted_by_id=None,
+                )
+            )
 
             await session.commit()
 
@@ -1108,6 +1159,8 @@ class GitDAO(GitDAOInterface):
         variant_refs: Optional[List[Reference]] = None,
         revision_refs: Optional[List[Reference]] = None,
         #
+        application_refs: Optional[List[Reference]] = None,
+        #
         include_archived: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
@@ -1224,6 +1277,68 @@ class GitDAO(GitDAOInterface):
             result = await session.execute(stmt)
 
             revision_dbes = result.scalars().all()
+
+            # TEMPORARY ADAPTER: this `application_refs` filter exists only for the
+            # current web UX/UI, which wants to view environment history by
+            # application and only surface revisions where that application's
+            # deployment changed. This is not canonical DAO behavior.
+            #
+            # The target state is to remove this adapter once the frontend no
+            # longer depends on this application-grouped diff view. Even now,
+            # this logic should not live in the DAO, but we are not moving it
+            # elsewhere because the intended transition is from "temporary
+            # adapter here" to "removed entirely".
+            if application_refs:
+                app_ids = {str(ref.id) for ref in application_refs if ref.id}
+                if app_ids:
+                    filtered_dbes = []
+                    prev_app_revision_ids: dict[str, str | None] = {
+                        app_id: None for app_id in app_ids
+                    }
+
+                    # Revisions are ordered descending (newest first)
+                    # We need to process in ascending order to detect changes
+                    for dbe in reversed(revision_dbes):
+                        if not dbe.data or not isinstance(dbe.data, dict):
+                            continue
+
+                        refs = dbe.data.get("references")
+                        if not refs or not isinstance(refs, dict):
+                            continue
+
+                        # Check each app we're filtering for
+                        for app_id in app_ids:
+                            current_revision_id: str | None = None
+
+                            # Find this app's revision in the current environment revision
+                            for ref_data in refs.values():
+                                if not isinstance(ref_data, dict):
+                                    continue
+                                app_ref = ref_data.get("application")
+                                if (
+                                    isinstance(app_ref, dict)
+                                    and str(app_ref.get("id")) == app_id
+                                ):
+                                    app_revision = ref_data.get("application_revision")
+                                    if app_revision:
+                                        current_revision_id = str(
+                                            app_revision.get("id")
+                                        )
+                                    break
+
+                            # If this app's deployment changed, include this revision
+                            if current_revision_id != prev_app_revision_ids[app_id]:
+                                if dbe not in filtered_dbes:
+                                    filtered_dbes.append(dbe)
+                                prev_app_revision_ids[app_id] = current_revision_id
+
+                    # Reverse back to descending order (newest first)
+                    filtered_dbes.reverse()
+                    revision_dbes = filtered_dbes
+
+            # END TEMPORARY ADAPTER: remove this block when the web frontend no
+            # longer needs application-grouped diff history. Do not migrate this
+            # behavior deeper into the persistence layer.
 
             revisions = [
                 map_dbe_to_dto(

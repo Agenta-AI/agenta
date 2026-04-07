@@ -1,12 +1,15 @@
 import {useCallback} from "react"
 
+import {archiveWorkflow, invalidateWorkflowsListCache} from "@agenta/entities/workflow"
 import {Modal} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
-import {deleteApp} from "@/oss/services/app-selector/api"
 import {useAppsData} from "@/oss/state/app"
+import {getProjectValues} from "@/oss/state/project"
+
+import {invalidateAppManagementWorkflowQueries} from "../../store"
 
 import {
     closeDeleteAppModalAtom,
@@ -27,14 +30,17 @@ const DeleteAppModal = (props = {}) => {
 
         setLoading(true)
         try {
-            await deleteApp(appDetails.app_id)
+            const {projectId} = getProjectValues()
+            await archiveWorkflow(projectId, appDetails.id)
+            invalidateWorkflowsListCache()
             await mutateApps()
+            await invalidateAppManagementWorkflowQueries()
             closeModal()
             if (router.pathname.includes("/overview")) {
                 await router.push(baseProjectURL)
             }
         } catch (error) {
-            console.error("Failed to delete app:", error)
+            console.error("Failed to archive app:", error)
         } finally {
             setLoading(false)
         }
@@ -50,10 +56,11 @@ const DeleteAppModal = (props = {}) => {
             cancelText="No"
             onOk={handleDeleteOk}
             destroyOnHidden
+            centered
             {...props}
             open={open}
         >
-            <p>Are you sure you want to delete {appDetails?.app_name}?</p>
+            <p>Are you sure you want to delete {appDetails?.name}?</p>
         </Modal>
     )
 }

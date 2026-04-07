@@ -238,7 +238,6 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
         except ValidationError:
             cleaned_ag = AgAttributes(
                 type=AgTypeAttributes(
-                    trace=TraceType.INVOCATION,
                     span=SpanType.TASK,
                 ),
                 data=AgDataAttributes(),

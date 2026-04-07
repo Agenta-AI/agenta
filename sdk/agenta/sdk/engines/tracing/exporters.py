@@ -1,13 +1,20 @@
 from typing import Sequence, Dict, List, Optional
+from threading import Thread
+from os import environ
 
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+    OTLPSpanExporter,
+)
+from opentelemetry.sdk.trace import (
+    ReadableSpan,
+)
 from opentelemetry.sdk.trace.export import (
     ConsoleSpanExporter,
     SpanExporter,
     SpanExportResult,
-    ReadableSpan,
 )
 
+from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.cache import TTLLRUCache
@@ -19,6 +26,8 @@ from agenta.sdk.contexts.tracing import (
 
 
 log = get_module_logger(__name__)
+
+_ASYNC_EXPORT = environ.get("AGENTA_OTLP_ASYNC_EXPORT", "true").lower() in TRUTHY
 
 
 class InlineTraceExporter(SpanExporter):
@@ -34,7 +43,7 @@ class InlineTraceExporter(SpanExporter):
         spans: Sequence[ReadableSpan],
     ) -> SpanExportResult:
         if self._shutdown:
-            return
+            return SpanExportResult.SUCCESS
 
         with suppress():
             for span in spans:
@@ -44,6 +53,8 @@ class InlineTraceExporter(SpanExporter):
                     self._registry[trace_id] = []
 
                 self._registry[trace_id].append(span)
+
+            return SpanExportResult.SUCCESS
 
     def shutdown(self) -> None:
         self._shutdown = True
@@ -84,7 +95,7 @@ class OTLPExporter(OTLPSpanExporter):
         self.credentials = credentials
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
-        grouped_spans: Dict[str, List[str]] = {}
+        grouped_spans: Dict[Optional[str], List[ReadableSpan]] = dict()
 
         for span in spans:
             trace_id = span.get_span_context().trace_id
@@ -94,7 +105,7 @@ class OTLPExporter(OTLPSpanExporter):
                 credentials = self.credentials.get(trace_id)
 
             if credentials not in grouped_spans:
-                grouped_spans[credentials] = []
+                grouped_spans[credentials] = list()
 
             grouped_spans[credentials].append(span)
 
@@ -106,6 +117,16 @@ class OTLPExporter(OTLPSpanExporter):
                     credentials=credentials,
                 )
             ):
+                for _span in _spans:
+                    trace_id = _span.get_span_context().trace_id  # noqa: F841
+
+                    # log.debug(
+                    #     "[SPAN]  [EXPORT]",
+                    #     trace_id=UUID(int=trace_id).hex,
+                    #     span_id=UUID(int=span_id).hex[-16:],
+                    #     # span_attributes=_span.attributes,
+                    # )
+
                 serialized_spans.append(super().export(_spans))
 
         if all(serialized_spans):
@@ -114,16 +135,48 @@ class OTLPExporter(OTLPSpanExporter):
             return SpanExportResult.FAILURE
 
     def _export(self, serialized_data: bytes, timeout_sec: Optional[float] = None):
-        credentials = otlp_context.get().credentials
+        try:
+            credentials = otlp_context.get().credentials
 
-        if credentials:
-            self._session.headers.update({"Authorization": credentials})
+            if credentials:
+                self._session.headers.update({"Authorization": credentials})
 
-        with suppress():
-            if timeout_sec is not None:
-                return super()._export(serialized_data, timeout_sec)
+            def __export():
+                with suppress():
+                    _resp = None
+                    if timeout_sec is not None:
+                        _resp = super(OTLPExporter, self)._export(
+                            serialized_data,
+                            timeout_sec,
+                        )
+                    else:
+                        _resp = super(OTLPExporter, self)._export(
+                            serialized_data,
+                        )
+
+                    # log.debug(
+                    #     "[SPAN] [_EXPORT]",
+                    #     # data=serialized_data,
+                    #     resp=resp,
+                    # )
+
+            if _ASYNC_EXPORT is True:
+                # log.debug("[SPAN] [ASYNC.X]", credentials=(credentials is not None))
+                thread = Thread(target=__export, daemon=False)
+                thread.start()
             else:
-                return super()._export(serialized_data)
+                # log.debug("[SPAN] [ SYNC.X]", credentials=(credentials is not None))
+                return __export()
+
+        except Exception as e:
+            log.error(f"Export failed with error: {e}", exc_info=True)
+
+        finally:
+
+            class Response:
+                ok = True
+
+            return Response()
 
 
 ConsoleExporter = ConsoleSpanExporter

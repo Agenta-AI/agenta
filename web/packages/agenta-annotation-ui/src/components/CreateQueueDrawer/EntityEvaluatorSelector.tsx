@@ -12,7 +12,7 @@ import {Plus} from "@phosphor-icons/react"
 export interface WorkflowRevisionLike {
     version?: number | null
     name?: string | null
-    flags?: {is_human?: boolean} | null
+    flags?: {is_feedback?: boolean} | null
     data?: Record<string, unknown> | null
 }
 
@@ -134,7 +134,7 @@ export function EntityEvaluatorSelector({
 }: EntityEvaluatorSelectorProps) {
     const renderRevisionLabel = useCallback((entity: unknown) => {
         const revision = entity as WorkflowRevisionLike
-        const isHuman = Boolean(revision.flags?.is_human)
+        const isHuman = Boolean(revision.flags?.is_feedback)
         const metrics = isHuman ? getHumanMetrics(revision) : []
         const metricSummary = metrics.length > 0 ? formatMetricSummary(metrics) : null
 

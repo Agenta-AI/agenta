@@ -30,6 +30,10 @@ export interface EnvironmentDetailParams {
 export interface EnvironmentRevisionListParams {
     projectId: string
     environmentId: string
+    /** Filter by application ID - only return revisions that contain this app */
+    applicationId?: string
+    /** Optional message filter — server applies ilike matching */
+    message?: string
 }
 
 /**

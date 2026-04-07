@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import type {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
+import type {Workflow} from "@agenta/entities/workflow"
 
 import {PARAMETER_KEYS_TO_HIDE} from "../constants"
 import type {EvaluatorDetails} from "../types"
@@ -25,34 +25,32 @@ const EMPTY_DETAILS: EvaluatorDetails = {
 }
 
 interface UseEvaluatorDetailsParams {
-    evaluator?: EvaluatorPreviewDto
-    config?: any
+    evaluator?: Workflow
+    config?: Workflow
     evaluatorTypeLookup: Map<string, {slug: string; label: string}>
 }
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
     Boolean(value) && typeof value === "object" && !Array.isArray(value)
 
+/**
+ * Merge a preview evaluator (full workflow with revision data) with
+ * an evaluator config (selected instance) to get the most complete data.
+ */
 const mergeEvaluatorWithConfig = (
-    evaluator?: EvaluatorPreviewDto,
-    config?: any,
-): EvaluatorPreviewDto | any | undefined => {
+    evaluator?: Workflow,
+    config?: Workflow,
+): Workflow | undefined => {
     if (!config) return evaluator
-    if (!evaluator) return config as EvaluatorPreviewDto
+    if (!evaluator) return config
 
-    const evaluatorAny = evaluator as Record<string, unknown>
-    const configAny = config as Record<string, unknown>
     const merged: Record<string, unknown> = {
-        ...evaluatorAny,
-        ...configAny,
+        ...evaluator,
+        ...config,
     }
 
-    const previewData = isPlainObject(evaluatorAny.data)
-        ? (evaluatorAny.data as Record<string, unknown>)
-        : undefined
-    const configData = isPlainObject(configAny.data)
-        ? (configAny.data as Record<string, unknown>)
-        : undefined
+    const previewData = isPlainObject(evaluator.data) ? evaluator.data : undefined
+    const configData = isPlainObject(config.data) ? config.data : undefined
     if (previewData || configData) {
         const mergedData: Record<string, unknown> = {
             ...(previewData ?? {}),
@@ -65,17 +63,9 @@ const mergeEvaluatorWithConfig = (
         const configParameters = isPlainObject(configData?.parameters)
             ? (configData?.parameters as Record<string, unknown>)
             : undefined
-        const previewSettings = isPlainObject(evaluatorAny.settings_values)
-            ? (evaluatorAny.settings_values as Record<string, unknown>)
-            : undefined
-        const configSettings = isPlainObject(configAny.settings_values)
-            ? (configAny.settings_values as Record<string, unknown>)
-            : undefined
         const mergedParameters = {
             ...(previewParameters ?? {}),
-            ...(previewSettings ?? {}),
             ...(configParameters ?? {}),
-            ...(configSettings ?? {}),
         }
         if (Object.keys(mergedParameters).length) {
             mergedData.parameters = mergedParameters
@@ -84,7 +74,7 @@ const mergeEvaluatorWithConfig = (
         merged.data = mergedData
     }
 
-    return merged as EvaluatorPreviewDto
+    return merged as Workflow
 }
 
 export const useEvaluatorDetails = ({

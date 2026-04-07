@@ -1,16 +1,13 @@
+import {loadableController, type RequestPayloadData} from "@agenta/entities/runnable"
 import {
     stripAgentaMetadataDeep,
     stripEnhancedWrappers,
     transformToRequestBody,
-    type OpenAPISpec,
     type TransformMessage,
     type TransformVariantInput,
-} from "@agenta/entities/legacyAppRevision"
-import {
-    loadableController,
-    runnableBridge,
-    type RequestPayloadData,
-} from "@agenta/entities/runnable"
+} from "@agenta/entities/shared/execution"
+import type {OpenAPISpec} from "@agenta/entities/shared/openapi"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {getAgentaApiUrl} from "@agenta/shared/api/env"
 import {generateId} from "@agenta/shared/utils"
 import {atom, type Getter, type Setter} from "jotai"
@@ -502,28 +499,26 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
             dispatchWorkerRun,
         } = runParams
 
-        // When entityType is provided, use type-scoped selectors to avoid
-        // cross-contamination from the shared workflow_revisions DB table.
-        // Without scoping, legacyAppRevision can match evaluator IDs and
-        // return the wrong invocation URL (/test instead of /evaluators/{key}/run).
-        const bridge = params.entityType
-            ? runnableBridge.forType(params.entityType)
-            : runnableBridge
-
         const mode: ExecutionMode =
-            get(bridge.executionMode(params.entityId)) === "chat" ? "chat" : "completion"
+            get(workflowMolecule.selectors.executionMode(params.entityId)) === "chat"
+                ? "chat"
+                : "completion"
         const normalizedRepetitions = resolveRequestedRepetitions(get, repetitions)
         const effectiveRunId =
             runId ?? (!forceNewRunId && params.runId ? params.runId : undefined) ?? generateId()
 
         const requestPayload = get(
-            bridge.requestPayload(params.entityId),
+            workflowMolecule.selectors.requestPayload(params.entityId),
         ) as RequestPayloadData | null
-        const invocationUrl = get(bridge.invocationUrl(params.entityId)) as string | null
-        const runnableData = get(bridge.data(params.entityId)) as TransformVariantInput | null
-        const entityData = runnableData ?? null
+        const invocationUrl = get(workflowMolecule.selectors.invocationUrl(params.entityId)) as
+            | string
+            | null
+        const configuration = get(workflowMolecule.selectors.configuration(params.entityId))
+        const entityData = configuration
+            ? ({parameters: configuration} as TransformVariantInput)
+            : null
 
-        const inputPorts = (get(bridge.inputPorts(params.entityId)) ?? []) as {
+        const inputPorts = (get(workflowMolecule.selectors.inputPorts(params.entityId)) ?? []) as {
             key?: unknown
         }[]
         const variablesFromInputPorts = Array.from(
@@ -533,7 +528,11 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
                     .filter((key): key is string => typeof key === "string" && key.length > 0),
             ),
         )
-        const variablesFromPayload = requestPayload?.variables ?? []
+        // Extract variables: for __rawBody app workflows, variables are in __meta
+        const rawPayload = requestPayload as Record<string, unknown> | null
+        const rawMeta = rawPayload?.__meta as Record<string, unknown> | undefined
+        const variablesFromPayload =
+            (rawMeta?.variables as string[]) ?? requestPayload?.variables ?? []
         const variables =
             variablesFromInputPorts.length > 0 ? variablesFromInputPorts : variablesFromPayload
 
@@ -633,8 +632,8 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
         const agConfigFallbacks: AgConfigFallbackCandidate[] = [
             {source: "requestPayload.ag_config", value: requestPayload?.ag_config},
             {
-                source: "runnableBridge.configuration",
-                value: get(bridge.configuration(params.entityId)) as unknown,
+                source: "workflowMolecule.configuration",
+                value: get(workflowMolecule.selectors.configuration(params.entityId)) as unknown,
             },
             {
                 source: "entityData.parameters",
@@ -1095,24 +1094,117 @@ function buildExecutionItem(
     const requestPayload = params.requestPayload || null
     const entityData = params.entityData || null
 
+    // When the entity provides a pre-built request body (e.g. workflow invoke),
+    // use it directly instead of building a legacy ag_config body.
+    const rawPayloadRecord = asRecord(requestPayload)
+    const isRawBody = !!rawPayloadRecord?.__rawBody
+
     const invocationUrlWithQuery = appendQueryParams(
         resolveInvocationUrl(params.invocationUrl, requestPayload, entityData),
         {
-            application_id: resolveApplicationId(requestPayload, entityData),
+            // __rawBody payloads (workflow invoke) don't need application_id query param —
+            // the backend resolves the handler from the request body interface/URI.
+            application_id: isRawBody
+                ? undefined
+                : resolveApplicationId(requestPayload, entityData),
             project_id: params.headers.Authorization
                 ? readString(params.projectId || undefined)
                 : undefined,
         },
     )
-
-    // When the entity provides a pre-built request body (e.g. workflow invoke),
-    // use it directly instead of building a legacy ag_config body.
-    const isRawBody = !!(requestPayload as Record<string, unknown> | null)?.__rawBody
+    const isAppWorkflow = !!rawPayloadRecord?.__appWorkflow
     const requestBody = isRawBody
         ? (() => {
-              const rawPayload = asRecord(requestPayload)
-              if (!rawPayload) return {}
-              const {__rawBody: _, invocationUrl: _url, ...body} = rawPayload
+              if (!rawPayloadRecord) return {}
+
+              if (isAppWorkflow) {
+                  // App workflow __rawBody: use buildRequestBody to resolve inputs/messages
+                  // from the current row, then wrap into the invoke payload format.
+                  const meta = rawPayloadRecord.__meta as Record<string, unknown> | undefined
+                  const appPayload: RequestPayloadData = {
+                      ag_config: (meta?.agConfig as Record<string, unknown>) ?? {},
+                      isChat: (meta?.isChat as boolean) ?? false,
+                      appType: null,
+                      invocationUrl: null,
+                      runtimePrefix: (meta?.runtimePrefix as string) ?? null,
+                      variables: (meta?.variables as string[]) ?? [],
+                      spec: meta?.spec,
+                      routePath: meta?.routePath as string | undefined,
+                      isCustom: false,
+                      appId: (meta?.appId as string) ?? null,
+                  }
+                  const legacyBody = buildRequestBody(mode, {
+                      entityData,
+                      inputRow: params.inputRow,
+                      chatHistory: params.chatHistory,
+                      requestPayload: appPayload,
+                      variables: params.variables || [],
+                      variableValues: params.variableValues || {},
+                      entityId: params.entityId,
+                      agConfigFallbacks: params.agConfigFallbacks,
+                  })
+
+                  // Extract parts from the legacy body to build the invoke format
+                  const {
+                      ag_config: legacyAgConfig,
+                      inputs: legacyInputs,
+                      messages: legacyMessages,
+                      references: legacyRefs,
+                      ...legacyRest
+                  } = legacyBody as Record<string, unknown>
+
+                  // Build data.inputs from legacy inputs (variable values like "context")
+                  const dataInputs: Record<string, unknown> = {}
+                  if (legacyInputs && typeof legacyInputs === "object") {
+                      Object.assign(dataInputs, legacyInputs)
+                  }
+                  // Include any extra top-level fields from legacy body
+                  // (e.g. custom workflow fields)
+                  for (const [key, value] of Object.entries(legacyRest)) {
+                      if (value !== undefined) {
+                          dataInputs[key] = value
+                      }
+                  }
+
+                  // Build the invoke format — parameters go under data, not configuration
+                  const {
+                      __rawBody: _,
+                      __appWorkflow: _aw,
+                      __meta: _m,
+                      ...baseBody
+                  } = rawPayloadRecord
+                  const baseData = asRecord(baseBody.data)
+                  const body: Record<string, unknown> = {
+                      ...baseBody,
+                      data: {
+                          ...baseData,
+                          inputs: dataInputs,
+                          // Chat messages go at data.messages (not data.inputs.messages)
+                          // so the backend schema validator sees only variable inputs
+                          ...(Array.isArray(legacyMessages) && legacyMessages.length > 0
+                              ? {messages: legacyMessages}
+                              : {}),
+                          parameters: legacyAgConfig
+                              ? (legacyAgConfig as Record<string, unknown>)
+                              : baseData?.parameters,
+                      },
+                  }
+                  delete body.configuration
+
+                  // Merge references from legacy body and raw payload
+                  const refs = {
+                      ...(asRecord(baseBody.references) ?? {}),
+                      ...(asRecord(legacyRefs) ?? {}),
+                  }
+                  if (Object.keys(refs).length > 0) {
+                      body.references = refs
+                  }
+
+                  return body
+              }
+
+              // Evaluator / other __rawBody payloads: pass through as before
+              const {__rawBody: _, invocationUrl: _url, ...body} = rawPayloadRecord
               // When inputValues are provided (e.g. from chain execution),
               // merge them into the raw body's inputs field.
               if (params.inputValues && Object.keys(params.inputValues).length > 0) {
@@ -1126,7 +1218,7 @@ function buildExecutionItem(
                       },
                   )
                   // For workflow invoke payloads with nested `data` structure
-                  // (e.g. POST /preview/workflows/invoke), populate data.inputs
+                  // (e.g. POST {serviceUrl}/invoke), populate data.inputs
                   // with all input values and data.outputs with the upstream
                   // model output so the backend template engine can resolve
                   // {{inputs}} and {{outputs}} correctly.

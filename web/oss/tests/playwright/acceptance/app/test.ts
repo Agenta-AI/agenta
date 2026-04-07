@@ -57,7 +57,10 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
             await uiHelpers.typeWithDelay('input[placeholder="Enter a name"]', appName)
             await page.getByText(appType).first().click()
             const createAppPromise = page.waitForResponse((response) => {
-                if (!response.url().includes("/apps") || response.request().method() !== "POST") {
+                if (
+                    !response.url().includes("/preview/workflows") ||
+                    response.request().method() !== "POST"
+                ) {
                     return false
                 }
 
@@ -69,9 +72,9 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
             expect(createAppResponse.ok()).toBe(true)
 
             const response = (await createAppResponse.json()) as CreateAppResponse
-            expect(response.app_id).toBeTruthy()
-            expect(response.app_name).toBe(appName)
-            expect(response.created_at).toBeTruthy()
+            expect(response.workflow.id).toBeTruthy()
+            expect(response.workflow.name).toBe(appName)
+            expect(response.workflow.created_at).toBeTruthy()
             await page.waitForURL(/\/apps\/.*\/playground/)
             return response
         })

@@ -9,14 +9,14 @@
 
 import {useCallback, useMemo} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
 import type {PathItem} from "@agenta/shared/utils"
+import {formatLabel} from "@agenta/ui/drill-in"
 
 import {isMessagesSchema} from "../SchemaControls/MessagesSchemaControl"
 import {isPromptSchema, isPromptValue} from "../SchemaControls/PromptSchemaControl"
 import {SchemaPropertyRenderer} from "../SchemaControls/SchemaPropertyRenderer"
 import {shouldRenderObjectInline} from "../SchemaControls/schemaUtils"
-import {formatLabel} from "../utils"
 
 // ============================================================================
 // TYPES
@@ -116,7 +116,10 @@ export function FieldItemContent({
     classNames,
     styles,
 }: FieldItemContentProps) {
-    const label = useMemo(() => formatLabel(item.key), [item.key])
+    const label = useMemo(
+        () => (schema?.title as string) ?? formatLabel(item.key),
+        [schema, item.key],
+    )
 
     const handleChange = useCallback(
         (value: unknown) => {
@@ -131,12 +134,14 @@ export function FieldItemContent({
         if (!isExpandable) return false
         // Schema-based detection
         if (schema) {
+            const xParam = schema["x-parameter"] as string | undefined
             if (isPromptSchema(schema)) return true
             if (isMessagesSchema(schema)) return true
             if (shouldRenderObjectInline(schema)) return true
             // Check for feedback_config x-parameter
-            const xParam = schema["x-parameter"] as string | undefined
             if (xParam === "feedback_config") return true
+            // Check for fields_tags_editor x-parameter
+            if (xParam === "fields_tags_editor") return true
         }
         // Value-based detection (no schema)
         if (isPromptValue(item.value)) return true

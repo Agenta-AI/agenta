@@ -1,3 +1,4 @@
+import sys
 from typing import Optional, Callable, Any
 
 from .utils.preinit import PreInitObject  # always the first import!  # noqa: F401
@@ -12,7 +13,6 @@ __all__ = [
     "app",
     # Initialization
     "init",
-    "config",
     # Types
     "DictInput",
     "MultipleChoice",
@@ -21,7 +21,8 @@ __all__ = [
     "MultipleChoiceParam",
     "GroupedMultipleChoiceParam",
     "TextParam",
-    "MessagesInput",
+    "Message",
+    "Messages",
     "FileInputURL",
     "BinaryParam",
     "Prompt",
@@ -46,9 +47,11 @@ __all__ = [
     "types",
 ]
 
-import agenta.client.backend.types as client_types  # pylint: disable=wrong-import-order
+import agenta.client.backend.types as client_types  # noqa: E402, F401
+import agenta.sdk.utils.types as types  # noqa: E402, F401
+import agenta.sdk.utils.assets as assets  # noqa: E402, F401
 
-from .types import (
+from .utils.types import (  # noqa: E402
     DictInput,
     MultipleChoice,
     FloatParam,
@@ -56,24 +59,23 @@ from .types import (
     MultipleChoiceParam,
     GroupedMultipleChoiceParam,
     TextParam,
-    MessagesInput,
+    Message,
+    Messages,
     FileInputURL,
     BinaryParam,
     Prompt,
-    AgentaNodeDto,  # noqa: F401
-    AgentaNodesResponse,  # noqa: F401
 )
 
-from .tracing import Tracing, get_tracer
+from .engines.tracing import Tracing, get_tracer
 from agenta.sdk.decorators.tracing import instrument
 from agenta.sdk.decorators.running import (
     workflow,
     application,
     evaluator,
 )
-from agenta.sdk.decorators.serving import route, app
-from .tracing.conventions import Reference
-from .agenta_init import AgentaSingleton, init as _init
+from agenta.sdk.decorators.routing import route, default_app as app
+from .engines.tracing.conventions import Reference
+from .utils.init import AgentaSingleton, init as _init
 from .utils.costs import calculate_token_usage
 from .managers.apps import AppManager
 from .managers.vault import VaultManager
@@ -83,9 +85,26 @@ from .managers.variant import VariantManager
 from .managers.deployment import DeploymentManager
 from .managers import testsets as testsets
 
+sys.modules.setdefault("agenta.sdk.types", types)
+sys.modules.setdefault("agenta.sdk.assets", assets)
+
+# Compat shims: agenta.sdk.workflows.* → agenta.sdk.engines.running.*
+import agenta.sdk.engines.running as _running  # noqa: E402
+import agenta.sdk.engines.running.errors as _running_errors  # noqa: E402
+import agenta.sdk.engines.running.handlers as _running_handlers  # noqa: E402
+import agenta.sdk.engines.running.utils as _running_utils  # noqa: E402
+import agenta.sdk.engines.running.runners as _running_runners  # noqa: E402
+import agenta.sdk.engines.running.runners.daytona as _running_runners_daytona  # noqa: E402
+
+sys.modules.setdefault("agenta.sdk.workflows", _running)
+sys.modules.setdefault("agenta.sdk.workflows.errors", _running_errors)
+sys.modules.setdefault("agenta.sdk.workflows.handlers", _running_handlers)
+sys.modules.setdefault("agenta.sdk.workflows.utils", _running_utils)
+sys.modules.setdefault("agenta.sdk.workflows.runners", _running_runners)
+sys.modules.setdefault("agenta.sdk.workflows.runners.daytona", _running_runners_daytona)
+
 DEFAULT_AGENTA_SINGLETON_INSTANCE: AgentaSingleton = AgentaSingleton()
 
-types = client_types
 
 api = None
 async_api = None

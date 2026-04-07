@@ -19,6 +19,7 @@ import {
     fetchRevisionsList,
     fetchLatestRevisionsBatch,
     fetchTestsetDetail,
+    fetchTestsetsBatch,
     fetchTestsetsList,
     fetchVariantDetail,
     findTestsetInCache,
@@ -498,6 +499,123 @@ export const revisionDraftAtomFamily = atomFamily((_revisionId: string) =>
 }
 
 // ============================================================================
+// TESTSET BATCH FETCHER
+// ============================================================================
+
+interface TestsetRequest {
+    projectId: string
+    testsetId: string
+    queryClient?: QueryClient
+}
+
+function primeTestsetDetailCache(
+    queryClient: QueryClient,
+    projectId: string,
+    testset: Testset | null | undefined,
+): void {
+    if (!testset?.id) return
+    queryClient.setQueryData(["testset", projectId, testset.id], testset)
+}
+
+/**
+ * Batch fetcher for testset requests.
+ *
+ * Uses createBatchFetcher for request deduplication and batching, which groups
+ * concurrent requests within a 10ms window. Fetches testsets in batches using
+ * POST /preview/testsets/query for better performance.
+ */
+const testsetBatchFetcher = createBatchFetcher<TestsetRequest, Testset | null>({
+    maxBatchSize: 50,
+    flushDelay: 10,
+    serializeKey: (req) => `${req.projectId}:${req.testsetId}`,
+    batchFn: async (requests, serializedKeys) => {
+        const results = new Map<string, Testset | null>()
+
+        // Group by projectId and resolve from cache first
+        const byProject = new Map<
+            string,
+            {
+                queryClient?: QueryClient
+                toFetch: {key: string; testsetId: string}[]
+            }
+        >()
+
+        requests.forEach((req, index) => {
+            const key = serializedKeys[index]
+            if (!isValidUUID(req.testsetId)) {
+                results.set(key, null)
+                return
+            }
+
+            // Check TanStack Query cache first
+            if (req.queryClient) {
+                const cached = findTestsetInCache(req.queryClient, req.testsetId)
+                if (cached) {
+                    results.set(key, cached)
+                    return
+                }
+            }
+
+            const group = byProject.get(req.projectId)
+            if (group) {
+                group.toFetch.push({key, testsetId: req.testsetId})
+                if (!group.queryClient && req.queryClient) {
+                    group.queryClient = req.queryClient
+                }
+            } else {
+                byProject.set(req.projectId, {
+                    queryClient: req.queryClient,
+                    toFetch: [{key, testsetId: req.testsetId}],
+                })
+            }
+        })
+
+        // Fetch each project's testsets in batch
+        await Promise.all(
+            Array.from(byProject.entries()).map(async ([projectId, {queryClient, toFetch}]) => {
+                if (toFetch.length === 0) return
+
+                const testsetIds = toFetch.map((t) => t.testsetId)
+
+                try {
+                    const batchResults = await fetchTestsetsBatch(projectId, testsetIds)
+
+                    toFetch.forEach(({key, testsetId}) => {
+                        const testset = batchResults.get(testsetId) ?? null
+                        results.set(key, testset)
+
+                        // Prime individual query cache entries
+                        if (queryClient && testset) {
+                            primeTestsetDetailCache(queryClient, projectId, testset)
+                        }
+                    })
+                } catch {
+                    // Fall back to individual fetches
+                    await Promise.all(
+                        toFetch.map(async ({key, testsetId}) => {
+                            try {
+                                const testset = await fetchTestsetDetail({
+                                    id: testsetId,
+                                    projectId,
+                                })
+                                results.set(key, testset)
+                                if (queryClient && testset) {
+                                    primeTestsetDetailCache(queryClient, projectId, testset)
+                                }
+                            } catch {
+                                results.set(key, null)
+                            }
+                        }),
+                    )
+                }
+            }),
+        )
+
+        return results
+    },
+})
+
+// ============================================================================
 // TESTSET QUERY ATOMS
 // ============================================================================
 
@@ -513,7 +631,8 @@ const createMockTestset = (): Testset => ({
 })
 
 /**
- * Query atom for fetching a single testset
+ * Query atom for fetching a single testset.
+ * Uses batch fetcher to combine concurrent requests into a single API call.
  */
 export const testsetQueryAtomFamily = atomFamily((testsetId: string) =>
     atomWithQuery<Testset | null>((get) => {
@@ -532,7 +651,11 @@ export const testsetQueryAtomFamily = atomFamily((testsetId: string) =>
             queryFn: async () => {
                 if (!projectId || !testsetId) return null
                 if (isNew) return createMockTestset()
-                return fetchTestsetDetail({id: testsetId, projectId})
+                return testsetBatchFetcher({
+                    projectId,
+                    testsetId,
+                    queryClient,
+                })
             },
             initialData: cachedData ?? mockTestset ?? undefined,
             enabled: isEnabled,
@@ -558,6 +681,7 @@ export const testsetsListQueryAtomFamily = atomFamily((searchQuery: string | nul
             enabled: get(sessionAtom) && Boolean(projectId),
             staleTime: 60_000,
             gcTime: 5 * 60_000,
+            refetchOnMount: "always",
         }
     }),
 )

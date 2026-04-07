@@ -1,5 +1,6 @@
+import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
+
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {TraceSpan, TraceSpanNode} from "@/oss/services/tracing/types"
 import {
     getAgDataInputs,

@@ -377,6 +377,104 @@ export const revisionDeploymentAtomFamily = atomFamily((revisionId: string) =>
 )
 
 // ============================================================================
+// SLUG-BASED RESOLUTION
+// ============================================================================
+
+/**
+ * Reactive atom that resolves an environment by slug from the list cache.
+ *
+ * Unlike `environmentMolecule.get.bySlug()` (imperative, snapshot-based),
+ * this atom re-derives whenever the list cache updates — making it safe
+ * for use in React components and other derived atoms.
+ */
+export const environmentBySlugAtomFamily = atomFamily((slug: string) =>
+    atom<Environment | null>((get) => {
+        if (!slug) return null
+        const listQuery = get(environmentsListQueryAtomFamily(false))
+        const environments = listQuery.data?.environments ?? []
+        return environments.find((env) => env.slug === slug) ?? null
+    }),
+)
+
+// ============================================================================
+// APP-SCOPED DEPLOYMENT SELECTORS
+// ============================================================================
+
+/**
+ * Deployment info for a specific app within an environment.
+ */
+export interface AppDeploymentInfo {
+    /** App key in the references map (e.g., "myapp.default") */
+    appKey: string
+    /** Application reference */
+    application: {id?: string | null; slug?: string | null} | null
+    /** Variant reference */
+    applicationVariant: {id?: string | null; slug?: string | null} | null
+    /** Revision reference */
+    applicationRevision: {
+        id?: string | null
+        slug?: string | null
+        version?: string | null
+    } | null
+}
+
+/**
+ * Extract deployment info for all apps from an environment's reference data.
+ */
+function extractAppDeployments(env: Environment | null): AppDeploymentInfo[] {
+    if (!env?.data?.references) return []
+
+    return Object.entries(env.data.references).map(([appKey, refs]) => ({
+        appKey,
+        application: refs?.application ?? null,
+        applicationVariant: refs?.application_variant ?? null,
+        applicationRevision: refs?.application_revision ?? null,
+    }))
+}
+
+/**
+ * All app deployments for an environment (by environment ID).
+ * Returns the list of apps currently deployed in this environment.
+ */
+export const environmentAppDeploymentsAtomFamily = atomFamily((environmentId: string) =>
+    atom<AppDeploymentInfo[]>((get) => {
+        if (!environmentId) return []
+        const query = get(environmentQueryAtomFamily(environmentId))
+        return extractAppDeployments(query.data ?? null)
+    }),
+)
+
+/**
+ * All app deployments for an environment resolved by slug.
+ * Useful for the deployments tab where environment is identified by slug.
+ */
+export const environmentAppDeploymentsBySlugAtomFamily = atomFamily((slug: string) =>
+    atom<AppDeploymentInfo[]>((get) => {
+        if (!slug) return []
+        const env = get(environmentBySlugAtomFamily(slug))
+        return extractAppDeployments(env)
+    }),
+)
+
+/**
+ * Get deployment info for a specific app within an environment (by slug).
+ * Returns null if the app is not deployed in this environment.
+ *
+ * Key format: `${slug}:${appId}`
+ */
+export const appDeploymentInEnvironmentAtomFamily = atomFamily((key: string) =>
+    atom<AppDeploymentInfo | null>((get) => {
+        const [slug, appId] = key.split(":")
+        if (!slug || !appId) return null
+        const deployments = get(environmentAppDeploymentsBySlugAtomFamily(slug))
+        return (
+            deployments.find((d) => d.application?.id === appId || d.appKey.startsWith(appId)) ??
+            null
+        )
+    }),
+)
+
+// ============================================================================
 // CACHE INVALIDATION
 // ============================================================================
 

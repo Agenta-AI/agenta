@@ -1,8 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {uuidToSpanId} from "@agenta/shared/utils"
 import deepEqual from "fast-deep-equal"
-
-import {uuidToSpanId} from "@/oss/lib/traces/helpers"
 
 import type {
     AnnotationDto,

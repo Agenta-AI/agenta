@@ -139,5 +139,5 @@ def test_parse_span_from_request_falls_back_for_invalid_trace_and_span_type_valu
     parsed_spans = _parse_span_from_request(raw_span)
 
     assert parsed_spans is not None
-    assert parsed_spans[0].trace_type == TraceType.INVOCATION
+    assert parsed_spans[0].trace_type == TraceType.UNKNOWN
     assert parsed_spans[0].span_type == SpanType.TASK

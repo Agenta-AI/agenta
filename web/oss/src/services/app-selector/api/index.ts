@@ -1,5 +1,10 @@
-import {fetchRevisionSchema} from "@agenta/entities/legacyAppRevision"
-import {extractVariablesFromConfig} from "@agenta/entities/runnable"
+import {
+    createAppFromTemplate,
+    AppServiceType,
+    type CreateAppFromTemplateResult,
+    seedCreatedWorkflowCache,
+} from "@agenta/entities/workflow"
+import {getDefaultStore} from "jotai"
 import Router from "next/router"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
@@ -7,7 +12,7 @@ import {fetchJson} from "@/oss/lib/api/assets/fetchClient"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
-import {AppTemplate} from "@/oss/lib/Types"
+import {recentAppIdAtom} from "@/oss/state/app"
 import {getOrgValues} from "@/oss/state/org"
 import {getProjectValues} from "@/oss/state/project"
 import {waitForValidURL} from "@/oss/state/url"
@@ -35,101 +40,10 @@ export async function deleteApp(appId: string) {
 }
 
 /**
- * New function to create an app according to
- * backend changes which can be checked at
- * agenta-backend/tests/variants-from-service-url.http
- * agenta-backend/tests/variants-from-template-key.http
- * @returns
+ * Re-export AppServiceType as ServiceType for backward compatibility.
+ * New code should import AppServiceType from @agenta/entities/workflow.
  */
-export enum ServiceType {
-    Completion = "SERVICE:completion",
-    Chat = "SERVICE:chat",
-    Custom = "CUSTOM",
-}
-export const createApp = async ({
-    templateKey,
-    appName,
-    folderId,
-}: {
-    appName: string
-    templateKey: ServiceType
-    folderId?: string | null
-}) => {
-    const {selectedOrg} = getOrgValues()
-    const {projectId} = getProjectValues()
-    const url = new URL(`${getAgentaApiUrl()}/apps?project_id=${projectId}`)
-    const payload: Record<string, unknown> = {
-        app_name: appName,
-        template_key: templateKey,
-        organization_id: selectedOrg?.id,
-        workspace_id: selectedOrg?.default_workspace.id,
-    }
-    if (folderId !== undefined) payload.folder_id = folderId
-
-    const response = await fetchJson(url, {
-        method: "POST",
-        body: JSON.stringify(payload),
-    })
-    return response
-}
-
-export const createVariant = async ({
-    appId,
-    variantName = "default",
-    baseName = "app",
-    templateKey,
-    serviceUrl,
-    isCustomWorkflow = false,
-}: {
-    appId: string
-    variantName?: string
-    baseName?: string
-    templateKey?: ServiceType
-    serviceUrl?: string
-    isCustomWorkflow?: boolean
-}) => {
-    interface CreateVariantRequestBody {
-        config_name: string
-        variant_name: string
-        base_name: string
-        key?: ServiceType
-        url?: string
-    }
-    /**
-     * this functions utilizes either serviceUrl or templateKey
-     */
-    // check for correct usage of serviceUrl and templateKey
-    if (serviceUrl && templateKey) {
-        throw new Error("Either serviceUrl or templateKey should be provided")
-    } else if (!serviceUrl && !templateKey) {
-        throw new Error("Either serviceUrl or templateKey should be provided")
-    }
-
-    const {projectId} = getProjectValues()
-
-    const endpoint = `${getAgentaApiUrl()}/apps/${appId}/variant/${
-        serviceUrl ? "from-service" : "from-template"
-    }?project_id=${projectId}`
-
-    const body: CreateVariantRequestBody = {
-        variant_name: variantName,
-        base_name: baseName,
-    } as CreateVariantRequestBody
-
-    if (isCustomWorkflow) {
-        body.config_name = variantName
-        body.url = serviceUrl
-    } else if (serviceUrl) {
-        body.config_name = "url"
-        body.url = serviceUrl
-    } else if (templateKey) {
-        body.config_name = variantName
-        body.key = templateKey
-    }
-
-    const response = await axios.post(endpoint, body)
-    return response.data
-}
+export {AppServiceType as ServiceType}
 
 export const updateVariant = async (
     {serviceUrl, variantId}: {serviceUrl: string; variantId: string},
@@ -148,23 +62,12 @@ export const updateVariant = async (
     return response.data
 }
 
-export const createAppFromTemplate = async (templateObj: AppTemplate, ignoreAxiosError = false) => {
-    const {projectId} = getProjectValues()
-
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/apps/app_and_variant_from_template?project_id=${projectId}`,
-        templateObj,
-        {_ignoreError: ignoreAxiosError} as any,
-    )
-    return response
-}
-
 export const updateAppName = async (appId: string, appName: string, ignoreAxiosError = false) => {
     const {projectId} = getProjectValues()
 
-    const response = await axios.patch(
-        `${getAgentaApiUrl()}/apps/${appId}?project_id=${projectId}`,
-        {app_name: appName},
+    const response = await axios.put(
+        `${getAgentaApiUrl()}/preview/workflows/${appId}?project_id=${projectId}`,
+        {workflow: {id: appId, name: appName, flags: {is_application: true}}},
         {_ignoreError: ignoreAxiosError} as any,
     )
 
@@ -178,142 +81,34 @@ export const updateAppFolder = async (
 ) => {
     const {projectId} = getProjectValues()
 
-    const response = await axios.patch(
-        `${getAgentaApiUrl()}/apps/${appId}?project_id=${projectId}`,
-        {id: appId, folder_id: folderId},
+    const response = await axios.put(
+        `${getAgentaApiUrl()}/preview/workflows/${appId}?project_id=${projectId}`,
+        {workflow: {id: appId, folder_id: folderId, flags: {is_application: true}}},
         {_ignoreError: ignoreAxiosError} as any,
     )
 
     return response.data
 }
 
-/**
- * Extract default parameters from a dereferenced OpenAPI spec's ag_config schema.
- * Tries endpoints in priority order and returns the first set of defaults found.
- */
-function extractDefaultParameters(
-    spec: Record<string, unknown>,
-    routePath?: string,
-): Record<string, unknown> {
-    const paths = spec?.paths as Record<string, unknown> | undefined
-    if (!paths) return {}
-
-    const endpointNames = ["/test", "/run", "/generate", "/generate_deployed", "/"]
-
-    for (const endpoint of endpointNames) {
-        const endpointName = endpoint.startsWith("/") ? endpoint.slice(1) : endpoint
-        const withRoute = routePath ? `/${routePath.replace(/^\/|\/$/g, "")}/${endpointName}` : null
-        const withoutRoute = `/${endpointName}`
-
-        // Try with routePath first, then without (spec may omit the prefix)
-        const fullPath =
-            (withRoute && paths[withRoute] ? withRoute : null) ||
-            (paths[withoutRoute] ? withoutRoute : null)
-
-        if (!fullPath) continue
-
-        const pathObj = paths[fullPath] as Record<string, unknown>
-        const postOp = pathObj?.post as Record<string, unknown> | undefined
-        const requestBody = postOp?.requestBody as Record<string, unknown> | undefined
-        const content = requestBody?.content as Record<string, unknown> | undefined
-        const jsonContent = content?.["application/json"] as Record<string, unknown> | undefined
-        const schema = jsonContent?.schema as Record<string, unknown> | undefined
-        const properties = schema?.properties as Record<string, unknown> | undefined
-        const agConfig = properties?.ag_config as Record<string, unknown> | undefined
-
-        if (!agConfig) continue
-
-        // Prefer top-level default (Pydantic BaseModel emits this)
-        if (agConfig.default && typeof agConfig.default === "object") {
-            return agConfig.default as Record<string, unknown>
-        }
-
-        // Fallback: collect individual property defaults
-        const agProps = agConfig.properties as Record<string, Record<string, unknown>> | undefined
-        if (!agProps) {
-            // Check for allOf wrapping (Pydantic v2 pattern)
-            const allOf = agConfig.allOf as Record<string, unknown>[] | undefined
-            if (allOf) {
-                for (const branch of allOf) {
-                    const branchProps = branch?.properties as
-                        | Record<string, Record<string, unknown>>
-                        | undefined
-                    if (branchProps) {
-                        const defaults: Record<string, unknown> = {}
-                        for (const [key, prop] of Object.entries(branchProps)) {
-                            if (prop?.default !== undefined) {
-                                defaults[key] = prop.default
-                            }
-                        }
-                        if (Object.keys(defaults).length > 0) return defaults
-                    }
-                }
-            }
-            continue
-        }
-
-        const defaults: Record<string, unknown> = {}
-        for (const [key, prop] of Object.entries(agProps)) {
-            if (prop?.default !== undefined) {
-                defaults[key] = prop.default
-            }
-        }
-        if (Object.keys(defaults).length > 0) return defaults
-    }
-
-    return {}
-}
+export type AppCreationStatusType =
+    | "creating_app"
+    | "configuring_app"
+    | "success"
+    | "bad_request"
+    | "timeout"
+    | "error"
 
 /**
- * Clean up raw Pydantic defaults extracted from the OpenAPI schema.
+ * Create a workflow app from a template and navigate to the playground.
  *
- * The `PromptTemplate` Pydantic model includes legacy fields (`system_prompt`,
- * `user_prompt`) and optional fields (`tools`) that may be absent from the
- * serialized default but are expected in the commit payload.
- *
- * This function:
- *  1. Removes `system_prompt` and `user_prompt` from each prompt config
- *  2. Ensures `llm_config.tools` is `[]` when absent/null
- *  3. Extracts `input_keys` from message templates and adds them
+ * This is the OSS orchestration wrapper around the entity-layer
+ * `createAppFromTemplate`. It handles:
+ * - Resolving project/org context
+ * - Emitting status callbacks for the progress modal
+ * - Navigating to the playground on success
+ * - Classifying errors for the UI
  */
-function cleanupDefaultParameters(params: Record<string, unknown>): Record<string, unknown> {
-    const cleaned = {...params}
-
-    for (const [key, value] of Object.entries(cleaned)) {
-        if (!value || typeof value !== "object" || Array.isArray(value)) continue
-        const config = value as Record<string, unknown>
-
-        // Check if this looks like a prompt config (has messages or llm_config)
-        const hasMessages = Array.isArray(config.messages)
-        const hasLlmConfig = config.llm_config && typeof config.llm_config === "object"
-
-        if (!hasMessages && !hasLlmConfig) continue
-
-        // 1. Remove legacy fields
-        delete config.system_prompt
-        delete config.user_prompt
-
-        // 2. Ensure llm_config.tools is an empty array when absent/null
-        if (hasLlmConfig) {
-            const llmConfig = config.llm_config as Record<string, unknown>
-            if (!Array.isArray(llmConfig.tools)) {
-                llmConfig.tools = []
-            }
-        }
-
-        // 3. Extract input_keys from message templates
-        if (hasMessages && !config.input_keys) {
-            const variables = extractVariablesFromConfig({[key]: config})
-            if (variables.length > 0) {
-                config.input_keys = variables
-            }
-        }
-    }
-
-    return cleaned
-}
-
-export const createAndStartTemplate = async ({
+export const createAppWithTemplate = async ({
     appName,
     providerKey: _providerKey,
     templateKey,
@@ -323,90 +118,62 @@ export const createAndStartTemplate = async ({
     onStatusChange,
 }: {
     appName: string
-    templateKey: ServiceType
+    templateKey: string
     serviceUrl?: string
     providerKey: LlmProvider[]
     folderId?: string | null
     isCustomWorkflow?: boolean
-    onStatusChange?: (
-        status: "creating_app" | "starting_app" | "success" | "bad_request" | "timeout" | "error",
-        details?: any,
-        appId?: string,
-    ) => void
+    onStatusChange?: (status: AppCreationStatusType, details?: any, appId?: string) => void
 }) => {
+    let result: CreateAppFromTemplateResult | undefined
+
     try {
+        const store = getDefaultStore()
+        const {projectId} = getProjectValues()
+        const {selectedOrg} = getOrgValues()
+
         onStatusChange?.("creating_app")
 
-        const app = await createApp({
+        result = await createAppFromTemplate({
+            projectId,
+            organizationId: selectedOrg?.id,
+            workspaceId: selectedOrg?.default_workspace.id,
             appName,
             templateKey,
+            serviceUrl,
             folderId,
+            isCustomWorkflow,
+            onConfiguring: () => onStatusChange?.("configuring_app"),
         })
 
-        onStatusChange?.("starting_app")
-
-        const variant = await (async () => {
-            if (templateKey === ServiceType.Custom && serviceUrl) {
-                return createVariant({
-                    appId: app.app_id,
-                    serviceUrl,
-                    isCustomWorkflow,
-                })
-            }
-            return createVariant({
-                appId: app.app_id,
-                templateKey,
+        if (result.workflow && result.appId) {
+            seedCreatedWorkflowCache({
+                appId: result.appId,
+                revision: result.workflow,
             })
-        })()
-
-        // Auto-commit v1 with schema-derived default parameters
-        const {projectId} = getProjectValues()
-        let revisionId: string | undefined
-
-        const uri = variant?.uri as string | undefined
-        const variantId = variant?.variant_id as string | undefined
-
-        if (uri && variantId && projectId) {
-            try {
-                const schemaResult = await fetchRevisionSchema(uri, projectId)
-
-                const rawParams = schemaResult?.schema
-                    ? extractDefaultParameters(
-                          schemaResult.schema as Record<string, unknown>,
-                          schemaResult.routePath,
-                      )
-                    : {}
-
-                const defaultParams = cleanupDefaultParameters(rawParams)
-
-                const commitResponse = await axios.put(
-                    `${getAgentaApiUrl()}/variants/${variantId}/parameters`,
-                    {
-                        parameters: defaultParams,
-                        commit_message: "Initial commit with default parameters",
-                    },
-                    {params: {project_id: projectId}},
-                )
-
-                revisionId = commitResponse.data?.id
-            } catch (schemaError) {
-                console.warn("[createAndStartTemplate] Failed to auto-commit v1:", schemaError)
-            }
         }
 
-        onStatusChange?.("success", undefined, app.app_id)
+        if (result.appId) {
+            store.set(recentAppIdAtom, result.appId)
+        }
 
-        const baseAppURL = (await waitForValidURL({requireApp: true}))?.baseAppURL
+        await Promise.resolve(onStatusChange?.("success", undefined, result.appId)).catch(
+            (error) => {
+                console.error("App creation success callback failed:", error)
+            },
+        )
 
-        if (app?.app_id) {
+        const baseAppURL = (await waitForValidURL({requireProject: true}))?.baseAppURL
+
+        if (result.appId) {
             const query: Record<string, string> = {}
-            if (revisionId) {
-                const revisionsParam = buildRevisionsQueryParam([revisionId])
+            if (result.revisionId) {
+                const revisionsParam = buildRevisionsQueryParam([result.revisionId])
                 if (revisionsParam) query.revisions = revisionsParam
             }
 
             await Router.push({
-                pathname: `${baseAppURL}/${app.app_id}/playground`,
+                pathname: `${baseAppURL}/${result.appId}/playground`,
                 query,
             })
         }

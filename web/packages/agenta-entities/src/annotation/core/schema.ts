@@ -2,7 +2,8 @@
  * Annotation Entity Schemas
  *
  * Zod schemas for validation and type safety of Annotation entities.
- * Maps to the backend Annotation DTO at `POST /preview/annotations/`.
+ * The entity shape maps to the backend simple trace payload used to persist
+ * annotations via `POST /preview/simple/traces/`.
  *
  * Annotations are keyed by a composite `{trace_id, span_id}` pair.
  * Use `encodeAnnotationId` / `decodeAnnotationId` to convert between
@@ -148,8 +149,7 @@ export type Annotation = z.infer<typeof annotationSchema>
 // ============================================================================
 
 /**
- * Single annotation response.
- * Matches backend `AnnotationResponse`.
+ * Single annotation response envelope used by the annotation client abstraction.
  */
 export const annotationResponseSchema = z.object({
     count: z.number().optional().default(0),
@@ -158,8 +158,7 @@ export const annotationResponseSchema = z.object({
 export type AnnotationResponse = z.infer<typeof annotationResponseSchema>
 
 /**
- * Multiple annotations response.
- * Matches backend `AnnotationsResponse`.
+ * Multiple annotations response envelope used by the annotation client abstraction.
  */
 export const annotationsResponseSchema = z.object({
     count: z.number().optional().default(0),

@@ -1,29 +1,35 @@
 /**
  * Annotation API Functions
  *
- * HTTP API functions for Annotation entities.
+ * HTTP API functions for Annotation entities backed by `simple/traces`.
  * These are pure functions with no Jotai dependencies.
  *
- * Base endpoint: `/preview/annotations/`
+ * Base endpoint: `/preview/simple/traces/`
  *
  * @packageDocumentation
  */
 
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
+import {z} from "zod"
 
 import {safeParseWithLogging} from "../../shared"
-import {
-    annotationResponseSchema,
-    annotationsResponseSchema,
-    type Annotation,
-    type AnnotationsResponse,
-} from "../core"
+import {annotationSchema, type Annotation, type AnnotationsResponse} from "../core"
 import type {
     AnnotationDetailParams,
     AnnotationQueryParams,
     CreateAnnotationPayload,
     UpdateAnnotationPayload,
 } from "../core"
+
+const simpleTraceResponseSchema = z.object({
+    count: z.number().optional().default(0),
+    trace: annotationSchema.nullable().optional(),
+})
+
+const simpleTracesResponseSchema = z.object({
+    count: z.number().optional().default(0),
+    traces: z.array(annotationSchema).default([]),
+})
 
 // ============================================================================
 // CREATE
@@ -32,7 +38,7 @@ import type {
 /**
  * Create a new annotation.
  *
- * Endpoint: `POST /preview/annotations/`
+ * Endpoint: `POST /preview/simple/traces/`
  */
 export async function createAnnotation(
     projectId: string,
@@ -41,17 +47,17 @@ export async function createAnnotation(
     if (!projectId) return null
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/annotations/`,
-        {annotation: payload},
+        `${getAgentaApiUrl()}/preview/simple/traces/`,
+        {trace: payload},
         {params: {project_id: projectId}},
     )
 
     const validated = safeParseWithLogging(
-        annotationResponseSchema,
+        simpleTraceResponseSchema,
         response.data,
         "[createAnnotation]",
     )
-    return validated?.annotation ?? null
+    return validated?.trace ?? null
 }
 
 // ============================================================================
@@ -61,10 +67,8 @@ export async function createAnnotation(
 /**
  * Fetch all annotations for a specific trace/span pair.
  *
- * Uses `POST /preview/annotations/query` instead of the GET endpoint
- * because the GET returns a single `AnnotationResponse` (singular),
- * while multiple annotations can exist per trace/span (one per evaluator).
- * The query endpoint returns `AnnotationsResponse` (plural).
+ * Uses `POST /preview/simple/traces/query` because multiple annotation traces
+ * can exist per invocation trace/span pair.
  */
 export async function fetchAnnotation({
     projectId,
@@ -93,7 +97,7 @@ export async function fetchAnnotation({
 /**
  * Update an existing annotation.
  *
- * Endpoint: `PATCH /preview/annotations/{traceId}/{spanId}`
+ * Endpoint: `PATCH /preview/simple/traces/{traceId}/{spanId}`
  */
 export async function updateAnnotation(
     projectId: string,
@@ -104,17 +108,21 @@ export async function updateAnnotation(
     if (!projectId || !traceId) return null
 
     const path = spanId
-        ? `${getAgentaApiUrl()}/preview/annotations/${traceId}/${spanId}`
-        : `${getAgentaApiUrl()}/preview/annotations/${traceId}`
+        ? `${getAgentaApiUrl()}/preview/simple/traces/${traceId}/${spanId}`
+        : `${getAgentaApiUrl()}/preview/simple/traces/${traceId}`
 
-    const response = await axios.patch(path, payload, {params: {project_id: projectId}})
+    const response = await axios.patch(
+        path,
+        {trace: payload.annotation},
+        {params: {project_id: projectId}},
+    )
 
     const validated = safeParseWithLogging(
-        annotationResponseSchema,
+        simpleTraceResponseSchema,
         response.data,
         "[updateAnnotation]",
     )
-    return validated?.annotation ?? null
+    return validated?.trace ?? null
 }
 
 // ============================================================================
@@ -124,7 +132,7 @@ export async function updateAnnotation(
 /**
  * Delete an annotation.
  *
- * Endpoint: `DELETE /preview/annotations/{traceId}/{spanId}`
+ * Endpoint: `DELETE /preview/simple/traces/{traceId}/{spanId}`
  */
 export async function deleteAnnotation(
     projectId: string,
@@ -134,8 +142,8 @@ export async function deleteAnnotation(
     if (!projectId || !traceId) return
 
     const path = spanId
-        ? `${getAgentaApiUrl()}/preview/annotations/${traceId}/${spanId}`
-        : `${getAgentaApiUrl()}/preview/annotations/${traceId}`
+        ? `${getAgentaApiUrl()}/preview/simple/traces/${traceId}/${spanId}`
+        : `${getAgentaApiUrl()}/preview/simple/traces/${traceId}`
 
     await axios.delete(path, {
         params: {project_id: projectId},
@@ -149,9 +157,10 @@ export async function deleteAnnotation(
 /**
  * Query annotations by trace/span links or annotation filters.
  *
- * Endpoint: `POST /preview/annotations/query`
+ * Endpoint: `POST /preview/simple/traces/query`
  *
- * This is the primary batch fetching endpoint. Callers can either:
+ * This wrapper keeps annotation-oriented naming for callers while translating
+ * request/response envelopes to the backend `simple/traces` contract. Callers can:
  * - pass `annotationLinks` with `{trace_id, span_id}` pairs, or
  * - pass an `annotation` filter object, such as `references.testcase.id`
  */
@@ -170,25 +179,28 @@ export async function queryAnnotations({
 
     const body: Record<string, unknown> = {}
     if (hasLinks) {
-        body.annotation_links = annotationLinks
+        body.links = annotationLinks
     }
     if (annotation) {
-        body.annotation = annotation
+        body.trace = annotation
     }
     if (windowing) {
         body.windowing = windowing
     }
 
-    const response = await axios.post(`${getAgentaApiUrl()}/preview/annotations/query`, body, {
+    const response = await axios.post(`${getAgentaApiUrl()}/preview/simple/traces/query`, body, {
         params: {project_id: projectId},
     })
 
     const validated = safeParseWithLogging(
-        annotationsResponseSchema,
+        simpleTracesResponseSchema,
         response.data,
         "[queryAnnotations]",
     )
-    return validated ?? {count: 0, annotations: []}
+    return {
+        count: validated?.count ?? 0,
+        annotations: validated?.traces ?? [],
+    }
 }
 
 export async function queryAnnotationsByInvocationLink({

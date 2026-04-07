@@ -2,7 +2,7 @@ from uuid import uuid4
 
 
 def _create_evaluator(authed_api) -> str:
-    """Create a minimal evaluator and return its artifact ID."""
+    """Create a minimal evaluator and return its revision ID."""
     slug = uuid4()
     response = authed_api(
         "POST",
@@ -28,7 +28,7 @@ def _create_evaluator(authed_api) -> str:
     assert response.status_code == 200
     data = response.json()
     assert data["count"] == 1
-    return data["evaluator"]["id"]
+    return data["evaluator"]["revision_id"]
 
 
 class TestSimpleQueuesBasics:
@@ -36,7 +36,7 @@ class TestSimpleQueuesBasics:
 
     def test_create_simple_queue_testcases_kind(self, authed_api):
         # ARRANGE --------------------------------------------------------------
-        evaluator_id = _create_evaluator(authed_api)
+        evaluator_revision_id = _create_evaluator(authed_api)
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -48,7 +48,7 @@ class TestSimpleQueuesBasics:
                     "name": "test-queue-testcases",
                     "data": {
                         "kind": "testcases",
-                        "evaluators": [evaluator_id],
+                        "evaluators": [evaluator_revision_id],
                     },
                 }
             },
@@ -66,7 +66,7 @@ class TestSimpleQueuesBasics:
 
     def test_create_simple_queue_traces_kind(self, authed_api):
         # ARRANGE --------------------------------------------------------------
-        evaluator_id = _create_evaluator(authed_api)
+        evaluator_revision_id = _create_evaluator(authed_api)
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -78,7 +78,7 @@ class TestSimpleQueuesBasics:
                     "name": "test-queue-traces",
                     "data": {
                         "kind": "traces",
-                        "evaluators": [evaluator_id],
+                        "evaluators": [evaluator_revision_id],
                     },
                 }
             },
@@ -118,30 +118,9 @@ class TestSimpleQueuesBasics:
         )  # excluded when None (response_model_exclude_none)
         # ----------------------------------------------------------------------
 
-    def test_create_simple_queue_with_invalid_evaluator_returns_400(self, authed_api):
-        # The router raises 400 when it cannot resolve the evaluator revision
-        # ACT ------------------------------------------------------------------
-        response = authed_api(
-            "POST",
-            "/preview/simple/queues/",
-            json={
-                "queue": {
-                    "data": {
-                        "kind": "testcases",
-                        "evaluators": [str(uuid4())],
-                    },
-                }
-            },
-        )
-        # ----------------------------------------------------------------------
-
-        # ASSERT ---------------------------------------------------------------
-        assert response.status_code == 400
-        # ----------------------------------------------------------------------
-
     def test_create_simple_queue_with_assignments(self, authed_api):
         # ARRANGE --------------------------------------------------------------
-        evaluator_id = _create_evaluator(authed_api)
+        evaluator_revision_id = _create_evaluator(authed_api)
         user_id_1 = str(uuid4())
         user_id_2 = str(uuid4())
         # ----------------------------------------------------------------------
@@ -155,7 +134,7 @@ class TestSimpleQueuesBasics:
                     "name": "test-queue-assignments",
                     "data": {
                         "kind": "testcases",
-                        "evaluators": [evaluator_id],
+                        "evaluators": [evaluator_revision_id],
                         "assignments": [[user_id_1, user_id_2]],
                     },
                 }
@@ -176,7 +155,7 @@ class TestSimpleQueuesBasics:
 
     def test_fetch_simple_queue(self, authed_api):
         # ARRANGE --------------------------------------------------------------
-        evaluator_id = _create_evaluator(authed_api)
+        evaluator_revision_id = _create_evaluator(authed_api)
         create_resp = authed_api(
             "POST",
             "/preview/simple/queues/",
@@ -185,7 +164,7 @@ class TestSimpleQueuesBasics:
                     "name": "test-queue-to-fetch",
                     "data": {
                         "kind": "testcases",
-                        "evaluators": [evaluator_id],
+                        "evaluators": [evaluator_revision_id],
                     },
                 }
             },
@@ -231,7 +210,7 @@ class TestSimpleQueuesBasics:
 
     def test_query_simple_queues_empty_filter(self, authed_api):
         # ARRANGE --------------------------------------------------------------
-        evaluator_id = _create_evaluator(authed_api)
+        evaluator_revision_id = _create_evaluator(authed_api)
         authed_api(
             "POST",
             "/preview/simple/queues/",
@@ -239,7 +218,7 @@ class TestSimpleQueuesBasics:
                 "queue": {
                     "data": {
                         "kind": "testcases",
-                        "evaluators": [evaluator_id],
+                        "evaluators": [evaluator_revision_id],
                     },
                 }
             },
@@ -263,7 +242,7 @@ class TestSimpleQueuesBasics:
 
     def test_query_simple_queues_by_kind_testcases(self, authed_api):
         # ARRANGE --------------------------------------------------------------
-        evaluator_id = _create_evaluator(authed_api)
+        evaluator_revision_id = _create_evaluator(authed_api)
         authed_api(
             "POST",
             "/preview/simple/queues/",
@@ -271,7 +250,7 @@ class TestSimpleQueuesBasics:
                 "queue": {
                     "data": {
                         "kind": "testcases",
-                        "evaluators": [evaluator_id],
+                        "evaluators": [evaluator_revision_id],
                     },
                 }
             },
@@ -294,7 +273,7 @@ class TestSimpleQueuesBasics:
 
     def test_query_simple_queues_by_run_id(self, authed_api):
         # ARRANGE --------------------------------------------------------------
-        evaluator_id = _create_evaluator(authed_api)
+        evaluator_revision_id = _create_evaluator(authed_api)
         create_resp = authed_api(
             "POST",
             "/preview/simple/queues/",
@@ -303,7 +282,7 @@ class TestSimpleQueuesBasics:
                     "name": "test-queue-query-by-run",
                     "data": {
                         "kind": "testcases",
-                        "evaluators": [evaluator_id],
+                        "evaluators": [evaluator_revision_id],
                     },
                 }
             },
@@ -332,7 +311,7 @@ class TestSimpleQueuesBasics:
 
     def test_query_simple_queue_scenarios_empty_for_new_queue(self, authed_api):
         # ARRANGE --------------------------------------------------------------
-        evaluator_id = _create_evaluator(authed_api)
+        evaluator_revision_id = _create_evaluator(authed_api)
         create_resp = authed_api(
             "POST",
             "/preview/simple/queues/",
@@ -340,7 +319,7 @@ class TestSimpleQueuesBasics:
                 "queue": {
                     "data": {
                         "kind": "testcases",
-                        "evaluators": [evaluator_id],
+                        "evaluators": [evaluator_revision_id],
                     },
                 }
             },

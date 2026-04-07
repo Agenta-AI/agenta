@@ -1,3 +1,9 @@
+import {
+    isSpansResponse,
+    isTracesResponse,
+    transformTracesResponseToTree,
+    transformTracingResponse,
+} from "@agenta/entities/trace"
 import Papa from "papaparse"
 
 import {
@@ -5,12 +11,6 @@ import {
     parseReferenceKey,
 } from "@/oss/components/pages/observability/assets/filters/referenceUtils"
 import {fetchAllPreviewTraces} from "@/oss/services/tracing/api"
-import {
-    isSpansResponse,
-    isTracesResponse,
-    transformTracesResponseToTree,
-    transformTracingResponse,
-} from "@/oss/services/tracing/lib/helpers"
 import {TraceSpan, TraceSpanNode} from "@/oss/services/tracing/types"
 
 export interface Condition {

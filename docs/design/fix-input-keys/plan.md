@@ -59,7 +59,7 @@ That means the sync applies to completion/chat prompt workflows only.
 
 ### Legacy path
 
-Unless we confirm this customer flow still uses `legacyAppRevision` in production, I would not include legacy-specific changes in this fix.
+Since `legacyAppRevision` has been fully removed and replaced by `workflow`, legacy-specific changes are not applicable.
 
 The repository still contains active legacy branches, but the safer scope for this bug is the workflow/new-entities path first.
 

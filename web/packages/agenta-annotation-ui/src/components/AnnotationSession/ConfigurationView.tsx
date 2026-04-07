@@ -11,8 +11,8 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 import type {KeyboardEvent, PropsWithChildren} from "react"
 
 import {annotationSessionController} from "@agenta/annotation"
-import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {EntityDeleteModal} from "@agenta/entity-ui"
 import {Editor} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
@@ -293,22 +293,21 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
     const [collapsed, setCollapsed] = useState(false)
     const [view, setView] = useState<"details" | "json">("details")
 
-    const query = useAtomValue(evaluatorMolecule.selectors.query(evaluatorId))
-    const evaluator = useAtomValue(evaluatorMolecule.selectors.data(evaluatorId))
+    const query = useAtomValue(workflowMolecule.selectors.query(evaluatorId))
+    const evaluator = useAtomValue(workflowMolecule.selectors.data(evaluatorId))
 
     const displayName = evaluator?.name || evaluator?.slug || evaluatorId.slice(0, 8)
-    const isHuman = evaluator?.flags?.is_human ?? false
+    const isHuman = evaluator?.flags?.is_feedback ?? false
     const isCustom = evaluator?.flags?.is_custom ?? false
     const version = evaluator?.version
     const description = evaluator?.description
     const uri = evaluator?.data?.uri
     const typeLabel = deriveTypeLabel(uri)
-    const workflowId = evaluator?.workflow_id ?? evaluatorId
 
     const evaluatorHref = useMemo(() => {
         const base = getProjectBaseUrl()
-        return base ? `${base}/evaluators/configure/${workflowId}` : undefined
-    }, [workflowId])
+        return base ? `${base}/evaluators/playground?revisions=${evaluatorId}` : undefined
+    }, [evaluatorId])
 
     const paramEntries = useMemo(
         () => extractParameters(evaluator?.data as Record<string, unknown> | null),

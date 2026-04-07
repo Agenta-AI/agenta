@@ -16,7 +16,11 @@ export {
 export * from "./columns/types"
 export {default as useInfiniteTablePagination} from "./hooks/useInfiniteTablePagination"
 export {useTableManager, shouldIgnoreRowClick} from "./hooks/useTableManager"
-export type {UseTableManagerConfig, UseTableManagerReturn} from "./hooks/useTableManager"
+export type {
+    UseTableManagerConfig,
+    UseTableManagerReturn,
+    TableSearchConfig,
+} from "./hooks/useTableManager"
 export {useTableActions} from "./hooks/useTableActions"
 export type {TableActionsConfig, TableActionsReturn} from "./hooks/useTableActions"
 export {
@@ -26,6 +30,7 @@ export {
     createUserColumn,
     createActionsColumn,
     configureUserReference,
+    formatDateCell,
 } from "./columns/createStandardColumns"
 export type {
     StandardColumnDef,
@@ -104,6 +109,9 @@ export type {RowHeightContextValue} from "./context/RowHeightContext"
 export * from "./types"
 export type {VisibilityRegistrationHandler} from "./components/ColumnVisibilityHeader"
 
+// Shared hooks for cell renderers
+export {useDefaultStoreAtomValue} from "../hooks/useDefaultStoreAtomValue"
+
 // Additional exports
 export {default as SkeletonLine} from "./components/common/SkeletonLine"
 export {ResizableTitle, SkeletonCell} from "./components/common/ResizableTitle"
@@ -155,3 +163,15 @@ export type {
     UseEntityTableStateOptions,
     UseEntityTableStateResult,
 } from "./hooks/useEntityTableState"
+
+// ============================================================================
+// GROUPED TREE DATA
+// ============================================================================
+
+export {useGroupedTreeData} from "./hooks/useGroupedTreeData"
+export type {
+    GroupableRow,
+    GroupedTreeDataConfig,
+    GroupExpandState,
+    GroupedTreeDataResult,
+} from "./hooks/useGroupedTreeData"
