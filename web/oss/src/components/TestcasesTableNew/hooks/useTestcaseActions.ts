@@ -13,7 +13,6 @@ import {
     revision,
     invalidateTestsetCache,
     invalidateTestsetsListCache,
-    invalidateRevisionsListCache,
 } from "@/oss/state/entities/testset"
 
 import AlertPopup from "../../AlertPopup/AlertPopup"
@@ -30,6 +29,7 @@ export interface UseTestcaseActionsConfig {
     mode: "edit" | "view"
     metadata: TestsetMetadata | null
     availableRevisions: RevisionListItem[]
+    onRequestDeleteRevision: () => void
     onOpenCommitModal: () => void
     onOpenRenameModal: () => void
     onOpenAddColumnModal: () => void
@@ -88,6 +88,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         mode,
         metadata,
         availableRevisions,
+        onRequestDeleteRevision,
         onOpenCommitModal,
         onOpenRenameModal: _onOpenRenameModal,
         onSetEditingTestcaseId,
@@ -345,45 +346,8 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
             return
         }
 
-        AlertPopup({
-            title: "Delete Revision",
-            message: `Are you sure you want to delete revision v${metadata?.revisionVersion}? This action cannot be undone.`,
-            okText: "Delete",
-            okButtonProps: {danger: true},
-            onOk: async () => {
-                try {
-                    const {archiveTestsetRevision} = await import("@/oss/services/testsets/api")
-                    await archiveTestsetRevision(revisionIdParam as string)
-                    message.success("Revision deleted successfully")
-
-                    // Invalidate caches so revisions list and testset data are refreshed
-                    if (metadata?.testsetId) {
-                        invalidateRevisionsListCache(metadata.testsetId)
-                        invalidateTestsetCache(metadata.testsetId)
-                    }
-                    invalidateTestsetsListCache()
-
-                    // Navigate to the latest revision
-                    const latestRevision = availableRevisions
-                        .filter((r: RevisionListItem) => r.id !== revisionIdParam)
-                        .sort(
-                            (a: RevisionListItem, b: RevisionListItem) => b.version - a.version,
-                        )[0]
-
-                    if (latestRevision) {
-                        router.push(`${projectURL}/testsets/${latestRevision.id}`, undefined, {
-                            shallow: false,
-                        })
-                    } else {
-                        router.push(`${projectURL}/testsets`)
-                    }
-                } catch (error) {
-                    console.error("Failed to delete revision:", error)
-                    message.error("Failed to delete revision")
-                }
-            },
-        })
-    }, [revisionIdParam, metadata, availableRevisions, router, projectURL])
+        onRequestDeleteRevision()
+    }, [revisionIdParam, availableRevisions, onRequestDeleteRevision])
 
     // ========================================================================
     // EXPORT ACTIONS
