@@ -561,7 +561,6 @@ def infer_flags_from_data(
     Schema-derived flags (is_chat) are handled separately by the schema materializer.
 
     Args:
-
         flags: Caller-provided flags from the commit payload. is_evaluator, is_application,
                and is_snippet are taken directly from here when provided (flags is not None).
                All URI/interface flags are always re-inferred from data, ignoring any stored values.
