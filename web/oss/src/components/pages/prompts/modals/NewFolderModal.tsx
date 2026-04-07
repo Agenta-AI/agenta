@@ -43,6 +43,7 @@ const NewFolderModal = ({
             okText={okText}
             okButtonProps={{loading: confirmLoading, disabled: !folderName.trim()}}
             destroyOnHidden
+            centered
         >
             <div className="flex flex-col gap-3">
                 <div className="text-gray-500">Choose a folder name.</div>
