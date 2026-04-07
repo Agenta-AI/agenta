@@ -454,11 +454,14 @@ async function selectMockModel(page: Page): Promise<void> {
     await expect(modelSelect).toBeVisible({timeout: 15000})
     await modelSelect.click()
 
-    const mockProviderGroup = page.getByText("Mock", {exact: true}).first()
-    await expect(mockProviderGroup).toBeVisible({timeout: 15000})
-    await mockProviderGroup.hover()
+    const dropdown = page.locator(".ant-select-dropdown").last()
+    await expect(dropdown).toBeVisible({timeout: 15000})
 
-    const mockModelOption = page.getByText(new RegExp(`(^|/)${MOCK_MODEL_NAME}$`)).last()
+    const searchInput = dropdown.locator("input").first()
+    await expect(searchInput).toBeVisible({timeout: 15000})
+    await searchInput.fill(MOCK_MODEL_NAME)
+
+    const mockModelOption = dropdown.getByText(new RegExp(`(^|/)${MOCK_MODEL_NAME}$`)).last()
     await expect(mockModelOption).toBeVisible({timeout: 15000})
     await mockModelOption.click()
 

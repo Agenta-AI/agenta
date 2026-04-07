@@ -1,6 +1,6 @@
 import {Role} from "./types"
 
-export const COMPLETION_MESSAGES = ["Germany", "France"]
+export const COMPLETION_MESSAGES = ["Germany"]
 
 export const PROMPT_MESSAGES = [
     {prompt: "You are expert in geography", role: Role.SYSTEM},
