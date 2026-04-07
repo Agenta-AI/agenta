@@ -2,9 +2,6 @@ name: agenta-ee-gh-local
 
 services:
     web:
-        # === ACTIVATION =========================================== #
-        profiles:
-            - with-web
         # === IMAGE ================================================ #
         build:
             context: ../../../web
@@ -32,7 +29,7 @@ services:
             dockerfile: ee/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command: >
-            newrelic-admin run-program gunicorn entrypoints.routers:app
+            gunicorn entrypoints.routers:app
             --bind 0.0.0.0:8000
             --worker-class uvicorn.workers.UvicornWorker
             --workers 2
@@ -48,6 +45,7 @@ services:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
             - SCRIPT_NAME=/api
+            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
@@ -85,8 +83,6 @@ services:
         # === EXECUTION ============================================ #
         command:
             [
-                "newrelic-admin",
-                "run-program",
                 "python",
                 "-m",
                 "entrypoints.worker_evaluations",
@@ -94,6 +90,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
@@ -120,8 +118,6 @@ services:
         # === EXECUTION ============================================ #
         command:
             [
-                "newrelic-admin",
-                "run-program",
                 "python",
                 "-m",
                 "entrypoints.worker_tracing",
@@ -129,6 +125,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
@@ -155,8 +153,6 @@ services:
         # === EXECUTION ============================================ #
         command:
             [
-                "newrelic-admin",
-                "run-program",
                 "python",
                 "-m",
                 "entrypoints.worker_webhooks",
@@ -164,6 +160,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
@@ -196,8 +194,6 @@ services:
         # === EXECUTION ============================================ #
         command:
             [
-                "newrelic-admin",
-                "run-program",
                 "python",
                 "-m",
                 "entrypoints.worker_events",
@@ -205,6 +201,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
@@ -240,6 +238,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
@@ -277,7 +277,7 @@ services:
             dockerfile: ee/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         command: >
-            newrelic-admin run-program gunicorn entrypoints.main:app
+            gunicorn entrypoints.main:app
             --bind 0.0.0.0:8080
             --worker-class uvicorn.workers.UvicornWorker
             --workers 2
@@ -293,6 +293,7 @@ services:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
             - SCRIPT_NAME=/services
+            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
@@ -401,7 +402,6 @@ services:
         # === EXECUTION ============================================ #
         command:
             - --api.dashboard=true
-            - --api.insecure=true
             - --providers.docker
             - --entrypoints.web.address=:80
         # === STORAGE ============================================== #
@@ -415,7 +415,6 @@ services:
             - agenta-ee-gh-network
         ports:
             - "${TRAEFIK_PORT:-80}:80"
-            - "${TRAEFIK_UI_PORT:-8080}:8080"
         # === LIFECYCLE ============================================ #
         restart: always
 
@@ -444,27 +443,6 @@ services:
             interval: 10s
             timeout: 5s
             retries: 5
-
-    stripe:
-        # === IMAGE ================================================ #
-        image: stripe/stripe-cli:latest
-        # === EXECUTION ============================================ #
-        command:
-            [
-                listen,
-                --forward-to,
-                http://api:8000/billing/stripe/events/,
-                --events,
-                "customer.subscription.created,customer.subscription.deleted,invoice.updated,invoice.upcoming,invoice.payment_failed,invoice.payment_succeeded",
-            ]
-        # === CONFIGURATION ======================================== #
-        env_file:
-            - ${ENV_FILE:-./.env.ee.gh}
-        # === NETWORK ============================================== #
-        networks:
-            - agenta-ee-gh-network
-        # === LIFECYCLE ============================================ #
-        restart: always
 
 networks:
     agenta-ee-gh-network:

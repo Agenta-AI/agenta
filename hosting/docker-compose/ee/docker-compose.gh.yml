@@ -12,6 +12,9 @@ name: agenta-ee-gh
 services:
     web:
         # === IMAGE ================================================ #
+        build:
+            context: ../../../web
+            dockerfile: ee/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_WEB_IMAGE_NAME:-internal-ee-agenta-web}:${AGENTA_WEB_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: sh -c "node ./ee/server.js"
@@ -31,6 +34,9 @@ services:
 
     api:
         # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-internal-ee-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: >
@@ -82,6 +88,9 @@ services:
 
     worker-evaluations:
         # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-internal-ee-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command:
@@ -115,6 +124,9 @@ services:
 
     worker-tracing:
         # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-internal-ee-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command:
@@ -148,6 +160,9 @@ services:
 
     worker-webhooks:
         # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-internal-ee-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command:
@@ -187,6 +202,9 @@ services:
 
     worker-events:
         # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-internal-ee-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command:
@@ -226,6 +244,9 @@ services:
 
     cron:
         # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-internal-ee-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         init: true
@@ -249,6 +270,9 @@ services:
 
     alembic:
         # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-internal-ee-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: sh -c "python -m ee.databases.postgres.migrations.runner"
@@ -265,6 +289,9 @@ services:
 
     services:
         # === IMAGE ================================================ #
+        build:
+            context: ../../../services
+            dockerfile: ee/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_SERVICES_IMAGE_NAME:-internal-ee-agenta-services}:${AGENTA_SERVICES_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         command: >
