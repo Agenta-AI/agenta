@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {resolveOutputSchemaProperties} from "@agenta/entities/workflow"
+import {resolveOutputSchema} from "@agenta/entities/workflow"
 import {getAgentaApiUrl} from "@agenta/shared/api"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
@@ -8,32 +8,6 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 import {getProjectValues} from "@/oss/state/project"
-
-/**
- * Resolve the full output schema object (with `properties` and `required`)
- * from a workflow's `data`, supporting both modern (data.schemas.outputs)
- * and legacy (data.service.format.properties.outputs) paths.
- */
-function resolveOutputSchema(
-    data: Record<string, unknown> | null | undefined,
-): Record<string, unknown> | null {
-    if (!data) return null
-
-    const schemas = data.schemas as Record<string, unknown> | undefined
-    if (schemas?.outputs && typeof schemas.outputs === "object") {
-        return schemas.outputs as Record<string, unknown>
-    }
-
-    const service = data.service as Record<string, unknown> | undefined
-    const format = service?.format as Record<string, unknown> | undefined
-    const formatProps = format?.properties as Record<string, unknown> | undefined
-    const outputs = formatProps?.outputs as Record<string, unknown> | undefined
-    if (outputs && typeof outputs === "object") {
-        return outputs as Record<string, unknown>
-    }
-
-    return null
-}
 
 /**
  * Per-evaluator query that fetches full evaluator data via the simple evaluators API.
@@ -94,7 +68,6 @@ export function useEvaluatorSchemas(
             const evaluator = evaluators[idx]
             const evaluatorData = evaluator?.data as Record<string, unknown> | null | undefined
 
-            const outputProps = resolveOutputSchemaProperties(evaluatorData) ?? {}
             const outputSchema = resolveOutputSchema(evaluatorData)
 
             return {
@@ -102,21 +75,13 @@ export function useEvaluatorSchemas(
                 name: (evaluator?.name as string) ?? ref.name ?? ref.slug ?? ref.id,
                 slug: ref.slug ?? "",
                 description: (evaluator?.description as string) ?? "",
+                ...(evaluator?.flags ? {flags: evaluator.flags as Record<string, unknown>} : {}),
                 data: {
-                    service: {
-                        agenta: "v0.1.0",
-                        format: {
-                            type: "object",
-                            $schema: "http://json-schema.org/schema#",
-                            required: (outputSchema as any)?.required ?? ["outputs"],
-                            properties: {
-                                outputs: {
-                                    type: "object",
-                                    properties: outputProps,
-                                    required: (outputSchema as any)?.required ?? [],
-                                },
-                            },
-                        },
+                    ...(evaluatorData ?? {}),
+                    schemas: {
+                        ...(((evaluatorData?.schemas as Record<string, unknown> | undefined) ??
+                            {}) as Record<string, unknown>),
+                        ...(outputSchema ? {outputs: outputSchema} : {}),
                     },
                 },
                 created_at: (evaluator?.created_at as string) ?? "",

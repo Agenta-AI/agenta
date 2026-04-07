@@ -194,8 +194,8 @@ SCORE_SUCCESS_OUTPUTS_SCHEMA = obj(
 
 # --- NEW URI
 
-trace_v0_interface = WorkflowRevisionData(
-    uri="agenta:custom:trace:v0",
+feedback_v0_interface = WorkflowRevisionData(
+    uri="agenta:custom:feedback:v0",
     schemas=None,
 )
 

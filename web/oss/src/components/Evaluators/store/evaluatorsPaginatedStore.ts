@@ -109,14 +109,9 @@ async function ensureWorkflowIdCache(
         return _workflowIdCache
     }
 
-    const flags =
-        category === "human"
-            ? {is_evaluator: true as const, is_human: true as const}
-            : {is_evaluator: true as const, is_human: false as const}
-
     const workflowsResponse = await queryWorkflows({
         projectId,
-        flags,
+        flags: {is_evaluator: true as const},
         name: searchTerm || undefined,
     })
     const workflows = (workflowsResponse.workflows ?? []).filter((w) => !w.deleted_at)
@@ -189,7 +184,9 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
         const response = await queryWorkflowRevisionsByWorkflows(
             cache.workflowIds,
             meta.projectId,
-            undefined,
+            meta.category === "human"
+                ? {is_evaluator: true, is_feedback: true}
+                : {is_evaluator: true, is_feedback: false, is_custom: false},
             {next: cursor ?? undefined, limit: limit ?? undefined, order: "descending"},
             meta.searchTerm,
         )

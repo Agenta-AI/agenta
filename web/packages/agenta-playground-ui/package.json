@@ -36,6 +36,7 @@
         "@agenta/playground": "workspace:../agenta-playground",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
+        "@phosphor-icons/react": "^2.1.10",
         "clsx": "^2.1.1",
         "json5": "^2.2.3",
         "uuid": "^11.1.0"

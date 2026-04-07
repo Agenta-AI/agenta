@@ -54,7 +54,10 @@ export function isManagedServiceUrl(url: string | null | undefined): boolean {
 /**
  * Build a service URL from an agenta URI.
  *
- * Converts `agenta:{kind}:{key}:{version}` → `{origin}/services/{kind}/{key}/{version}`
+ * Converts `agenta:{kind}:{key}:{version}` → `{origin}/services/{key}/{version}`
+ *
+ * The `{kind}` segment (builtin, custom, etc.) is stripped — backend endpoints
+ * no longer use `/builtin/` or `/custom/` prefixes.
  *
  * @returns Service URL, or null if the URI is not an agenta URI
  */
@@ -63,9 +66,12 @@ export function buildServiceUrlFromUri(uri: string | null | undefined): string |
     const apiUrl = getAgentaApiUrl()
     if (!apiUrl) return null
     const origin = apiUrl.replace(/\/api\/?$/, "")
-    // agenta:{kind}:{key}:{version} → {kind}/{key}/{version}
-    const path = uri.replace(/^agenta:/, "").replace(/:/g, "/")
-    return `${origin}/services/${path}`
+    // agenta:{kind}:{key}:{version} → strip kind, keep {key}/{version}
+    const parts = uri.replace(/^agenta:/, "").split(":")
+    // parts = [kind, key, version] — drop kind
+    if (parts.length < 3) return null
+    const [, ...rest] = parts
+    return `${origin}/services/${rest.join("/")}`
 }
 
 /**

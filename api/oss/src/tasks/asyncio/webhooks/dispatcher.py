@@ -106,6 +106,12 @@ class WebhooksDispatcher:
         )
 
         if cached is not None:
+            log.info(
+                "[WEBHOOKS DISPATCHER] Subscriptions cache hit",
+                project_id=str(project_id),
+                count=len(cached),
+            )
+
             decrypted = []
 
             for sub in cached:
@@ -128,6 +134,12 @@ class WebhooksDispatcher:
             project_id=project_id,
             #
             subscription=WebhookSubscriptionQuery(),
+        )
+
+        log.info(
+            "[WEBHOOKS DISPATCHER] Subscriptions loaded from DB",
+            project_id=str(project_id),
+            count=len(subscriptions),
         )
 
         # Resolve secrets (vault reads happen only on cache miss)
@@ -175,6 +187,13 @@ class WebhooksDispatcher:
 
         for project_batch in batches:
             project_id = project_batch["project_id"]
+            events_count = len(project_batch["events"])
+
+            log.info(
+                "[WEBHOOKS DISPATCHER] Processing batch",
+                project_id=str(project_id),
+                events=events_count,
+            )
 
             try:
                 subscriptions = await self._get_subscriptions(
@@ -189,6 +208,13 @@ class WebhooksDispatcher:
 
                 enqueue_failures += len(project_batch["events"])
 
+                continue
+
+            if not subscriptions:
+                log.info(
+                    "[WEBHOOKS DISPATCHER] No subscriptions for project",
+                    project_id=str(project_id),
+                )
                 continue
 
             for msg in project_batch["events"]:
@@ -230,6 +256,14 @@ class WebhooksDispatcher:
                         )
                     ]
 
+                log.info(
+                    "[WEBHOOKS DISPATCHER] Event matched",
+                    event_type=event_type,
+                    event_id=str(event.event_id),
+                    subscriptions=len(subscriptions),
+                    matching=len(matching),
+                )
+
                 for sub in matching:
                     if not sub.secret:
                         log.warning(
@@ -268,7 +302,7 @@ class WebhooksDispatcher:
                             #
                             encrypted_secret=encrypt(sub.secret),
                         )
-                        log.debug(
+                        log.info(
                             f"[WEBHOOKS DISPATCHER] Enqueued delivery "
                             f"delivery={delivery_id} event={event.event_id} "
                             f"subscription={sub.id}"

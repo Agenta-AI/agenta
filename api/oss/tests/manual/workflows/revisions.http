@@ -35,7 +35,7 @@ Authorization: ApiKey {{api_key}}
       "is_application": false,
       "is_evaluator": false,
       "is_auto": false,
-      "is_human": false,
+      "is_feedback": false,
       "is_for_members": false,
       "is_for_endusers": false
     }
@@ -67,7 +67,7 @@ Authorization: ApiKey {{api_key}}
       "is_executable": false,
       "is_custom": false,
       "is_auto": false,
-      "is_human": false,
+      "is_feedback": false,
       "is_for_members": false,
       "is_for_endusers": false
     },
@@ -103,7 +103,7 @@ Authorization: ApiKey {{api_key}}
       "is_executable": false,
       "is_custom": false,
       "is_auto": false,
-      "is_human": false,
+      "is_feedback": false,
       "is_for_members": false,
       "is_for_endusers": false
     },
@@ -208,7 +208,7 @@ Authorization: ApiKey {{api_key}}
       "is_executable": false,
       "is_custom": false,
       "is_auto": false,
-      "is_human": false,
+      "is_feedback": false,
       "is_for_members": false,
       "is_for_endusers": false
     },
@@ -337,7 +337,7 @@ Authorization: ApiKey {{api_key}}
       "is_executable": false,
       "is_custom": false,
       "is_auto": false,
-      "is_human": false,
+      "is_feedback": false,
       "is_for_members": false,
       "is_for_endusers": false
     },

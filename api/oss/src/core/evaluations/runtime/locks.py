@@ -92,7 +92,7 @@ def _lock_args(lock_key: str) -> tuple[str, str]:
 
 
 def _actual_lock_name(lock_key: str) -> str:
-    return caching._pack(namespace="lock", key=lock_key)
+    return caching.pack(namespace="lock", key=lock_key)
 
 
 def _actual_meta_name(lock_key: str) -> str:

@@ -1,3 +1,4 @@
+import {resolveOutputSchema} from "@agenta/entities/workflow"
 import deepEqual from "fast-deep-equal"
 
 import {AnnotationDto, AnnotationEditPayloadDto} from "@/oss/lib/hooks/useAnnotations/types"
@@ -22,6 +23,11 @@ const getPropertyType = (type: string | string[]): string => {
     if (type === "integer") return "number"
     if (type === "array" || Array.isArray(type)) return "string"
     return type as string
+}
+
+const getEvaluatorOutputsSchema = (evaluator: EvaluatorDto): Record<string, any> => {
+    return (resolveOutputSchema(evaluator.data as Record<string, unknown> | null | undefined) ??
+        {}) as Record<string, any>
 }
 
 export const transformMetadata = ({
@@ -303,7 +309,7 @@ export const generateAnnotationPayloadData = ({
         const outputs = (ann.data?.outputs as Record<string, any>) || {}
         const originalMetric = {...outputs.metrics, ...outputs.notes, ...outputs.extra}
 
-        const requiredMetricKeys = evaluator.data.service.format.properties.outputs.required ?? []
+        const requiredMetricKeys = getEvaluatorOutputsSchema(evaluator).required ?? []
 
         const metrics: Record<string, any> = {}
         const _requiredMetrics: Record<string, {value: any; type: string}> = {}
@@ -396,8 +402,9 @@ export const generateNewAnnotationPayloadData = ({
         const updatedMetric = updatedMetrics[evaluator.slug || ""]
         if (!updatedMetric || Object.keys(updatedMetric).length === 0) continue
 
-        const schemaProps = evaluator.data.service.format.properties.outputs.properties ?? {}
-        const requiredKeys = evaluator.data.service.format.properties.outputs.required ?? []
+        const outputsSchema = getEvaluatorOutputsSchema(evaluator)
+        const schemaProps = outputsSchema.properties ?? {}
+        const requiredKeys = outputsSchema.required ?? []
 
         const metrics: Record<string, any> = {}
         const defaultMetric: Record<string, any> = {}
@@ -579,34 +586,22 @@ export const generateNewEvaluatorPayloadData = ({
         {} as Record<string, any>,
     )
 
+    const outputsSchema = {
+        type: "object",
+        $schema: "http://json-schema.org/schema#",
+        properties,
+        required: requiredKeys,
+    }
+
     return {
         evaluator: {
             slug: evaluatorSlug,
             name: evaluatorName,
             description: evaluatorDescription || "",
-            meta: {
-                tag1: "tag1",
-                tag2: "tag2",
-            },
-            flags: {
-                is_custom: false,
-                is_human: true,
-            },
             data: {
-                service: {
-                    agenta: "v0.1.0",
-                    format: {
-                        type: "object",
-                        $schema: "http://json-schema.org/schema#",
-                        required: ["outputs"],
-                        properties: {
-                            outputs: {
-                                type: "object",
-                                properties,
-                                required: requiredKeys,
-                            },
-                        },
-                    },
+                uri: "agenta:custom:feedback:v0",
+                schemas: {
+                    outputs: outputsSchema,
                 },
             },
         },

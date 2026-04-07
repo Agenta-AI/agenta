@@ -15,7 +15,7 @@
 
 import {memo, useMemo, useState} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 import {Button, Tooltip, Typography} from "antd"

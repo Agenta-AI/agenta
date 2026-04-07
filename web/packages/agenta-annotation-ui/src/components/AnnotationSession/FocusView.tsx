@@ -2,20 +2,22 @@
  * FocusView
  *
  * Focus view for the annotation session: one item at a time.
- * Layout: top navigation | content (trace/testcase) | annotation panel.
+ * Layout: content area (trace/testcase + annotation panel) | footer navigation bar.
  *
  * When all scenarios are completed, shows a "You're all caught up" empty state.
  */
 
 import {memo, useCallback, useMemo} from "react"
 
-import {annotationSessionController} from "@agenta/annotation"
+import {annotationFormController, annotationSessionController} from "@agenta/annotation"
 import type {SessionView} from "@agenta/annotation"
+import {message} from "@agenta/ui/app-message"
 import {Check} from "@phosphor-icons/react"
 import {Button, Skeleton, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
+import {useAnnotationKeyboardShortcuts} from "../../hooks/useAnnotationKeyboardShortcuts"
 import ScenarioContent from "../ScenarioContent"
 
 import AnnotationPanel from "./AnnotationPanel"
@@ -29,7 +31,6 @@ type ScenarioRecord = Record<string, unknown>
 
 interface FocusViewProps {
     queueId: string
-    onSaved: () => void
     onCompleted: (scenarioId: string) => void
     onViewChange?: (view: SessionView) => void
     onSyncToTestset?: () => void
@@ -139,7 +140,6 @@ const AllCaughtUp = memo(function AllCaughtUp({
 
 const FocusView = memo(function FocusView({
     queueId,
-    onSaved,
     onCompleted,
     onViewChange,
     onSyncToTestset,
@@ -169,12 +169,54 @@ const FocusView = memo(function FocusView({
         [scenarios, currentScenarioId],
     )
 
+    // Keyboard shortcuts: arrow keys for nav, Cmd/Ctrl+Enter to submit
+    const scenarioId = currentScenarioId ?? ""
+    const hasNext = useAtomValue(annotationSessionController.selectors.hasNext())
+    const hasPrev = useAtomValue(annotationSessionController.selectors.hasPrev())
+    const isSubmitting = useAtomValue(annotationFormController.selectors.isSubmitting(scenarioId))
+    const hasFilledMetrics = useAtomValue(
+        annotationFormController.selectors.hasFilledMetrics(scenarioId),
+    )
+    const isCompleted = useAtomValue(annotationSessionController.selectors.isCurrentCompleted())
+    const navigateNext = useSetAtom(annotationSessionController.actions.navigateNext)
+    const navigatePrev = useSetAtom(annotationSessionController.actions.navigatePrev)
+    const submitAnnotations = useSetAtom(annotationFormController.actions.submitAnnotations)
+
+    const handleKeyboardSubmit = useCallback(async () => {
+        if (!scenarioId) return
+        try {
+            await submitAnnotations({
+                scenarioId,
+                queueId,
+                markComplete: !isCompleted,
+            })
+
+            if (isCompleted) {
+                message.success("Updated feedback")
+                return
+            }
+
+            onCompleted?.(scenarioId)
+        } catch (err) {
+            message.error((err as Error).message || "Failed to submit annotations")
+        }
+    }, [submitAnnotations, scenarioId, queueId, isCompleted, onCompleted])
+
+    useAnnotationKeyboardShortcuts({
+        onPrev: () => navigatePrev(),
+        onNext: () => navigateNext(),
+        onSubmit: handleKeyboardSubmit,
+        hasPrev,
+        hasNext,
+        canSubmit: !isSubmitting && hasFilledMetrics,
+        enabled: !!currentScenarioId,
+    })
+
     if (scenariosQuery.isPending) {
         return (
-            <div className="flex flex-col gap-3 flex-1 min-h-0">
-                <SessionNavigation />
-                <div className="flex-1 p-4">
-                    <Skeleton active paragraph={{rows: 6}} />
+            <div className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 bg-[#f5f7fa] p-2 flex items-center justify-center">
+                    <Skeleton active paragraph={{rows: 6}} className="max-w-2xl w-full" />
                 </div>
             </div>
         )
@@ -182,9 +224,8 @@ const FocusView = memo(function FocusView({
 
     if (scenariosQuery.isError) {
         return (
-            <div className="flex flex-col gap-3 flex-1 min-h-0">
-                <SessionNavigation />
-                <div className="flex flex-1 items-center justify-center">
+            <div className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 bg-[#f5f7fa] flex items-center justify-center">
                     <Typography.Text type="secondary">
                         Failed to load annotation scenarios
                     </Typography.Text>
@@ -195,9 +236,8 @@ const FocusView = memo(function FocusView({
 
     if (scenarios.length === 0) {
         return (
-            <div className="flex flex-col gap-3 flex-1 min-h-0">
-                <SessionNavigation />
-                <div className="flex flex-1 items-center justify-center">
+            <div className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 bg-[#f5f7fa] flex items-center justify-center">
                     <Typography.Text type="secondary">No scenarios available</Typography.Text>
                 </div>
             </div>
@@ -216,9 +256,8 @@ const FocusView = memo(function FocusView({
 
     if (focusScenarioIds.length === 0 && !currentScenarioId) {
         return (
-            <div className="flex flex-col gap-3 flex-1 min-h-0">
-                <SessionNavigation />
-                <div className="flex flex-1 items-center justify-center">
+            <div className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 bg-[#f5f7fa] flex items-center justify-center">
                     <div className="flex flex-col items-center gap-2 text-center">
                         <Typography.Text strong>No scenarios available</Typography.Text>
                         <Typography.Text type="secondary" className="text-sm">
@@ -231,30 +270,34 @@ const FocusView = memo(function FocusView({
     }
 
     return (
-        <div className="flex flex-col gap-3 flex-1 min-h-0">
-            {/* Top navigation (includes trace info) */}
-            <SessionNavigation />
+        <div className="flex flex-col flex-1 min-h-0">
+            {/* Main content area */}
+            <div className="flex-1 bg-[#f5f7fa] p-2 overflow-hidden min-h-0 flex flex-col">
+                <div className="flex h-full gap-4 overflow-hidden min-h-0">
+                    {/* Scenario content */}
+                    <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+                        <ScenarioContent
+                            scenario={currentScenario}
+                            queueKind={queueKind || "traces"}
+                            traceId={traceRef.traceId}
+                            testcaseId={testcaseRef.testcaseId}
+                        />
+                    </div>
 
-            <div className="flex-1 flex gap-4 overflow-hidden min-h-0">
-                {/* Scenario content */}
-                <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                    <ScenarioContent
-                        scenario={currentScenario}
-                        queueKind={queueKind || "traces"}
-                        traceId={traceRef.traceId}
-                        testcaseId={testcaseRef.testcaseId}
-                    />
+                    {/* Annotation panel */}
+                    <div className="w-[400px] shrink-0 border border-solid border-[rgba(5,23,41,0.06)] rounded-lg overflow-hidden bg-white flex flex-col">
+                        <AnnotationPanel scenarioId={currentScenarioId ?? ""} />
+                    </div>
                 </div>
+            </div>
 
-                {/* Annotation panel */}
-                <div className="w-[340px] min-w-[280px] border border-solid border-[var(--ant-color-border-secondary)] rounded-lg overflow-hidden">
-                    <AnnotationPanel
-                        scenarioId={currentScenarioId ?? ""}
-                        queueId={queueId}
-                        onSaved={onSaved}
-                        onCompleted={onCompleted}
-                    />
-                </div>
+            {/* Footer navigation bar */}
+            <div className="shrink-0 bg-white border-0 border-t border-solid border-[rgba(5,23,41,0.06)] px-4 h-[55px] flex items-center">
+                <SessionNavigation
+                    scenarioId={currentScenarioId ?? ""}
+                    queueId={queueId}
+                    onCompleted={onCompleted}
+                />
             </div>
         </div>
     )

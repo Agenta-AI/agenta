@@ -12,7 +12,7 @@
 
 import {useCallback, useMemo} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
 import {type PathItem, type DataPath, isExpandable, getChildCount} from "@agenta/shared/utils"
 import type {
     FieldHeaderSlotProps,

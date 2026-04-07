@@ -2,7 +2,7 @@
 Acceptance tests for the canonical workflow handler URIs.
 
 Tests cover end-to-end happy paths for:
-- agenta:custom:trace:v0  — interface-only, raises HookV0Error on invocation
+- agenta:custom:feedback:v0  — interface-only, raises FeedbackV0Error on invocation
 - agenta:custom:hook:v0   — webhook forwarder (POST to a URL in RunningContext)
 - agenta:custom:code:v0   — Python code evaluator
 - agenta:builtin:match:v0 — rule-based matcher
@@ -24,13 +24,13 @@ import pytest
 
 from agenta.sdk.contexts.running import RunningContext, running_context_manager
 from agenta.sdk.models.workflows import WorkflowRevisionData
-from agenta.sdk.workflows.errors import HookV0Error
+from agenta.sdk.workflows.errors import FeedbackV0Error
 from agenta.sdk.workflows.handlers import (
     code_v0,
     hook_v0,
     llm_v0,
     match_v0,
-    trace_v0,
+    feedback_v0,
 )
 from agenta.sdk.workflows.utils import retrieve_handler, retrieve_interface
 
@@ -53,43 +53,43 @@ def evaluate(body: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# TestTraceV0Acceptance
+# TestFeedbackV0Acceptance
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.acceptance
-class TestTraceV0Acceptance:
-    """Happy-path acceptance tests for agenta:custom:trace:v0."""
+class TestFeedbackV0Acceptance:
+    """Happy-path acceptance tests for agenta:custom:feedback:v0."""
 
     def test_registry_lookup_returns_callable(self):
-        """retrieve_handler('agenta:custom:trace:v0') resolves to a callable."""
-        handler = retrieve_handler("agenta:custom:trace:v0")
+        """retrieve_handler('agenta:custom:feedback:v0') resolves to a callable."""
+        handler = retrieve_handler("agenta:custom:feedback:v0")
         assert handler is not None
         assert callable(handler)
 
     def test_interface_registry_lookup_returns_interface(self):
-        """retrieve_interface('agenta:custom:trace:v0') resolves to revision data."""
-        revision = retrieve_interface("agenta:custom:trace:v0")
+        """retrieve_interface('agenta:custom:feedback:v0') resolves to revision data."""
+        revision = retrieve_interface("agenta:custom:feedback:v0")
         assert revision is not None
 
-    def test_calling_trace_v0_raises_hook_error(self):
-        """Direct invocation of trace_v0 raises HookV0Error (interface-only contract)."""
-        _trace_v0 = trace_v0.__wrapped__
-        with pytest.raises(HookV0Error):
-            run(_trace_v0())
+    def test_calling_feedback_v0_raises_hook_error(self):
+        """Direct invocation of feedback_v0 raises FeedbackV0Error."""
+        _feedback_v0 = feedback_v0.__wrapped__
+        with pytest.raises(FeedbackV0Error):
+            run(_feedback_v0())
 
-    def test_calling_trace_v0_with_inputs_raises_hook_error(self):
-        """Even when called with realistic arguments, trace_v0 raises HookV0Error."""
-        _trace_v0 = trace_v0.__wrapped__
-        with pytest.raises(HookV0Error):
-            run(_trace_v0(inputs={"question": "What is 2+2?"}, outputs="4"))
+    def test_calling_feedback_v0_with_inputs_raises_hook_error(self):
+        """Even when called with realistic arguments, feedback_v0 raises FeedbackV0Error."""
+        _feedback_v0 = feedback_v0.__wrapped__
+        with pytest.raises(FeedbackV0Error):
+            run(_feedback_v0(inputs={"question": "What is 2+2?"}, outputs="4"))
 
     def test_hook_error_message_references_uri(self):
-        """The raised HookV0Error message identifies the agenta:custom:trace:v0 URI."""
-        _trace_v0 = trace_v0.__wrapped__
-        with pytest.raises(HookV0Error) as exc_info:
-            run(_trace_v0())
-        assert "agenta:custom:trace:v0" in exc_info.value.message
+        """The raised FeedbackV0Error message identifies the agenta:custom:feedback:v0 URI."""
+        _feedback_v0 = feedback_v0.__wrapped__
+        with pytest.raises(FeedbackV0Error) as exc_info:
+            run(_feedback_v0())
+        assert "agenta:custom:feedback:v0" in exc_info.value.message
 
 
 # ---------------------------------------------------------------------------
@@ -138,7 +138,7 @@ class TestHookV0Acceptance:
 
     def test_hook_calls_local_server_and_returns_json(self):
         """
-        hook_v0 POSTs to the URL in RunningContext.interface.url and returns the
+        hook_v0 POSTs to the URL in RunningContext revision data and returns the
         JSON body from the local webhook server.
         """
         expected = {"score": 1.0, "success": True}
@@ -363,7 +363,7 @@ class TestMatchV0Acceptance:
         """
         import re
 
-        _match_v0 = match_v0.__wrapped__
+        _match_v0 = match_v0
         reference = "^" + re.escape("Paris") + "$"
         params = {
             "matchers": [
@@ -385,7 +385,7 @@ class TestMatchV0Acceptance:
         """The same exact-match matcher returns success=False for a wrong output."""
         import re
 
-        _match_v0 = match_v0.__wrapped__
+        _match_v0 = match_v0
         reference = "^" + re.escape("Paris") + "$"
         params = {
             "matchers": [
@@ -404,7 +404,7 @@ class TestMatchV0Acceptance:
 
     def test_contains_matcher(self):
         """A substring regex matcher passes when output contains the substring."""
-        _match_v0 = match_v0.__wrapped__
+        _match_v0 = match_v0
         params = {
             "matchers": [
                 {
@@ -425,7 +425,7 @@ class TestMatchV0Acceptance:
         """Multiple matchers in the list produce one result entry each."""
         import re
 
-        _match_v0 = match_v0.__wrapped__
+        _match_v0 = match_v0
         params = {
             "matchers": [
                 {
@@ -453,7 +453,7 @@ class TestMatchV0Acceptance:
         """A path of $.inputs.answer allows matching against a specific input field."""
         import re
 
-        _match_v0 = match_v0.__wrapped__
+        _match_v0 = match_v0
         params = {
             "matchers": [
                 {

@@ -15,7 +15,7 @@
 
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
 import type {SimpleChatMessage} from "@agenta/shared/types"
 import {ChatMessageList} from "@agenta/ui/chat-message"
 import {useDrillInUI} from "@agenta/ui/drill-in"

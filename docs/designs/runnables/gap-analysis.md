@@ -228,7 +228,7 @@ This document catalogs gaps found during the initial exploration, organized by c
 
 **What:** The frontend reads workflow capability flags from the legacy `/openapi.json` via `x-agenta.flags.is_chat`. It doesn't use the new `/inspect` endpoint or API-provided classification.
 
-**Why it matters:** The frontend absolutely needs to read flags — capability flags drive UI behavior (chat vs completion mode, streaming support, evaluation mode, verbose vs concise response rendering). The problem is the source: the legacy `/openapi.json` with `x-agenta` extensions, plus heuristic fallbacks. The frontend should read flags from the new system (`/inspect`, per-workflow `/openapi.json`, or API-provided classification in query/revision responses).
+**Why it matters:** The frontend absolutely needs to read flags — capability flags drive UI behavior (chat vs completion mode, streaming support, evaluation mode, verbose vs concise response rendering). The problem is the source: the legacy `/openapi.json` with `x-agenta` extensions, plus heuristic fallbacks. The frontend should read flags from the new system (persisted API revision/query responses first, `/inspect` only when there is no local revision truth yet).
 
 **Current state:**
 - `web/packages/agenta-entities/src/appRevision/api/schema.ts` reads `x-agenta.flags` from legacy OpenAPI
@@ -238,7 +238,7 @@ This document catalogs gaps found during the initial exploration, organized by c
 - No consumption of API-provided derived classification
 
 **Action:**
-- [ ] Migrate frontend to read flags from the new system: `/inspect` response, per-workflow `/openapi.json` (G13), or API-provided classification in revision/query responses
+- [ ] Migrate frontend to read flags from API-provided classification in revision/query responses, with `/inspect` only as a fallback when no local revision truth exists yet
 - [ ] Ensure the new source provides everything the frontend needs: identity flags (`is_evaluator`, `is_chat`, `is_verbose`), capability flags (`can_stream`, `can_evaluate`, `can_chat`, `can_verbose`), derived classification (`is_custom`, `is_runnable`), and schemas
 - [ ] Remove the legacy `x-agenta.flags` reading path once the new source is available
 - [ ] Remove the heuristic `messages` property fallback — use explicit flags
@@ -247,9 +247,11 @@ This document catalogs gaps found during the initial exploration, organized by c
 
 ## G12. Applications and Evaluators Missing Invoke/Inspect Endpoints
 
-**What:** Only the workflows router (`/workflows/invoke`, `/workflows/inspect`) has invoke and inspect endpoints. The applications router (`/applications/`) and evaluators router (`/evaluators/`) have no equivalent — despite applications and evaluators being filtered workflow views and the primary consumer-facing entities.
+> Status update: superseded by [plan.G12.md](./plan.G12.md). This gap was closed as not planned.
 
-**Why it matters:** Applications and evaluators are thin domain wrappers around workflows. Consumers think in terms of "invoke my application" or "inspect my evaluator", not "invoke a workflow". Without domain-level endpoints, consumers must know the underlying workflow ID and hit the generic workflows endpoint, breaking the abstraction. The workflow family should be canonical, and the domain families should expose the same execution/discovery surface as filtered projections over it.
+**What:** This was the earlier proposal to add API-owned invoke/inspect endpoints for applications and evaluators.
+
+**Decision:** `/invoke` and `/inspect` are runtime `/services` endpoints, not API-owned application/evaluator router endpoints. Applications and evaluators remain filtered workflow projections in CRUD/query/revision and catalog surfaces.
 
 **Current state:**
 - `POST /workflows/invoke` and `POST /workflows/inspect` — exist, implemented
@@ -271,12 +273,10 @@ This document catalogs gaps found during the initial exploration, organized by c
 - `/evaluators/` (+ `/preview/evaluators/`) — CRUD only
 - `/simple/evaluators/` (+ `/preview/simple/evaluators/`) — simplified CRUD
 
-**Action:**
-- [ ] Add `POST /applications/invoke` and `POST /applications/inspect` to the applications router
-- [ ] Add `POST /evaluators/invoke` and `POST /evaluators/inspect` to the evaluators router
-- [ ] Keep the workflows router as the canonical execution/discovery family and make the domain routes thin filtered wrappers over `WorkflowsService.invoke_workflow()` / `inspect_workflow()`
-- [ ] Consider whether the simple routers (`/simple/applications/`, `/simple/evaluators/`) also need invoke/inspect
-- [ ] Ensure the SDK-side `invoke_application`, `inspect_application`, `invoke_evaluator`, `inspect_evaluator` functions are properly connected
+**Current target:**
+- [ ] Keep application/evaluator API surfaces focused on filtered retrieval, query, revision, and catalog behavior
+- [ ] Let the API control plane call runtime `/services/.../invoke` or `/services/.../inspect` internally when explicit live execution or discovery is needed
+- [ ] Avoid adding new API-owned domain runtime endpoints that duplicate the runtime surface
 
 ---
 
@@ -348,12 +348,11 @@ Without this split, evaluator creation stays ad hoc and the resulting workflow r
 
 ## G13. Route Isolation — Each Workflow Must Be Its Own Namespace
 
-**What:** When a user defines multiple workflows (routes) in the same codebase, they currently share a single FastAPI app and a single `/openapi.json`. Each workflow should instead be an isolated unit with its own `invoke`, `inspect`, and `openapi.json` — mountable independently. `openapi.json` is not a substitute for `inspect`; it is the OpenAPI-format discovery peer for the same runnable namespace.
+**What:** When a user defines multiple workflows (routes) in the same codebase, they currently share a single FastAPI app. Each workflow should instead be an isolated unit with its own `invoke` and `inspect` namespace — mountable independently.
 
-**Why it matters:** A shared `/openapi.json` conflates multiple workflows into one spec. Consumers can't discover the interface of a specific workflow in isolation. If you have a codebase with `/summarize`, `/embed`, and `/chat`, today they all appear in one OpenAPI spec. Instead, each should be a self-contained "app" with:
+**Why it matters:** Shared route registration conflates multiple workflows into one runtime namespace. Consumers cannot target a specific workflow cleanly for execution or live discovery. Instead, each should be a self-contained runtime namespace with:
 - `{path}/invoke` — execute this specific workflow
 - `{path}/inspect` — discover this specific workflow's interface
-- `{path}/openapi.json` — OpenAPI spec for this specific workflow only
 
 **Current state:**
 
@@ -371,18 +370,16 @@ Without this split, evaluator creation stays ad hoc and the resulting workflow r
 
 *New system (`routing.py`):*
 - `route(path="/summarize")` registers `{path}/invoke` and `{path}/inspect` on a shared `default_app` (or a provided app/router)
-- No `/openapi.json` per route — the spec is whatever FastAPI auto-generates for the shared app
-- Multiple `route()` calls on the same app produce multiple invoke/inspect pairs, but they share one OpenAPI namespace
+- Multiple `route()` calls on the same app produce multiple invoke/inspect pairs, but they still share one app registration path
 - No built-in isolation — `route()` doesn't create a sub-application
 
 **Desired behavior:**
 
-Each `@ag.route()` (or `@ag.workflow()`, `@ag.application()`, `@ag.evaluator()`) should produce a self-contained triple:
+Each `@ag.route()` (or `@ag.workflow()`, `@ag.application()`, `@ag.evaluator()`) should produce a self-contained pair:
 
 ```
 {path}/invoke       — POST, execute this workflow
-{path}/inspect      — GET, discover this workflow's interface/schemas/flags
-{path}/openapi.json — GET, OpenAPI 3.x spec for this workflow only
+{path}/inspect      — POST, discover this workflow's interface/schemas/flags
 ```
 
 When a codebase defines multiple workflows:
@@ -398,21 +395,16 @@ The result should be:
 ```
 /summarize/invoke
 /summarize/inspect
-/summarize/openapi.json
 
 /embed/invoke
 /embed/inspect
-/embed/openapi.json
 ```
 
-NOT a single `/openapi.json` containing both.
+Discovery for existing local revisions should still prefer persisted revision/query truth; `/inspect` is the live fallback.
 
 **Action:**
-- [ ] Make each `route()` create an isolated sub-application (or use FastAPI's sub-app mounting) so each workflow gets its own OpenAPI spec
-- [ ] Add `{path}/openapi.json` to the new routing system alongside `invoke` and `inspect`
-- [ ] The `openapi.json` for a specific workflow should reflect only that workflow's invoke request/response schemas
+- [ ] Make each `route()` create an isolated sub-application (or use FastAPI's sub-app mounting) so each workflow gets its own invoke/inspect namespace
 - [ ] Ensure the legacy `create_app()` pattern is either replaced by this or deprecated
-- [ ] Consider whether `/openapi.json` should be generated from the inspect response (schemas, flags) or from the FastAPI route definitions
 - [ ] Update the `route` class in `routing.py` to handle this — currently it just calls `self.root.add_api_route()` on a shared app
 
 ---
@@ -427,7 +419,7 @@ NOT a single `/openapi.json` containing both.
 
 1. **SDK — URI-based detection** (`sdk/agenta/sdk/workflows/utils.py:320-326`):
    ```python
-   def is_custom_uri(uri):
+   def is_user_custom_uri(uri):
        provider, kind, key, version = parse_uri(uri)
        return provider == "user" and kind == "custom"
    ```
@@ -481,57 +473,57 @@ This means `is_custom` as a flag may become redundant — it can be derived from
 
 ---
 
-## G15. `is_human` — Misnomer for "Not Runnable"
+## G15. `is_feedback` — Misnomer for "Not Runnable"
 
-**What:** `is_human` doesn't really mean "human". It means **not runnable** — there's no engine, no code, no URI. The workflow has no handler to invoke. Someone or something external must provide the output. "Human evaluator" is just the primary use case of a non-runnable workflow, but the concept is broader.
+**What:** `is_feedback` doesn't really mean "human". It means **not runnable** — there's no engine, no code, no URI. The workflow has no handler to invoke. Someone or something external must provide the output. "Human evaluator" is just the primary use case of a non-runnable workflow, but the concept is broader.
 
-**Why it matters:** The name `is_human` implies the flag is about human-in-the-loop specifically, but the real semantic is about runnability. A non-runnable workflow is one where the system can't `invoke` it — there's nothing to run. No URI = not runnable. Period.
+**Why it matters:** The name `is_feedback` implies the flag is about human-in-the-loop specifically, but the real semantic is about runnability. A non-runnable workflow is one where the system can't `invoke` it — there's nothing to run. No URI = not runnable. Period.
 
-### G15a. How `is_human` Is Set
+### G15a. How `is_feedback` Is Set
 
 1. **API — Default evaluator creation** (`api/oss/src/core/evaluators/defaults.py:141-144`):
    ```python
-   flags=SimpleEvaluatorFlags(is_custom=False, is_human=True)
+   flags=SimpleEvaluatorFlags(is_custom=False, is_feedback=True)
    ```
-   The default "human evaluator" is seeded with `is_human=True`. This is the primary source.
+   The default "human evaluator" is seeded with `is_feedback=True`. This is the primary source.
 
 2. **API — Annotation origin mapping** (`api/oss/src/core/annotations/service.py:100-104`):
    ```python
-   is_human=annotation_create.origin == AnnotationOrigin.HUMAN
+   is_feedback=annotation_create.origin == AnnotationOrigin.HUMAN
    ```
-   When annotations come from human origin, the evaluator flags get `is_human=True`.
+   When annotations come from human origin, the evaluator flags get `is_feedback=True`.
 
-3. **SDK — Never set by SDK code.** The SDK defines the field (`WorkflowFlags.is_human: bool = False`) but no SDK decorator or auto-detection logic sets it to `True`. This makes sense: the SDK IS the engine — if code is running in the SDK, it's runnable by definition.
+3. **SDK — Never set by SDK code.** The SDK defines the field (`WorkflowFlags.is_feedback: bool = False`) but no SDK decorator or auto-detection logic sets it to `True`. This makes sense: the SDK IS the engine — if code is running in the SDK, it's runnable by definition.
 
-### G15b. What `is_human` Controls
+### G15b. What `is_feedback` Controls
 
 | Layer | Behavior | Purpose |
 |-------|----------|---------|
-| **API** | Query filter: `SimpleEvaluatorQueryFlags(is_human=True)` | Find non-runnable evaluators |
-| **API** | Annotation origin mapping: `is_human → AnnotationOrigin.HUMAN` | Track annotation provenance |
+| **API** | Query filter: `SimpleEvaluatorQueryFlags(is_feedback=True)` | Find non-runnable evaluators |
+| **API** | Annotation origin mapping: `is_feedback → AnnotationOrigin.HUMAN` | Track annotation provenance |
 | **Frontend** | Filter evaluator lists: show human-only or exclude human | Separate non-runnable vs. automatic evaluator UI tabs |
-| **Frontend** | Annotation drawer: `queries: {is_human: true}` | Show only non-runnable evaluators for manual annotation |
+| **Frontend** | Annotation drawer: `queries: {is_feedback: true}` | Show only non-runnable evaluators for manual annotation |
 | **Frontend** | Evaluator navigation: skip human evaluators in trace drawer | Don't navigate to non-runnable evaluators (nothing to inspect) |
 | **Frontend** | Layout control: `isHumanEval` prop changes page layout | Different UI for manual evaluation sessions |
 | **Frontend** | Evaluation kind derivation: `evaluationKind.ts` checks annotation steps with `origin="human"` | Classify evaluation runs as "human" type |
 
 ### G15c. Key Observations
 
-1. **`is_human` really means "not runnable".** No URI, no handler, no code. The workflow is a definition (interface/schema for what output is expected) but not an executable. Someone external — a human, an external system, anything — must fill in the result.
+1. **`is_feedback` really means "not runnable".** No URI, no handler, no code. The workflow is a definition (interface/schema for what output is expected) but not an executable. Someone external — a human, an external system, anything — must fill in the result.
 
-2. **The SDK never sets it.** This is logically consistent: the SDK IS the engine. If code runs in the SDK, the workflow is runnable by definition. `is_human=true` only comes from the API side, for workflows that have no SDK counterpart.
+2. **The SDK never sets it.** This is logically consistent: the SDK IS the engine. If code runs in the SDK, the workflow is runnable by definition. `is_feedback=true` only comes from the API side, for workflows that have no SDK counterpart.
 
 3. **Non-runnable workflows can't be invoked.** The invoke/inspect machinery doesn't apply. A non-runnable workflow's "interface" defines what the expected output looks like (the annotation schema), not how to produce it.
 
-4. **Currently evaluator-only, but the concept is general.** Today only evaluators use `is_human`. But "a workflow definition without an engine" could apply beyond evaluation — e.g., a manual data processing step in a pipeline. The concept belongs at the workflow level, not just evaluators.
+4. **Currently evaluator-only, but the concept is general.** Today only evaluators use `is_feedback`. But "a workflow definition without an engine" could apply beyond evaluation — e.g., a manual data processing step in a pipeline. The concept belongs at the workflow level, not just evaluators.
 
-5. **The flag is clean but misnamed.** `is_human` works well mechanically — it's set in few places, read for clear purposes, and has no fragile detection logic (unlike `is_custom`). The problem is the name, not the behavior.
+5. **The flag is clean but misnamed.** `is_feedback` works well mechanically — it's set in few places, read for clear purposes, and has no fragile detection logic (unlike `is_custom`). The problem is the name, not the behavior.
 
 ### G15d. Current State: Human Evaluators Have No URI
 
 The default human evaluator is created with `data=SimpleEvaluatorData(service={...})` — no `uri` field. The `uri` on the revision data is `None`. The service's `_extract_builtin_evaluator_key()` checks `simple_evaluator_data.uri` and returns `None` for human evaluators.
 
-So today: `is_human=true` correlates with `uri=None`. But **"not runnable" is broader than just URI absence.** A `user:custom:*` workflow could also be non-runnable if there's no reachable endpoint — the URI identifies the handler but doesn't guarantee invocability. And conversely, a builtin with a URI might not be runnable if the handler isn't loaded.
+So today: `is_feedback=true` correlates with `uri=None`. But **"not runnable" is broader than just URI absence.** A `user:custom:*` workflow could also be non-runnable if there's no reachable endpoint — the URI identifies the handler but doesn't guarantee invocability. And conversely, a builtin with a URI might not be runnable if the handler isn't loaded.
 
 ### G15e. Evolution Path
 
@@ -544,24 +536,24 @@ So today: `is_human=true` correlates with `uri=None`. But **"not runnable" is br
 
 A user-created human evaluator with a custom schema should be `user:custom:{variant_slug}:v{N}` — it has a URI (it's a user-created entity), but no engine. The default platform human evaluator should be `agenta:builtin:human:v0`.
 
-The name should evolve. `is_human` is misleading — it should reflect runnability, not who operates it.
+The name should evolve. `is_feedback` is misleading — it should reflect runnability, not who operates it.
 
 See [taxonomy.md](./taxonomy.md) for the full proposed taxonomy.
 
 **Action:**
-- [ ] Recognize that `is_human` means "not runnable", not "human-operated"
+- [ ] Recognize that `is_feedback` means "not runnable", not "human-operated"
 - [ ] Derive runnability from handler/URL presence — NOT from URI presence
 - [ ] Give all workflows URIs (including human evaluators): `user:custom:{variant_slug}:v{N}` or `agenta:builtin:human:v0`
-- [ ] Consider renaming or replacing `is_human` with `is_runnable` (inverted)
+- [ ] Consider renaming or replacing `is_feedback` with `is_runnable` (inverted)
 - [ ] The SDK never needs to set this flag — if code runs in the SDK, it's runnable
 - [ ] Ensure the frontend annotation drawer and evaluator filters work off the derived concept
 - [ ] Non-runnable workflows should not have invoke endpoints (they have nothing to invoke)
 
 ---
 
-## G16. `is_human` + `is_custom` Combined — Toward URI-Derived Classification
+## G16. `is_feedback` + `is_custom` Combined — Toward URI-Derived Classification
 
-**What:** Both `is_human` and `is_custom` encode information that can be derived from the workflow's URI rather than stored as explicit flags.
+**What:** Both `is_feedback` and `is_custom` encode information that can be derived from the workflow's URI rather than stored as explicit flags.
 
 **Why it matters:** Storing derivable state leads to drift (flag says one thing, URI says another). Making classification derive from the URI is simpler and more consistent.
 
@@ -578,7 +570,7 @@ no URI        → legacy / unresolved (current no-URI state is a bug to backfill
 `agenta:*` URIs are always runnable because the platform ships and registers their handlers. `user:*` URIs need a deployed engine — either a handler loaded in the SDK process or a reachable URL. No URI is currently a bug (human evaluators should have URIs but don't); in this design set it is a legacy state to backfill, not a target contract shape.
 
 The primary derivation:
-- **`is_custom`** → `is_custom_uri(uri)` — already exists in SDK (`sdk/agenta/sdk/workflows/utils.py:320`)
+- **`is_custom`** → `is_user_custom_uri(uri)` — already exists in SDK (`sdk/agenta/sdk/workflows/utils.py:320`)
 - **`is_runnable`** → `agenta:*` → always true; `user:*` → has handler OR has url; no URI → false
 
 ### G16b. `user:custom` URI Key = Variant Slug, Version = Revision Version
@@ -598,10 +590,10 @@ See [taxonomy.md](./taxonomy.md) for full details.
 ### G16c. What Needs to Change
 
 1. **Give all workflows URIs** — including human evaluators (default: `agenta:builtin:human:v0`, user-created: `user:custom:{variant_slug}:v{N}`)
-2. **`is_custom`** → derive from `is_custom_uri(uri)` (already exists)
-3. **`is_human`** → derive from `not is_runnable` (no handler AND no url) — NOT from URI absence
+2. **`is_custom`** → derive from `is_user_custom_uri(uri)` (already exists)
+3. **`is_feedback`** → derive from `not is_runnable` (no handler AND no url) — NOT from URI absence
 4. **Align backend-defined `user:custom` URI key with variant slug**, version with revision version
-5. **Remove stored `is_custom`/`is_human` flags** — compute at read time
+5. **Remove stored `is_custom`/`is_feedback` flags** — compute at read time
 6. **Frontend** must stop inferring `isCustom` from schema shape — use API-provided values
 7. **API** must expose derived classification in query/inspect responses
 
@@ -617,7 +609,7 @@ See [taxonomy.md](./taxonomy.md) for full details.
 - [ ] Backfill URIs for human evaluators
 - [ ] Align backend-defined `user:custom` URI key with variant slug, version with revision version
 - [ ] Add computed properties to DTOs
-- [ ] Phase out stored `is_custom`/`is_human` flags
+- [ ] Phase out stored `is_custom`/`is_feedback` flags
 - [ ] Update legacy adapter to produce URIs
 
 ## G17. Frontend/Playground — No Request-Flag Support
@@ -704,7 +696,7 @@ The current design overuses flags as authored contract input. Streaming/batching
 | G5a (SDK response-mode API) | SDK invoke does not yet expose explicit response-mode negotiation cleanly | Align SDK invoke with HTTP media-type choices |
 | G9 (aggregate/annotate) | Decorator params disconnected from the new negotiation/derivation model | Treat as internal implementation details, not primary external flags |
 | G14 (`is_custom` overloaded) | Flag controls request format, caching, topology | Derive from URI family |
-| G15 (`is_human` misnomer) | Should be a URI-family fact, not a stored authored flag | Derive from custom feedback URI family |
+| G15 (`is_feedback` misnomer) | Should be a URI-family fact, not a stored authored flag | Derive from custom feedback URI family |
 | G16 (URI-derived classification) | Stored flags drift from URI truth | Materialize from URI truth instead of authoring directly |
 | G17 (Frontend request-flag support) | Playground still thinks in flags instead of negotiation/schema inference | Use `Accept` plus inspect/OpenAPI/schema heuristics |
 
@@ -746,6 +738,6 @@ The new serving/routing system exists but is incomplete. It lacks features the l
 | G12b (Legacy revision fields) | High | Medium | Legacy + Completeness | Core — remove `data.service` / `data.configuration` from revision contracts |
 | G13 (Route isolation) | High | Medium | Completeness | Core — each workflow must be its own namespace with invoke/inspect/openapi.json |
 | G14 (`is_custom` overloaded) | High | Medium | Negotiation + Derivation | Core — derive from URI family instead of authoring directly |
-| G15 (`is_human` = not runnable) | High | Small | Negotiation + Derivation | Core — replace with URI-family-derived human/custom feedback classification |
+| G15 (`is_feedback` = not runnable) | High | Small | Negotiation + Derivation | Core — replace with URI-family-derived human/custom feedback classification |
 | G16 (URI-derived classification) | High | Large | Negotiation + Derivation | Core — make URI the primary identity source and materialize metadata from it |
 | G17 (Frontend request-flag support) | High | Medium | Negotiation + Completeness | Core — playground uses `Accept`, schema heuristics, and response-mode handling instead of flag toggles |

@@ -106,9 +106,8 @@ This document is derived from [plan.md](./plan.md).
 ### Required code changes
 
 - create isolated sub-application behavior per routed workflow
-- add `{path}/openapi.json`
-- reuse the same OpenAPI generation path as the SDK `get_*_openapi()` helpers
-- ensure OpenAPI reflects only one workflow namespace
+- keep `{path}/inspect` as the route-owned discovery surface
+- ensure inspect reflects only one workflow namespace
 - expose flags and schemas coherently in the route-owned discovery surface
 - expose all runnable builtins through the runtime `/services` family
 - review and standardize the runtime service URL shape

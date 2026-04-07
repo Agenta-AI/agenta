@@ -6,7 +6,7 @@
  *
  * Unlike evaluators which hardcode `is_evaluator: true`, workflow queries accept
  * optional flags to filter by any combination of `is_custom`, `is_evaluator`,
- * `is_human`, `is_chat`.
+ * `is_feedback`, `is_chat`.
  */
 
 import type {WorkflowQueryFlags} from "./schema"

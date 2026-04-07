@@ -67,7 +67,7 @@ export const updateAppName = async (appId: string, appName: string, ignoreAxiosE
 
     const response = await axios.put(
         `${getAgentaApiUrl()}/preview/workflows/${appId}?project_id=${projectId}`,
-        {workflow: {id: appId, name: appName}},
+        {workflow: {id: appId, name: appName, flags: {is_application: true}}},
         {_ignoreError: ignoreAxiosError} as any,
     )
 
@@ -83,7 +83,7 @@ export const updateAppFolder = async (
 
     const response = await axios.put(
         `${getAgentaApiUrl()}/preview/workflows/${appId}?project_id=${projectId}`,
-        {workflow: {id: appId, folder_id: folderId}},
+        {workflow: {id: appId, folder_id: folderId, flags: {is_application: true}}},
         {_ignoreError: ignoreAxiosError} as any,
     )
 

@@ -27,12 +27,12 @@ Query outcome:
 
 Legacy flag shapes observed after data patch:
 
-- `{"is_chat": false, "is_human": false, "is_custom": false, "is_evaluator": true}`: `79604`
-- `{"is_chat": false, "is_human": false, "is_custom": false, "is_evaluator": false}`: `36294`
-- `{"is_chat": true, "is_human": false, "is_custom": false, "is_evaluator": false}`: `13614`
-- `{"is_chat": false, "is_human": true, "is_custom": false, "is_evaluator": true}`: `3106`
-- `{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": false}`: `1852`
-- `{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}`: `903`
+- `{"is_chat": false, "is_feedback": false, "is_custom": false, "is_evaluator": true}`: `79604`
+- `{"is_chat": false, "is_feedback": false, "is_custom": false, "is_evaluator": false}`: `36294`
+- `{"is_chat": true, "is_feedback": false, "is_custom": false, "is_evaluator": false}`: `13614`
+- `{"is_chat": false, "is_feedback": true, "is_custom": false, "is_evaluator": true}`: `3106`
+- `{"is_chat": false, "is_feedback": false, "is_custom": true, "is_evaluator": false}`: `1852`
+- `{"is_chat": false, "is_feedback": false, "is_custom": true, "is_evaluator": true}`: `903`
 
 Interpretation:
 
@@ -160,11 +160,11 @@ Interpretation:
 
 Flag breakdown for `data IS NULL`:
 
-- `{"is_chat": false, "is_human": false, "is_custom": false, "is_evaluator": true}`: `38380`
-- `{"is_chat": false, "is_human": true, "is_custom": false, "is_evaluator": true}`: `1517`
-- `{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}`: `106`
-- `{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": false}`: `12`
-- `{"is_chat": false, "is_human": false, "is_custom": false, "is_evaluator": false}`: `2`
+- `{"is_chat": false, "is_feedback": false, "is_custom": false, "is_evaluator": true}`: `38380`
+- `{"is_chat": false, "is_feedback": true, "is_custom": false, "is_evaluator": true}`: `1517`
+- `{"is_chat": false, "is_feedback": false, "is_custom": true, "is_evaluator": true}`: `106`
+- `{"is_chat": false, "is_feedback": false, "is_custom": true, "is_evaluator": false}`: `12`
+- `{"is_chat": false, "is_feedback": false, "is_custom": false, "is_evaluator": false}`: `2`
 
 Interpretation:
 
@@ -343,8 +343,8 @@ Within the `service` present + no `uri` + no `schemas` population (`1531` rows):
 
 The non-default remainder is still overwhelmingly evaluator-shaped:
 
-- `{"is_chat": false, "is_human": true, "is_custom": false, "is_evaluator": true}`: `158`
-- `{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}`: `6`
+- `{"is_chat": false, "is_feedback": true, "is_custom": false, "is_evaluator": true}`: `158`
+- `{"is_chat": false, "is_feedback": false, "is_custom": true, "is_evaluator": true}`: `6`
 
 Sampled non-default rows show custom output schemas still stored only under `service.format.properties.outputs`, for example:
 

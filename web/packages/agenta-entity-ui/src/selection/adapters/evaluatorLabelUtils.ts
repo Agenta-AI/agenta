@@ -21,7 +21,7 @@ import {EntityListItemLabel} from "@agenta/ui/components/presentational"
 interface EvaluatorWorkflowLike {
     id: string
     name?: string
-    flags?: {is_human?: boolean; is_custom?: boolean; is_evaluator?: boolean} | null
+    flags?: {is_feedback?: boolean; is_custom?: boolean; is_evaluator?: boolean} | null
 }
 
 // ============================================================================
@@ -59,7 +59,7 @@ export function renderEvaluatorPickerLabelNode(
     let tagLabel: string | null = null
     let colorSource: string | null = null
 
-    if (w.flags?.is_human) {
+    if (w.flags?.is_feedback) {
         tagLabel = "Human"
         colorSource = "human"
     } else if (w.flags?.is_custom) {

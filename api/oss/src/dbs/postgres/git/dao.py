@@ -1278,9 +1278,16 @@ class GitDAO(GitDAOInterface):
 
             revision_dbes = result.scalars().all()
 
-            # Filter by application_refs if provided
-            # This filters revisions where the specified app's deployment CHANGED
-            # compared to the previous revision (or is the first deployment)
+            # TEMPORARY ADAPTER: this `application_refs` filter exists only for the
+            # current web UX/UI, which wants to view environment history by
+            # application and only surface revisions where that application's
+            # deployment changed. This is not canonical DAO behavior.
+            #
+            # The target state is to remove this adapter once the frontend no
+            # longer depends on this application-grouped diff view. Even now,
+            # this logic should not live in the DAO, but we are not moving it
+            # elsewhere because the intended transition is from "temporary
+            # adapter here" to "removed entirely".
             if application_refs:
                 app_ids = {str(ref.id) for ref in application_refs if ref.id}
                 if app_ids:
@@ -1308,7 +1315,10 @@ class GitDAO(GitDAOInterface):
                                 if not isinstance(ref_data, dict):
                                     continue
                                 app_ref = ref_data.get("application")
-                                if app_ref and str(app_ref.get("id")) == app_id:
+                                if (
+                                    isinstance(app_ref, dict)
+                                    and str(app_ref.get("id")) == app_id
+                                ):
                                     app_revision = ref_data.get("application_revision")
                                     if app_revision:
                                         current_revision_id = str(
@@ -1325,6 +1335,10 @@ class GitDAO(GitDAOInterface):
                     # Reverse back to descending order (newest first)
                     filtered_dbes.reverse()
                     revision_dbes = filtered_dbes
+
+            # END TEMPORARY ADAPTER: remove this block when the web frontend no
+            # longer needs application-grouped diff history. Do not migrate this
+            # behavior deeper into the persistence layer.
 
             revisions = [
                 map_dbe_to_dto(

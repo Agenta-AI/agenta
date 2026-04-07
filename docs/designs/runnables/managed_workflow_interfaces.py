@@ -619,9 +619,9 @@ JSON_MULTI_FIELD_OUTPUTS_SCHEMA = derived_outputs_schema(
 
 
 MANAGED_WORKFLOW_INTERFACES: Dict[str, Dict[str, Any]] = {
-    "agenta:custom:trace:v0": interface(
-        uri="agenta:custom:trace:v0",
-        url=service_url(uri="agenta:custom:trace:v0"),
+    "agenta:custom:feedback:v0": interface(
+        uri="agenta:custom:feedback:v0",
+        url=service_url(uri="agenta:custom:feedback:v0"),
         name="Trace",
         description="Custom trace-backed workflow. Canonical schemas are not normalized yet.",
         parameters=None,

@@ -157,7 +157,7 @@ export interface EvaluatorRawData {
     flags?: {
         is_custom?: boolean
         is_evaluator?: boolean
-        is_human?: boolean
+        is_feedback?: boolean
         is_chat?: boolean
     } | null
 }
@@ -174,7 +174,7 @@ export interface WorkflowRawData {
     flags?: {
         is_custom?: boolean
         is_evaluator?: boolean
-        is_human?: boolean
+        is_feedback?: boolean
         is_chat?: boolean
     } | null
     data?: {

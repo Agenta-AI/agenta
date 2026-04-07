@@ -87,7 +87,7 @@ const DrawerHeader = ({entityId, onClose}: {entityId: string; onClose: () => voi
             createWorkflowRevisionAdapter({
                 skipVariantLevel: true,
                 excludeRevisionZero: true,
-                flags: {is_evaluator: false, is_human: false},
+                flags: {is_evaluator: false, is_feedback: false},
             }),
         [],
     )
@@ -186,7 +186,7 @@ const DrawerContent = ({
             createWorkflowRevisionAdapter({
                 skipVariantLevel: true,
                 excludeRevisionZero: true,
-                flags: {is_evaluator: false, is_human: false},
+                flags: {is_evaluator: false, is_feedback: false},
             }),
         [],
     )

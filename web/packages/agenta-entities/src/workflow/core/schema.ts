@@ -22,7 +22,7 @@
  *
  * ## Flag System
  *
- * WorkflowFlags: { is_custom, is_evaluator, is_human, is_chat }
+ * WorkflowFlags: { is_custom, is_evaluator, is_feedback, is_chat }
  * WorkflowQueryFlags: same but all optional — only set flags are matched (JSONB containment)
  *
  * @packageDocumentation
@@ -67,7 +67,7 @@ export type JsonSchemas = z.infer<typeof jsonSchemasSchema>
  * - `is_hook` — key is "hook" (webhook handler)
  * - `is_code` — key is "code" (script/code handler)
  * - `is_match` — key is "match" (matcher evaluator)
- * - `is_human` — key is "trace" (human annotation workflow)
+ * - `is_feedback` — key is "trace" (human annotation workflow)
  *
  * **Interface-derived** (from revision data presence):
  * - `is_chat` — schema indicates chat/message semantics
@@ -92,7 +92,7 @@ export const workflowFlagsSchema = z
         is_hook: z.boolean().optional().default(false),
         is_code: z.boolean().optional().default(false),
         is_match: z.boolean().optional().default(false),
-        is_human: z.boolean().optional().default(false),
+        is_feedback: z.boolean().optional().default(false),
         // Interface-derived
         is_chat: z.boolean().optional().default(false),
         has_url: z.boolean().optional().default(false),
@@ -128,7 +128,7 @@ export interface WorkflowQueryFlags {
     is_hook?: boolean
     is_code?: boolean
     is_match?: boolean
-    is_human?: boolean
+    is_feedback?: boolean
     // Interface-derived
     is_chat?: boolean
     has_url?: boolean
@@ -259,7 +259,7 @@ export const workflowSchemas = createEntitySchemaSet({
             is_hook: false,
             is_code: false,
             is_match: false,
-            is_human: false,
+            is_feedback: false,
             // Interface-derived
             is_chat: false,
             has_url: false,

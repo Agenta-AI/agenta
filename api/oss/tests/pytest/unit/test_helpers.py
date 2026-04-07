@@ -40,3 +40,12 @@ def test_parse_url_still_rewrites_plain_localhost_urls_in_bridge_mode(monkeypatc
         parse_url("http://localhost:8080/openapi.json")
         == "http://host.docker.internal:8080/openapi.json"
     )
+
+
+def test_parse_url_prepends_default_scheme_for_localhost_inputs(monkeypatch):
+    monkeypatch.setattr(env.docker, "network_mode", "bridge")
+
+    assert (
+        parse_url("localhost:8080/openapi.json")
+        == "http://host.docker.internal:8080/openapi.json"
+    )

@@ -859,7 +859,7 @@ class SimpleTracesService:
     ) -> dict:
         flags: dict = {}
         if origin == SimpleTraceOrigin.HUMAN:
-            flags["is_human"] = True
+            flags["is_feedback"] = True
         elif origin == SimpleTraceOrigin.CUSTOM:
             flags["is_custom"] = True
         if kind == SimpleTraceKind.EVAL:
@@ -877,7 +877,7 @@ class SimpleTracesService:
         flags = flags or {}
         origin = (
             SimpleTraceOrigin.HUMAN
-            if flags.get("is_human")
+            if flags.get("is_feedback")
             else SimpleTraceOrigin.CUSTOM
         )
         kind = (
@@ -1018,10 +1018,13 @@ class SimpleTracesService:
             return None
 
         _flags = self._flags(existing.origin, existing.kind, existing.channel)
-        _references = existing.references.model_dump(
+        references = trace_edit.references or SimpleTraceReferences()
+        links = trace_edit.links or {}
+
+        _references = references.model_dump(
             mode="json", exclude_none=True, exclude_unset=True
         )
-        _links = build_otel_links(existing.links)
+        _links = build_otel_links(links)
         _attributes = build_simple_trace_attributes(
             flags=_flags,
             tags=trace_edit.tags,
@@ -1066,8 +1069,8 @@ class SimpleTracesService:
             tags=trace_edit.tags,
             meta=trace_edit.meta,
             data=trace_edit.data,
-            references=existing.references,
-            links=existing.links,
+            references=references,
+            links=links,
         )
 
     async def delete(
@@ -1106,7 +1109,7 @@ class SimpleTracesService:
             # positive flag conditions that exclude non-default traces.
             _flag_dict: dict = {}
             if trace_query.origin == SimpleTraceOrigin.HUMAN:
-                _flag_dict["is_human"] = True
+                _flag_dict["is_feedback"] = True
             elif trace_query.origin == SimpleTraceOrigin.CUSTOM:
                 _flag_dict["is_custom"] = True
             # AUTO → no positive flag; IS_NOT conditions added below
@@ -1170,7 +1173,7 @@ class SimpleTracesService:
                 conditions.append(
                     Condition(
                         field="attributes",
-                        key="ag.flags.is_human",
+                        key="ag.flags.is_feedback",
                         value=True,
                         operator=ComparisonOperator.IS_NOT,
                     )

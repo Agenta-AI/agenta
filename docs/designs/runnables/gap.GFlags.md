@@ -16,7 +16,7 @@ Dependency chain:
 ```
 G16 (URI-derived classification)
   ├─→ G14 (is_custom from URI, not schema inference)
-  ├─→ G15 (is_runnable from handler/URL, not is_human flag)
+  ├─→ G15 (is_runnable from handler/URL, not is_feedback flag)
   └─→ G4  (is_chat from schema; stop authoring can_* flags)
         └─→ G11 (frontend reads from /inspect or API, not legacy x-agenta.flags)
               └─→ G17 (playground toggles keyed on derived capabilities)
@@ -36,7 +36,7 @@ The current `WorkflowFlags` model (SDK: `sdk/agenta/sdk/models/workflows.py:66-7
 class WorkflowFlags(BaseModel):
     is_custom: bool = False
     is_evaluator: bool = False
-    is_human: bool = False
+    is_feedback: bool = False
     is_chat: bool = False
 ```
 
@@ -61,7 +61,7 @@ Adding `can_stream`, `can_chat`, `can_evaluate`, `can_verbose` as authored flags
 |------|-----------|-------------------|
 | `is_custom` | SDK URI detection, API legacy adapter, frontend schema inference | Derived from URI family (see G14, G16) |
 | `is_evaluator` | SDK `evaluator` class decorator (`running.py:664`) | Could derive from URI kind `evaluator` family — for now, authored is acceptable |
-| `is_human` | API `evaluators/defaults.py:144`, annotations service | Derived from runnability (see G15, G16) |
+| `is_feedback` | API `evaluators/defaults.py:144`, annotations service | Derived from runnability (see G15, G16) |
 | `is_chat` | Not auto-set; set explicitly or from legacy migration | Derived from schema: `messages` input shape present |
 | `can_*` | **Does not exist** | Do not add; derive from HTTP negotiation / schema / URI |
 
@@ -137,7 +137,7 @@ The heuristic fallback is fragile: any workflow with a `messages` input is class
 **1. SDK — URI-based** (`sdk/agenta/sdk/engines/running/utils.py:320-326`):
 
 ```python
-def is_custom_uri(uri):
+def is_user_custom_uri(uri):
     provider, kind, key, version = parse_uri(uri)
     return provider == "user" and kind == "custom"
 ```
@@ -174,7 +174,7 @@ The request serialization behavior (flat inputs vs `inputs`-wrapped) is the bigg
 
 ### Action
 
-- [ ] Derive `is_custom` from URI: `is_custom_uri(uri)` already exists in the SDK — use it at read time, stop storing it
+- [ ] Derive `is_custom` from URI: `is_user_custom_uri(uri)` already exists in the SDK — use it at read time, stop storing it
 - [ ] Separate request format from `is_custom`: wire format (flat vs wrapped inputs) should be driven by the interface schema
 - [ ] Separate caching/refresh policy from `is_custom`: key on whether the workflow has a remote `url`
 - [ ] Clean up `AnnotationOrigin` derivation to not depend on `is_custom` (see G16)
@@ -182,47 +182,47 @@ The request serialization behavior (flat inputs vs `inputs`-wrapped) is the bigg
 
 ---
 
-## G15 — `is_human`: Misnomer for "Not Runnable"
+## G15 — `is_feedback`: Misnomer for "Not Runnable"
 
 ### What
 
-`is_human` means **not runnable** — no handler, no code, no URI to invoke. The name implies human-in-the-loop specifically, but the concept is general: any workflow definition without an executable engine.
+`is_feedback` means **not runnable** — no handler, no code, no URI to invoke. The name implies human-in-the-loop specifically, but the concept is general: any workflow definition without an executable engine.
 
 ### How It Is Set
 
 **1. API default evaluator creation** (`api/oss/src/core/evaluators/defaults.py:141-144`):
 
 ```python
-flags=SimpleEvaluatorFlags(is_custom=False, is_human=True)
+flags=SimpleEvaluatorFlags(is_custom=False, is_feedback=True)
 ```
 
-The seeded platform human evaluator gets `is_human=True`. This is the primary creation source.
+The seeded platform human evaluator gets `is_feedback=True`. This is the primary creation source.
 
 **2. API annotation origin mapping** (`api/oss/src/core/annotations/service.py:88, 184`):
 
 ```python
-is_human=annotation_create.origin == AnnotationOrigin.HUMAN
+is_feedback=annotation_create.origin == AnnotationOrigin.HUMAN
 ```
 
-Annotations from human origin propagate `is_human=True` back to the evaluator flags.
+Annotations from human origin propagate `is_feedback=True` back to the evaluator flags.
 
-**3. SDK**: Never sets `is_human=True`. `WorkflowFlags.is_human` defaults to `False`. If code runs in the SDK, the workflow is runnable by definition — SDK code always has a handler.
+**3. SDK**: Never sets `is_feedback=True`. `WorkflowFlags.is_feedback` defaults to `False`. If code runs in the SDK, the workflow is runnable by definition — SDK code always has a handler.
 
 ### What It Controls
 
 | Layer | Behavior |
 |-------|----------|
-| API | Query filter: `SimpleEvaluatorQueryFlags(is_human=True)` — find non-runnable evaluators |
-| API | Annotation origin: `is_human → AnnotationOrigin.HUMAN` |
+| API | Query filter: `SimpleEvaluatorQueryFlags(is_feedback=True)` — find non-runnable evaluators |
+| API | Annotation origin: `is_feedback → AnnotationOrigin.HUMAN` |
 | Frontend | Filter evaluator lists: separate human-only from automatic tabs |
-| Frontend | Annotation drawer: `queries: {is_human: true}` — show non-runnable evaluators for manual annotation |
+| Frontend | Annotation drawer: `queries: {is_feedback: true}` — show non-runnable evaluators for manual annotation |
 | Frontend | Skip navigation to non-runnable evaluators (nothing to inspect) |
 | Frontend | `evaluationKind.ts` — classify evaluation runs as "human" type |
 
 ### Key Observations
 
 1. **The real semantic is runnability.** No handler + no URL = not runnable. "Human evaluator" is just the primary use case today.
-2. **Current correlation.** `is_human=true` correlates with `uri=None`, but this is fragile. Non-runnability is broader than URI absence: a `user:custom:*` workflow with no reachable URL is also non-runnable.
+2. **Current correlation.** `is_feedback=true` correlates with `uri=None`, but this is fragile. Non-runnability is broader than URI absence: a `user:custom:*` workflow with no reachable URL is also non-runnable.
 3. **Human evaluators have no URI today.** The default human evaluator is created with `data=SimpleEvaluatorData(service={...})` and `uri=None`. All human evaluators should have URIs:
    - Default platform evaluator → `agenta:builtin:human:v0`
    - User-created human evaluators → `user:custom:{variant_slug}:v{N}`
@@ -234,31 +234,31 @@ Annotations from human origin propagate `is_human=True` back to the evaluator fl
 
 ### Action
 
-- [ ] Recognize `is_human` means "not runnable", not "human-operated"
+- [ ] Recognize `is_feedback` means "not runnable", not "human-operated"
 - [ ] Derive runnability from handler/URL presence — not URI presence and not a stored flag
 - [ ] Give all workflows URIs including human evaluators (backfill migration)
-- [ ] Add `is_runnable` as a derived/computed property (replaces `is_human` semantically)
+- [ ] Add `is_runnable` as a derived/computed property (replaces `is_feedback` semantically)
 - [ ] Non-runnable workflows should not have invoke endpoints exposed
 
 ---
 
-## G16 — `is_human` + `is_custom` Combined: Toward URI-Derived Classification
+## G16 — `is_feedback` + `is_custom` Combined: Toward URI-Derived Classification
 
 ### What
 
-Both `is_custom` and `is_human` encode information that can be derived from the URI and handler/URL presence. Storing them as authored flags leads to drift between what the flag says and what the URI says.
+Both `is_custom` and `is_feedback` encode information that can be derived from the URI and handler/URL presence. Storing them as authored flags leads to drift between what the flag says and what the URI says.
 
 ### Derivation Rules
 
 ```
-is_custom   ← is_custom_uri(uri)                              # URI family user:custom:*
+is_custom   ← is_user_custom_uri(uri)                              # URI family user:custom:*
 is_runnable ← agenta:* URI                         → true    # platform guarantees handlers
               user:* AND (has handler OR has url)  → true    # user code, engine present
               user:* AND no handler AND no url     → false   # user identity, no engine
               no URI                               → false   # legacy, backfill needed
 ```
 
-`is_custom_uri()` already exists in `sdk/agenta/sdk/engines/running/utils.py:320-326`. The derivation is available — it just isn't used at the DTO/API layer.
+`is_user_custom_uri()` already exists in `sdk/agenta/sdk/engines/running/utils.py:320-326`. The derivation is available — it just isn't used at the DTO/API layer.
 
 ### URI Key Alignment for `user:custom`
 
@@ -273,8 +273,8 @@ Builtins are different: `agenta:builtin:{key}:{builtin_version}` — the key is 
 
 | Entity | Current State | Target State |
 |--------|--------------|--------------|
-| Default human evaluator | `uri=None`, `is_human=True` stored | `uri=agenta:builtin:human:v0`, `is_runnable=False` derived |
-| User-created human evaluators | `uri=None`, `is_human=True` stored | `uri=user:custom:{variant_slug}:v{N}`, `is_runnable=False` derived |
+| Default human evaluator | `uri=None`, `is_feedback=True` stored | `uri=agenta:builtin:human:v0`, `is_runnable=False` derived |
+| User-created human evaluators | `uri=None`, `is_feedback=True` stored | `uri=user:custom:{variant_slug}:v{N}`, `is_runnable=False` derived |
 | Custom (user) workflows | `uri=user:custom:*`, `is_custom=True` stored | `is_custom` derived from URI, not stored |
 | Legacy `AppType.CUSTOM` | Legacy adapter maps → `is_custom=True` | URI `agenta:builtin:hook:v0` (legacy "custom" = hook template) |
 
@@ -284,24 +284,24 @@ Currently (`api/oss/src/core/annotations/service.py:214-219`):
 
 ```python
 AnnotationOrigin.CUSTOM if annotation_flags.is_custom
-else AnnotationOrigin.HUMAN if annotation_flags.is_human
+else AnnotationOrigin.HUMAN if annotation_flags.is_feedback
 else AnnotationOrigin.AUTO
 ```
 
 Target (key off URI + runnability):
 
 ```python
-AnnotationOrigin.AUTO    if is_runnable and not is_custom_uri(uri)  # builtin, agenta-managed
-AnnotationOrigin.CUSTOM  if is_runnable and is_custom_uri(uri)      # user-deployed code
+AnnotationOrigin.AUTO    if is_runnable and not is_user_custom_uri(uri)  # builtin, agenta-managed
+AnnotationOrigin.CUSTOM  if is_runnable and is_user_custom_uri(uri)      # user-deployed code
 AnnotationOrigin.HUMAN   if not is_runnable                         # no engine, external annotation
 ```
 
 ### Action
 
 - [ ] Add computed properties to DTOs: `is_custom` (from URI), `is_runnable` (from handler/URL)
-- [ ] Backfill URIs for human evaluators (DB migration: set `uri` where `is_human=True` and `uri IS NULL`)
+- [ ] Backfill URIs for human evaluators (DB migration: set `uri` where `is_feedback=True` and `uri IS NULL`)
 - [ ] Align `user:custom` URI key with variant slug, version with revision version
-- [ ] Phase out stored `is_custom` / `is_human` flags — compute at read time, deprecate writes
+- [ ] Phase out stored `is_custom` / `is_feedback` flags — compute at read time, deprecate writes
 - [ ] Update `AnnotationOrigin` derivation to key off URI + runnability
 - [ ] Update legacy adapter to produce URIs instead of flags
 
@@ -382,11 +382,11 @@ All six gaps trace to the same anti-pattern: **authoring flags rather than deriv
 | Property | Should Derive From | Currently |
 |----------|--------------------|-----------|
 | `is_custom` | URI family (`user:custom:*`) | Stored flag + fragile schema inference |
-| `is_runnable` | Handler/URL presence | `is_human` stored flag (inverted) |
+| `is_runnable` | Handler/URL presence | `is_feedback` stored flag (inverted) |
 | `is_chat` | Schema: `messages` input shape | Stored flag + heuristic |
 | Stream capability | Handler return type | Not exposed (`can_stream` should not be authored) |
 | Request wire format | Interface schema shape | `is_custom` flag |
-| Annotation origin | URI + runnability | `is_custom` + `is_human` flags |
+| Annotation origin | URI + runnability | `is_custom` + `is_feedback` flags |
 | Frontend flag source | New `/inspect` or API response | Legacy `/openapi.json` `x-agenta.flags` |
 
 ### Priority Matrix
@@ -395,7 +395,7 @@ All six gaps trace to the same anti-pattern: **authoring flags rather than deriv
 |-----|----------|--------|-------------|----------|
 | G16 — URI-derived classification | High | Medium | G14, G15, G11 | 1 — foundational |
 | G14 — `is_custom` cleanup | High | Medium | G11, G17 | 2 — depends on G16 |
-| G15 — `is_human` / `is_runnable` | Medium | Small | G17 | 2 — depends on G16 |
+| G15 — `is_feedback` / `is_runnable` | Medium | Small | G17 | 2 — depends on G16 |
 | G4 — remove capability flag authoring | High | Small | G11 | 3 — stop expanding, then clean up |
 | G11 — frontend flag source migration | High | Medium | G17 | 4 — depends on G4, G16 |
 | G17 — playground toggles + response modes | Medium | Large | — | 5 — depends on G5, G11 |

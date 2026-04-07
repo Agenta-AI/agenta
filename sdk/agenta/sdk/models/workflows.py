@@ -75,7 +75,7 @@ class WorkflowFlags(BaseModel):
     is_hook: bool = False
     is_code: bool = False
     is_match: bool = False
-    is_human: bool = False
+    is_feedback: bool = False
     # interface-derived
     ## schema
     is_chat: bool = False
@@ -102,7 +102,7 @@ class WorkflowQueryFlags(BaseModel):
     is_hook: Optional[bool] = None
     is_code: Optional[bool] = None
     is_match: Optional[bool] = None
-    is_human: Optional[bool] = None
+    is_feedback: Optional[bool] = None
     # interface-derived
     ## schema
     is_chat: Optional[bool] = None
@@ -662,8 +662,6 @@ class ApplicationRevisionIdAlias(AliasConfig):
 class ApplicationFlags(WorkflowFlags):
     def __init__(self, **data):
         data["is_application"] = True
-        data["is_evaluator"] = False
-        data["is_snippet"] = False
 
         super().__init__(**data)
 

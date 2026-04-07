@@ -105,8 +105,8 @@ The plan expands the API contract with one canonical workflow contract family an
 
 ### System-level contract decisions
 
-- The API remains backward compatible during checkpoint 1.
-- The legacy endpoints still exist during the expand phase.
+- Checkpoint 1 is mixed expand/contract, not fully backward compatible.
+- Legacy endpoints may still exist during migration, but intentional breaks must be covered by migration work or explicit no-migration decisions.
 - The workflow family becomes the canonical contract family for execution, discovery, and catalog.
 - Applications and evaluators expose the same surfaces as filtered projections over workflows.
 - Catalog responses must stop mixing catalog entry discovery, preset bundles, and UI-only template metadata into one shape.
@@ -114,14 +114,14 @@ The plan expands the API contract with one canonical workflow contract family an
   - base entry data: `uri`, optional precomputed `url`, optional `headers`, `schemas`, derived/materialized revision metadata, and catalog metadata such as `name`, `description`, `categories`
   - preset data: reusable override material such as `parameters`, optional `script`, optional `headers`, and other presettable workflow fields
 - Legacy `WorkflowRevisionData.service` and `WorkflowRevisionData.configuration` should be treated as removal targets, not part of the target runnable contract.
-- Inspect and `openapi.json` are complementary discovery surfaces for the same runnable, not competing alternatives.
-- Inspect, `openapi.json`, and retrieval responses must expose enough truth that the frontend no longer depends on legacy OpenAPI heuristics.
+- Persisted revision/query data is the primary discovery truth when it already exists locally.
+- `/inspect` is the runtime discovery fallback when the caller has no local revision truth yet or explicitly needs live discovery.
 - The external runnable contract no longer treats identity flags, capability flags, or command flags as the primary authored interface.
 - Streaming and batching are selected through HTTP content negotiation rather than request flags.
 - If a caller asks for a response media type the runnable cannot produce, the request fails explicitly.
 - If a caller needs batched behavior on top of a streaming response, batching is a caller-side utility concern.
-- `is_custom` and `is_human` are derived from URI families.
-- chat behavior is derived from schemas and OpenAPI, primarily through explicit `x-` schema parameters marking `message` / `messages` fields.
+- `is_custom` and `is_feedback` are derived from URI families.
+- chat behavior is derived from schemas, primarily through explicit `x-` schema parameters marking `message` / `messages` fields.
 - evaluator identity and evaluator capability are derived differently:
   - builtins derive from URI family / registry truth
   - custom families may still materialize user-authored evaluator metadata
@@ -266,12 +266,11 @@ At the system layer, the SDK programmatic interface is intentionally close to th
 |---|---|---|---|
 | `invoke_*` | `WorkflowServiceRequest` plus explicit media-type / response-mode selection | batch or stream workflow service response | references, URI, or mixed |
 | `inspect_*` | `WorkflowServiceRequest` | inspected `WorkflowServiceRequest` | references, URI, or mixed |
-| `get_*_openapi` | same logical runnable identification as inspect | OpenAPI document object | references, URI, or mixed |
 
 The main contract decision here is:
 
 - SDK programmatic discovery should not invent a second identification system
-- if inspect accepts a request identified by references or URI, `get_*_openapi` should accept the same logical identification shape
+- programmatic discovery should go through `inspect_*`
 - invoke should expose the same media-type choices as runtime HTTP and fail when the runnable cannot satisfy the requested response mode
 
 ### SDK examples
@@ -297,17 +296,7 @@ await invoke_evaluator(
 )
 ```
 
-3. Fetch OpenAPI for an application using the same identification pattern:
-
-```python
-await get_application_openapi(
-    WorkflowServiceRequest(
-        references={"application_revision": {"id": "<revision-id>"}}
-    )
-)
-```
-
-4. Invoke a builtin locally from the SDK process versus remotely through the API/services path:
+3. Invoke a builtin locally from the SDK process versus remotely through the API/services path:
 
 ```python
 await invoke_workflow(
@@ -333,15 +322,13 @@ The runtime interface currently mixes:
 - every workflow namespace exposes:
   - `{path}/invoke`
   - `{path}/inspect`
-  - `{path}/openapi.json`
-- the per-workflow OpenAPI document is isolated to one workflow namespace
 - the runtime contract carries derived discovery truth and supported response media types
 - the runtime contract uses HTTP headers rather than request flags for stream/batch selection
 
 ### System-level invariants
 
-- one workflow namespace must not leak other workflow contracts into its OpenAPI document
-- inspect and OpenAPI must agree on schemas and derived metadata
+- one workflow namespace must not leak other workflow contracts into its inspect response
+- inspect must agree with persisted revision truth when both describe the same runnable
 - response media-type support is part of the runtime contract
 - callers are responsible for client-side aggregation/batching when they want batched semantics on top of a streaming-capable runnable
 
@@ -353,7 +340,6 @@ The runtime HTTP interface differs from the generic API and SDK interfaces becau
 |---|---|---|---|
 | `{path}/invoke` | path namespace | runtime invoke body with data/config plus HTTP content negotiation | batch JSON or stream transport |
 | `{path}/inspect` | path namespace | no separate runnable identifier beyond the path | inspected runnable contract |
-| `{path}/openapi.json` | path namespace | no body | OpenAPI document |
 
 Important runtime clarification:
 
@@ -495,8 +481,8 @@ At this layer the observability interface is narrow:
 | API execution | only generic workflows have invoke/inspect and current implementation runs in-process | workflows are canonical, applications and evaluators expose filtered execution/discovery views, and runnable execution is treated as a handoff to runtime services while non-runnable targets fail invoke |
 | API catalogs | evaluator templates are a mixed payload | canonical workflow catalog with revision-like catalog entries and separate preset bundles, plus filtered application/evaluator views |
 | SDK inspect/invoke | media-type negotiation and derived metadata semantics incomplete | unified URI/schema-derived discovery plus explicit media-type selection |
-| Runtime HTTP | no per-workflow OpenAPI in new stack | isolated per-workflow `invoke` / `inspect` / `openapi.json` plus explicit content negotiation |
-| Frontend consumption | relies on legacy `x-agenta.flags` | relies on inspect/query/revision truth, schemas, OpenAPI, and HTTP media-type negotiation |
+| Runtime HTTP | runtime discovery semantics are still mixed with legacy history | isolated per-workflow `invoke` / `inspect` plus explicit content negotiation |
+| Frontend consumption | relies on legacy `x-agenta.flags` | relies on persisted revision/query truth first, `/inspect` as fallback discovery, and HTTP media-type negotiation |
 | Observability | incoming parent context handling is underspecified in SDK runtime | passive workflow-to-workflow trace continuity when parent context is present |
 
 ## Black-box validation dimensions
@@ -508,11 +494,11 @@ At the system layer, the runnable plan should be validated as a black-box contra
   - invoke honors supported response media types and fails clearly on unsupported ones
   - catalog endpoints expose correct entries and presets
 - compatibility
-  - legacy execution paths still work during expand
-  - existing clients are not broken by additive fields
+  - intentional checkpoint-1 breaks are tracked with migration handling
+  - additive and migrated fields remain internally consistent
 - consistency
   - generic workflow routes and domain routes expose consistent runnable truth
-  - inspect and per-workflow OpenAPI agree
+  - inspect and persisted revision truth agree when both exist
 - observability
   - incoming parent context is honored when present inside runnable execution
 - security
@@ -527,9 +513,9 @@ At the system layer, the runnable plan should be validated as a black-box contra
 1. Execution and discovery move toward one canonical contract family.
 2. Domain-specific routes are additive filtered wrappers, not separate behavior stacks.
 3. Workflow catalog is the canonical system interface; application and evaluator catalogs are filtered system views.
-4. Inspect and OpenAPI become first-class paired runtime discovery surfaces.
+4. Inspect becomes the runtime discovery surface; persisted revision data stays the first choice when already available locally.
 5. HTTP content negotiation, URI/schema-derived classification, and materialized revision metadata are separate concerns.
-6. Chat/message behavior is inferred from schemas and OpenAPI rather than authored as primary flags.
+6. Chat/message behavior is inferred from schemas rather than authored as primary flags.
 7. Passive incoming trace-context support belongs in SDK routing/running, not as an API-to-SDK integration commitment in this plan.
 
 ## Out of scope at this layer

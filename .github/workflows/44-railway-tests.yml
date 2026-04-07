@@ -379,7 +379,7 @@ jobs:
             exit 0
           fi
 
-          CMD=(python run-tests.py --license oss)
+          CMD=(python run-tests.py)
 
           if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
           if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
@@ -478,7 +478,7 @@ jobs:
             exit 0
           fi
 
-          CMD=(python run-tests.py --license oss)
+          CMD=(python run-tests.py)
 
           if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
           if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi

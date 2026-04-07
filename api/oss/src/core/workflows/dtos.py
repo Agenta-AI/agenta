@@ -90,7 +90,17 @@ class WorkflowRevisionIdAlias(AliasConfig):
 # globals ----------------------------------------------------------------------
 
 
-class WorkflowFlags(BaseModel):
+class WorkflowArtifactFlags(BaseModel):
+    is_application: bool = False
+    is_evaluator: bool = False
+    is_snippet: bool = False
+
+
+class WorkflowVariantFlags(WorkflowArtifactFlags):
+    pass
+
+
+class WorkflowRevisionFlags(WorkflowArtifactFlags):
     # uri-derived
     ## source
     is_managed: bool = False
@@ -101,7 +111,7 @@ class WorkflowFlags(BaseModel):
     is_hook: bool = False
     is_code: bool = False
     is_match: bool = False
-    is_human: bool = False
+    is_feedback: bool = False
     # interface-derived
     ## schema
     is_chat: bool = False
@@ -111,13 +121,19 @@ class WorkflowFlags(BaseModel):
     has_script: bool = False
     ## function
     has_handler: bool = False
-    # user-defined
-    is_application: bool = False
-    is_evaluator: bool = False
-    is_snippet: bool = False
 
 
-class WorkflowQueryFlags(BaseModel):
+class WorkflowArtifactQueryFlags(BaseModel):
+    is_application: Optional[bool] = None
+    is_evaluator: Optional[bool] = None
+    is_snippet: Optional[bool] = None
+
+
+class WorkflowVariantQueryFlags(WorkflowArtifactQueryFlags):
+    pass
+
+
+class WorkflowRevisionQueryFlags(WorkflowArtifactQueryFlags):
     # uri-derived
     ## source
     is_managed: Optional[bool] = None
@@ -128,7 +144,7 @@ class WorkflowQueryFlags(BaseModel):
     is_hook: Optional[bool] = None
     is_code: Optional[bool] = None
     is_match: Optional[bool] = None
-    is_human: Optional[bool] = None
+    is_feedback: Optional[bool] = None
     # interface-derived
     ## schema
     is_chat: Optional[bool] = None
@@ -138,10 +154,14 @@ class WorkflowQueryFlags(BaseModel):
     has_script: Optional[bool] = None
     ## function
     has_handler: Optional[bool] = None
-    # user-defined
-    is_application: Optional[bool] = None
-    is_evaluator: Optional[bool] = None
-    is_snippet: Optional[bool] = None
+
+
+class WorkflowFlags(WorkflowRevisionFlags):
+    """Legacy full workflow flag set."""
+
+
+class WorkflowQueryFlags(WorkflowRevisionQueryFlags):
+    """Legacy full workflow query flag set."""
 
 
 class WorkflowCatalogFlags(BaseModel):
@@ -157,7 +177,7 @@ class WorkflowCatalogFlags(BaseModel):
 
 
 class Workflow(Artifact):
-    flags: Optional[WorkflowFlags] = None
+    flags: Optional[WorkflowArtifactFlags] = None
 
 
 class WorkflowCreate(ArtifactCreate):
@@ -169,7 +189,7 @@ class WorkflowEdit(ArtifactEdit):
 
 
 class WorkflowQuery(ArtifactQuery):
-    flags: Optional[WorkflowQueryFlags] = None
+    flags: Optional[WorkflowArtifactQueryFlags] = None
 
 
 # workflow variants ------------------------------------------------------------
@@ -179,7 +199,7 @@ class WorkflowVariant(
     Variant,
     WorkflowIdAlias,
 ):
-    flags: Optional[WorkflowFlags] = None
+    flags: Optional[WorkflowVariantFlags] = None
 
     def model_post_init(self, __context) -> None:
         sync_alias("workflow_id", "artifact_id", self)
@@ -200,7 +220,7 @@ class WorkflowVariantEdit(VariantEdit):
 
 
 class WorkflowVariantQuery(VariantQuery):
-    flags: Optional[WorkflowQueryFlags] = None
+    flags: Optional[WorkflowVariantQueryFlags] = None
 
 
 # workflow revisions -----------------------------------------------------------
@@ -211,7 +231,7 @@ class WorkflowRevision(
     WorkflowIdAlias,
     WorkflowVariantIdAlias,
 ):
-    flags: Optional[WorkflowFlags] = None
+    flags: Optional[WorkflowRevisionFlags] = None
 
     data: Optional[WorkflowRevisionData] = None
 
@@ -237,7 +257,7 @@ class WorkflowRevisionEdit(RevisionEdit):
 
 
 class WorkflowRevisionQuery(RevisionQuery):
-    flags: Optional[WorkflowQueryFlags] = None
+    flags: Optional[WorkflowRevisionQueryFlags] = None
 
 
 class WorkflowRevisionCommit(
@@ -270,7 +290,7 @@ class WorkflowRevisionsLog(
 
 
 class WorkflowRevisionFork(RevisionFork):
-    flags: Optional[WorkflowFlags] = None
+    flags: Optional[WorkflowRevisionFlags] = None
 
     data: Optional[WorkflowRevisionData] = None
 
@@ -286,7 +306,7 @@ class WorkflowRevisionForkAlias(AliasConfig):
 
 
 class WorkflowVariantFork(VariantFork):
-    flags: Optional[WorkflowFlags] = None
+    flags: Optional[WorkflowVariantFlags] = None
 
 
 class WorkflowVariantForkAlias(AliasConfig):
@@ -318,11 +338,11 @@ class WorkflowFork(
 # simple workflows -------------------------------------------------------------
 
 
-class SimpleWorkflowFlags(WorkflowFlags):
+class SimpleWorkflowFlags(WorkflowRevisionFlags):
     pass
 
 
-class SimpleWorkflowQueryFlags(WorkflowQueryFlags):
+class SimpleWorkflowQueryFlags(WorkflowRevisionQueryFlags):
     pass
 
 

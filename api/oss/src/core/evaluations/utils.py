@@ -3,8 +3,8 @@ from uuid import UUID
 from asyncio import sleep
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.core.tracing.dtos import OTelSpansTree
 from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Trace
 from oss.src.core.shared.dtos import Traces
 from oss.src.core.tracing.utils.hashing import make_hash_id
 from oss.src.core.tracing.dtos import (
@@ -316,7 +316,17 @@ def select_traces_for_reuse(
     if not traces or required_count <= 0:
         return []
 
-    return list(traces[:required_count])
+    reusable: Traces = []
+    for trace in traces:
+        if not trace:
+            continue
+        if not getattr(trace, "trace_id", None):
+            continue
+        reusable.append(trace)
+        if len(reusable) >= required_count:
+            break
+
+    return reusable
 
 
 def plan_missing_traces(
@@ -371,14 +381,30 @@ def effective_is_split(
     return is_split
 
 
+def _has_usable_root_span(trace: Any) -> bool:
+    spans = getattr(trace, "spans", None)
+    if not isinstance(spans, dict) or not spans:
+        return False
+
+    for span in spans.values():
+        if isinstance(span, list):
+            continue
+        if getattr(span, "span_id", None):
+            return True
+
+    return False
+
+
 async def fetch_trace(
     tracing_service,
     project_id: UUID,
     #
     trace_id: str,
-    max_retries: int = 5,
-    delay: float = 1.0,
-) -> Optional[OTelSpansTree]:
+    max_retries: int = 8,
+    delay: float = 0.5,
+    max_delay: float = 4.0,
+) -> Optional[Trace]:
+    current_delay = delay
     for attempt in range(max_retries):
         had_exception = False
         try:
@@ -386,8 +412,33 @@ async def fetch_trace(
                 project_id=project_id,
                 trace_id=trace_id,
             )
-            if trace:
-                return OTelSpansTree(spans=trace.spans)
+            # spans = getattr(trace, "spans", None) if trace else None
+            # log.debug(
+            #     "[EVAL] [trace] fetch attempt",
+            #     trace_id=trace_id,
+            #     attempt=attempt + 1,
+            #     found=bool(trace),
+            #     spans_type=type(spans).__name__ if spans is not None else None,
+            #     span_count=len(spans) if isinstance(spans, dict) else None,
+            #     usable_root_span=_has_usable_root_span(trace) if trace else False,
+            # )
+            if trace and _has_usable_root_span(trace):
+                if isinstance(trace, Trace):
+                    return trace
+
+                if hasattr(trace, "model_dump"):
+                    trace_payload = trace.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                    )
+                else:
+                    trace_payload = {
+                        key: value
+                        for key, value in vars(trace).items()
+                        if value is not None
+                    }
+
+                return Trace(**trace_payload)
 
         except Exception:  # pylint: disable=broad-exception-caught
             had_exception = True
@@ -400,10 +451,11 @@ async def fetch_trace(
                 )
 
         if attempt < max_retries - 1:
-            await sleep(delay)
+            await sleep(current_delay)
+            current_delay = min(current_delay * 2, max_delay)
         elif not had_exception:
             log.warning(
-                "[EVAL] [trace] empty trace response after retries",
+                "[EVAL] [trace] empty or incomplete trace response after retries",
                 trace_id=trace_id,
                 attempts=max_retries,
             )

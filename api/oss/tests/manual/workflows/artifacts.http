@@ -27,7 +27,7 @@ Authorization: {{authorization}}
     "flags": {
       "is_custom": false,      
       "is_evaluator": false,
-      "is_human": false
+      "is_feedback": false
     },
     "tags": {
       "tag1": "value1",
@@ -71,7 +71,7 @@ Authorization: {{authorization}}
     "flags": {
       "is_custom": false,      
       "is_evaluator": false,
-      "is_human": false
+      "is_feedback": false
     }
   }
 }

@@ -53,6 +53,7 @@ const EditAppModal = () => {
             await updateWorkflow(projectId, {
                 id: appDetails?.id,
                 name: appNameInput,
+                flags: {is_application: true},
             })
             invalidateWorkflowsListCache()
             await mutate()

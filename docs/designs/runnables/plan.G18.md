@@ -60,7 +60,7 @@ Walks the shared OpenAPI spec paths to extract default parameters for a variant.
 
 **Migration target (short-term):** Add `"/invoke"` to the front of the probe list so the new system is tried first.
 
-**Migration target (long-term):** Replace the path-probe heuristic with a direct inspect call — `GET {routePath}/inspect` returns `WorkflowServiceInterface` with schemas directly, no OpenAPI parsing needed.
+**Migration target (long-term):** Replace the path-probe heuristic with a direct inspect call — `POST {routePath}/inspect` returns `WorkflowServiceRequest` with schemas directly, no OpenAPI parsing needed.
 
 ---
 
@@ -112,7 +112,7 @@ const endpointNames = ["/invoke", "/test", "/run", "/generate", "/generate_deplo
 
 **File:** `web/oss/src/services/app-selector/api/index.ts`
 
-Replace the OpenAPI path-probe block with a single `GET {routePath}/inspect` call. The response `WorkflowServiceInterface` carries input/output schemas directly — no OpenAPI parsing required.
+Replace the OpenAPI path-probe block with a single `POST {routePath}/inspect` call. The response `WorkflowServiceRequest` carries the revision/interface schemas directly — no OpenAPI parsing required.
 
 This step can land independently of S2 and is not required to unblock G1 removal.
 

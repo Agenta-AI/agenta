@@ -590,6 +590,14 @@ export async function fetchWorkflow({id, projectId}: WorkflowDetailParams): Prom
 // ============================================================================
 
 /**
+ * Role flags settable by the frontend — the only flags the FE may send.
+ * URI-derived and interface-derived flags are computed by the backend from revision data.
+ */
+export type WorkflowRoleFlags = Partial<
+    Pick<NonNullable<WorkflowFlags>, "is_application" | "is_evaluator" | "is_snippet">
+>
+
+/**
  * Request body for creating a workflow.
  *
  * Maps to backend `WorkflowCreateRequest` + `WorkflowRevisionCommitRequest`.
@@ -599,7 +607,7 @@ export interface CreateWorkflowPayload {
     slug: string
     name: string
     description?: string | null
-    flags?: WorkflowFlags
+    flags?: WorkflowRoleFlags
     tags?: string[] | null
     meta?: Record<string, unknown> | null
     /** Commit message for the initial revision */
@@ -661,13 +669,12 @@ export async function createWorkflow(
     const workflowId = validatedWorkflow.workflow.id
 
     // Step 2: Create a default variant (revisions require a variant_id)
-    const variantSlug = crypto.randomUUID().replace(/-/g, "").slice(0, 12)
     const variantResponse = await axios.post(
         `${getAgentaApiUrl()}/preview/workflows/variants/`,
         {
             workflow_variant: {
                 workflow_id: workflowId,
-                slug: variantSlug,
+                slug: generateId().replace(/-/g, "").slice(0, 12),
                 name: payload.name,
             },
         },
@@ -693,14 +700,10 @@ export async function createWorkflow(
             {
                 workflow_revision: {
                     workflow_id: workflowId,
-                    variant_id: variantId,
-                    slug: crypto.randomUUID().replace(/-/g, "").slice(0, 12),
+                    workflow_variant_id: variantId,
+                    slug: generateId().replace(/-/g, "").slice(0, 12),
                     name: payload.name,
-                    flags: payload.flags,
-                    data: {
-                        uri: payload.data.uri,
-                        url: payload.data.url,
-                    },
+                    message: "Initial commit",
                 },
             },
             {params: {project_id: projectId}},
@@ -712,10 +715,9 @@ export async function createWorkflow(
             {
                 workflow_revision: {
                     workflow_id: workflowId,
-                    variant_id: variantId,
+                    workflow_variant_id: variantId,
                     slug: generateId().replace(/-/g, "").slice(0, 12),
                     name: payload.name,
-                    flags: payload.flags,
                     data: payload.data,
                     message: payload.message ?? undefined,
                 },
@@ -801,7 +803,7 @@ export interface UpdateWorkflowPayload {
     variantId?: string | null
     name?: string | null
     description?: string | null
-    flags?: WorkflowFlags
+    flags?: WorkflowRoleFlags
     tags?: string[] | null
     meta?: Record<string, unknown> | null
     /** Commit message for the new revision */
@@ -863,7 +865,6 @@ export async function updateWorkflow(
                     workflow_variant_id: payload.variantId ?? undefined,
                     slug: generateId().replace(/-/g, "").slice(0, 12),
                     name: payload.name ?? undefined,
-                    flags: payload.flags,
                     data: payload.data,
                     message: payload.message ?? undefined,
                 },
@@ -903,7 +904,6 @@ export interface CommitWorkflowRevisionPayload {
     variantId?: string
     slug?: string
     name?: string
-    flags?: WorkflowFlags
     data: NonNullable<UpdateWorkflowPayload["data"]>
     message?: string
 }
@@ -920,7 +920,6 @@ export async function commitWorkflowRevisionApi(
                 workflow_variant_id: payload.variantId ?? undefined,
                 slug: payload.slug ?? generateId().replace(/-/g, "").slice(0, 12),
                 name: payload.name ?? undefined,
-                flags: payload.flags,
                 data: payload.data,
                 message: payload.message ?? undefined,
             },

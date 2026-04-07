@@ -47,7 +47,7 @@ function useWorkflowHumanMap() {
 
     return useMemo(() => {
         return new Map(
-            workflows.map((workflow) => [workflow.id, Boolean(workflow.flags?.is_human)]),
+            workflows.map((workflow) => [workflow.id, Boolean(workflow.flags?.is_feedback)]),
         )
     }, [workflows])
 }
@@ -83,9 +83,9 @@ export function useEnrichedEvaluatorBrowseAdapter() {
             excludeRevisionZero: true,
             filterWorkflows: (entity: unknown) => {
                 const w = entity as {
-                    flags?: {is_human?: boolean} | null
+                    flags?: {is_feedback?: boolean} | null
                 }
-                return !w.flags?.is_human
+                return !w.flags?.is_feedback
             },
             grandparentOverrides: {
                 getLabelNode,
@@ -130,7 +130,7 @@ export function useEnrichedEvaluatorOnlyAdapter(
 
         const options: Parameters<typeof createWorkflowRevisionAdapter>[0] = {
             skipVariantLevel: true,
-            flags: {is_evaluator: true, is_human: false},
+            flags: {is_evaluator: true, is_feedback: false},
             excludeRevisionZero: true,
             grandparentOverrides: {
                 getLabelNode,
@@ -184,7 +184,7 @@ export function useEnrichedHumanEvaluatorAdapter(
 
         const options: Parameters<typeof createWorkflowRevisionAdapter>[0] = {
             skipVariantLevel: true,
-            flags: {is_human: true},
+            flags: {is_feedback: true},
             excludeRevisionZero: true,
             grandparentOverrides: {
                 getLabelNode,
@@ -261,10 +261,10 @@ export function useEnrichedAnnotationEvaluatorAdapter(
             excludeRevisionZero: true,
             filterWorkflows: (entity: unknown) => {
                 const workflow = entity as {
-                    flags?: {is_evaluator?: boolean; is_human?: boolean} | null
+                    flags?: {is_evaluator?: boolean; is_feedback?: boolean} | null
                 }
 
-                return Boolean(workflow.flags?.is_evaluator || workflow.flags?.is_human)
+                return Boolean(workflow.flags?.is_evaluator || workflow.flags?.is_feedback)
             },
             grandparentOverrides: {
                 getLabelNode,

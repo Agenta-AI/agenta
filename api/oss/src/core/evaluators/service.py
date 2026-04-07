@@ -30,6 +30,8 @@ from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorEdit,
     SimpleEvaluatorQuery,
     SimpleEvaluatorFlags,
+    SimpleEvaluatorQueryFlags,
+    EvaluatorArtifactQueryFlags,
     EvaluatorFlags,
     Evaluator,
     EvaluatorQuery,
@@ -916,6 +918,52 @@ class SimpleEvaluatorsService:
         self.evaluators_service = evaluators_service
 
     @staticmethod
+    def _build_simple_evaluator_flags(
+        *,
+        evaluator_revision: Optional[EvaluatorRevision],
+    ) -> SimpleEvaluatorFlags:
+        return SimpleEvaluatorFlags(
+            **(
+                evaluator_revision.flags.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude_unset=True,
+                )
+                if evaluator_revision and evaluator_revision.flags
+                else {}
+            )
+        )
+
+    @staticmethod
+    def _matches_requested_simple_evaluator_flags(
+        *,
+        simple_evaluator: SimpleEvaluator,
+        requested_flags: Optional[SimpleEvaluatorQueryFlags],
+    ) -> bool:
+        if not requested_flags:
+            return True
+
+        actual_flags = (
+            simple_evaluator.flags.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude_unset=True,
+            )
+            if simple_evaluator.flags
+            else {}
+        )
+        requested_flag_values = requested_flags.model_dump(
+            mode="json",
+            exclude_none=True,
+            exclude_unset=True,
+        )
+
+        return all(
+            actual_flags.get(flag_name) == expected_value
+            for flag_name, expected_value in requested_flag_values.items()
+        )
+
+    @staticmethod
     def _extract_builtin_evaluator_key(
         simple_evaluator_data: Optional[SimpleEvaluatorData],
     ) -> Optional[str]:
@@ -934,17 +982,6 @@ class SimpleEvaluatorsService:
 
         return parts[2] or None
 
-    @staticmethod
-    def _has_outputs_schema(
-        simple_evaluator_data: Optional[SimpleEvaluatorData],
-    ) -> bool:
-        if not simple_evaluator_data or not isinstance(
-            simple_evaluator_data.schemas, dict
-        ):
-            return False
-
-        return bool(simple_evaluator_data.schemas.get("outputs"))
-
     def _normalize_evaluator_data(
         self,
         simple_evaluator_data: Optional[SimpleEvaluatorData],
@@ -962,7 +999,7 @@ class SimpleEvaluatorsService:
 
         normalized_data_dict: Dict[str, Any] = {}
 
-        if evaluator_key and not self._has_outputs_schema(simple_evaluator_data):
+        if evaluator_key:
             settings_values = (
                 simple_evaluator_data.parameters
                 if isinstance(simple_evaluator_data.parameters, dict)
@@ -980,10 +1017,18 @@ class SimpleEvaluatorsService:
                 exclude_unset=True,
             )
 
+            existing_schemas = existing_data_dict.get("schemas") or {}
+            inferred_schemas = normalized_data_dict.get("schemas") or {}
+            if existing_schemas or inferred_schemas:
+                normalized_data_dict["schemas"] = {
+                    **existing_schemas,
+                    **inferred_schemas,
+                }
+
         return SimpleEvaluatorData(
             **{
-                **normalized_data_dict,
                 **existing_data_dict,
+                **normalized_data_dict,
             }
         )
 
@@ -1165,7 +1210,9 @@ class SimpleEvaluatorsService:
             name=evaluator.name,
             description=evaluator.description,
             #
-            flags=simple_evaluator_flags,
+            flags=self._build_simple_evaluator_flags(
+                evaluator_revision=evaluator_revision,
+            ),
             tags=evaluator.tags,
             meta=evaluator.meta,
             #
@@ -1223,18 +1270,6 @@ class SimpleEvaluatorsService:
         if evaluator_revision is None:
             return None
 
-        simple_evaluator_flags = SimpleEvaluatorFlags(
-            **(
-                evaluator.flags.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                    exclude_unset=True,
-                )
-                if evaluator.flags
-                else {}
-            )
-        )
-
         simple_evaluator_data = SimpleEvaluatorData(
             **(
                 evaluator_revision.data.model_dump(
@@ -1261,7 +1296,9 @@ class SimpleEvaluatorsService:
             name=evaluator.name,
             description=evaluator.description,
             #
-            flags=simple_evaluator_flags,
+            flags=self._build_simple_evaluator_flags(
+                evaluator_revision=evaluator_revision,
+            ),
             tags=evaluator.tags,
             meta=evaluator.meta,
             #
@@ -1431,7 +1468,9 @@ class SimpleEvaluatorsService:
             name=evaluator.name,
             description=evaluator.description,
             #
-            flags=simple_evaluator_flags,
+            flags=self._build_simple_evaluator_flags(
+                evaluator_revision=evaluator_revision,
+            ),
             tags=evaluator.tags,
             meta=evaluator.meta,
             #
@@ -1459,12 +1498,20 @@ class SimpleEvaluatorsService:
         query_data = (
             simple_evaluator_query.model_dump(
                 mode="json",
+                exclude_none=True,
+                exclude_unset=True,
             )
             if simple_evaluator_query
             else {}
         )
-        query_data.setdefault("flags", {})
-        evaluator_query = EvaluatorQuery(**query_data)
+        requested_flags = (
+            simple_evaluator_query.flags if simple_evaluator_query else None
+        )
+        query_data.pop("flags", None)
+        evaluator_query = EvaluatorQuery(
+            **query_data,
+            flags=EvaluatorArtifactQueryFlags(),
+        )
 
         evaluator_queries = await self.evaluators_service.query_evaluators(
             project_id=project_id,
@@ -1514,20 +1561,6 @@ class SimpleEvaluatorsService:
             if not evaluator_revision:
                 continue
 
-            simple_evaluator_flags = SimpleEvaluatorFlags(
-                **(
-                    evaluator_query.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                        exclude={"is_evaluator"},
-                    )
-                    if evaluator_query.flags
-                    else {}
-                ),
-                is_evaluator=True,
-            )
-
             simple_evaluator_data = SimpleEvaluatorData(
                 **(
                     evaluator_revision.data.model_dump(
@@ -1552,13 +1585,105 @@ class SimpleEvaluatorsService:
                 name=evaluator_query.name,
                 description=evaluator_query.description,
                 #
-                flags=simple_evaluator_flags,
+                flags=self._build_simple_evaluator_flags(
+                    evaluator_revision=evaluator_revision,
+                ),
                 tags=evaluator_query.tags,
                 meta=evaluator_query.meta,
                 #
                 data=simple_evaluator_data,
             )
 
+            if not self._matches_requested_simple_evaluator_flags(
+                simple_evaluator=evaluator_query,
+                requested_flags=requested_flags,
+            ):
+                continue
+
             simple_evaluators.append(evaluator_query)
 
         return simple_evaluators
+
+    async def archive(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_id: UUID,
+    ) -> Optional[SimpleEvaluator]:
+        evaluator = await self.evaluators_service.archive_evaluator(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            evaluator_id=evaluator_id,
+        )
+
+        if evaluator is None:
+            return None
+
+        evaluator_variant = await self.evaluators_service.fetch_evaluator_variant(
+            project_id=project_id,
+            #
+            evaluator_ref=Reference(id=evaluator_id),
+        )
+
+        if evaluator_variant is None:
+            return None
+
+        evaluator_variant = await self.evaluators_service.archive_evaluator_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            evaluator_variant_id=evaluator_variant.id,
+        )
+
+        if evaluator_variant is None:
+            return None
+
+        return await self.fetch(
+            project_id=project_id,
+            evaluator_id=evaluator_id,
+        )
+
+    async def unarchive(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_id: UUID,
+    ) -> Optional[SimpleEvaluator]:
+        evaluator = await self.evaluators_service.unarchive_evaluator(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            evaluator_id=evaluator_id,
+        )
+
+        if evaluator is None:
+            return None
+
+        evaluator_variant = await self.evaluators_service.fetch_evaluator_variant(
+            project_id=project_id,
+            #
+            evaluator_ref=Reference(id=evaluator_id),
+        )
+
+        if evaluator_variant is None:
+            return None
+
+        evaluator_variant = await self.evaluators_service.unarchive_evaluator_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            evaluator_variant_id=evaluator_variant.id,
+        )
+
+        if evaluator_variant is None:
+            return None
+
+        return await self.fetch(
+            project_id=project_id,
+            evaluator_id=evaluator_id,
+        )

@@ -12,10 +12,13 @@
 > [runnables-component-layer.md](./runnables-component-layer.md),
 > and [runnables-function-layer.md](./runnables-function-layer.md).
 > Where this document records earlier hypotheses or only the current-state code, the newer layer docs win.
+> The canonical discovery contract is: persisted revision/query truth first, `/inspect` only when no local revision truth exists yet or explicit live discovery is needed.
 
 ## Companion Documents
 
 - [gap-analysis.md](./gap-analysis.md)
+- [gap.migrations.md](./gap.migrations.md)
+- [gap.catalog.md](./gap.catalog.md)
 - [plan.md](./plan.md)
 - [design-review.md](./design-review.md)
 - [simple-traces-unification.md](./simple-traces-unification.md)
@@ -86,7 +89,7 @@ Uses `@ag.workflow()` / `@ag.application()` / `@ag.evaluator()` decorator classe
 | Programmatic | `invoke(request=...)` | `WorkflowServiceRequest` -> `WorkflowServiceBatchResponse \| WorkflowServiceStreamResponse` |
 | Programmatic | `inspect()` | `() -> WorkflowServiceRequest` |
 | HTTP | `POST {path}/invoke` | JSON body as `WorkflowServiceRequest` -> JSON or NDJSON/SSE stream |
-| HTTP | `GET {path}/inspect` | -> `WorkflowServiceRequest` as JSON |
+| HTTP | `POST {path}/inspect` | -> `WorkflowServiceRequest` as JSON |
 
 **HTTP routing details** (`routing.py`):
 - `route` class creates a FastAPI app with middleware: CORS -> Vault -> Auth -> OTel
@@ -106,7 +109,7 @@ Uses `@ag.workflow()` / `@ag.application()` / `@ag.evaluator()` decorator classe
 |--------|----------------------|----------------------------------|
 | HTTP endpoints | `/run`, `/test`, `/generate`, `/generate_deployed` | `{path}/invoke`, `{path}/inspect` |
 | Schema source | Python function signature + Pydantic model | Explicit JSON Schema in `WorkflowServiceInterface` |
-| OpenAPI discovery | Legacy `/openapi.json` with `x-agenta` extensions | Not in new system; use `GET /inspect` |
+| OpenAPI discovery | Legacy `/openapi.json` with `x-agenta` extensions | Not in new system; use persisted revision/query truth first and `POST /inspect` as the live fallback |
 | Streaming | Detected from return type | `WorkflowServiceStreamResponse` + Accept header negotiation (SSE/NDJSON) |
 | Tracing | OTel middleware + `TracingContext` | `TracingContext` via context manager |
 | Config resolution | Middleware chain (Config -> request.state) | Resolver middleware |
@@ -122,7 +125,7 @@ Uses `@ag.workflow()` / `@ag.application()` / `@ag.evaluator()` decorator classe
 WorkflowFlags
   is_custom: bool = False
   is_evaluator: bool = False
-  is_human: bool = False
+  is_feedback: bool = False
   is_chat: bool = False
 
 JsonSchemas
@@ -272,7 +275,7 @@ Standard Git-pattern CRUD. **Dual mounted** under both `/workflows` and `/previe
 **Architectural implication for the migration plan:**
 - workflows are the canonical runnable API family
 - applications and evaluators are filtered workflow projections, not separate execution systems
-- when execution or discovery surfaces are added at the workflow family level, the application and evaluator families should normally expose the same surface with domain filtering rather than inventing parallel behavior
+- do not assume application/evaluator API router families get their own runnable invoke/inspect endpoints; runtime execution/discovery belongs to `/services`
 - at the subsystem boundary, the target direction is for the API to act as a control plane and hand runnable execution/discovery toward runtime services rather than keeping execution inside the API container
 
 ### 5.3 Invoke & Inspect (New System)
@@ -326,9 +329,9 @@ Client -> API (resolve variant -> deployment URL) -> SDK HTTP Service (/run or /
 
 | Flag | Defined In | Set By | Exposed Via |
 |------|-----------|--------|-------------|
-| `is_custom` | `WorkflowFlags` | SDK auto-detection (`is_custom_uri`) + `WorkflowDBE.is_custom` | Persisted in DB |
+| `is_custom` | `WorkflowFlags` | SDK auto-detection (`is_user_custom_uri`) + `WorkflowDBE.is_custom` | Persisted in DB |
 | `is_evaluator` | `WorkflowFlags` | `@ag.evaluator()` sets True, `@ag.application()` sets False | OpenAPI `x-agenta.flags`, `inspect()` |
-| `is_human` | `WorkflowFlags` | Not set anywhere currently | — |
+| `is_feedback` | `WorkflowFlags` | Not set anywhere currently | — |
 | `is_chat` | `WorkflowFlags` | `@ag.route(flags={"is_chat": True})` or auto-detect from `MessagesInput` | OpenAPI `x-agenta.flags`, `inspect()` |
 
 ### 6.2 How Flags Are Exposed
@@ -504,7 +507,7 @@ This is the richest schema definition in the system, but it only covers builtins
 | 1 | **Two parallel HTTP serving systems** (serving.py vs running.py) | Confusion about which path is canonical |
 | 2 | **API inspect exists but doesn't cache** | `POST /workflows/inspect` delegates to SDK but doesn't persist/cache results |
 | 3 | **No OpenAPI-compatible endpoint in new system** | Legacy serving has `/openapi.json` with `x-agenta.flags`; new system has `/inspect` but not OpenAPI-formatted |
-| 4 | **Flags not persisted in DB** | Only `is_custom` stored; `is_evaluator`, `is_chat`, `is_human` are runtime-only |
+| 4 | **Flags not persisted in DB** | Only `is_custom` stored; `is_evaluator`, `is_chat`, `is_feedback` are runtime-only |
 | 5 | **Missing capability flags** | `can_stream`, `can_evaluate`, `can_chat`, `can_verbose` not defined |
 | 6 | **Request flags in invoke are underspecified** | The request model has `flags`, but invocation-mode semantics are not clearly defined on it |
 | 7 | **Trace scope is easy to overstate** | The plan should stay limited to passive incoming trace-context support inside SDK routing/running |

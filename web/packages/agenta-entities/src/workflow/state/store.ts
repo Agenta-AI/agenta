@@ -340,7 +340,7 @@ export const workflowProjectIdAtom = projectIdAtom
  *
  * Contains the superset of fields consumed by all list-level atoms:
  * - `id`, `name`, `slug` — display and lookup
- * - `flags` — filtering (is_evaluator, is_human, is_custom)
+ * - `flags` — filtering (is_evaluator, is_feedback, is_custom)
  * - `deleted_at` — archive filtering
  * - `description` — human evaluator list display
  * - `created_at` — sort order in some views
@@ -868,6 +868,9 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
         // Service URL: prefer stored url, fall back to building from URI
         const serviceUrl = storedUrl ?? buildServiceUrlFromUri(uri)
 
+        // Skip inspect when the revision has no service endpoint (has_url: false)
+        const hasUrl = serverData?.flags?.has_url ?? true
+
         // Skip inspect when the revision already carries all schemas inline.
         // The merge step (workflowEntityAtomFamily) gives server schemas
         // precedence, so fetching inspect would be redundant.
@@ -875,7 +878,8 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
         const hasAllSchemas =
             !!serverSchemas?.inputs && !!serverSchemas?.outputs && !!serverSchemas?.parameters
 
-        const isEnabled = get(sessionAtom) && !!projectId && !!uri && !!serviceUrl && !hasAllSchemas
+        const isEnabled =
+            get(sessionAtom) && !!projectId && !!uri && !!serviceUrl && hasUrl && !hasAllSchemas
 
         return {
             queryKey: ["workflows", "inspect", revisionId, uri, serviceUrl, projectId],
@@ -1596,7 +1600,7 @@ export const updateWorkflowDraftAtom = atom(
             topLevelParameters !== undefined ? topLevelParameters : nestedParameters
         const flags = serverData?.flags ?? current?.flags
         const shouldSyncPromptInputKeys =
-            !!flags && !flags.is_custom && !flags.is_evaluator && !flags.is_human
+            !!flags && !flags.is_custom && !flags.is_evaluator && !flags.is_feedback
         const normalizedUpdates =
             incomingParameters !== undefined
                 ? ({
@@ -1809,7 +1813,7 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
             is_hook: false,
             is_code: false,
             is_match: false,
-            is_human: false,
+            is_feedback: false,
             is_chat: isChat,
             has_url: false,
             has_script: false,

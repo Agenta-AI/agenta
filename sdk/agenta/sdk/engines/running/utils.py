@@ -9,7 +9,7 @@ from agenta.sdk.models.workflows import (
 
 from agenta.sdk.engines.running.handlers import (
     # --- NEW URI
-    trace_v0,
+    feedback_v0,
     hook_v0,
     code_v0,
     config_v0,
@@ -40,7 +40,7 @@ from agenta.sdk.engines.running.handlers import (
 
 from agenta.sdk.engines.running.interfaces import (
     # --- NEW URI
-    trace_v0_interface,
+    feedback_v0_interface,
     hook_v0_interface,
     code_v0_interface,
     config_v0_interface,
@@ -73,7 +73,7 @@ INTERFACE_REGISTRY: dict = dict(
     agenta=dict(
         custom=dict(
             # --- NEW URI
-            trace=dict(v0=trace_v0_interface),
+            feedback=dict(v0=feedback_v0_interface),
             hook=dict(v0=hook_v0_interface),
             code=dict(v0=code_v0_interface),
             snippet=dict(v0=config_v0_interface),
@@ -121,10 +121,10 @@ def _catalog_entry() -> dict:
 CATALOG_REGISTRY: dict = dict(
     agenta=dict(
         custom=dict(
-            trace=dict(
+            feedback=dict(
                 v0=dict(
-                    name="Custom Trace",
-                    description="Capture an external invocation or a manual annotation.",
+                    name="Custom Feedback",
+                    description="Capture external feedback or a manual annotation.",
                     categories=[],
                     flags=WorkflowFlags(
                         is_application=True,
@@ -139,7 +139,7 @@ CATALOG_REGISTRY: dict = dict(
                             categories=[],
                             flags=None,
                             data=dict(
-                                uri="agenta:custom:trace:v0",
+                                uri="agenta:custom:feedback:v0",
                                 schemas=dict(
                                     outputs={
                                         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -251,7 +251,7 @@ CONFIGURATION_REGISTRY: dict = dict(
     agenta=dict(
         custom=dict(
             # --- NEW URI
-            trace=dict(v0=WorkflowRevisionData()),
+            feedback=dict(v0=WorkflowRevisionData()),
             hook=dict(v0=WorkflowRevisionData()),
             code=dict(v0=WorkflowRevisionData()),
             snippet=dict(v0=WorkflowRevisionData()),
@@ -317,7 +317,7 @@ HANDLER_REGISTRY: dict = dict(
     agenta=dict(
         custom=dict(
             # --- NEW URI
-            trace=dict(v0=trace_v0),
+            feedback=dict(v0=feedback_v0),
             hook=dict(v0=hook_v0),
             snippet=dict(v0=config_v0),
             code=dict(v0=code_v0),
@@ -477,7 +477,7 @@ def retrieve_configuration(uri: Optional[str] = None) -> Optional[dict]:
     return _get_with_latest(CONFIGURATION_REGISTRY, provider, kind, key, version)
 
 
-def is_custom_uri(uri: Optional[str] = None) -> bool:
+def is_user_custom_uri(uri: Optional[str] = None) -> bool:
     if not uri:
         return True
 
@@ -517,7 +517,7 @@ _AGENTA_ROLE_TABLE: dict = {
     # agenta:custom:* — user-deployed code running on agenta platform
     ("custom", "code"): (True, True, False),
     ("custom", "hook"): (True, True, False),
-    ("custom", "trace"): (True, True, False),
+    ("custom", "feedback"): (True, True, False),
     # agenta:builtin:* — application-only (not evaluators)
     ("builtin", "chat"): (True, False, False),
     ("builtin", "completion"): (True, False, False),
@@ -561,6 +561,7 @@ def infer_flags_from_data(
     Schema-derived flags (is_chat) are handled separately by the schema materializer.
 
     Args:
+
         flags: Caller-provided flags from the commit payload. is_evaluator, is_application,
                and is_snippet are taken directly from here when provided (flags is not None).
                All URI/interface flags are always re-inferred from data, ignoring any stored values.
@@ -582,7 +583,7 @@ def infer_flags_from_data(
     is_hook = key == "hook"
     is_code = key == "code"
     is_match = key == "match"
-    is_human = key == "trace"
+    is_feedback = key == "feedback"
 
     # For managed URIs, infer URL from URI components if not explicitly provided
     if not url and is_managed and kind and key and version:
@@ -626,7 +627,7 @@ def infer_flags_from_data(
         is_hook=is_hook,
         is_code=is_code,
         is_match=is_match,
-        is_human=is_human,
+        is_feedback=is_feedback,
         # interface-derived
         has_url=has_url,
         has_handler=has_handler,

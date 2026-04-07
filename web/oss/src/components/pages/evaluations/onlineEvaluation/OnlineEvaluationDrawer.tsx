@@ -72,7 +72,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
     const allEvaluatorsQuery = useAtomValue(evaluatorsListQueryAtom)
     const evaluators = useAtomValue(evaluatorConfigsListDataAtom)
     const previewEvaluators = useMemo(
-        () => (allEvaluatorsList || []).filter((e) => e.flags?.is_human !== true),
+        () => (allEvaluatorsList || []).filter((e) => e.flags?.is_feedback !== true),
         [allEvaluatorsList],
     )
     const selectedEvaluatorRevisionId = Form.useWatch("evaluator", form)

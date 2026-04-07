@@ -274,7 +274,7 @@ const AppWithVariants = memo(
                                         "pb-0 mb-8": !isFullHeight,
                                         "flex flex-col min-h-0 grow": isFullHeight,
                                         "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                            isPlayground,
+                                            isPlayground || isEvaluator,
                                     })}
                                 >
                                     <ErrorBoundary FallbackComponent={ErrorFallback}>

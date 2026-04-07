@@ -239,15 +239,15 @@ Non-runnable workflows with URIs are still useful:
 
 | Property | Derivation |
 |----------|-----------|
-| `is_custom` | `is_custom_uri(uri)` — `provider == "user" and kind == "custom"` |
+| `is_custom` | `is_user_custom_uri(uri)` — `provider == "user" and kind == "custom"` |
 | `is_builtin` | URI starts with `agenta:` |
 | `is_runnable` | `agenta:*` URI → always true. `user:*` URI → true if has handler or URL. No URI → false during migration, then eliminated by backfill. |
 | `has_interface` | `schemas is not None` (has input/output definitions) |
 | `has_configuration` | `parameters is not None` (has configuration values) |
 
-### 4f. What Replaces `is_human`
+### 4f. What Replaces `is_feedback`
 
-`is_human` should not survive as an authored flag. For the current migration path it is better modeled as URI-family-derived classification for the Agenta-managed custom annotation family, with any remaining runnability decision handled separately.
+`is_feedback` should not survive as an authored flag. For the current migration path it is better modeled as URI-family-derived classification for the Agenta-managed custom annotation family, with any remaining runnability decision handled separately.
 
 The derivation:
 - `agenta:*` URI → runnable (always)
@@ -313,11 +313,11 @@ This gives a natural mapping: `user:custom:my-app-variant:v3` → variant slug `
 
 For builtins, the third URI field remains the builtin handler/catalog key, and the version remains the builtin version rather than the backend revision version.
 
-### 6c. Stop Storing `is_custom` and `is_human` as Flags
+### 6c. Stop Storing `is_custom` and `is_feedback` as Flags
 
 Both are derivable:
-- `is_custom` → `is_custom_uri(uri)` (already exists)
-- `is_human`-style classification → derive from the Agenta custom annotation URI family during this migration
+- `is_custom` → `is_user_custom_uri(uri)` (already exists)
+- `is_feedback`-style classification → derive from the Agenta custom annotation URI family during this migration
 
 **Migration path:**
 1. Backfill: give all human evaluators proper URIs
@@ -390,5 +390,5 @@ Derived from uri + url + handler:
 
 No longer stored as flags:
   is_custom  — derive from uri
-  is_human   — derive from not is_runnable
+  is_feedback   — derive from not is_runnable
 ```

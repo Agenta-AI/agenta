@@ -128,17 +128,17 @@ const CreateEvaluator = ({
 
         if (!isEditMode) {
             return {
-                evaluatorName: "",
-                evaluatorSlug: "",
-                evaluatorDescription: "",
+                evaluatorName: null,
+                evaluatorSlug: null,
+                evaluatorDescription: null,
                 metrics,
             }
         }
 
         return {
-            evaluatorName: evaluator?.name || "",
-            evaluatorSlug: evaluator?.slug || "",
-            evaluatorDescription: evaluator?.description || "",
+            evaluatorName: evaluator?.name,
+            evaluatorSlug: evaluator?.slug,
+            evaluatorDescription: evaluator?.description,
             metrics,
         }
     }, [evaluator, isEditMode, metricsFromEvaluator])
@@ -205,7 +205,6 @@ const CreateEvaluator = ({
                         name: values.evaluatorName,
                         description: values.evaluatorDescription,
                         metrics,
-                        flags: evaluatorWithMeta.flags,
                         meta: evaluatorWithMeta.meta as Record<string, unknown> | undefined,
                         tags: normalizeTags(evaluatorWithMeta.tags),
                     })

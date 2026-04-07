@@ -15,7 +15,7 @@
 
 import {memo, useCallback, useMemo, useState} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
 import {EnhancedModal, ModalFooter} from "@agenta/ui/components/modal"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"

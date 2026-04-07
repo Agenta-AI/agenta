@@ -27,7 +27,9 @@ RUN --mount=type=cache,id=pip-api,target=/root/.cache/pip \
     python -m venv /opt/venv \
     && . /opt/venv/bin/activate \
     && poetry export --only main --without-hashes --format requirements.txt --output /tmp/requirements.txt \
-    && pip install -r /tmp/requirements.txt \
+    && grep -viE '^agenta($|[[:space:]@<>=!~\\[])' /tmp/requirements.txt > /tmp/requirements.runtime.txt \
+    && pip install -r /tmp/requirements.runtime.txt \
+    && rm -f /tmp/requirements.runtime.txt \
     && rm -f /tmp/requirements.txt \
     && (pip uninstall -y pip setuptools 2>/dev/null || true) \
     && SITE=$(python -c 'import site; print(site.getsitepackages()[0])') \
@@ -86,11 +88,11 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install supercronic (non-root-compatible cron daemon)
-ARG SUPERCRONIC_VERSION=v0.2.33
+ARG SUPERCRONIC_VERSION=v0.2.36
 RUN ARCH=$(dpkg --print-architecture) && \
     case "${ARCH}" in \
-      amd64) SHA1=71b0d58cc53f6bd72cf2f293e09e294b79c666d8 ;; \
-      arm64) SHA1=e0f0c06ebc5627e43b25475711e694450489ab00 ;; \
+      amd64) SHA1=53a484404b0c559d64f78e9481a3ec22f782dc46 ;; \
+      arm64) SHA1=58b3c15304e7b59fe7b9d66a2242f37e71cf7db6 ;; \
       *) echo "Unsupported arch: ${ARCH}" && exit 1 ;; \
     esac && \
     curl -fsSL "https://github.com/aptible/supercronic/releases/download/${SUPERCRONIC_VERSION}/supercronic-linux-${ARCH}" \

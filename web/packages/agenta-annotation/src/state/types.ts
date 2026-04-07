@@ -197,6 +197,27 @@ export interface SubmitAnnotationsPayload {
     markComplete?: boolean
 }
 
+/**
+ * Evaluator references embedded in an evaluation run annotation step.
+ * Preserves the queue's pinned revision while keeping workflow IDs available
+ * for annotation create/update payloads.
+ */
+export interface EvaluatorStepRef {
+    workflowId?: string | null
+    variantId?: string | null
+    revisionId?: string | null
+    slug?: string | null
+    stepKey?: string | null
+}
+
+/**
+ * Evaluator resolution status for the annotation form.
+ */
+export interface EvaluatorResolutionState {
+    isPending: boolean
+    hasError: boolean
+}
+
 // ============================================================================
 // COMPOUND SELECTOR TYPES
 // ============================================================================

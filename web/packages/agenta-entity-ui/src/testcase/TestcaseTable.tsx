@@ -24,8 +24,8 @@
 
 import {useCallback} from "react"
 
-import {testcase} from "@agenta/entities"
 import {
+    testcaseMolecule as testcase,
     testcaseDataController,
     type Column,
     type TestcaseDataConfig,

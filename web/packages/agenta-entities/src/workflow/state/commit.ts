@@ -35,7 +35,7 @@ import {
     archiveWorkflowVariant,
     queryWorkflowRevisions,
 } from "../api"
-import type {Workflow} from "../core"
+import {generateSlug, type Workflow} from "../core"
 
 import {invalidateEvaluatorsListCache} from "./evaluatorUtils"
 import {
@@ -241,7 +241,6 @@ export const commitWorkflowRevisionAtom = atom(
                 workflowId,
                 variantId: variantId ?? undefined,
                 name: entity.name ?? undefined,
-                flags: entity.flags ?? undefined,
                 message: _commitMessage ?? undefined,
                 data: {
                     uri: entity.data.uri,
@@ -384,7 +383,6 @@ export const createWorkflowVariantAtom = atom(
                 workflowId,
                 variantId: newVariant.id,
                 name: newVariantName,
-                flags: entity.flags ?? undefined,
                 data: {
                     uri: entity.data.uri,
                     url: entity.data.url,
@@ -396,7 +394,6 @@ export const createWorkflowVariantAtom = atom(
                 workflowId,
                 variantId: newVariant.id,
                 name: newVariantName,
-                flags: entity.flags ?? undefined,
                 message: commitMessage,
                 data: {
                     uri: entity.data.uri,
@@ -500,14 +497,21 @@ export const createWorkflowFromEphemeralAtom = atom(
             }
 
             // 2. Generate a unique slug (never use the template key)
-            const uniqueSlug = crypto.randomUUID().replace(/-/g, "").slice(0, 12)
+            const workflowName = name || entity.name || "Workflow"
+            const workflowSlug = generateSlug(workflowName)
 
             // 3. Create workflow via API
             const newWorkflow = await createWorkflowApi(projectId, {
-                slug: uniqueSlug,
-                name: name || entity.name || "Workflow",
-                flags: entity.flags ?? undefined,
-                message: commitMessage ?? undefined,
+                slug: workflowSlug,
+                name: workflowName,
+                flags: entity.flags
+                    ? {
+                          is_application: entity.flags.is_application,
+                          is_evaluator: entity.flags.is_evaluator,
+                          is_snippet: entity.flags.is_snippet,
+                      }
+                    : undefined,
+                message: commitMessage || undefined,
                 data: entity.data
                     ? {
                           uri: entity.data.uri,

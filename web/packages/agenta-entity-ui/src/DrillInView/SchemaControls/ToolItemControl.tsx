@@ -467,7 +467,16 @@ export const ToolItemControl = memo(function ToolItemControl({
     const effectiveRenderProviderIcon = renderProviderIcon ?? defaultRenderProviderIcon
 
     const isReadOnly = disabled
-    const [minimized, setMinimized] = useState(false)
+    const [minimized, setMinimized] = useState(() => {
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+            const obj = value as Record<string, unknown>
+            if (obj.agenta_metadata && typeof obj.agenta_metadata === "object") {
+                const meta = obj.agenta_metadata as Record<string, unknown>
+                return meta.source === "gateway" || meta.source === "builtin"
+            }
+        }
+        return false
+    })
     const containerRef = useRef<HTMLDivElement>(null)
 
     // Strip agenta_metadata if present (re-attach on change)

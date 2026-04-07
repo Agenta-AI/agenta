@@ -346,6 +346,7 @@ MANAGED_WORKFLOW_CASES = [
             },
             "inputs": {"correct_answer": '{"city": "Paris"}'},
             "outputs": '{"city": "Paris"}',
+            "output_kind": "field_scores",
         },
         id="json_multi_field_match",
     ),
@@ -392,6 +393,34 @@ def _assert_invoke_response(resp, *, case_id: str) -> dict:
     assert "version" in payload, f"[{case_id}] Missing 'version': {payload}"
     assert "data" in payload, f"[{case_id}] Missing 'data': {payload}"
     return payload
+
+
+def _maybe_xfail_for_llm_provider_error(
+    resp,
+    *,
+    case_id: str,
+    allow_llm_failure: bool = False,
+) -> None:
+    if not allow_llm_failure:
+        return
+
+    text = (getattr(resp, "text", "") or "")[:2000]
+    markers = (
+        "RateLimitError",
+        "AuthenticationError",
+        "insufficient_quota",
+        "exceeded your current quota",
+        "prompt-completion-error",
+        "No API key found for model",
+        "Incorrect API key provided",
+        "api_key client option must be set",
+        "OPENAI_API_KEY environment variable",
+        "invalid_api_key",
+    )
+    if resp.status_code in {400, 401, 424, 429, 500} and any(
+        marker in text for marker in markers
+    ):
+        pytest.xfail(f"[{case_id}] live LLM provider unavailable or quota exhausted")
 
 
 def _build_data_payload(case: Dict[str, Any]) -> dict:
@@ -488,6 +517,16 @@ def _assert_case_outputs(payload: dict, *, case: Dict[str, Any]) -> None:
     assert isinstance(outputs, dict), (
         f"[{case_id}] outputs should be a dict, got: {type(outputs)}"
     )
+
+    if output_kind == "field_scores":
+        assert "aggregate_score" in outputs, (
+            f"[{case_id}] outputs missing 'aggregate_score': {outputs}"
+        )
+        assert isinstance(outputs["aggregate_score"], (int, float)), (
+            f"[{case_id}] 'aggregate_score' should be numeric, got: {outputs}"
+        )
+        return
+
     assert "success" in outputs, f"[{case_id}] outputs missing 'success': {outputs}"
     assert isinstance(outputs["success"], bool), (
         f"[{case_id}] 'success' should be bool, got: {type(outputs['success'])}"
@@ -599,6 +638,7 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
         "inputs": case.get("inputs", {}),
         "trace": case.get("trace", {}),
         "output_kind": case.get("output_kind", "success_bool"),
+        "requires_llm": case.get("requires_llm", False),
         #
         "workflow_id": workflow_id,
         "workflow_slug": workflow_slug,
@@ -649,6 +689,11 @@ class TestManagedWorkflowLifecycle:
                 }
             },
         )
+        _maybe_xfail_for_llm_provider_error(
+            resp,
+            case_id=ctx["template_key"],
+            allow_llm_failure=ctx.get("requires_llm", False),
+        )
         _assert_invoke_response(resp, case_id=ctx["template_key"])
 
     def test_inspect_direct_returns_canonical_revision(self):
@@ -674,6 +719,11 @@ class TestManagedWorkflowLifecycle:
                 revision={"data": {"uri": ctx["uri"], "parameters": ctx["parameters"]}},
             ),
         )
+        _maybe_xfail_for_llm_provider_error(
+            resp,
+            case_id=ctx["template_key"],
+            allow_llm_failure=ctx.get("requires_llm", False),
+        )
         _assert_invoke_response(resp, case_id=ctx["template_key"])
 
     def test_invoke_by_env(self):
@@ -697,6 +747,11 @@ class TestManagedWorkflowLifecycle:
                 "data": data,
             },
         )
+        _maybe_xfail_for_llm_provider_error(
+            resp,
+            case_id=ctx["template_key"],
+            allow_llm_failure=ctx.get("requires_llm", False),
+        )
         _assert_invoke_response(resp, case_id=ctx["template_key"])
 
     def test_output_matches_expected_shape(self):
@@ -714,6 +769,11 @@ class TestManagedWorkflowLifecycle:
                     }
                 }
             },
+        )
+        _maybe_xfail_for_llm_provider_error(
+            resp,
+            case_id=ctx["template_key"],
+            allow_llm_failure=ctx.get("requires_llm", False),
         )
         payload = _assert_invoke_response(resp, case_id=ctx["template_key"])
         _assert_case_outputs(payload, case=ctx)

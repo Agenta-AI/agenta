@@ -87,8 +87,7 @@ The plan decomposes into these component groups:
 ### Required design changes
 
 - isolate each workflow into its own namespace
-- add per-workflow OpenAPI emission
-- keep inspect/OpenAPI contract coherence
+- keep `/inspect` as the route-owned runtime discovery surface
 - expose the runtime `/services` surface for all runnable builtins, not just the currently narrow subset
 - review and standardize the service URL shape used by API handoff and direct runtime access
 - preserve legacy path coexistence during expand
@@ -109,19 +108,19 @@ The plan decomposes into these component groups:
 - parse API payloads
 - resolve workflow references
 - classify runnable versus non-runnable targets
-- dispatch runnable invoke/inspect/OpenAPI requests toward runtime services
+- dispatch runnable invoke/inspect requests toward runtime services
 - expose domain-specific API surfaces
 
 ### Required design changes
 
-- add domain-level invoke/inspect routes for applications and evaluators
-- keep workflow routes as the canonical source and implement application/evaluator routes as filtered wrappers
+- keep runtime execution/discovery off the application and evaluator API router families
+- keep workflow-facing runtime calls as control-plane behavior rather than first-class domain routes
 - add workflow-level catalog routes and filtered catalog peers for applications/evaluators
 - expose derived classification in retrieval/query responses
 - route runnable targets toward the runtime `/services` surface instead of treating API as the execution container
 - make non-runnable custom targets fail invoke while still allowing inspect
 - use redirect for API handoff and keep streaming/auth behavior consistent
-- keep inspect/OpenAPI available for non-runnable targets from persisted discovery truth
+- keep inspect available for non-runnable targets from persisted discovery truth
 - avoid turning API orchestration into an API-to-SDK trace propagation layer in this checkpoint
 - maintain thin-wrapper behavior rather than reimplementing runnable semantics in domain services
 

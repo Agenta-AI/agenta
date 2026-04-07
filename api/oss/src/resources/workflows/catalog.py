@@ -32,11 +32,11 @@ def _normalize_preset(
     inherited_flags: dict[str, Any],
 ) -> dict[str, Any]:
     flags = {
-        "is_archived": preset.get("archived") or False,
-        "is_recommended": preset.get("recommended") or False,
-        "is_application": inherited_flags["is_application"],
-        "is_evaluator": inherited_flags["is_evaluator"],
-        "is_snippet": inherited_flags["is_snippet"],
+        "is_archived": preset.get("archived", False),
+        "is_recommended": preset.get("recommended", False),
+        "is_application": inherited_flags.get("is_application", False),
+        "is_evaluator": inherited_flags.get("is_evaluator", False),
+        "is_snippet": inherited_flags.get("is_snippet", False),
         **(preset.get("flags") or {}),
     }
     data = preset.get("data")
@@ -57,8 +57,10 @@ def _enrich_entry(
     metadata = evaluator_metadata or {}
     flags = _clone(entry["flags"])
     flags.update(metadata.get("flags") or {})
-    flags["is_archived"] = metadata.get("archived") or flags["is_archived"]
-    flags["is_recommended"] = metadata.get("recommended") or flags["is_recommended"]
+    if metadata.get("archived") is not None:
+        flags["is_archived"] = metadata["archived"]
+    if metadata.get("recommended") is not None:
+        flags["is_recommended"] = metadata["recommended"]
 
     enriched = {
         **_clone(entry),
@@ -85,7 +87,12 @@ def _enrich_entry(
         enriched_data["schemas"] = enriched_schemas
         enriched["data"] = enriched_data
 
-    presets = metadata.get("presets") or metadata.get("settings_presets") or []
+    presets = (
+        metadata.get("presets")
+        or metadata.get("settings_presets")
+        or entry.get("presets")
+        or []
+    )
     enriched["presets"] = [
         _normalize_preset(
             {
@@ -128,12 +135,26 @@ def get_workflow_catalog_type(*, ag_type: str) -> Optional[WorkflowCatalogType]:
     )
 
 
-catalog = [
-    _enrich_entry(
-        entry, evaluator_metadata=_evaluator_metadata_by_key().get(entry["key"])
-    )
-    for entry in get_all_catalog_templates()
-]
+_catalog: Optional[list[dict[str, Any]]] = None
+
+
+def _build_catalog() -> list[dict[str, Any]]:
+    evaluator_metadata_by_key = _evaluator_metadata_by_key()
+    return [
+        _enrich_entry(
+            entry,
+            evaluator_metadata=evaluator_metadata_by_key.get(entry["key"]),
+        )
+        for entry in get_all_catalog_templates()
+    ]
+
+
+def _get_catalog() -> list[dict[str, Any]]:
+    global _catalog
+    if _catalog is None:
+        _catalog = _build_catalog()
+
+    return _catalog
 
 
 def _get_workflow_catalog_template_entry(
@@ -153,13 +174,13 @@ def _get_workflow_catalog_template_entry(
         return None
 
     return next(
-        (entry for entry in catalog if entry["key"] == sdk_entry["key"]),
+        (entry for entry in _get_catalog() if entry["key"] == sdk_entry["key"]),
         None,
     )
 
 
 def get_all_workflow_catalog_templates() -> list[dict[str, Any]]:
-    return _clone(catalog)
+    return _clone(_get_catalog())
 
 
 def get_filtered_workflow_catalog_templates(

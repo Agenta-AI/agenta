@@ -256,7 +256,7 @@ const isMatchAtomFamily = atomFamily((workflowId: string) =>
 
 /** Is human annotation workflow (key is "trace"). */
 const isHumanAtomFamily = atomFamily((workflowId: string) =>
-    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_human ?? false),
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_feedback ?? false),
 )
 
 // -- Interface-derived flags --
@@ -328,7 +328,7 @@ export type WorkflowType =
 const workflowTypeAtomFamily = atomFamily((workflowId: string) =>
     atom<WorkflowType>((get) => {
         const flags = get(flagsAtomFamily(workflowId))
-        if (flags?.is_human) return "human"
+        if (flags?.is_feedback) return "human"
         if (flags?.is_llm) return "llm"
         if (flags?.is_code) return "code"
         if (flags?.is_hook) return "hook"

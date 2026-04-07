@@ -2,7 +2,7 @@
 
 > Status: draft
 > Date: 2026-03-05
-> Companion: [gap-analysis.md](./gap-analysis.md), [taxonomy.md](./taxonomy.md)
+> Companion: [gap-analysis.md](./gap-analysis.md), [gap.migrations.md](./gap.migrations.md), [gap.catalog.md](./gap.catalog.md), [taxonomy.md](./taxonomy.md)
 
 This document breaks the gap analysis into ordered checkpoints using an **expand-and-contract** migration strategy. The current runnable workstream is no longer expand-only: checkpoint 1 now includes selected contract removals and code-path contractions where the target runnable model replaces legacy surfaces.
 
@@ -10,9 +10,9 @@ This document breaks the gap analysis into ordered checkpoints using an **expand
 
 ## Strategy: Expand and Contract
 
-**Expand:** Add new code, new endpoints, new flags, new URI patterns. The old system continues to work. Nothing breaks.
+**Expand:** Add new code, new endpoints, new flags, new URI patterns where that still matches the target contract.
 
-**Contract:** Remove the old code, old endpoints, old flags, old patterns. Only after the new system is proven and consumers have migrated.
+**Contract:** Remove the old code, old endpoints, old flags, old patterns where the branch has already committed to the runnable target model.
 
 **Compatibility rule:** When checkpoint 1 introduces a backward-incompatible change, the compatibility obligation must be handled at the data schema / migration level: DB migrations, persisted-payload rewrites, read-time normalization, generated-type alignment, or an explicit no-migration decision. Preserving every legacy code path or API wrapper in the codebase is not the default compatibility mechanism.
 
@@ -30,7 +30,7 @@ The goal is to get the new system to feature parity where needed while allowing 
 
 - [ ] Add URI-derived classification helpers for builtin vs custom families
 - [ ] Derive `is_custom` from URI family rather than from authored revision flags
-- [ ] Derive `is_human` from the `agenta:custom:annotation:v0` family rather than from authored revision flags
+- [ ] Derive `is_feedback` from the `agenta:custom:annotation:v0` family rather than from authored revision flags
 - [ ] Introduce `agenta:custom:invocation:v0` for Agenta-managed custom invocation definitions created through the simple-trace path
 - [ ] Backfill URIs for human/custom annotation families, Agenta-managed custom invocation families, and any remaining no-URI rows
 - [ ] Expose derived classification in inspect/query/revision responses
@@ -92,8 +92,8 @@ The goal is to get the new system to feature parity where needed while allowing 
 - [ ] Modify `route()` in `routing.py` to create an isolated sub-application per workflow
 - [ ] Ensure multiple `route()` calls on the same codebase produce isolated namespaces
 
-**Not included:** Per-route `openapi.json` is dropped — `/inspect` is the sole discovery surface.
-**Does not remove:** Legacy shared `/openapi.json` still exists. Legacy `serving.py` routes still mounted.
+**Not included:** Per-route `openapi.json` is dropped — `/inspect` is the sole runtime discovery surface for routed workflows.
+**Does not remove:** Legacy `serving.py` routes may remain during migration, but they are legacy-only surfaces and not part of the target runnable contract.
 
 ### 1f. Catalogs for Predefined Workflows, Applications, and Evaluators (G12a)
 
@@ -167,17 +167,17 @@ The goal is to get the new system to feature parity where needed while allowing 
 
 **Does not remove:** Nothing — this is purely about preserving passive support in the SDK runtime.
 
-### 1j. Frontend: Inspect/OpenAPI Truth and Content Negotiation (G11, G17)
+### 1j. Frontend: Persisted Revision Truth, Inspect Fallback, and Content Negotiation (G11, G17)
 
-**What:** Frontend stops depending on primary execution flags and instead uses inspect/OpenAPI truth plus explicit response media-type negotiation.
+**What:** Frontend stops depending on primary execution flags and instead uses persisted revision/query truth first, `/inspect` only when no local revision truth exists, plus explicit response media-type negotiation.
 
-- [ ] Add frontend code to read derived metadata from `/inspect` and revision/query responses
-- [ ] Add frontend code to read message/chat affordances from schemas / OpenAPI `x-` parameters
+- [ ] Add frontend code to read derived metadata from revision/query responses first and `/inspect` as the fallback discovery path
+- [ ] Add frontend code to read message/chat affordances from persisted schemas, with `/inspect` used only when there is no local revision truth yet
 - [ ] Send the correct `Accept` header for JSON, SSE, NDJSON, or JSONL responses
 - [ ] Handle streaming responses in playground (progressive rendering, abort/cancel)
 - [ ] Fail explicitly and clearly when the runnable cannot satisfy the requested response media type
 - [ ] Add client-side batching / aggregation utilities where the frontend wants batched semantics on top of a streaming-capable runnable
-- [ ] Use schema/OpenAPI heuristics to drive rolling chat conversation behavior
+- [ ] Use schema heuristics to drive rolling chat conversation behavior
 
 **Does not remove:** Legacy `x-agenta.flags` reading may remain as a temporary fallback during expand.
 
@@ -188,10 +188,10 @@ The goal is to get the new system to feature parity where needed while allowing 
 After checkpoint 1, all of the following are true:
 
 1. Every workflow has a URI (including human evaluators)
-2. `is_custom` / `is_human` style identity is derived from URI families and exposed in API responses as derived truth or materialized metadata
+2. `is_custom` / `is_feedback` style identity is derived from URI families and exposed in API responses as derived truth or materialized metadata
 3. Invoke supports explicit response media-type negotiation for JSON, SSE, NDJSON, and JSONL
 4. Unsupported requested media types fail explicitly
-5. Chat/message behavior is derivable from schemas / OpenAPI rather than authored primary flags
+5. Chat/message behavior is derivable from schemas and persisted revision truth rather than authored primary flags
 6. Trace ingestion can classify `annotation` from trace links independently of runnable flags
 7. Each workflow has its own `{path}/invoke` and `{path}/inspect` as isolated namespaces
 8. Workflows expose the canonical catalog for predefined runnables, and applications/evaluators expose filtered catalog views over the same source
@@ -203,8 +203,8 @@ After checkpoint 1, all of the following are true:
 14. Builtin service URLs and builtin input/output schemas are refreshed from URI/inspect with caching, without blindly overwriting user-owned parameter schema
 15. Applications and evaluators remain filtered workflow projections; runtime invoke/inspect are not API-owned domain endpoints
 16. SDK routing/running can honor incoming trace context when present for workflow-to-workflow propagation
-17. Frontend can read from inspect truth and send negotiated response headers
-18. **The legacy system still works** — nothing has been removed
+17. Frontend can read from persisted revision truth, fall back to `/inspect` when needed, and send negotiated response headers
+18. Intentional checkpoint-1 contract removals are tracked with explicit migration handling or explicit no-migration decisions
 
 ---
 

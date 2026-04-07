@@ -4,8 +4,10 @@ import {MESSAGE_CONTENT_SCHEMA} from "@agenta/shared/schemas"
 
 import {SimpleDropdownSelect} from "../../components/presentational/select"
 import {EditorProvider} from "../../Editor/Editor"
-import {SharedEditor} from "../../SharedEditor"
+import {SharedEditor, type SharedEditorProps} from "../../SharedEditor"
 import {cn, flexLayouts, gapClasses, justifyClasses} from "../../utils/styles"
+
+const DEFAULT_MAX_TEXT_PASTE_CHARS = 50_000
 
 export interface ChatMessageEditorProps {
     /** Unique ID for the editor instance */
@@ -56,6 +58,10 @@ export interface ChatMessageEditorProps {
     loadingFallback?: "skeleton" | "none" | "static"
     /** Callback when editor focus state changes */
     onFocusChange?: (focused: boolean) => void
+    /** Block paste operations that would make the message exceed this many characters. */
+    maxPasteChars?: number
+    /** Optional hook for custom handling when a paste exceeds the limit. */
+    onPasteLimitExceeded?: SharedEditorProps["onPasteLimitExceeded"]
 }
 
 /**
@@ -86,6 +92,8 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
     validationSchema,
     loadingFallback = "skeleton",
     onFocusChange,
+    maxPasteChars = DEFAULT_MAX_TEXT_PASTE_CHARS,
+    onPasteLimitExceeded,
     ...props
 }) => {
     const selectOptions = useMemo(
@@ -143,6 +151,8 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
             className={cn("relative", flexLayouts.column, gapClasses.xs, "rounded-md", className)}
             footer={footer}
             onFocusChange={onFocusChange}
+            maxPasteChars={maxPasteChars}
+            onPasteLimitExceeded={onPasteLimitExceeded}
             {...props}
             editorProps={{
                 codeOnly: isJSON,

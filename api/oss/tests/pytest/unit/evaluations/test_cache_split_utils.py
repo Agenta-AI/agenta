@@ -131,6 +131,21 @@ def test_reuse_selection_and_missing_count_are_cardinality_based():
     assert plan_missing_traces(required_count=1, reusable_count=2) == 0
 
 
+def test_reuse_selection_skips_invalid_cached_traces_and_keeps_later_valid_ones():
+    traces = [
+        SimpleNamespace(trace_id="trace-0"),
+        SimpleNamespace(trace_id=None),
+        SimpleNamespace(trace_id="trace-2"),
+    ]
+
+    reusable = select_traces_for_reuse(
+        traces=traces,
+        required_count=2,
+    )
+
+    assert [trace.trace_id for trace in reusable] == ["trace-0", "trace-2"]
+
+
 @pytest.mark.asyncio
 async def test_fetch_traces_by_hash_wrapper_delegates_to_tracing_service():
     expected_traces = [SimpleNamespace(trace_id="trace-1")]

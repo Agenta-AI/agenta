@@ -90,7 +90,15 @@ function jsonSchemaToZod(node: JsonSchemaNode, depth = 0): z.ZodTypeAny {
         const nonNull = unionSchemas.filter((s) => s.type !== "null")
         const hasNull = unionSchemas.some((s) => s.type === "null")
         if (hasNull && nonNull.length === 1) {
-            return jsonSchemaToZod(nonNull[0], depth + 1).nullable()
+            // Merge numeric constraints from parent anyOf/oneOf wrapper into the child
+            const merged = {
+                ...nonNull[0],
+                minimum: nonNull[0].minimum ?? node.minimum,
+                maximum: nonNull[0].maximum ?? node.maximum,
+                exclusiveMinimum: nonNull[0].exclusiveMinimum ?? node.exclusiveMinimum,
+                exclusiveMaximum: nonNull[0].exclusiveMaximum ?? node.exclusiveMaximum,
+            }
+            return jsonSchemaToZod(merged, depth + 1).nullable()
         }
         const members = unionSchemas.map((s) => jsonSchemaToZod(s, depth + 1))
         if (members.length >= 2) {
