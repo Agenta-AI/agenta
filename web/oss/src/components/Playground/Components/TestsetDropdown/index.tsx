@@ -7,7 +7,7 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {loadableController} from "@agenta/entities/loadable"
+import {loadableController, traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import type {CommitModeOption, CommitSubmitParams, CommitSubmitResult} from "@agenta/entity-ui"
 import {EntityCommitModal} from "@agenta/entity-ui"
@@ -38,11 +38,7 @@ import {Button, Dropdown, Input, Typography} from "antd"
 import {atom, useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
-import {
-    extractRootSpanIdFromTraceData,
-    toTestsetTraceReference,
-    type TestsetTraceReference,
-} from "@/oss/lib/traces/traceUtils"
+import {toTestsetTraceReference, type TestsetTraceReference} from "@/oss/lib/traces/traceUtils"
 import {saveNewTestsetAtom} from "@/oss/state/entities/testset/mutations"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
@@ -210,10 +206,8 @@ export function TestsetDropdown() {
                         const resolvedSpanId =
                             spanId ||
                             (traceId
-                                ? extractRootSpanIdFromTraceData(
-                                      traceId,
-                                      get(loadableController.selectors.traceData(traceId)),
-                                  )
+                                ? (get(traceDataSummaryAtomFamily(traceId)).rootSpan?.span_id ??
+                                  null)
                                 : null)
 
                         if (!resolvedSpanId || seen.has(resolvedSpanId)) return
