@@ -1,4 +1,4 @@
-import {resolveOutputSchema} from "@agenta/entities/workflow"
+import {resolveOutputSchema, resolveOutputSchemaProperties} from "@agenta/entities/workflow"
 import deepEqual from "fast-deep-equal"
 
 import {AnnotationDto, AnnotationEditPayloadDto} from "@/oss/lib/hooks/useAnnotations/types"
@@ -143,7 +143,9 @@ export const getInitialMetricsFromAnnotations = ({
         if (!evaluator) continue
 
         const evalMetricsSchema =
-            evaluator.data?.service?.format?.properties?.outputs?.properties || {}
+            (resolveOutputSchemaProperties(
+                evaluator.data as Record<string, unknown> | null | undefined,
+            ) as Record<string, any>) || {}
 
         const useableMetrics = Object.entries(evalMetricsSchema).filter(
             ([_, prop]) => USEABLE_METRIC_TYPES.includes(prop.type) || Array.isArray(prop?.anyOf),
@@ -189,7 +191,10 @@ export const getInitialMetricsFromAnnotations = ({
 }
 
 export const getMetricsFromEvaluator = (evaluator: EvaluatorDto): Record<string, unknown> => {
-    const evalMetricsSchema = evaluator.data?.service?.format?.properties?.outputs?.properties ?? {}
+    const evalMetricsSchema =
+        (resolveOutputSchemaProperties(
+            evaluator.data as Record<string, unknown> | null | undefined,
+        ) as Record<string, any>) ?? {}
     const fields: Record<string, unknown> = {}
 
     const collectMetricFields = (
