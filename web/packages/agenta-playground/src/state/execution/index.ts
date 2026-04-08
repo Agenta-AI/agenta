@@ -217,6 +217,8 @@ export {
     rowDataWithContextAtomFamily,
     rowVariableValueAtomFamily,
     rowVariableKeysWithContextAtom,
+    rowVariableKeysAtomFamily,
+    downstreamNodeQueriesAtom,
     activeSessionsWithContextAtom,
     isCompareModeWithContextAtom,
     isAnyExecutingWithContextAtom,
