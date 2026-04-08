@@ -181,7 +181,7 @@ const DrawerHeader = () => {
                     type="text"
                     icon={isExpanded ? <ArrowsIn size={14} /> : <ArrowsOut size={14} />}
                 >
-                    Test Prompt
+                    {isEvaluator ? "Test Evaluator" : "Test App"}
                 </Button>
             </div>
         </div>
