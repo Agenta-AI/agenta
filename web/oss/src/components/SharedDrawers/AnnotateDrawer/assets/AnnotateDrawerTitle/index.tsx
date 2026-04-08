@@ -35,6 +35,7 @@ const AnnotateDrawerTitle = ({
     onCaptureError,
     showOnly,
     queryKey,
+    createEvaluatorMode,
 }: AnnotateDrawerTitleProps) => {
     const router = useRouter()
     const {fetchAnnotations} = useObservability()
@@ -259,7 +260,7 @@ const AnnotateDrawerTitle = ({
                 ) : steps === AnnotateDrawerSteps.CREATE_EVALUATOR ||
                   showOnly?.createEvaluatorUi ? (
                     <Typography.Text className="text-sm font-medium">
-                        Create new evaluator
+                        {createEvaluatorMode === "edit" ? "Edit evaluator" : "Create new evaluator"}
                     </Typography.Text>
                 ) : null}
             </div>

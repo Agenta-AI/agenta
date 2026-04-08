@@ -45,6 +45,7 @@ export interface AnnotateDrawerTitleProps {
     onCaptureError?: (error: string[], addPrevVal?: boolean) => void
     showOnly?: ShowOnlyType
     queryKey?: string
+    createEvaluatorMode?: "create" | "edit"
 }
 
 export interface AnnotateDrawerButtonProps extends TooltipButtonProps {
