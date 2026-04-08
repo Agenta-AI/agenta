@@ -159,6 +159,7 @@ const workflowsQueryAtom = atomWithQuery((get) => {
                 flags: {is_evaluator: false},
                 // undefined = no filter (search), null = root, string = specific folder
                 folderId: isSearching ? undefined : (currentFolderId ?? null),
+                windowing: {order: "descending"},
             })
             return response.workflows.map(mapWorkflowToRow)
         },

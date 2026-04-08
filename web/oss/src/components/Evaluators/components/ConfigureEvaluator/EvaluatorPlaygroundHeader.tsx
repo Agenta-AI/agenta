@@ -47,11 +47,27 @@ const EvaluatorPlaygroundHeader: React.FC<EvaluatorPlaygroundHeaderProps> = ({
 
     const evaluatorEntityId = evaluatorNode?.entityId ?? ""
 
-    // Evaluator name from molecule data
+    // Evaluator revision data (to get workflow_id)
     const evaluatorData = useAtomValue(
         useMemo(() => workflowMolecule.selectors.data(evaluatorEntityId), [evaluatorEntityId]),
     )
-    const evaluatorName = evaluatorData?.name?.trim() || evaluatorData?.slug?.trim() || "Evaluator"
+
+    // Read the workflow-level name (not the revision name, which may be a variant name).
+    // The workflow entity is seeded by the evaluator list page. For direct URL navigation
+    // where the workflow entity may not be seeded, fall back to the revision's own name.
+    const workflowId = evaluatorData?.workflow_id ?? evaluatorEntityId
+    const workflowName = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.name(workflowId), [workflowId]),
+    )
+    const workflowSlug = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.slug(workflowId), [workflowId]),
+    )
+    const evaluatorName =
+        workflowName?.trim() ||
+        workflowSlug?.trim() ||
+        evaluatorData?.name?.trim() ||
+        evaluatorData?.slug?.trim() ||
+        "Evaluator"
 
     // Selected app label for display in the picker trigger
     const selectedAppLabel = useAtomValue(selectedAppLabelAtom)

@@ -44,7 +44,6 @@ const CompletionMode = ({
             [entityId],
         ),
     )
-
     // executionItemController.actions.addRow handles data management (testset row creation + local testset init)
     const handleAddNewRow = useSetAtom(executionItemController.actions.addRow)
 

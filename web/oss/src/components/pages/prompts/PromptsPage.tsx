@@ -32,7 +32,6 @@ import {useProfileData} from "@/oss/state/profile"
 import {getProjectValues} from "@/oss/state/project"
 import {useProjectData} from "@/oss/state/project"
 
-import {getAppTypeIcon} from "./assets/iconHelpers"
 import {type FolderTreeItem, slugify} from "./assets/utils"
 import PromptsBreadcrumb from "./components/PromptsBreadcrumb"
 import {PromptsTableSection} from "./components/PromptsTableSection"
@@ -730,8 +729,6 @@ const PromptsPage = () => {
         [handleDropOnFolder, handleRowClick, tableExpandableConfig],
     )
 
-    const renderAppTypeIcon = useCallback((appType?: string) => getAppTypeIcon(appType), [])
-
     const columnActions = useMemo<PromptsColumnActions>(
         () => ({
             onFolderClick: handleRowClick,
@@ -745,7 +742,6 @@ const PromptsPage = () => {
                     name: record.name,
                 })
             },
-            getAppTypeIcon: renderAppTypeIcon,
         }),
         [
             handleRowClick,
@@ -754,7 +750,6 @@ const PromptsPage = () => {
             handleOpenMoveModal,
             handleOpenAppOverview,
             openDeleteAppModal,
-            renderAppTypeIcon,
         ],
     )
 

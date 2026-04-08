@@ -55,6 +55,9 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
             const target = event.target as HTMLElement
             // Ignore clicks on table rows — those swap drawer content via URL
             if (target.closest(".variant-table-row")) return
+            // Ignore clicks inside any drawer (e.g. trace drawer, focus drawer)
+            // to prevent this drawer from closing when another drawer opens on top
+            if (target.closest(".ant-drawer")) return
             // Close when clicking the main layout area behind the drawer
             if (target.closest(".ant-layout")) {
                 closeDrawer()

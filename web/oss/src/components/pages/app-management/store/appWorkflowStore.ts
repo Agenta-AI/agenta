@@ -32,20 +32,6 @@ export interface AppWorkflowRow {
 }
 
 // ============================================================================
-// HELPERS
-// ============================================================================
-
-/**
- * Derive app type label from workflow flags.
- */
-const deriveAppType = (flags: Workflow["flags"]): string => {
-    if (flags?.is_custom) return "custom"
-    if (flags?.is_chat) return "chat"
-    if (flags?.is_llm) return "llm"
-    return "completion"
-}
-
-// ============================================================================
 // META ATOM
 // ============================================================================
 
@@ -115,7 +101,7 @@ export const appWorkflowPaginatedStore = createPaginatedEntityStore<
         key: apiRow.id,
         workflowId: apiRow.id,
         name: apiRow.name ?? apiRow.slug ?? apiRow.id,
-        appType: deriveAppType(apiRow.flags),
+        appType: "",
         updatedAt: apiRow.updated_at ?? apiRow.created_at ?? null,
         createdAt: apiRow.created_at ?? null,
     }),

@@ -33,6 +33,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
     const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId || ""))
     const isEphemeral = useAtomValue(workflowMolecule.selectors.isEphemeral(variantId || ""))
+    const isEvaluator = useAtomValue(workflowMolecule.selectors.isEvaluator(variantId || ""))
 
     const appId = useAtomValue(selectedAppIdAtom)
     const commitRevision = useSetAtom(playgroundController.actions.commitRevision)
@@ -206,11 +207,14 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     )
 
     const commitModes = useMemo(
-        () => [
-            {id: "version", label: "As a new version"},
-            {id: "variant", label: "As a new variant"},
-        ],
-        [],
+        () =>
+            isEvaluator
+                ? [{id: "version", label: "As a new version"}]
+                : [
+                      {id: "version", label: "As a new version"},
+                      {id: "variant", label: "As a new variant"},
+                  ],
+        [isEvaluator],
     )
 
     // For ephemeral entities, render a simplified "Create" modal with editable name
