@@ -196,6 +196,18 @@ const addPrimaryNodeAtom = atom(
         // This triggers reactive column derivation from runnable's inputSchema
         const loadableId = `testset:${entity.type}:${entity.id}`
 
+        // Clear stale execution results before linking.
+        // The loadable ID is entity-scoped, so a previous session with the same
+        // entity (e.g. same app selected for a different evaluator) would leave
+        // results in the atom family that shouldn't appear in a fresh playground.
+        const prevState = get(loadableStateAtomFamily(loadableId))
+        if (Object.keys(prevState.executionResults).length > 0) {
+            set(loadableStateAtomFamily(loadableId), {
+                ...prevState,
+                executionResults: {},
+            })
+        }
+
         // Use loadableController action which handles row creation via testcaseMolecule
         // skipInitialRow defers row creation when a loadable/localTestset restore will follow
         set(
@@ -405,8 +417,19 @@ const changePrimaryNodeAtom = atom(null, (get, set, entity: EntitySelection) => 
         })
     }
 
-    // Link the loadable to the new runnable via controller API
+    // Clear stale execution results before linking to the new runnable.
+    // This prevents results from a previous session (e.g. a different evaluator
+    // that tested the same app) from leaking into the current playground.
     const loadableId = `testset:${entity.type}:${entity.id}`
+    const prevState = get(loadableStateAtomFamily(loadableId))
+    if (Object.keys(prevState.executionResults).length > 0) {
+        set(loadableStateAtomFamily(loadableId), {
+            ...prevState,
+            executionResults: {},
+        })
+    }
+
+    // Link the loadable to the new runnable via controller API
     set(
         loadableController.actions.linkToRunnable,
         loadableId,

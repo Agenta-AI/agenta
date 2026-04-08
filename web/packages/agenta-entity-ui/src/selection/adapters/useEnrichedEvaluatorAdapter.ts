@@ -15,9 +15,15 @@
 import type React from "react"
 import {useMemo, useRef} from "react"
 
-import {evaluatorKeyMapAtom, evaluatorTemplatesMapAtom} from "@agenta/entities/workflow"
+import {
+    evaluatorKeyMapAtom,
+    evaluatorTemplatesMapAtom,
+    evaluatorConfigsQueryStateAtom,
+    humanEvaluatorsListQueryAtom,
+    workflowAppTypeAtomFamily,
+} from "@agenta/entities/workflow"
 import {workflowsListDataAtom} from "@agenta/entities/workflow"
-import {useAtomValue} from "jotai"
+import {atom, getDefaultStore, useAtomValue} from "jotai"
 
 import {renderEvaluatorPickerLabelNode} from "./evaluatorLabelUtils"
 import {
@@ -42,12 +48,20 @@ export function useEvaluatorEnrichedData() {
     return {evaluatorKeyMap, evaluatorDefsByKey}
 }
 
+/**
+ * Map of workflow ID → isHuman, derived from the latest revision's type.
+ * Workflow-level flags don't have is_feedback — it only exists at the revision level.
+ */
 function useWorkflowHumanMap() {
     const workflows = useAtomValue(workflowsListDataAtom)
 
     return useMemo(() => {
+        const store = getDefaultStore()
         return new Map(
-            workflows.map((workflow) => [workflow.id, Boolean(workflow.flags?.is_feedback)]),
+            workflows.map((workflow) => [
+                workflow.id,
+                store.get(workflowAppTypeAtomFamily(workflow.id)) === "human",
+            ]),
         )
     }, [workflows])
 }
@@ -64,11 +78,14 @@ function useWorkflowHumanMap() {
  */
 export function useEnrichedEvaluatorBrowseAdapter() {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
+    const workflowHumanMap = useWorkflowHumanMap()
     const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
     const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
+    const workflowHumanMapRef = useRef(workflowHumanMap)
 
     evaluatorKeyMapRef.current = evaluatorKeyMap
     evaluatorDefsByKeyRef.current = evaluatorDefsByKey
+    workflowHumanMapRef.current = workflowHumanMap
 
     return useMemo(() => {
         const getLabelNode = (entity: unknown): React.ReactNode =>
@@ -82,10 +99,8 @@ export function useEnrichedEvaluatorBrowseAdapter() {
             skipVariantLevel: true,
             excludeRevisionZero: true,
             filterWorkflows: (entity: unknown) => {
-                const w = entity as {
-                    flags?: {is_feedback?: boolean} | null
-                }
-                return !w.flags?.is_feedback
+                const w = entity as {id: string}
+                return !workflowHumanMapRef.current.get(w.id)
             },
             grandparentOverrides: {
                 getLabelNode,
@@ -120,6 +135,22 @@ export function useEnrichedEvaluatorOnlyAdapter(
 
     const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
 
+    // Stable atom that wraps evaluatorConfigsQueryStateAtom into ListQueryState<unknown>.
+    // Uses a proper Jotai atom so filtering reactively updates when revision data resolves.
+    const autoEvaluatorsListAtom = useMemo(
+        () =>
+            atom((get) => {
+                const state = get(evaluatorConfigsQueryStateAtom)
+                return {
+                    data: state.data as unknown[],
+                    isPending: state.isPending,
+                    isError: state.isError,
+                    error: state.error ?? null,
+                }
+            }),
+        [],
+    )
+
     return useMemo(() => {
         const getLabelNode = (entity: unknown): React.ReactNode =>
             renderEvaluatorPickerLabelNode(
@@ -128,10 +159,10 @@ export function useEnrichedEvaluatorOnlyAdapter(
                 evaluatorDefsByKeyRef.current,
             )
 
-        const options: Parameters<typeof createWorkflowRevisionAdapter>[0] = {
+        const options: NonNullable<Parameters<typeof createWorkflowRevisionAdapter>[0]> = {
             skipVariantLevel: true,
-            flags: {is_evaluator: true, is_feedback: false},
             excludeRevisionZero: true,
+            workflowListAtom: autoEvaluatorsListAtom,
             grandparentOverrides: {
                 getLabelNode,
             },
@@ -147,7 +178,7 @@ export function useEnrichedEvaluatorOnlyAdapter(
         }
 
         return createWorkflowRevisionAdapter(options)
-    }, [hasRevisionLabelOverride])
+    }, [hasRevisionLabelOverride, autoEvaluatorsListAtom])
 }
 
 type AnnotationWorkflowRevisionSelectionResult = WorkflowRevisionSelectionResult & {
@@ -174,6 +205,22 @@ export function useEnrichedHumanEvaluatorAdapter(
 
     const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
 
+    // Stable atom that wraps humanEvaluatorsListQueryAtom into ListQueryState<unknown>.
+    // Uses a proper Jotai atom so filtering reactively updates when revision data resolves.
+    const humanEvaluatorsListAtom = useMemo(
+        () =>
+            atom((get) => {
+                const query = get(humanEvaluatorsListQueryAtom)
+                return {
+                    data: (query.data?.refs ?? []) as unknown[],
+                    isPending: query.isPending ?? false,
+                    isError: query.isError ?? false,
+                    error: (query.error as Error | null) ?? null,
+                }
+            }),
+        [],
+    )
+
     return useMemo(() => {
         const getLabelNode = (entity: unknown): React.ReactNode =>
             renderEvaluatorPickerLabelNode(
@@ -182,10 +229,10 @@ export function useEnrichedHumanEvaluatorAdapter(
                 evaluatorDefsByKeyRef.current,
             )
 
-        const options: Parameters<typeof createWorkflowRevisionAdapter>[0] = {
+        const options: NonNullable<Parameters<typeof createWorkflowRevisionAdapter>[0]> = {
             skipVariantLevel: true,
-            flags: {is_feedback: true},
             excludeRevisionZero: true,
+            workflowListAtom: humanEvaluatorsListAtom,
             grandparentOverrides: {
                 getLabelNode,
             },
@@ -223,7 +270,7 @@ export function useEnrichedHumanEvaluatorAdapter(
         }
 
         return createWorkflowRevisionAdapter(options)
-    }, [hasRevisionLabelOverride])
+    }, [hasRevisionLabelOverride, humanEvaluatorsListAtom])
 }
 
 /**

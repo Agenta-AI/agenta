@@ -222,6 +222,7 @@ const AnnotateDrawer = ({
                     traceSpanIds={traceSpanIds}
                     showOnly={showOnly}
                     queryKey={queryKey}
+                    createEvaluatorMode={createEvaluatorProps?.mode}
                 />
             }
             closeIcon={null}

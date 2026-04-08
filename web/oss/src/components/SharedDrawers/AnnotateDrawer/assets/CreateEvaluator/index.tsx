@@ -8,6 +8,7 @@ import {
 import {message} from "@agenta/ui/app-message"
 import {Plus} from "@phosphor-icons/react"
 import {Alert, Button, Form, Input, Typography} from "antd"
+import deepEqual from "fast-deep-equal"
 import {useSetAtom} from "jotai"
 import {useDebounceValue} from "usehooks-ts"
 
@@ -148,6 +149,7 @@ const CreateEvaluator = ({
         form.setFieldsValue(initialFormValues)
         setErrorMessage([])
         setSlugTouched(isEditMode)
+        setIsFormDirty(false)
     }, [form, initialFormValues, isEditMode])
 
     useEffect(() => {
@@ -263,18 +265,29 @@ const CreateEvaluator = ({
 
     const submitLabel = isEditMode ? "Update" : "Create"
 
+    const [isFormDirty, setIsFormDirty] = useState(false)
+
+    const checkDirty = useCallback(() => {
+        if (!isEditMode) return
+        const current = form.getFieldsValue(true)
+        setIsFormDirty(!deepEqual(current, initialFormValues))
+    }, [form, initialFormValues, isEditMode])
+
+    const isSubmitDisabled = isEditMode && !isFormDirty
+
     return (
         <Form
             scrollToFirstError
             form={form}
             layout="vertical"
             onFinish={onFinish}
+            onFieldsChange={checkDirty}
             onKeyDown={(e) => {
                 if (e.key === "Enter") {
                     e.preventDefault()
                 }
             }}
-            className="create-eval h-full flex flex-col overflow-y-auto gap-4 p-4"
+            className="create-eval h-full flex flex-col overflow-y-auto gap-4 p-4 pb-0"
             initialValues={initialFormValues}
         >
             {errorMessage?.map((msg, idx) => (
@@ -370,7 +383,7 @@ const CreateEvaluator = ({
                 )}
             </Form.List>
 
-            <div className="bg-white h-[50px] border-0 border-t border-solid border-gray-100 flex items-center justify-end gap-2 sticky bottom-0 -mx-4 px-4 mt-auto shrink-0">
+            <div className="bg-[var(--ant-color-bg-container)] h-[50px] border-0 border-t border-solid border-[var(--ant-color-border-secondary)] flex items-center justify-end gap-2 sticky bottom-0 -mx-4 px-4 mt-auto shrink-0">
                 <Button
                     type="primary"
                     className="w-fit"
@@ -379,6 +392,7 @@ const CreateEvaluator = ({
                         form.submit()
                     }}
                     loading={isSubmitting}
+                    disabled={isSubmitDisabled}
                 >
                     {submitLabel}
                 </Button>

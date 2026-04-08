@@ -24,9 +24,6 @@ import {Tag} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
-import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
-
 import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 import {useRepetitionResult} from "../../../../hooks/useRepetitionResult"
 import {getShortTestcaseId} from "../../../../utils/testcaseLabel"
@@ -47,6 +44,9 @@ import {
 } from "../../../shared/NodeResultCard"
 
 import {ExecutionRowRunControl, usePlaygroundNodeLabels} from "./shared"
+
+import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
+import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
 
 interface Props {
     rowId: string
@@ -392,19 +392,36 @@ const SingleView = ({
     index,
     renderTestsetButton,
 }: Props) => {
-    const variableIds = useAtomValue(executionItemController.selectors.variableKeys) as string[]
+    // Read nodes FIRST — this subscription reliably updates on connect/disconnect.
+    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
+        | PlaygroundNode[]
+        | null
+    const isChain = (nodes?.length ?? 0) > 1
+
+    // Derive variable keys using atomFamily keyed on downstream entity IDs.
+    // This ensures a fresh atom is used when evaluators are connected/disconnected,
+    // avoiding stale values from Jotai's dependency tracking.
+    const downstreamKey = useMemo(
+        () =>
+            (nodes ?? [])
+                .filter((n) => n.depth > 0)
+                .map((n) => n.entityId)
+                .sort()
+                .join(","),
+        [nodes],
+    )
+    const variableIds = useAtomValue(
+        useMemo(
+            () => executionItemController.selectors.variableKeysForDownstream(downstreamKey),
+            [downstreamKey],
+        ),
+    ) as string[]
     const schemaInputKeys = useAtomValue(
         executionItemController.selectors.schemaInputKeys,
     ) as string[]
     const runnableQuery = useAtomValue(
         useMemo(() => workflowMolecule.selectors.query(entityId), [entityId]),
     )
-
-    // Chain nodes for per-step execution
-    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
-        | PlaygroundNode[]
-        | null
-    const isChain = (nodes?.length ?? 0) > 1
 
     const {getNodeLabel} = usePlaygroundNodeLabels(nodes)
 

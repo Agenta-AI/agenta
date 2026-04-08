@@ -23,7 +23,7 @@ const DeleteAppModal = (props = {}) => {
     const closeModal = useSetAtom(closeDeleteAppModalAtom)
     const setLoading = useSetAtom(setDeleteAppModalLoadingAtom)
     const {mutate: mutateApps} = useAppsData()
-    const {baseProjectURL} = useURL()
+    const {baseAppURL} = useURL()
 
     const handleDeleteOk = useCallback(async () => {
         if (!appDetails) return
@@ -36,8 +36,8 @@ const DeleteAppModal = (props = {}) => {
             await mutateApps()
             await invalidateAppManagementWorkflowQueries()
             closeModal()
-            if (router.pathname.includes("/overview")) {
-                await router.push(baseProjectURL)
+            if (router.pathname.includes("/apps/")) {
+                await router.push(baseAppURL)
             }
         } catch (error) {
             console.error("Failed to archive app:", error)

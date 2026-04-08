@@ -317,12 +317,19 @@ export const evaluatorConfigsListDataAtom = atom<Workflow[]>((get) => {
     const refs = query.data?.refs ?? []
     const revisionFlagsMap = get(evaluatorRevisionFlagsMapAtom)
 
-    return refs.filter((ref) => {
+    const result = refs.filter((ref) => {
         const revisionFlags = ref.id ? revisionFlagsMap.get(ref.id) : undefined
         if (revisionFlags?.isFeedback) return false
         if (revisionFlags?.isCustom) return false
         return true
     }) as Workflow[]
+
+    console.log(
+        `[evaluatorConfigsListData] refs=${refs.length}, after filter=${result.length}`,
+        `flagsMap size=${revisionFlagsMap.size}`,
+    )
+
+    return result
 })
 
 /**
@@ -874,10 +881,12 @@ export const updateHumanEvaluatorAtom = atom(
 /**
  * Selection config for the 1-level evaluator adapter.
  * Used by the entity selection system for simple evaluator pickers.
+ * Uses evaluatorConfigsListDataAtom to show only automatic evaluators
+ * (excludes human/feedback and custom evaluators).
  */
 export const evaluatorSelectionConfig = {
-    evaluatorsAtom: nonArchivedEvaluatorsAtom,
-    evaluatorsQueryAtom: evaluatorsListQueryAtom,
+    evaluatorsAtom: evaluatorConfigsListDataAtom,
+    evaluatorsQueryAtom: evaluatorConfigsQueryStateAtom,
 }
 
 export type EvaluatorSelectionConfig = typeof evaluatorSelectionConfig

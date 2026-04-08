@@ -1,10 +1,9 @@
-import {JSX} from "react"
-
 import {createStandardColumns} from "@agenta/ui/table"
 import {FolderFilled} from "@ant-design/icons"
 import {FolderDashed, Note, PencilSimple, Trash} from "@phosphor-icons/react"
 import {Tag} from "antd"
 
+import {AppNameCell, AppTypeCell} from "../../app-management/components/appWorkflowColumns"
 import type {AppTreeNode, FolderTreeNode} from "../assets/utils"
 import type {PromptsTableRow} from "../types"
 
@@ -15,7 +14,6 @@ export interface PromptsColumnActions {
     onMoveItem: (item: PromptsTableRow) => void
     onOpenAppOverview: (workflowId: string) => void
     onDeleteApp: (record: PromptsTableRow) => void
-    getAppTypeIcon: (appType?: string) => JSX.Element
 }
 
 export function createPromptsColumns(actions: PromptsColumnActions) {
@@ -26,19 +24,21 @@ export function createPromptsColumns(actions: PromptsColumnActions) {
             title: "Name",
             width: 420,
             render: (_, record) => {
-                const isFolder = record.type === "folder"
-
-                return (
-                    <div className="h-full flex items-center gap-2 truncate">
-                        <span className="flex-shrink-0 flex items-center text-gray-400">
-                            {isFolder ? (
+                if (record.type === "folder") {
+                    return (
+                        <div className="h-full flex items-center gap-2 truncate">
+                            <span className="flex-shrink-0 flex items-center text-gray-400">
                                 <FolderFilled style={{fontSize: 16, color: "#BDC7D1"}} />
-                            ) : (
-                                actions.getAppTypeIcon(record.appType)
-                            )}
-                        </span>
-                        <span className="truncate">{record.name}</span>
-                    </div>
+                            </span>
+                            <span className="truncate">{record.name}</span>
+                        </div>
+                    )
+                }
+                return (
+                    <AppNameCell
+                        workflowId={(record as AppTreeNode).workflowId}
+                        name={record.name}
+                    />
                 )
             },
         },
@@ -53,9 +53,11 @@ export function createPromptsColumns(actions: PromptsColumnActions) {
             title: "Type",
             render: (_, record) => (
                 <div className="h-full flex items-center">
-                    <Tag variant="filled">
-                        {record.type === "folder" ? "Folder" : record.appType || "App"}
-                    </Tag>
+                    {record.type === "folder" ? (
+                        <Tag variant="filled">Folder</Tag>
+                    ) : (
+                        <AppTypeCell workflowId={(record as AppTreeNode).workflowId} />
+                    )}
                 </div>
             ),
         },

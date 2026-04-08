@@ -155,6 +155,7 @@ const PlaygroundVariantConfigHeader = ({
                     <SelectVariant
                         mode={isProjectScoped ? "browse" : "scoped"}
                         customBrowseAdapter={isProjectScoped ? browseAdapter : undefined}
+                        showCreateNew={!isEvaluatorEntity}
                         onChange={(value) => handleSwitchVariant?.(value)}
                         value={_variantId ?? undefined}
                     />
