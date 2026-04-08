@@ -38,6 +38,7 @@ import {Button, Dropdown, Input, Typography} from "antd"
 import {atom, useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {
     extractRootSpanIdFromTraceData,
     toTestsetTraceReference,
@@ -154,6 +155,7 @@ export function TestsetDropdown() {
     const saveNewTestset = useSetAtom(saveNewTestsetAtom)
     const setDisconnectConfirmModalState = useSetAtom(testsetDisconnectConfirmModalAtom)
     const store = useStore()
+    const {canExportData} = useProjectPermissions()
 
     // ── Derived state ──────────────────────────────────────────────────────
     const isConnected = mode === "connected"
@@ -563,6 +565,7 @@ export function TestsetDropdown() {
                     loadableId={loadableId}
                     connectedRevisionId={revisionId ?? undefined}
                     mode="load"
+                    canExportData={canExportData}
                     onConfirm={handleLoadConfirm}
                     onCancel={handleSelectionCancel}
                     renderCreateCard={(props) => <CreateTestsetCardWrapper {...props} />}
@@ -580,6 +583,7 @@ export function TestsetDropdown() {
                     loadableId={loadableId}
                     connectedRevisionId={revisionId ?? undefined}
                     mode="edit"
+                    canExportData={canExportData}
                     onConfirm={handleEditConfirm}
                     onCancel={handleSelectionCancel}
                 />

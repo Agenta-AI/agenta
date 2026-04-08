@@ -59,6 +59,8 @@ export interface TestcaseTableProps {
     rowHeightConfig?: RowHeightFeatureConfig
     /** Whether to show settings dropdown */
     showSettings?: boolean
+    /** Whether export actions should be enabled */
+    canExportData?: boolean
 }
 
 // ============================================================================
@@ -84,6 +86,7 @@ export function TestcaseTable({
     selectionDisabled = false,
     rowHeightConfig = DEFAULT_ROW_HEIGHT_CONFIG,
     showSettings = true,
+    canExportData = true,
 }: TestcaseTableProps) {
     // Testcase-specific row data resolver:
     // All rows (identity-only) look up data from the entity's .data property.
@@ -113,6 +116,7 @@ export function TestcaseTable({
             grouping
             rowHeightConfig={rowHeightConfig}
             showSettings={showSettings}
+            enableExport={canExportData}
             emptyMessage="No testcases found"
         />
     )
