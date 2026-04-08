@@ -184,12 +184,15 @@ export function useEnrichedHumanEvaluatorAdapter(
     revisionLabelOverride?: (entity: unknown) => React.ReactNode,
 ) {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
+    const workflowHumanMap = useWorkflowHumanMap()
     const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
     const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
+    const workflowHumanMapRef = useRef(workflowHumanMap)
     const revisionLabelOverrideRef = useRef(revisionLabelOverride)
 
     evaluatorKeyMapRef.current = evaluatorKeyMap
     evaluatorDefsByKeyRef.current = evaluatorDefsByKey
+    workflowHumanMapRef.current = workflowHumanMap
     revisionLabelOverrideRef.current = revisionLabelOverride
 
     const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
@@ -204,8 +207,11 @@ export function useEnrichedHumanEvaluatorAdapter(
 
         const options: Parameters<typeof createWorkflowRevisionAdapter>[0] = {
             skipVariantLevel: true,
-            flags: {is_feedback: true},
             excludeRevisionZero: true,
+            filterWorkflows: (entity: unknown) => {
+                const w = entity as {id: string}
+                return Boolean(workflowHumanMapRef.current.get(w.id))
+            },
             grandparentOverrides: {
                 getLabelNode,
             },
