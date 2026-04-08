@@ -18,6 +18,7 @@ import type {Workflow} from "@agenta/entities/workflow"
 import {
     queryWorkflows,
     queryWorkflowRevisionsByWorkflows,
+    fetchWorkflowsBatch,
     workflowMolecule,
     onEvaluatorMutation,
 } from "@agenta/entities/workflow"
@@ -91,6 +92,9 @@ const skeletonDefaults: Partial<EvaluatorTableRow> = {
  * Workflow entities are seeded into workflowMolecule by their ID so that
  * group parent rows (which look up by workflowId) can read name/slug without
  * triggering individual revision fetches.
+ *
+ * Category classification (auto vs human) is derived from the latest revision's
+ * URI/flags — workflow-level flags only have is_evaluator, not is_feedback.
  */
 interface WorkflowIdCache {
     key: string // `${projectId}:${category}:${searchTerm}`
@@ -98,6 +102,19 @@ interface WorkflowIdCache {
 }
 
 let _workflowIdCache: WorkflowIdCache | null = null
+
+/**
+ * Determine if a workflow revision represents a "human" evaluator.
+ * Checks the URI key first (source of truth), then falls back to flags.
+ */
+function isHumanEvaluator(revision: Workflow | null | undefined): boolean {
+    if (!revision) return false
+    const uri = revision.data?.uri
+    if (uri) {
+        return uri.split(":")[2] === "feedback"
+    }
+    return Boolean(revision.flags?.is_feedback)
+}
 
 async function ensureWorkflowIdCache(
     projectId: string,
@@ -116,12 +133,26 @@ async function ensureWorkflowIdCache(
     })
     const workflows = (workflowsResponse.workflows ?? []).filter((w) => !w.deleted_at)
 
-    const workflowIds: string[] = []
+    const allWorkflowIds = workflows.map((w) => w.id)
+
+    // Seed all workflow entities for group parent rows
     for (const w of workflows) {
-        workflowIds.push(w.id)
-        // Seed workflow entity so group parent rows can read name/slug/dates via workflowId
         workflowMolecule.set.seedEntity(w.id, w)
     }
+
+    // Fetch latest revision for each workflow to classify by category.
+    // Workflow-level flags only have is_evaluator — type-specific flags
+    // (is_feedback, is_custom, etc.) only exist at the revision level.
+    const latestRevisions =
+        allWorkflowIds.length > 0
+            ? await fetchWorkflowsBatch(projectId, allWorkflowIds)
+            : new Map<string, Workflow>()
+
+    const workflowIds = allWorkflowIds.filter((id) => {
+        const revision = latestRevisions.get(id)
+        const isHuman = isHumanEvaluator(revision)
+        return category === "human" ? isHuman : !isHuman
+    })
 
     _workflowIdCache = {key: cacheKey, workflowIds}
     return _workflowIdCache
@@ -184,9 +215,7 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
         const response = await queryWorkflowRevisionsByWorkflows(
             cache.workflowIds,
             meta.projectId,
-            meta.category === "human"
-                ? {is_evaluator: true, is_feedback: true}
-                : {is_evaluator: true, is_feedback: false, is_custom: false},
+            {is_evaluator: true},
             {next: cursor ?? undefined, limit: limit ?? undefined, order: "descending"},
             meta.searchTerm,
         )
