@@ -49,6 +49,7 @@ interface AnnotationSessionProps {
         scenarioId?: string
     }
     onActiveViewChange?: (view: SessionView) => void
+    canExportData?: boolean
 }
 
 // ============================================================================
@@ -148,7 +149,12 @@ const EmptyQueueState = memo(function EmptyQueueState({
 // MAIN COMPONENT
 // ============================================================================
 
-const AnnotationSession = ({queueId, routeState, onActiveViewChange}: AnnotationSessionProps) => {
+const AnnotationSession = ({
+    queueId,
+    routeState,
+    onActiveViewChange,
+    canExportData = true,
+}: AnnotationSessionProps) => {
     // Queue data from molecule (auto-fetched by queueId)
     const queueQuery = useAtomValue(simpleQueueMolecule.selectors.query(queueId))
     const queue = useAtomValue(simpleQueueMolecule.selectors.data(queueId))
@@ -328,6 +334,7 @@ const AnnotationSession = ({queueId, routeState, onActiveViewChange}: Annotation
                         onSaved={handleSaved}
                         onCompleted={handleCompleted}
                         onViewChange={handleActiveViewChange}
+                        canExportData={canExportData}
                     />
                 ) : (
                     <FocusView

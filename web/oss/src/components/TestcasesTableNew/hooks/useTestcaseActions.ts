@@ -28,6 +28,7 @@ export interface UseTestcaseActionsConfig {
     table: UseTestcasesTableResult
     revisionIdParam: string | string[] | undefined
     mode: "edit" | "view"
+    canExportData: boolean
     metadata: TestsetMetadata | null
     availableRevisions: RevisionListItem[]
     onOpenCommitModal: () => void
@@ -86,6 +87,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
         table,
         revisionIdParam,
         mode,
+        canExportData,
         metadata,
         availableRevisions,
         onOpenCommitModal,
@@ -393,6 +395,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
 
     const handleExport = useCallback(
         async (fileType: ExportFileType) => {
+            if (!canExportData) return
             if (!revisionIdParam) {
                 message.error("No revision to export")
                 return
@@ -427,7 +430,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
                 setIsExporting(false)
             }
         },
-        [revisionIdParam, metadata?.testsetName, metadata?.revisionVersion],
+        [canExportData, revisionIdParam, metadata?.testsetName, metadata?.revisionVersion],
     )
 
     return {

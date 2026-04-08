@@ -49,6 +49,7 @@ export function TestsetSelectionModal({
     renderPreviewPanel,
     warningMessage,
     hasWarning,
+    canExportData,
     onCreateAndLoad,
     ...modalProps
 }: TestsetSelectionModalProps) {
@@ -84,6 +85,7 @@ export function TestsetSelectionModal({
                 renderPreviewPanel={renderPreviewPanel}
                 warningMessage={warningMessage}
                 hasWarning={hasWarning}
+                canExportData={canExportData}
                 onCreateAndLoad={onCreateAndLoad}
             />
         </EnhancedModal>

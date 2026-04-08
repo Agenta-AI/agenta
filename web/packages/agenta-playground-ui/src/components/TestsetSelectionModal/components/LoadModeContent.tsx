@@ -49,6 +49,8 @@ export interface LoadModeContentProps {
     warningMessage?: string
     /** Whether there is a compatibility warning */
     hasWarning?: boolean
+    /** Whether export actions should be enabled in testcase table */
+    canExportData?: boolean
     /** Called when "Create & Load" is clicked in create mode */
     onCreateAndLoad?: (params: {
         testsetName: string
@@ -67,6 +69,7 @@ export function LoadModeContent({
     renderPreviewPanel,
     warningMessage,
     hasWarning,
+    canExportData = true,
     onCreateAndLoad,
 }: LoadModeContentProps) {
     const isEditMode = mode === "edit"
@@ -324,6 +327,7 @@ export function LoadModeContent({
                                 scopeId: `${mode}-mode-${draftKey}`,
                                 revisionId: selectedRevisionId,
                             }}
+                            canExportData={canExportData}
                             selectable
                             selectedIds={currentSelection}
                             onSelectionChange={handleSelectionChange}

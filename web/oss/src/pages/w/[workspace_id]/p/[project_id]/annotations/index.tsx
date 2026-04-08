@@ -5,11 +5,13 @@ import AnnotationQueuesView from "@agenta/annotation-ui/queue-list"
 import {PageLayout} from "@agenta/ui"
 import {useRouter} from "next/router"
 
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import useURL from "@/oss/hooks/useURL"
 
 const AnnotationQueuesPage = () => {
     const router = useRouter()
     const {projectURL} = useURL()
+    const {canExportData} = useProjectPermissions()
 
     const navigation = useMemo<AnnotationUINavigation>(
         () => ({
@@ -28,7 +30,7 @@ const AnnotationQueuesPage = () => {
                 title={<span className="inline-flex items-center gap-2">Queues</span>}
                 className="h-full min-h-0"
             >
-                <AnnotationQueuesView />
+                <AnnotationQueuesView canExportData={canExportData} />
             </PageLayout>
         </AnnotationUIProvider>
     )

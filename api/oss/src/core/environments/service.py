@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 import uuid_utils.compat as uuid_compat
+from pydantic import BaseModel
 
 from oss.src.core.environments.dtos import (
     Environment,
@@ -60,6 +61,72 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
+def _to_jsonable(value: Any) -> Any:
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json", exclude_none=True)
+
+    if isinstance(value, dict):
+        return {
+            str(key): _to_jsonable(item)
+            for key, item in value.items()
+            if item is not None
+        }
+
+    if isinstance(value, list):
+        return [_to_jsonable(item) for item in value]
+
+    return value
+
+
+def _normalize_environment_references(
+    references: Optional[Dict[str, Dict[str, Reference]]],
+) -> Dict[str, Dict[str, Any]]:
+    if not references:
+        return {}
+
+    normalized = _to_jsonable(references)
+    return normalized if isinstance(normalized, dict) else {}
+
+
+def _normalize_environment_revision_data(
+    data: Optional[EnvironmentRevisionData],
+) -> Dict[str, Any]:
+    if not data:
+        return {}
+
+    normalized = _to_jsonable(data)
+    return normalized if isinstance(normalized, dict) else {}
+
+
+def _build_environment_references_diff(
+    *,
+    old: Dict[str, Dict[str, Any]],
+    new: Dict[str, Dict[str, Any]],
+) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    created: Dict[str, Dict[str, Any]] = {}
+    updated: Dict[str, Dict[str, Any]] = {}
+    deleted: Dict[str, Dict[str, Any]] = {}
+
+    for key, new_value in new.items():
+        if key not in old:
+            created[key] = {"new": new_value}
+        elif old[key] != new_value:
+            updated[key] = {
+                "old": old[key],
+                "new": new_value,
+            }
+
+    for key, old_value in old.items():
+        if key not in new:
+            deleted[key] = {"old": old_value}
+
+    return {
+        "created": created,
+        "updated": updated,
+        "deleted": deleted,
+    }
+
+
 class EnvironmentsService:
     def __init__(
         self,
@@ -68,6 +135,32 @@ class EnvironmentsService:
     ):
         self.embeds_service = None  # Will be set later
         self.environments_dao = environments_dao
+
+    async def _get_previous_environment_references(
+        self,
+        *,
+        project_id: UUID,
+        environment_variant_id: Optional[UUID],
+    ) -> Dict[str, Dict[str, Any]]:
+        if environment_variant_id is None:
+            return {}
+
+        previous_revisions = await self.query_environment_revisions(
+            project_id=project_id,
+            environment_variant_refs=[Reference(id=environment_variant_id)],
+            windowing=Windowing(limit=1),
+        )
+
+        if not previous_revisions:
+            return {}
+
+        previous_revision = previous_revisions[0]
+        previous_references = (
+            previous_revision.data.references
+            if previous_revision.data and previous_revision.data.references
+            else None
+        )
+        return _normalize_environment_references(previous_references)
 
     # environments ---------------------------------------------------------
 
@@ -834,6 +927,15 @@ class EnvironmentsService:
                 environment_revision_commit=environment_revision_commit,
             )
 
+        environment_variant_id = (
+            environment_revision_commit.environment_variant_id
+            or environment_revision_commit.variant_id
+        )
+        previous_references = await self._get_previous_environment_references(
+            project_id=project_id,
+            environment_variant_id=environment_variant_id,
+        )
+
         dumped = environment_revision_commit.model_dump(
             mode="json",
             exclude_none=True,
@@ -855,6 +957,16 @@ class EnvironmentsService:
             **revision.model_dump(
                 mode="json",
             ),
+        )
+        current_state = _normalize_environment_revision_data(environment_revision.data)
+        current_references = _normalize_environment_references(
+            environment_revision.data.references
+            if environment_revision.data and environment_revision.data.references
+            else None
+        )
+        references_diff = _build_environment_references_diff(
+            old=previous_references,
+            new=current_references,
         )
 
         # --- THIS WILL BE IMPROVED LATER ------------------------------------ #
@@ -881,6 +993,8 @@ class EnvironmentsService:
                     version=environment_revision.version,
                 ),
             ),
+            state=current_state,
+            diff=references_diff,
         )
         # --- THIS WILL BE IMPROVED LATER ------------------------------------ #
 

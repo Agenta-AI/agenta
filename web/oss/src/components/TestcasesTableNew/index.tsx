@@ -5,6 +5,7 @@ import {useRouter} from "next/router"
 
 import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
 import useBlockNavigation from "@/oss/hooks/useBlockNavigation"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import useURL from "@/oss/hooks/useURL"
 import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
@@ -58,6 +59,7 @@ export interface TestcasesTableNewProps {
 export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     const router = useRouter()
     const {projectURL} = useURL()
+    const {canExportData} = useProjectPermissions()
 
     // Normalize and validate revisionIdParam from URL
     // Only allow "new" (special case) or valid UUIDs to prevent SSRF
@@ -129,6 +131,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
         table,
         revisionIdParam,
         mode,
+        canExportData,
         metadata,
         availableRevisions,
         onOpenCommitModal: () => setIsCommitModalOpen(true),
@@ -214,6 +217,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                         loadingRevisions={loadingRevisions}
                         isIdCopied={isIdCopied}
                         isRevisionSlugCopied={isRevisionSlugCopied}
+                        canExportData={canExportData}
                         revisionIdParam={revisionIdParam as string}
                         isNewTestset={isNewTestset}
                         isExporting={actions.isExporting}
