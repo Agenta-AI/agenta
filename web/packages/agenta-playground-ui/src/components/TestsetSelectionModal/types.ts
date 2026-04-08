@@ -78,6 +78,8 @@ export interface TestsetSelectionModalProps extends Omit<ModalProps, "onCancel">
     warningMessage?: string
     /** Whether there is a compatibility warning */
     hasWarning?: boolean
+    /** Whether export actions should be enabled in testcase table */
+    canExportData?: boolean
 }
 
 /**
@@ -110,6 +112,8 @@ export interface TestsetSelectionModalContentProps {
     warningMessage?: string
     /** Whether there is a compatibility warning */
     hasWarning?: boolean
+    /** Whether export actions should be enabled in testcase table */
+    canExportData?: boolean
 }
 
 // Note: TestcaseTableProps is provided by @agenta/entity-ui and re-exported from index.ts

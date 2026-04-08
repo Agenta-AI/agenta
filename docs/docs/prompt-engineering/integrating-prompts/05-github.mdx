@@ -40,10 +40,10 @@ POST https://api.github.com/repos/<owner>/<repo>/dispatches
 {
   "event_type": "environments.revisions.committed",
   "client_payload": {
-    "event_id": "01961234-5678-7abc-...",
+    "event_id": "01961234-5678-7abc-9def-123456789abc",
     "event_type": "environments.revisions.committed",
-    "timestamp": "2026-03-10T20:44:12.264Z",
-    "created_at": "2026-03-10T20:44:12.264Z",
+    "timestamp": "2026-04-07T11:24:18.000Z",
+    "created_at": "2026-04-07T11:24:18.000Z",
     "attributes": {
       "user_id": "<user_id>",
       "references": {
@@ -51,9 +51,66 @@ POST https://api.github.com/repos/<owner>/<repo>/dispatches
         "environment_variant": {"id": "<environment_variant_id>"},
         "environment_revision": {
           "id": "<environment_revision_id>",
-          "slug": "<slug>",
-          "version": "<version>"
+          "slug": "prod-0008",
+          "version": "8"
         }
+      },
+      "state": {
+        "references": {
+          "customer-support-bot.revision": {
+            "application": {
+              "id": "<application_id>",
+              "slug": "customer-support-bot"
+            },
+            "application_variant": {
+              "id": "<application_variant_id>",
+              "slug": "production"
+            },
+            "application_revision": {
+              "id": "<application_revision_id>",
+              "slug": "prompt-v8",
+              "version": "8"
+            }
+          }
+        }
+      },
+      "diff": {
+        "created": {},
+        "updated": {
+          "customer-support-bot.revision": {
+            "old": {
+              "application": {
+                "id": "<application_id>",
+                "slug": "customer-support-bot"
+              },
+              "application_variant": {
+                "id": "<application_variant_id>",
+                "slug": "production"
+              },
+              "application_revision": {
+                "id": "<previous_application_revision_id>",
+                "slug": "prompt-v7",
+                "version": "7"
+              }
+            },
+            "new": {
+              "application": {
+                "id": "<application_id>",
+                "slug": "customer-support-bot"
+              },
+              "application_variant": {
+                "id": "<application_variant_id>",
+                "slug": "production"
+              },
+              "application_revision": {
+                "id": "<application_revision_id>",
+                "slug": "prompt-v8",
+                "version": "8"
+              }
+            }
+          }
+        },
+        "deleted": {}
       }
     }
   }
@@ -61,6 +118,8 @@ POST https://api.github.com/repos/<owner>/<repo>/dispatches
 ```
 
 This mode is useful when your workflow needs the full event payload.
+
+In that payload, `references` identifies the environment revision that was committed, `state` is the current value of that revision's `data.references`, and `diff` is the diff for the commit.
 
 ### Workflow dispatch
 
