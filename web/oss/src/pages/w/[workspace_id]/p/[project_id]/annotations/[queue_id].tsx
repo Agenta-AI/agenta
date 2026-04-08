@@ -18,6 +18,7 @@ import {
     openTraceDrawerAtom,
     setTraceDrawerActiveSpanAtom,
 } from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import useURL from "@/oss/hooks/useURL"
 import {useAppNavigation, useQueryParamState} from "@/oss/state/appState"
 
@@ -45,6 +46,7 @@ const AnnotationMetricPopover = ({children, ...props}: MetricPopoverWrapperProps
 const AnnotationSessionPage = () => {
     const router = useRouter()
     const {projectURL} = useURL()
+    const {canExportData} = useProjectPermissions()
     const queueId = router.query.queue_id as string | undefined
     const appNavigation = useAppNavigation()
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
@@ -125,6 +127,7 @@ const AnnotationSessionPage = () => {
                 queueId={queueId}
                 routeState={routeState}
                 onActiveViewChange={handleActiveViewChange}
+                canExportData={canExportData}
             />
         </AnnotationUIProvider>
     )

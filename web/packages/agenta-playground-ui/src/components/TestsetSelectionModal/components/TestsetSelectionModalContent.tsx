@@ -27,6 +27,7 @@ export function TestsetSelectionModalContent({
     renderPreviewPanel,
     warningMessage,
     hasWarning,
+    canExportData,
     onCreateAndLoad,
 }: TestsetSelectionModalContentProps) {
     return (
@@ -41,6 +42,7 @@ export function TestsetSelectionModalContent({
             renderPreviewPanel={renderPreviewPanel}
             warningMessage={warningMessage}
             hasWarning={hasWarning}
+            canExportData={canExportData}
             onCreateAndLoad={onCreateAndLoad}
         />
     )

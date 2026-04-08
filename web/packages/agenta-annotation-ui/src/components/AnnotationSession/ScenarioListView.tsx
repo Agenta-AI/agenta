@@ -119,6 +119,7 @@ interface ScenarioListViewProps {
     onSaved: () => void
     onCompleted: (scenarioId: string) => void
     onViewChange?: (view: SessionView) => void
+    canExportData?: boolean
 }
 
 /** Row shape for the IVT. Extends scenario data with table-required fields. */
@@ -1400,6 +1401,7 @@ const ScenarioListView = memo(function ScenarioListView({
     onSaved,
     onCompleted,
     onViewChange,
+    canExportData = true,
 }: ScenarioListViewProps) {
     const setActiveView = useSetAtom(annotationSessionController.actions.setActiveView)
     const navigateToIndex = useSetAtom(annotationSessionController.actions.navigateToIndex)
@@ -1670,6 +1672,7 @@ const ScenarioListView = memo(function ScenarioListView({
                 className="flex-1 min-h-0"
                 exportOptions={exportOptions}
                 exportAction={{label: "Export as CSV"}}
+                enableExport={canExportData}
                 filters={filtersNode}
                 primaryActions={primaryActionsNode}
                 store={getDefaultStore()}

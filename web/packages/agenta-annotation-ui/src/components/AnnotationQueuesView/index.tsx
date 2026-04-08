@@ -220,7 +220,11 @@ const QueuesHeaderFilters = () => {
     )
 }
 
-const AnnotationQueuesView = () => {
+export interface AnnotationQueuesViewProps {
+    canExportData?: boolean
+}
+
+const AnnotationQueuesView = ({canExportData = true}: AnnotationQueuesViewProps) => {
     const navigation = useAnnotationNavigation()
     const searchTerm = useAtomValue(simpleQueueSearchTermAtom)
     const kindFilter = useAtomValue(simpleQueueKindFilterAtom)
@@ -506,6 +510,7 @@ const AnnotationQueuesView = () => {
                 primaryActions={createButton}
                 tableProps={tableProps}
                 exportOptions={exportOptions}
+                enableExport={canExportData}
                 autoHeight
                 store={getDefaultStore()}
             />

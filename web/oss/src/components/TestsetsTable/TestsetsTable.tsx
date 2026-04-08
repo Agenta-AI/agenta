@@ -31,6 +31,7 @@ import {
 } from "@/oss/components/InfiniteVirtualTable"
 import CommitMessageCell from "@/oss/components/TestsetsTable/components/CommitMessageCell"
 import TestsetsHeaderFilters from "@/oss/components/TestsetsTable/components/TestsetsHeaderFilters"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import useURL from "@/oss/hooks/useURL"
 import {
     onboardingWidgetActivationAtom,
@@ -93,6 +94,7 @@ const TestsetsTable = ({
 }: TestsetsTableProps) => {
     const router = useRouter()
     const {projectURL} = useURL()
+    const {canExportData} = useProjectPermissions()
     const projectId = useAtomValue(projectIdAtom)
     const onboardingWidgetActivation = useAtomValue(onboardingWidgetActivationAtom)
     const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
@@ -329,6 +331,7 @@ const TestsetsTable = ({
     // Handler to export a testset or revision using the backend endpoint
     const handleExportTestset = useCallback(
         async (record: TestsetTableRow, format: ExportFileType) => {
+            if (!canExportData) return
             const isRevision = (record as any).__isRevision
             const version = (record as any).__version
             const sanitizedName = record.name.replace(/[^a-zA-Z0-9-_]/g, "-")
@@ -374,7 +377,7 @@ const TestsetsTable = ({
                 setExportingRowKey(null)
             }
         },
-        [setExportFormat],
+        [canExportData, setExportFormat],
     )
 
     // Table manager - consolidates pagination, selection, row handlers, export, delete buttons
@@ -660,21 +663,23 @@ const TestsetsTable = ({
                         // Export actions (available for both testsets and revisions in manage mode)
                         {
                             type: "divider",
-                            hidden: () => !isManageMode,
+                            hidden: () => !isManageMode || !canExportData,
                         },
                         {
                             key: "export-csv",
                             label: "Export as CSV",
                             icon: <DownloadSimple size={16} />,
                             onClick: (record) => handleExportTestset(record, "csv"),
-                            hidden: () => !isManageMode || Boolean(exportingRowKey),
+                            hidden: () =>
+                                !isManageMode || !canExportData || Boolean(exportingRowKey),
                         },
                         {
                             key: "export-json",
                             label: "Export as JSON",
                             icon: <DownloadSimple size={16} />,
                             onClick: (record) => handleExportTestset(record, "json"),
-                            hidden: () => !isManageMode || Boolean(exportingRowKey),
+                            hidden: () =>
+                                !isManageMode || !canExportData || Boolean(exportingRowKey),
                         },
                     ],
                     getRecordId: (record) => record.id,
@@ -689,6 +694,7 @@ const TestsetsTable = ({
             handleExpand,
             handleDeleteRevision,
             isManageMode,
+            canExportData,
         ],
     )
 
@@ -840,9 +846,9 @@ const TestsetsTable = ({
                 primaryActions={isManageMode ? createButton : undefined}
                 rowSelection={rowSelection}
                 deleteAction={isManageMode ? deleteAction : undefined}
-                enableExport={isManageMode}
+                enableExport={isManageMode && canExportData}
                 exportAction={undefined}
-                renderExportButton={isManageMode ? renderExportButton : undefined}
+                renderExportButton={isManageMode && canExportData ? renderExportButton : undefined}
                 tableProps={{
                     ...table.shellProps.tableProps,
                     expandable: treeExpandable,
