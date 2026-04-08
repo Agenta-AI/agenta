@@ -929,7 +929,6 @@ const connectToSourceAtom = atom(
         // Set currentRevisionIdAtom so changesSummaryAtom reads from the correct revision
         // This is needed for the commit modal to show proper diff data
         set(setCurrentRevisionIdAtom, sourceId)
-
     },
 )
 
