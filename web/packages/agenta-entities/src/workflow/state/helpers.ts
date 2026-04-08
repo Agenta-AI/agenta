@@ -11,6 +11,8 @@ import {getAgentaApiUrl} from "@agenta/shared/api"
 
 import type {Workflow} from "../core"
 
+import type {WorkflowType} from "./molecule"
+
 /**
  * Extract service type from a URI like "agenta:builtin:completion:v0".
  *
@@ -112,4 +114,49 @@ export function resolveBuiltinAppServiceUrl(entity: Workflow): string | null {
     }
 
     return null
+}
+
+// ============================================================================
+// APP TYPE DERIVATION FROM LATEST REVISION
+// ============================================================================
+
+/**
+ * Derive the app type from a workflow revision.
+ *
+ * Checks the URI first (reliable — backend always stores it correctly),
+ * then falls back to flags. This works around the backend bug where
+ * `is_chat` is not inferred from the URI at commit time.
+ */
+export function deriveWorkflowTypeFromRevision(
+    revision: Workflow | null | undefined,
+): WorkflowType {
+    if (!revision) return "completion"
+
+    // URI is the source of truth: provider:kind:key:version
+    const uri = revision.data?.uri
+    if (uri) {
+        const key = uri.split(":")[2]
+        if (key === "chat") return "chat"
+        if (key === "completion") return "completion"
+        if (key === "llm") return "llm"
+        if (key === "code") return "code"
+        if (key === "hook") return "hook"
+        if (key === "match") return "match"
+        if (key === "feedback") return "human"
+    }
+
+    // Fallback to flags
+    const flags = revision.flags
+    if (flags?.is_feedback) return "human"
+    if (flags?.is_llm) return "llm"
+    if (flags?.is_code) return "code"
+    if (flags?.is_hook) return "hook"
+    if (flags?.is_match) return "match"
+    if (flags?.is_custom) return "custom"
+    if (flags?.is_chat) return "chat"
+
+    // Custom workflows have a URL but no managed URI
+    if (flags?.has_url && !flags?.is_managed) return "custom"
+
+    return "completion"
 }

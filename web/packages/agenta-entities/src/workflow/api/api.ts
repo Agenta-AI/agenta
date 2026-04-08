@@ -627,6 +627,28 @@ export interface CreateWorkflowPayload {
 }
 
 /**
+ * Infer revision-level flags from a workflow URI.
+ *
+ * URI format: `provider:kind:key:version` (e.g. `agenta:builtin:chat:v0`).
+ * The backend's `infer_flags_from_data` infers most flags from the URI at commit
+ * time, but `is_chat` is classified as schema-derived and is not inferred there.
+ * We send it explicitly so the revision is correctly flagged from the start.
+ */
+function inferRevisionFlagsFromUri(
+    uri: string | null | undefined,
+): Record<string, boolean> | undefined {
+    if (!uri) return undefined
+    const parts = uri.split(":")
+    const key = parts[2] // provider:kind:key:version
+    if (!key) return undefined
+
+    const flags: Record<string, boolean> = {}
+    if (key === "chat") flags.is_chat = true
+
+    return Object.keys(flags).length > 0 ? flags : undefined
+}
+
+/**
  * Create a new workflow and commit its initial revision.
  *
  * Endpoints:
@@ -710,6 +732,7 @@ export async function createWorkflow(
         )
 
         // Step 4: Commit actual data revision (v1) with full parameters
+        const revisionFlags = inferRevisionFlagsFromUri(payload.data?.uri)
         const commitResponse = await axios.post(
             `${getAgentaApiUrl()}/preview/workflows/revisions/commit`,
             {
@@ -719,6 +742,7 @@ export async function createWorkflow(
                     slug: generateId().replace(/-/g, "").slice(0, 12),
                     name: payload.name,
                     data: payload.data,
+                    flags: revisionFlags,
                     message: payload.message ?? undefined,
                 },
             },
@@ -857,6 +881,7 @@ export async function updateWorkflow(
 
     // Commit a new revision if data changed
     if (payload.data) {
+        const revisionFlags = inferRevisionFlagsFromUri(payload.data?.uri)
         const commitResponse = await axios.post(
             `${getAgentaApiUrl()}/preview/workflows/revisions/commit`,
             {
@@ -866,6 +891,7 @@ export async function updateWorkflow(
                     slug: generateId().replace(/-/g, "").slice(0, 12),
                     name: payload.name ?? undefined,
                     data: payload.data,
+                    flags: revisionFlags,
                     message: payload.message ?? undefined,
                 },
             },
@@ -912,6 +938,7 @@ export async function commitWorkflowRevisionApi(
     projectId: string,
     payload: CommitWorkflowRevisionPayload,
 ): Promise<Workflow> {
+    const revisionFlags = inferRevisionFlagsFromUri(payload.data?.uri)
     const commitResponse = await axios.post(
         `${getAgentaApiUrl()}/preview/workflows/revisions/commit`,
         {
@@ -921,6 +948,7 @@ export async function commitWorkflowRevisionApi(
                 slug: payload.slug ?? generateId().replace(/-/g, "").slice(0, 12),
                 name: payload.name ?? undefined,
                 data: payload.data,
+                flags: revisionFlags,
                 message: payload.message ?? undefined,
             },
         },

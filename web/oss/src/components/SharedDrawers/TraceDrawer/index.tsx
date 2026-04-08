@@ -5,7 +5,7 @@ import {Button} from "antd"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
 
-import {useQueryParamState} from "@/oss/state/appState"
+import {requestNavigationAtom} from "@/oss/state/appState"
 
 import {openTraceDrawerAtom, setTraceDrawerActiveSpanAtom} from "./store/traceDrawerStore"
 import {TraceDrawerButtonProps} from "./types"
@@ -19,8 +19,7 @@ const TraceDrawerButton = ({
 }: TraceDrawerButtonProps) => {
     const setActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
-    const [, setTraceQueryParam] = useQueryParamState("trace")
-    const [, setSpanQueryParam] = useQueryParamState("span")
+    const setNavigation = useSetAtom(requestNavigationAtom)
 
     const traceId = useMemo(() => {
         const directTraceId =
@@ -89,13 +88,19 @@ const TraceDrawerButton = ({
         const nextActiveSpan = deriveActiveSpan()
         openTraceDrawer({traceId, activeSpanId: nextActiveSpan})
         setActiveSpan(nextActiveSpan)
-        setTraceQueryParam(traceId, {shallow: true})
-        if (nextActiveSpan) {
-            setSpanQueryParam(nextActiveSpan, {shallow: true})
-        } else {
-            setSpanQueryParam(undefined, {shallow: true})
-        }
-    }, [traceId, result, openTraceDrawer, setActiveSpan, setTraceQueryParam, setSpanQueryParam])
+        // Batch trace and span into a single navigation command to avoid
+        // a race where the second patch overwrites the first, and preserve
+        // the URL hash so the playground snapshot is not lost.
+        setNavigation({
+            type: "patch-query",
+            patch: {
+                trace: traceId,
+                span: nextActiveSpan ?? undefined,
+            },
+            shallow: true,
+            preserveHash: true,
+        })
+    }, [traceId, result, openTraceDrawer, setActiveSpan, setNavigation])
 
     const hasTrace = useMemo(() => {
         const nodes = (result as any)?.response?.tree?.nodes

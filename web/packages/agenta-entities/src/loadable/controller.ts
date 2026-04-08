@@ -52,6 +52,7 @@ import {
     newEntityIdsAtom,
     setCurrentRevisionIdAtom,
     clearDeletedIdsAtom,
+    testcaseDraftAtomFamily,
 } from "../testcase/state/store"
 import {pendingColumnOpsAtomFamily} from "../testset/state"
 import {saveNewTestsetAtom, saveTestsetAtom} from "../testset/state/mutations"
@@ -898,12 +899,16 @@ const connectToSourceAtom = atom(
         set(clearDeletedIdsAtom)
         set(resetTestcaseIdsAtom)
 
-        // If testcases provided, populate query cache and set IDs
+        // If testcases provided, populate query cache + drafts and set IDs
         // Note: Testcases are stored in nested Testcase format
         if (testcases && testcases.length > 0) {
             const ids: string[] = []
             for (const tc of testcases) {
                 queryClient.setQueryData(["testcase", projectId, tc.id], tc as Testcase)
+                // Also write to draft so the Jotai reactive graph picks up the data
+                // immediately — atomWithQuery doesn't re-notify subscribers on external
+                // setQueryData calls, but testcaseEntityAtomFamily checks drafts first.
+                set(testcaseDraftAtomFamily(tc.id), tc as Testcase)
                 ids.push(tc.id)
             }
             // Reset and set testcase IDs so displayRowIds picks them up
@@ -924,6 +929,7 @@ const connectToSourceAtom = atom(
         // Set currentRevisionIdAtom so changesSummaryAtom reads from the correct revision
         // This is needed for the commit modal to show proper diff data
         set(setCurrentRevisionIdAtom, sourceId)
+
     },
 )
 

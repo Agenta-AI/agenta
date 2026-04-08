@@ -59,6 +59,7 @@ export {
     type CreateEphemeralWorkflowParams,
     // Latest revision (derived from already-fetched data)
     workflowLatestRevisionIdAtomFamily,
+    workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
 } from "./store"
 

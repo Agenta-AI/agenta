@@ -688,11 +688,17 @@ export const generationRowIdsAtom = atom<string[]>((get) => {
         }
         return rowIds
     }
-    if (isChat === undefined) {
-        return []
-    }
-    const stepIds = get(loadableController.selectors.displayRowIds(loadableId))
-    return stepIds
+    if (isChat === undefined) return []
+
+    // Read directly from the molecule's displayRowIds (global atom) and apply
+    // the loadable's hidden-ID filter inline. This avoids going through
+    // displayRowIdsAtomFamily (atomFamily) which can miss Jotai subscription
+    // notifications when testcase IDs are replaced within a write transaction.
+    const allDisplayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+    const state = get(loadableStateAtomFamily(loadableId))
+    const hiddenIds = state.hiddenTestcaseIds
+    if (hiddenIds.size === 0) return allDisplayRowIds
+    return allDisplayRowIds.filter((id) => !hiddenIds.has(id))
 })
 
 /**

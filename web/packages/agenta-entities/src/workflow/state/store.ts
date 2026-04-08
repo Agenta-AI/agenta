@@ -43,7 +43,12 @@ import type {
 } from "../core"
 import {buildWorkflowUri} from "../core/schema"
 
-import {resolveServiceTypeFromUrl, buildServiceUrlFromUri, isManagedServiceUrl} from "./helpers"
+import {
+    resolveServiceTypeFromUrl,
+    buildServiceUrlFromUri,
+    isManagedServiceUrl,
+    deriveWorkflowTypeFromRevision,
+} from "./helpers"
 
 // ============================================================================
 // HELPERS
@@ -795,6 +800,27 @@ export const workflowLatestRevisionIdAtomFamily = atomFamily((workflowId: string
         // Fallback to the dedicated latest revision query
         const query = get(workflowLatestRevisionQueryAtomFamily(workflowId))
         return query.data?.id ?? null
+    }),
+)
+
+// ============================================================================
+// LATEST REVISION APP TYPE
+// ============================================================================
+
+/**
+ * Atom family that derives the app type from the latest revision.
+ *
+ * Uses `workflowLatestRevisionQueryAtomFamily` to reactively fetch the
+ * latest revision and derive the type from its URI/flags. Suitable for
+ * list pages where the molecule isn't populated per-workflow.
+ *
+ * IMPORTANT: Must be read from the default Jotai store (via `getDefaultStore()`)
+ * when used inside InfiniteVirtualTable cells, which render in an isolated store.
+ */
+export const workflowAppTypeAtomFamily = atomFamily((workflowId: string) =>
+    atom((get) => {
+        const query = get(workflowLatestRevisionQueryAtomFamily(workflowId))
+        return deriveWorkflowTypeFromRevision(query.data)
     }),
 )
 
