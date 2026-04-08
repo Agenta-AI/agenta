@@ -369,12 +369,12 @@ export const VariantReferenceLabel = memo(
             return <Skeleton.Input active size="small" style={{width: 140}} />
         }
 
-        const hasResolvedData = data?.slug || data?.version != null || fallbackLabel
+        const hasResolvedData = data?.name || data?.slug || data?.version != null || fallbackLabel
         const isDeleted =
             Boolean(query.isError && !fallbackLabel) || (!hasResolvedData && !fallbackLabel)
         const label = isDeleted
             ? "Deleted"
-            : (data?.slug ?? fallbackLabel ?? customLabel ?? revisionId)
+            : (data?.name ?? data?.slug ?? fallbackLabel ?? customLabel ?? revisionId)
         const resolvedVersion = isDeleted ? null : (explicitVersion ?? data?.version ?? null)
         // Don't show link for deleted variants
         const href = isDeleted ? null : explicitHref

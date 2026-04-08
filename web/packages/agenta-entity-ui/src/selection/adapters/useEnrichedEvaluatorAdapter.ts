@@ -15,9 +15,13 @@
 import type React from "react"
 import {useMemo, useRef} from "react"
 
-import {evaluatorKeyMapAtom, evaluatorTemplatesMapAtom} from "@agenta/entities/workflow"
+import {
+    evaluatorKeyMapAtom,
+    evaluatorTemplatesMapAtom,
+    workflowAppTypeAtomFamily,
+} from "@agenta/entities/workflow"
 import {workflowsListDataAtom} from "@agenta/entities/workflow"
-import {useAtomValue} from "jotai"
+import {getDefaultStore, useAtomValue} from "jotai"
 
 import {renderEvaluatorPickerLabelNode} from "./evaluatorLabelUtils"
 import {
@@ -42,12 +46,20 @@ export function useEvaluatorEnrichedData() {
     return {evaluatorKeyMap, evaluatorDefsByKey}
 }
 
+/**
+ * Map of workflow ID → isHuman, derived from the latest revision's type.
+ * Workflow-level flags don't have is_feedback — it only exists at the revision level.
+ */
 function useWorkflowHumanMap() {
     const workflows = useAtomValue(workflowsListDataAtom)
 
     return useMemo(() => {
+        const store = getDefaultStore()
         return new Map(
-            workflows.map((workflow) => [workflow.id, Boolean(workflow.flags?.is_feedback)]),
+            workflows.map((workflow) => [
+                workflow.id,
+                store.get(workflowAppTypeAtomFamily(workflow.id)) === "human",
+            ]),
         )
     }, [workflows])
 }
@@ -64,11 +76,14 @@ function useWorkflowHumanMap() {
  */
 export function useEnrichedEvaluatorBrowseAdapter() {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
+    const workflowHumanMap = useWorkflowHumanMap()
     const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
     const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
+    const workflowHumanMapRef = useRef(workflowHumanMap)
 
     evaluatorKeyMapRef.current = evaluatorKeyMap
     evaluatorDefsByKeyRef.current = evaluatorDefsByKey
+    workflowHumanMapRef.current = workflowHumanMap
 
     return useMemo(() => {
         const getLabelNode = (entity: unknown): React.ReactNode =>
@@ -82,10 +97,8 @@ export function useEnrichedEvaluatorBrowseAdapter() {
             skipVariantLevel: true,
             excludeRevisionZero: true,
             filterWorkflows: (entity: unknown) => {
-                const w = entity as {
-                    flags?: {is_feedback?: boolean} | null
-                }
-                return !w.flags?.is_feedback
+                const w = entity as {id: string}
+                return !workflowHumanMapRef.current.get(w.id)
             },
             grandparentOverrides: {
                 getLabelNode,
@@ -110,12 +123,15 @@ export function useEnrichedEvaluatorOnlyAdapter(
     revisionLabelOverride?: (entity: unknown) => React.ReactNode,
 ) {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
+    const workflowHumanMap = useWorkflowHumanMap()
     const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
     const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
+    const workflowHumanMapRef = useRef(workflowHumanMap)
     const revisionLabelOverrideRef = useRef(revisionLabelOverride)
 
     evaluatorKeyMapRef.current = evaluatorKeyMap
     evaluatorDefsByKeyRef.current = evaluatorDefsByKey
+    workflowHumanMapRef.current = workflowHumanMap
     revisionLabelOverrideRef.current = revisionLabelOverride
 
     const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
@@ -130,8 +146,12 @@ export function useEnrichedEvaluatorOnlyAdapter(
 
         const options: Parameters<typeof createWorkflowRevisionAdapter>[0] = {
             skipVariantLevel: true,
-            flags: {is_evaluator: true, is_feedback: false},
+            flags: {is_evaluator: true},
             excludeRevisionZero: true,
+            filterWorkflows: (entity: unknown) => {
+                const w = entity as {id: string}
+                return !workflowHumanMapRef.current.get(w.id)
+            },
             grandparentOverrides: {
                 getLabelNode,
             },
