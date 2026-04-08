@@ -26,6 +26,7 @@
  */
 
 import {atom} from "jotai"
+import {atomFamily} from "jotai/utils"
 
 import type {EntityRelation} from "../shared/molecule/types"
 import type {ListQueryState} from "../shared/molecule/types"
@@ -60,7 +61,7 @@ export const workflowsListAtom = workflowsListQueryStateAtom
  * Adapts the existing workflowRevisionsByWorkflowQueryAtomFamily
  * to the ListQueryState interface required by selection adapters.
  */
-const revisionByWorkflowListAtomFamily = (workflowId: string) =>
+const revisionByWorkflowListAtomFamily = atomFamily((workflowId: string) =>
     atom<ListQueryState<Workflow>>((get) => {
         const query = get(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
 
@@ -81,7 +82,8 @@ const revisionByWorkflowListAtomFamily = (workflowId: string) =>
             isError,
             error,
         }
-    })
+    }),
+)
 
 /**
  * Relation from workflow to its revisions (2-level, skipping variants).

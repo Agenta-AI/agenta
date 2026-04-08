@@ -18,10 +18,12 @@ import {useMemo, useRef} from "react"
 import {
     evaluatorKeyMapAtom,
     evaluatorTemplatesMapAtom,
+    evaluatorConfigsQueryStateAtom,
+    humanEvaluatorsListQueryAtom,
     workflowAppTypeAtomFamily,
 } from "@agenta/entities/workflow"
 import {workflowsListDataAtom} from "@agenta/entities/workflow"
-import {getDefaultStore, useAtomValue} from "jotai"
+import {atom, getDefaultStore, useAtomValue} from "jotai"
 
 import {renderEvaluatorPickerLabelNode} from "./evaluatorLabelUtils"
 import {
@@ -123,18 +125,31 @@ export function useEnrichedEvaluatorOnlyAdapter(
     revisionLabelOverride?: (entity: unknown) => React.ReactNode,
 ) {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
-    const workflowHumanMap = useWorkflowHumanMap()
     const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
     const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
-    const workflowHumanMapRef = useRef(workflowHumanMap)
     const revisionLabelOverrideRef = useRef(revisionLabelOverride)
 
     evaluatorKeyMapRef.current = evaluatorKeyMap
     evaluatorDefsByKeyRef.current = evaluatorDefsByKey
-    workflowHumanMapRef.current = workflowHumanMap
     revisionLabelOverrideRef.current = revisionLabelOverride
 
     const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
+
+    // Stable atom that wraps evaluatorConfigsQueryStateAtom into ListQueryState<unknown>.
+    // Uses a proper Jotai atom so filtering reactively updates when revision data resolves.
+    const autoEvaluatorsListAtom = useMemo(
+        () =>
+            atom((get) => {
+                const state = get(evaluatorConfigsQueryStateAtom)
+                return {
+                    data: state.data as unknown[],
+                    isPending: state.isPending,
+                    isError: state.isError,
+                    error: state.error ?? null,
+                }
+            }),
+        [],
+    )
 
     return useMemo(() => {
         const getLabelNode = (entity: unknown): React.ReactNode =>
@@ -144,14 +159,10 @@ export function useEnrichedEvaluatorOnlyAdapter(
                 evaluatorDefsByKeyRef.current,
             )
 
-        const options: Parameters<typeof createWorkflowRevisionAdapter>[0] = {
+        const options: NonNullable<Parameters<typeof createWorkflowRevisionAdapter>[0]> = {
             skipVariantLevel: true,
-            flags: {is_evaluator: true},
             excludeRevisionZero: true,
-            filterWorkflows: (entity: unknown) => {
-                const w = entity as {id: string}
-                return !workflowHumanMapRef.current.get(w.id)
-            },
+            workflowListAtom: autoEvaluatorsListAtom,
             grandparentOverrides: {
                 getLabelNode,
             },
@@ -167,7 +178,7 @@ export function useEnrichedEvaluatorOnlyAdapter(
         }
 
         return createWorkflowRevisionAdapter(options)
-    }, [hasRevisionLabelOverride])
+    }, [hasRevisionLabelOverride, autoEvaluatorsListAtom])
 }
 
 type AnnotationWorkflowRevisionSelectionResult = WorkflowRevisionSelectionResult & {
@@ -184,18 +195,31 @@ export function useEnrichedHumanEvaluatorAdapter(
     revisionLabelOverride?: (entity: unknown) => React.ReactNode,
 ) {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
-    const workflowHumanMap = useWorkflowHumanMap()
     const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
     const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
-    const workflowHumanMapRef = useRef(workflowHumanMap)
     const revisionLabelOverrideRef = useRef(revisionLabelOverride)
 
     evaluatorKeyMapRef.current = evaluatorKeyMap
     evaluatorDefsByKeyRef.current = evaluatorDefsByKey
-    workflowHumanMapRef.current = workflowHumanMap
     revisionLabelOverrideRef.current = revisionLabelOverride
 
     const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
+
+    // Stable atom that wraps humanEvaluatorsListQueryAtom into ListQueryState<unknown>.
+    // Uses a proper Jotai atom so filtering reactively updates when revision data resolves.
+    const humanEvaluatorsListAtom = useMemo(
+        () =>
+            atom((get) => {
+                const query = get(humanEvaluatorsListQueryAtom)
+                return {
+                    data: (query.data?.refs ?? []) as unknown[],
+                    isPending: query.isPending ?? false,
+                    isError: query.isError ?? false,
+                    error: (query.error as Error | null) ?? null,
+                }
+            }),
+        [],
+    )
 
     return useMemo(() => {
         const getLabelNode = (entity: unknown): React.ReactNode =>
@@ -205,13 +229,10 @@ export function useEnrichedHumanEvaluatorAdapter(
                 evaluatorDefsByKeyRef.current,
             )
 
-        const options: Parameters<typeof createWorkflowRevisionAdapter>[0] = {
+        const options: NonNullable<Parameters<typeof createWorkflowRevisionAdapter>[0]> = {
             skipVariantLevel: true,
             excludeRevisionZero: true,
-            filterWorkflows: (entity: unknown) => {
-                const w = entity as {id: string}
-                return Boolean(workflowHumanMapRef.current.get(w.id))
-            },
+            workflowListAtom: humanEvaluatorsListAtom,
             grandparentOverrides: {
                 getLabelNode,
             },
@@ -249,7 +270,7 @@ export function useEnrichedHumanEvaluatorAdapter(
         }
 
         return createWorkflowRevisionAdapter(options)
-    }, [hasRevisionLabelOverride])
+    }, [hasRevisionLabelOverride, humanEvaluatorsListAtom])
 }
 
 /**

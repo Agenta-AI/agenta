@@ -374,6 +374,16 @@ export interface CreateWorkflowRevisionAdapterOptions {
      * @default false
      */
     skipVariantLevel?: boolean
+
+    /**
+     * Custom workflow list atom override.
+     * When provided, uses this atom instead of the default `workflowsListQueryStateAtom`
+     * (and skips `flags`/`filterWorkflows` since the atom already provides filtered data).
+     *
+     * Use this when filtering depends on async/reactive data (e.g., revision-level flags)
+     * that can't be reliably read via a synchronous `filterWorkflows` callback.
+     */
+    workflowListAtom?: Atom<ListQueryState<unknown>>
 }
 
 /**
@@ -413,6 +423,7 @@ export function createWorkflowRevisionAdapter(
         flags,
         filterWorkflows,
         skipVariantLevel = false,
+        workflowListAtom,
     } = options
 
     const emptyListState: ListQueryState<unknown> = {
@@ -424,31 +435,39 @@ export function createWorkflowRevisionAdapter(
 
     // Skip-variant mode: Workflow → Revision (2-level, uses workflowToRevisionRelation)
     if (skipVariantLevel && !workflowId && !workflowIdAtom) {
-        const needsFiltering = !!flags || !!filterWorkflows
-        const filteredWorkflowsListAtom = needsFiltering
-            ? atom<ListQueryState<unknown>>((get) => {
-                  const state = get(workflowsListQueryStateAtom as Atom<ListQueryState<unknown>>)
-                  const filtered = (state.data ?? []).filter((w) => {
-                      if (flags) {
-                          const wf = w as {flags?: Record<string, boolean> | null}
-                          if (!wf.flags) return false
-                          const flagsMatch = Object.entries(flags).every(
-                              ([key, val]) => wf.flags?.[key] === val,
-                          )
-                          if (!flagsMatch) return false
-                      }
-                      if (filterWorkflows && !filterWorkflows(w)) return false
-                      return true
-                  })
-                  return {...state, data: filtered}
-              })
-            : (workflowsListQueryStateAtom as Atom<ListQueryState<unknown>>)
+        // When a custom workflowListAtom is provided, use it directly (it handles its own filtering).
+        // Otherwise, apply flags/filterWorkflows on top of the default workflows list.
+        const resolvedWorkflowsListAtom = workflowListAtom
+            ? workflowListAtom
+            : (() => {
+                  const needsFiltering = !!flags || !!filterWorkflows
+                  return needsFiltering
+                      ? atom<ListQueryState<unknown>>((get) => {
+                            const state = get(
+                                workflowsListQueryStateAtom as Atom<ListQueryState<unknown>>,
+                            )
+                            const filtered = (state.data ?? []).filter((w) => {
+                                if (flags) {
+                                    const wf = w as {flags?: Record<string, boolean> | null}
+                                    if (!wf.flags) return false
+                                    const flagsMatch = Object.entries(flags).every(
+                                        ([key, val]) => wf.flags?.[key] === val,
+                                    )
+                                    if (!flagsMatch) return false
+                                }
+                                if (filterWorkflows && !filterWorkflows(w)) return false
+                                return true
+                            })
+                            return {...state, data: filtered}
+                        })
+                      : (workflowsListQueryStateAtom as Atom<ListQueryState<unknown>>)
+              })()
 
         return createTwoLevelAdapter<WorkflowRevisionSelectionResult>({
             name: "workflowRevision",
             parentType: "workflow",
             parentLabel: "Evaluator",
-            parentListAtom: filteredWorkflowsListAtom,
+            parentListAtom: resolvedWorkflowsListAtom,
             parentOverrides: {
                 getId: (entity: unknown) => (entity as {id: string}).id,
                 getLabel: getWorkflowDisplayName,
