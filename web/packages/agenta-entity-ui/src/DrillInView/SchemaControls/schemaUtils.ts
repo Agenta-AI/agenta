@@ -247,6 +247,28 @@ export function getModelSchema(schema: SchemaProperty | null | undefined): Schem
 }
 
 /**
+ * Check if the prompt schema declares a `tools` property.
+ * Checks llm_config/llmConfig first, then root level, then canonical llms[0].
+ * Returns true when the schema explicitly supports tools.
+ */
+export function schemaSupportsTools(schema: SchemaProperty | null | undefined): boolean {
+    if (!schema?.properties) return false
+    const props = schema.properties as Record<string, SchemaProperty>
+
+    // Check inside llm_config / llmConfig
+    const llmConfigSchema = getLLMConfigSchema(schema)
+    if (llmConfigSchema?.properties) {
+        const llmProps = llmConfigSchema.properties as Record<string, SchemaProperty>
+        if (llmProps.tools) return true
+    }
+
+    // Check root level
+    if (props.tools) return true
+
+    return false
+}
+
+/**
  * Extract response_format schema from prompt schema.
  * First checks llm_config/llmConfig, then falls back to root level.
  */

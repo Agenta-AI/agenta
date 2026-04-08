@@ -24,6 +24,9 @@ import {Tag} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
+import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
+
 import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 import {useRepetitionResult} from "../../../../hooks/useRepetitionResult"
 import {getShortTestcaseId} from "../../../../utils/testcaseLabel"
@@ -44,9 +47,6 @@ import {
 } from "../../../shared/NodeResultCard"
 
 import {ExecutionRowRunControl, usePlaygroundNodeLabels} from "./shared"
-
-import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
-import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
 
 interface Props {
     rowId: string

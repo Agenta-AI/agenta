@@ -32,6 +32,7 @@ import {
     getResponseFormatSchema,
     hasNestedLLMConfig,
     normalizeMessages,
+    schemaSupportsTools,
 } from "./schemaUtils"
 import {ToolItemControl} from "./ToolItemControl"
 import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover"
@@ -261,6 +262,9 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     }, [llmConfigValue])
 
     const responseFormatSchema = useMemo(() => getResponseFormatSchema(schema), [schema])
+
+    // Check if schema declares tools support
+    const hasTools = useMemo(() => schemaSupportsTools(schema), [schema])
 
     // Check if response format exists and should be shown
     // If responseFormatSchema is null/empty, don't show the response format control
@@ -535,18 +539,20 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                         Message
                     </Button>
 
-                    {/* Add Tool */}
-                    <ToolSelectorPopover
-                        onAddTool={handleAddTool}
-                        onRemoveTool={handleRemoveToolByName}
-                        onRemoveBuiltinTool={handleRemoveBuiltinTool}
-                        selectedToolNames={selectedToolNames}
-                        selectedTools={tools as ToolObj[]}
-                        disabled={disabled}
-                        renderProviderIcon={effectiveRenderProviderIcon}
-                        existingToolCount={tools.length}
-                        gatewayTools={gatewayTools}
-                    />
+                    {/* Add Tool — only when schema declares tools support */}
+                    {hasTools && (
+                        <ToolSelectorPopover
+                            onAddTool={handleAddTool}
+                            onRemoveTool={handleRemoveToolByName}
+                            onRemoveBuiltinTool={handleRemoveBuiltinTool}
+                            selectedToolNames={selectedToolNames}
+                            selectedTools={tools as ToolObj[]}
+                            disabled={disabled}
+                            renderProviderIcon={effectiveRenderProviderIcon}
+                            existingToolCount={tools.length}
+                            gatewayTools={gatewayTools}
+                        />
+                    )}
 
                     {/* Output type (response format) with JSON schema editing */}
                     {/* Only show if responseFormatSchema exists (evaluators have feedback_config as separate section) */}
