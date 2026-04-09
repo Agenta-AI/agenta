@@ -297,6 +297,7 @@ const rowVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
     atom<string[]>((get) => {
         const loadableId = get(derivedLoadableIdAtom)
         if (!loadableId) return []
+        const isChat = get(isChatModeAtom) === true
         const columns = get(loadableController.selectors.columns(loadableId))
         const primaryKeys = columns.map((column) => column.key)
 
@@ -317,7 +318,8 @@ const rowVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
                 merged.push(key)
             }
         }
-        return merged
+        if (!isChat) return merged
+        return merged.filter((key) => key !== "messages")
     }),
 )
 
@@ -888,11 +890,15 @@ export const executionRowIdsForEntityAtomFamily = atomFamily((entityId: string) 
  */
 export const inputVariableNamesAtom = atom<string[]>((get) => {
     const nodes = get(playgroundNodesAtom).filter((n) => n.depth === 0)
+    const isChat = get(isChatModeAtom) === true
     const seen = new Set<string>()
     const names: string[] = []
     for (const node of nodes) {
         const ports = get(workflowMolecule.selectors.inputPorts(node.entityId)) as RunnablePort[]
         for (const port of ports || []) {
+            if (isChat && port.key === "messages") {
+                continue
+            }
             if (port.key && !seen.has(port.key)) {
                 seen.add(port.key)
                 names.push(port.key)

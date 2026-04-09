@@ -246,7 +246,7 @@ const buildMappings = (
             pushedTestsetColumns.add("messages")
             mappings.push({
                 column: {kind: "testset", name: "messages"},
-                step: {key: testsetKey, path: "data.messages"},
+                step: {key: testsetKey, path: "data.inputs.messages"},
             })
         }
     }

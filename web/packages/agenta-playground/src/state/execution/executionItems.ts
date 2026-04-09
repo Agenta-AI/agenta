@@ -582,9 +582,8 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
             sourceRowData: variableSourceDataForExecution,
         })
         // In chat mode, "messages" is handled via chatHistory — never include it
-        // as an input variable. This prevents duplicating messages in the request
-        // body (once correctly in `data.messages`, once as a stringified blob in
-        // `data.inputs.messages`).
+        // as an input variable. This prevents duplicating the normalized chat
+        // payload in `data.inputs.messages` with a serialized testcase field.
         if (mode === "chat") {
             delete rawVariableValues.messages
         }
@@ -1153,17 +1152,21 @@ function buildExecutionItem(
                       ...legacyRest
                   } = legacyBody as Record<string, unknown>
 
-                  // Build data.inputs from legacy inputs (variable values like "context")
+                  // Build workflow inputs from the legacy request shape. For workflow
+                  // invoke, the entire testcase/root payload belongs under data.inputs.
                   const dataInputs: Record<string, unknown> = {}
                   if (legacyInputs && typeof legacyInputs === "object") {
                       Object.assign(dataInputs, legacyInputs)
                   }
-                  // Include any extra top-level fields from legacy body
-                  // (e.g. custom workflow fields)
+                  // Preserve any other top-level fields from the legacy body as part
+                  // of the same inputs object.
                   for (const [key, value] of Object.entries(legacyRest)) {
                       if (value !== undefined) {
                           dataInputs[key] = value
                       }
+                  }
+                  if (Array.isArray(legacyMessages) && legacyMessages.length > 0) {
+                      dataInputs.messages = legacyMessages
                   }
 
                   // Build the invoke format — parameters go under data, not configuration
@@ -1179,11 +1182,6 @@ function buildExecutionItem(
                       data: {
                           ...baseData,
                           inputs: dataInputs,
-                          // Chat messages go at data.messages (not data.inputs.messages)
-                          // so the backend schema validator sees only variable inputs
-                          ...(Array.isArray(legacyMessages) && legacyMessages.length > 0
-                              ? {messages: legacyMessages}
-                              : {}),
                           parameters: legacyAgConfig
                               ? (legacyAgConfig as Record<string, unknown>)
                               : baseData?.parameters,
