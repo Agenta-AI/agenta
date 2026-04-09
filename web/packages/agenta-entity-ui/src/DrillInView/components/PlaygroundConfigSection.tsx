@@ -737,7 +737,12 @@ function PlaygroundConfigSection({
             const fieldSchema = schema?.properties
                 ? (schema.properties as Record<string, Record<string, unknown>>)[fieldKey]
                 : null
-            const displayLabel = (fieldSchema?.title as string | undefined) ?? formatLabel(fieldKey)
+            const schemaTitle = fieldSchema?.title as string | undefined
+            const displayLabel = schemaTitle
+                ? schemaTitle.includes(" ")
+                    ? schemaTitle
+                    : formatLabel(schemaTitle)
+                : formatLabel(fieldKey)
 
             return (
                 <div
