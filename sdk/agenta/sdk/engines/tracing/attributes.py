@@ -7,7 +7,7 @@ Attribute = Union[Primitive, PrimitivesSequence]
 
 
 def _marshall(
-    unmarshalled: Dict[str, Any],
+    unmarshalled: Any,
     *,
     parent_key: Optional[str] = "",
     depth: Optional[int] = 0,
@@ -50,45 +50,66 @@ def _marshall(
 
         return marshalled
 
-    # Otherwise,
-    # iterate over the unmarshalled attributes and marshall them
-    for key, value in unmarshalled.items():
-        child_key = f"{parent_key}.{key}" if parent_key else key
+    print()
+    print(unmarshalled)
 
-        if isinstance(value, dict):
-            dict_key = child_key
+    if isinstance(unmarshalled, dict):
+        # Otherwise,
+        # iterate over the unmarshalled attributes and marshall them
+        for key, value in unmarshalled.items():
+            child_key = f"{parent_key}.{key}" if parent_key else key
 
-            marshalled.update(
-                _marshall(
-                    value,
-                    parent_key=dict_key,
-                    depth=depth + 1,
-                    max_depth=max_depth,
+            if isinstance(value, dict):
+                marshalled.update(
+                    _marshall(
+                        value,
+                        parent_key=child_key,
+                        depth=depth + 1,
+                        max_depth=max_depth,
+                    )
                 )
-            )
-        elif isinstance(value, list):
-            if max_depth is not None and depth + 1 >= max_depth:
+            elif isinstance(value, list):
+                if max_depth is not None and depth + 1 >= max_depth:
+                    marshalled[child_key] = value
+                    # MISSING ENCODING TO JSON IF NOT PRIMITIVE
+                else:
+                    for i, item in enumerate(value):
+                        list_key = f"{child_key}.{i}"
+
+                        if isinstance(item, (dict, list)):
+                            marshalled.update(
+                                _marshall(
+                                    item,
+                                    parent_key=list_key,
+                                    depth=depth + 1,
+                                    max_depth=max_depth,
+                                )
+                            )
+                        else:
+                            marshalled[list_key] = item
+                            # MISSING ENCODING TO JSON IF NOT PRIMITIVE
+            else:
                 marshalled[child_key] = value
                 # MISSING ENCODING TO JSON IF NOT PRIMITIVE
-            else:
-                for i, item in enumerate(value):
-                    list_key = f"{child_key}.{i}"
+    elif isinstance(unmarshalled, list):
+        for i, item in enumerate(unmarshalled):
+            child_key = f"{parent_key}.{i}" if parent_key else str(i)
 
-                    if isinstance(item, (dict, list)):
-                        marshalled.update(
-                            _marshall(
-                                item,
-                                parent_key=list_key,
-                                depth=depth + 1,
-                                max_depth=max_depth,
-                            )
-                        )
-                    else:
-                        marshalled[list_key] = item
-                        # MISSING ENCODING TO JSON IF NOT PRIMITIVE
-        else:
-            marshalled[child_key] = value
-            # MISSING ENCODING TO JSON IF NOT PRIMITIVE
+            if isinstance(item, (dict, list)):
+                marshalled.update(
+                    _marshall(
+                        item,
+                        parent_key=child_key,
+                        depth=depth + 1,
+                        max_depth=max_depth,
+                    )
+                )
+            else:
+                marshalled[child_key] = item
+                # MISSING ENCODING TO JSON IF NOT PRIMITIVE
+    elif parent_key:
+        marshalled[parent_key] = unmarshalled
+        # MISSING ENCODING TO JSON IF NOT PRIMITIVE
 
     return marshalled
 
