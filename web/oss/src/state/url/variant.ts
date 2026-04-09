@@ -13,6 +13,12 @@ import {isDrawerSupportedRoute} from "./routeMatchers"
 
 const isBrowser = typeof window !== "undefined"
 
+// Tracks whether the current drawer was opened via URL (revisionId param).
+// Only URL-driven drawers should be closed by URL sync. Drawers opened
+// programmatically (e.g. evaluator drawer from table click without URL param)
+// are immune to URL-based closing.
+let drawerOpenedViaUrl = false
+
 export const clearVariantDrawerState = () => {
     const store = getDefaultStore()
     const isOpen = store.get(workflowRevisionDrawerOpenAtom)
@@ -20,6 +26,7 @@ export const clearVariantDrawerState = () => {
     if (isOpen) {
         store.set(closeWorkflowRevisionDrawerAtom)
     }
+    drawerOpenedViaUrl = false
 }
 
 const VALID_DRAWER_TYPES = new Set<DrawerContext>([
@@ -95,7 +102,10 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
 
         if (!resolvedRevisionId) {
             ensureUrlClean()
-            if (currentOpen) {
+            // Only close the drawer if it was originally opened via URL
+            // (revisionId param). Programmatically opened drawers (e.g.
+            // evaluator drawer) should not be closed by unrelated URL changes.
+            if (currentOpen && drawerOpenedViaUrl) {
                 clearVariantDrawerState()
             }
             return
@@ -115,6 +125,7 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
             return
         }
 
+        drawerOpenedViaUrl = true
         store.set(openWorkflowRevisionDrawerAtom, {
             entityId: resolvedRevisionId,
             context: desiredType,
