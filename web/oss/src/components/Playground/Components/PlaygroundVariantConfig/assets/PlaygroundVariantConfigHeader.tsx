@@ -162,10 +162,10 @@ const PlaygroundVariantConfigHeader = ({
                 )}
                 {/* Local draft: show Draft tag then source revision info */}
                 {isLocalDraftVariant && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                         <DraftTag />
                         {variantRevision !== null && variantRevision !== undefined && (
-                            <span className="text-gray-500">
+                            <span className="text-gray-500 whitespace-nowrap truncate min-w-0">
                                 from {rawVariantName} v{variantRevision}
                             </span>
                         )}
