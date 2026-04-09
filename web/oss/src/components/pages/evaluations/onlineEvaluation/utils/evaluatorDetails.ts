@@ -1,5 +1,11 @@
 import type {Workflow} from "@agenta/entities/workflow"
-import {collectEvaluatorCandidates} from "@agenta/entities/workflow"
+import {
+    collectEvaluatorCandidates,
+    resolveOutputSchema,
+    resolveParameters,
+    resolveParametersSchema,
+    resolveScript,
+} from "@agenta/entities/workflow"
 
 import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 
@@ -169,6 +175,8 @@ const formatParameterValue = (
 export const extractParameterList = (evaluator?: Workflow): ParameterPreviewItem[] => {
     if (!evaluator) return []
 
+    const parameters = resolveParameters(evaluator.data)
+    const parametersSchema = resolveParametersSchema(evaluator.data)
     const summary = new Map<string, ParameterPreviewItem>()
     const upsertParam = (key?: string | number, rawValue?: unknown, fallback = false) => {
         if (key == null) return
@@ -202,12 +210,7 @@ export const extractParameterList = (evaluator?: Workflow): ParameterPreviewItem
     }
 
     // Support both simple preview artifacts and workflow evaluators
-    const parameterSources = [
-        (evaluator as any)?.data?.parameters,
-        (evaluator as any)?.settings_values,
-        (evaluator as any)?.data?.service?.configuration?.parameters,
-        (evaluator as any)?.data?.configuration?.parameters,
-    ]
+    const parameterSources = [parameters, (evaluator as any)?.settings_values]
 
     parameterSources.forEach((source) => {
         if (!source || typeof source !== "object") return
@@ -216,8 +219,7 @@ export const extractParameterList = (evaluator?: Workflow): ParameterPreviewItem
         })
     })
 
-    const serviceFormat = (evaluator as any)?.data?.service?.format
-    const properties = serviceFormat?.properties
+    const properties = parametersSchema?.properties
     if (properties && typeof properties === "object") {
         Object.entries(properties as Record<string, unknown>).forEach(([key, value]) => {
             if (!value || typeof value !== "object") {
@@ -238,6 +240,7 @@ export const extractParameterList = (evaluator?: Workflow): ParameterPreviewItem
 
 export const extractModelName = (evaluator?: Workflow) => {
     if (!evaluator) return ""
+    const parameters = resolveParameters(evaluator.data)
     const MODEL_KEYS = ["model", "model_name", "modelName", "llm_model", "llmModel"]
 
     const searchForModel = (
@@ -271,23 +274,14 @@ export const extractModelName = (evaluator?: Workflow) => {
         return undefined
     }
 
-    const sources = [
-        (evaluator as any)?.data?.parameters,
-        (evaluator as any)?.settings_values,
-        (evaluator as any)?.data?.service?.configuration,
-        (evaluator as any)?.data?.service?.configuration?.parameters,
-        (evaluator as any)?.data?.configuration,
-        (evaluator as any)?.meta,
-    ]
+    const sources = [parameters, (evaluator as any)?.settings_values, (evaluator as any)?.meta]
 
     for (const source of sources) {
         const model = searchForModel(source)
         if (model) return model
     }
 
-    const agConfig =
-        (evaluator as any)?.data?.parameters?.ag_config ??
-        (evaluator as any)?.data?.parameters?.agConfig
+    const agConfig = parameters?.ag_config ?? parameters?.agConfig
     if (agConfig && typeof agConfig === "object") {
         for (const cfg of Object.values(agConfig as Record<string, unknown>)) {
             const model = searchForModel(cfg)
@@ -326,29 +320,7 @@ const parseOutputMetricsFromSchema = (schema: unknown): OutputMetric[] => {
 
 export const extractOutputMetrics = (evaluator?: Workflow): OutputMetric[] => {
     if (!evaluator) return []
-    const data = (evaluator as any)?.data ?? {}
-
-    const candidates: unknown[] = []
-    const pushCandidate = (schema: unknown) => {
-        if (schema && typeof schema === "object") {
-            candidates.push(schema)
-        }
-    }
-
-    pushCandidate(data?.service?.format?.properties?.outputs)
-    pushCandidate(data?.service?.configuration?.format?.properties?.outputs)
-    pushCandidate(data?.configuration?.format?.properties?.outputs)
-    pushCandidate(data?.service?.format?.outputs)
-    pushCandidate(data?.service?.configuration?.outputs)
-    pushCandidate(data?.configuration?.outputs)
-    pushCandidate(data?.schemas?.outputs)
-
-    for (const candidate of candidates) {
-        const metrics = parseOutputMetricsFromSchema(candidate)
-        if (metrics.length) return metrics
-    }
-
-    return []
+    return parseOutputMetricsFromSchema(resolveOutputSchema(evaluator.data))
 }
 
 const findFirstMessages = (
@@ -573,15 +545,10 @@ const normalizeMessageContent = (
 export const extractPromptSections = (evaluator?: Workflow): PromptPreviewSection[] => {
     if (!evaluator) return []
     const data = (evaluator as any)?.data ?? {}
-    const parameters = data?.parameters
+    const parameters = resolveParameters(data)
     const settings = parameters ?? (evaluator as any)?.settings_values
-    const agConfig = data?.parameters?.ag_config ?? data?.parameters?.agConfig
-    const messages =
-        findFirstMessages(settings) ??
-        findFirstMessages(agConfig) ??
-        findFirstMessages(data?.service?.configuration) ??
-        findFirstMessages(data?.parameters) ??
-        findFirstMessages(data?.configuration)
+    const agConfig = parameters?.ag_config ?? parameters?.agConfig
+    const messages = findFirstMessages(settings) ?? findFirstMessages(agConfig)
 
     if (messages?.length) {
         return messages
@@ -600,11 +567,7 @@ export const extractPromptSections = (evaluator?: Workflow): PromptPreviewSectio
             .filter((section) => section.content || section.attachments.length > 0)
     }
 
-    const promptTemplate =
-        findPromptTemplate(settings) ??
-        findPromptTemplate(data?.parameters) ??
-        findPromptTemplate(data?.configuration) ??
-        findPromptTemplate(data?.service?.configuration)
+    const promptTemplate = findPromptTemplate(settings) ?? findPromptTemplate(parameters)
 
     if (promptTemplate?.length) {
         return promptTemplate
@@ -627,7 +590,7 @@ export const extractPromptSections = (evaluator?: Workflow): PromptPreviewSectio
             .filter((section) => section.content || section.attachments.length > 0)
     }
 
-    const directScript = data?.service?.configuration?.script
+    const directScript = resolveScript(data)
     if (typeof directScript === "string" && directScript.trim()) {
         return [
             {
@@ -640,11 +603,7 @@ export const extractPromptSections = (evaluator?: Workflow): PromptPreviewSectio
         ]
     }
 
-    const promptSources = [
-        settings,
-        data?.service?.configuration?.parameters,
-        data?.configuration?.parameters,
-    ]
+    const promptSources = [settings]
 
     const extractPromptFromValue = (value: unknown): string | undefined => {
         if (typeof value === "string") return value.trim()

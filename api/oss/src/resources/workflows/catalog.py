@@ -72,21 +72,6 @@ def _enrich_entry(
         "flags": flags,
     }
 
-    if metadata:
-        enriched_data = _clone(enriched["data"])
-        enriched_schemas = _clone(enriched_data.get("schemas") or {})
-
-        settings_template = metadata.get("settings_template")
-        outputs_schema = metadata.get("outputs_schema")
-
-        if settings_template is not None:
-            enriched_schemas["parameters"] = _clone(settings_template)
-        if outputs_schema is not None:
-            enriched_schemas["outputs"] = _clone(outputs_schema)
-
-        enriched_data["schemas"] = enriched_schemas
-        enriched["data"] = enriched_data
-
     presets = (
         metadata.get("presets")
         or metadata.get("settings_presets")

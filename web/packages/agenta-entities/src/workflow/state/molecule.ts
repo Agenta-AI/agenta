@@ -55,7 +55,13 @@ import {
     toEvaluatorDefinitionFromWorkflow,
     type EvaluatorDefinition,
 } from "../core/evaluatorResolution"
-import {parseWorkflowKeyFromUri} from "../core/schema"
+import {
+    parseWorkflowKeyFromUri,
+    resolveInputSchema,
+    resolveOutputSchema,
+    resolveParameters,
+    resolveParametersSchema,
+} from "../core/schema"
 
 import {workflowsListDataAtom, nonArchivedWorkflowsAtom} from "./allWorkflows"
 import {evaluatorTemplatesDataAtom} from "./evaluatorUtils"
@@ -173,7 +179,7 @@ const workflowKeyAtomFamily = atomFamily((workflowId: string) =>
 const parametersAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | null>((get) => {
         const entity = get(workflowBaseEntityAtomFamily(workflowId))
-        return entity?.data?.parameters ?? null
+        return resolveParameters(entity?.data) ?? null
     }),
 )
 
@@ -193,8 +199,7 @@ const schemasAtomFamily = atomFamily((workflowId: string) =>
  */
 const inputSchemaAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | null>((get) => {
-        const schemas = get(schemasAtomFamily(workflowId))
-        return (schemas?.inputs as Record<string, unknown> | null) ?? null
+        return resolveInputSchema(get(workflowEntityAtomFamily(workflowId))?.data) ?? null
     }),
 )
 
@@ -203,8 +208,7 @@ const inputSchemaAtomFamily = atomFamily((workflowId: string) =>
  */
 const outputSchemaAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | null>((get) => {
-        const schemas = get(schemasAtomFamily(workflowId))
-        return (schemas?.outputs as Record<string, unknown> | null) ?? null
+        return resolveOutputSchema(get(workflowEntityAtomFamily(workflowId))?.data) ?? null
     }),
 )
 
@@ -422,10 +426,7 @@ const slugAtomFamily = atomFamily((workflowId: string) =>
 const configurationSelectorAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | null>((get) => {
         const entity = get(workflowBaseEntityAtomFamily(workflowId))
-        return (entity?.data?.parameters ?? entity?.data?.configuration ?? null) as Record<
-            string,
-            unknown
-        > | null
+        return resolveParameters(entity?.data) ?? null
     }),
 )
 
@@ -443,8 +444,7 @@ const configurationSelectorAtomFamily = atomFamily((workflowId: string) =>
 const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | null>((get) => {
         const entity = get(workflowEntityAtomFamily(workflowId))
-        const storedSchema =
-            (entity?.data?.schemas?.parameters as Record<string, unknown> | null) ?? null
+        const storedSchema = resolveParametersSchema(entity?.data) ?? null
 
         // For non-evaluators, enrich any opaque x-ag-type-ref properties with
         // full sub-property schemas fetched from the ag-types endpoint
@@ -615,7 +615,7 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
 
         // Ephemeral workflow: derive from template variables, then trace inputs
         if (entity.flags?.is_base) {
-            const params = entity.data?.parameters ?? entity.data?.configuration
+            const params = resolveParameters(entity.data)
             if (params) {
                 const vars = extractVariablesFromConfig(params as Record<string, unknown>)
                 if (vars.length > 0) {
@@ -635,7 +635,7 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
             return []
         }
 
-        const inputsSchema = entity.data?.schemas?.inputs
+        const inputsSchema = resolveInputSchema(entity.data)
         const schemaPorts = extractInputPortsFromSchema(inputsSchema)
         if (schemaPorts.length > 0) return schemaPorts
 
@@ -643,7 +643,7 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
         // Filter out names that match system-level fields (x-ag-*) in the
         // inputs schema — these are runtime-managed (e.g. context, consent)
         // and should not appear as user-facing inputs.
-        const params = entity.data?.parameters ?? entity.data?.configuration
+        const params = resolveParameters(entity.data)
         if (params) {
             const systemFields = extractSystemFieldNames(inputsSchema)
             const vars = extractVariablesFromConfig(params as Record<string, unknown>).filter(
@@ -685,9 +685,7 @@ const outputPortsAtomFamily = atomFamily((workflowId: string) =>
         // For evaluators, the backend output schema may be incomplete (e.g., only "score"
         // when the json_schema config also defines "reasoning"). Prefer the richer source.
         if (entity?.flags?.is_evaluator) {
-            const config = (entity.data?.parameters ?? entity.data?.configuration) as
-                | Record<string, unknown>
-                | undefined
+            const config = resolveParameters(entity.data) as Record<string, unknown> | undefined
             // Nested form: feedback_config.json_schema.schema.properties
             const feedbackConfig = config?.feedback_config as Record<string, unknown> | undefined
             const jsonSchema = feedbackConfig?.json_schema as

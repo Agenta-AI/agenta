@@ -310,9 +310,7 @@ const rowVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
         const mode = get(loadableController.selectors.mode(loadableId))
         const testcaseKeys: string[] = []
         if (mode === "connected") {
-            const testcaseColumns = get(testcaseMolecule.atoms.columns) as
-                | {key: string}[]
-                | null
+            const testcaseColumns = get(testcaseMolecule.atoms.columns) as {key: string}[] | null
             if (testcaseColumns) {
                 for (const c of testcaseColumns) {
                     if (!isSystemField(c.key)) {

@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
     createHumanEvaluatorAtom,
+    resolveOutputSchema,
     updateHumanEvaluatorAtom,
     type HumanEvaluatorMetric,
 } from "@agenta/entities/workflow"
@@ -57,10 +58,9 @@ const CreateEvaluator = ({
     const metricsFromEvaluator = useMemo(() => {
         if (!isEditMode || !evaluator) return []
 
-        const outputs =
-            (evaluator as any)?.data?.schemas?.outputs ||
-            evaluator.data?.service?.format?.properties?.outputs ||
-            (evaluator as EvaluatorWithMeta)?.data?.service?.format?.properties?.outputs
+        const outputs = resolveOutputSchema(
+            evaluator.data as Record<string, unknown> | null | undefined,
+        )
 
         if (!outputs || typeof outputs !== "object") return []
 

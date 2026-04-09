@@ -1,8 +1,9 @@
-from typing import Any, Optional
+from typing import Any, Dict, Optional
+
+from agenta.sdk.engines.running.utils import retrieve_interface
 
 from oss.src.core.evaluators.dtos import SimpleEvaluatorData
 from oss.src.core.workflows.dtos import JsonSchemas
-from oss.src.resources.evaluators.evaluators import get_all_evaluators
 
 
 # Evaluator keys that produce both score and success outputs
@@ -17,14 +18,6 @@ _SCORE_AND_SUCCESS_EVALUATORS = (
 )
 
 _DATA_VERSION = "2025.07.14"
-
-
-def _get_settings_template(evaluator_key: str) -> Optional[dict]:
-    for entry in get_all_evaluators():
-        if entry.get("key") == evaluator_key:
-            template = entry.get("settings_template")
-            return template if template else None
-    return None
 
 
 def build_evaluator_data(
@@ -86,11 +79,15 @@ def build_evaluator_data(
             "additionalProperties": False,
         }
 
-    settings_template = _get_settings_template(evaluator_key)
+    parameters_schema: Optional[Dict[str, Any]] = None
+    interface = retrieve_interface(uri)
+    if interface and interface.schemas:
+        interface_schemas = interface.schemas.model_dump(mode="json", exclude_none=True)
+        parameters_schema = interface_schemas.get("parameters")
 
     schemas = JsonSchemas(
         outputs=outputs_schema,
-        parameters=settings_template,
+        parameters=parameters_schema,
     )
 
     script = (

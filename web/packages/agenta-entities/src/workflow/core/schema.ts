@@ -177,6 +177,69 @@ export const workflowDataSchema = z.object({
 
 export type WorkflowData = z.infer<typeof workflowDataSchema>
 
+type WorkflowDataRecord = Record<string, unknown> | null | undefined
+
+function resolveSchemas(data: WorkflowDataRecord): Record<string, unknown> | null {
+    if (!data) return null
+
+    const schemas = data.schemas as Record<string, unknown> | undefined
+    if (schemas && typeof schemas === "object") {
+        return schemas
+    }
+
+    return null
+}
+
+function resolveNamedSchema(
+    data: WorkflowDataRecord,
+    name: "inputs" | "outputs" | "parameters",
+): Record<string, unknown> | null {
+    const schemas = resolveSchemas(data)
+    const schema = schemas?.[name]
+    if (schema && typeof schema === "object") {
+        return schema as Record<string, unknown>
+    }
+
+    return null
+}
+
+export function resolveParameters(data: WorkflowDataRecord): Record<string, unknown> | null {
+    if (!data) return null
+
+    const parameters = data.parameters as Record<string, unknown> | undefined
+    if (parameters && typeof parameters === "object") {
+        return parameters
+    }
+
+    return null
+}
+
+export function resolveScript(data: WorkflowDataRecord): string | null {
+    if (!data) return null
+
+    const script = data.script
+    if (typeof script === "string" && script.trim()) {
+        return script
+    }
+
+    if (script && typeof script === "object") {
+        const content = (script as Record<string, unknown>).content
+        if (typeof content === "string" && content.trim()) {
+            return content
+        }
+    }
+
+    return null
+}
+
+export function resolveInputSchema(data: WorkflowDataRecord): Record<string, unknown> | null {
+    return resolveNamedSchema(data, "inputs")
+}
+
+export function resolveParametersSchema(data: WorkflowDataRecord): Record<string, unknown> | null {
+    return resolveNamedSchema(data, "parameters")
+}
+
 // ============================================================================
 // WORKFLOW SCHEMA
 // ============================================================================
@@ -617,39 +680,16 @@ export function generateSlug(name: string): string {
 /**
  * Resolve the full output schema object from a workflow's data.
  * Returns the entire schema (including `$defs`, `type`, etc.), not just properties.
- * Checks modern path first (`data.schemas.outputs`),
- * then falls back to legacy path (`data.service.format.properties.outputs`).
  */
-export function resolveOutputSchema(
-    data: Record<string, unknown> | null | undefined,
-): Record<string, unknown> | null {
-    if (!data) return null
-
-    // Modern path: data.schemas.outputs
-    const schemas = data.schemas as Record<string, unknown> | undefined
-    if (schemas?.outputs && typeof schemas.outputs === "object") {
-        return schemas.outputs as Record<string, unknown>
-    }
-
-    // Legacy path: data.service.format.properties.outputs
-    const service = data.service as Record<string, unknown> | undefined
-    const format = service?.format as Record<string, unknown> | undefined
-    const formatProps = format?.properties as Record<string, unknown> | undefined
-    const outputs = formatProps?.outputs as Record<string, unknown> | undefined
-    if (outputs && typeof outputs === "object") {
-        return outputs as Record<string, unknown>
-    }
-
-    return null
+export function resolveOutputSchema(data: WorkflowDataRecord): Record<string, unknown> | null {
+    return resolveNamedSchema(data, "outputs")
 }
 
 /**
  * Resolve output metric properties from a workflow's data.
- * Checks modern path first (`data.schemas.outputs.properties`),
- * then falls back to legacy path (`data.service.format.properties.outputs.properties`).
  */
 export function resolveOutputSchemaProperties(
-    data: Record<string, unknown> | null | undefined,
+    data: WorkflowDataRecord,
 ): Record<string, unknown> | null {
     const schema = resolveOutputSchema(data)
     if (!schema) return null

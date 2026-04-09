@@ -53,6 +53,7 @@ import {
 } from "@agenta/entities/simpleQueue"
 import {fetchPreviewTrace, type TraceSpan} from "@agenta/entities/trace"
 import {
+    resolveOutputSchema,
     workflowLatestRevisionQueryAtomFamily,
     workflowQueryAtomFamily,
     type Workflow,
@@ -85,33 +86,17 @@ const USEABLE_METRIC_TYPES = ["number", "integer", "float", "boolean", "string",
 
 /**
  * Extract the outputs schema from an evaluator entity.
- * Handles both new (`data.schemas.outputs`) and legacy (`data.service.format.properties.outputs`) paths.
  */
 export function getOutputsSchema(evaluator: Workflow): {
     properties?: Record<string, unknown>
     required?: string[]
 } {
-    const schemaOutputs = evaluator.data?.schemas?.outputs
-    if (schemaOutputs && typeof schemaOutputs === "object") {
-        return schemaOutputs as {properties?: Record<string, unknown>; required?: string[]}
-    }
-    const legacyOutputs = (evaluator.data as Record<string, unknown>)?.service
-    if (legacyOutputs && typeof legacyOutputs === "object") {
-        const format = (legacyOutputs as Record<string, unknown>)?.format
-        if (format && typeof format === "object") {
-            const props = (format as Record<string, unknown>)?.properties
-            if (props && typeof props === "object") {
-                const outputs = (props as Record<string, unknown>)?.outputs
-                if (outputs && typeof outputs === "object") {
-                    return outputs as {
-                        properties?: Record<string, unknown>
-                        required?: string[]
-                    }
-                }
-            }
-        }
-    }
-    return {}
+    return (
+        (resolveOutputSchema(evaluator.data as Record<string, unknown> | null | undefined) as {
+            properties?: Record<string, unknown>
+            required?: string[]
+        } | null) ?? {}
+    )
 }
 
 /**
