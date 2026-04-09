@@ -1,7 +1,9 @@
 from oss.databases.postgres.migrations.core.data_migrations.workflow_revisions import (
     REVISION_FLAG_KEYS,
+    _extract_outputs_schema_from_service_format,
     _backfill_schemas_from_interface,
     _backfill_schemas_outputs_from_service_format,
+    _has_messages_input,
     _normalize_artifact_flags,
     _normalize_revision_flags,
     upgrade_workflow_revisions,
@@ -64,6 +66,65 @@ def test_normalize_revision_flags_accepts_legacy_is_human_feedback_flag():
     assert flags["is_feedback"] is True
 
 
+def test_normalize_revision_flags_infers_is_chat_from_messages_input_schema():
+    flags = _normalize_revision_flags(
+        legacy_flags=None,
+        data={
+            "uri": "user:custom:local:latest",
+            "schemas": {
+                "inputs": {
+                    "type": "object",
+                    "properties": {
+                        "messages": {"x-ag-type-ref": "messages", "type": "array"},
+                    },
+                }
+            },
+        },
+    )
+
+    assert flags["is_chat"] is True
+
+
+def test_has_messages_input_detects_messages_type_ref():
+    assert (
+        _has_messages_input(
+            {
+                "type": "object",
+                "properties": {"messages": {"x-ag-type-ref": "messages"}},
+            }
+        )
+        is True
+    )
+
+
+def test_has_messages_input_detects_message_type_ref():
+    assert (
+        _has_messages_input(
+            {
+                "type": "object",
+                "properties": {"chat": {"x-ag-type-ref": "message"}},
+            }
+        )
+        is True
+    )
+
+
+def test_has_messages_input_returns_false_for_non_chat_schema():
+    assert (
+        _has_messages_input(
+            {
+                "type": "object",
+                "properties": {"prompt": {"type": "string"}},
+            }
+        )
+        is False
+    )
+
+
+def test_has_messages_input_returns_false_for_none():
+    assert _has_messages_input(None) is False
+
+
 def test_backfill_schemas_from_interface_adds_builtin_chat_schemas():
     data = _backfill_schemas_from_interface({"uri": "agenta:builtin:chat:v0"})
 
@@ -99,8 +160,14 @@ def test_backfill_schemas_outputs_from_service_format_for_feedback_rows():
             "service": {
                 "format": {
                     "type": "object",
-                    "properties": {"approved": {"type": "boolean"}},
-                    "required": ["approved"],
+                    "properties": {
+                        "outputs": {
+                            "type": "object",
+                            "properties": {"approved": {"type": "boolean"}},
+                            "required": ["approved"],
+                        }
+                    },
+                    "required": ["outputs"],
                 }
             },
         }
@@ -113,8 +180,20 @@ def test_backfill_schemas_outputs_from_service_format_for_feedback_rows():
     }
 
 
-def test_backfill_schemas_from_interface_keeps_feedback_service_outputs():
-    data = _backfill_schemas_from_interface(
+def test_extract_outputs_schema_from_service_format_skips_direct_schema():
+    outputs_schema = _extract_outputs_schema_from_service_format(
+        {
+            "type": "object",
+            "properties": {"approved": {"type": "boolean"}},
+            "required": ["approved"],
+        }
+    )
+
+    assert outputs_schema is None
+
+
+def test_backfill_schemas_outputs_from_service_format_skips_direct_schema_rows():
+    data = _backfill_schemas_outputs_from_service_format(
         {
             "uri": "agenta:custom:feedback:v0",
             "service": {
@@ -122,6 +201,29 @@ def test_backfill_schemas_from_interface_keeps_feedback_service_outputs():
                     "type": "object",
                     "properties": {"approved": {"type": "boolean"}},
                     "required": ["approved"],
+                }
+            },
+        }
+    )
+
+    assert data.get("schemas") is None
+
+
+def test_backfill_schemas_from_interface_keeps_feedback_service_outputs():
+    data = _backfill_schemas_from_interface(
+        {
+            "uri": "agenta:custom:feedback:v0",
+            "service": {
+                "format": {
+                    "type": "object",
+                    "properties": {
+                        "outputs": {
+                            "type": "object",
+                            "properties": {"approved": {"type": "boolean"}},
+                            "required": ["approved"],
+                        }
+                    },
+                    "required": ["outputs"],
                 }
             },
         }
@@ -171,9 +273,9 @@ def test_upgrade_workflow_revisions_extracts_service_outputs_before_stripping_se
     upgrade_workflow_revisions(session)
 
     assert any(
-        "service' -> 'format'" in statement
-        and "jsonb_build_object('outputs'" in statement
-        and "jsonb_build_object(\n               'schemas'" in statement
+        "service' -> 'format' -> 'properties' -> 'outputs'" in statement
+        and "'outputs'," in statement
+        and "'schemas'," in statement
         for statement, _params in session.statements
     )
 
