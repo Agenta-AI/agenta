@@ -172,21 +172,31 @@ export const workflowDataSchema = z.object({
 
 export type WorkflowData = z.infer<typeof workflowDataSchema>
 
-type WorkflowDataRecord = Record<string, unknown> | null | undefined
+/**
+ * Accepted input type for all workflow data resolver functions.
+ * Accepts `WorkflowData`, arbitrary records (e.g. `EvaluatorDto.data`), or nullish values.
+ */
+export type WorkflowDataInput = WorkflowData | Record<string, unknown> | null | undefined
 
-function resolveSchemas(data: WorkflowDataRecord): Record<string, unknown> | null {
-    if (!data) return null
+function asRecord(data: WorkflowDataInput): Record<string, unknown> | null {
+    if (!data || typeof data !== "object") return null
+    return data as Record<string, unknown>
+}
 
-    const schemas = data.schemas as Record<string, unknown> | undefined
+function resolveSchemas(data: WorkflowDataInput): Record<string, unknown> | null {
+    const rec = asRecord(data)
+    if (!rec) return null
+
+    const schemas = rec.schemas
     if (schemas && typeof schemas === "object") {
-        return schemas
+        return schemas as Record<string, unknown>
     }
 
     return null
 }
 
 function resolveNamedSchema(
-    data: WorkflowDataRecord,
+    data: WorkflowDataInput,
     name: "inputs" | "outputs" | "parameters",
 ): Record<string, unknown> | null {
     const schemas = resolveSchemas(data)
@@ -198,21 +208,23 @@ function resolveNamedSchema(
     return null
 }
 
-export function resolveParameters(data: WorkflowDataRecord): Record<string, unknown> | null {
-    if (!data) return null
+export function resolveParameters(data: WorkflowDataInput): Record<string, unknown> | null {
+    const rec = asRecord(data)
+    if (!rec) return null
 
-    const parameters = data.parameters as Record<string, unknown> | undefined
+    const parameters = rec.parameters
     if (parameters && typeof parameters === "object") {
-        return parameters
+        return parameters as Record<string, unknown>
     }
 
     return null
 }
 
-export function resolveScript(data: WorkflowDataRecord): string | null {
-    if (!data) return null
+export function resolveScript(data: WorkflowDataInput): string | null {
+    const rec = asRecord(data)
+    if (!rec) return null
 
-    const script = data.script
+    const script = rec.script
     if (typeof script === "string" && script.trim()) {
         return script
     }
@@ -227,11 +239,11 @@ export function resolveScript(data: WorkflowDataRecord): string | null {
     return null
 }
 
-export function resolveInputSchema(data: WorkflowDataRecord): Record<string, unknown> | null {
+export function resolveInputSchema(data: WorkflowDataInput): Record<string, unknown> | null {
     return resolveNamedSchema(data, "inputs")
 }
 
-export function resolveParametersSchema(data: WorkflowDataRecord): Record<string, unknown> | null {
+export function resolveParametersSchema(data: WorkflowDataInput): Record<string, unknown> | null {
     return resolveNamedSchema(data, "parameters")
 }
 
@@ -676,7 +688,7 @@ export function generateSlug(name: string): string {
  * Resolve the full output schema object from a workflow's data.
  * Returns the entire schema (including `$defs`, `type`, etc.), not just properties.
  */
-export function resolveOutputSchema(data: WorkflowDataRecord): Record<string, unknown> | null {
+export function resolveOutputSchema(data: WorkflowDataInput): Record<string, unknown> | null {
     return resolveNamedSchema(data, "outputs")
 }
 
@@ -684,7 +696,7 @@ export function resolveOutputSchema(data: WorkflowDataRecord): Record<string, un
  * Resolve output metric properties from a workflow's data.
  */
 export function resolveOutputSchemaProperties(
-    data: WorkflowDataRecord,
+    data: WorkflowDataInput,
 ): Record<string, unknown> | null {
     const schema = resolveOutputSchema(data)
     if (!schema) return null

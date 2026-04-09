@@ -66,9 +66,7 @@ export function useEvaluatorSchemas(
 
         return evaluatorRefs.map((ref, idx) => {
             const evaluator = evaluators[idx]
-            const evaluatorData = evaluator?.data as Record<string, unknown> | null | undefined
-
-            const outputSchema = resolveOutputSchema(evaluatorData)
+            const outputSchema = resolveOutputSchema(evaluator?.data)
 
             return {
                 id: ref.id,
