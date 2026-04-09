@@ -1,6 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {Typography, Input, Card, Radio, Flex, Button, notification} from "antd"
+import clsx from "clsx"
 
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
 import {GenericObject} from "@/oss/lib/Types"
@@ -132,7 +133,7 @@ const AddAppFromTemplateModalContent = ({
                                 key={temp.key}
                                 title={temp.name ?? temp.key}
                                 extra={<Radio checked={getTemplateKey(temp) === templateKey} />}
-                                className={classes.card}
+                                className={clsx(classes.card, "capitalize")}
                                 onClick={() => onCardClick(temp)}
                             >
                                 <Text>{temp.description ?? ""}</Text>
