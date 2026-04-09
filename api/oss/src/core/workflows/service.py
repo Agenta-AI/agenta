@@ -353,6 +353,9 @@ class WorkflowsService:
         revision: WorkflowRevision,
         include_archived: Optional[bool] = True,
     ) -> WorkflowRevision:
+        if revision.version == "0":
+            return revision
+
         workflow = await self.fetch_workflow(
             project_id=project_id,
             #

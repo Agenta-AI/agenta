@@ -565,6 +565,20 @@ _AGENTA_ROLE_TABLE: dict = {
 }
 
 
+def _has_messages_input(inputs_schema: Optional[Dict[str, Any]]) -> bool:
+    """Return True if any property in the inputs schema carries x-ag-type-ref messages/message."""
+    if not isinstance(inputs_schema, dict):
+        return False
+    properties = inputs_schema.get("properties")
+    if not isinstance(properties, dict):
+        return False
+    return any(
+        isinstance(field, dict)
+        and field.get("x-ag-type-ref") in {"messages", "message"}
+        for field in properties.values()
+    )
+
+
 def infer_flags_from_data(
     *,
     flags: Optional[WorkflowFlags] = None,
@@ -574,13 +588,12 @@ def infer_flags_from_data(
     """Infer the full WorkflowFlags from revision data and caller-provided role overrides.
 
     Called at revision commit time in the core service layer.
-    Schema-derived flags (is_chat) are handled separately by the schema materializer.
 
     Args:
         flags: Caller-provided flags from the commit payload. is_evaluator, is_application,
                and is_snippet are taken directly from here when provided (flags is not None).
                All URI/interface flags are always re-inferred from data, ignoring any stored values.
-        data: WorkflowRevisionData containing uri, url, and script.
+        data: WorkflowRevisionData containing uri, url, script, and schemas.
         handler: In-process callable, if any (SDK only — None at the API layer).
     """
     uri = data.uri if data else None
@@ -599,6 +612,12 @@ def infer_flags_from_data(
     is_code = key == "code"
     is_match = key == "match"
     is_feedback = key == "feedback"
+
+    # schema-derived flags
+    inputs_schema = (
+        data.schemas.inputs if (data and data.schemas and data.schemas.inputs) else None
+    )
+    is_chat = key == "chat" or _has_messages_input(inputs_schema)
 
     # For managed URIs, infer URL from URI components if not explicitly provided
     if not url and is_managed and kind and key and version:
@@ -643,6 +662,8 @@ def infer_flags_from_data(
         is_code=is_code,
         is_match=is_match,
         is_feedback=is_feedback,
+        # schema-derived
+        is_chat=is_chat,
         # interface-derived
         has_url=has_url,
         has_handler=has_handler,
