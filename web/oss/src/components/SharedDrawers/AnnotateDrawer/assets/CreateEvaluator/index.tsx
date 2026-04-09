@@ -58,9 +58,7 @@ const CreateEvaluator = ({
     const metricsFromEvaluator = useMemo(() => {
         if (!isEditMode || !evaluator) return []
 
-        const outputs = resolveOutputSchema(
-            evaluator.data as Record<string, unknown> | null | undefined,
-        )
+        const outputs = resolveOutputSchema(evaluator.data)
 
         if (!outputs || typeof outputs !== "object") return []
 

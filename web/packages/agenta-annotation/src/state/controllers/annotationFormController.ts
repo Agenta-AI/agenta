@@ -92,7 +92,7 @@ export function getOutputsSchema(evaluator: Workflow): {
     required?: string[]
 } {
     return (
-        (resolveOutputSchema(evaluator.data as Record<string, unknown> | null | undefined) as {
+        (resolveOutputSchema(evaluator.data) as {
             properties?: Record<string, unknown>
             required?: string[]
         } | null) ?? {}

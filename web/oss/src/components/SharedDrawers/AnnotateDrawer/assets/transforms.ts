@@ -26,8 +26,7 @@ const getPropertyType = (type: string | string[]): string => {
 }
 
 const getEvaluatorOutputsSchema = (evaluator: EvaluatorDto): Record<string, any> => {
-    return (resolveOutputSchema(evaluator.data as Record<string, unknown> | null | undefined) ??
-        {}) as Record<string, any>
+    return (resolveOutputSchema(evaluator.data) ?? {}) as Record<string, any>
 }
 
 export const transformMetadata = ({
@@ -143,9 +142,7 @@ export const getInitialMetricsFromAnnotations = ({
         if (!evaluator) continue
 
         const evalMetricsSchema =
-            (resolveOutputSchemaProperties(
-                evaluator.data as Record<string, unknown> | null | undefined,
-            ) as Record<string, any>) || {}
+            (resolveOutputSchemaProperties(evaluator.data) as Record<string, any>) || {}
 
         const useableMetrics = Object.entries(evalMetricsSchema).filter(
             ([_, prop]) => USEABLE_METRIC_TYPES.includes(prop.type) || Array.isArray(prop?.anyOf),
@@ -192,9 +189,7 @@ export const getInitialMetricsFromAnnotations = ({
 
 export const getMetricsFromEvaluator = (evaluator: EvaluatorDto): Record<string, unknown> => {
     const evalMetricsSchema =
-        (resolveOutputSchemaProperties(
-            evaluator.data as Record<string, unknown> | null | undefined,
-        ) as Record<string, any>) ?? {}
+        (resolveOutputSchemaProperties(evaluator.data) as Record<string, any>) ?? {}
     const fields: Record<string, unknown> = {}
 
     const collectMetricFields = (

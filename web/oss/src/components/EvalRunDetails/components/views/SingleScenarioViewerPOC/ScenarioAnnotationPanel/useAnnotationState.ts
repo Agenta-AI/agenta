@@ -15,7 +15,7 @@ import type {
 const USEABLE_METRIC_TYPES = ["number", "integer", "float", "boolean", "string", "array"]
 
 const getOutputsSchema = (evaluator: EvaluatorDto) => {
-    return resolveOutputSchema(evaluator.data as Record<string, unknown> | null | undefined) ?? {}
+    return resolveOutputSchema(evaluator.data) ?? {}
 }
 
 const inferFieldType = (value: unknown): AnnotationMetricField | null => {

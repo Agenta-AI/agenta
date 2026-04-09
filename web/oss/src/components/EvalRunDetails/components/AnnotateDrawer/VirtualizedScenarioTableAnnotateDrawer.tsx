@@ -267,8 +267,7 @@ const PreviewAnnotateContent = ({
 
             // Get required fields from evaluator schema
             const requiredKeys =
-                (resolveOutputSchema(evaluator?.data as Record<string, unknown> | null | undefined)
-                    ?.required as string[] | undefined) ?? []
+                (resolveOutputSchema(evaluator?.data)?.required as string[] | undefined) ?? []
 
             if (requiredKeys.length === 0) continue
 
