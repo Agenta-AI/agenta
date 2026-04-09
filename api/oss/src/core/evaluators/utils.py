@@ -34,11 +34,7 @@ def build_evaluator_data(
 
     uri = f"agenta:builtin:{evaluator_key}:v0"
 
-    url = (
-        settings_values.get("webhook_url", None)
-        if evaluator_key == "auto_webhook_test"
-        else None
-    )
+    url = None
 
     outputs_schema: Optional[dict[str, Any]] = None
 
@@ -90,20 +86,12 @@ def build_evaluator_data(
         parameters=parameters_schema,
     )
 
-    script = (
-        settings_values.get("code", None)
-        if evaluator_key == "auto_custom_code_run"
-        else None
-    )
-
-    runtime = "python" if evaluator_key == "auto_custom_code_run" else None
-
     return SimpleEvaluatorData(
         uri=uri,
         url=url,
         headers=None,
         schemas=schemas,
-        script=script,
-        runtime=runtime,
+        script=None,
+        runtime=None,
         parameters=settings_values if settings_values else None,
     )
