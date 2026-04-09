@@ -157,6 +157,8 @@ export const workflowDataSchema = z.object({
     uri: z.string().nullable().optional(),
     /** Webhook/service URL */
     url: z.string().nullable().optional(),
+    /** Runtime identifier for code-backed evaluators */
+    runtime: z.string().nullable().optional(),
     /** Custom headers */
     headers: z.record(z.string(), z.unknown()).nullable().optional(),
     /** JSON Schema definitions for parameters, inputs, and outputs */
@@ -164,7 +166,7 @@ export const workflowDataSchema = z.object({
 
     // WorkflowServiceConfiguration fields
     /** Script content for custom code workflows */
-    script: z.record(z.string(), z.unknown()).nullable().optional(),
+    script: z.string().nullable().optional(),
     /** Configuration parameters */
     parameters: z.record(z.string(), z.unknown()).nullable().optional(),
 
