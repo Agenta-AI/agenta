@@ -297,17 +297,30 @@ const rowVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
     atom<string[]>((get) => {
         const loadableId = get(derivedLoadableIdAtom)
         if (!loadableId) return []
+        const isChat = get(isChatModeAtom) === true
         const columns = get(loadableController.selectors.columns(loadableId))
         const primaryKeys = columns.map((column) => column.key)
 
         const evaluatorKeys = get(evaluatorExpectedColumnsAtom)
 
-        // Also include columns from actual testcase entity data so that
-        // fields added via the testcase drawer or from evaluator-expected
-        // columns that haven't resolved yet still show up immediately.
-        const testcaseColumns = get(testcaseMolecule.atoms.columns) as {key: string}[] | null
-        const testcaseKeys =
-            testcaseColumns?.map((c) => c.key).filter((k) => !isSystemField(k)) ?? []
+        // In connected mode (testset loaded), include extra columns from
+        // testcase entity data that aren't in the template (e.g. "expected_output").
+        // In local mode, the template's input ports are the sole authority —
+        // testcase data may contain stale keys from a previous template or app.
+        const mode = get(loadableController.selectors.mode(loadableId))
+        const testcaseKeys: string[] = []
+        if (mode === "connected") {
+            const testcaseColumns = get(testcaseMolecule.atoms.columns) as
+                | {key: string}[]
+                | null
+            if (testcaseColumns) {
+                for (const c of testcaseColumns) {
+                    if (!isSystemField(c.key)) {
+                        testcaseKeys.push(c.key)
+                    }
+                }
+            }
+        }
 
         const keySet = new Set(primaryKeys)
         const merged = [...primaryKeys]
@@ -317,7 +330,8 @@ const rowVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
                 merged.push(key)
             }
         }
-        return merged
+        if (!isChat) return merged
+        return merged.filter((key) => key !== "messages")
     }),
 )
 
@@ -888,11 +902,15 @@ export const executionRowIdsForEntityAtomFamily = atomFamily((entityId: string) 
  */
 export const inputVariableNamesAtom = atom<string[]>((get) => {
     const nodes = get(playgroundNodesAtom).filter((n) => n.depth === 0)
+    const isChat = get(isChatModeAtom) === true
     const seen = new Set<string>()
     const names: string[] = []
     for (const node of nodes) {
         const ports = get(workflowMolecule.selectors.inputPorts(node.entityId)) as RunnablePort[]
         for (const port of ports || []) {
+            if (isChat && port.key === "messages") {
+                continue
+            }
             if (port.key && !seen.has(port.key)) {
                 seen.add(port.key)
                 names.push(port.key)

@@ -14,36 +14,6 @@ from oss.src.models.shared_models import InvokationResult, Result, Error
 log = get_module_logger(__name__)
 
 
-def find_key_occurrences(
-    data: Dict[Any, Any], target_key: str, path=""
-) -> List[Dict[str, Any]]:
-    """
-    Recursively finds all occurrences of a specific key in a nested dictionary.
-
-    :param data: The dictionary to search.
-    :param target_key: The key to find.
-    :param path: The current path in the dictionary (for tracking locations).
-    :return: A list of dictionaries containing 'path' and 'value' for each occurrence.
-    """
-    results = []
-
-    if isinstance(data, dict):  # If it's a dictionary, traverse it
-        for key, value in data.items():
-            new_path = f"{path}.{key}" if path else key  # Update path
-            if key == target_key:
-                results.extend(value)  # Store match
-
-            # Recursively search inside dictionaries and lists
-            results.extend(find_key_occurrences(value, target_key, new_path))
-
-    elif isinstance(data, list):  # If it's a list, iterate through elements
-        for index, item in enumerate(data):
-            new_path = f"{path}[{index}]"  # Track list index in path
-            results.extend(find_key_occurrences(item, target_key, new_path))
-
-    return results
-
-
 def get_nested_value(d: dict, keys: list, default=None):
     """
     Helper function to safely retrieve nested values.
@@ -151,97 +121,64 @@ def extract_result_from_response(response: dict):
     return value, kind, cost, tokens, latency
 
 
-async def make_payload(
+def _parse_legacy_chat_messages(datapoint: Any) -> list[Any]:
+    # Legacy rows may store chat history under either `messages` or `chat`.
+    raw_messages = datapoint.get("messages") or datapoint.get("chat", "[]")
+
+    if isinstance(raw_messages, list):
+        return raw_messages
+
+    if isinstance(raw_messages, str):
+        try:
+            return json.loads(raw_messages) if raw_messages else []
+        except (json.JSONDecodeError, TypeError):
+            log.warn(f"Failed to parse messages data, using empty list: {raw_messages}")
+            return []
+
+    log.warn(f"Unexpected format for messages data, using empty list: {raw_messages}")
+    return []
+
+
+def _extract_input_keys(parameters: Any) -> List[str]:
+    input_keys: List[str] = []
+
+    def visit(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, nested_value in value.items():
+                if key == "input_keys" and isinstance(nested_value, list):
+                    for item in nested_value:
+                        if isinstance(item, str) and item not in input_keys:
+                            input_keys.append(item)
+                    continue
+                visit(nested_value)
+            return
+
+        if isinstance(value, list):
+            for item in value:
+                visit(item)
+
+    visit(parameters)
+    return input_keys
+
+
+def parse_legacy_inputs(
     datapoint: Any,
-    parameters: Dict,
-    openapi_parameters: List[Dict],
+    parameters: Any,
     is_chat: Optional[bool] = None,
 ) -> Dict:
-    """
-    Constructs the payload for invoking an app based on OpenAPI parameters.
+    if not isinstance(datapoint, dict):
+        return {}
 
-    Args:
-        datapoint (Any): The data to be sent to the app.
-        parameters (Dict): The parameters required by the app taken from the db.
-        openapi_parameters (List[Dict]): The OpenAPI parameters of the app.
-
-    Returns:
-        Dict: The constructed payload for the app.
-    """
-    payload: dict[str, Any] = dict()
-    inputs: dict[str, Any] = dict()
-    messages: list[Any] = list()
-
-    for param in openapi_parameters:
-        if param["name"] == "ag_config":
-            payload["ag_config"] = parameters
-        elif param["type"] == "input":
-            item = datapoint.get(param["name"], parameters.get(param["name"], ""))
-            assert param["name"] != "ag_config", (
-                "ag_config should be handled separately"
-            )
-            payload[param["name"]] = item
-
-        # in case of dynamic inputs (as in our templates)
-        elif param["type"] == "dict":
-            # let's get the list of the dynamic inputs
-            if (
-                param["name"] in parameters
-            ):  # in case we have modified in the playground the default list of inputs (e.g. country_name)
-                input_names = [_["name"] for _ in parameters[param["name"]]]
-            else:  # otherwise we use the default from the openapi
-                input_names = param["default"]
-
-            for input_name in input_names:
-                item = datapoint.get(input_name, "")
-                inputs[input_name] = item
-        elif param["type"] == "messages":
-            # TODO: The FE uses both "messages" and "chat" as testset column names
-            # for chat data ("chat" is hardcoded in SaveTestsetModal when re-saving
-            # evaluation results). Prefer "messages", fall back to "chat".
-            chat_data = datapoint.get("messages") or datapoint.get("chat", "")
-            item = json.loads(chat_data)
-            payload[param["name"]] = item
-        elif param["type"] == "file_url":
-            item = datapoint.get(param["name"], "")
-            payload[param["name"]] = item
-        else:
-            if param["name"] in parameters:  # hotfix
-                log.warn(
-                    f"Processing other param type '{param['type']}': {param['name']}"
-                )
-                item = parameters[param["name"]]
-                payload[param["name"]] = item
-
-    try:
-        input_keys = find_key_occurrences(parameters, "input_keys") or []
+    input_keys = _extract_input_keys(parameters)
+    if input_keys:
         inputs = {key: datapoint.get(key, None) for key in input_keys}
+    else:
+        inputs = dict(datapoint)
 
-        if is_chat:
-            messages_data = datapoint.get("messages") or datapoint.get("chat", "[]")
-            # Handle both string and object formats (backward compatibility)
-            if isinstance(messages_data, list):
-                messages = messages_data
-            elif isinstance(messages_data, str):
-                try:
-                    messages = json.loads(messages_data) if messages_data else []
-                except (json.JSONDecodeError, TypeError):
-                    log.warn(
-                        f"Failed to parse messages data, using empty list: {messages_data}"
-                    )
-                    messages = list()
-            else:
-                log.warn(
-                    f"Unexpected format for messages data, using empty list: {messages_data}"
-                )
-                messages = list()
-            payload["messages"] = messages
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        log.warn(f"Error making payload: {e}")
+    if is_chat:
+        inputs["messages"] = _parse_legacy_chat_messages(datapoint)
 
-    payload["inputs"] = inputs
-
-    return payload
+    return inputs
 
 
 def _format_curl_request(
@@ -274,21 +211,10 @@ def _format_curl_request(
 
 def build_invoke_request(
     *,
-    payload: Dict[str, Any],
+    inputs: Dict[str, Any],
     parameters: Dict[str, Any],
     references: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    inputs: Dict[str, Any] = {}
-
-    payload_inputs = payload.get("inputs")
-    if isinstance(payload_inputs, dict):
-        inputs.update(payload_inputs)
-
-    for key, value in payload.items():
-        if key in {"ag_config", "inputs"}:
-            continue
-        inputs[key] = value
-
     request = {
         "data": {
             "parameters": parameters,
@@ -335,7 +261,6 @@ async def invoke_app(
     uri: str,
     datapoint: Any,
     parameters: Dict,
-    openapi_parameters: List[Dict],
     openapi_is_chat: Optional[bool],
     user_id: str,
     project_id: str,
@@ -343,14 +268,12 @@ async def invoke_app(
     **kwargs,
 ) -> InvokationResult:
     """
-    Invokes an app for one datapoint using the openapi_parameters to determine
-    how to invoke the app.
+    Invoke an application for one testcase row.
 
     Args:
         uri (str): The URI of the app to invoke.
-        datapoint (Any): The data to be sent to the app.
-        parameters (Dict): The parameters required by the app taken from the db.
-        openapi_parameters (List[Dict]): The OpenAPI parameters of the app.
+        datapoint (Any): The testcase row data to send as `data.inputs`.
+        parameters (Dict): The application parameters to send as `data.parameters`.
 
     Returns:
         InvokationResult: The output of the app.
@@ -361,14 +284,13 @@ async def invoke_app(
 
     url = f"{uri}/invoke"
 
-    payload = await make_payload(
+    inputs = parse_legacy_inputs(
         datapoint,
         parameters,
-        openapi_parameters,
         is_chat=openapi_is_chat,
     )
     request_body = build_invoke_request(
-        payload=payload,
+        inputs=inputs,
         parameters=parameters,
         references=kwargs.get("references"),
     )
@@ -492,7 +414,6 @@ async def run_with_retry(
     parameters: Dict,
     max_retry_count: int,
     retry_delay: int,
-    openapi_parameters: List[Dict],
     openapi_is_chat: Optional[bool],
     user_id: str,
     project_id: str,
@@ -508,7 +429,6 @@ async def run_with_retry(
         parameters (Dict): The parameters for the app.
         max_retry_count (int): The maximum number of retries.
         retry_delay (int): The delay between retries in seconds.
-        openapi_parameters (List[Dict]): The OpenAPI parameters for the app.
         openapi_is_chat (Optional[bool]): Whether the app is chat, if detected.
 
     Returns:
@@ -531,7 +451,6 @@ async def run_with_retry(
                 uri,
                 input_data,
                 parameters,
-                openapi_parameters,
                 openapi_is_chat,
                 user_id,
                 project_id,
@@ -641,28 +560,31 @@ async def batch_invoke(
         headers = {"Authorization": f"Secret {secret_token}"}
     headers["ngrok-skip-browser-warning"] = "1"
 
-    openapi_parameters, openapi_is_chat = get_parameters_from_schemas(
+    schema_parameters, openapi_is_chat = get_parameters_from_schemas(
         schemas=effective_schemas,
         is_chat=effective_is_chat,
     )
 
-    if not openapi_parameters:
+    if not schema_parameters:
         max_recursive_depth = 5
         runtime_prefix = uri
         route_path = ""
 
-        while max_recursive_depth > 0 and not openapi_parameters:
+        while max_recursive_depth > 0 and not schema_parameters:
             try:
-                openapi_parameters, openapi_is_chat = await get_parameters_from_inspect(
+                (
+                    schema_parameters,
+                    openapi_is_chat,
+                ) = await get_parameters_from_inspect(
                     runtime_prefix,
                     route_path,
                     headers,
                 )
             except Exception:  # pylint: disable=broad-exception-caught
-                openapi_parameters = None
+                schema_parameters = None
                 openapi_is_chat = None
 
-            if not openapi_parameters:
+            if not schema_parameters:
                 max_recursive_depth -= 1
                 if not runtime_prefix.endswith("/"):
                     route_path = "/" + runtime_prefix.split("/")[-1] + route_path
@@ -671,12 +593,12 @@ async def batch_invoke(
                     route_path = ""
                     runtime_prefix = runtime_prefix[:-1]
 
-        # Final attempt to fetch runtime inspect parameters
-        openapi_parameters, openapi_is_chat = await get_parameters_from_inspect(
-            runtime_prefix,
-            route_path,
-            headers,
-        )
+        if not schema_parameters:
+            schema_parameters, openapi_is_chat = await get_parameters_from_inspect(
+                runtime_prefix,
+                route_path,
+                headers,
+            )
 
     # 🆕 Rewritten loop instead of recursion
     for start_idx in range(0, len(testset_data), batch_size):
@@ -691,7 +613,6 @@ async def batch_invoke(
                     effective_parameters,
                     max_retries,
                     retry_delay,
-                    openapi_parameters,
                     openapi_is_chat,
                     user_id,
                     project_id,

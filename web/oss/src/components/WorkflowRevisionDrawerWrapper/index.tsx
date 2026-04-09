@@ -10,6 +10,8 @@
  */
 import {memo, useCallback, useEffect, useMemo, useRef} from "react"
 
+import {loadableStateAtomFamily} from "@agenta/entities/loadable"
+import {testcaseMolecule} from "@agenta/entities/testcase"
 import {
     registerWorkflowCommitCallbacks,
     getWorkflowCommitCallbacks,
@@ -25,7 +27,12 @@ import {
 } from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus, VariantNameCell} from "@agenta/entity-ui/variant"
 import {playgroundController} from "@agenta/playground"
-import {connectedTestsetAtom, playgroundInitializedAtom} from "@agenta/playground/state"
+import {
+    clearAllRunsMutationAtom,
+    connectedTestsetAtom,
+    derivedLoadableIdAtom,
+    playgroundInitializedAtom,
+} from "@agenta/playground/state"
 import {type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {
     DrawerProvidersProvider,
@@ -42,7 +49,7 @@ import {
 import {EnvironmentTag} from "@agenta/ui"
 import {Rocket} from "@phosphor-icons/react"
 import {Button, Typography, message} from "antd"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {getDefaultStore, useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import OSSdrillInUIProvider from "@/oss/components/DrillInView/OSSdrillInUIProvider"
@@ -170,7 +177,8 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
     // (same path as playgroundSyncAtom). This properly links the loadable,
     // creates initial testcase rows, and sets up the local testset.
     const addPrimaryNode = useSetAtom(playgroundController.actions.addPrimaryNode)
-    const setEntityIds = useSetAtom(playgroundController.actions.setEntityIds)
+    const resetAll = useSetAtom(playgroundController.actions.resetAll)
+    const clearAllRuns = useSetAtom(clearAllRunsMutationAtom)
     const setInitialized = useSetAtom(playgroundInitializedAtom)
     const setSelectedAppLabel = useSetAtom(selectedAppLabelAtom)
     const setConnectedTestset = useSetAtom(connectedTestsetAtom)
@@ -180,7 +188,38 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
             setInitialized(true)
         }
         return () => {
-            setEntityIds([])
+            const store = getDefaultStore()
+
+            // Clear execution results BEFORE resetting nodes
+            // (derivedLoadableIdAtom reads from nodes to resolve the loadableId)
+            clearAllRuns()
+
+            // Clear loadable rows + state
+            const loadableId = store.get(derivedLoadableIdAtom)
+            if (loadableId) {
+                // Delete all testcase entities
+                const rowIds = store.get(testcaseMolecule.atoms.displayRowIds)
+                for (const id of rowIds) {
+                    store.set(testcaseMolecule.actions.delete, id)
+                }
+                // Reset loadable state (columns, executionResults, etc.)
+                store.set(loadableStateAtomFamily(loadableId), {
+                    columns: [],
+                    activeRowId: null,
+                    connectedSourceId: null,
+                    connectedSourceName: null,
+                    connectedSourceType: null,
+                    linkedRunnableId: null,
+                    linkedRunnableType: null,
+                    executionResults: {},
+                    outputMappings: [],
+                    hiddenTestcaseIds: new Set<string>(),
+                    disabledOutputMappingRowIds: new Set<string>(),
+                    name: null,
+                })
+            }
+
+            resetAll()
             setInitialized(false)
             setSelectedAppLabel(null)
             setConnectedTestset(null)
@@ -188,7 +227,8 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
     }, [
         entityId,
         addPrimaryNode,
-        setEntityIds,
+        resetAll,
+        clearAllRuns,
         setInitialized,
         setSelectedAppLabel,
         setConnectedTestset,

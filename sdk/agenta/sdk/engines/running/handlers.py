@@ -1995,6 +1995,9 @@ async def chat_v0(
     inputs: Optional[Dict[str, str]] = None,
     messages: Optional[List[Message]] = None,
 ):
+    # This prevents a mismatch in `required_keys != provided_keys``
+    inputs.pop("messages", None)
+
     params: Dict[str, Any] = {**(parameters or {})}
 
     config = SinglePromptConfig(**params)

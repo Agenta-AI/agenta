@@ -13,6 +13,12 @@ import {isDrawerSupportedRoute} from "./routeMatchers"
 
 const isBrowser = typeof window !== "undefined"
 
+// Tracks whether the current drawer was opened via URL (revisionId param).
+// Only URL-driven drawers should be closed by URL sync. Drawers opened
+// programmatically (e.g. evaluator drawer from table click without URL param)
+// are immune to URL-based closing.
+let drawerOpenedViaUrl = false
+
 export const clearVariantDrawerState = () => {
     const store = getDefaultStore()
     const isOpen = store.get(workflowRevisionDrawerOpenAtom)
@@ -20,6 +26,7 @@ export const clearVariantDrawerState = () => {
     if (isOpen) {
         store.set(closeWorkflowRevisionDrawerAtom)
     }
+    drawerOpenedViaUrl = false
 }
 
 const VALID_DRAWER_TYPES = new Set<DrawerContext>([
@@ -80,6 +87,17 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
             }
         }
 
+        console.warn(
+            "[DEBUG:variant-url] sync called. URL:",
+            url.href,
+            "currentOpen:",
+            currentOpen,
+            "drawerOpenedViaUrl:",
+            drawerOpenedViaUrl,
+            "revisionId:",
+            resolvedRevisionId,
+        )
+
         if (!routeSupportsDrawer) {
             if ((revisionParam && revisionParam.trim()) || url.searchParams.has("drawerType")) {
                 url.searchParams.delete("revisionId")
@@ -95,8 +113,24 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
 
         if (!resolvedRevisionId) {
             ensureUrlClean()
-            if (currentOpen) {
+            // Only close the drawer if it was originally opened via URL
+            // (revisionId param). Programmatically opened drawers (e.g.
+            // evaluator drawer) should not be closed by unrelated URL changes.
+            if (currentOpen && drawerOpenedViaUrl) {
+                console.warn(
+                    "[DEBUG:variant-url] closing drawer (URL-driven). URL:",
+                    url.href,
+                    "drawerOpenedViaUrl:",
+                    drawerOpenedViaUrl,
+                )
                 clearVariantDrawerState()
+            } else if (currentOpen) {
+                console.warn(
+                    "[DEBUG:variant-url] skipped close (not URL-driven). URL:",
+                    url.href,
+                    "drawerOpenedViaUrl:",
+                    drawerOpenedViaUrl,
+                )
             }
             return
         }
@@ -115,6 +149,7 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
             return
         }
 
+        drawerOpenedViaUrl = true
         store.set(openWorkflowRevisionDrawerAtom, {
             entityId: resolvedRevisionId,
             context: desiredType,

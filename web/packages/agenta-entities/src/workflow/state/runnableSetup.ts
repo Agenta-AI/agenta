@@ -36,7 +36,7 @@ import {flattenEvaluatorConfiguration} from "../../runnable/evaluatorTransforms"
 import type {RequestPayloadData} from "../../runnable/types"
 import {extractVariablesFromConfig} from "../../runnable/utils"
 import type {StoreOptions} from "../../shared"
-import {parseRevisionUri} from "../../shared"
+import {isLocalDraftId, parseRevisionUri} from "../../shared"
 
 import {buildServiceUrlFromUri, resolveBuiltinAppServiceUrl} from "./helpers"
 import {
@@ -44,6 +44,7 @@ import {
     workflowBaseEntityAtomFamily,
     workflowEntityAtomFamily,
     workflowIsDirtyAtomFamily,
+    workflowLocalServerDataAtomFamily,
 } from "./store"
 
 // Re-export for external consumers
@@ -422,15 +423,31 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
         }
 
         // Build references used by execution + tracing.
-        // Only include variant/revision refs when there are no local draft changes,
-        // since draft changes haven't been committed to the server yet.
+        // For local drafts: always include variant/revision refs from the source
+        // revision, since the server needs them to route the invocation.
+        // For server-backed revisions: only include refs when clean (no uncommitted
+        // draft changes), since dirty params don't match the committed revision.
         const appId = entity.workflow_id ?? null
+        const isLocal = isLocalDraftId(workflowId)
         const isDirty = get(workflowIsDirtyAtomFamily(workflowId))
         const references: Record<string, Record<string, string | undefined>> = {}
         if (appId) {
             references.application = {id: appId}
         }
-        if (!isDirty) {
+        if (isLocal) {
+            // Local draft: use the source revision's variant/revision IDs
+            const localData = get(workflowLocalServerDataAtomFamily(workflowId)) as
+                | (Record<string, unknown> & {_sourceRevisionId?: string})
+                | null
+            const sourceRevisionId = localData?._sourceRevisionId
+            const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
+            if (variantId) {
+                references.application_variant = {id: variantId}
+            }
+            if (sourceRevisionId) {
+                references.application_revision = {id: sourceRevisionId}
+            }
+        } else if (!isDirty) {
             const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
             if (variantId) {
                 references.application_variant = {id: variantId}

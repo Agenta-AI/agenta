@@ -814,14 +814,6 @@ export function buildEvaluatorExecutionInputs(ctx: EvaluatorInputContext): Recor
             ? (inputSchema.properties as Record<string, unknown>)
             : null
 
-    console.debug("[buildEvaluatorExecutionInputs]", {
-        hasInputSchema: !!schemaProperties,
-        schemaPropertyKeys: schemaProperties ? Object.keys(schemaProperties) : [],
-        testcaseDataKeys: Object.keys(testcaseData),
-        settingsKeys: Object.keys(settings),
-        upstreamOutputType: typeof upstreamOutput,
-    })
-
     if (schemaProperties) {
         return buildFromSchema({
             schemaProperties,
@@ -901,11 +893,6 @@ function buildFromSchema(ctx: {
         inputs.outputs = upstreamOutput
     }
 
-    console.debug("[buildEvaluatorExecutionInputs] schema-driven result", {
-        keys: Object.keys(inputs),
-        inputs,
-    })
-
     return inputs
 }
 
@@ -931,13 +918,6 @@ function buildLegacy(ctx: {
     const rawGT = groundTruthKey ? testcaseData[groundTruthKey] : undefined
     const ground_truth = normalizeCompact(rawGT)
 
-    console.debug("[buildEvaluatorExecutionInputs] legacy fallback", {
-        correct_answer_key: correctAnswerKey ?? "(not set)",
-        groundTruthKey: groundTruthKey ?? "(none)",
-        rawGT,
-        ground_truth,
-    })
-
     const inputs: Record<string, unknown> = {
         ...testcaseData,
         prediction,
@@ -947,11 +927,6 @@ function buildLegacy(ctx: {
         inputs.ground_truth = ground_truth
         inputs[groundTruthKey] = ground_truth
     }
-
-    console.debug("[buildEvaluatorExecutionInputs] legacy result", {
-        keys: Object.keys(inputs),
-        inputs,
-    })
 
     return inputs
 }
