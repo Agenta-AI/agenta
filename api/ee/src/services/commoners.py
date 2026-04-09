@@ -1,4 +1,3 @@
-from os import getenv
 from json import loads
 from typing import List, Optional
 from traceback import format_exc
@@ -46,7 +45,6 @@ subscription_service = SubscriptionsService(
     ),
 )
 
-DEMOS = "AGENTA_DEMOS"
 DEMO_ROLE = "viewer"
 
 
@@ -75,7 +73,7 @@ async def list_all_demos() -> List[Demo]:
     demos = []
 
     try:
-        demo_project_ids = loads(getenv(DEMOS) or "[]")
+        demo_project_ids = loads(env.agenta.demos or "[]")
 
         for project_id in demo_project_ids:
             project = await db_manager.get_project_by_id(project_id)

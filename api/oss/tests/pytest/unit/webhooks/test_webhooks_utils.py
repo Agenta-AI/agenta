@@ -6,6 +6,7 @@ DNS-dependent cases use a monkeypatched socket.getaddrinfo.
 
 import pytest
 
+from oss.src.core.webhooks import utils as webhook_utils
 from oss.src.core.webhooks.utils import validate_webhook_url
 
 
@@ -27,7 +28,7 @@ from oss.src.core.webhooks.utils import validate_webhook_url
     ],
 )
 def test_format_errors_always_rejected(url, monkeypatch):
-    monkeypatch.setattr("oss.src.core.webhooks.utils._WEBHOOK_ALLOW_INSECURE", True)
+    monkeypatch.setattr(webhook_utils.env.webhooks, "allow_insecure", True)
     with pytest.raises(ValueError):
         validate_webhook_url(url)
 
@@ -58,13 +59,13 @@ def test_format_errors_always_rejected(url, monkeypatch):
     ],
 )
 def test_secure_mode_rejects_private_and_insecure_urls(url, monkeypatch):
-    monkeypatch.setattr("oss.src.core.webhooks.utils._WEBHOOK_ALLOW_INSECURE", False)
+    monkeypatch.setattr(webhook_utils.env.webhooks, "allow_insecure", False)
     with pytest.raises(ValueError):
         validate_webhook_url(url)
 
 
 def test_secure_mode_accepts_public_ip(monkeypatch):
-    monkeypatch.setattr("oss.src.core.webhooks.utils._WEBHOOK_ALLOW_INSECURE", False)
+    monkeypatch.setattr(webhook_utils.env.webhooks, "allow_insecure", False)
     # 93.184.216.34 is example.com — a routable, non-private address
     validate_webhook_url("https://93.184.216.34/hook")
 
@@ -86,7 +87,7 @@ def test_secure_mode_accepts_public_ip(monkeypatch):
     ],
 )
 def test_insecure_mode_allows_local_urls(url, monkeypatch):
-    monkeypatch.setattr("oss.src.core.webhooks.utils._WEBHOOK_ALLOW_INSECURE", True)
+    monkeypatch.setattr(webhook_utils.env.webhooks, "allow_insecure", True)
     # Should not raise
     validate_webhook_url(url)
 
@@ -99,7 +100,7 @@ def test_insecure_mode_allows_local_urls(url, monkeypatch):
 def test_unresolvable_hostname_raises(monkeypatch):
     import socket
 
-    monkeypatch.setattr("oss.src.core.webhooks.utils._WEBHOOK_ALLOW_INSECURE", False)
+    monkeypatch.setattr(webhook_utils.env.webhooks, "allow_insecure", False)
     monkeypatch.setattr(
         "oss.src.core.webhooks.utils.socket.getaddrinfo",
         lambda *a, **kw: (_ for _ in ()).throw(
@@ -111,7 +112,7 @@ def test_unresolvable_hostname_raises(monkeypatch):
 
 
 def test_hostname_resolving_to_private_ip_is_rejected(monkeypatch):
-    monkeypatch.setattr("oss.src.core.webhooks.utils._WEBHOOK_ALLOW_INSECURE", False)
+    monkeypatch.setattr(webhook_utils.env.webhooks, "allow_insecure", False)
     monkeypatch.setattr(
         "oss.src.core.webhooks.utils.socket.getaddrinfo",
         lambda *a, **kw: [(None, None, None, None, ("192.168.1.100", 0))],
@@ -121,7 +122,7 @@ def test_hostname_resolving_to_private_ip_is_rejected(monkeypatch):
 
 
 def test_hostname_resolving_to_public_ip_is_accepted(monkeypatch):
-    monkeypatch.setattr("oss.src.core.webhooks.utils._WEBHOOK_ALLOW_INSECURE", False)
+    monkeypatch.setattr(webhook_utils.env.webhooks, "allow_insecure", False)
     monkeypatch.setattr(
         "oss.src.core.webhooks.utils.socket.getaddrinfo",
         lambda *a, **kw: [(None, None, None, None, ("93.184.216.34", 0))],

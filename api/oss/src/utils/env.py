@@ -415,6 +415,7 @@ class LLMConfig(BaseModel):
     gemini: str = os.getenv("GEMINI_API_KEY", "")
     groq: str = os.getenv("GROQ_API_KEY", "")
     mistral: str = os.getenv("MISTRAL_API_KEY", "")
+    mistralai: str = os.getenv("MISTRALAI_API_KEY", "")
     openai: str = os.getenv("OPENAI_API_KEY", "")
     openrouter: str = os.getenv("OPENROUTER_API_KEY", "")
     perplexityai: str = os.getenv("PERPLEXITYAI_API_KEY", "")
@@ -443,6 +444,24 @@ class LLMConfig(BaseModel):
             ]
             if getattr(self, name)
         ]
+
+    @property
+    def api_keys_by_env_var(self) -> dict[str, str]:
+        return {
+            "ALEPHALPHA_API_KEY": self.alephalpha,
+            "ANTHROPIC_API_KEY": self.anthropic,
+            "ANYSCALE_API_KEY": self.anyscale,
+            "COHERE_API_KEY": self.cohere,
+            "DEEPINFRA_API_KEY": self.deepinfra,
+            "GEMINI_API_KEY": self.gemini,
+            "GROQ_API_KEY": self.groq,
+            "MISTRAL_API_KEY": self.mistral,
+            "MISTRALAI_API_KEY": self.mistralai,
+            "OPENAI_API_KEY": self.openai,
+            "OPENROUTER_API_KEY": self.openrouter,
+            "PERPLEXITYAI_API_KEY": self.perplexityai,
+            "TOGETHERAI_API_KEY": self.togetherai,
+        }
 
 
 class NewRelicConfig(BaseModel):
@@ -544,6 +563,16 @@ class RedisConfig(BaseModel):
         return bool(self.uri_volatile or self.uri_durable)
 
 
+class WebhooksConfig(BaseModel):
+    """Webhook delivery configuration"""
+
+    allow_insecure: bool = (
+        os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE") or "true"
+    ).lower() in _TRUTHY
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class AgentaConfig(BaseModel):
     """Agenta core configuration"""
 
@@ -596,14 +625,20 @@ class AgentaConfig(BaseModel):
 class PostgresConfig(BaseModel):
     """PostgreSQL database configuration"""
 
-    uri_core: str = os.getenv("POSTGRES_URI_CORE") or (
+    uri: str = os.getenv("POSTGRES_URI") or (
         f"postgresql+asyncpg://username:password@postgres:5432/agenta_{_LICENSE}_core"
     )
+    uri_core: str = os.getenv("POSTGRES_URI_CORE") or (
+        os.getenv("POSTGRES_URI")
+        or f"postgresql+asyncpg://username:password@postgres:5432/agenta_{_LICENSE}_core"
+    )
     uri_tracing: str = os.getenv("POSTGRES_URI_TRACING") or (
-        f"postgresql+asyncpg://username:password@postgres:5432/agenta_{_LICENSE}_tracing"
+        os.getenv("POSTGRES_URI")
+        or f"postgresql+asyncpg://username:password@postgres:5432/agenta_{_LICENSE}_tracing"
     )
     uri_supertokens: str = os.getenv("POSTGRES_URI_SUPERTOKENS") or (
-        f"postgresql://username:password@postgres:5432/agenta_{_LICENSE}_supertokens"
+        os.getenv("POSTGRES_URI")
+        or f"postgresql://username:password@postgres:5432/agenta_{_LICENSE}_supertokens"
     )
 
     username: str = os.getenv("POSTGRES_USER") or "username"
@@ -667,7 +702,7 @@ class EnvironSettings(BaseModel):
     """
     Main environment settings container with nested Pydantic models.
 
-    All configuration is organized into 16 dedicated config classes.
+    All configuration is organized into dedicated config classes.
     Each config is a Pydantic BaseModel with typed fields and validation.
 
     Usage:
@@ -702,6 +737,7 @@ class EnvironSettings(BaseModel):
     logging: LoggingConfig = LoggingConfig()
     otlp: OTLPConfig = OTLPConfig()
     redis: RedisConfig = RedisConfig()
+    webhooks: WebhooksConfig = WebhooksConfig()
     agenta: AgentaConfig = AgentaConfig()
     ai_services: AIServicesConfig = AIServicesConfig()
     postgres: PostgresConfig = PostgresConfig()

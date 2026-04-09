@@ -1,17 +1,14 @@
 """Webhook utility functions."""
 
 import ipaddress
-import os
 import socket
 from urllib.parse import urlparse
 
-_WEBHOOK_ALLOW_INSECURE = (
-    os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE") or "true"
-).lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
+from oss.src.utils.env import env
 
 
 def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
-    if _WEBHOOK_ALLOW_INSECURE:
+    if env.webhooks.allow_insecure:
         return False
     return (
         ip.is_private
@@ -31,7 +28,7 @@ def validate_webhook_url(url: str) -> None:
     scheme = parsed.scheme.lower()
     if scheme not in {"http", "https"}:
         raise ValueError("Webhook URL must use http or https.")
-    if scheme == "http" and not _WEBHOOK_ALLOW_INSECURE:
+    if scheme == "http" and not env.webhooks.allow_insecure:
         raise ValueError("Webhook URL must use https.")
     if not parsed.netloc:
         raise ValueError("Webhook URL must include a host.")
@@ -43,7 +40,7 @@ def validate_webhook_url(url: str) -> None:
         raise ValueError("Webhook URL must include a valid hostname.")
     if (
         hostname in {"localhost", "localhost.localdomain"}
-        and not _WEBHOOK_ALLOW_INSECURE
+        and not env.webhooks.allow_insecure
     ):
         raise ValueError("Webhook URL hostname is not allowed.")
 

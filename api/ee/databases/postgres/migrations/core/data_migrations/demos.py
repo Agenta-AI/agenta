@@ -1,4 +1,3 @@
-from os import getenv
 from uuid import UUID
 from json import loads
 from functools import wraps
@@ -21,10 +20,10 @@ from ee.src.models.db_models import (
     WorkspaceMemberDB,
     ProjectMemberDB,
 )
+from oss.src.utils.env import env
 
 
 BATCH_SIZE = 100
-DEMOS = "AGENTA_DEMOS"
 DEMO_ROLE = "viewer"
 OWNER_ROLE = "owner"
 
@@ -104,7 +103,7 @@ def list_all_demos(session: Connection) -> List[Demo]:
     demos = []
 
     try:
-        demo_project_ids = loads(getenv(DEMOS) or "[]")
+        demo_project_ids = loads(env.agenta.demos or "[]")
 
         for project_id in demo_project_ids:
             project = fetch_project(
