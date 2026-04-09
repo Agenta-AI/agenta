@@ -23,6 +23,21 @@ REVISION_FLAG_KEYS = (
 )
 
 
+def _extract_outputs_schema_from_service_format(
+    service_format: Any,
+) -> Optional[dict[str, Any]]:
+    if not isinstance(service_format, dict):
+        return None
+
+    properties = service_format.get("properties")
+    if isinstance(properties, dict):
+        outputs_schema = properties.get("outputs")
+        if isinstance(outputs_schema, dict):
+            return outputs_schema
+
+    return None
+
+
 def _backfill_schemas_from_interface(
     data: Optional[dict[str, Any]],
 ) -> Optional[dict[str, Any]]:
@@ -83,6 +98,10 @@ def _backfill_schemas_outputs_from_service_format(
     if service_format is None:
         return data
 
+    outputs_schema = _extract_outputs_schema_from_service_format(service_format)
+    if outputs_schema is None:
+        return data
+
     schemas = data.get("schemas")
     if isinstance(schemas, dict) and schemas.get("outputs") is not None:
         return data
@@ -92,7 +111,7 @@ def _backfill_schemas_outputs_from_service_format(
     if not isinstance(schemas, dict):
         schemas = {}
 
-    schemas["outputs"] = service_format
+    schemas["outputs"] = outputs_schema
     normalized["schemas"] = schemas
 
     return normalized
@@ -108,6 +127,20 @@ def _normalize_artifact_flags(
         "is_evaluator": is_evaluator,
         "is_snippet": False,
     }
+
+
+def _has_messages_input(inputs_schema: Any) -> bool:
+    """Return True if any property in the inputs schema carries x-ag-type-ref messages/message."""
+    if not isinstance(inputs_schema, dict):
+        return False
+    properties = inputs_schema.get("properties")
+    if not isinstance(properties, dict):
+        return False
+    return any(
+        isinstance(field, dict)
+        and field.get("x-ag-type-ref") in {"messages", "message"}
+        for field in properties.values()
+    )
 
 
 def _normalize_revision_flags(
@@ -127,6 +160,9 @@ def _normalize_revision_flags(
     if not url and uri:
         url = infer_url_from_uri(uri)
 
+    schemas = data.get("schemas") if isinstance(data, dict) else None
+    inputs_schema = schemas.get("inputs") if isinstance(schemas, dict) else None
+
     return {
         "is_managed": provider == "agenta",
         "is_custom": kind == "custom",
@@ -136,7 +172,11 @@ def _normalize_revision_flags(
         "is_match": key == "match",
         "is_feedback": key in {"feedback", "trace"}
         or bool(legacy_flags.get("is_feedback") or legacy_flags.get("is_human")),
-        "is_chat": bool(legacy_flags.get("is_chat", False) or key == "chat"),
+        "is_chat": bool(
+            legacy_flags.get("is_chat", False)
+            or key == "chat"
+            or _has_messages_input(inputs_schema)
+        ),
         "has_url": bool(url),
         "has_script": bool(script),
         "has_handler": False,
@@ -176,15 +216,34 @@ def upgrade_workflow_revisions(session: Connection) -> None:
                CASE
                  WHEN jsonb_typeof(data::jsonb -> 'schemas') = 'object' THEN
                    (data::jsonb -> 'schemas')
-                   || jsonb_build_object('outputs', data::jsonb -> 'service' -> 'format')
+                   || jsonb_build_object(
+                        'outputs',
+                        CASE
+                          WHEN jsonb_typeof(
+                            data::jsonb -> 'service' -> 'format' -> 'properties' -> 'outputs'
+                          ) = 'object' THEN
+                            data::jsonb -> 'service' -> 'format' -> 'properties' -> 'outputs'
+                        END
+                      )
                  ELSE
-                   jsonb_build_object('outputs', data::jsonb -> 'service' -> 'format')
+                   jsonb_build_object(
+                     'outputs',
+                     CASE
+                       WHEN jsonb_typeof(
+                         data::jsonb -> 'service' -> 'format' -> 'properties' -> 'outputs'
+                       ) = 'object' THEN
+                         data::jsonb -> 'service' -> 'format' -> 'properties' -> 'outputs'
+                     END
+                   )
                END
              )
         )::json
         WHERE data IS NOT NULL
           AND data::jsonb ? 'service'
           AND data::jsonb -> 'service' ? 'format'
+          AND jsonb_typeof(
+            data::jsonb -> 'service' -> 'format' -> 'properties' -> 'outputs'
+          ) = 'object'
           AND (
             NOT (data::jsonb ? 'schemas')
             OR jsonb_typeof(data::jsonb -> 'schemas') = 'null'
