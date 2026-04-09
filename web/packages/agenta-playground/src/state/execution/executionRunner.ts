@@ -361,10 +361,6 @@ export async function executeStepForSessionWithExecutionItems(
                                 nodeResults,
                                 data,
                             )
-                            console.debug(
-                                `[executionRunner] Node "${nodeLabel}" (${nodeId}): using resolveChainInputs (explicit mappings)`,
-                                {resolvedKeys: Object.keys(resolved), resolved},
-                            )
                             nodeInputs = resolved
                         } else {
                             // No explicit mappings — delegate to entity-owned input construction
@@ -399,14 +395,6 @@ export async function executeStepForSessionWithExecutionItems(
                             // Validate required inputs before building — skip if missing
                             const validation = validateEvaluatorInputs(evaluatorInputContext)
                             if (!validation.valid) {
-                                console.debug(
-                                    `[executionRunner] Node "${nodeLabel}" (${nodeId}): skipping due to missing required inputs`,
-                                    {
-                                        missingInputs: validation.missingInputs,
-                                        message: validation.message,
-                                    },
-                                )
-
                                 // Record skipped result and return (parallel-safe)
                                 const skippedAt = new Date().toISOString()
                                 chainResults[nodeId] = {
@@ -429,29 +417,8 @@ export async function executeStepForSessionWithExecutionItems(
                                 return
                             }
 
-                            console.debug(
-                                `[executionRunner] Node "${nodeLabel}" (${nodeId}): no explicit mappings, using buildEvaluatorExecutionInputs`,
-                                {
-                                    testcaseDataKeys: Object.keys(data),
-                                    testcaseData: data,
-                                    upstreamOutput,
-                                    settings: stageConfiguration ?? {},
-                                    hasInputSchema: !!inputSchema,
-                                    inputSchemaProperties: inputSchema?.properties
-                                        ? Object.keys(
-                                              inputSchema.properties as Record<string, unknown>,
-                                          )
-                                        : [],
-                                },
-                            )
-
                             nodeInputs = buildEvaluatorExecutionInputs(evaluatorInputContext)
                         }
-
-                        console.debug(
-                            `[executionRunner] Node "${nodeLabel}" (${nodeId}): final nodeInputs`,
-                            {keys: Object.keys(nodeInputs), nodeInputs},
-                        )
                     }
 
                     const stageRunnableId =
@@ -499,19 +466,6 @@ export async function executeStepForSessionWithExecutionItems(
                     })
                     if (!stageExecutionItem) {
                         throw new Error(`Failed to build execution item for ${stageRunnableId}`)
-                    }
-
-                    if (node.depth > 0) {
-                        console.debug(
-                            `[executionRunner] Node "${nodeLabel}" (${nodeId}): final request`,
-                            {
-                                invocationUrl: stageExecutionItem.invocation.invocationUrl,
-                                requestBodyKeys: Object.keys(
-                                    stageExecutionItem.invocation.requestBody,
-                                ),
-                                requestBody: stageExecutionItem.invocation.requestBody,
-                            },
-                        )
                     }
 
                     // Use the execution item's invocationUrl and requestBody directly.
