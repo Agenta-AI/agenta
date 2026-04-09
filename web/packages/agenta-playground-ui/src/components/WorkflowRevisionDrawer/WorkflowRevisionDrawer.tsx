@@ -60,7 +60,11 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
             if (target.closest(".ant-drawer")) return
             // Close when clicking the main layout area behind the drawer
             if (target.closest(".ant-layout")) {
-                console.warn("[DEBUG:drawer-click] closing via .ant-layout click", target.tagName, target.className)
+                console.warn(
+                    "[DEBUG:drawer-click] closing via .ant-layout click",
+                    target.tagName,
+                    target.className,
+                )
                 closeDrawer()
             }
         }
