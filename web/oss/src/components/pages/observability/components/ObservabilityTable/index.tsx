@@ -1,12 +1,10 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {type Key, type ReactNode, useCallback, useEffect, useMemo, useState} from "react"
 
-import {Button, Table, TableColumnType} from "antd"
-import {ColumnsType} from "antd/es/table"
+import {InfiniteVirtualTable} from "@agenta/ui/table"
+import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {filterColumns} from "@/oss/components/Filters/EditColumns/assets/helper"
-import ResizableTitle from "@/oss/components/ResizableTitle"
 import {setTraceDrawerActiveSpanAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {isNewUserAtom} from "@/oss/lib/onboarding"
 import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
@@ -15,7 +13,10 @@ import {useQueryParamState} from "@/oss/state/appState"
 import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObservability"
 import {hasReceivedTracesAtom} from "@/oss/state/newObservability/atoms/controls"
 
-import {getObservabilityColumns} from "../../assets/getObservabilityColumns"
+import {
+    getDefaultHiddenObservabilityColumnKeys,
+    getObservabilityColumns,
+} from "../../assets/getObservabilityColumns"
 import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
 const ObservabilityHeader = dynamic(() => import("../ObservabilityHeader"), {ssr: false})
@@ -26,6 +27,8 @@ const TestsetDrawer = dynamic(
         ssr: false,
     },
 )
+
+const ESTIMATED_TRACE_ROW_HEIGHT = 136
 
 const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
     const slugs = new Set<string>()
@@ -62,7 +65,6 @@ const ObservabilityTable = () => {
         fetchTraces,
         selectedTraceId,
         setSelectedTraceId,
-        editColumns,
         selectedRowKeys,
         setSelectedRowKeys,
         testsetDrawerData,
@@ -93,6 +95,7 @@ const ObservabilityTable = () => {
         ? (spanParamValue[0] ?? "")
         : ((spanParamValue as string | undefined) ?? "")
 
+    const [refreshTrigger, setRefreshTrigger] = useState(0)
     const traceEvaluatorSlugs = useMemo(() => collectEvaluatorSlugsFromTraces(traces), [traces])
 
     const evaluatorSlugs = useMemo(() => {
@@ -112,15 +115,11 @@ const ObservabilityTable = () => {
         return [...ordered, ...remaining]
     }, [annotationEvaluatorSlugs, traceEvaluatorSlugs])
 
-    const initialColumns = useMemo(
-        () => getObservabilityColumns({evaluatorSlugs}),
+    const columns = useMemo(() => getObservabilityColumns({evaluatorSlugs}), [evaluatorSlugs])
+    const defaultHiddenColumnKeys = useMemo(
+        () => getDefaultHiddenObservabilityColumnKeys({evaluatorSlugs}),
         [evaluatorSlugs],
     )
-    const [columns, setColumns] = useState<ColumnsType<TraceSpanNode>>(initialColumns)
-
-    useEffect(() => {
-        setColumns(initialColumns)
-    }, [initialColumns])
 
     useEffect(() => {
         if (traceParam && traceParam !== selectedTraceId) {
@@ -149,11 +148,8 @@ const ObservabilityTable = () => {
         if (!selectedNode) {
             setSelectedNode(activeTrace?.span_id || "")
         }
-    }, [activeTrace, selectedNode])
+    }, [activeTrace, selectedNode, setSelectedNode])
 
-    const [refreshTrigger, setRefreshTrigger] = useState(0)
-
-    // Auto-refresh logic: refresh every 15 seconds when enabled
     const handleRefresh = useCallback(async () => {
         await Promise.all([fetchAnnotations(), fetchTraces()])
         setRefreshTrigger((prev) => prev + 1)
@@ -175,47 +171,83 @@ const ObservabilityTable = () => {
         fetchMoreTraces().catch((error) => console.error("Failed to fetch more traces", error))
     }, [fetchMoreTraces, hasMoreTraces, isFetchingMore])
 
-    const rowSelection = {
-        onChange: (keys: React.Key[]) => {
-            setSelectedRowKeys(keys)
+    const handleTraceRowClick = useCallback(
+        (record: TraceSpanNode) => {
+            setSelectedNode(record.span_id)
+
+            const targetTraceId = String(
+                record.trace_id ||
+                    (record as any)?.invocationIds?.trace_id ||
+                    (record as any)?.node?.trace_id ||
+                    (record as any)?.root?.id ||
+                    (record as any)?.traceId ||
+                    (record as any)?.trace?.id ||
+                    record.span_id ||
+                    "",
+            )
+
+            const targetSpanId =
+                traceTabs === "span" ? String(record.span_id || "") : String(record.span_id || "")
+
+            if (!targetTraceId) {
+                console.warn("TraceDrawer: unable to determine trace id for record", record)
+                return
+            }
+
+            setSelectedTraceId(targetTraceId)
+            setTraceDrawerActiveSpan(targetSpanId || null)
+            setTraceParam(targetTraceId)
+            if (targetSpanId) {
+                setSpanParam(targetSpanId)
+            } else {
+                setSpanParam(undefined)
+            }
         },
-        columnWidth: 48,
-        getCheckboxProps: (record: TraceSpanNode) => ({
-            "data-tour": record.span_id === traces[0]?.span_id ? "trace-checkbox" : undefined,
+        [
+            setSelectedNode,
+            traceTabs,
+            setSelectedTraceId,
+            setTraceDrawerActiveSpan,
+            setTraceParam,
+            setSpanParam,
+        ],
+    )
+
+    const rowSelection = useMemo(
+        () => ({
+            onChange: (keys: Key[]) => {
+                setSelectedRowKeys(keys)
+            },
+            columnWidth: 48,
+            renderCell: (
+                _checked: boolean,
+                record: TraceSpanNode,
+                _index: number,
+                originNode: ReactNode,
+            ) => (
+                <span
+                    data-tour={record.span_id === traces[0]?.span_id ? "trace-checkbox" : undefined}
+                >
+                    {originNode}
+                </span>
+            ),
         }),
-    }
+        [setSelectedRowKeys, traces],
+    )
 
     const showTableLoading = isLoading && traces.length === 0
     const isEmptyState = traces.length === 0 && !isLoading
     const showOnboarding = isNewUser && !hasReceivedTraces
+    const tableBodyHeight = useMemo(
+        () => Math.max(traces.length, 1) * ESTIMATED_TRACE_ROW_HEIGHT,
+        [traces.length],
+    )
 
     useEffect(() => {
         if (onboardingStorageUserId && traces.length > 0 && !hasReceivedTraces) {
             setHasReceivedTraces(true)
         }
     }, [onboardingStorageUserId, traces.length, hasReceivedTraces, setHasReceivedTraces])
-
-    const handleResize =
-        (key: string) =>
-        (_: any, {size}: {size: {width: number}}) => {
-            setColumns((cols) => {
-                return cols.map((col) => ({
-                    ...col,
-                    width: col.key === key ? size.width : col.width,
-                }))
-            })
-        }
-
-    const mergedColumns = useMemo(() => {
-        return filterColumns(columns, editColumns).map((col) => ({
-            ...col,
-            width: col.width || 200,
-            onHeaderCell: (column: TableColumnType<TraceSpanNode[]>) => ({
-                width: column.width,
-                onResize: handleResize(column.key?.toString()!),
-            }),
-        }))
-    }, [columns, editColumns])
 
     return (
         <div className="flex flex-col gap-6">
@@ -230,69 +262,39 @@ const ObservabilityTable = () => {
                 <EmptyObservability showOnboarding={showOnboarding} />
             ) : (
                 <div className="flex flex-col gap-2">
-                    <Table
-                        className="[&_.ant-table-tbody_.ant-table-cell]:align-top"
+                    <InfiniteVirtualTable<TraceSpanNode>
+                        columns={columns}
+                        dataSource={traces}
+                        loadMore={() => {}}
+                        rowKey={(record) => record.span_id || record.key}
+                        bodyHeight={tableBodyHeight}
+                        tableClassName="[&_.ant-table-tbody_.ant-table-cell]:align-top"
+                        containerClassName="w-full"
                         rowSelection={{
-                            type: "checkbox",
-                            columnWidth: 48,
                             selectedRowKeys,
+                            type: "checkbox",
                             ...rowSelection,
                         }}
-                        loading={showTableLoading}
-                        columns={mergedColumns as TableColumnType<TraceSpanNode>[]}
-                        dataSource={traces}
-                        bordered
-                        style={{cursor: "pointer"}}
-                        sticky={{
-                            offsetHeader: 0,
-                            offsetScroll: 0,
+                        resizableColumns
+                        scopeId="observability-traces-table"
+                        columnVisibility={{
+                            storageKey: "observability-table-columns",
+                            defaultHiddenKeys: defaultHiddenColumnKeys,
+                            viewportTrackingEnabled: false,
                         }}
-                        onRow={(record, index) => ({
-                            onClick: () => {
-                                setSelectedNode(record.span_id)
-                                const isSpanView = traceTabs === "span"
-
-                                const targetTraceId = String(
-                                    record.trace_id ||
-                                        (record as any)?.invocationIds?.trace_id ||
-                                        (record as any)?.node?.trace_id ||
-                                        (record as any)?.root?.id ||
-                                        (record as any)?.traceId ||
-                                        (record as any)?.trace?.id ||
-                                        record.span_id ||
-                                        "",
-                                )
-
-                                const targetSpanId = isSpanView
-                                    ? String(record.span_id || "")
-                                    : String(record.span_id || "")
-
-                                if (!targetTraceId) {
-                                    console.warn(
-                                        "TraceDrawer: unable to determine trace id for record",
-                                        record,
-                                    )
-                                    return
-                                }
-
-                                setSelectedTraceId(targetTraceId)
-                                setTraceDrawerActiveSpan(targetSpanId || null)
-                                setTraceParam(targetTraceId)
-                                if (targetSpanId) {
-                                    setSpanParam(targetSpanId)
-                                } else {
-                                    setSpanParam(undefined)
-                                }
+                        tableProps={{
+                            bordered: true,
+                            loading: showTableLoading,
+                            sticky: {
+                                offsetHeader: 0,
+                                offsetScroll: 0,
                             },
-                            "data-tour": index === 0 ? "trace-row" : undefined,
-                        })}
-                        components={{
-                            header: {
-                                cell: ResizableTitle,
-                            },
+                            style: {cursor: "pointer"},
+                            onRow: (record, index) => ({
+                                onClick: () => handleTraceRowClick(record),
+                                "data-tour": index === 0 ? "trace-row" : undefined,
+                            }),
                         }}
-                        pagination={false}
-                        scroll={{x: "max-content"}}
                     />
                     {hasMoreTraces && (
                         <Button

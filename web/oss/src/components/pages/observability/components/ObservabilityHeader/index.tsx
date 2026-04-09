@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
 import {ArrowsClockwiseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
-import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Typography} from "antd"
+import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -31,7 +31,6 @@ import getFilterColumns from "../../assets/getFilterColumns"
 import {ObservabilityHeaderProps} from "../../assets/types"
 import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
-const EditColumns = dynamic(() => import("@/oss/components/Filters/EditColumns"), {ssr: false})
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
 
@@ -128,7 +127,6 @@ const ObservabilityHeader = ({
         selectedRowKeys,
         setSelectedRowKeys,
         setTestsetDrawerData,
-        setEditColumns,
         fetchAnnotations,
         fetchTraces,
         autoRefresh: hookAutoRefresh,
@@ -419,6 +417,53 @@ const ObservabilityHeader = ({
         setSelectedRowKeys([])
     }, [setSelectedRowKeys])
 
+    const handleExportClick = useCallback(() => {
+        if (isExporting) {
+            exportAbortRef.current?.abort()
+            return
+        }
+
+        void onExport()
+    }, [isExporting, onExport])
+
+    const renderTraceSecondaryActions = (size: "small" | "middle" = "middle") => {
+        if (componentType !== "traces") return null
+
+        return (
+            <Space size="small">
+                {canExportData ? (
+                    <Button
+                        type="text"
+                        size={size}
+                        aria-label={isExporting ? "Cancel export" : "Export traces"}
+                        onClick={handleExportClick}
+                        icon={<ExportIcon size={14} />}
+                        disabled={!isExporting && traces.length === 0}
+                    >
+                        {isExporting ? "Cancel export" : "Export"}
+                    </Button>
+                ) : null}
+                <Tooltip
+                    title={selectedRowKeys.length === 0 ? "Select traces to delete" : undefined}
+                >
+                    <span>
+                        <Button
+                            type="text"
+                            size={size}
+                            danger
+                            aria-label="Delete selected traces"
+                            onClick={onDelete}
+                            icon={<TrashIcon size={14} />}
+                            disabled={selectedRowKeys.length === 0}
+                        >
+                            Delete
+                        </Button>
+                    </span>
+                </Tooltip>
+            </Space>
+        )
+    }
+
     return (
         <>
             <section
@@ -502,6 +547,7 @@ const ObservabilityHeader = ({
                                         onItemsAdded: handleQueueItemsAdded,
                                     }}
                                 />
+                                {renderTraceSecondaryActions("middle")}
                             </>
                         ) : null}
                         {isScrolled && componentType === "sessions" && setRealtimeMode ? (
@@ -537,39 +583,6 @@ const ObservabilityHeader = ({
                             </Radio.Group>
                         </Space>
                         <Space>
-                            {canExportData ? (
-                                <Button
-                                    type="text"
-                                    onClick={() => {
-                                        if (isExporting) {
-                                            exportAbortRef.current?.abort()
-                                            return
-                                        }
-
-                                        onExport()
-                                    }}
-                                    icon={<ExportIcon size={14} className="mt-0.5" />}
-                                    disabled={!isExporting && traces.length === 0}
-                                >
-                                    {isExporting ? "Cancel export" : "Export"}
-                                </Button>
-                            ) : null}
-
-                            <EditColumns
-                                columns={columns}
-                                uniqueKey="observability-table-columns"
-                                onChange={(keys) => {
-                                    setEditColumns(keys)
-                                }}
-                            />
-                            <Button
-                                onClick={onDelete}
-                                icon={<TrashIcon size={14} />}
-                                disabled={selectedRowKeys.length === 0}
-                                danger
-                            >
-                                Delete
-                            </Button>
                             <AddActionsDropdown
                                 dataTour="create-testset-button"
                                 testsetAction={{
@@ -583,6 +596,7 @@ const ObservabilityHeader = ({
                                     onItemsAdded: handleQueueItemsAdded,
                                 }}
                             />
+                            {renderTraceSecondaryActions()}
                         </Space>
                     </div>
                 ) : null}

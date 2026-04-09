@@ -4,7 +4,7 @@ import {ColumnsType} from "antd/es/table"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 export interface ObservabilityHeaderProps {
-    columns: ColumnsType<any>
+    columns: ColumnsType<TraceSpanNode>
     componentType: "traces" | "sessions"
     isLoading?: boolean
     onRefresh?: () => void | Promise<void>

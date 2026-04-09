@@ -182,13 +182,6 @@ export const filtersAtom = atom(
 // Table/UI controls -----------------------------------------------------------
 export const selectedTraceIdAtom = atom<string>("")
 export const selectedNodeAtom = atom<string>("")
-export const editColumnsAtomFamily = atomFamily((_tab: ObservabilityTabInfo) =>
-    atom<string[]>(["span_type", "key", "usage", "tag"]),
-)
-export const editColumnsAtom = atom(
-    (get) => get(editColumnsAtomFamily(get(observabilityTabAtom))),
-    (get, set, value: string[]) => set(editColumnsAtomFamily(get(observabilityTabAtom)), value),
-)
 export const selectedRowKeysAtom = atom<Key[]>([])
 export const testsetDrawerDataAtom = atom<TestsetTraceData[]>([])
 export const isAnnotationsSectionOpenAtom = atom<boolean>(true)

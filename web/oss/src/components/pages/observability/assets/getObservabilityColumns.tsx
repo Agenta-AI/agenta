@@ -1,5 +1,6 @@
 import {LastInputMessageCell, SmartCellContent} from "@agenta/ui/cell-renderers"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
+import {ColumnVisibilityMenuTrigger} from "@agenta/ui/table"
 import {Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 
@@ -23,6 +24,33 @@ import UsageCell from "../components/UsageCell"
 
 interface ObservabilityColumnsProps {
     evaluatorSlugs: string[]
+}
+
+const formatEvaluatorHeaderLabel = (slug: string) =>
+    slug
+        .replace(/[_-]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/\b\w/g, (char) => char.toUpperCase())
+
+const collectDefaultHiddenColumnKeys = <T,>(columns: ColumnsType<T>): string[] => {
+    const hiddenKeys = new Set<string>()
+
+    const visit = (cols: ColumnsType<T>) => {
+        cols.forEach((column) => {
+            const key = column.key != null ? String(column.key) : null
+            if (key && (column as {defaultHidden?: boolean}).defaultHidden) {
+                hiddenKeys.add(key)
+            }
+
+            if ("children" in column && Array.isArray(column.children)) {
+                visit(column.children)
+            }
+        })
+    }
+
+    visit(columns)
+    return Array.from(hiddenKeys)
 }
 
 export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsProps) => {
@@ -118,10 +146,10 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             key: "evaluators",
             align: "start",
             children: evaluatorSlugs.map((evaluatorSlug) => ({
-                title: "",
+                title: formatEvaluatorHeaderLabel(evaluatorSlug),
                 key: evaluatorSlug,
                 onHeaderCell: () => ({
-                    style: {display: "none"},
+                    style: {minWidth: 180},
                 }),
                 render: (_, record) => (
                     <EvaluatorMetricsCell
@@ -195,7 +223,25 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
                     showMore: true,
                 }),
         },
+        {
+            title: <ColumnVisibilityMenuTrigger variant="icon" label="Edit columns" />,
+            key: "actions",
+            width: 61,
+            fixed: "right",
+            align: "center",
+            columnVisibilityLocked: true,
+            exportEnabled: false,
+            onHeaderCell: () => ({
+                style: {minWidth: 56},
+            }),
+            render: () => null,
+        },
     ]
 
     return columns
 }
+
+export const getDefaultHiddenObservabilityColumnKeys = ({
+    evaluatorSlugs,
+}: ObservabilityColumnsProps) =>
+    collectDefaultHiddenColumnKeys(getObservabilityColumns({evaluatorSlugs}))

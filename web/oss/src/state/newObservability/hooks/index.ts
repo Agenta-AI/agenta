@@ -9,7 +9,6 @@ import {
     sortAtom,
     selectedTraceIdAtom,
     selectedRowKeysAtom,
-    editColumnsAtom,
     testsetDrawerDataAtom,
     isAnnotationsSectionOpenAtom,
     selectedNodeAtom,
@@ -34,7 +33,6 @@ export const useObservability = () => {
     const [sort, setSort] = useAtom(sortAtom)
     const [selectedTraceId, setSelectedTraceId] = useAtom(selectedTraceIdAtom)
     const [selectedRowKeys, setSelectedRowKeys] = useAtom(selectedRowKeysAtom)
-    const [editColumns, setEditColumns] = useAtom(editColumnsAtom)
     const [testsetDrawerData, setTestsetDrawerData] = useAtom(testsetDrawerDataAtom)
     const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useAtom(
         isAnnotationsSectionOpenAtom,
@@ -130,8 +128,6 @@ export const useObservability = () => {
         limit,
         selectedRowKeys,
         setSelectedRowKeys,
-        editColumns,
-        setEditColumns,
         testsetDrawerData,
         setTestsetDrawerData,
         isAnnotationsSectionOpen,
