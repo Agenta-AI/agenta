@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {resolveOutputSchema} from "@agenta/entities/workflow"
 import {uuidToSpanId} from "@agenta/shared/utils"
 import deepEqual from "fast-deep-equal"
 
@@ -14,11 +15,7 @@ import type {
 const USEABLE_METRIC_TYPES = ["number", "integer", "float", "boolean", "string", "array"]
 
 const getOutputsSchema = (evaluator: EvaluatorDto) => {
-    const schemaOutputs = evaluator.data?.schemas?.outputs
-    if (schemaOutputs && typeof schemaOutputs === "object") {
-        return schemaOutputs
-    }
-    return evaluator.data?.service?.format?.properties?.outputs ?? {}
+    return resolveOutputSchema(evaluator.data as Record<string, unknown> | null | undefined) ?? {}
 }
 
 const inferFieldType = (value: unknown): AnnotationMetricField | null => {

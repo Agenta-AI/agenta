@@ -89,8 +89,12 @@ export {
     isOnlineCapableEvaluator,
     collectEvaluatorCandidates,
     // Output schema utilities
+    resolveInputSchema,
     resolveOutputSchema,
     resolveOutputSchemaProperties,
+    resolveParameters,
+    resolveParametersSchema,
+    resolveScript,
 } from "./core"
 
 // Flag query type

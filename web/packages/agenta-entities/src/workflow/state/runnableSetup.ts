@@ -37,6 +37,12 @@ import type {RequestPayloadData} from "../../runnable/types"
 import {extractVariablesFromConfig} from "../../runnable/utils"
 import type {StoreOptions} from "../../shared"
 import {isLocalDraftId, parseRevisionUri} from "../../shared"
+import {
+    resolveInputSchema,
+    resolveOutputSchema,
+    resolveParameters,
+    resolveParametersSchema,
+} from "../core/schema"
 
 import {buildServiceUrlFromUri, resolveBuiltinAppServiceUrl} from "./helpers"
 import {
@@ -224,7 +230,7 @@ export const deploymentUrlAtomFamily = atomFamily((workflowId: string) =>
 export const inputSchemaAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | null>((get) => {
         const entity = get(workflowEntityAtomFamily(workflowId))
-        return (entity?.data?.schemas?.inputs as Record<string, unknown> | null) ?? null
+        return resolveInputSchema(entity?.data) ?? null
     }),
 )
 
@@ -235,7 +241,7 @@ export const inputSchemaAtomFamily = atomFamily((workflowId: string) =>
 export const outputSchemaAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | null>((get) => {
         const entity = get(workflowEntityAtomFamily(workflowId))
-        return (entity?.data?.schemas?.outputs as Record<string, unknown> | null) ?? null
+        return resolveOutputSchema(entity?.data) ?? null
     }),
 )
 
@@ -246,7 +252,7 @@ export const outputSchemaAtomFamily = atomFamily((workflowId: string) =>
 export const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | null>((get) => {
         const entity = get(workflowEntityAtomFamily(workflowId))
-        return (entity?.data?.schemas?.parameters as Record<string, unknown> | null) ?? null
+        return resolveParametersSchema(entity?.data) ?? null
     }),
 )
 
@@ -256,12 +262,11 @@ export const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
 
 /**
  * Workflow configuration (parameters).
- * Falls back to legacy `data.configuration` field.
  */
 export const configurationAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | null>((get) => {
         const entity = get(workflowBaseEntityAtomFamily(workflowId))
-        return entity?.data?.parameters ?? entity?.data?.configuration ?? null
+        return resolveParameters(entity?.data) ?? null
     }),
 )
 
@@ -375,10 +380,7 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
             const url = entity.data.url
             if (!uri && !url) return null
 
-            const rawParams = (entity.data.parameters ?? entity.data.configuration ?? {}) as Record<
-                string,
-                unknown
-            >
+            const rawParams = (resolveParameters(entity.data) ?? {}) as Record<string, unknown>
             const parameters = flattenEvaluatorConfiguration(rawParams, null)
 
             // Only include interface when invoking by URI (not when using data.url directly)

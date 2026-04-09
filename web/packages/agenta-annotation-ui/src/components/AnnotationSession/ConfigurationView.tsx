@@ -12,7 +12,7 @@ import type {KeyboardEvent, PropsWithChildren} from "react"
 
 import {annotationSessionController} from "@agenta/annotation"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {resolveOutputSchema, resolveParameters, workflowMolecule} from "@agenta/entities/workflow"
 import {EntityDeleteModal} from "@agenta/entity-ui"
 import {Editor} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
@@ -175,75 +175,26 @@ interface ParameterEntry {
     isMultiline: boolean
 }
 
-/** Safely access a nested path on an object */
-function getNestedValue(obj: unknown, ...keys: string[]): unknown {
-    let current: unknown = obj
-    for (const key of keys) {
-        if (!current || typeof current !== "object") return undefined
-        current = (current as Record<string, unknown>)[key]
-    }
-    return current
-}
-
-/** Extract displayable parameters from evaluator data (checks multiple legacy paths) */
+/** Extract displayable parameters from evaluator data. */
 function extractParameters(data: Record<string, unknown> | null | undefined): ParameterEntry[] {
-    if (!data) return []
+    const parameters = resolveParameters(data)
+    if (!parameters) return []
 
-    // Try multiple parameter sources (matching OSS evaluatorDetails.ts pattern)
-    const candidates = [
-        data.parameters,
-        getNestedValue(data, "service", "configuration", "parameters"),
-        getNestedValue(data, "configuration", "parameters"),
-    ]
-
-    for (const source of candidates) {
-        if (!source || typeof source !== "object") continue
-        const entries = Object.entries(source as Record<string, unknown>)
-            .filter(([key, v]) => {
-                if (v === null || v === undefined) return false
-                return !PARAM_KEYS_TO_HIDE.has(key) && !PARAM_KEYS_TO_HIDE.has(key.toLowerCase())
-            })
-            .map(([key, value]) => {
-                const displayValue = stringifyParamValue(value)
-                return {
-                    key,
-                    label: formatParameterLabel(key),
-                    displayValue,
-                    isMultiline: displayValue.includes("\n"),
-                }
-            })
-            .filter((entry) => entry.displayValue.trim().length > 0)
-        if (entries.length > 0) return entries
-    }
-
-    return []
-}
-
-/**
- * Resolve output metrics schema from evaluator data.
- * Checks multiple paths matching the OSS evaluatorDetails.ts pattern:
- *   data.schemas.outputs
- *   data.service.format.properties.outputs
- *   data.service.configuration.outputs
- *   data.configuration.outputs
- */
-function resolveOutputSchema(data: Record<string, unknown> | null | undefined): unknown {
-    if (!data) return null
-    const candidates = [
-        getNestedValue(data, "schemas", "outputs"),
-        getNestedValue(data, "service", "format", "properties", "outputs"),
-        getNestedValue(data, "service", "configuration", "outputs"),
-        getNestedValue(data, "configuration", "outputs"),
-        getNestedValue(data, "service", "configuration", "format", "properties", "outputs"),
-        getNestedValue(data, "configuration", "format", "properties", "outputs"),
-    ]
-    for (const candidate of candidates) {
-        if (candidate && typeof candidate === "object") {
-            const metrics = parseOutputMetrics(candidate)
-            if (metrics.length > 0) return candidate
-        }
-    }
-    return null
+    return Object.entries(parameters)
+        .filter(([key, value]) => {
+            if (value === null || value === undefined) return false
+            return !PARAM_KEYS_TO_HIDE.has(key) && !PARAM_KEYS_TO_HIDE.has(key.toLowerCase())
+        })
+        .map(([key, value]) => {
+            const displayValue = stringifyParamValue(value)
+            return {
+                key,
+                label: formatParameterLabel(key),
+                displayValue,
+                isMultiline: displayValue.includes("\n"),
+            }
+        })
+        .filter((entry) => entry.displayValue.trim().length > 0)
 }
 
 /** Derive evaluator type label from URI (e.g. "agenta:builtin:auto_exact_match:v0" → "Exact Match") */

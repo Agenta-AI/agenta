@@ -6,6 +6,7 @@ import {testsetQueryAtomFamily, type Testset} from "@agenta/entities/testset"
 import {
     fetchWorkflow,
     fetchWorkflowRevisionById,
+    resolveOutputSchemaProperties,
     workflowMolecule,
     workflowsListQueryStateAtom,
 } from "@agenta/entities/workflow"
@@ -248,10 +249,7 @@ export interface EvaluatorReference {
 }
 
 const extractMetricsFromWorkflow = (workflow: any): EvaluatorReferenceMetric[] => {
-    const outputs =
-        workflow?.data?.schemas?.outputs?.properties ??
-        workflow?.data?.service?.format?.properties?.outputs?.properties ??
-        {}
+    const outputs = resolveOutputSchemaProperties(workflow?.data) ?? {}
     return Object.entries(outputs).map(([rawKey, schema]: [string, any]) => {
         const label =
             (typeof schema?.title === "string" && schema.title.trim().length
