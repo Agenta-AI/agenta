@@ -150,31 +150,24 @@ export interface WorkflowQueryFlags {
  * Combines WorkflowServiceInterface + WorkflowServiceConfiguration + legacy fields.
  */
 export const workflowDataSchema = z.object({
-    // WorkflowServiceInterface fields
-    /** Data version string (e.g., "2025.07.14") */
-    version: z.string().nullable().optional(),
     /** Workflow URI (e.g., "agenta:builtin:auto_exact_match:v0") */
     uri: z.string().nullable().optional(),
-    /** Webhook/service URL */
-    url: z.string().nullable().optional(),
-    /** Runtime identifier for code-backed evaluators */
-    runtime: z.string().nullable().optional(),
-    /** Custom headers */
-    headers: z.record(z.string(), z.unknown()).nullable().optional(),
+
     /** JSON Schema definitions for parameters, inputs, and outputs */
     schemas: jsonSchemasSchema,
 
-    // WorkflowServiceConfiguration fields
-    /** Script content for custom code workflows */
-    script: z.string().nullable().optional(),
     /** Configuration parameters */
     parameters: z.record(z.string(), z.unknown()).nullable().optional(),
 
-    // Legacy fields (backward compatibility)
-    /** @deprecated Legacy service configuration */
-    service: z.record(z.string(), z.unknown()).nullable().optional(),
-    /** @deprecated Legacy configuration parameters */
-    configuration: z.record(z.string(), z.unknown()).nullable().optional(),
+    /** Webhook/service URL */
+    url: z.string().nullable().optional(),
+    /** Custom headers */
+    headers: z.record(z.string(), z.unknown()).nullable().optional(),
+
+    /** Script content for custom code workflows */
+    script: z.string().nullable().optional(),
+    /** Runtime identifier for code-backed evaluators */
+    runtime: z.string().nullable().optional(),
 })
 
 export type WorkflowData = z.infer<typeof workflowDataSchema>
