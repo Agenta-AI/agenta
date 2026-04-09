@@ -258,14 +258,6 @@ const CreateEvaluatorDrawer = ({onEvaluatorCreated}: CreateEvaluatorDrawerProps)
         closeDrawer()
     }, [closeDrawer])
 
-    // Initialize playground entity IDs when drawer opens with an entity
-    const setEntityIds = useSetAtom(playgroundController.actions.setEntityIds)
-    useEffect(() => {
-        if (isOpen && entityId) {
-            setEntityIds([entityId])
-        }
-    }, [isOpen, entityId, setEntityIds])
-
     return (
         <EnhancedDrawer
             open={isOpen}
@@ -274,6 +266,7 @@ const CreateEvaluatorDrawer = ({onEvaluatorCreated}: CreateEvaluatorDrawerProps)
             destroyOnHidden
             title={null}
             closable={false}
+            closeOnLayoutClick={false}
             styles={{body: {padding: 0}}}
         >
             {isOpen && entityId && (

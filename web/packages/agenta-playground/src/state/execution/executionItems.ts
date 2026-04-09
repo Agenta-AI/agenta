@@ -1206,15 +1206,6 @@ function buildExecutionItem(
               // When inputValues are provided (e.g. from chain execution),
               // merge them into the raw body's inputs field.
               if (params.inputValues && Object.keys(params.inputValues).length > 0) {
-                  console.debug(
-                      `[executionItems] __rawBody path: merging inputValues for ${params.entityId}`,
-                      {
-                          inputValueKeys: Object.keys(params.inputValues),
-                          inputValues: params.inputValues,
-                          hasDataObj: !!(body.data && typeof body.data === "object"),
-                          bodyKeys: Object.keys(body),
-                      },
-                  )
                   // For workflow invoke payloads with nested `data` structure
                   // (e.g. POST {serviceUrl}/invoke), populate data.inputs
                   // with all input values and data.outputs with the upstream
