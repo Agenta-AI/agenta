@@ -303,12 +303,24 @@ const rowVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
 
         const evaluatorKeys = get(evaluatorExpectedColumnsAtom)
 
-        // Also include columns from actual testcase entity data so that
-        // fields added via the testcase drawer or from evaluator-expected
-        // columns that haven't resolved yet still show up immediately.
-        const testcaseColumns = get(testcaseMolecule.atoms.columns) as {key: string}[] | null
-        const testcaseKeys =
-            testcaseColumns?.map((c) => c.key).filter((k) => !isSystemField(k)) ?? []
+        // In connected mode (testset loaded), include extra columns from
+        // testcase entity data that aren't in the template (e.g. "expected_output").
+        // In local mode, the template's input ports are the sole authority —
+        // testcase data may contain stale keys from a previous template or app.
+        const mode = get(loadableController.selectors.mode(loadableId))
+        const testcaseKeys: string[] = []
+        if (mode === "connected") {
+            const testcaseColumns = get(testcaseMolecule.atoms.columns) as
+                | {key: string}[]
+                | null
+            if (testcaseColumns) {
+                for (const c of testcaseColumns) {
+                    if (!isSystemField(c.key)) {
+                        testcaseKeys.push(c.key)
+                    }
+                }
+            }
+        }
 
         const keySet = new Set(primaryKeys)
         const merged = [...primaryKeys]
