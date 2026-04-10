@@ -81,11 +81,14 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
             withTooltip={withTooltip && !!label}
             className={className}
         >
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
                 {/* Field Tags Display */}
-                <div className="flex flex-wrap gap-2 p-3 rounded-md border border-solid border-[var(--ant-color-border)] bg-[var(--ant-color-bg-container)] min-h-[48px]">
+                <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 rounded-md border border-solid border-[var(--ant-color-border)] bg-[var(--ant-color-bg-container)] min-h-[32px]">
                     <Tooltip title="Aggregate score across all fields (auto-generated)">
-                        <Tag color="success" className="font-mono text-[13px] !m-0 font-medium">
+                        <Tag
+                            color="success"
+                            className="font-mono text-xs !m-0 !leading-tight !py-0.5 !px-1.5"
+                        >
                             aggregate_score
                         </Tag>
                     </Tooltip>
@@ -95,14 +98,14 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                             key={field}
                             closable={!disabled}
                             onClose={() => handleRemoveField(field)}
-                            className="flex items-center font-mono text-[13px] !m-0"
+                            className="flex items-center font-mono text-xs !m-0 !leading-tight !py-0.5 !px-1.5"
                         >
                             {field}
                         </Tag>
                     ))}
 
                     {fields.length === 0 && (
-                        <Text className="text-[var(--ant-color-text-secondary)] text-[13px]">
+                        <Text className="text-[var(--ant-color-text-secondary)] text-xs">
                             Add fields to compare
                         </Text>
                     )}
@@ -112,6 +115,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                 {!disabled && (
                     <div className="flex gap-2">
                         <Input
+                            size="small"
                             className="flex-1 font-mono"
                             placeholder="Add field (e.g., name or user.address.city)"
                             value={inputValue}
@@ -126,7 +130,8 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                             }
                         />
                         <Button
-                            icon={<Plus size={14} />}
+                            size="small"
+                            icon={<Plus size={12} />}
                             onClick={handleAddField}
                             disabled={!inputValue.trim()}
                         >
@@ -136,7 +141,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                 )}
 
                 {/* Helper Text */}
-                <Text type="secondary" className="text-xs">
+                <Text type="secondary" className="text-[11px]">
                     Each field creates a column with value 0 (no match) or 1 (match)
                 </Text>
             </div>

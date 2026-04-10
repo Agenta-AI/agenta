@@ -713,10 +713,15 @@ function PlaygroundConfigSection({
                 return null
             }
 
-            // Simple scalar fields (string, boolean, number) don't need collapsible sections.
-            // Only objects/arrays get section headers. Check the value type.
+            // Simple scalar fields and arrays rendered inline by SchemaPropertyRenderer
+            // don't need collapsible section headers — only plain objects do.
             const fieldValue = parameters[fieldKey]
-            if (fieldValue === null || fieldValue === undefined || typeof fieldValue !== "object") {
+            if (
+                fieldValue === null ||
+                fieldValue === undefined ||
+                typeof fieldValue !== "object" ||
+                Array.isArray(fieldValue)
+            ) {
                 return null
             }
 
@@ -972,9 +977,14 @@ function PlaygroundConfigSection({
                 return null
             }
 
-            // Simple scalar fields render directly without HeightCollapse wrapper
+            // Simple scalar fields and inline arrays render directly without HeightCollapse wrapper
             const fieldValue = parameters[fieldKey]
-            if (fieldValue === null || fieldValue === undefined || typeof fieldValue !== "object") {
+            if (
+                fieldValue === null ||
+                fieldValue === undefined ||
+                typeof fieldValue !== "object" ||
+                Array.isArray(fieldValue)
+            ) {
                 return <div className="px-4 py-1.5">{props.defaultRender()}</div>
             }
 
