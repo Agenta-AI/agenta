@@ -516,9 +516,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             return false
                         }
 
-                        setTimeout(() => {
-                            hydrateRichTextFromControlledValue(pendingValue)
-                        }, 0)
+                        hydrateRichTextFromControlledValue(pendingValue)
 
                         return false
                     },
