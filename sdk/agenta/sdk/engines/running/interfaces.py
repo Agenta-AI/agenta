@@ -21,7 +21,7 @@ def obj(
     }
     if description:
         schema["description"] = description
-    if required:
+    if required is not None:
         schema["required"] = required
     if defs:
         schema["$defs"] = defs
@@ -178,6 +178,7 @@ SCORE_SUCCESS_OUTPUTS_SCHEMA = obj(
         "score": scalar(jtype="number"),
         "success": scalar(jtype="boolean"),
     },
+    required=[],
     additional_properties=False,
 )
 

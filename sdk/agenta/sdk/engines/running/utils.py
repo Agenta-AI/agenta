@@ -786,10 +786,43 @@ def _infer_completion_v0_outputs(
     return schema
 
 
+def _infer_auto_ai_critique_v0_outputs(
+    parameters: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    json_schema = (parameters or {}).get("json_schema") or {}
+    schema = json_schema.get("schema")
+    if not schema or not isinstance(schema, dict):
+        return None
+    return schema
+
+
+def _infer_json_multi_field_match_v0_outputs(
+    parameters: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    fields = (parameters or {}).get("fields") or []
+    if not isinstance(fields, list):
+        return None
+
+    properties: Dict[str, Any] = {"aggregate_score": {"type": "number"}}
+    for field in fields:
+        if isinstance(field, str) and field:
+            properties[field] = {"type": "number"}
+
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": properties,
+        "required": ["aggregate_score"],
+        "additionalProperties": False,
+    }
+
+
 _OUTPUTS_INFERRERS: Dict[str, Callable] = {
     "agenta:builtin:match:v0": _infer_match_v0_outputs,
     "agenta:builtin:llm:v0": _infer_llm_v0_outputs,
     "agenta:builtin:completion:v0": _infer_completion_v0_outputs,
+    "agenta:builtin:auto_ai_critique:v0": _infer_auto_ai_critique_v0_outputs,
+    "agenta:builtin:json_multi_field_match:v0": _infer_json_multi_field_match_v0_outputs,
 }
 
 
