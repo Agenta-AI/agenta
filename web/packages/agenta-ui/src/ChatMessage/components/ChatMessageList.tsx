@@ -27,6 +27,7 @@ import ToolMessageHeader from "./ToolMessageHeader"
 const ChatMessageItem: React.FC<{
     msg: SimpleChatMessage
     index: number
+    editorId: string
     disabled?: boolean
     messageClassName?: string
     placeholder: string
@@ -56,6 +57,7 @@ const ChatMessageItem: React.FC<{
 }> = ({
     msg,
     index,
+    editorId,
     disabled,
     messageClassName,
     placeholder,
@@ -142,7 +144,7 @@ const ChatMessageItem: React.FC<{
             style={getCollapseStyle(isMinimized, 72)}
         >
             <ChatMessageEditor
-                id={`chat-msg-${index}`}
+                id={editorId}
                 role={msg.role}
                 text={textContent}
                 disabled={disabled}
@@ -171,7 +173,7 @@ const ChatMessageItem: React.FC<{
                             "invisible group-hover/item:visible",
                         )}
                     >
-                        <MarkdownToggleButton id={`chat-msg-${index}`} />
+                        <MarkdownToggleButton id={editorId} />
                         {allowFileUpload && !disabled && (
                             <AttachmentButton
                                 onAddImage={(url) => onAddImage(index, url)}
@@ -299,6 +301,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     loadingFallback = "skeleton",
     maxPasteChars,
 }) => {
+    const listInstanceIdRef = useRef(generateKey())
     // Maintain stable React keys for each message position.
     // This prevents React from reusing the wrong component instance
     // when messages are added or removed from the middle of the list.
@@ -417,37 +420,46 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 
     return (
         <div className={cn(flexLayouts.column, gapClasses.sm, className)}>
-            {messages.map((msg, index) => (
-                <ChatMessageItem
-                    key={stableKeys[index]}
-                    msg={msg}
-                    index={index}
-                    disabled={disabled}
-                    messageClassName={messageClassName}
-                    placeholder={placeholder}
-                    isMinimized={minimizedMessages[stableKeys[index]] ?? false}
-                    showControls={showControls}
-                    showRemoveButton={showRemoveButton}
-                    showCopyButton={showCopyButton}
-                    allowFileUpload={allowFileUpload}
-                    enableTokens={enableTokens}
-                    templateFormat={templateFormat}
-                    tokens={tokens}
-                    loadingFallback={loadingFallback}
-                    maxPasteChars={maxPasteChars}
-                    ImagePreview={ImagePreview}
-                    onRoleChange={handleRoleChange}
-                    onTextChange={handleTextChange}
-                    onRemove={handleRemoveMessage}
-                    onAddImage={handleAddImage}
-                    onAddFile={handleAddFile}
-                    onRemoveAttachment={handleRemoveAttachment}
-                    onToggleMinimize={(i) => {
-                        const key = stableKeys[i]
-                        setMinimizedMessages((prev) => ({...prev, [key]: !prev[key]}))
-                    }}
-                />
-            ))}
+            {messages.map((msg, index) => {
+                const rowKey = stableKeys[index]
+                // Scope editor ids to the list instance so markdown-view state,
+                // Lexical namespaces, and other editor-local caches never bleed
+                // across separate prompt/message lists that share the same row index.
+                const editorId = `chat-msg-${listInstanceIdRef.current}-${rowKey}`
+
+                return (
+                    <ChatMessageItem
+                        key={rowKey}
+                        msg={msg}
+                        index={index}
+                        editorId={editorId}
+                        disabled={disabled}
+                        messageClassName={messageClassName}
+                        placeholder={placeholder}
+                        isMinimized={minimizedMessages[rowKey] ?? false}
+                        showControls={showControls}
+                        showRemoveButton={showRemoveButton}
+                        showCopyButton={showCopyButton}
+                        allowFileUpload={allowFileUpload}
+                        enableTokens={enableTokens}
+                        templateFormat={templateFormat}
+                        tokens={tokens}
+                        loadingFallback={loadingFallback}
+                        maxPasteChars={maxPasteChars}
+                        ImagePreview={ImagePreview}
+                        onRoleChange={handleRoleChange}
+                        onTextChange={handleTextChange}
+                        onRemove={handleRemoveMessage}
+                        onAddImage={handleAddImage}
+                        onAddFile={handleAddFile}
+                        onRemoveAttachment={handleRemoveAttachment}
+                        onToggleMinimize={(i) => {
+                            const key = stableKeys[i]
+                            setMinimizedMessages((prev) => ({...prev, [key]: !prev[key]}))
+                        }}
+                    />
+                )
+            })}
             {showControls && !disabled && (
                 <Button
                     variant="outlined"
