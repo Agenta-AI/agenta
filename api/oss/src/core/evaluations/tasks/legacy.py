@@ -5,7 +5,6 @@ from json import dumps
 
 from fastapi import Request
 
-from oss.src.utils.helpers import parse_url
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
 from oss.src.services import llm_apps_service
@@ -57,6 +56,16 @@ from oss.src.core.evaluations.utils import (
 
 
 log = get_module_logger(__name__)
+
+
+def _resolve_runtime_uri(
+    *,
+    revision_data: Optional[Any],
+) -> Optional[str]:
+    if revision_data is None:
+        return None
+
+    return WorkflowsService._get_service_url(revision_data=revision_data)
 
 
 def _extract_root_span(trace: Optional[Any]) -> Optional[Any]:
@@ -412,20 +421,12 @@ async def evaluate_batch_testset(
                 f"Application with id {application_variant.application_id} not found!"
             )
 
-        deployment_uri = None
-        if application_revision.data:
-            deployment_uri = application_revision.data.url or getattr(
-                application_revision.data, "uri", None
-            )
+        uri = _resolve_runtime_uri(revision_data=application_revision.data)
 
-        if not deployment_uri:
+        if not uri:
             raise ValueError(
                 f"No deployment URI found for revision {application_revision_ref.id}!"
             )
-
-        uri = parse_url(url=deployment_uri)
-        if uri is None:
-            raise ValueError(f"Invalid URI for revision {application_revision_ref.id}!")
 
         # fetch evaluators -----------------------------------------------------
         evaluator_references = {step.key: step.references for step in annotation_steps}
@@ -1425,19 +1426,11 @@ async def evaluate_batch_invocation(
                 f"Application with id {application_variant.application_id} not found!"
             )
 
-        deployment_uri = None
-        if application_revision.data:
-            deployment_uri = application_revision.data.url or getattr(
-                application_revision.data, "uri", None
-            )
-        if not deployment_uri:
+        uri = _resolve_runtime_uri(revision_data=application_revision.data)
+        if not uri:
             raise ValueError(
                 f"No deployment URI found for revision {application_revision_ref.id}!"
             )
-
-        uri = parse_url(url=deployment_uri)
-        if uri is None:
-            raise ValueError(f"Invalid URI for revision {application_revision_ref.id}!")
 
         # create scenarios -----------------------------------------------------
         scenarios = await evaluations_service.create_scenarios(

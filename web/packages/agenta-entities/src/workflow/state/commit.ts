@@ -44,6 +44,7 @@ import {
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
     invalidateWorkflowRevisionsByWorkflowCache,
+    getFlatSourceData,
 } from "./store"
 
 // ============================================================================
@@ -55,7 +56,10 @@ import {
  * For evaluator workflows, flattens nested params (prompt.messages → prompt_template)
  * back to the flat format the backend expects.
  */
-function prepareCommitParameters(entity: Workflow): Record<string, unknown> | undefined {
+function prepareCommitParameters(
+    entity: Workflow,
+    flatParams: Record<string, unknown> | null,
+): Record<string, unknown> | undefined {
     const rawParams = stripAgentaMetadataDeep(entity.data?.parameters) as
         | Record<string, unknown>
         | undefined
@@ -63,9 +67,25 @@ function prepareCommitParameters(entity: Workflow): Record<string, unknown> | un
 
     const isEvaluator = entity.flags?.is_evaluator ?? false
     if (isEvaluator) {
-        return flattenEvaluatorConfiguration(rawParams, null)
+        return flattenEvaluatorConfiguration(rawParams, flatParams)
     }
     return rawParams
+}
+
+/**
+ * Prepare schemas for the commit API.
+ * For evaluator workflows the UI applies a display-only nesting transform to
+ * `schemas.parameters` — use the flat server schemas instead so the transform
+ * is never persisted.
+ */
+function prepareCommitSchemas(
+    entity: Workflow,
+    flatSchemas: Workflow["data"] extends {schemas?: infer S} ? S | null : never,
+): Workflow["data"] extends {schemas?: infer S} ? S | undefined : never {
+    if (entity.flags?.is_evaluator) {
+        return (flatSchemas ?? entity.data?.schemas) as never
+    }
+    return entity.data?.schemas as never
 }
 
 // ============================================================================
@@ -224,6 +244,10 @@ export const commitWorkflowRevisionAtom = atom(
             if (!entity) {
                 throw new Error(`No workflow entity found for ${revisionId}`)
             }
+            const flatSource = getFlatSourceData(get, revisionId)
+            const flatParams =
+                (flatSource?.data?.parameters as Record<string, unknown> | null) ?? null
+            const flatSchemas = flatSource?.data?.schemas ?? null
 
             // 2. Call the revision commit endpoint directly.
             // We do NOT use `updateWorkflow` here — that function also fires a
@@ -245,8 +269,8 @@ export const commitWorkflowRevisionAtom = atom(
                 data: {
                     uri: entity.data.uri,
                     url: entity.data.url,
-                    parameters: prepareCommitParameters(entity),
-                    schemas: entity.data.schemas,
+                    parameters: prepareCommitParameters(entity, flatParams),
+                    schemas: prepareCommitSchemas(entity, flatSchemas),
                 },
             })
 
@@ -359,6 +383,10 @@ export const createWorkflowVariantAtom = atom(
             if (!entity) {
                 throw new Error(`No workflow entity found for ${baseRevisionId}`)
             }
+            const flatSource = getFlatSourceData(get, baseRevisionId)
+            const flatParams =
+                (flatSource?.data?.parameters as Record<string, unknown> | null) ?? null
+            const flatSchemas = flatSource?.data?.schemas ?? null
 
             const workflowId = entity.workflow_id ?? entity.id
             if (!entity.data) {
@@ -398,8 +426,8 @@ export const createWorkflowVariantAtom = atom(
                 data: {
                     uri: entity.data.uri,
                     url: entity.data.url,
-                    parameters: prepareCommitParameters(entity),
-                    schemas: entity.data.schemas,
+                    parameters: prepareCommitParameters(entity, flatParams),
+                    schemas: prepareCommitSchemas(entity, flatSchemas),
                 },
             })
 
@@ -495,6 +523,10 @@ export const createWorkflowFromEphemeralAtom = atom(
             if (!entity) {
                 throw new Error(`No workflow entity found for ${revisionId}`)
             }
+            const flatSource = getFlatSourceData(get, revisionId)
+            const flatParams =
+                (flatSource?.data?.parameters as Record<string, unknown> | null) ?? null
+            const flatSchemas = flatSource?.data?.schemas ?? null
 
             // 2. Generate a unique slug (never use the template key)
             const workflowName = name || entity.name || "Workflow"
@@ -515,8 +547,8 @@ export const createWorkflowFromEphemeralAtom = atom(
                 data: entity.data
                     ? {
                           uri: entity.data.uri,
-                          parameters: prepareCommitParameters(entity),
-                          schemas: entity.data.schemas,
+                          parameters: prepareCommitParameters(entity, flatParams),
+                          schemas: prepareCommitSchemas(entity, flatSchemas),
                       }
                     : undefined,
             })

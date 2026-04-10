@@ -347,13 +347,24 @@ class WorkflowsService:
             }
         )
 
-    async def _inject_artifact_flags_into_revision(
+    async def _normalize_revision_for_read(
         self,
         *,
         project_id: UUID,
         revision: WorkflowRevision,
         include_archived: Optional[bool] = True,
     ) -> WorkflowRevision:
+        if revision.data and not revision.data.url and revision.data.uri:
+            path = infer_url_from_uri(revision.data.uri)
+            if path:
+                revision = revision.model_copy(
+                    update={
+                        "data": revision.data.model_copy(
+                            update={"url": env.agenta.services_url.rstrip("/") + path}
+                        )
+                    }
+                )
+
         if revision.version == "0":
             return revision
 
@@ -1049,7 +1060,7 @@ class WorkflowsService:
         _workflow_revision = WorkflowRevision(
             **revision.model_dump(mode="json"),
         )
-        return await self._inject_artifact_flags_into_revision(
+        return await self._normalize_revision_for_read(
             project_id=project_id,
             revision=_workflow_revision,
         )
@@ -1116,7 +1127,7 @@ class WorkflowsService:
         _workflow_revision = WorkflowRevision(
             **revision.model_dump(mode="json"),
         )
-        return await self._inject_artifact_flags_into_revision(
+        return await self._normalize_revision_for_read(
             project_id=project_id,
             revision=_workflow_revision,
             include_archived=include_archived,
@@ -1233,7 +1244,7 @@ class WorkflowsService:
         _workflow_revision = WorkflowRevision(
             **revision.model_dump(mode="json"),
         )
-        return await self._inject_artifact_flags_into_revision(
+        return await self._normalize_revision_for_read(
             project_id=project_id,
             revision=_workflow_revision,
         )
@@ -1288,7 +1299,7 @@ class WorkflowsService:
         _workflow_revisions = []
 
         for revision in revisions:
-            workflow_revision = await self._inject_artifact_flags_into_revision(
+            workflow_revision = await self._normalize_revision_for_read(
                 project_id=project_id,
                 revision=WorkflowRevision(
                     **revision.model_dump(mode="json"),
@@ -1402,7 +1413,7 @@ class WorkflowsService:
             **revision.model_dump(mode="json"),
         )
 
-        return await self._inject_artifact_flags_into_revision(
+        return await self._normalize_revision_for_read(
             project_id=project_id,
             revision=_workflow_revision,
         )
@@ -1432,7 +1443,7 @@ class WorkflowsService:
 
         for revision in revisions:
             _workflow_revisions.append(
-                await self._inject_artifact_flags_into_revision(
+                await self._normalize_revision_for_read(
                     project_id=project_id,
                     revision=WorkflowRevision(
                         **revision.model_dump(mode="json"),
@@ -1465,7 +1476,7 @@ class WorkflowsService:
             **revision.model_dump(mode="json"),
         )
 
-        return await self._inject_artifact_flags_into_revision(
+        return await self._normalize_revision_for_read(
             project_id=project_id,
             revision=_workflow_revision,
         )
@@ -1492,7 +1503,7 @@ class WorkflowsService:
             **revision.model_dump(mode="json"),
         )
 
-        return await self._inject_artifact_flags_into_revision(
+        return await self._normalize_revision_for_read(
             project_id=project_id,
             revision=_workflow_revision,
         )
