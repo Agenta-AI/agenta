@@ -50,9 +50,18 @@ def test_evaluator_catalog_uses_evaluator_metadata_for_parameter_content():
     )
 
     assert template is not None
-    parameters = template["data"]["schemas"]["parameters"]
-    assert parameters["prompt_template"]["type"] == "messages"
-    assert parameters["model"]["default"] == "gpt-4o"
+    template_parameters = template["data"]["parameters"]
+    schema_parameters = template["data"]["schemas"]["parameters"]
+    schema_properties = schema_parameters["properties"]
+
+    assert template_parameters["model"] == "gpt-4o"
+    assert isinstance(template_parameters["prompt_template"], list)
+    assert isinstance(template_parameters["json_schema"], dict)
+
+    assert schema_properties["prompt_template"]["type"] == "array"
+    assert "default" not in schema_properties["prompt_template"]
+    assert schema_properties["model"]["default"] == "gpt-4o"
+    assert "default" not in schema_properties["json_schema"]
 
 
 def test_snippet_catalog_filter_uses_flags():

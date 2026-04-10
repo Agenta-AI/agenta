@@ -577,7 +577,9 @@ function PlaygroundConfigSection({
     )
 
     // ========== COLLAPSE STATE ==========
-    const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
+    const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
+        advanced_settings: true,
+    })
 
     const toggleSection = useCallback((key: string) => {
         setCollapsedSections((prev) => ({...prev, [key]: !prev[key]}))

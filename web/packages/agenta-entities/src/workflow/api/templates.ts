@@ -42,6 +42,7 @@ export interface EvaluatorCatalogTemplate {
             parameters?: Record<string, unknown>
             outputs?: Record<string, unknown>
         }
+        parameters?: Record<string, unknown>
     } | null
 }
 

@@ -79,24 +79,69 @@ export function nestEvaluatorConfiguration(
             | Record<string, Record<string, unknown>>
             | undefined
         if (schemaProps) {
-            const advancedKeys = Object.entries(schemaProps)
-                .filter(([, prop]) => prop["x-advanced"] === true)
-                .map(([key]) => key)
-            if (advancedKeys.length > 0) {
+            // Detect already-nested schema: `nestNonLlmEvaluatorSchema` wraps advanced
+            // fields under an `advanced_settings` object. When re-nesting after a preset
+            // load (flat params + already-nested schema), we use the schema as an
+            // allowlist: primary keys come from top-level props, advanced keys come from
+            // advanced_settings.properties. Keys absent from the schema (e.g. `version`,
+            // which was filtered as hidden during schema nesting) are dropped.
+            const advancedSettingsSchema = schemaProps.advanced_settings as
+                | Record<string, unknown>
+                | undefined
+            const advancedSettingsProps = advancedSettingsSchema?.properties as
+                | Record<string, unknown>
+                | undefined
+            if (advancedSettingsProps) {
+                const allowedPrimary = new Set(
+                    Object.keys(schemaProps).filter((k) => k !== "advanced_settings"),
+                )
+                const allowedAdvanced = new Set(Object.keys(advancedSettingsProps))
                 const primaryData: Record<string, unknown> = {}
                 const advancedData: Record<string, unknown> = {}
                 for (const [key, value] of Object.entries(flat)) {
+                    if (allowedAdvanced.has(key)) {
+                        advancedData[key] = value
+                    } else if (allowedPrimary.has(key)) {
+                        primaryData[key] = value
+                    }
+                    // else: key not in schema (e.g. hidden fields like `version`) — drop it
+                }
+                if (Object.keys(advancedData).length > 0) {
+                    return {...primaryData, advanced_settings: advancedData}
+                }
+                return primaryData
+            }
+
+            // Flat schema path: detect hidden and advanced keys from flat schema props
+            const hiddenKeys = Object.entries(schemaProps)
+                .filter(([, prop]) => prop["x-ag-type"] === "hidden")
+                .map(([key]) => key)
+            const advancedKeys = Object.entries(schemaProps)
+                .filter(
+                    ([, prop]) => prop["x-advanced"] === true || prop["x-ag-ui-advanced"] === true,
+                )
+                .map(([key]) => key)
+            if (hiddenKeys.length > 0 || advancedKeys.length > 0) {
+                const primaryData: Record<string, unknown> = {}
+                const advancedData: Record<string, unknown> = {}
+                for (const [key, value] of Object.entries(flat)) {
+                    if (hiddenKeys.includes(key)) continue
                     if (advancedKeys.includes(key)) {
                         advancedData[key] = value
                     } else {
                         primaryData[key] = value
                     }
                 }
-                // When all fields are advanced (no primary data), keep flat
-                if (Object.keys(primaryData).length === 0) {
-                    return flat
+                // When all visible fields are advanced (no primary), schema also renders them flat
+                // (nestNonLlmEvaluatorSchema uses the same "all-advanced → flat" rule).
+                // Return advancedData directly so hidden keys are dropped.
+                if (Object.keys(primaryData).length === 0 && Object.keys(advancedData).length > 0) {
+                    return advancedData
                 }
-                return {...primaryData, advanced_settings: advancedData}
+                if (Object.keys(advancedData).length > 0) {
+                    return {...primaryData, advanced_settings: advancedData}
+                }
+                return primaryData
             }
         }
 
@@ -238,9 +283,13 @@ function nestNonLlmEvaluatorSchema(
     const advancedProps: Record<string, Record<string, unknown>> = {}
 
     for (const [key, prop] of Object.entries(properties)) {
-        if (prop["x-advanced"] === true) {
-            // Strip x-advanced from the prop since the grouping handles visibility
-            const {["x-advanced"]: _, ...cleanProp} = prop
+        // Skip hidden fields — they are internal and must not appear in the UI
+        if (prop["x-ag-type"] === "hidden") continue
+
+        const isAdvanced = prop["x-advanced"] === true || prop["x-ag-ui-advanced"] === true
+        if (isAdvanced) {
+            // Strip advanced markers from the prop since the grouping handles visibility
+            const {["x-advanced"]: _a, ["x-ag-ui-advanced"]: _b, ...cleanProp} = prop
             advancedProps[key] = cleanProp
         } else {
             primaryProps[key] = prop

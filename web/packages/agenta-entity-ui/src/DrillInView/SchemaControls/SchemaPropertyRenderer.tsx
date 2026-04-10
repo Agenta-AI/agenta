@@ -95,16 +95,35 @@ function getControlType(
     | "grouped_choice"
     | "feedback_config"
     | "fields_tags_editor"
+    | "hidden"
     | "unknown" {
     if (forceType) return forceType
 
-    // Check for x-parameter hints first
+    // Resolve semantic type markers using priority: x-ag-type-ref → x-ag-type → x-parameter
+    const xAgTypeRef = (schema as Record<string, unknown>)?.["x-ag-type-ref"] as string | undefined
+    const xAgType = (schema as Record<string, unknown>)?.["x-ag-type"] as string | undefined
     const xParam = schema?.["x-parameter"] as string | undefined
-    if (xParam === "feedback_config") {
+
+    // Check semantic type hints in priority order
+    if (xAgTypeRef === "hidden" || xAgType === "hidden") {
+        return "hidden"
+    }
+    if (
+        xAgTypeRef === "feedback_config" ||
+        xAgType === "feedback_config" ||
+        xParam === "feedback_config"
+    ) {
         return "feedback_config"
     }
-    if (xParam === "fields_tags_editor") {
+    if (
+        xAgTypeRef === "fields_tags_editor" ||
+        xAgType === "fields_tags_editor" ||
+        xParam === "fields_tags_editor"
+    ) {
         return "fields_tags_editor"
+    }
+    if (xAgTypeRef === "code" || xAgType === "code") {
+        return "code"
     }
 
     // When schema is null, fall back to value-based detection
@@ -129,16 +148,19 @@ function getControlType(
     if (!resolvedSchema) return "text"
 
     // Check for prompt objects (with messages array) - must be first
+    // isPromptSchema already checks x-ag-type-ref: "prompt-template"
     if (isPromptSchema(resolvedSchema)) {
         return "prompt"
     }
 
     // Check for grouped choices (e.g., model selection) - must be before enum check
+    // hasGroupedChoices already checks x-ag-type: "grouped_choice"
     if (hasGroupedChoices(resolvedSchema)) {
         return "grouped_choice"
     }
 
     // Check for messages array (chat messages) - must be before generic array check
+    // isMessagesSchema already checks x-ag-type: "messages"
     if (isMessagesSchema(resolvedSchema)) {
         return "messages"
     }
@@ -152,7 +174,7 @@ function getControlType(
         return "enum"
     }
 
-    // Check schema type
+    // Fall back to JSON Schema type
     switch (resolvedSchema.type) {
         case "boolean":
             return "boolean"
@@ -162,7 +184,7 @@ function getControlType(
             return "number"
 
         case "string": {
-            // Check for code editor hint
+            // Check for code editor hint (legacy x-parameters.code)
             const xParams = schema?.["x-parameters"] as SchemaProperty["x-parameters"]
             if (xParams?.code === true) {
                 return "code"
@@ -483,6 +505,9 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                     </Typography.Text>
                 </div>
             )
+
+        case "hidden":
+            return null
 
         case "unknown":
         default:

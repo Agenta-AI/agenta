@@ -16,6 +16,7 @@ from agenta.sdk.engines.running.utils import (
     infer_flags_from_data,
     infer_url_from_uri,
     infer_outputs_schema,
+    parse_uri,
     retrieve_interface,
 )
 from agenta.sdk.engines.tracing.propagation import inject
@@ -1315,11 +1316,13 @@ class WorkflowsService:
     ) -> Optional[WorkflowRevision]:
         data = workflow_revision_commit.data
         if data and data.uri and not data.url:
-            path = infer_url_from_uri(data.uri)
-            if path:
-                data = data.model_copy(
-                    update={"url": env.agenta.services_url.rstrip("/") + path}
-                )
+            _, kind, _, _ = parse_uri(data.uri)
+            if kind != "builtin":
+                path = infer_url_from_uri(data.uri)
+                if path:
+                    data = data.model_copy(
+                        update={"url": env.agenta.services_url.rstrip("/") + path}
+                    )
 
         if data and data.uri:
             interface = retrieve_interface(data.uri)

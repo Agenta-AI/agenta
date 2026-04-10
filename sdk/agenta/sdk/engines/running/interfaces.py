@@ -739,8 +739,7 @@ auto_webhook_test_v0_interface = WorkflowRevisionData(
             properties={
                 "requires_llm_api_keys": ag_field(
                     base=scalar(jtype="boolean", default=False),
-                    x_ag_type="bool",
-                    x_ag_ui_advanced=True,
+                    x_ag_type="hidden",
                 ),
                 "webhook_url": ag_field(base=scalar(jtype="string"), x_ag_type="text"),
                 "correct_answer_key": ag_field(
@@ -764,8 +763,7 @@ auto_custom_code_run_v0_interface = WorkflowRevisionData(
             properties={
                 "requires_llm_api_keys": ag_field(
                     base=scalar(jtype="boolean", default=False),
-                    x_ag_type="bool",
-                    x_ag_ui_advanced=True,
+                    x_ag_type="hidden",
                 ),
                 "code": ag_field(base=scalar(jtype="string"), x_ag_type="code"),
                 "runtime": ag_field(

@@ -177,12 +177,18 @@ export async function createAppFromTemplate({
         uri = template.data?.uri
         schemas = template.data?.schemas as Record<string, unknown> | undefined
 
-        // Extract and clean default parameters from the template schema
-        const parametersSchema = template.data?.schemas?.parameters as
-            | Record<string, unknown>
-            | undefined
-        const rawDefaults = extractDefaultsFromSchema(parametersSchema)
-        defaultParameters = cleanupDefaultParameters(rawDefaults)
+        // Prefer explicit catalog defaults from data.parameters.
+        // Fall back to primitive schema defaults when parameters are absent.
+        const explicitDefaults = template.data?.parameters as Record<string, unknown> | undefined
+        if (explicitDefaults && Object.keys(explicitDefaults).length > 0) {
+            defaultParameters = cleanupDefaultParameters(explicitDefaults)
+        } else {
+            const parametersSchema = template.data?.schemas?.parameters as
+                | Record<string, unknown>
+                | undefined
+            const rawDefaults = extractDefaultsFromSchema(parametersSchema)
+            defaultParameters = cleanupDefaultParameters(rawDefaults)
+        }
     }
 
     onConfiguring?.()
