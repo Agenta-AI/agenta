@@ -1,10 +1,10 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Button, Spin} from "antd"
+import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
+import type {TableFeaturePagination, TableScopeConfig} from "@agenta/ui/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {SessionDrawer} from "@/oss/components/SharedDrawers/SessionDrawer"
 import {isNewUserAtom} from "@/oss/lib/onboarding"
 import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
@@ -21,10 +21,17 @@ const ObservabilityHeader = dynamic(() => import("../../components/Observability
     ssr: false,
 })
 
+const SESSIONS_PAGE_SIZE = 20
+
+const tableScope: TableScopeConfig = {
+    scopeId: "sessions",
+    pageSize: SESSIONS_PAGE_SIZE,
+    columnVisibilityStorageKey: "observability-sessions-table-columns",
+}
+
 /**
  * Next iteration plan:
  * - Add infinite scroll for spans query
- * - Replace EnhancedTable with InfiniteVirtualTable
  * - For Session drawer add infinite scroll for spans
  */
 
@@ -33,15 +40,15 @@ const SessionsTable: React.FC = () => {
         isLoading,
         sessionIds,
         sessionCount,
-        fetchMoreSessions,
-        hasMoreSessions,
-        isFetchingMore,
         refetchSessions,
         refetchSessionSpans,
         realtimeMode,
         setRealtimeMode,
         autoRefresh,
         setAutoRefresh,
+        fetchMoreSessions,
+        hasMoreSessions,
+        isFetchingMore,
     } = useSessions()
 
     const isNewUser = useAtomValue(isNewUserAtom)
@@ -58,11 +65,6 @@ const SessionsTable: React.FC = () => {
         }
     }, [onboardingStorageUserId, sessionCount, hasReceivedSessions, setHasReceivedSessions])
 
-    const handleLoadMore = useCallback(() => {
-        if (isFetchingMore || !hasMoreSessions) return
-        fetchMoreSessions().catch((error) => console.error("Failed to fetch more sessions", error))
-    }, [fetchMoreSessions, hasMoreSessions, isFetchingMore])
-
     const columns = useMemo(() => getSessionColumns(), [])
 
     const data: SessionRow[] = useMemo(
@@ -73,8 +75,6 @@ const SessionsTable: React.FC = () => {
             })),
         [sessionIds],
     )
-
-    const loadingFirstPage = isLoading && sessionIds.length === 0
 
     const handleRefresh = useCallback(async () => {
         await Promise.all([refetchSessions(), refetchSessionSpans()])
@@ -92,6 +92,25 @@ const SessionsTable: React.FC = () => {
         return () => clearInterval(intervalId)
     }, [autoRefresh, handleRefresh])
 
+    // Build pagination object expected by InfiniteVirtualTableFeatureShell
+    const pagination: TableFeaturePagination<SessionRow> = useMemo(
+        () => ({
+            rows: data,
+            loadNextPage: () => fetchMoreSessions(),
+            resetPages: () => {},
+            paginationInfo: {
+                hasMore: hasMoreSessions,
+                nextCursor: null,
+                nextOffset: null,
+                isFetching: isLoading || isFetchingMore,
+                totalCount: sessionCount,
+            },
+        }),
+        [data, fetchMoreSessions, hasMoreSessions, isLoading, isFetchingMore, sessionCount],
+    )
+
+    const isEmptyState = sessionIds.length === 0 && !isLoading
+
     return (
         <div className="flex flex-col gap-6">
             <ObservabilityHeader
@@ -106,45 +125,28 @@ const SessionsTable: React.FC = () => {
                 refreshTrigger={refreshTrigger}
             />
 
-            {sessionIds.length === 0 && !isLoading ? (
+            {isEmptyState ? (
                 <EmptySessions showOnboarding={showOnboarding} />
             ) : (
-                <div className="flex flex-col gap-2">
-                    <EnhancedTable<SessionRow>
-                        uniqueKey="observability-sessions-table"
-                        className="[&_.ant-table-tbody_.ant-table-cell]:align-top"
-                        rowKey="session_id"
-                        loading={loadingFirstPage}
-                        columns={columns}
-                        dataSource={data}
-                        onRow={(record) => ({
+                <InfiniteVirtualTableFeatureShell<SessionRow>
+                    tableScope={tableScope}
+                    columns={columns}
+                    rowKey="session_id"
+                    pagination={pagination}
+                    autoHeight={false}
+                    resizableColumns
+                    enableExport={false}
+                    useSettingsDropdown={false}
+                    className="[&_.ant-table-tbody_.ant-table-cell]:align-top"
+                    tableProps={{
+                        bordered: true,
+                        loading: isLoading && sessionIds.length === 0,
+                        onRow: (record) => ({
                             onClick: () => openDrawer({sessionId: record.session_id}),
                             style: {cursor: "pointer"},
-                        })}
-                        pagination={false}
-                    />
-
-                    {/* Hide load more button in realtime mode (latest activity shows fixed LIMIT items) */}
-                    {hasMoreSessions && !loadingFirstPage && !realtimeMode ? (
-                        <div className="flex justify-center py-2">
-                            <Button
-                                onClick={handleLoadMore}
-                                disabled={isFetchingMore}
-                                type="text"
-                                size="large"
-                            >
-                                {isFetchingMore ? (
-                                    <span>
-                                        <Spin size="small" className="mr-2" />
-                                        Loading…
-                                    </span>
-                                ) : (
-                                    "Click here to load more"
-                                )}
-                            </Button>
-                        </div>
-                    ) : null}
-                </div>
+                        }),
+                    }}
+                />
             )}
             <SessionDrawer />
         </div>

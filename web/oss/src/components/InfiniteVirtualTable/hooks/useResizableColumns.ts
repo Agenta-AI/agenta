@@ -1,9 +1,8 @@
 import {useCallback, useMemo, useRef, useState, type HTMLAttributes} from "react"
 
+import {ResizableTitle} from "@agenta/ui/table"
 import type {ColumnsType, ColumnType} from "antd/es/table"
 import {useAtom} from "jotai"
-
-import {ResizableTitle} from "@/oss/components/EnhancedUIs/Table/assets/CustomCells"
 
 import {getColumnWidthsAtom} from "../atoms/columnWidths"
 

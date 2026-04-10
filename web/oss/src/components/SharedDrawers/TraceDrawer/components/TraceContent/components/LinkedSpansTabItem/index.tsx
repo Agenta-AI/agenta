@@ -1,10 +1,9 @@
 import {useCallback, useMemo} from "react"
 
 import {CopyTooltip as EnhancedTooltip} from "@agenta/ui/copy-tooltip"
-import {Tag, Typography} from "antd"
+import {Table, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {getObservabilityColumns} from "@/oss/components/pages/observability/assets/getObservabilityColumns"
 import {
     LinkedSpanRow,
@@ -122,13 +121,12 @@ const LinkedSpansTabItem = ({isActive: _isActive}: LinkedSpansTabItemProps) => {
     }
 
     return (
-        <EnhancedTable
+        <Table
             loading={loading}
             rowKey={(record) => record.key || `${record.trace_id}-${record.span_id}`}
             columns={filteredColumns}
             dataSource={linkedSpans}
             scroll={{x: "max-content"}}
-            uniqueKey="trace-drawer-linked-spans"
             onRow={(record) => ({
                 onClick: () => {
                     navigateToLink(record)
