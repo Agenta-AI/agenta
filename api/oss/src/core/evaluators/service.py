@@ -1025,6 +1025,12 @@ class SimpleEvaluatorsService:
                     **inferred_schemas,
                 }
 
+            # Builtins have no meaningful stored URL —
+            # the URL is derived at invocation time from the URI via infer_url_from_uri.
+            # Explicitly clear any URL passed in the request to avoid persisting
+            # environment-specific values (e.g. http://localhost/services/...).
+            existing_data_dict.pop("url", None)
+
         return SimpleEvaluatorData(
             **{
                 **existing_data_dict,

@@ -1248,6 +1248,7 @@ export interface WorkflowCatalogTemplate {
             inputs?: Record<string, unknown>
             outputs?: Record<string, unknown>
         }
+        parameters?: Record<string, unknown>
     } | null
     presets?: WorkflowCatalogPreset[] | null
 }

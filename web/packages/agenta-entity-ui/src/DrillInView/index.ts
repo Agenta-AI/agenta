@@ -237,6 +237,9 @@ export {
     ObjectSchemaControl,
     CollapsibleObjectControl,
     SchemaPropertyRenderer,
+    // Context providers
+    FieldsDetectionProvider,
+    useFieldsDetection,
     // Utilities
     resolveAnyOfSchema,
     hasGroupedChoices,
@@ -273,4 +276,5 @@ export type {
     ToolFunction,
     ObjectSchemaControlProps,
     SchemaPropertyRendererProps,
+    FieldsDetectionContextValue,
 } from "./SchemaControls"

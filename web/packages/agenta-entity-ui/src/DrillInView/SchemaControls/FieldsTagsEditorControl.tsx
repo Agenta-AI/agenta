@@ -15,8 +15,10 @@ import {memo, useCallback, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {LabeledField} from "@agenta/ui/components/presentational"
-import {Plus} from "@phosphor-icons/react"
+import {MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import {Button, Input, Tag, Tooltip, Typography} from "antd"
+
+import {useFieldsDetection} from "./FieldsDetectionContext"
 
 const {Text} = Typography
 
@@ -43,6 +45,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
 }: FieldsTagsEditorControlProps) {
     const [inputValue, setInputValue] = useState("")
     const fields = value ?? []
+    const {detectFieldsFromTestcase, hasTestcaseData} = useFieldsDetection()
 
     const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
@@ -56,6 +59,19 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
         onChange([...fields, trimmed])
         setInputValue("")
     }, [inputValue, fields, onChange])
+
+    const handleDetectFromTestcase = useCallback(() => {
+        if (!detectFieldsFromTestcase) return
+        const detected = detectFieldsFromTestcase()
+        if (!detected || detected.length === 0) return
+        // Merge detected fields with existing, avoiding duplicates and aggregate_score
+        const existing = new Set(fields)
+        existing.add("aggregate_score")
+        const newFields = detected.filter((f) => !existing.has(f))
+        if (newFields.length > 0) {
+            onChange([...fields, ...newFields])
+        }
+    }, [detectFieldsFromTestcase, fields, onChange])
 
     const handleRemoveField = useCallback(
         (fieldToRemove: string) => {
@@ -81,11 +97,14 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
             withTooltip={withTooltip && !!label}
             className={className}
         >
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
                 {/* Field Tags Display */}
-                <div className="flex flex-wrap gap-2 p-3 rounded-md border border-solid border-[var(--ant-color-border)] bg-[var(--ant-color-bg-container)] min-h-[48px]">
+                <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5 rounded-md border border-solid border-[var(--ant-color-border)] bg-[var(--ant-color-bg-container)] min-h-[32px]">
                     <Tooltip title="Aggregate score across all fields (auto-generated)">
-                        <Tag color="success" className="font-mono text-[13px] !m-0 font-medium">
+                        <Tag
+                            color="success"
+                            className="font-mono text-xs !m-0 !leading-tight !py-0.5 !px-1.5"
+                        >
                             aggregate_score
                         </Tag>
                     </Tooltip>
@@ -95,14 +114,14 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                             key={field}
                             closable={!disabled}
                             onClose={() => handleRemoveField(field)}
-                            className="flex items-center font-mono text-[13px] !m-0"
+                            className="flex items-center font-mono text-xs !m-0 !leading-tight !py-0.5 !px-1.5"
                         >
                             {field}
                         </Tag>
                     ))}
 
                     {fields.length === 0 && (
-                        <Text className="text-[var(--ant-color-text-secondary)] text-[13px]">
+                        <Text className="text-[var(--ant-color-text-secondary)] text-xs">
                             Add fields to compare
                         </Text>
                     )}
@@ -112,6 +131,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                 {!disabled && (
                     <div className="flex gap-2">
                         <Input
+                            size="small"
                             className="flex-1 font-mono"
                             placeholder="Add field (e.g., name or user.address.city)"
                             value={inputValue}
@@ -126,7 +146,8 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                             }
                         />
                         <Button
-                            icon={<Plus size={14} />}
+                            size="small"
+                            icon={<Plus size={12} />}
                             onClick={handleAddField}
                             disabled={!inputValue.trim()}
                         >
@@ -135,10 +156,24 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                     </div>
                 )}
 
-                {/* Helper Text */}
-                <Text type="secondary" className="text-xs">
-                    Each field creates a column with value 0 (no match) or 1 (match)
-                </Text>
+                {/* Helper text + Detect from testcase button */}
+                <div className="flex items-start justify-between gap-3">
+                    <Text type="secondary" className="text-[11px] pt-0.5">
+                        Each field creates a column with value 0 (no match) or 1 (match)
+                    </Text>
+                    {!disabled && detectFieldsFromTestcase && (
+                        <Button
+                            size="small"
+                            type="default"
+                            icon={<MagnifyingGlass size={12} />}
+                            onClick={handleDetectFromTestcase}
+                            disabled={!hasTestcaseData}
+                            className="shrink-0 text-xs"
+                        >
+                            Detect from testcase
+                        </Button>
+                    )}
+                </div>
             </div>
         </LabeledField>
     )

@@ -1,4 +1,5 @@
 from agenta.sdk.engines.running.interfaces import (
+    auto_custom_code_run_v0_interface,
     chat_v0_interface,
     completion_v0_interface,
     match_v0_interface,
@@ -91,3 +92,9 @@ def test_match_v0_interface_exposes_recursive_matchers_parameters_schema():
     assert root["success"]["enum"] == ["all", "any", "threshold"]
     assert root["success"]["default"] == "threshold"
     assert root["threshold"]["default"] == 1.0
+
+
+def test_score_success_outputs_preserve_empty_required_list():
+    outputs = auto_custom_code_run_v0_interface.schemas.outputs
+
+    assert outputs["required"] == []

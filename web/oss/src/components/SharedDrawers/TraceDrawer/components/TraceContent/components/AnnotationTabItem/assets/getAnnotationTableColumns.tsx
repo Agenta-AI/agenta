@@ -62,12 +62,12 @@ export const getAnnotationTableColumns = (
                 key: `metrics-${reference}-${metricKey}`,
                 onHeaderCell: () => ({style: {minWidth: 160}}),
                 render: (_: any, record: any) => {
-                    if (!record.data?.outputs?.metrics || !record.data?.outputs?.extra) {
+                    const value = record.data?.outputs?.metrics?.[metricKey]?.value
+                    const extraValue = record.data?.outputs?.extra?.[metricKey]?.value
+
+                    if (value === undefined && extraValue === undefined) {
                         return <span className="text-gray-500">–</span>
                     }
-
-                    const value = record.data.outputs.metrics[metricKey]?.value
-                    const extraValue = record.data.outputs.extra[metricKey]?.value
 
                     return value !== undefined ? (
                         typeof value === "boolean" ? (

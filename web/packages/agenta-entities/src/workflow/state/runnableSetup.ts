@@ -51,6 +51,7 @@ import {
     workflowEntityAtomFamily,
     workflowIsDirtyAtomFamily,
     workflowLocalServerDataAtomFamily,
+    getFlatSourceData,
 } from "./store"
 
 // Re-export for external consumers
@@ -381,7 +382,10 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
             if (!uri && !url) return null
 
             const rawParams = (resolveParameters(entity.data) ?? {}) as Record<string, unknown>
-            const parameters = flattenEvaluatorConfiguration(rawParams, null)
+            const flatSource = getFlatSourceData(get, workflowId)
+            const flatParams =
+                (flatSource?.data?.parameters as Record<string, unknown> | null) ?? null
+            const parameters = flattenEvaluatorConfiguration(rawParams, flatParams)
 
             // Only include interface when invoking by URI (not when using data.url directly)
             const iface = uri && !url ? {uri} : undefined

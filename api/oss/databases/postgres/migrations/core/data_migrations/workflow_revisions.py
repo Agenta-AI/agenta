@@ -448,7 +448,7 @@ def upgrade_workflow_revisions(session: Connection) -> None:
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET data = (data::jsonb - 'script' - 'runtime' - 'service' - 'configuration')::json
+        SET data = (data::jsonb - 'url' - 'headers' - 'script' - 'runtime' - 'service' - 'configuration')::json
         WHERE data IS NOT NULL
           AND data::jsonb ->> 'uri' = 'agenta:builtin:auto_webhook_test:v0'
     """)
@@ -457,19 +457,7 @@ def upgrade_workflow_revisions(session: Connection) -> None:
     session.execute(
         text("""
         UPDATE workflow_revisions
-        SET data = (
-          (data::jsonb - 'url' - 'headers' - 'script' - 'service' - 'configuration')
-          || CASE
-               WHEN jsonb_typeof(data::jsonb -> 'script') = 'object' THEN
-                 jsonb_build_object(
-                   'runtime', data::jsonb -> 'script' -> 'runtime',
-                   'script',  data::jsonb -> 'script' -> 'content'
-                 )
-               WHEN data::jsonb -> 'script' IS NOT NULL THEN
-                 jsonb_build_object('script', data::jsonb -> 'script')
-               ELSE '{}'::jsonb
-             END
-        )::json
+        SET data = (data::jsonb - 'url' - 'headers' - 'script' - 'runtime' - 'service' - 'configuration')::json
         WHERE data IS NOT NULL
           AND data::jsonb ->> 'uri' = 'agenta:builtin:auto_custom_code_run:v0'
     """)

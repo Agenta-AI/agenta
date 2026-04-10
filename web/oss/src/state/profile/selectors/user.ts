@@ -5,13 +5,18 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import Router from "next/router"
 
 import {User} from "@/oss/lib/Types"
-import {fetchProfile} from "@/oss/services/api"
+import {fetchProfile, getJWT} from "@/oss/services/api"
 
 import {sessionExistsAtom} from "../../session"
 
 export const profileQueryAtom = atomWithQuery<User | null>((get) => ({
     queryKey: ["profile"],
     queryFn: async () => {
+        const jwt = await getJWT()
+        if (!jwt) {
+            return null
+        }
+
         try {
             const res = await fetchProfile()
             return (res?.data as User) ?? null
@@ -26,6 +31,8 @@ export const profileQueryAtom = atomWithQuery<User | null>((get) => ({
         Router.replace("/auth")
         return false
     },
+    retry: 5,
+    retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
     experimental_prefetchInRender: true,
     enabled: get(sessionExistsAtom),
 }))

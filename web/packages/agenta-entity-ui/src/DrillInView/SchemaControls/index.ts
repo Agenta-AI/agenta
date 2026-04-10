@@ -96,3 +96,10 @@ export {
 
 export {validateConfigAgainstSchema} from "./schemaValidator"
 export type {SchemaValidationError, SchemaValidationResult} from "./schemaValidator"
+
+// ============================================================================
+// CONTEXT PROVIDERS
+// ============================================================================
+
+export {FieldsDetectionProvider, useFieldsDetection} from "./FieldsDetectionContext"
+export type {FieldsDetectionContextValue} from "./FieldsDetectionContext"

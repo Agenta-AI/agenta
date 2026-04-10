@@ -138,11 +138,38 @@ async def get_default_workspace_id(user_id: str) -> str:
     async with engine.core_session() as session:
         result = await session.execute(
             select(WorkspaceMemberDB)
-            .filter_by(user_id=uuid.UUID(user_id), role=WorkspaceRole.OWNER)
-            .options(load_only(WorkspaceMemberDB.workspace_id))  # type: ignore
+            .filter_by(user_id=uuid.UUID(user_id))
+            .options(  # type: ignore
+                load_only(
+                    WorkspaceMemberDB.workspace_id,
+                    WorkspaceMemberDB.role,
+                    WorkspaceMemberDB.created_at,
+                )
+            )
         )
-        member_in_workspace = result.scalars().first()
-        return str(member_in_workspace.workspace_id)
+        memberships = list(result.scalars().all())
+
+        if not memberships:
+            raise NoResultFound(f"No workspace membership found for user {user_id}")
+
+        owner_membership = next(
+            (
+                membership
+                for membership in memberships
+                if membership.role == WorkspaceRole.OWNER
+            ),
+            None,
+        )
+        if owner_membership is not None:
+            return str(owner_membership.workspace_id)
+
+        memberships.sort(
+            key=lambda membership: (
+                membership.created_at or datetime.min.replace(tzinfo=timezone.utc),
+                str(membership.workspace_id),
+            )
+        )
+        return str(memberships[0].workspace_id)
 
 
 async def get_organization_workspaces(organization_id: str):

@@ -83,6 +83,7 @@ import {
     workflowEntityAtomFamily,
     workflowLocalServerDataAtomFamily,
     workflowIsDirtyAtomFamily,
+    getFlatSourceData,
     workflowIsEphemeralAtomFamily,
     workflowServerDataSelectorFamily,
     updateWorkflowDraftAtom,
@@ -576,7 +577,8 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
                     break
             }
 
-            if (meta.advanced === true) prop["x-advanced"] = true
+            if (meta["x-ag-ui-advanced"] === true || meta.advanced === true)
+                prop["x-advanced"] = true
 
             schemaProperties[key] = prop
         }
@@ -783,16 +785,17 @@ const serverConfigurationAtomFamily = atomFamily((workflowId: string) =>
 const updateConfigurationAtom = atom(
     null,
     (get, set, workflowId: string, params: Record<string, unknown>) => {
-        // For evaluator workflows, flatten nested config back to flat format
-        // IMPORTANT: Use pure server data, NOT merged entity data
-        const serverData = get(workflowServerDataSelectorFamily(workflowId))
-        const isEvaluator = serverData?.flags?.is_evaluator ?? false
-        const finalParams = isEvaluator
-            ? flattenEvaluatorConfiguration(
-                  params,
-                  (serverData?.data?.parameters as Record<string, unknown> | null) ?? null,
-              )
-            : params
+        // For evaluator workflows, flatten nested config back to flat format.
+        // Use flat source data (local-first, server fallback) as the baseline
+        // for hidden-field restoration — never use the display-transformed entity.
+        // NOTE: Use flatSource (local-first) for evaluator detection, not
+        // workflowServerDataSelectorFamily which returns null for ephemeral
+        // evaluators created from templates — causing flatten to be skipped
+        // and advanced_settings to vanish on re-nesting.
+        const flatSource = getFlatSourceData(get, workflowId)
+        const isEvaluator = flatSource?.flags?.is_evaluator ?? false
+        const flatParams = (flatSource?.data?.parameters as Record<string, unknown> | null) ?? null
+        const finalParams = isEvaluator ? flattenEvaluatorConfiguration(params, flatParams) : params
 
         set(updateWorkflowDraftAtom, workflowId, {
             data: {parameters: finalParams},

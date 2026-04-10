@@ -14,7 +14,7 @@
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {createBatchFetcher} from "@agenta/shared/utils"
 import isEqual from "fast-deep-equal"
-import {atom} from "jotai"
+import {atom, type Getter} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
@@ -1726,6 +1726,23 @@ export const workflowServerDataSelectorFamily = atomFamily((workflowId: string) 
         return query.data ?? null
     }),
 )
+
+/**
+ * Retrieve flat (untransformed) source data for a workflow entity.
+ *
+ * Prefers local data (covers ephemeral/template-backed entities) and falls
+ * back to the server query result (covers persisted revisions).
+ *
+ * The entity returned by `workflowEntityAtomFamily` has display transforms
+ * applied (nested schemas/params for evaluators). Write boundaries and
+ * invocation payload builders must use this flat source instead to avoid
+ * persisting or sending UI-only nesting.
+ */
+export function getFlatSourceData(get: Getter, revisionId: string): Workflow | null {
+    const localData = get(workflowLocalServerDataAtomFamily(revisionId))
+    const serverData = get(workflowServerDataSelectorFamily(revisionId))
+    return (localData?.data?.parameters ? localData : serverData) ?? localData ?? serverData
+}
 
 /**
  * Create a local (browser-only) draft by cloning a workflow revision.
