@@ -851,7 +851,6 @@ _SCORE_AND_SUCCESS_OUTPUT_SCHEMA = {
         "score": {"type": "number"},
         "success": {"type": "boolean"},
     },
-    "required": [],
     "additionalProperties": False,
 }
 

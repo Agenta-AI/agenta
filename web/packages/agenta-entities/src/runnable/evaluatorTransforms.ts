@@ -199,11 +199,11 @@ export function flattenEvaluatorConfiguration(
     if (nested.advanced_settings && !nested.prompt) {
         const {advanced_settings, ...rest} = nested
         const advancedData = advanced_settings as Record<string, unknown>
-        return {...rest, ...advancedData}
+        return {...(originalFlat ?? {}), ...rest, ...advancedData}
     }
 
     const prompt = nested.prompt as Record<string, unknown> | undefined
-    if (!prompt || !prompt.messages) return nested
+    if (!prompt || !prompt.messages) return {...(originalFlat ?? {}), ...nested}
 
     const llmConfig = (prompt.llm_config ?? prompt.llmConfig) as Record<string, unknown> | undefined
 

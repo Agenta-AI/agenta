@@ -694,18 +694,8 @@ async def auto_webhook_test_v0(
             got=webhook_url,
         ) from exc
 
-    if "correct_answer_key" not in parameters:
-        raise MissingConfigurationParameterV0Error(path="correct_answer_key")
-
-    correct_answer_key = str(parameters["correct_answer_key"])
-
     if inputs is None or not isinstance(inputs, dict):
         raise InvalidInputsV0Error(expected="dict", got=inputs)
-
-    if correct_answer_key not in inputs:
-        raise MissingInputV0Error(path=correct_answer_key)
-
-    correct_answer = inputs[correct_answer_key]
 
     if not isinstance(outputs, str) and not isinstance(outputs, dict):
         raise InvalidOutputsV0Error(expected=["dict", "str"], got=outputs)
@@ -734,7 +724,6 @@ async def auto_webhook_test_v0(
     json_payload = {
         "inputs": inputs,
         "output": outputs_str,
-        "correct_answer": correct_answer,
     }
 
     async with httpx.AsyncClient() as client:
