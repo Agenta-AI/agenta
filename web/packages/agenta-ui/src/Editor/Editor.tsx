@@ -20,10 +20,12 @@ import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import yaml from "js-yaml"
 import {
+    BLUR_COMMAND,
     COMMAND_PRIORITY_HIGH,
     COMMAND_PRIORITY_LOW,
     EditorState,
     LexicalEditor,
+    FOCUS_COMMAND,
     type AnyLexicalExtensionArgument,
     configExtension,
     createCommand,
@@ -441,10 +443,89 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
         }, [editor, view])
 
         const isInitRef = useRef(false)
+        const lastHydratedRef = useRef<string>("")
+        const lastEmittedTextRef = useRef<string>("")
+        const onChangeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+        const isFocusedRef = useRef(false)
+        const pendingHydrationOnBlurRef = useRef<string | null>(null)
 
         useEffect(() => {
             editor.setEditable(!disabled)
         }, [disabled, editor])
+
+        const hydrateRichTextFromControlledValue = useCallback(
+            (next: string) => {
+                if (codeOnly) {
+                    return false
+                }
+
+                // If this value is just our own onChange echoing back, skip hydration.
+                // The markdown round-trip (serialize → emit → hydrate → deserialize)
+                // can produce different text than $getRoot().getTextContent() due to
+                // trailing newline differences, causing an infinite re-hydration loop.
+                if (next === lastEmittedTextRef.current) {
+                    return false
+                }
+
+                // Compare with actual editor content serialized as markdown, not plain text.
+                // Using $getRoot().getTextContent() would strip markdown formatting (headings,
+                // code fences, etc.) causing false mismatches after markdown paste/conversion.
+                let currentContent = ""
+                editor.getEditorState().read(() => {
+                    currentContent = $getRichTextAsMarkdownString()
+                })
+
+                if (currentContent === next) {
+                    return false
+                }
+
+                lastHydratedRef.current = next
+                editor.dispatchCommand(ON_HYDRATE_FROM_REMOTE_CONTENT, {
+                    hydrateWithRemoteContent: next,
+                    parentId: "",
+                })
+
+                return true
+            },
+            [codeOnly, editor],
+        )
+
+        useEffect(() => {
+            if (codeOnly) {
+                return
+            }
+
+            return mergeRegister(
+                editor.registerCommand(
+                    FOCUS_COMMAND,
+                    () => {
+                        isFocusedRef.current = true
+                        return false
+                    },
+                    COMMAND_PRIORITY_LOW,
+                ),
+                editor.registerCommand(
+                    BLUR_COMMAND,
+                    () => {
+                        isFocusedRef.current = false
+
+                        const pendingValue = pendingHydrationOnBlurRef.current
+                        pendingHydrationOnBlurRef.current = null
+
+                        if (!pendingValue) {
+                            return false
+                        }
+
+                        setTimeout(() => {
+                            hydrateRichTextFromControlledValue(pendingValue)
+                        }, 0)
+
+                        return false
+                    },
+                    COMMAND_PRIORITY_LOW,
+                ),
+            )
+        }, [codeOnly, editor, hydrateRichTextFromControlledValue])
 
         useEffect(() => {
             /**
@@ -489,10 +570,6 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                 ),
             )
         }, [codeOnly, editor])
-
-        const lastHydratedRef = useRef<string>("")
-        const lastEmittedTextRef = useRef<string>("")
-        const onChangeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
         useEffect(
             () => () => {
@@ -664,31 +741,17 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             if (codeOnly) return
             const next = effectiveValue || ""
 
-            // If this value is just our own onChange echoing back, skip hydration.
-            // The markdown round-trip (serialize → emit → hydrate → deserialize)
-            // can produce different text than $getRoot().getTextContent() due to
-            // trailing newline differences, causing an infinite re-hydration loop.
-            if (next === lastEmittedTextRef.current) {
+            // Rich-text markdown transforms can normalize content as the user types.
+            // Re-hydrating while focused rebuilds the Lexical document and can kick
+            // the caret to the start/end of the editor. Defer any non-echo sync until blur.
+            if (editor.isEditable() && isFocusedRef.current) {
+                pendingHydrationOnBlurRef.current = next
                 return
             }
 
-            // Compare with actual editor content serialized as markdown, not plain text.
-            // Using $getRoot().getTextContent() would strip markdown formatting (headings,
-            // code fences, etc.) causing false mismatches after markdown paste/conversion.
-            let currentContent = ""
-            editor.getEditorState().read(() => {
-                currentContent = $getRichTextAsMarkdownString()
-            })
-            // Skip if content already matches (no change needed)
-            if (currentContent === next) {
-                return
-            }
-            lastHydratedRef.current = next
-            editor.dispatchCommand(ON_HYDRATE_FROM_REMOTE_CONTENT, {
-                hydrateWithRemoteContent: next,
-                parentId: "",
-            })
-        }, [effectiveValue])
+            pendingHydrationOnBlurRef.current = null
+            hydrateRichTextFromControlledValue(next)
+        }, [codeOnly, editor, effectiveValue, hydrateRichTextFromControlledValue])
 
         return (
             <div className="editor-container w-full overflow-hidden relative min-h-[inherit]">
