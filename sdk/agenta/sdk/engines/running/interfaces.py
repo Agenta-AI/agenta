@@ -690,6 +690,7 @@ json_multi_field_match_v0_interface = WorkflowRevisionData(
                 "fields": ag_field(
                     base=arr(
                         items=scalar(jtype="string"),
+                        default=[],
                         description="Fields to compare using dot notation.",
                     ),
                     x_ag_type="fields_tags_editor",
