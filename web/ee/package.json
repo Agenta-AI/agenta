@@ -1,6 +1,6 @@
 {
     "name": "@agenta/ee",
-    "version": "0.95.1",
+    "version": "0.95.6",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -82,7 +82,8 @@
         "typescript": "5.8.3",
         "use-animation-frame": "^0.2.1",
         "usehooks-ts": "^3.1.0",
-        "uuid": "^11.1.0"
+        "uuid": "^11.1.0",
+        "webpack": "^5.104.1"
     },
     "devDependencies": {
         "@agenta/web-tests": "workspace:../tests",
