@@ -390,7 +390,11 @@ const LegacyDeleteContent = ({revisionIds, forceVariantIds = [], onClose}: Props
                     disabled={isMutating || totalSelectedCount === 0 || isLastRevision}
                     icon={<Trash size={14} />}
                     onClick={onDeleteVariant}
-                    title={isLastRevision ? "Cannot delete the only revision. Delete the app instead." : undefined}
+                    title={
+                        isLastRevision
+                            ? "Cannot delete the only revision. Delete the app instead."
+                            : undefined
+                    }
                 >
                     {isBulkDelete ? "Delete selected" : "Delete"}
                 </Button>
