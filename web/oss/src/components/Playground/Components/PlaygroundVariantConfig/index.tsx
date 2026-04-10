@@ -2,11 +2,13 @@
 
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {testcaseMolecule} from "@agenta/entities/testcase"
 import {parseEvaluatorKeyFromUri, workflowMolecule} from "@agenta/entities/workflow"
 import {evaluatorTemplatesDataAtom, evaluatorPresetsAtomFamily} from "@agenta/entities/workflow"
 import {
     PlaygroundConfigSection,
     LoadEvaluatorPresetModal,
+    FieldsDetectionProvider,
     type EvaluatorPresetConfig,
     type ConfigViewMode,
 } from "@agenta/entity-ui"
@@ -15,6 +17,8 @@ import {Select} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
+
+import {extractJsonPaths, safeParseJson} from "@/oss/lib/helpers/extractJsonPaths"
 
 import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeader"
 import type {VariantConfigComponentProps} from "./types"
@@ -117,6 +121,44 @@ const PlaygroundVariantConfig: React.FC<
         [handleLoadPreset],
     )
 
+    // Reactively track whether testcase rows are available (for button enabled state)
+    const testcaseRowIds = useAtomValue(testcaseMolecule.atoms.displayRowIds)
+    const hasTestcaseData = evaluatorKey ? testcaseRowIds.length > 0 : false
+
+    // Fields detection callback for JSON Multi-Field Match evaluator.
+    // Reads the first testcase row and extracts JSON paths from the correct_answer field.
+    const fieldsDetectionValue = useMemo(() => {
+        if (!evaluatorKey) return {}
+        return {
+            hasTestcaseData,
+            detectFieldsFromTestcase: (): string[] | null => {
+                const rowIds = testcaseMolecule.get.displayRowIds()
+                if (rowIds.length === 0) return null
+                const firstTestcase = testcaseMolecule.get.data(rowIds[0])
+                if (!firstTestcase?.data) return null
+
+                // Read correct_answer_key from the evaluator config
+                const params = runnableData?.data?.parameters as Record<string, unknown> | undefined
+                const correctAnswerKey =
+                    (params?.correct_answer_key as string) ??
+                    ((params?.advanced_config as Record<string, unknown>)
+                        ?.correct_answer_key as string) ??
+                    ((params?.advanced_settings as Record<string, unknown>)
+                        ?.correct_answer_key as string) ??
+                    "correct_answer"
+
+                const testcaseData = firstTestcase.data as Record<string, unknown>
+                const groundTruthValue = testcaseData[correctAnswerKey]
+                if (!groundTruthValue) return null
+
+                const parsed = safeParseJson(groundTruthValue)
+                if (!parsed) return null
+
+                return extractJsonPaths(parsed)
+            },
+        }
+    }, [evaluatorKey, hasTestcaseData, runnableData?.data?.parameters])
+
     // View mode for config section (form/json/yaml)
     // When controlled externally (e.g. from the drawer), use the provided props.
     const [internalViewMode, setInternalViewMode] = useState<ConfigViewMode>("form")
@@ -161,11 +203,13 @@ const PlaygroundVariantConfig: React.FC<
                 </div>
             ) : (
                 <>
-                    <PlaygroundConfigSection
-                        revisionId={variantId}
-                        onRefinePrompt={handleRefinePrompt}
-                        viewMode={viewMode}
-                    />
+                    <FieldsDetectionProvider value={fieldsDetectionValue}>
+                        <PlaygroundConfigSection
+                            revisionId={variantId}
+                            onRefinePrompt={handleRefinePrompt}
+                            viewMode={viewMode}
+                        />
+                    </FieldsDetectionProvider>
                     {refinePromptKey && (
                         <RefinePromptModal
                             open={refineModalOpen}

@@ -216,6 +216,9 @@ export {
     type ToolFunction,
     type ObjectSchemaControlProps,
     type SchemaPropertyRendererProps,
+    FieldsDetectionProvider,
+    useFieldsDetection,
+    type FieldsDetectionContextValue,
 } from "./DrillInView"
 
 // ============================================================================

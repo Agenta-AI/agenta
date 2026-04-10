@@ -15,8 +15,10 @@ import {memo, useCallback, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {LabeledField} from "@agenta/ui/components/presentational"
-import {Plus} from "@phosphor-icons/react"
+import {MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import {Button, Input, Tag, Tooltip, Typography} from "antd"
+
+import {useFieldsDetection} from "./FieldsDetectionContext"
 
 const {Text} = Typography
 
@@ -43,6 +45,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
 }: FieldsTagsEditorControlProps) {
     const [inputValue, setInputValue] = useState("")
     const fields = value ?? []
+    const {detectFieldsFromTestcase, hasTestcaseData} = useFieldsDetection()
 
     const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
@@ -56,6 +59,19 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
         onChange([...fields, trimmed])
         setInputValue("")
     }, [inputValue, fields, onChange])
+
+    const handleDetectFromTestcase = useCallback(() => {
+        if (!detectFieldsFromTestcase) return
+        const detected = detectFieldsFromTestcase()
+        if (!detected || detected.length === 0) return
+        // Merge detected fields with existing, avoiding duplicates and aggregate_score
+        const existing = new Set(fields)
+        existing.add("aggregate_score")
+        const newFields = detected.filter((f) => !existing.has(f))
+        if (newFields.length > 0) {
+            onChange([...fields, ...newFields])
+        }
+    }, [detectFieldsFromTestcase, fields, onChange])
 
     const handleRemoveField = useCallback(
         (fieldToRemove: string) => {
@@ -140,10 +156,24 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                     </div>
                 )}
 
-                {/* Helper Text */}
-                <Text type="secondary" className="text-[11px]">
-                    Each field creates a column with value 0 (no match) or 1 (match)
-                </Text>
+                {/* Helper text + Detect from testcase button */}
+                <div className="flex items-start justify-between gap-3">
+                    <Text type="secondary" className="text-[11px] pt-0.5">
+                        Each field creates a column with value 0 (no match) or 1 (match)
+                    </Text>
+                    {!disabled && detectFieldsFromTestcase && (
+                        <Button
+                            size="small"
+                            type="default"
+                            icon={<MagnifyingGlass size={12} />}
+                            onClick={handleDetectFromTestcase}
+                            disabled={!hasTestcaseData}
+                            className="shrink-0 text-xs"
+                        >
+                            Detect from testcase
+                        </Button>
+                    )}
+                </div>
             </div>
         </LabeledField>
     )
