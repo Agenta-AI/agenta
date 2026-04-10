@@ -331,6 +331,17 @@ const BulkDeleteContent = ({
     const totalSelectedCount = uniqueRevisionIds.length
     const isBulkDelete = deletionPlan.variants.length > 0 || totalSelectedCount > 1
 
+    // Check if this would delete the last revision of the app
+    const isLastRevision = useMemo(() => {
+        // Count total visible revisions across all variants
+        let totalRevisions = 0
+        Object.values(variantGroups).forEach((group) => {
+            totalRevisions += group.totalIds.length
+        })
+        // If we're deleting all revisions, this is the last one
+        return totalRevisions > 0 && totalSelectedCount >= totalRevisions
+    }, [variantGroups, totalSelectedCount])
+
     const onDeleteVariant = useCallback(async () => {
         setIsMutating(true)
         try {
@@ -442,13 +453,23 @@ const BulkDeleteContent = ({
                     type="primary"
                     danger
                     loading={isMutating}
-                    disabled={isMutating || totalSelectedCount === 0}
+                    disabled={isMutating || totalSelectedCount === 0 || isLastRevision}
                     icon={<Trash size={14} />}
                     onClick={onDeleteVariant}
+                    title={
+                        isLastRevision
+                            ? "Cannot delete the only revision. Delete the app instead."
+                            : undefined
+                    }
                 >
                     {isBulkDelete ? "Delete selected" : "Delete"}
                 </Button>
             </div>
+            {isLastRevision && (
+                <Text type="secondary" className="text-center">
+                    Cannot delete the only revision. Delete the app instead.
+                </Text>
+            )}
         </section>
     )
 }
