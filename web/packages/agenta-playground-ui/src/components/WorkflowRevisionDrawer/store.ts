@@ -89,7 +89,6 @@ export const openWorkflowRevisionDrawerAtom = atom(null, (get, set, params: Open
 
 /** Close the drawer and clean up */
 export const closeWorkflowRevisionDrawerAtom = atom(null, (_get, set) => {
-    console.warn("[DEBUG:drawer-store] closeWorkflowRevisionDrawerAtom called", new Error().stack)
     set(workflowRevisionDrawerOpenAtom, false)
     set(workflowRevisionDrawerEntityIdAtom, RESET)
     set(workflowRevisionDrawerExpandedAtom, RESET)

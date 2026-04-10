@@ -576,7 +576,8 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
                     break
             }
 
-            if (meta.advanced === true) prop["x-advanced"] = true
+            if (meta["x-ag-ui-advanced"] === true || meta.advanced === true)
+                prop["x-advanced"] = true
 
             schemaProperties[key] = prop
         }

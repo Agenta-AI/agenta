@@ -87,17 +87,6 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
             }
         }
 
-        console.warn(
-            "[DEBUG:variant-url] sync called. URL:",
-            url.href,
-            "currentOpen:",
-            currentOpen,
-            "drawerOpenedViaUrl:",
-            drawerOpenedViaUrl,
-            "revisionId:",
-            resolvedRevisionId,
-        )
-
         if (!routeSupportsDrawer) {
             if ((revisionParam && revisionParam.trim()) || url.searchParams.has("drawerType")) {
                 url.searchParams.delete("revisionId")
@@ -117,20 +106,7 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
             // (revisionId param). Programmatically opened drawers (e.g.
             // evaluator drawer) should not be closed by unrelated URL changes.
             if (currentOpen && drawerOpenedViaUrl) {
-                console.warn(
-                    "[DEBUG:variant-url] closing drawer (URL-driven). URL:",
-                    url.href,
-                    "drawerOpenedViaUrl:",
-                    drawerOpenedViaUrl,
-                )
                 clearVariantDrawerState()
-            } else if (currentOpen) {
-                console.warn(
-                    "[DEBUG:variant-url] skipped close (not URL-driven). URL:",
-                    url.href,
-                    "drawerOpenedViaUrl:",
-                    drawerOpenedViaUrl,
-                )
             }
             return
         }

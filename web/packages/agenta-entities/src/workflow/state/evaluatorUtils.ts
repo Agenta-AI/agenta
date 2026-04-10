@@ -486,7 +486,7 @@ function settingsTemplateToJsonSchema(
                 break
         }
 
-        if (meta.advanced === true) {
+        if (meta["x-ag-ui-advanced"] === true || meta.advanced === true) {
             prop["x-advanced"] = true
         }
 
@@ -678,7 +678,13 @@ export async function createEvaluatorFromTemplate(templateKey: string): Promise<
             const agType = prop?.["x-ag-type"] as string | undefined
             if (agType === "hidden") continue
             if (!(key in parameters)) {
-                parameters[key] = prop?.default !== undefined ? prop.default : null
+                if (prop?.default !== undefined) {
+                    parameters[key] = prop.default
+                } else if (prop?.type === "array") {
+                    parameters[key] = []
+                } else {
+                    parameters[key] = null
+                }
             }
         }
     } else if (parametersTemplate) {
