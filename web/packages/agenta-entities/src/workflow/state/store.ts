@@ -1738,7 +1738,7 @@ export const workflowServerDataSelectorFamily = atomFamily((workflowId: string) 
  * invocation payload builders must use this flat source instead to avoid
  * persisting or sending UI-only nesting.
  */
-export function getFlatSourceData(get: Getter, revisionId: string) {
+export function getFlatSourceData(get: Getter, revisionId: string): Workflow | null {
     const localData = get(workflowLocalServerDataAtomFamily(revisionId))
     const serverData = get(workflowServerDataSelectorFamily(revisionId))
     return (localData?.data?.parameters ? localData : serverData) ?? localData ?? serverData

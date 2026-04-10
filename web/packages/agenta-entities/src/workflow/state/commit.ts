@@ -35,7 +35,7 @@ import {
     archiveWorkflowVariant,
     queryWorkflowRevisions,
 } from "../api"
-import {generateSlug, type Workflow} from "../core"
+import {generateSlug, type Workflow, type WorkflowData} from "../core"
 
 import {invalidateEvaluatorsListCache} from "./evaluatorUtils"
 import {
@@ -80,12 +80,12 @@ function prepareCommitParameters(
  */
 function prepareCommitSchemas(
     entity: Workflow,
-    flatSchemas: Workflow["data"] extends {schemas?: infer S} ? S | null : never,
-): Workflow["data"] extends {schemas?: infer S} ? S | undefined : never {
+    flatSchemas: WorkflowData["schemas"] | null,
+): WorkflowData["schemas"] | undefined {
     if (entity.flags?.is_evaluator) {
-        return (flatSchemas ?? entity.data?.schemas) as never
+        return flatSchemas ?? entity.data?.schemas
     }
-    return entity.data?.schemas as never
+    return entity.data?.schemas
 }
 
 // ============================================================================
