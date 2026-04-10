@@ -1,7 +1,9 @@
-# BDD Feature Specifications
+# Feature Scenario Specifications
 
-This directory contains Gherkin-format BDD feature files that describe the acceptance tests
-for the Agenta OSS frontend. Each feature file maps to one or more Playwright test files.
+This directory contains Gherkin-format feature files that describe the acceptance test scenarios
+for the Agenta OSS frontend. Each feature file maps to one or more Playwright test files and
+to the RTM entries in
+`docs/designs/testing/rtm/web-acceptance-rtm.md`.
 
 ## Feature-to-Test Mapping
 
@@ -10,11 +12,11 @@ for the Agenta OSS frontend. Each feature file maps to one or more Playwright te
 | `smoke.feature` | `smoke.spec.ts` | Passing |
 | `app-creation.feature` | `app/create.spec.ts`, `app/index.ts` | Passing |
 | `playground.feature` | `playground/run-variant.spec.ts`, `playground/index.ts` | Passing |
-| `deployment.feature` | `deployment/deploy-variant.spec.ts`, `deployment/index.ts` | Passing |
-| `observability.feature` | `observability/observability.spec.ts`, `observability/index.ts` | Passing |
+| `deployment.feature` | `deployment/deploy-variant.spec.ts`, `deployment/index.ts` | Skipped |
+| `observability.feature` | `observability/observability.spec.ts`, `observability/index.ts` | Skipped |
 | `prompt-registry.feature` | `prompt-registry/prompt-registry-flow.spec.ts`, `prompt-registry/index.ts` | Passing |
-| `settings.feature` | `settings/model-hub.spec.ts`, `settings/model-hub.ts` | Passing |
-| `testsets.feature` | `testsset/testset.spec.ts`, `testsset/index.ts` | Skipped (no data) |
+| `settings.feature` | `settings/model-hub.spec.ts`, `settings/model-hub.ts`, `settings/api-keys-management.spec.ts`, `settings/api-keys.ts` | Mixed (`model-hub` active, `api-keys` skipped wrapper) |
+| `testsets.feature` | `testsset/testset.spec.ts`, `testsset/index.ts` | Conditional skip when no data exists |
 
 ## Caveats and Known Issues
 

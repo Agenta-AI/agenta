@@ -31,6 +31,7 @@ This directory specifies the testing strategy for the Agenta monorepo, covering 
 | [testing.fixtures.specs.md](testing.fixtures.specs.md) | Shared test infrastructure, accounts, helpers, scoping |
 | [testing.running.specs.md](testing.running.specs.md) | How to run tests: local, cloud, CI |
 | [testing.initial.specs.md](testing.initial.specs.md) | Original discussion-format spec (preserved as reference) |
+| [rtm/web-acceptance-rtm.md](rtm/web-acceptance-rtm.md) | Web acceptance requirements traceability matrix for the current OSS Playwright suite |
 
 ---
 

@@ -42,8 +42,8 @@ import {EvaluationRun} from "../../../../../oss/src/lib/hooks/usePreviewEvaluati
 import type {ApiHandlerOptions, ApiHelpers, CreateTestsetInput, CreatedTestset} from "./types"
 
 const APP_TYPE_LABELS: Record<APP_TYPE, string> = {
-    completion: "agenta:builtin:completion:v0",
-    chat: "agenta:builtin:chat:v0",
+    completion: "Completion",
+    chat: "Chat",
     custom: "Custom Prompt",
 }
 

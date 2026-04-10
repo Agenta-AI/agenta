@@ -4,11 +4,7 @@ import {dirname} from "path"
 import {chromium, type BrowserContext, type Page} from "@playwright/test"
 
 import {waitForApiResponse} from "../tests/fixtures/base.fixture/apiHelpers"
-import {
-    clickButton,
-    selectOption,
-    typeWithDelay,
-} from "../tests/fixtures/base.fixture/uiHelpers/helpers"
+import {clickButton, typeWithDelay} from "../tests/fixtures/base.fixture/uiHelpers/helpers"
 import {AuthResponse} from "../tests/fixtures/user.fixture/authHelpers/types"
 import {generateRuntimeTestEmail, getTestmailClient, isTestmailInboxEmail} from "../utils/testmail"
 
@@ -61,6 +57,120 @@ async function fillOTPDigits(page: Page, otp: string, delay: number): Promise<vo
     await page.keyboard.type(otp, {delay})
 }
 
+async function clickVisibleSurveyChoice(page: Page, choice: string): Promise<boolean> {
+    const radio = page.getByRole("radio", {name: choice, exact: true}).first()
+    if (await radio.isVisible().catch(() => false)) {
+        await radio.check().catch(async () => {
+            await radio.click({force: true})
+        })
+        return true
+    }
+
+    const checkbox = page.getByRole("checkbox", {name: choice, exact: true}).first()
+    if (await checkbox.isVisible().catch(() => false)) {
+        await checkbox.check().catch(async () => {
+            await checkbox.click({force: true})
+        })
+        return true
+    }
+
+    const text = page.getByText(choice, {exact: true}).first()
+    if (await text.isVisible().catch(() => false)) {
+        await text.click({force: true})
+        return true
+    }
+
+    return false
+}
+
+async function fillVisiblePostSignupFields(page: Page): Promise<void> {
+    const preferredChoices = [
+        "2-10",
+        "Hobbyist",
+        "Just exploring",
+        "Evaluating LLM Applications",
+        "Github",
+    ]
+
+    for (const choice of preferredChoices) {
+        await clickVisibleSurveyChoice(page, choice)
+    }
+
+    const formItems = page.locator(".ant-form-item")
+    const formItemCount = await formItems.count()
+
+    for (let index = 0; index < formItemCount; index++) {
+        const item = formItems.nth(index)
+        if (!(await item.isVisible().catch(() => false))) {
+            continue
+        }
+
+        const checkedRadio = item.getByRole("radio", {checked: true}).first()
+        if (!(await checkedRadio.isVisible().catch(() => false))) {
+            const radio = item.getByRole("radio").first()
+            if (await radio.isVisible().catch(() => false)) {
+                await radio.check().catch(async () => {
+                    await radio.click({force: true})
+                })
+                continue
+            }
+        }
+
+        const checkedCheckbox = item.getByRole("checkbox", {checked: true}).first()
+        if (!(await checkedCheckbox.isVisible().catch(() => false))) {
+            const checkbox = item.getByRole("checkbox").first()
+            if (await checkbox.isVisible().catch(() => false)) {
+                await checkbox.check().catch(async () => {
+                    await checkbox.click({force: true})
+                })
+                continue
+            }
+        }
+
+        const textArea = item.locator("textarea").first()
+        if (await textArea.isVisible().catch(() => false)) {
+            const value = await textArea.inputValue().catch(() => "")
+            if (!value.trim()) {
+                await textArea.fill("E2E signup bootstrap")
+            }
+            continue
+        }
+
+        const textInput = item
+            .locator('input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"])')
+            .first()
+        if (await textInput.isVisible().catch(() => false)) {
+            const value = await textInput.inputValue().catch(() => "")
+            if (!value.trim()) {
+                await textInput.fill("E2E signup bootstrap")
+            }
+            continue
+        }
+    }
+}
+
+async function advanceVisiblePostSignupStep(page: Page): Promise<boolean> {
+    const submitButton = page.getByRole("button", {name: "Submit", exact: true}).first()
+    if (await submitButton.isVisible().catch(() => false)) {
+        if (await submitButton.isDisabled().catch(() => true)) {
+            return false
+        }
+        await submitButton.click()
+        return true
+    }
+
+    const continueButton = page.getByRole("button", {name: "Continue", exact: true}).first()
+    if (await continueButton.isVisible().catch(() => false)) {
+        if (await continueButton.isDisabled().catch(() => true)) {
+            return false
+        }
+        await continueButton.click()
+        return true
+    }
+
+    return false
+}
+
 async function handlePostSignup(page: Page): Promise<void> {
     try {
         await page.waitForURL("**/post-signup", {
@@ -74,38 +184,65 @@ async function handlePostSignup(page: Page): Promise<void> {
 
     console.log("[global-setup] New user detected, on post-signup page")
 
-    const tellUsAboutYourselfLocator = page.getByText("Tell us about yourself")
-    const redirected = page.waitForURL((url) => !url.pathname.endsWith("/post-signup"), {
-        timeout: 15000,
+    const settleTimeoutMs = 15_000
+    const deadline = Date.now() + settleTimeoutMs
+    let completedSurveyStep = false
+
+    while (Date.now() < deadline) {
+        const pathname = await getCurrentPathname(page)
+        if (!pathname.endsWith("/post-signup")) {
+            console.log("[global-setup] Post-signup redirected, continuing")
+            return
+        }
+
+        const surveyTitle = page
+            .getByRole("heading", {name: /Tell us about yourself|Almost done/i})
+            .first()
+        const surveyVisible = await surveyTitle.isVisible().catch(() => false)
+        const hasActionButton = await page
+            .getByRole("button", {name: /Continue|Submit/})
+            .first()
+            .isVisible()
+            .catch(() => false)
+
+        if (!surveyVisible && !hasActionButton) {
+            await page.waitForTimeout(500)
+            continue
+        }
+
+        await fillVisiblePostSignupFields(page)
+        const advanced = await advanceVisiblePostSignupStep(page)
+        completedSurveyStep = completedSurveyStep || advanced
+
+        if (!advanced) {
+            await page.waitForTimeout(500)
+            continue
+        }
+
+        await page.waitForTimeout(1000)
+    }
+
+    const finalPathname = await getCurrentPathname(page).catch(() => "unknown")
+    if (!finalPathname.endsWith("/post-signup")) {
+        console.log("[global-setup] Post-signup left after final check, continuing")
+        return
+    }
+
+    const fallbackUrl = new URL("/get-started", page.url()).toString()
+    console.log(`[global-setup] Post-signup is still stuck, forcing fallback to ${fallbackUrl}`)
+    await page.goto(fallbackUrl, {
         waitUntil: "domcontentloaded",
+        timeout: 15000,
     })
-    const surveyLoaded = tellUsAboutYourselfLocator
-        .waitFor({state: "visible", timeout: 15000})
-        .then(() => "survey" as const)
 
-    const result = await Promise.race([surveyLoaded, redirected.then(() => "redirected" as const)])
-
-    if (result === "redirected") {
-        console.log("[global-setup] Post-signup redirected (no PostHog survey), continuing")
+    if (completedSurveyStep) {
+        console.log("[global-setup] Continued after forced get-started fallback")
         return
     }
 
-    const isOptionVisible = await page.getByRole("option", {name: "Hobbyist"}).isVisible()
-    if (!isOptionVisible) {
-        console.log("[global-setup] Post-signup flow not completed due to missing options")
-        return
-    }
-
-    await selectOption(page, {text: "2-10"})
-    await selectOption(page, {text: "Hobbyist"})
-    await selectOption(page, {text: "Just exploring"})
-    await clickButton(page, "Continue")
-
-    await page.getByText("What brings you here?").waitFor({state: "visible"})
-
-    await selectOption(page, {text: "Evaluating LLM Applications"})
-    await selectOption(page, {text: "Github"})
-    await clickButton(page, "Continue")
+    console.log(
+        "[global-setup] Post-signup did not render an actionable survey; continued with get-started fallback",
+    )
 }
 
 async function getCurrentPathname(page: Page): Promise<string> {
