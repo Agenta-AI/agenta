@@ -63,6 +63,8 @@ services/ee/tests/results/
 !**/.gitkeep
 !.github/
 !.github/**
+!.husky/
+!.husky/**
 !api/.dockerignore
 !services/.dockerignore
 !.env.example
