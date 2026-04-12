@@ -9,12 +9,14 @@ import {EvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
 const AUTO_EVALUATION_TAB_LABEL = "Auto Evals"
 const AUTO_EVALUATION_EMPTY_STATE_TITLE = "Get Started with Evaluations"
 const AUTO_EVALUATION_EMPTY_STATE_BUTTON_LABEL = /Run Evaluation/i
-const AUTO_EVALUATION_LIST_BUTTON_LABEL = /New evaluation/i
+const AUTO_EVALUATION_LIST_BUTTON_LABEL = /Start evaluation/i
 const AUTO_EVALUATION_MODAL_TITLE = "New Auto Evaluation"
 const AUTO_EVALUATION_SUBMIT_BUTTON_LABEL = "Start Evaluation"
 const AUTO_RESULTS_TAB_LABELS = ["Overview", "Scenarios", "Configuration"] as const
 const AUTO_EVALUATION_CREATE_BUTTON_LABELS = [
+    AUTO_EVALUATION_EMPTY_STATE_BUTTON_LABEL,
     AUTO_EVALUATION_LIST_BUTTON_LABEL,
+    /New evaluation/i,
     /New Evaluation/i,
 ] as const
 
@@ -117,48 +119,20 @@ const goToAutoEvaluations = async (page: Page, appId: string) => {
 }
 
 const getAutoEvaluationCreateButton = async (page: Page) => {
-    const emptyStateTitle = page
-        .getByRole("heading", {name: AUTO_EVALUATION_EMPTY_STATE_TITLE})
-        .first()
-    const emptyStateButton = page
-        .getByRole("button", {name: AUTO_EVALUATION_EMPTY_STATE_BUTTON_LABEL})
-        .first()
-
     await expect
         .poll(
-            async () => {
-                const isEmptyStateVisible =
-                    (await emptyStateTitle.isVisible().catch(() => false)) ||
-                    (await emptyStateButton.isVisible().catch(() => false))
-
-                if (isEmptyStateVisible) {
-                    return "empty"
-                }
-
-                return (await getVisibleButtonByLabels(page, AUTO_EVALUATION_CREATE_BUTTON_LABELS))
-                    ? "list"
-                    : null
-            },
+            async () =>
+                Boolean(await getVisibleButtonByLabels(page, AUTO_EVALUATION_CREATE_BUTTON_LABELS)),
             {timeout: 10000},
         )
-        .not.toBeNull()
-
-    if (
-        (await emptyStateTitle.isVisible().catch(() => false)) ||
-        (await emptyStateButton.isVisible().catch(() => false))
-    ) {
-        await expect(emptyStateTitle).toBeVisible()
-        await expect(emptyStateButton).toBeVisible()
-        return emptyStateButton
-    }
+        .toBe(true)
 
     const createButton = await getVisibleButtonByLabels(page, AUTO_EVALUATION_CREATE_BUTTON_LABELS)
-    if (!createButton) {
-        throw new Error("Could not find an auto evaluation create button.")
+    if (createButton) {
+        return createButton
     }
 
-    await expect(createButton).toBeVisible()
-    return createButton
+    throw new Error("Could not find an auto evaluation create button.")
 }
 
 const openAutoEvaluationModal = async (page: Page) => {
@@ -334,12 +308,17 @@ const testWithEvaluationFixtures = baseTest.extend<EvaluationFixtures>({
 
             if (autoEvaluationRuns.length > 0) {
                 expect(autoEvaluationRuns.length).toBeGreaterThan(0)
-                await expect(await getAutoEvaluationCreateButton(page)).toBeVisible()
+                await expect(
+                    page.getByRole("button", {name: AUTO_EVALUATION_LIST_BUTTON_LABEL}).first(),
+                ).toBeVisible()
                 return
             }
 
             expect(autoEvaluationRuns).toHaveLength(0)
-            await expect(await getAutoEvaluationCreateButton(page)).toBeVisible()
+            await expect(page.getByText(AUTO_EVALUATION_EMPTY_STATE_TITLE).first()).toBeVisible()
+            await expect(
+                page.getByRole("button", {name: AUTO_EVALUATION_EMPTY_STATE_BUTTON_LABEL}).first(),
+            ).toBeVisible()
         })
     },
 
