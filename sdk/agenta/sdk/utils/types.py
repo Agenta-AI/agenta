@@ -45,7 +45,7 @@ def MCField(  # pylint: disable=invalid-name
         json_extra = {
             "choices": choices,
             "x-ag-type": "grouped_choice",
-            "x-model-metadata": model_metadata,
+            "x-ag-metadata": model_metadata,
         }
     elif isinstance(choices, list):
         json_extra = {"choices": choices, "x-ag-type": "choice"}
@@ -402,9 +402,10 @@ ResponseFormat = Union[
 class ModelConfig(BaseModel):
     """Configuration for model parameters"""
 
-    model: str = MCField(
+    model: str = Field(
         default="gpt-4o-mini",
-        choices=supported_llm_models,
+        description="Model identifier to use for execution.",
+        json_schema_extra={"x-ag-type-ref": "model"},
     )
 
     temperature: Optional[float] = Field(
@@ -612,9 +613,10 @@ def missing_lib_hints(unreplaced: set) -> Optional[str]:
 class AgLLM(AgSchemaMixin):
     __ag_type__ = "llm"
 
-    model: str = MCField(
+    model: str = Field(
         default="gpt-4o-mini",
-        choices=supported_llm_models,
+        description="Model identifier to use for execution.",
+        json_schema_extra={"x-ag-type-ref": "model"},
     )
     temperature: Optional[float] = Field(
         default=None,
@@ -962,9 +964,22 @@ def _dereference_schema(schema: dict) -> dict:
     return _resolve(schema)
 
 
+def _model_catalog_type() -> dict:
+    return {
+        "type": "string",
+        "title": "Model",
+        "description": "Model identifier to use for execution.",
+        "default": "gpt-4o-mini",
+        "choices": deepcopy(supported_llm_models),
+        "x-ag-type": "grouped_choice",
+        "x-ag-metadata": deepcopy(model_metadata),
+    }
+
+
 CATALOG_TYPES = {
     Message.ag_type(): _dereference_schema(Message.model_json_schema()),
     Messages.ag_type(): _dereference_schema(Messages.model_json_schema()),
+    "model": _model_catalog_type(),
     AgLLM.ag_type(): _dereference_schema(AgLLM.model_json_schema()),
     AgLLMs.ag_type(): _dereference_schema(AgLLMs.model_json_schema()),
     AgLoop.ag_type(): _dereference_schema(AgLoop.model_json_schema()),
