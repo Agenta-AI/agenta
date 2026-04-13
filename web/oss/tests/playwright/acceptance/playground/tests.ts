@@ -131,8 +131,13 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 await uiHelpers.expectNoText("Click run to generate output")
                 await expect(page.getByText("Error").first()).not.toBeVisible()
 
-                // 5. Add a new Testcase
+                if (i === messages.length - 1) {
+                    continue
+                }
+
+                // 5. Add a new testcase only when another input still needs to be executed.
                 const testcaseButton = page.getByRole("button", {name: "Test case"})
+                await expect(testcaseButton).toBeVisible()
                 await testcaseButton.scrollIntoViewIfNeeded()
                 await testcaseButton.click()
             }

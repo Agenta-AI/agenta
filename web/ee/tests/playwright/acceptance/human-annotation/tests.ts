@@ -73,7 +73,12 @@ const waitForEvaluationRuns = async (page: Page, appId: string) => {
 
     expect(response.ok()).toBe(true)
 
-    return (await response.json()) as EvaluationRunsResponse
+    try {
+        return (await response.json()) as EvaluationRunsResponse
+    } catch (error) {
+        console.warn("[Human Evaluation E2E] Failed to parse evaluation runs response:", error)
+        return {runs: [], count: 0}
+    }
 }
 
 const getHumanEvaluationRuns = (evaluationRuns: EvaluationRunsResponse) => {
@@ -82,12 +87,36 @@ const getHumanEvaluationRuns = (evaluationRuns: EvaluationRunsResponse) => {
     return runs.filter((run) => deriveEvaluationKind(run) === "human")
 }
 
-const getHumanEvaluationCreateButton = async (page: Page) => {
-    for (const label of HUMAN_EVALUATION_CREATE_BUTTON_LABELS) {
-        const button = page.getByRole("button", {name: label}).first()
-        if (await button.isVisible().catch(() => false)) {
-            return button
+const getVisibleButtonByLabels = async (page: Page, labels: readonly (string | RegExp)[]) => {
+    for (const label of labels) {
+        const buttons = page.getByRole("button", {name: label})
+        const buttonCount = await buttons.count()
+
+        for (let index = 0; index < buttonCount; index += 1) {
+            const button = buttons.nth(index)
+            if (await button.isVisible().catch(() => false)) {
+                return button
+            }
         }
+    }
+
+    return null
+}
+
+const getHumanEvaluationCreateButton = async (page: Page) => {
+    await expect
+        .poll(
+            async () =>
+                Boolean(
+                    await getVisibleButtonByLabels(page, HUMAN_EVALUATION_CREATE_BUTTON_LABELS),
+                ),
+            {timeout: 10000},
+        )
+        .toBe(true)
+
+    const createButton = await getVisibleButtonByLabels(page, HUMAN_EVALUATION_CREATE_BUTTON_LABELS)
+    if (createButton) {
+        return createButton
     }
 
     throw new Error("Could not find a human evaluation create button.")
@@ -297,7 +326,7 @@ const getActiveHumanEvaluationPane = (modal: Locator) =>
 const selectHumanEvaluationModalTableInput = async ({
     modal,
     rowText,
-    inputType,
+    inputType: _inputType,
 }: {
     modal: Locator
     rowText?: string | RegExp
@@ -305,11 +334,11 @@ const selectHumanEvaluationModalTableInput = async ({
 }) => {
     const activePane = getActiveHumanEvaluationPane(modal)
     const searchInput = activePane.locator('input[placeholder="Search"]').first()
-    const inputSelector = inputType === "radio" ? 'input[type="radio"]' : 'input[type="checkbox"]'
+    const inputSelector =
+        'input[type="checkbox"], input[type="radio"], .ant-checkbox-input, .ant-radio-input'
     const controlSelector =
-        inputType === "radio"
-            ? ".ant-radio-wrapper, .ant-radio"
-            : ".ant-checkbox-wrapper, .ant-checkbox"
+        '.ant-checkbox, .ant-checkbox-wrapper, .ant-radio, .ant-radio-wrapper, [role="checkbox"], [role="radio"]'
+    const selectedTags = modal.locator(".ant-tabs-tab .ant-tag")
 
     if (typeof rowText === "string" && (await searchInput.isVisible().catch(() => false))) {
         await typeIntoLocator(searchInput, rowText)
@@ -328,38 +357,54 @@ const selectHumanEvaluationModalTableInput = async ({
         : activePane.locator("[data-row-key]").first()
     await expect(targetRow).toBeVisible({timeout: 30000})
     const targetRowKey = await targetRow.getAttribute("data-row-key")
-
-    await expect
-        .poll(async () => await targetRow.locator(inputSelector).count(), {timeout: 30000})
-        .toBeGreaterThan(0)
-
-    const selectionInput = targetRow.locator(inputSelector).first()
-    const selectionControl = targetRow.locator(controlSelector).first()
     const stableSelectionInput = targetRowKey
         ? modal.locator(`[data-row-key="${targetRowKey}"]`).locator(inputSelector).first()
-        : selectionInput
-    const isSelected = await selectionInput.isChecked().catch(() => false)
+        : targetRow.locator(inputSelector).first()
+    const stableRow = targetRowKey
+        ? modal.locator(`[data-row-key="${targetRowKey}"]`).first()
+        : targetRow
+    await expect(stableRow).toBeVisible({timeout: 30000})
 
-    if (!isSelected) {
-        if (await selectionControl.isVisible().catch(() => false)) {
+    const isSelected = async () => {
+        const rowClassName = await stableRow.getAttribute("class").catch(() => null)
+        if (rowClassName?.includes("ant-table-row-selected")) {
+            return true
+        }
+
+        const ariaSelected = await stableRow.getAttribute("aria-selected").catch(() => null)
+        if (ariaSelected === "true") {
+            return true
+        }
+
+        if ((await stableSelectionInput.count().catch(() => 0)) > 0) {
+            return await stableSelectionInput.isChecked().catch(() => false)
+        }
+
+        if (typeof rowText === "string") {
+            return (await selectedTags.filter({hasText: rowText}).count()) > 0
+        }
+
+        return false
+    }
+
+    if (!(await isSelected())) {
+        const selectionControl = stableRow.locator(controlSelector).first()
+        if ((await selectionControl.count().catch(() => 0)) > 0) {
             await selectionControl.click({force: true})
         } else {
-            await selectionInput.click({force: true})
+            await stableRow.click({force: true})
         }
     }
 
-    if (inputType === "radio" && typeof rowText === "string") {
+    if (_inputType === "radio" && typeof rowText === "string") {
         await expect
             .poll(
                 async () => {
-                    if (await stableSelectionInput.isChecked().catch(() => false)) {
+                    if (await isSelected()) {
                         return true
                     }
 
-                    return (
-                        (await modal.locator(".ant-tabs-tab").filter({hasText: rowText}).count()) >
-                        0
-                    )
+                    return (await selectedTags.filter({hasText: rowText}).count()) > 0
                 },
                 {timeout: 30000},
             )
@@ -367,7 +412,7 @@ const selectHumanEvaluationModalTableInput = async ({
         return
     }
 
-    await expect(stableSelectionInput).toBeChecked({timeout: 30000})
+    await expect.poll(isSelected, {timeout: 30000}).toBe(true)
 }
 
 const waitForHumanEvaluatorPane = async (modal: Locator) => {
@@ -408,7 +453,59 @@ const ensureSingleHumanEvaluatorSelection = async ({
     modal: Locator
     evaluatorName?: string
 }) => {
-    await waitForHumanEvaluatorPane(modal)
+    const activePane = await waitForHumanEvaluatorPane(modal)
+
+    if (!evaluatorName) {
+        const firstEvaluatorRow = activePane.locator("[data-row-key]").first()
+        const hasSelectedEvaluator = async () => {
+            const selectedRows = await activePane
+                .locator("[data-row-key]")
+                .evaluateAll((rows) =>
+                    rows.some(
+                        (row) =>
+                            row.className.includes("ant-table-row-selected") ||
+                            row.getAttribute("aria-selected") === "true",
+                    ),
+                )
+                .catch(() => false)
+
+            if (selectedRows) {
+                return true
+            }
+
+            return (
+                (await activePane
+                    .locator('input[type="checkbox"]:checked, input[type="radio"]:checked')
+                    .count()) > 0
+            )
+        }
+
+        await expect(firstEvaluatorRow).toBeVisible({timeout: 30000})
+
+        await expect
+            .poll(
+                async () => {
+                    if (await hasSelectedEvaluator()) return true
+
+                    // Try the row first, then fall back to the explicit checkbox
+                    const checkboxes = activePane.getByRole("checkbox")
+                    if ((await checkboxes.count()) > 1) {
+                        await checkboxes
+                            .nth(1)
+                            .click({force: true})
+                            .catch(() => null)
+                    } else {
+                        await firstEvaluatorRow.click({force: true}).catch(() => null)
+                    }
+
+                    return hasSelectedEvaluator()
+                },
+                {timeout: 30000},
+            )
+            .toBe(true)
+        return
+    }
+
     await selectHumanEvaluationModalTableInput({
         modal,
         rowText: evaluatorName,

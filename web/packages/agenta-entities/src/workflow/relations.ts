@@ -65,19 +65,33 @@ const revisionByWorkflowListAtomFamily = atomFamily((workflowId: string) =>
     atom<ListQueryState<Workflow>>((get) => {
         const query = get(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
 
+        // Build a variant ID → name map to enrich revisions with variant names
+        const variantsState = get(workflowVariantsListQueryStateAtomFamily(workflowId))
+        const variantNameMap = new Map<string, string>(
+            (variantsState.data ?? [])
+                .filter((v) => v.id && v.name)
+                .map((v) => [v.id, v.name as string]),
+        )
+
         // Resolve thin refs to full entities through the molecule
         const refs = query.data?.refs ?? []
         const data = refs
             .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
             .filter((w): w is Workflow => w !== null)
             .sort((a, b) => (b.version ?? 0) - (a.version ?? 0))
+            .map((revision) => ({
+                ...revision,
+                variant_name: revision.workflow_variant_id
+                    ? (variantNameMap.get(revision.workflow_variant_id) ?? undefined)
+                    : undefined,
+            }))
 
         const isPending = query.isPending ?? false
         const isError = query.isError ?? false
         const error = query.error ?? null
 
         return {
-            data,
+            data: data as Workflow[],
             isPending,
             isError,
             error,
