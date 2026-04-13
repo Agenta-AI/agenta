@@ -124,20 +124,39 @@ const selectEvaluatorTemplate = async (page: Page, templateName: string) => {
 }
 
 const getEvaluatorCommitModal = (page: Page) =>
-    page
-        .locator(".ant-modal")
-        .filter({
-            has: page.locator(`input[placeholder="${EVALUATOR_COMMIT_MODAL_NAME_PLACEHOLDER}"]`),
-        })
+    page.locator(".ant-modal").filter({
+        has: page.locator(`input[placeholder="${EVALUATOR_COMMIT_MODAL_NAME_PLACEHOLDER}"]`),
+    })
 
 /**
  * Opens the evaluator view drawer by clicking the evaluator row in the table.
+ * Uses the search input to narrow results (same approach as auto-evaluation modal),
+ * then waits for the row via [data-row-key] and clicks it.
  * Returns the drawer locator scoped to the specific "Test Evaluator" button.
  */
 const openEvaluatorViewDrawer = async (page: Page, evaluatorName: string) => {
-    const row = page.locator("tr[data-row-key]").filter({hasText: evaluatorName}).first()
-    await expect(row).toBeVisible({timeout: 15000})
-    await row.click()
+    // Use the search input to filter the table to just this evaluator
+    const searchInput = page.locator('input[placeholder="Search"]').first()
+    if (await searchInput.isVisible().catch(() => false)) {
+        await searchInput.fill(evaluatorName)
+    }
+
+    // Poll until at least one matching row appears (virtual table may defer rendering)
+    await expect
+        .poll(async () => page.locator("[data-row-key]").filter({hasText: evaluatorName}).count(), {
+            timeout: 30000,
+        })
+        .toBeGreaterThan(0)
+
+    // Get a stable locator using the actual data-row-key attribute value
+    const targetRow = page.locator("[data-row-key]").filter({hasText: evaluatorName}).first()
+    await expect(targetRow).toBeVisible({timeout: 15000})
+    const targetRowKey = await targetRow.getAttribute("data-row-key")
+    const stableRow = targetRowKey
+        ? page.locator(`[data-row-key="${targetRowKey}"]`).first()
+        : targetRow
+
+    await stableRow.click()
 
     // The view drawer contains the "Test Evaluator" expand button
     const viewDrawer = page
