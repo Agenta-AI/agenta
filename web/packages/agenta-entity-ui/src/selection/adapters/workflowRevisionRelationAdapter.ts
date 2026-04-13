@@ -293,8 +293,9 @@ export interface CreateWorkflowRevisionAdapterOptions {
      */
     grandparentOverrides?: {
         getLabelNode?: (entity: unknown) => React.ReactNode
-        getGroupKey?: (entity: unknown) => string
+        getGroupKey?: (entity: unknown) => string | null | undefined
         getGroupLabel?: (key: string) => string
+        tabs?: import("../types").TabDefinition[]
     }
 
     /**
@@ -474,6 +475,9 @@ export function createWorkflowRevisionAdapter(
                 getLabelNode: grandparentOverrides.getLabelNode ?? renderWorkflowLabelNode,
                 hasChildren: true,
                 isSelectable: false,
+                getGroupKey: grandparentOverrides.getGroupKey,
+                getGroupLabel: grandparentOverrides.getGroupLabel,
+                tabs: grandparentOverrides.tabs,
             },
             childType: "workflowRevision",
             childLabel: "Revision",

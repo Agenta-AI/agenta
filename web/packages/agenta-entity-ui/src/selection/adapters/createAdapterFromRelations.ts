@@ -83,6 +83,8 @@ export interface LevelOverride<T = unknown> {
     getGroupKey?: (entity: T) => string | null | undefined
     /** Map a group key to a human-readable display label */
     getGroupLabel?: (key: string) => string
+    /** Tab definitions for filtering items by group */
+    tabs?: import("../types").TabDefinition[]
 }
 
 /**
@@ -230,6 +232,7 @@ function applyOverrides<T>(
         filterItems: overrides.filterItems ?? baseLevel.filterItems,
         getGroupKey: overrides.getGroupKey ?? baseLevel.getGroupKey,
         getGroupLabel: overrides.getGroupLabel ?? baseLevel.getGroupLabel,
+        tabs: overrides.tabs ?? baseLevel.tabs,
     }
 }
 

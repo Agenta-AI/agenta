@@ -18,11 +18,12 @@ import {useMemo, useRef} from "react"
 import {
     evaluatorKeyMapAtom,
     evaluatorTemplatesMapAtom,
+    evaluatorTemplatesDataAtom,
     evaluatorConfigsQueryStateAtom,
     humanEvaluatorsListQueryAtom,
     workflowAppTypeAtomFamily,
+    workflowsListDataAtom,
 } from "@agenta/entities/workflow"
-import {workflowsListDataAtom} from "@agenta/entities/workflow"
 import {atom, getDefaultStore, useAtomValue} from "jotai"
 
 import {renderEvaluatorPickerLabelNode} from "./evaluatorLabelUtils"
@@ -125,6 +126,7 @@ export function useEnrichedEvaluatorOnlyAdapter(
     revisionLabelOverride?: (entity: unknown) => React.ReactNode,
 ) {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
+    const templates = useAtomValue(evaluatorTemplatesDataAtom)
     const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
     const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
     const revisionLabelOverrideRef = useRef(revisionLabelOverride)
@@ -134,6 +136,19 @@ export function useEnrichedEvaluatorOnlyAdapter(
     revisionLabelOverrideRef.current = revisionLabelOverride
 
     const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
+
+    // Build a stable Map<evaluatorKey, primaryCategory> from template data
+    const templateCategoryMap = useMemo(() => {
+        const map = new Map<string, string>()
+        for (const t of templates) {
+            if (t.key && t.categories?.length) {
+                map.set(t.key, t.categories[0].toLowerCase())
+            }
+        }
+        return map
+    }, [templates])
+    const templateCategoryMapRef = useRef(templateCategoryMap)
+    templateCategoryMapRef.current = templateCategoryMap
 
     // Stable atom that wraps evaluatorConfigsQueryStateAtom into ListQueryState<unknown>.
     // Uses a proper Jotai atom so filtering reactively updates when revision data resolves.
@@ -159,12 +174,39 @@ export function useEnrichedEvaluatorOnlyAdapter(
                 evaluatorDefsByKeyRef.current,
             )
 
+        // Resolve workflowId → evaluatorKey → primary category
+        const getGroupKey = (entity: unknown): string | null | undefined => {
+            const w = entity as {id: string}
+            const key = evaluatorKeyMapRef.current.get(w.id)
+            if (!key) return "custom"
+            return templateCategoryMapRef.current.get(key) ?? "custom"
+        }
+
+        const CATEGORY_LABELS: Record<string, string> = {
+            ai_llm: "AI / LLM",
+            classifiers: "Classifiers",
+            similarity: "Similarity",
+            custom: "Custom",
+            rag: "RAG",
+        }
+
+        const getGroupLabel = (key: string): string => CATEGORY_LABELS[key] ?? key
+
         const options: NonNullable<Parameters<typeof createWorkflowRevisionAdapter>[0]> = {
             skipVariantLevel: true,
             excludeRevisionZero: true,
             workflowListAtom: autoEvaluatorsListAtom,
             grandparentOverrides: {
                 getLabelNode,
+                getGroupKey,
+                getGroupLabel,
+                tabs: [
+                    {key: "all", label: "All"},
+                    {key: "ai_llm", label: "AI / LLM"},
+                    {key: "classifiers", label: "Classifiers"},
+                    {key: "similarity", label: "Similarity"},
+                    {key: "custom", label: "Custom"},
+                ],
             },
         }
 

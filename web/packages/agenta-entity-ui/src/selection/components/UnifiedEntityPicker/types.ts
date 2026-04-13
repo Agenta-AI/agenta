@@ -639,6 +639,56 @@ export interface PopoverCascaderVariantProps<
      * @default false
      */
     openChildOnHover?: boolean
+
+    // ========================================================================
+    // MULTI-SELECT
+    // ========================================================================
+
+    /**
+     * Enable multi-select mode in the child panel.
+     * When true, children render with checkboxes instead of click-to-select.
+     * The popover stays open after each toggle (user closes manually).
+     * @default false
+     */
+    multiSelect?: boolean
+
+    /**
+     * Controlled set of selected child IDs (for multi-select mode).
+     * The component renders checkboxes as checked for IDs in this set.
+     * In multi-select mode, this takes precedence over `selectedChildId`.
+     */
+    selectedChildIds?: Set<string>
+
+    /**
+     * Callback for bulk select/deselect operations (e.g., "Select all").
+     * Called with all newly selected items when "Select all" is clicked.
+     * Called with an empty array when "Deselect all" is clicked
+     * (consumer interprets empty array as "clear all for this parent").
+     */
+    onSelectAll?: (
+        selections: TSelection[],
+        action: "select" | "deselect",
+        parentId: string,
+    ) => void
+
+    /**
+     * Controls the rendering mode for child item labels.
+     * - "full": Render using `labelNode` from adapter (if available), which may contain avatars/metadata.
+     * - "simple": Force render using simple string label, ignoring `labelNode`.
+     * @default "full"
+     */
+    childItemLabelMode?: "full" | "simple"
+
+    // ========================================================================
+    // SELECTION SUMMARY
+    // ========================================================================
+
+    /**
+     * Optional summary text displayed above the root item list.
+     * Consumer controls the content (e.g., "No versions selected", "3 versions selected").
+     * When omitted, no summary is rendered.
+     */
+    selectionSummary?: string
 }
 
 // ============================================================================

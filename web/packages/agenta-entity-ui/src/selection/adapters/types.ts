@@ -17,6 +17,7 @@ import type {
     ListQueryState,
     PaginatedListQueryState,
     PaginationParams,
+    TabDefinition,
 } from "../types"
 
 // ============================================================================
@@ -172,6 +173,14 @@ export interface CreateHierarchyLevelOptions<T = unknown> {
      * Falls back to the key itself if not provided.
      */
     getGroupLabel?: (key: string) => string
+
+    /**
+     * Optional tab definitions for filtering items by group.
+     * When provided, the component renders tabs above the item list.
+     * Each tab filters items by `getGroupKey` match. The "all" key shows all items grouped.
+     * Requires `getGroupKey` to be defined for meaningful filtering.
+     */
+    tabs?: TabDefinition[]
 }
 
 /**

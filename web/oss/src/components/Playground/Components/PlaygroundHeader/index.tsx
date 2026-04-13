@@ -1,8 +1,12 @@
-import React, {useCallback, useMemo} from "react"
+import React, {useCallback, useMemo, useState} from "react"
 
 import type {PlaygroundNode} from "@agenta/entities/runnable"
-import {getEvaluatorColor, workflowMolecule} from "@agenta/entities/workflow"
-import type {EvaluatorColor} from "@agenta/entities/workflow"
+import {
+    getEvaluatorColor,
+    workflowMolecule,
+    createEvaluatorFromTemplate,
+} from "@agenta/entities/workflow"
+import type {EvaluatorColor, EvaluatorCatalogTemplate} from "@agenta/entities/workflow"
 import {EntityPicker} from "@agenta/entity-ui"
 import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {useEnrichedEvaluatorOnlyAdapter as useEvaluatorOnlyAdapter} from "@agenta/entity-ui/selection"
@@ -12,14 +16,16 @@ import {bgColors, textColors} from "@agenta/ui"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {Gavel, PencilSimple, Plus} from "@phosphor-icons/react"
-import {Button, Divider, Dropdown, Space, Tag, Tooltip, Typography} from "antd"
+import {Button, Divider, Dropdown, Space, Tag, Tooltip, Typography, message} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import EvaluatorTemplateDropdown from "@/oss/components/Evaluators/components/EvaluatorTemplateDropdown"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {currentAppAtom} from "@/oss/state/app"
 import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
+import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStore"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
 
@@ -168,24 +174,6 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         [connectedEvaluatorNodes],
     )
 
-    const handleEvaluatorSelect = useCallback(
-        (selection: WorkflowRevisionSelectionResult) => {
-            const rootNode = nodes.find((n) => n.depth === 0)
-            if (!rootNode) return
-
-            connectDownstreamNode({
-                sourceNodeId: rootNode.id,
-                entity: {
-                    type: "workflow",
-                    id: selection.id,
-                    label: selection.label,
-                    metadata: selection.metadata,
-                },
-            })
-        },
-        [nodes, connectDownstreamNode],
-    )
-
     const handleDisconnectAll = useCallback(() => {
         disconnectDownstreamNode("workflow")
     }, [disconnectDownstreamNode])
@@ -199,6 +187,114 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
 
     // Evaluator-only adapter with colored type tags, human filtering, and custom revision labels
     const evaluatorWorkflowAdapter = useEvaluatorOnlyAdapter(renderWorkflowRevisionLabel)
+
+    // Controlled state for EvaluatorTemplateDropdown
+    const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false)
+
+    // Open the evaluator template dropdown (called from EntityPicker's onCreateNew)
+    const handleOpenTemplateDropdown = useCallback(() => {
+        // Small delay to let the EntityPicker popover close first
+        setTimeout(() => {
+            setTemplateDropdownOpen(true)
+        }, 100)
+    }, [])
+
+    const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
+
+    // Handle template selection from EvaluatorTemplateDropdown
+    const handleTemplateSelect = useCallback(
+        async (template: EvaluatorCatalogTemplate) => {
+            const templateKey = template.key
+            if (!templateKey) {
+                message.error("Unable to open evaluator template")
+                return
+            }
+
+            const localId = await createEvaluatorFromTemplate(templateKey)
+            if (!localId) {
+                message.error("Unable to create evaluator from template")
+                return
+            }
+
+            openEvaluatorDrawer({
+                entityId: localId,
+                mode: "create",
+            })
+        },
+        [openEvaluatorDrawer],
+    )
+
+    // Multi-select: toggle evaluator connection/disconnection
+    const handleEvaluatorToggle = useCallback(
+        (selection: WorkflowRevisionSelectionResult) => {
+            const rootNode = nodes.find((n) => n.depth === 0)
+            if (!rootNode) return
+
+            // Check if this revision is already connected
+            const existingNode = connectedEvaluatorNodes.find((n) => n.entityId === selection.id)
+
+            if (existingNode) {
+                // Disconnect
+                disconnectSingleDownstreamNode(existingNode.id)
+            } else {
+                // Connect
+                connectDownstreamNode({
+                    sourceNodeId: rootNode.id,
+                    entity: {
+                        type: "workflow",
+                        id: selection.id,
+                        label: selection.label,
+                        metadata: selection.metadata,
+                    },
+                })
+            }
+        },
+        [nodes, connectedEvaluatorNodes, connectDownstreamNode, disconnectSingleDownstreamNode],
+    )
+
+    // Multi-select: bulk connect or disconnect
+    const handleEvaluatorsSelectAll = useCallback(
+        (
+            selections: WorkflowRevisionSelectionResult[],
+            action: "select" | "deselect",
+            parentId: string,
+        ) => {
+            const rootNode = nodes.find((n) => n.depth === 0)
+            if (!rootNode) return
+
+            if (action === "select") {
+                // Connect all new selections
+                selections.forEach((selection) => {
+                    connectDownstreamNode({
+                        sourceNodeId: rootNode.id,
+                        entity: {
+                            type: "workflow",
+                            id: selection.id,
+                            label: selection.label,
+                            metadata: selection.metadata,
+                        },
+                    })
+                })
+            } else if (action === "deselect") {
+                // Determine which nodes belong to the selections and remove them
+                const selectionIds = new Set(selections.map((s) => s.id))
+                const nodesToRemove = connectedEvaluatorNodes.filter((n) =>
+                    selectionIds.has(n.entityId),
+                )
+                nodesToRemove.forEach((node) => {
+                    disconnectSingleDownstreamNode(node.id)
+                })
+            }
+        },
+        [nodes, connectedEvaluatorNodes, connectDownstreamNode, disconnectSingleDownstreamNode],
+    )
+
+    // Selection summary text
+    const selectionSummary = useMemo(() => {
+        const count = connectedEvaluatorNodes.length
+        if (count === 0) return "No evaluators selected"
+        return `${count} evaluator${count === 1 ? "" : "s"} selected`
+    }, [connectedEvaluatorNodes.length])
 
     // Simplified refresh function - atoms will handle the data updates automatically
     const handleUpdate = useCallback(async () => {
@@ -298,15 +394,21 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                             <EntityPicker<WorkflowRevisionSelectionResult>
                                 variant="popover-cascader"
                                 adapter={evaluatorWorkflowAdapter}
-                                onSelect={handleEvaluatorSelect}
+                                onSelect={handleEvaluatorToggle}
+                                onSelectAll={handleEvaluatorsSelectAll}
                                 size="small"
                                 placeholder="Evaluator"
                                 icon={<Gavel size={14} />}
                                 disabled={!hasRootNode}
-                                disabledChildIds={connectedRevisionIds}
+                                multiSelect
+                                selectedChildIds={connectedRevisionIds}
+                                selectionSummary={selectionSummary}
+                                childItemLabelMode="simple"
+                                onCreateNew={handleOpenTemplateDropdown}
+                                createNewLabel="New evaluator"
                                 popupFooter={
                                     connectedEvaluatorNodes.length > 0 ? (
-                                        <div className="border-t border-solid border-[rgba(5,23,41,0.06)] p-2">
+                                        <div className="border-0 border-t border-solid border-[rgba(5,23,41,0.06)] p-2">
                                             <Button
                                                 size="small"
                                                 danger
@@ -321,6 +423,12 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                             />
                         </span>
                     </Tooltip>
+                    <EvaluatorTemplateDropdown
+                        onSelect={handleTemplateSelect}
+                        open={templateDropdownOpen}
+                        onOpenChange={setTemplateDropdownOpen}
+                        trigger={<span className="w-0 h-0 inline-block" />}
+                    />
                     <TestsetDropdown />
                     {isProjectLevelPlayground ? (
                         <Tooltip title="Compare mode is unavailable in project-level playground">

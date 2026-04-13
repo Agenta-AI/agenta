@@ -120,6 +120,18 @@ export interface PaginatedListQueryState<T> extends ListQueryState<T> {
 }
 
 /**
+ * Defines a tab for filtering items by group.
+ * Tabs map to `getGroupKey` values — selecting a tab filters items to that group.
+ * The "all" key is special: it shows all items grouped by their `getGroupKey`.
+ */
+export interface TabDefinition {
+    /** Group key this tab filters to, or "all" to show all items grouped */
+    key: string
+    /** Display label for the tab (e.g., "AI/LLM", "Classifiers") */
+    label: string
+}
+
+/**
  * Defines a level in the entity hierarchy
  */
 export interface HierarchyLevel<T = unknown> {
@@ -266,6 +278,14 @@ export interface HierarchyLevel<T = unknown> {
      * Falls back to the key itself if not provided.
      */
     getGroupLabel?: (key: string) => string
+
+    /**
+     * Optional tab definitions for filtering items by group.
+     * When provided, the component renders tabs above the item list.
+     * Each tab filters items by `getGroupKey` match. The "all" key shows all items grouped.
+     * Requires `getGroupKey` to be defined for meaningful filtering.
+     */
+    tabs?: TabDefinition[]
 }
 
 /**
