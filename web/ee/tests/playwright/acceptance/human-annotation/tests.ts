@@ -481,18 +481,28 @@ const ensureSingleHumanEvaluatorSelection = async ({
         }
 
         await expect(firstEvaluatorRow).toBeVisible({timeout: 30000})
-        await firstEvaluatorRow.click({force: true})
 
-        if (!(await hasSelectedEvaluator())) {
-            const evaluatorCheckboxes = activePane.getByRole("checkbox")
-            if ((await evaluatorCheckboxes.count()) > 1) {
-                const firstEvaluatorCheckbox = evaluatorCheckboxes.nth(1)
-                await expect(firstEvaluatorCheckbox).toBeVisible({timeout: 30000})
-                await firstEvaluatorCheckbox.click({force: true})
-            }
-        }
+        await expect
+            .poll(
+                async () => {
+                    if (await hasSelectedEvaluator()) return true
 
-        await expect.poll(hasSelectedEvaluator, {timeout: 10000}).toBe(true)
+                    // Try the row first, then fall back to the explicit checkbox
+                    const checkboxes = activePane.getByRole("checkbox")
+                    if ((await checkboxes.count()) > 1) {
+                        await checkboxes
+                            .nth(1)
+                            .click({force: true})
+                            .catch(() => null)
+                    } else {
+                        await firstEvaluatorRow.click({force: true}).catch(() => null)
+                    }
+
+                    return hasSelectedEvaluator()
+                },
+                {timeout: 30000},
+            )
+            .toBe(true)
         return
     }
 

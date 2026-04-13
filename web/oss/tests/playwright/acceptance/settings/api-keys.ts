@@ -69,7 +69,7 @@ const apiKeysTests = () => {
             await expect(page.locator(".ant-modal")).toBeVisible()
 
             const apiKeyDeletePromise = apiHelpers.waitForApiResponse<{message: string}>({
-                route: /\/api\/keys$/,
+                route: /\/api\/keys/,
                 method: "DELETE",
             })
 

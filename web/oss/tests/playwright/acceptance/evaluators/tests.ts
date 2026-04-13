@@ -284,7 +284,7 @@ const fillTestcaseField = async (
 
     await editor.click()
     // Select all existing content then type new value
-    await page.keyboard.press("Meta+A")
+    await page.keyboard.press("ControlOrMeta+A")
     await editor.pressSequentially(value, {delay: 20})
 
     return true
