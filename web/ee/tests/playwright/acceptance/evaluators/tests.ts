@@ -43,6 +43,15 @@ const EVALUATOR_NON_COMPLETION_TYPE_LABELS = ["Chat", "Custom"]
 const EVALUATOR_RUN_BUTTON_LABEL = "Run"
 const EVALUATOR_RESULT_CARD_SELECTOR = ".node-result-card"
 
+// Human evaluator drawer (create)
+const HUMAN_EVALUATOR_DRAWER_TITLE = "Create new evaluator"
+const HUMAN_EVALUATOR_NAME_PLACEHOLDER = "Enter a name"
+const HUMAN_EVALUATOR_FEEDBACK_NAME_PLACEHOLDER = "Enter a feedback name"
+const HUMAN_EVALUATOR_FEEDBACK_TYPE_PLACEHOLDER = "Select type"
+const HUMAN_EVALUATOR_FEEDBACK_TYPE_BOOL_LABEL = "Boolean (True/False)"
+const HUMAN_EVALUATOR_CREATE_BUTTON_LABEL = "Create"
+const HUMAN_EVALUATOR_CREATE_SUCCESS_MESSAGE = "Evaluator created successfully"
+
 const getEvaluatorsPath = (page: Page) => `${getProjectScopedBasePath(page)}/evaluators`
 
 const getEvaluatorsUrl = (page: Page, tab?: string) => {
@@ -281,6 +290,101 @@ const fillTestcaseField = async (
     return true
 }
 
+/**
+ * Opens the "Create new" drawer for a human evaluator, fills in the name,
+ * feedback name, and feedback type (boolean by default), then submits.
+ * Waits for the creation API call and the success message, then verifies
+ * the drawer closes.
+ *
+ * Returns the evaluator name that was used.
+ */
+const createHumanEvaluatorFromDrawer = async (
+    page: Page,
+    {
+        evaluatorName,
+        feedbackName,
+    }: {
+        evaluatorName: string
+        feedbackName: string
+    },
+) => {
+    // Click the "Create new" button (visible on Human Evaluators tab)
+    const createButton = page.getByRole("button", {name: EVALUATOR_CREATE_BUTTON_LABEL}).first()
+    await expect(createButton).toBeVisible()
+    await createButton.click()
+
+    // Wait for the human evaluator create drawer to open
+    const drawer = page
+        .locator(".ant-drawer")
+        .filter({hasText: HUMAN_EVALUATOR_DRAWER_TITLE})
+        .first()
+    await expect(drawer).toBeVisible({timeout: 10000})
+
+    // Fill in the evaluator name
+    const nameInput = drawer
+        .locator(`input[placeholder="${HUMAN_EVALUATOR_NAME_PLACEHOLDER}"]`)
+        .first()
+    await expect(nameInput).toBeVisible()
+    await nameInput.fill(evaluatorName)
+    await expect(nameInput).toHaveValue(evaluatorName)
+
+    // Fill in the feedback name (the first metric row)
+    const feedbackNameInput = drawer
+        .locator(`input[placeholder="${HUMAN_EVALUATOR_FEEDBACK_NAME_PLACEHOLDER}"]`)
+        .first()
+    await expect(feedbackNameInput).toBeVisible()
+    await feedbackNameInput.fill(feedbackName)
+    await expect(feedbackNameInput).toHaveValue(feedbackName)
+
+    // Select the feedback type: Boolean (True/False)
+    // Filter by the placeholder text to target the feedback-type Select specifically.
+    const typeSelect = drawer
+        .locator(".ant-select")
+        .filter({hasText: HUMAN_EVALUATOR_FEEDBACK_TYPE_PLACEHOLDER})
+        .first()
+    await expect(typeSelect).toBeVisible({timeout: 5000})
+    await typeSelect.click()
+
+    // Wait for the AntD dropdown to appear and pick "Boolean (True/False)"
+    const dropdown = page.locator(".ant-select-dropdown").last()
+    await expect(dropdown).toBeVisible({timeout: 5000})
+    const boolOption = dropdown
+        .locator(".ant-select-item-option")
+        .filter({hasText: HUMAN_EVALUATOR_FEEDBACK_TYPE_BOOL_LABEL})
+        .first()
+    await expect(boolOption).toBeVisible({timeout: 5000})
+    await boolOption.click()
+
+    // Verify the select now shows the chosen type
+    await expect(
+        drawer
+            .locator(".ant-select")
+            .filter({hasText: /Boolean/i})
+            .first(),
+    ).toBeVisible({timeout: 5000})
+
+    // Intercept the creation API call and click Create
+    const creationPromise = waitForWorkflowCreation(page)
+    const submitButton = drawer
+        .getByRole("button", {name: HUMAN_EVALUATOR_CREATE_BUTTON_LABEL})
+        .last()
+    await expect(submitButton).toBeVisible()
+    await expect(submitButton).toBeEnabled()
+    await submitButton.click()
+
+    await creationPromise
+
+    // Verify the success message
+    await expect(
+        page.locator(".ant-message").getByText(HUMAN_EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
+    ).toBeVisible({timeout: 10000})
+
+    // Verify the drawer closes
+    await expect(drawer).toHaveCount(0, {timeout: 10000})
+
+    return evaluatorName
+}
+
 const testWithEvaluatorFixtures = baseTest.extend<EvaluatorFixtures>({
     navigateToEvaluators: async ({page}, use) => {
         await use(async () => {
@@ -334,4 +438,12 @@ export {
     EVALUATOR_NON_COMPLETION_TYPE_LABELS,
     EVALUATOR_RUN_BUTTON_LABEL,
     EVALUATOR_RESULT_CARD_SELECTOR,
+    createHumanEvaluatorFromDrawer,
+    HUMAN_EVALUATOR_DRAWER_TITLE,
+    HUMAN_EVALUATOR_NAME_PLACEHOLDER,
+    HUMAN_EVALUATOR_FEEDBACK_NAME_PLACEHOLDER,
+    HUMAN_EVALUATOR_FEEDBACK_TYPE_PLACEHOLDER,
+    HUMAN_EVALUATOR_FEEDBACK_TYPE_BOOL_LABEL,
+    HUMAN_EVALUATOR_CREATE_BUTTON_LABEL,
+    HUMAN_EVALUATOR_CREATE_SUCCESS_MESSAGE,
 }

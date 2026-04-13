@@ -9,6 +9,7 @@ import {
     expandEvaluatorToPlayground,
     selectCompletionAppFromDrawer,
     fillTestcaseField,
+    createHumanEvaluatorFromDrawer,
     EVALUATORS_PAGE_TITLE,
     EVALUATOR_TAB_AUTOMATIC,
     EVALUATOR_TAB_HUMAN,
@@ -23,6 +24,7 @@ import {
     EVALUATOR_CREATE_SUCCESS_MESSAGE,
     EVALUATOR_RUN_BUTTON_LABEL,
     EVALUATOR_RESULT_CARD_SELECTOR,
+    HUMAN_EVALUATOR_CREATE_SUCCESS_MESSAGE,
 } from "./tests"
 import {
     createTagString,
@@ -307,6 +309,59 @@ const testEvaluators = () => {
             await expect(viewDrawer.locator(EVALUATOR_RESULT_CARD_SELECTOR).first()).toBeVisible({
                 timeout: 30000,
             })
+        },
+    )
+
+    test(
+        "should create a human evaluator with a boolean feedback metric",
+        {
+            tag: [
+                createTagString("scope", TestScope.EVALUATIONS),
+                createTagString("coverage", TestCoverage.SMOKE),
+                createTagString("coverage", TestCoverage.LIGHT),
+                createTagString("coverage", TestCoverage.FULL),
+                createTagString("path", TestPath.HAPPY),
+            ],
+        },
+        async ({page, navigateToEvaluators}) => {
+            const evaluatorName = `e2e-human-eval-${Date.now()}`
+            // Feedback names must be letters/numbers/underscore/dash (no spaces)
+            const feedbackName = "quality"
+
+            // Step 1: Navigate to the evaluators page
+            await navigateToEvaluators()
+
+            // Step 2: Switch to the Human Evaluators tab
+            await ensureEvaluatorTab(page, EVALUATOR_TAB_HUMAN, EVALUATOR_TAB_PARAM_HUMAN)
+
+            // Step 3: Open the create drawer, fill in the form, and submit
+            await createHumanEvaluatorFromDrawer(page, {evaluatorName, feedbackName})
+
+            // Step 4: Verify the success message (already checked inside the helper,
+            // but we confirm the final state here as well)
+            await expect(
+                page
+                    .locator(".ant-message")
+                    .getByText(HUMAN_EVALUATOR_CREATE_SUCCESS_MESSAGE)
+                    .first(),
+            ).toBeVisible({timeout: 10000})
+
+            // Step 5: Verify the new evaluator appears in the Human tab table.
+            // Use the search input to narrow results, then poll via [data-row-key].
+            const searchInput = page.locator('input[placeholder="Search"]').first()
+            if (await searchInput.isVisible().catch(() => false)) {
+                await searchInput.fill(evaluatorName)
+            }
+            await expect
+                .poll(
+                    async () =>
+                        page.locator("[data-row-key]").filter({hasText: evaluatorName}).count(),
+                    {timeout: 15000},
+                )
+                .toBeGreaterThan(0)
+            await expect(
+                page.locator("[data-row-key]").filter({hasText: evaluatorName}).first(),
+            ).toBeVisible({timeout: 5000})
         },
     )
 }
