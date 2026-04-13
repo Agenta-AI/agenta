@@ -16,6 +16,7 @@ from agenta.sdk.contexts.tracing import (
     tracing_context_manager,
 )
 from agenta.sdk.tracing.conventions import parse_span_kind
+from agenta.sdk.agenta_init import AgentaSingleton
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import get_module_logger
 from opentelemetry import context as otel_context
@@ -66,7 +67,19 @@ class instrument:  # pylint: disable=invalid-name
         self.aggregate = aggregate
         self.annotate = annotate
 
+    @staticmethod
+    def _warn_if_not_initialized(handler_name: str) -> None:
+        if not AgentaSingleton._initialized:
+            log.warning(
+                "ag.instrument() called on '%s' before ag.init(). "
+                "Tracing will not work until ag.init() is called. "
+                "Please call ag.init() before using @ag.instrument().",
+                handler_name,
+            )
+
     def __call__(self, handler: Callable[..., Any]):
+        self._warn_if_not_initialized(handler.__name__)
+
         is_coroutine_function = iscoroutinefunction(handler)
         is_sync_generator = isgeneratorfunction(handler)
         is_async_generator = isasyncgenfunction(handler)
