@@ -20,12 +20,11 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {safeStringify} from "@agenta/shared/utils"
 import {CollapseToggleButton, getCollapseStyle} from "@agenta/ui/components/presentational"
+import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {CopySimple, MinusCircle} from "@phosphor-icons/react"
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-
-import {useDrillInUI} from "../context/DrillInUIContext"
 
 import {TOOL_PROVIDERS_META, TOOL_SPECS, parseGatewayFunctionName, type ToolObj} from "./toolUtils"
 
@@ -468,7 +467,16 @@ export const ToolItemControl = memo(function ToolItemControl({
     const effectiveRenderProviderIcon = renderProviderIcon ?? defaultRenderProviderIcon
 
     const isReadOnly = disabled
-    const [minimized, setMinimized] = useState(false)
+    const [minimized, setMinimized] = useState(() => {
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+            const obj = value as Record<string, unknown>
+            if (obj.agenta_metadata && typeof obj.agenta_metadata === "object") {
+                const meta = obj.agenta_metadata as Record<string, unknown>
+                return meta.source === "gateway" || meta.source === "builtin"
+            }
+        }
+        return false
+    })
     const containerRef = useRef<HTMLDivElement>(null)
 
     // Strip agenta_metadata if present (re-attach on change)

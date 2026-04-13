@@ -107,6 +107,22 @@ def _pack(
     return f"cache:p:{project_id}:u:{user_id}:{namespace}:{key}"
 
 
+def pack(
+    namespace: Optional[str] = None,
+    key: Optional[Union[str, dict]] = None,
+    project_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    pattern: Optional[bool] = False,
+) -> str:
+    return _pack(
+        namespace=namespace,
+        key=key,
+        project_id=project_id,
+        user_id=user_id,
+        pattern=pattern,
+    )
+
+
 async def _scan(pattern: str) -> list[str]:
     try:
         cursor = 0

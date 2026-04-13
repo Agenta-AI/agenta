@@ -499,7 +499,10 @@ const tableColumnsBaseAtomFamily = atomFamily((runId: string | null) =>
             const evaluatorLabel = evaluator?.name || column.evaluatorSlug || "Annotations"
             const groupKey = column.evaluatorId ? `annotation:${column.evaluatorId}` : "annotations"
 
-            const groupLabel = titleize(String(evaluatorLabel))
+            // Use the evaluator name as-is when available (don't titleize
+            // proper names like "LLM-as-a-judge"). Only titleize fallbacks
+            // (slugs, IDs) that aren't human-readable.
+            const groupLabel = evaluator?.name || titleize(String(evaluatorLabel))
             if (!annotationGroups.has(groupKey)) {
                 annotationGroups.set(groupKey, {label: groupLabel, columns: []})
             }

@@ -1,3 +1,9 @@
+import {
+    isSpansResponse,
+    isTracesResponse,
+    transformTracesResponseToTree,
+    transformTracingResponse,
+} from "@agenta/entities/trace"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 // import {atomWithImmer} from "jotai-immer" // Not using immer for now to keep it simple or use it if complexity grows
@@ -11,12 +17,6 @@ import {getNodeById, observabilityTransformer} from "@/oss/lib/traces/observabil
 import {queryAllAnnotations} from "@/oss/services/annotations/api"
 import {AgentaTreeDTO, TracesWithAnnotations} from "@/oss/services/observability/types"
 import {fetchAllPreviewTraces, fetchPreviewTrace} from "@/oss/services/tracing/api"
-import {
-    isSpansResponse,
-    isTracesResponse,
-    transformTracesResponseToTree,
-    transformTracingResponse,
-} from "@/oss/services/tracing/lib/helpers"
 import {SpanLink, TraceSpanNode, TracesResponse} from "@/oss/services/tracing/types"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {getOrgValues} from "@/oss/state/org"

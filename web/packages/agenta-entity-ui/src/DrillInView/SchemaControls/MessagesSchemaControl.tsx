@@ -12,7 +12,7 @@
 
 import {memo, useCallback, useMemo} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
 import type {SimpleChatMessage} from "@agenta/shared/types"
 import {ChatMessageList} from "@agenta/ui/chat-message"
 import {Typography} from "antd"
@@ -48,9 +48,12 @@ export interface MessagesSchemaControlProps {
 export function isMessagesSchema(schema: SchemaProperty | null | undefined): boolean {
     if (!schema) return false
 
-    // Check for x-parameter: "messages"
+    // Check for x-parameter: "messages" (legacy), x-ag-messages: true, or x-ag-type: "messages"
     const xParam = schema["x-parameter"] as string | undefined
     if (xParam === "messages") return true
+    if ((schema as Record<string, unknown>)["x-ag-messages"] === true) return true
+    const xAgType = (schema as Record<string, unknown>)["x-ag-type"] as string | undefined
+    if (xAgType === "messages") return true
 
     // Check for array with message-like items
     if (schema.type === "array" && schema.items) {

@@ -1,30 +1,24 @@
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
+import {useUserDisplayName} from "@agenta/entities/shared/user"
+import type {Workflow} from "@agenta/entities/workflow"
+import {VariantNameCell} from "@agenta/entity-ui/variant"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Badge, Button, Flex, Popover, Tag, Typography} from "antd"
-import {useAtomValue} from "jotai"
 
 import {statusMap} from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
-import VariantNameCell from "@/oss/components/VariantNameCell"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
-import {Environment} from "@/oss/lib/Types"
 
 type VariantPopoverProps = {
-    env: Environment
-    selectedDeployedVariant: EnhancedVariant | undefined
+    env: AppEnvironmentDeployment
+    selectedDeployedVariant: Workflow | undefined
 } & React.ComponentProps<typeof Popover>
 
-const ModifiedByText = ({variant}: {variant: EnhancedVariant}) => {
-    const revisionData = useAtomValue(legacyAppRevisionMolecule.atoms.data(variant.id)) as any
-    const name: string | null =
-        revisionData?.modifiedByDisplayName ??
-        revisionData?.modifiedBy ??
-        revisionData?.modified_by ??
-        (variant as any)?.modifiedBy ??
-        null
-    if (!name || name === "-") return null
-    return <Typography.Text className="font-normal">{name}</Typography.Text>
+const ModifiedByText = ({variant}: {variant: Workflow}) => {
+    const authorId = variant.updated_by_id ?? variant.created_by_id ?? null
+    const resolvedName = useUserDisplayName(authorId ?? undefined)
+    if (!resolvedName || resolvedName === "-") return null
+    return <Typography.Text className="font-normal">{resolvedName}</Typography.Text>
 }
 
 const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopoverProps) => {
@@ -45,31 +39,23 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
             title={
                 <div onClick={(e) => e.stopPropagation()} className="flex flex-col gap-4">
                     <Flex justify="space-between">
-                        <VariantNameCell
-                            revisionId={selectedDeployedVariant?.revision}
-                            showBadges
-                        />
-                        {/* <VariantDetailsWithStatus
-                            variantName={selectedDeployedVariant?.variantName}
-                            revision={selectedDeployedVariant?.revision}
-                            variant={selectedDeployedVariant}
-                        /> */}
+                        <VariantNameCell revisionId={selectedDeployedVariant?.id} showBadges />
 
                         <Button
                             size="small"
                             icon={<ArrowSquareOut size={14} />}
                             className="flex items-center justify-center"
                             onClick={() => {
-                                goToPlayground(env.deployed_app_variant_revision_id)
+                                goToPlayground(env.deployedRevisionId)
                             }}
                         />
                     </Flex>
                     {selectedDeployedVariant && (
                         <ModifiedByText variant={selectedDeployedVariant} />
                     )}
-                    {selectedDeployedVariant?.commitMessage && (
+                    {selectedDeployedVariant?.message && (
                         <Typography.Text type="secondary">
-                            {selectedDeployedVariant?.commitMessage}
+                            {selectedDeployedVariant?.message}
                         </Typography.Text>
                     )}
                 </div>
@@ -80,7 +66,7 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
                 onClick={(e) => e.stopPropagation()}
             >
                 <Badge
-                    text={formatVariantIdWithHash(env.deployed_app_variant_revision_id as string)}
+                    text={formatVariantIdWithHash(env.deployedRevisionId as string)}
                     color={statusMap[env.name]?.badge ?? "transparent"}
                 />
             </Tag>

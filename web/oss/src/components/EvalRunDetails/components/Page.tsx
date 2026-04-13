@@ -130,7 +130,6 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     return (
         <PageLayout
             className="!p-0 h-full min-h-0"
-            titleLevel={3}
             title={runDisplayName}
             headerTabs={
                 <PreviewEvalRunTabs

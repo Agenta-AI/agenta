@@ -30,7 +30,7 @@ Authorization: {{authorization}}
         },
         "flags": {
             "is_custom": false,
-            "is_human": true
+            "is_feedback": true
         },
         "data": {
             "service": {
@@ -88,7 +88,7 @@ Authorization: {{authorization}}
         },
         "flags": {
             "is_custom": false,
-            "is_human": false
+            "is_feedback": false
         },
         "data": {
             "service": {
@@ -181,7 +181,7 @@ Authorization: {{authorization}}
 {
     "evaluator": {
         "flags": {
-            "is_human": true
+            "is_feedback": true
         }
     }
 }
@@ -197,7 +197,7 @@ Authorization: {{authorization}}
 {
     "evaluator": {
         "flags": {
-            "is_human": false
+            "is_feedback": false
         }
     }
 }

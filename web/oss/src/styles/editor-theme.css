@@ -453,7 +453,7 @@ pre::-webkit-scrollbar-thumb {
     overflow-y: scroll;
     overflow-x: scroll;
     table-layout: fixed;
-    width: fit-content;
+    width: 100%;
     margin-top: 25px;
     margin-bottom: 30px;
 }
@@ -521,7 +521,7 @@ pre::-webkit-scrollbar-thumb {
 }
 .editor-tableCell {
     border: 1px solid #bbb;
-    width: 75px;
+    min-width: 75px;
     vertical-align: top;
     text-align: start;
     padding: 6px 8px;
@@ -648,4 +648,14 @@ pre::-webkit-scrollbar-thumb {
 }
 .editor-tableCellActionButton:hover {
     background-color: #ddd;
+}
+.TableCellResizer__resizer {
+    position: absolute;
+    touch-action: none;
+}
+@media (pointer: coarse) {
+    .TableCellResizer__resizer {
+        background-color: #adf;
+        mix-blend-mode: color;
+    }
 }

@@ -655,14 +655,44 @@ export function registerDiffHighlightBehavior(
               })
           })
 
-    // Build diff content. Uses skipTransforms to avoid Lexical's
-    // $applyAllTransforms loop which freezes with many dirty nodes.
+    // Build diff content AFTER the initial editor state is applied.
+    // LexicalExtensionComposer applies $initialEditorState after extension
+    // registration completes, which overwrites any content built synchronously
+    // during register(). Deferring via registerUpdateListener ensures we run
+    // after that initial state setup.
+    let removeRootListener: (() => void) | null = null
+    let rafId: number | null = null
     if (isDiffMode) {
-        buildDiffContent()
+        // Defer diff content build until the editor is attached to the DOM.
+        // LexicalExtensionComposer applies the initial editor state after
+        // extension registration, which overwrites synchronously-built content.
+        // Waiting for the root element guarantees the editor is fully
+        // initialized and DOM-attached before we populate the diff tree.
+        const currentRoot = editor.getRootElement()
+        if (currentRoot) {
+            // Already attached — build immediately in next frame
+            rafId = requestAnimationFrame(() => {
+                rafId = null
+                buildDiffContent()
+            })
+        } else {
+            removeRootListener = editor.registerRootListener((rootElement) => {
+                if (rootElement) {
+                    removeRootListener?.()
+                    removeRootListener = null
+                    rafId = requestAnimationFrame(() => {
+                        rafId = null
+                        buildDiffContent()
+                    })
+                }
+            })
+        }
     }
 
     return () => {
         diffBuiltEditors.delete(editor)
+        removeRootListener?.()
+        if (rafId !== null) cancelAnimationFrame(rafId)
         removeTransform()
         removeTextTransform()
         removeLineTransform()

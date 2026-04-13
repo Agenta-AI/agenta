@@ -16,7 +16,7 @@ import {
     PencilSimple,
     Trash,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, Modal, Space, Tag, Typography} from "antd"
+import {Button, Dropdown, Space, Tag} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -27,7 +27,6 @@ import {
     useTableManager,
     useTableActions,
     createStandardColumns,
-    TableDescription,
 } from "@/oss/components/InfiniteVirtualTable"
 import CommitMessageCell from "@/oss/components/TestsetsTable/components/CommitMessageCell"
 import TestsetsHeaderFilters from "@/oss/components/TestsetsTable/components/TestsetsHeaderFilters"
@@ -38,12 +37,7 @@ import {
     setOnboardingWidgetActivationAtom,
 } from "@/oss/lib/onboarding"
 import type {TestsetCreationMode} from "@/oss/lib/Types"
-import {
-    archiveTestsetRevision,
-    downloadTestset,
-    downloadRevision,
-    type ExportFileType,
-} from "@/oss/services/testsets/api"
+import {downloadTestset, downloadRevision, type ExportFileType} from "@/oss/services/testsets/api"
 import {fetchRevisionsList, testset, type TestsetTableRow} from "@/oss/state/entities/testset"
 import {projectIdAtom} from "@/oss/state/project"
 
@@ -288,36 +282,15 @@ const TestsetsTable = ({
                 return
             }
 
-            Modal.confirm({
-                title: "Delete Revision",
-                content: `Are you sure you want to delete "${record.name}" revision v${version}? This action cannot be undone.`,
-                okText: "Delete",
-                okButtonProps: {danger: true},
-                onOk: async () => {
-                    try {
-                        await archiveTestsetRevision(record.id)
-                        message.success(`Revision v${version} deleted`)
-
-                        // Remove from cache
-                        if (testsetId) {
-                            setChildrenCache((prev) => {
-                                const newCache = new Map(prev)
-                                const children = newCache.get(testsetId)
-                                if (children) {
-                                    newCache.set(
-                                        testsetId,
-                                        children.filter((c) => c.id !== record.id),
-                                    )
-                                }
-                                return newCache
-                            })
-                        }
-                    } catch (error) {
-                        console.error("[TestsetsTable] Failed to delete revision:", error)
-                        message.error("Failed to delete revision")
-                    }
+            setSelectedTestsetToDelete([
+                {
+                    ...record,
+                    __isRevision: true,
+                    __version: version,
+                    __testsetId: testsetId,
                 },
-            })
+            ])
+            setIsDeleteTestsetModalOpen(true)
         },
         [childrenCache],
     )
@@ -703,18 +676,6 @@ const TestsetsTable = ({
         table.columnsRef.current = columns
     }, [columns, table.columnsRef])
 
-    const headerTitle = useMemo(
-        () => (
-            <div className="flex flex-col gap-1">
-                <Typography.Title level={5} style={{margin: 0}}>
-                    Testsets
-                </Typography.Title>
-                <TableDescription>Manage your testsets for evaluations.</TableDescription>
-            </div>
-        ),
-        [],
-    )
-
     const filtersNode = useMemo(() => <TestsetsHeaderFilters />, [])
 
     const createButton = useMemo(
@@ -803,7 +764,7 @@ const TestsetsTable = ({
     const rowSelection = useMemo(() => {
         if (isSelectMode) {
             return {
-                type: "radio" as const,
+                type: "checkbox" as const,
                 selectedRowKeys: selectedRowKey ? [selectedRowKey] : [],
                 getCheckboxProps: (record: TestsetTableRow) => ({
                     disabled: Boolean(record.__isSkeleton),
@@ -841,7 +802,7 @@ const TestsetsTable = ({
                 {...table.shellProps}
                 dataSource={rowsWithChildren}
                 columns={columns}
-                title={isManageMode ? headerTitle : undefined}
+                title={undefined}
                 filters={filtersNode}
                 primaryActions={isManageMode ? createButton : undefined}
                 rowSelection={rowSelection}

@@ -1,8 +1,8 @@
 import React, {useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
-import {runnableBridge} from "@agenta/entities/runnable"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {Tag} from "antd"
@@ -58,20 +58,16 @@ const DownstreamNodeCard = ({
     ) as {status?: string; output?: unknown; error?: {message: string} | null} | null
 
     const outputPorts = useAtomValue(
-        useMemo(
-            () => runnableBridge.forType(node.entityType).outputPorts(node.entityId),
-            [node.entityType, node.entityId],
-        ),
+        useMemo(() => workflowMolecule.selectors.outputPorts(node.entityId), [node.entityId]),
     )
-    const nodeData = useAtomValue(
-        useMemo(() => runnableBridge.data(node.entityId), [node.entityId]),
+    const nodeConfiguration = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.configuration(node.entityId), [node.entityId]),
     )
 
     const schemaMap = useMemo(() => {
         const map = buildSchemaMap(outputPorts)
-        const fbConfig = nodeData?.configuration?.feedback_config as
-            | Record<string, unknown>
-            | undefined
+        const fbConfig = (nodeConfiguration as Record<string, unknown> | undefined)
+            ?.feedback_config as Record<string, unknown> | undefined
         if (fbConfig) {
             const jsonSchema = fbConfig.json_schema as
                 | {schema?: {properties?: {score?: Record<string, unknown>}}}
@@ -83,7 +79,7 @@ const DownstreamNodeCard = ({
             }
         }
         return map
-    }, [outputPorts, nodeData])
+    }, [outputPorts, nodeConfiguration])
 
     const rawStatus = (fullResult?.status ?? "idle") as NodeStatus
 
@@ -244,7 +240,7 @@ const GenerationComparisonCompletionOutput = ({
                 if (!nodes) return {} as Record<string, string>
                 const names: Record<string, string> = {}
                 for (const node of nodes) {
-                    const data = get(runnableBridge.dataForType(node.entityType, node.entityId))
+                    const data = get(workflowMolecule.selectors.data(node.entityId))
                     if (data?.name) {
                         names[node.id] = data.name
                     }
@@ -274,15 +270,23 @@ const GenerationComparisonCompletionOutput = ({
     }, [nodes, entityId, nodeNames])
 
     // Feedback config for schema-aware result rendering
-    const primaryData = useAtomValue(useMemo(() => runnableBridge.data(entityId), [entityId]))
+    const primaryConfiguration = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
+    )
     const feedbackConfig =
-        (primaryData?.configuration?.feedback_config as Record<string, unknown>) ?? null
+        ((primaryConfiguration as Record<string, unknown> | null)?.feedback_config as Record<
+            string,
+            unknown
+        >) ?? null
 
     // Version and draft state for the primary node label
-    const primaryVersion = (primaryData as Record<string, unknown> | null)?.version as
-        | number
-        | undefined
-    const primaryIsDirty = useAtomValue(useMemo(() => runnableBridge.isDirty(entityId), [entityId]))
+    const primaryWorkflowData = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.data(entityId), [entityId]),
+    )
+    const primaryVersion = primaryWorkflowData?.version as number | undefined
+    const primaryIsDirty = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.isDirty(entityId), [entityId]),
+    )
 
     if (isLoading) {
         return (

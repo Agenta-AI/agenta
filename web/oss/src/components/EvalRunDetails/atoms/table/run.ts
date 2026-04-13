@@ -1,7 +1,7 @@
+import {fetchWorkflowsBatch} from "@agenta/entities/workflow"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import axios from "@/oss/lib/api/assets/axiosConfig"
 import {buildRunIndex} from "@/oss/lib/evaluations/buildRunIndex"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 import {
@@ -26,72 +26,15 @@ const isTerminalStatus = (status: string | null | undefined) => {
 }
 
 const patchedRunRevisionSet = new Set<string>()
-const loggedAlreadyPatchedSkipSet = new Set<string>()
 const resolvedEvaluatorRefsByRunKey = new Map<
     string,
     Map<string, {evaluator_revision: any; evaluator_variant?: any}>
 >()
-const resolvedEvaluatorByRefCache = new Map<
-    string,
-    {evaluator_revision: any; evaluator_variant?: any} | null
->()
-const shouldLogEvaluatorRevisionDebug =
-    process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true" || process.env.NODE_ENV !== "production"
-
-const logEvaluatorRevisionDebug = (message: string, payload: Record<string, any>) => {
-    if (!shouldLogEvaluatorRevisionDebug) return
-    console.debug(message, payload)
-}
 
 const normalizeRefValue = (value: unknown): string | undefined => {
     if (typeof value !== "string") return undefined
     const trimmed = value.trim()
     return trimmed.length > 0 ? trimmed : undefined
-}
-
-const buildEvaluatorRefCacheKey = ({
-    projectId,
-    evaluatorRef,
-}: {
-    projectId: string
-    evaluatorRef: Record<string, any>
-}): string => {
-    const id = normalizeRefValue(evaluatorRef.id) ?? ""
-    const slug = normalizeRefValue(evaluatorRef.slug) ?? ""
-    const version = normalizeRefValue(evaluatorRef.version) ?? ""
-    return `${projectId}:${id}:${slug}:${version}`
-}
-
-const buildRevisionPayload = (references: Record<string, any> | undefined) => {
-    if (!references) return null
-    const evaluatorRef = references.evaluator ?? references.evaluator_ref ?? null
-    if (!evaluatorRef) return null
-    const payload: Record<string, any> = {}
-    if (evaluatorRef.id || evaluatorRef.slug || evaluatorRef.version) {
-        payload.evaluator_ref = {
-            id: evaluatorRef.id,
-            slug: evaluatorRef.slug,
-            version: evaluatorRef.version,
-        }
-    }
-    const evaluatorVariantRef = references.evaluator_variant ?? references.evaluatorVariant
-    if (evaluatorVariantRef) {
-        payload.evaluator_variant_ref = {
-            id: evaluatorVariantRef.id,
-            slug: evaluatorVariantRef.slug,
-            version: evaluatorVariantRef.version,
-        }
-    }
-    const evaluatorRevisionRef =
-        references.evaluator_revision ?? references.evaluatorRevision ?? null
-    if (evaluatorRevisionRef) {
-        payload.evaluator_revision_ref = {
-            id: evaluatorRevisionRef.id,
-            slug: evaluatorRevisionRef.slug,
-            version: evaluatorRevisionRef.version,
-        }
-    }
-    return Object.keys(payload).length ? payload : null
 }
 
 type EnsureEvaluatorRevisionsReason =
@@ -170,57 +113,37 @@ const applyResolvedEvaluatorRefs = ({
     }
 }
 
+/**
+ * Ensures each annotation step in a run has `evaluator_revision` refs resolved.
+ *
+ * The backend strips `evaluator_revision` and `evaluator_variant` from run responses
+ * (see `_unresolve_run_response`). This function resolves them client-side using
+ * `fetchWorkflowsBatch` — a single batch request that fetches latest revisions
+ * for all evaluator workflow IDs referenced in the run.
+ */
 const ensureEvaluatorRevisions = async ({
     runId,
     projectId,
     rawRun,
-    source,
 }: {
     runId: string
     projectId: string
     rawRun: EvaluationRun
-    source: "evaluationRunQueryAtomFamily" | "evaluationRunWithProjectQueryAtomFamily"
 }): Promise<EnsureEvaluatorRevisionsResult> => {
     const runKey = `${projectId}:${runId}`
 
     if (patchedRunRevisionSet.has(runKey)) {
-        const skipLogKey = `${source}:${runKey}`
-        if (!loggedAlreadyPatchedSkipSet.has(skipLogKey)) {
-            loggedAlreadyPatchedSkipSet.add(skipLogKey)
-            logEvaluatorRevisionDebug("[EvalRunDetails2] ensureEvaluatorRevisions skipped", {
-                runId,
-                projectId,
-                source,
-                reason: "already-patched-in-session",
-            })
-        }
         const normalizedRun = applyResolvedEvaluatorRefs({runKey, rawRun})
-        return {
-            run: normalizedRun,
-            patched: false,
-            reason: "already-patched-in-session",
-        }
+        return {run: normalizedRun, patched: false, reason: "already-patched-in-session"}
     }
-
-    logEvaluatorRevisionDebug("[EvalRunDetails2] ensureEvaluatorRevisions started", {
-        runId,
-        projectId,
-        source,
-        alreadyPatchedInSession: false,
-    })
 
     const steps = Array.isArray(rawRun?.data?.steps) ? rawRun.data.steps : []
     if (!steps.length) {
-        logEvaluatorRevisionDebug("[EvalRunDetails2] ensureEvaluatorRevisions skipped", {
-            runId,
-            projectId,
-            source,
-            reason: "no-steps",
-        })
         patchedRunRevisionSet.add(runKey)
         return {run: rawRun, patched: false, reason: "no-steps"}
     }
 
+    // Find steps that have evaluator artifact refs but no resolved revision refs
     const revisionCandidates = steps
         .map((step: any, index: number) => ({step, index}))
         .filter(({step}) =>
@@ -234,217 +157,86 @@ const ensureEvaluatorRevisions = async ({
         )
 
     if (!revisionCandidates.length) {
-        logEvaluatorRevisionDebug("[EvalRunDetails2] ensureEvaluatorRevisions skipped", {
-            runId,
-            projectId,
-            source,
-            reason: "no-missing-revisions",
-            stepCount: steps.length,
-        })
         patchedRunRevisionSet.add(runKey)
         return {run: rawRun, patched: false, reason: "no-missing-revisions"}
     }
 
-    logEvaluatorRevisionDebug("[EvalRunDetails2] Evaluator revision check", {
-        runId,
-        projectId,
-        candidateCount: revisionCandidates.length,
-        candidateStepKeys: revisionCandidates.map(({step}) => step?.key),
-        stepCount: steps.length,
-    })
+    // Collect unique evaluator workflow IDs to resolve
+    const evaluatorIdsByStepKey = new Map<string, string>()
+    for (const {step} of revisionCandidates) {
+        const evaluatorRef = step.references.evaluator ?? step.references.evaluator_ref ?? null
+        const evaluatorId = normalizeRefValue(evaluatorRef?.id)
+        if (evaluatorId && step.key) {
+            evaluatorIdsByStepKey.set(step.key, evaluatorId)
+        }
+    }
 
+    const uniqueEvaluatorIds = [...new Set(evaluatorIdsByStepKey.values())]
+    if (uniqueEvaluatorIds.length === 0) {
+        patchedRunRevisionSet.add(runKey)
+        return {run: rawRun, patched: false, reason: "no-missing-revisions"}
+    }
+
+    // Single batch request to resolve all evaluator workflows → latest revisions
+    let resolvedMap: Map<string, {id: string; slug?: string; version?: number; variant_id?: string}>
+
+    try {
+        const workflowMap = await fetchWorkflowsBatch(projectId, uniqueEvaluatorIds)
+        resolvedMap = new Map()
+        for (const [workflowId, workflow] of workflowMap) {
+            resolvedMap.set(workflowId, {
+                id: workflow.id,
+                slug: workflow.slug ?? undefined,
+                version: workflow.version ?? undefined,
+                variant_id: workflow.workflow_variant_id ?? workflow.variant_id ?? undefined,
+            })
+        }
+    } catch (error) {
+        console.warn("[ensureEvaluatorRevisions] Failed to batch-fetch evaluator revisions", {
+            runId,
+            error,
+        })
+        patchedRunRevisionSet.add(runKey)
+        return {run: rawRun, patched: false, reason: "no-step-updates"}
+    }
+
+    // Patch steps with resolved revision refs
     const updatedSteps = [...steps]
-    let requestAttemptCount = 0
-    let skippedRequestCount = 0
-    let resolvedCount = 0
-    let emptyRevisionCount = 0
-    let requestFailureCount = 0
-    let cacheHitCount = 0
 
-    await Promise.all(
-        revisionCandidates.map(async ({step, index}) => {
-            const payload = buildRevisionPayload(step.references)
-            logEvaluatorRevisionDebug("[EvalRunDetails2] Evaluator revision payload", {
-                runId,
-                stepKey: step?.key,
-                payload,
-            })
-            const evaluatorRef = payload?.evaluator_ref ?? null
-            const hasResolvableEvaluatorRef = Boolean(
-                evaluatorRef?.id || evaluatorRef?.slug || evaluatorRef?.version,
-            )
-            if (!payload || !hasResolvableEvaluatorRef) {
-                skippedRequestCount += 1
-                logEvaluatorRevisionDebug(
-                    "[EvalRunDetails2] Skipping evaluator revision retrieval due to missing evaluator ref",
-                    {
-                        runId,
-                        stepKey: step?.key,
-                        payload,
-                    },
-                )
-                return
-            }
+    for (const {step, index} of revisionCandidates) {
+        const evaluatorId = evaluatorIdsByStepKey.get(step.key)
+        if (!evaluatorId) continue
 
-            const refCacheKey = buildEvaluatorRefCacheKey({
-                projectId,
-                evaluatorRef,
-            })
-            const hasCachedResolution = resolvedEvaluatorByRefCache.has(refCacheKey)
-            if (hasCachedResolution) {
-                cacheHitCount += 1
-            }
+        const resolved = resolvedMap.get(evaluatorId)
+        if (!resolved?.id) continue
 
-            let resolvedRefs = hasCachedResolution
-                ? (resolvedEvaluatorByRefCache.get(refCacheKey) ?? null)
-                : null
+        const nextReferences = {
+            ...step.references,
+            evaluator_revision: {
+                ...(step.references.evaluator_revision ?? {}),
+                id: resolved.id,
+                slug: resolved.slug,
+                version: resolved.version != null ? String(resolved.version) : undefined,
+            },
+            ...(resolved.variant_id
+                ? {
+                      evaluator_variant: {
+                          ...(step.references.evaluator_variant ?? {}),
+                          id: resolved.variant_id,
+                      },
+                  }
+                : {}),
+        }
 
-            if (!hasCachedResolution) {
-                try {
-                    requestAttemptCount += 1
-                    const response = await axios.post(
-                        `/preview/evaluators/revisions/retrieve`,
-                        payload,
-                        {
-                            params: {project_id: projectId},
-                        },
-                    )
-                    const revision =
-                        response?.data?.revision ?? response?.data?.data ?? response?.data ?? null
-                    const revisionPayload =
-                        revision?.evaluator_revision &&
-                        typeof revision.evaluator_revision === "object"
-                            ? revision.evaluator_revision
-                            : revision
-                    logEvaluatorRevisionDebug(
-                        "[EvalRunDetails2] Evaluator revision retrieve response",
-                        {
-                            runId,
-                            stepKey: step?.key,
-                            revision,
-                            revisionPayload,
-                            rawResponse: response?.data,
-                        },
-                    )
+        updatedSteps[index] = {
+            ...step,
+            references: nextReferences,
+        }
+    }
 
-                    if (revisionPayload && (revisionPayload.id || revisionPayload.slug)) {
-                        const evaluatorRevision = {
-                            id: revisionPayload.id ?? undefined,
-                            slug: revisionPayload.slug ?? undefined,
-                            version: revisionPayload.version ?? revision?.version ?? undefined,
-                        }
-                        const evaluatorVariantId =
-                            revisionPayload.evaluator_variant_id ??
-                            revisionPayload.variant_id ??
-                            revisionPayload.workflow_variant_id ??
-                            revision?.evaluator_variant_id ??
-                            revision?.variant_id ??
-                            revision?.workflow_variant_id
-
-                        resolvedRefs = {
-                            evaluator_revision: evaluatorRevision,
-                            ...(evaluatorVariantId
-                                ? {
-                                      evaluator_variant: {
-                                          id: evaluatorVariantId,
-                                          slug:
-                                              revisionPayload.variant_slug ??
-                                              revisionPayload.slug ??
-                                              undefined,
-                                          version:
-                                              revisionPayload.variant_version ??
-                                              revisionPayload.version ??
-                                              revision?.version ??
-                                              undefined,
-                                      },
-                                  }
-                                : {}),
-                        }
-                        resolvedEvaluatorByRefCache.set(refCacheKey, resolvedRefs)
-                    } else {
-                        emptyRevisionCount += 1
-                        resolvedEvaluatorByRefCache.set(refCacheKey, null)
-                        console.warn(
-                            "[EvalRunDetails2] Evaluator revision retrieve returned empty payload",
-                            {
-                                runId,
-                                stepKey: step?.key,
-                                payload,
-                                response: response?.data,
-                            },
-                        )
-                    }
-                } catch (error) {
-                    requestFailureCount += 1
-                    console.warn("[EvalRunDetails2] Failed to retrieve evaluator revision", {
-                        runId,
-                        stepKey: step?.key,
-                        error,
-                    })
-                }
-            }
-
-            if (resolvedRefs?.evaluator_revision?.id || resolvedRefs?.evaluator_revision?.slug) {
-                const nextReferences = {
-                    ...step.references,
-                    evaluator_revision: {
-                        ...(step.references.evaluator_revision ?? {}),
-                        ...resolvedRefs.evaluator_revision,
-                    },
-                    ...(resolvedRefs.evaluator_variant
-                        ? {
-                              evaluator_variant: {
-                                  ...(step.references.evaluator_variant ?? {}),
-                                  ...resolvedRefs.evaluator_variant,
-                              },
-                          }
-                        : {}),
-                }
-
-                const nextStep = {
-                    ...step,
-                    references: nextReferences,
-                }
-
-                resolvedCount += 1
-                updatedSteps[index] = nextStep
-                logEvaluatorRevisionDebug("[EvalRunDetails2] Retrieved evaluator revision", {
-                    runId,
-                    stepKey: step?.key,
-                    revision: resolvedRefs.evaluator_revision,
-                    cacheHit: hasCachedResolution,
-                })
-            }
-        }),
-    )
-
-    logEvaluatorRevisionDebug("[EvalRunDetails2] ensureEvaluatorRevisions retrieval summary", {
-        runId,
-        projectId,
-        candidateCount: revisionCandidates.length,
-        requestAttemptCount,
-        skippedRequestCount,
-        resolvedCount,
-        emptyRevisionCount,
-        requestFailureCount,
-        cacheHitCount,
-    })
-
-    const didUpdate = updatedSteps.some((step: any, index: number) => step !== steps[index])
+    const didUpdate = updatedSteps.some((step: any, i: number) => step !== steps[i])
 
     if (!didUpdate) {
-        logEvaluatorRevisionDebug("[EvalRunDetails2] Evaluator revision update skipped", {
-            runId,
-            projectId,
-            source,
-            reason: "no-step-updates",
-            candidateCount: revisionCandidates.length,
-            requestAttemptCount,
-            skippedRequestCount,
-            resolvedCount,
-            emptyRevisionCount,
-            requestFailureCount,
-        })
         patchedRunRevisionSet.add(runKey)
         return {run: rawRun, patched: false, reason: "no-step-updates"}
     }
@@ -456,28 +248,49 @@ const ensureEvaluatorRevisions = async ({
             steps: updatedSteps,
         },
     }
-    const resolvedRefsForRun = new Map<string, {evaluator_revision: any; evaluator_variant?: any}>()
-    updatedSteps.forEach((step: any) => {
-        if (!step || step.type !== "annotation" || typeof step.key !== "string") return
-        if (!step.references?.evaluator_revision) return
-        resolvedRefsForRun.set(step.key, {
-            evaluator_revision: step.references.evaluator_revision,
-            ...(step.references.evaluator_variant
-                ? {evaluator_variant: step.references.evaluator_variant}
-                : {}),
+
+    try {
+        if (process.env.NODE_ENV !== "production") {
+            console.debug("[EvalRunDetails2] Patching run with evaluator revisions", {
+                runId,
+                projectId,
+                patchedRun,
+            })
+        }
+        await axios.patch(
+            `/preview/evaluations/runs/${encodeURIComponent(runId)}`,
+            {run: patchedRun},
+            {
+                params: {project_id: projectId},
+                _ignoreError: true,
+            } as any,
+        )
+        if (process.env.NODE_ENV !== "production") {
+            console.debug("[EvalRunDetails2] Run patch successful", {
+                runId,
+                projectId,
+            })
+        }
+        if (process.env.NODE_ENV !== "production") {
+            console.debug(
+                "[EvalRunDetails2] Metrics refresh would trigger after patch but is disabled",
+                {
+                    runId,
+                    projectId,
+                },
+            )
+        }
+
+        patchedRunRevisionSet.add(runId)
+        return {run: patchedRun, patched: true}
+    } catch (error) {
+        console.warn("[EvalRunDetails2] Failed to patch run with evaluator revisions", {
+            runId,
+            error,
         })
-    })
-    if (resolvedRefsForRun.size > 0) {
-        resolvedEvaluatorRefsByRunKey.set(runKey, resolvedRefsForRun)
+        return {run: rawRun, patched: false}
     }
 
-    logEvaluatorRevisionDebug("[EvalRunDetails2] Applied local evaluator revision enrichment", {
-        runId,
-        projectId,
-        source,
-        resolvedCount,
-        enrichedStepCount: resolvedRefsForRun.size,
-    })
     patchedRunRevisionSet.add(runKey)
     return {run: patchedRun, patched: true, reason: "patched"}
 }
@@ -515,31 +328,11 @@ export const evaluationRunQueryAtomFamily = atomFamily((runId: string | null) =>
                     )
                 }
 
-                let normalizedRun = rawRun
-                if (projectId && runId) {
-                    const {
-                        run: ensuredRun,
-                        patched,
-                        reason,
-                    } = await ensureEvaluatorRevisions({
-                        runId,
-                        projectId,
-                        rawRun,
-                        source: "evaluationRunQueryAtomFamily",
-                    })
-                    if (patched || reason !== "already-patched-in-session") {
-                        logEvaluatorRevisionDebug(
-                            "[EvalRunDetails2] ensureEvaluatorRevisions completed for evaluationRunQueryAtomFamily",
-                            {
-                                runId,
-                                projectId,
-                                patched,
-                                reason,
-                            },
-                        )
-                    }
-                    normalizedRun = ensuredRun
-                }
+                const {run: normalizedRun} = await ensureEvaluatorRevisions({
+                    runId,
+                    projectId,
+                    rawRun,
+                })
 
                 const camelRun = snakeToCamelCaseKeys(normalizedRun)
                 const runIndex = buildRunIndex(camelRun)
@@ -581,31 +374,11 @@ export const evaluationRunWithProjectQueryAtomFamily = atomFamily(
                         )
                     }
 
-                    let normalizedRun = rawRun
-                    if (projectId && runId) {
-                        const {
-                            run: ensuredRun,
-                            patched,
-                            reason,
-                        } = await ensureEvaluatorRevisions({
-                            runId,
-                            projectId,
-                            rawRun,
-                            source: "evaluationRunWithProjectQueryAtomFamily",
-                        })
-                        if (patched || reason !== "already-patched-in-session") {
-                            logEvaluatorRevisionDebug(
-                                "[EvalRunDetails2] ensureEvaluatorRevisions completed for evaluationRunWithProjectQueryAtomFamily",
-                                {
-                                    runId,
-                                    projectId,
-                                    patched,
-                                    reason,
-                                },
-                            )
-                        }
-                        normalizedRun = ensuredRun
-                    }
+                    const {run: normalizedRun} = await ensureEvaluatorRevisions({
+                        runId,
+                        projectId,
+                        rawRun,
+                    })
 
                     const camelRun = snakeToCamelCaseKeys(normalizedRun)
                     const runIndex = buildRunIndex(camelRun)

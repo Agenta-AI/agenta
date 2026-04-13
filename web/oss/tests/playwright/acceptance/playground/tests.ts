@@ -110,18 +110,18 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 const targetTextbox = textboxes.first()
 
                 await targetTextbox.scrollIntoViewIfNeeded()
-                await targetTextbox.click()
+                await targetTextbox.click({force: true})
                 await targetTextbox.pressSequentially(message, {delay: 50})
 
                 // 3. Target the corresponding Run button
                 const runButtons = page.getByRole("button", {name: "Run", exact: true})
                 await waitForSuccessfulRun(
                     async () => {
-                        await runButtons.nth(i).click()
+                        await runButtons.nth(i).click({force: true})
                     },
                     async () => {
                         return await apiHelpers.waitForApiResponse<Record<string, any>>({
-                            route: /\/test(\?|$)/,
+                            route: /\/invoke(\?|$)/,
                             method: "POST",
                             validateStatus: false,
                         })
@@ -131,8 +131,13 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 await uiHelpers.expectNoText("Click run to generate output")
                 await expect(page.getByText("Error").first()).not.toBeVisible()
 
-                // 5. Add a new Testcase
+                if (i === messages.length - 1) {
+                    continue
+                }
+
+                // 5. Add a new testcase only when another input still needs to be executed.
                 const testcaseButton = page.getByRole("button", {name: "Test case"})
+                await expect(testcaseButton).toBeVisible()
                 await testcaseButton.scrollIntoViewIfNeeded()
                 await testcaseButton.click()
             }
@@ -159,18 +164,18 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 )
 
                 await targetTextbox.scrollIntoViewIfNeeded()
-                await targetTextbox.click()
+                await targetTextbox.click({force: true})
                 await targetTextbox.pressSequentially(message, {delay: 50})
 
                 // 3. Target the corresponding Run button
                 const runButtons = page.getByRole("button", {name: "Run", exact: true})
                 await waitForSuccessfulRun(
                     async () => {
-                        await runButtons.click()
+                        await runButtons.click({force: true})
                     },
                     async () => {
                         return await apiHelpers.waitForApiResponse<Record<string, any>>({
-                            route: /\/test(\?|$)/,
+                            route: /\/invoke(\?|$)/,
                             method: "POST",
                             validateStatus: false,
                         })

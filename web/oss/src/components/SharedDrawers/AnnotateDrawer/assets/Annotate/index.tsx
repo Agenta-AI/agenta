@@ -1,12 +1,14 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {humanEvaluatorsListDataAtom} from "@agenta/entities/workflow"
 import {Collapse, CollapseProps, Typography} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import useEvaluators from "@/oss/lib/hooks/useEvaluators"
-import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
+import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
+import {useEvaluatorSchemas} from "../hooks/useEvaluatorSchemas"
 import {
     getInitialMetricsFromAnnotations,
     getInitialSelectedEvalMetrics,
@@ -28,10 +30,8 @@ const Annotate = ({
     setUpdatedMetrics,
     onCaptureError,
 }: AnnotateProps) => {
-    const {data: evaluators} = useEvaluators({
-        preview: true,
-        queries: {is_human: true},
-    })
+    const evaluatorRefs = useAtomValue(humanEvaluatorsListDataAtom)
+    const evaluators = useEvaluatorSchemas(evaluatorRefs as any)
 
     // Stabilize array dependencies to prevent infinite loops
     const selectedEvaluatorsKey = useMemo(

@@ -22,10 +22,10 @@
         "./types": "./src/types/index.ts"
     },
     "dependencies": {
-        "@scalar/openapi-parser": "^0.24.13",
-        "dayjs": "^1.11.10",
+        "axios": ">=1.13.5",
+        "dayjs": "^1.11.20",
         "json5": "^2.2.3",
-        "jsonrepair": "^3.13.2",
+        "jsonrepair": "^3.13.3",
         "uuid": "^11.1.0"
     },
     "devDependencies": {

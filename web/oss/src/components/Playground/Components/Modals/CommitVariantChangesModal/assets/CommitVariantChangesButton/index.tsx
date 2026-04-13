@@ -1,7 +1,7 @@
 import {cloneElement, isValidElement, useCallback, useState} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
-import {FloppyDiskBack} from "@phosphor-icons/react"
+import {workflowMolecule} from "@agenta/entities/workflow"
+import {FloppyDiskBack, Plus} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -20,8 +20,13 @@ const CommitVariantChangesButton = ({
     ...props
 }: CommitVariantChangesButtonProps) => {
     const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
-    const hasChanges = useAtomValue(runnableBridge.isDirty(variantId || ""))
-    const disabled = !variantId || !hasChanges
+    const hasChanges = useAtomValue(workflowMolecule.selectors.isDirty(variantId || ""))
+    const isEphemeral = useAtomValue(workflowMolecule.selectors.isEphemeral(variantId || ""))
+
+    // Ephemeral entities are always "ready" (no dirty check needed — they need to be created)
+    const disabled = !variantId || (!isEphemeral && !hasChanges)
+    const resolvedLabel = isEphemeral ? "Create" : label
+    const resolvedIcon = isEphemeral ? <Plus size={14} /> : <FloppyDiskBack size={14} />
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const handleSuccess = useCallback(
         (payload?: {revisionId?: string; variantId?: string}) => {
@@ -47,12 +52,12 @@ const CommitVariantChangesButton = ({
             ) : (
                 <Button
                     type="text"
-                    icon={icon && <FloppyDiskBack size={14} />}
+                    icon={icon && resolvedIcon}
                     onClick={() => setIsDeployModalOpen(true)}
                     disabled={disabled}
                     {...props}
                 >
-                    {label}
+                    {resolvedLabel}
                 </Button>
             )}
 

@@ -1,0 +1,1944 @@
+@host = http://localhost
+@token = change-me-auth
+@api_url = {{host}}/api
+@services_url = {{host}}/services
+
+###
+# @name create_account
+POST {{api_url}}/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+# ============================================================
+# match:v0 — Generic rule-based matcher
+#
+# Supports two modes:   text | json
+# Supports eight match: valid | exact | starts_with | ends_with |
+#                       contains | regex | similarity | diff(json only)
+# Target formats:       JSONPath ($.outputs) | JSON Pointer (/outputs)
+# Reference formats:    literal value | JSONPath ref | JSON Pointer ref
+# Aggregation:          all (AND) | any (OR) | weighted (threshold-gated)
+# Similarity metrics:   jaccard | levenshtein | cosine (cosine requires LLM)
+# Diff modes:           full (default) | schema (type-only) | strict (penalise extra keys)
+# ============================================================
+
+###
+# 0. Fetch catalog
+# @name fetch_catalog
+GET {{api_url}}/preview/evaluators/catalog/templates/
+Authorization: {{authorization}}
+
+###
+# 1. Inspect the match template (schema + uri)
+# @name get_template
+GET {{api_url}}/preview/evaluators/catalog/templates/match
+Authorization: {{authorization}}
+
+###
+# ============================================================
+# 2. Lifecycle setup — create a minimal match workflow for env-based tests
+# @name create_workflow
+POST {{api_url}}/preview/simple/workflows/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "workflow": {
+    "slug": "test-match-manual",
+    "name": "test-match-manual",
+    "flags": { "is_evaluator": true },
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "exact_output",
+            "mode": "text",
+            "match": "regex",
+            "target": "$.outputs",
+            "reference": "^Paris"
+          }
+        ]
+      }
+    }
+  }
+}
+
+###
+@workflow_slug = {{create_workflow.response.body.workflow.slug}}
+@revision_id   = {{create_workflow.response.body.workflow.revision_id}}
+@workflow_url  = {{create_workflow.response.body.workflow.data.url}}
+
+###
+# 3. Query environments — find the default one
+# @name query_environments
+POST {{api_url}}/preview/environments/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+@environment_id   = {{query_environments.response.body.environments[0].id}}
+@environment_slug = {{query_environments.response.body.environments[0].slug}}
+
+###
+# 4. Deploy revision to environment
+# @name deploy
+POST {{api_url}}/preview/workflows/revisions/deploy
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "workflow_revision_ref": { "id": "{{revision_id}}" },
+  "environment_ref":       { "id": "{{environment_id}}" }
+}
+
+###
+# 4b. Check environment revision
+# @name check_env_revision
+POST {{api_url}}/preview/environments/revisions/retrieve
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "environment_ref": { "id": "{{environment_id}}" }
+}
+
+###
+# ============================================================
+# INVOKE MODES — via env ref (uses deployed workflow above)
+# ============================================================
+
+###
+# Invoke — /invoke with env ref + selector key (deployed config)
+# @name inspect_by_env
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "environment": {
+      "slug": "{{environment_slug}}"
+    }
+  },
+  "selector": {
+    "key": "{{workflow_slug}}.revision"
+  }
+}
+###
+# Invoke — /invoke with env ref + selector key (deployed config)
+# @name invoke_by_env
+POST {{services_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "environment": { "slug": "{{environment_slug}}" }
+  },
+  "selector": {
+    "key": "{{workflow_slug}}.revision"
+  },
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital"
+  }
+}
+
+###
+# Invoke — via data.url (full URL, no dispatcher)
+# @name inspect_by_url
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "text",
+            "match": "regex",
+            "target": "$.outputs",
+            "reference": "^Paris"
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# Invoke — via data.url (full URL, no dispatcher)
+# @name invoke_by_url
+POST {{workflow_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital",
+    "parameters": {
+      "matchers": [
+        { "key": "m1", "mode": "text", "match": "regex", "target": "$.outputs", "reference": "^Paris" }
+      ]
+    }
+  }
+}
+
+###
+# ============================================================
+# MODE: text — all match values (inline invocations, no DB lookup)
+# ============================================================
+
+###
+# text/valid — output is a non-empty string → success=true
+# @name inspect_text_valid_success
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "text",
+            "match": "valid",
+            "target": "$.outputs"
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# text/valid — output is a non-empty string → success=true
+# @name text_valid_success
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris",
+    "parameters": {
+      "matchers": [
+        { "key": "m1", "mode": "text", "match": "valid", "target": "$.outputs" }
+      ]
+    }
+  }
+}
+
+###
+# text/exact — anchored equality check
+# @name inspect_text_exact_success
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "text",
+            "match": "exact",
+            "target": "$.outputs",
+            "reference": "Paris"
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# text/exact — anchored equality check
+# @name text_exact_success
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris",
+    "parameters": {
+      "matchers": [
+        { "key": "m1", "mode": "text", "match": "exact", "target": "$.outputs", "reference": "Paris" }
+      ]
+    }
+  }
+}
+
+###
+# text/exact — mismatch → success=false
+# @name inspect_text_exact_failure
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "text",
+            "match": "exact",
+            "target": "$.outputs",
+            "reference": "London"
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# text/exact — mismatch → success=false
+# @name text_exact_failure
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris",
+    "parameters": {
+      "matchers": [
+        { "key": "m1", "mode": "text", "match": "exact", "target": "$.outputs", "reference": "London" }
+      ]
+    }
+  }
+}
+
+###
+# text/starts_with — prefix check
+# @name inspect_text_starts_with_success
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "text",
+            "match": "starts_with",
+            "target": "$.outputs",
+            "reference": "Paris"
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# text/starts_with — prefix check
+# @name text_starts_with_success
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital of France",
+    "parameters": {
+      "matchers": [
+        { "key": "m1", "mode": "text", "match": "starts_with", "target": "$.outputs", "reference": "Paris" }
+      ]
+    }
+  }
+}
+
+###
+# text/ends_with — suffix check
+# @name inspect_text_ends_with_success
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "text",
+            "match": "ends_with",
+            "target": "$.outputs",
+            "reference": "France"
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# text/ends_with — suffix check
+# @name text_ends_with_success
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital of France",
+    "parameters": {
+      "matchers": [
+        { "key": "m1", "mode": "text", "match": "ends_with", "target": "$.outputs", "reference": "France" }
+      ]
+    }
+  }
+}
+
+###
+# text/contains — single substring check
+# @name inspect_text_contains_single
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "text",
+            "match": "contains",
+            "target": "$.outputs",
+            "reference": "capital"
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# text/contains — single substring check
+# @name text_contains_single
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital of France",
+    "parameters": {
+      "matchers": [
+        { "key": "m1", "mode": "text", "match": "contains", "target": "$.outputs", "reference": "capital" }
+      ]
+    }
+  }
+}
+
+###
+# text/contains — multiple substrings, match=any (at least one present)
+# @name inspect_text_contains_any
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "text",
+            "match": "contains",
+            "target": "$.outputs",
+            "references": [
+              "Paris",
+              "Berlin",
+              "Rome"
+            ],
+            "contains": "any"
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# text/contains — multiple substrings, match=any (at least one present)
+# @name text_contains_any
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital of France",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "m1",
+          "mode": "text",
+          "match": "contains",
+          "target": "$.outputs",
+          "references": ["Paris", "Berlin", "Rome"],
+          "contains": "any"
+        }
+      ]
+    }
+  }
+}
+
+###
+# text/contains — multiple substrings, match=all (all must be present)
+# @name inspect_text_contains_all
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "text",
+            "match": "contains",
+            "target": "$.outputs",
+            "references": [
+              "Paris",
+              "France"
+            ],
+            "contains": "all"
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# text/contains — multiple substrings, match=all (all must be present)
+# @name text_contains_all
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital of France",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "m1",
+          "mode": "text",
+          "match": "contains",
+          "target": "$.outputs",
+          "references": ["Paris", "France"],
+          "contains": "all"
+        }
+      ]
+    }
+  }
+}
+
+###
+# text/regex — anchored pattern match
+# @name inspect_text_regex_anchored
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "text",
+            "match": "regex",
+            "target": "$.outputs",
+            "reference": "^Paris"
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# text/regex — anchored pattern match
+# @name text_regex_anchored
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital",
+    "parameters": {
+      "matchers": [
+        { "key": "m1", "mode": "text", "match": "regex", "target": "$.outputs", "reference": "^Paris" }
+      ]
+    }
+  }
+}
+
+###
+# text/regex — substring pattern, case_sensitive=false
+# @name inspect_text_regex_case_insensitive
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "text",
+            "match": "regex",
+            "target": "$.outputs",
+            "reference": "paris",
+            "case_sensitive": false
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# text/regex — substring pattern, case_sensitive=false
+# @name text_regex_case_insensitive
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "PARIS is the capital",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "m1",
+          "mode": "text",
+          "match": "regex",
+          "target": "$.outputs",
+          "reference": "paris",
+          "case_sensitive": false
+        }
+      ]
+    }
+  }
+}
+
+###
+# text/similarity — levenshtein distance metric
+# @name inspect_text_similarity_levenshtein
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "text",
+            "match": "similarity",
+            "target": "$.outputs",
+            "reference": "Paris",
+            "similarity": "levenshtein",
+            "threshold": 0.8
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# text/similarity — levenshtein distance metric
+# @name text_similarity_levenshtein
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "m1",
+          "mode": "text",
+          "match": "similarity",
+          "target": "$.outputs",
+          "reference": "Paris",
+          "similarity": "levenshtein",
+          "threshold": 0.8
+        }
+      ]
+    }
+  }
+}
+
+###
+# text/similarity — jaccard distance metric
+# @name inspect_text_similarity_jaccard
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "text",
+            "match": "similarity",
+            "target": "$.outputs",
+            "reference": "Paris is the capital of France",
+            "similarity": "jaccard",
+            "threshold": 0.5
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# text/similarity — jaccard distance metric
+# @name text_similarity_jaccard
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "m1",
+          "mode": "text",
+          "match": "similarity",
+          "target": "$.outputs",
+          "reference": "Paris is the capital of France",
+          "similarity": "jaccard",
+          "threshold": 0.5
+        }
+      ]
+    }
+  }
+}
+
+###
+# ============================================================
+# TARGET VARIANTS — JSONPath vs JSON Pointer vs dot notation
+# ============================================================
+
+###
+# Path: JSONPath to nested input field (reference resolved from request)
+# @name inspect_path_jsonpath_nested_input
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "text",
+            "match": "exact",
+            "target": "$.outputs",
+            "reference": "$.inputs.expected"
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# Path: JSONPath to nested input field (reference resolved from request)
+# @name path_jsonpath_nested_input
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  { "expected": "Paris" },
+    "outputs": "Paris",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "m1",
+          "mode": "text",
+          "match": "exact",
+          "target": "$.outputs",
+          "reference": "$.inputs.expected"
+        }
+      ]
+    }
+  }
+}
+
+###
+# Path: JSON Pointer (/outputs)
+# @name inspect_path_json_pointer
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "text",
+            "match": "regex",
+            "target": "/outputs",
+            "reference": "^Paris"
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# Path: JSON Pointer (/outputs)
+# @name path_json_pointer
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris",
+    "parameters": {
+      "matchers": [
+        { "key": "m1", "mode": "text", "match": "regex", "target": "/outputs", "reference": "^Paris" }
+      ]
+    }
+  }
+}
+
+###
+# ============================================================
+# MODE: json — match values valid, exact, diff
+# ============================================================
+
+###
+# json/valid — output is parseable JSON → success=true
+# @name inspect_json_valid_success
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "json",
+            "match": "valid",
+            "target": "$.outputs"
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# json/valid — output is parseable JSON → success=true
+# @name json_valid_success
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "{\"city\": \"Paris\"}",
+    "parameters": {
+      "matchers": [
+        { "key": "m1", "mode": "json", "match": "valid", "target": "$.outputs" }
+      ]
+    }
+  }
+}
+
+###
+# json/valid — invalid JSON → success=false
+# @name inspect_json_valid_failure
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "json",
+            "match": "valid",
+            "target": "$.outputs"
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# json/valid — invalid JSON → success=false
+# @name json_valid_failure
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "not json",
+    "parameters": {
+      "matchers": [
+        { "key": "m1", "mode": "json", "match": "valid", "target": "$.outputs" }
+      ]
+    }
+  }
+}
+
+###
+# json/exact — deep equality of two JSON objects
+# @name inspect_json_exact_success
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "json",
+            "match": "exact",
+            "target": "$.outputs",
+            "reference": "$.inputs.expected"
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# json/exact — deep equality of two JSON objects
+# @name json_exact_success
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  { "expected": "{\"city\": \"Paris\"}" },
+    "outputs": "{\"city\": \"Paris\"}",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "m1",
+          "mode": "json",
+          "match": "exact",
+          "target": "$.outputs",
+          "reference": "$.inputs.expected"
+        }
+      ]
+    }
+  }
+}
+
+###
+# json/diff — field-by-field comparison, default options (diff=full)
+# identical JSON → expect score=1.0
+# @name inspect_json_overlap_identical
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "json",
+            "match": "diff",
+            "target": "$.outputs",
+            "reference": "$.inputs.correct",
+            "threshold": 0.8
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# json/diff — field-by-field comparison, default options (diff=full)
+# identical JSON → expect score=1.0
+# @name json_overlap_identical
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  { "correct": "{\"city\": \"Paris\", \"country\": \"France\"}" },
+    "outputs": "{\"city\": \"Paris\", \"country\": \"France\"}",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "m1",
+          "mode": "json",
+          "match": "diff",
+          "target": "$.outputs",
+          "reference": "$.inputs.correct",
+          "threshold": 0.8
+        }
+      ]
+    }
+  }
+}
+
+###
+# json/diff — partial match (one field correct, one wrong)
+# Expect score=0.5, success=false (threshold=0.8)
+# @name inspect_json_overlap_partial
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "json",
+            "match": "diff",
+            "target": "$.outputs",
+            "reference": "$.inputs.correct",
+            "threshold": 0.8
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# json/diff — partial match (one field correct, one wrong)
+# Expect score=0.5, success=false (threshold=0.8)
+# @name json_overlap_partial
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  { "correct": "{\"city\": \"Paris\", \"country\": \"France\"}" },
+    "outputs": "{\"city\": \"Paris\", \"country\": \"Germany\"}",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "m1",
+          "mode": "json",
+          "match": "diff",
+          "target": "$.outputs",
+          "reference": "$.inputs.correct",
+          "threshold": 0.8
+        }
+      ]
+    }
+  }
+}
+
+###
+# json/diff — diff="schema": compare field types, not values
+# Both have "city" as string and "population" as number → score=1.0
+# @name inspect_json_overlap_schema_only
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "json",
+            "match": "diff",
+            "target": "$.outputs",
+            "reference": "$.inputs.correct",
+            "diff": "schema",
+            "threshold": 0.9
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# json/diff — diff="schema": compare field types, not values
+# Both have "city" as string and "population" as number → score=1.0
+# @name json_overlap_schema_only
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  { "correct": "{\"city\": \"Paris\", \"population\": 2161000}" },
+    "outputs": "{\"city\": \"Berlin\", \"population\": 3677000}",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "m1",
+          "mode": "json",
+          "match": "diff",
+          "target": "$.outputs",
+          "reference": "$.inputs.correct",
+          "diff": "schema",
+          "threshold": 0.9
+        }
+      ]
+    }
+  }
+}
+
+###
+# json/diff — diff="strict": penalize extra keys in output
+# Output has an extra "region" key not in reference → score penalized
+# @name inspect_json_overlap_unexpected_keys
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "json",
+            "match": "diff",
+            "target": "$.outputs",
+            "reference": "$.inputs.correct",
+            "diff": "strict",
+            "threshold": 0.8
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# json/diff — diff="strict": penalize extra keys in output
+# Output has an extra "region" key not in reference → score penalized
+# @name json_overlap_unexpected_keys
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  { "correct": "{\"city\": \"Paris\"}" },
+    "outputs": "{\"city\": \"Paris\", \"region\": \"Ile-de-France\"}",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "m1",
+          "mode": "json",
+          "match": "diff",
+          "target": "$.outputs",
+          "reference": "$.inputs.correct",
+          "diff": "strict",
+          "threshold": 0.8
+        }
+      ]
+    }
+  }
+}
+
+###
+# ============================================================
+# AGGREGATION — score: weighted|min|max  /  success: all|any|threshold
+# ============================================================
+
+###
+# success=all — all children must pass
+# has_paris (passes) AND has_france (passes) → success=true, score=1.0
+# @name inspect_aggregate_all_success
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "root",
+            "mode": "text",
+            "match": "valid",
+            "target": "$.outputs",
+            "success": "all",
+            "matchers": [
+              {
+                "key": "has_paris",
+                "mode": "text",
+                "match": "contains",
+                "target": "$.outputs",
+                "reference": "Paris"
+              },
+              {
+                "key": "has_france",
+                "mode": "text",
+                "match": "contains",
+                "target": "$.outputs",
+                "reference": "France"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# success=all — all children must pass
+# has_paris (passes) AND has_france (passes) → success=true, score=1.0
+# @name aggregate_all_success
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital of France",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "root",
+          "mode": "text",
+          "match": "valid",
+          "target": "$.outputs",
+          "success": "all",
+          "matchers": [
+            { "key": "has_paris",  "mode": "text", "match": "contains", "target": "$.outputs", "reference": "Paris" },
+            { "key": "has_france", "mode": "text", "match": "contains", "target": "$.outputs", "reference": "France" }
+          ]
+        }
+      ]
+    }
+  }
+}
+
+###
+# success=all — one child fails → success=false
+# has_paris (passes), has_france (fails) → success=false, score=0.5
+# @name inspect_aggregate_all_failure
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "root",
+            "mode": "text",
+            "match": "valid",
+            "target": "$.outputs",
+            "success": "all",
+            "matchers": [
+              {
+                "key": "has_paris",
+                "mode": "text",
+                "match": "contains",
+                "target": "$.outputs",
+                "reference": "Paris"
+              },
+              {
+                "key": "has_france",
+                "mode": "text",
+                "match": "contains",
+                "target": "$.outputs",
+                "reference": "France"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# success=all — one child fails → success=false
+# has_paris (passes), has_france (fails) → success=false, score=0.5
+# @name aggregate_all_failure
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is a great city",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "root",
+          "mode": "text",
+          "match": "valid",
+          "target": "$.outputs",
+          "success": "all",
+          "matchers": [
+            { "key": "has_paris",  "mode": "text", "match": "contains", "target": "$.outputs", "reference": "Paris" },
+            { "key": "has_france", "mode": "text", "match": "contains", "target": "$.outputs", "reference": "France" }
+          ]
+        }
+      ]
+    }
+  }
+}
+
+###
+# success=any — at least one child must pass
+# has_paris (passes), has_berlin (fails) → success=true, score=0.5
+# @name inspect_aggregate_any_success
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "root",
+            "mode": "text",
+            "match": "valid",
+            "target": "$.outputs",
+            "success": "any",
+            "matchers": [
+              {
+                "key": "has_paris",
+                "mode": "text",
+                "match": "contains",
+                "target": "$.outputs",
+                "reference": "Paris"
+              },
+              {
+                "key": "has_berlin",
+                "mode": "text",
+                "match": "contains",
+                "target": "$.outputs",
+                "reference": "Berlin"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# success=any — at least one child must pass
+# has_paris (passes), has_berlin (fails) → success=true, score=0.5
+# @name aggregate_any_success
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "root",
+          "mode": "text",
+          "match": "valid",
+          "target": "$.outputs",
+          "success": "any",
+          "matchers": [
+            { "key": "has_paris",  "mode": "text", "match": "contains", "target": "$.outputs", "reference": "Paris" },
+            { "key": "has_berlin", "mode": "text", "match": "contains", "target": "$.outputs", "reference": "Berlin" }
+          ]
+        }
+      ]
+    }
+  }
+}
+
+###
+# score=weighted, success=threshold — weighted mean >= threshold → success=true
+# has_paris (1.0, weight=2), has_france (0.0, weight=1) → score=0.67, threshold=0.5 → success=true
+# @name inspect_aggregate_weighted_threshold_success
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "root",
+            "mode": "text",
+            "match": "valid",
+            "target": "$.outputs",
+            "score": "weighted",
+            "success": "threshold",
+            "threshold": 0.5,
+            "matchers": [
+              {
+                "key": "has_paris",
+                "mode": "text",
+                "match": "contains",
+                "target": "$.outputs",
+                "reference": "Paris",
+                "weight": 2.0
+              },
+              {
+                "key": "has_france",
+                "mode": "text",
+                "match": "contains",
+                "target": "$.outputs",
+                "reference": "France",
+                "weight": 1.0
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# score=weighted, success=threshold — weighted mean >= threshold → success=true
+# has_paris (1.0, weight=2), has_france (0.0, weight=1) → score=0.67, threshold=0.5 → success=true
+# @name aggregate_weighted_threshold_success
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "root",
+          "mode": "text",
+          "match": "valid",
+          "target": "$.outputs",
+          "score": "weighted",
+          "success": "threshold",
+          "threshold": 0.5,
+          "matchers": [
+            { "key": "has_paris",  "mode": "text", "match": "contains", "target": "$.outputs", "reference": "Paris",  "weight": 2.0 },
+            { "key": "has_france", "mode": "text", "match": "contains", "target": "$.outputs", "reference": "France", "weight": 1.0 }
+          ]
+        }
+      ]
+    }
+  }
+}
+
+###
+# score=weighted, success=threshold — score below threshold → success=false
+# both fail → score=0.0, threshold=0.5 → success=false
+# @name inspect_aggregate_weighted_threshold_failure
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "root",
+            "mode": "text",
+            "match": "valid",
+            "target": "$.outputs",
+            "score": "weighted",
+            "success": "threshold",
+            "threshold": 0.5,
+            "matchers": [
+              {
+                "key": "has_paris",
+                "mode": "text",
+                "match": "contains",
+                "target": "$.outputs",
+                "reference": "Paris",
+                "weight": 1.0
+              },
+              {
+                "key": "has_france",
+                "mode": "text",
+                "match": "contains",
+                "target": "$.outputs",
+                "reference": "France",
+                "weight": 1.0
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# score=weighted, success=threshold — score below threshold → success=false
+# both fail → score=0.0, threshold=0.5 → success=false
+# @name aggregate_weighted_threshold_failure
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Berlin is the capital",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "root",
+          "mode": "text",
+          "match": "valid",
+          "target": "$.outputs",
+          "score": "weighted",
+          "success": "threshold",
+          "threshold": 0.5,
+          "matchers": [
+            { "key": "has_paris",  "mode": "text", "match": "contains", "target": "$.outputs", "reference": "Paris",  "weight": 1.0 },
+            { "key": "has_france", "mode": "text", "match": "contains", "target": "$.outputs", "reference": "France", "weight": 1.0 }
+          ]
+        }
+      ]
+    }
+  }
+}
+
+###
+# score=min — worst child score propagates up
+# has_paris (1.0), has_france (0.0) → score=min(1.0, 0.0)=0.0, success=threshold(1.0) → false
+# @name inspect_aggregate_min_score
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "root",
+            "mode": "text",
+            "match": "valid",
+            "target": "$.outputs",
+            "score": "min",
+            "success": "threshold",
+            "threshold": 0.9,
+            "matchers": [
+              {
+                "key": "has_paris",
+                "mode": "text",
+                "match": "contains",
+                "target": "$.outputs",
+                "reference": "Paris"
+              },
+              {
+                "key": "has_france",
+                "mode": "text",
+                "match": "contains",
+                "target": "$.outputs",
+                "reference": "France"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# score=min — worst child score propagates up
+# has_paris (1.0), has_france (0.0) → score=min(1.0, 0.0)=0.0, success=threshold(1.0) → false
+# @name aggregate_min_score
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "root",
+          "mode": "text",
+          "match": "valid",
+          "target": "$.outputs",
+          "score": "min",
+          "success": "threshold",
+          "threshold": 0.9,
+          "matchers": [
+            { "key": "has_paris",  "mode": "text", "match": "contains", "target": "$.outputs", "reference": "Paris" },
+            { "key": "has_france", "mode": "text", "match": "contains", "target": "$.outputs", "reference": "France" }
+          ]
+        }
+      ]
+    }
+  }
+}
+
+###
+# score=max — best child score propagates up
+# has_paris (1.0), has_france (0.0) → score=max(1.0, 0.0)=1.0, threshold=0.5 → success=true
+# @name inspect_aggregate_max_score
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "root",
+            "mode": "text",
+            "match": "valid",
+            "target": "$.outputs",
+            "score": "max",
+            "success": "threshold",
+            "threshold": 0.5,
+            "matchers": [
+              {
+                "key": "has_paris",
+                "mode": "text",
+                "match": "contains",
+                "target": "$.outputs",
+                "reference": "Paris"
+              },
+              {
+                "key": "has_france",
+                "mode": "text",
+                "match": "contains",
+                "target": "$.outputs",
+                "reference": "France"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# score=max — best child score propagates up
+# has_paris (1.0), has_france (0.0) → score=max(1.0, 0.0)=1.0, threshold=0.5 → success=true
+# @name aggregate_max_score
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "root",
+          "mode": "text",
+          "match": "valid",
+          "target": "$.outputs",
+          "score": "max",
+          "success": "threshold",
+          "threshold": 0.5,
+          "matchers": [
+            { "key": "has_paris",  "mode": "text", "match": "contains", "target": "$.outputs", "reference": "Paris" },
+            { "key": "has_france", "mode": "text", "match": "contains", "target": "$.outputs", "reference": "France" }
+          ]
+        }
+      ]
+    }
+  }
+}
+
+###
+# ============================================================
+# MULTI-MATCHER top-level — multiple independent matchers
+# ============================================================
+
+###
+# Two independent matchers → two results in response.results[]
+# @name inspect_multi_top_level_matchers
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "exact_check",
+            "mode": "text",
+            "match": "exact",
+            "target": "$.outputs",
+            "reference": "$.inputs.expected"
+          },
+          {
+            "key": "contains_check",
+            "mode": "text",
+            "match": "contains",
+            "target": "$.outputs",
+            "reference": "Paris"
+          },
+          {
+            "key": "ends_check",
+            "mode": "text",
+            "match": "ends_with",
+            "target": "$.outputs",
+            "reference": "France"
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# Two independent matchers → two results in response.results[]
+# @name multi_top_level_matchers
+POST {{services_url}}/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  { "expected": "Paris" },
+    "outputs": "Paris is the capital of France",
+    "parameters": {
+      "matchers": [
+        { "key": "exact_check",   "mode": "text", "match": "exact",    "target": "$.outputs",       "reference": "$.inputs.expected" },
+        { "key": "contains_check","mode": "text", "match": "contains", "target": "$.outputs",       "reference": "Paris" },
+        { "key": "ends_check",    "mode": "text", "match": "ends_with","target": "$.outputs",       "reference": "France" }
+      ]
+    }
+  }
+}
+
+###
+# ============================================================
+# INVOKE via dispatcher (inline revision) — covers all path/kind combos
+# ============================================================
+
+###
+# Invoke inline — text/regex via dispatcher
+# @name inspect_inline_text_regex
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "text",
+            "match": "regex",
+            "target": "$.outputs",
+            "reference": "^Paris"
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# Invoke inline — text/regex via dispatcher
+# @name invoke_inline_text_regex
+POST {{services_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital",
+    "revision": {
+      "data": {
+        "uri": "agenta:builtin:match:v0",
+        "parameters": {
+          "matchers": [
+            { "key": "m1", "mode": "text", "match": "regex", "target": "$.outputs", "reference": "^Paris" }
+          ]
+        }
+      }
+    }
+  }
+}
+
+###
+# Invoke inline — json/diff via dispatcher
+# @name inspect_inline_json_overlap
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:match:v0",
+      "parameters": {
+        "matchers": [
+          {
+            "key": "m1",
+            "mode": "json",
+            "match": "diff",
+            "target": "$.outputs",
+            "reference": "$.inputs.correct",
+            "threshold": 0.8
+          }
+        ]
+      }
+    }
+  }
+}
+###
+# Invoke inline — json/diff via dispatcher
+# @name invoke_inline_json_overlap
+POST {{services_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  { "correct": "{\"city\": \"Paris\"}" },
+    "outputs": "{\"city\": \"Paris\"}",
+    "revision": {
+      "data": {
+        "uri": "agenta:builtin:match:v0",
+        "parameters": {
+          "matchers": [
+            {
+              "key": "m1",
+              "mode": "json",
+              "match": "diff",
+              "target": "$.outputs",
+              "reference": "$.inputs.correct",
+              "threshold": 0.8
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,3 +1,4 @@
+import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {GearSix} from "@phosphor-icons/react"
 import {ColumnsType} from "antd/es/table"
 import dynamic from "next/dynamic"
@@ -5,11 +6,6 @@ import dynamic from "next/dynamic"
 import EvaluatorTagsCell from "./cells/EvaluatorTagsCell"
 import EvaluatorTypePill from "./cells/EvaluatorTypePill"
 import {EvaluatorRegistryRow, GetColumnsParams} from "./types"
-
-const UserAvatarTag = dynamic(() => import("@/oss/components/CustomUIs/UserAvatarTag"), {
-    ssr: false,
-    loading: () => <div className="h-6 w-[120px] bg-[#0517290F]"></div>,
-})
 
 const TableDropdownMenu = dynamic(() => import("./cells/TableDropdownMenu"), {
     ssr: false,
@@ -39,7 +35,7 @@ const getColumns = ({
         width: 200,
         render: (_: string, record: EvaluatorRegistryRow) => {
             if (!record.modifiedBy) return null
-            return <UserAvatarTag modifiedBy={record.modifiedBy as string} />
+            return <UserAuthorLabel name={record.modifiedBy as string} showAvatar />
         },
     }
 

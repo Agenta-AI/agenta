@@ -1,66 +1,29 @@
 /**
  * UserAuthorLabel Component
  *
- * A component for displaying author information with user ID resolution.
- * Uses the shared user atoms to resolve user IDs to display names.
+ * A component for displaying author information with optional user ID resolution.
+ * Supports two modes:
+ * - **ID mode**: Pass `userId` to resolve display name from workspace members
+ * - **Name mode**: Pass `name` directly for display without resolution
  *
  * @example
  * ```tsx
  * import {UserAuthorLabel} from '@agenta/entities/shared'
  *
+ * // Resolve from user ID
  * <UserAuthorLabel userId={authorId} />
  * <UserAuthorLabel userId={authorId} showYouLabel showAvatar />
+ *
+ * // Display name directly
+ * <UserAuthorLabel name="John Doe" showAvatar />
  * ```
  */
 
-import React, {useMemo} from "react"
+import React from "react"
 
-import {Avatar} from "antd"
+import {InitialsAvatar} from "@agenta/ui"
 
 import {useUserDisplayName, useIsCurrentUser} from "./atoms"
-
-// ============================================================================
-// AVATAR HELPERS (self-contained, no @/oss dependency)
-// ============================================================================
-
-const COLOR_PAIRS = [
-    {bg: "#BAE0FF", fg: "#1677FF"},
-    {bg: "#D9F7BE", fg: "#389E0D"},
-    {bg: "#efdbff", fg: "#722ED1"},
-    {bg: "#fff1b8", fg: "#AD6800"},
-    {bg: "#D1F5F1", fg: "#13C2C2"},
-    {bg: "#ffd6e7", fg: "#EB2F96"},
-    {bg: "#f7cfcf", fg: "#D61010"},
-    {bg: "#eaeff5", fg: "#758391"},
-    {bg: "#D1E4E8", fg: "#5E7579"},
-    {bg: "#F5E6D3", fg: "#825E31"},
-    {bg: "#F9F6C1", fg: "#84803A"},
-    {bg: "#F4E6E4", fg: "#9C706A"},
-]
-
-function hashString(text: string): number {
-    let hash = 0
-    for (let i = 0; i < text.length; i++) {
-        hash += text.charCodeAt(i)
-    }
-    return hash
-}
-
-function getColorPair(name: string) {
-    const idx = ((hashString(name) % COLOR_PAIRS.length) + COLOR_PAIRS.length) % COLOR_PAIRS.length
-    return COLOR_PAIRS[idx]
-}
-
-function getInitials(name: string, limit = 2): string {
-    try {
-        return name
-            .split(" ")
-            .slice(0, limit)
-            .reduce((acc, w) => acc + (w[0] || "").toUpperCase(), "")
-    } catch {
-        return "?"
-    }
-}
 
 // ============================================================================
 // TYPES
@@ -68,9 +31,16 @@ function getInitials(name: string, limit = 2): string {
 
 export interface UserAuthorLabelProps {
     /**
-     * User ID to resolve and display
+     * User ID to resolve and display.
+     * When provided, the component resolves the display name from workspace members.
      */
-    userId: string | null | undefined
+    userId?: string | null | undefined
+
+    /**
+     * Display name to show directly (no resolution needed).
+     * Used as fallback when `userId` is also provided but cannot be resolved.
+     */
+    name?: string | null
 
     /**
      * Prefix text (e.g., "by")
@@ -80,13 +50,13 @@ export interface UserAuthorLabelProps {
 
     /**
      * Show prefix
-     * @default true
+     * @default false
      */
     showPrefix?: boolean
 
     /**
      * Show "(you)" label for current user
-     * @default true
+     * @default false
      */
     showYouLabel?: boolean
 
@@ -97,7 +67,7 @@ export interface UserAuthorLabelProps {
     showAvatar?: boolean
 
     /**
-     * Fallback text when user not found
+     * Fallback text when user not found and no name provided
      * @default null (renders nothing)
      */
     fallback?: string | null
@@ -113,28 +83,25 @@ export interface UserAuthorLabelProps {
 // ============================================================================
 
 /**
- * Displays author information with user ID resolution
+ * Displays author information with optional user ID resolution
  */
 export function UserAuthorLabel({
     userId,
+    name,
     prefix = "by",
-    showPrefix = true,
-    showYouLabel = true,
+    showPrefix = false,
+    showYouLabel = false,
     showAvatar = false,
     fallback = null,
     className,
 }: UserAuthorLabelProps) {
-    const displayName = useUserDisplayName(userId)
-    const isCurrentUser = useIsCurrentUser(userId)
+    const resolvedName = useUserDisplayName(userId ?? undefined)
+    const isCurrentUser = useIsCurrentUser(userId ?? undefined)
 
-    const avatarStyle = useMemo(() => {
-        if (!showAvatar || !displayName) return undefined
-        const pair = getColorPair(displayName)
-        return {backgroundColor: pair.bg, color: pair.fg}
-    }, [showAvatar, displayName])
+    const displayName =
+        (resolvedName && resolvedName !== "-" ? resolvedName : undefined) || name || null
 
-    // No user ID or user not found
-    if (!userId || !displayName) {
+    if (!displayName) {
         if (fallback) {
             return <span className={className}>{fallback}</span>
         }
@@ -144,16 +111,10 @@ export function UserAuthorLabel({
     const label = showYouLabel && isCurrentUser ? `${displayName} (you)` : displayName
 
     return (
-        <span className={className} style={{display: "inline-flex", alignItems: "center", gap: 6}}>
-            {showAvatar && (
-                <Avatar
-                    shape="square"
-                    size={16}
-                    style={{...avatarStyle, fontSize: 9, lineHeight: "16px"}}
-                >
-                    {getInitials(displayName)}
-                </Avatar>
-            )}
+        <span
+            className={`inline-flex items-center gap-1.5 text-ellipsis overflow-hidden ${className ?? ""}`}
+        >
+            {showAvatar && <InitialsAvatar name={displayName} className="w-4 h-4 text-[9px]" />}
             {showPrefix && prefix && `${prefix} `}
             {label}
         </span>

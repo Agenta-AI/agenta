@@ -1,6 +1,5 @@
+import type {PlaygroundTestResult as TestResult} from "@agenta/playground"
 import {DropDownProps} from "antd"
-
-import {TestResult} from "@/oss/lib/shared/variant/types/testRun"
 
 export interface PlaygroundGenerationVariableMenuProps extends DropDownProps {
     duplicateRow: () => void

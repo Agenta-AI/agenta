@@ -1,14 +1,10 @@
-from typing import Dict
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
 import agenta as ag
-from agenta.sdk.workflows.handlers import completion_v0
+from agenta.sdk.engines.running.handlers import completion_v0
 from agenta.sdk.types import PromptTemplate
-
-
-# Create isolated completion app with its own OpenAPI schema
-completion_app, completion_route = ag.create_app()
 
 
 class CompletionConfig(BaseModel):
@@ -20,13 +16,24 @@ class CompletionConfig(BaseModel):
     )
 
 
-@completion_route("/", config_schema=CompletionConfig)
-async def completion(
-    inputs: Dict[str, str],
+async def _completion(
+    inputs: Dict[str, Any],
+    parameters: Optional[Dict] = None,
 ):
-    config = ag.ConfigManager.get_from_route(schema=CompletionConfig)
+    config = CompletionConfig(**(parameters or {}))
 
     return await completion_v0(
         parameters=config.model_dump(mode="json", exclude_none=True),
         inputs=inputs,
     )
+
+
+def create_completion_app():
+    app = ag.create_app()
+    routed = ag.workflow(uri="agenta:builtin:completion:v0")(_completion)
+    ag.route("/", app=app)(routed)
+    return app
+
+
+completion_app = create_completion_app()
+completion_v0_app = create_completion_app()

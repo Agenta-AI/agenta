@@ -1,13 +1,13 @@
 # Legacy Entities Usage
 
+> **Update:** `legacyAppRevision` has been fully removed from the codebase. All playground paths now use `workflow` entities exclusively. This document is kept for historical context.
+
 This note answers: are old entities still used for prompts or playground behavior?
 
 ## Short Answer
 
-- The main OSS playground path is now workflow-based.
-- Legacy entities are still present in the codebase and still power some compatibility and fallback flows.
-- I did not find the main prompt config editing flow in the OSS playground using `legacyAppRevision` directly.
-- There are still some user-visible playground entry points and fallback CRUD branches that use legacy entities.
+- The OSS playground is fully workflow-based. `legacyAppRevision` has been removed.
+- All fallback flows and compatibility shims previously using legacy entities have been migrated to workflow.
 
 ## Main Playground Path Is Workflow-Based
 
@@ -32,37 +32,12 @@ The active playground config editing path uses `runnableBridge.update`, which ro
 
 This is the strongest evidence that the current prompt/config editing flow for workflow entities is on the new entities path.
 
-## Legacy Entities Still Have Active Usage
+## Legacy Entities (REMOVED)
 
-### User-visible entry points
-
-- `web/oss/src/components/Playground/Components/MainLayout/index.tsx:89` - the empty-state "Add to Playground" selector is still restricted to `legacyAppRevision`
-- `web/packages/agenta-playground-ui/src/components/EntitySelector/EntitySelector.tsx:85` - the app-revision picker still uses the legacy adapter
-
-### Fallback CRUD logic
-
-`playgroundController` still has separate legacy branches for non-workflow entities:
-
-- `web/packages/agenta-playground/src/state/controllers/playgroundController.ts:1500` - legacy create variant path
-- `web/packages/agenta-playground/src/state/controllers/playgroundController.ts:1564` - legacy commit path
-- `web/packages/agenta-playground/src/state/controllers/playgroundController.ts:1647` - legacy delete path
-
-### Snapshot / compatibility behavior
-
-- `web/packages/agenta-playground/src/state/controllers/playgroundController.ts:1712` - unknown entity IDs still default to `legacyAppRevision`
-- `web/packages/agenta-playground/src/state/controllers/playgroundSnapshotController.ts:23` - legacy snapshot adapter is still registered
-- `web/oss/src/components/Playground/OSSPlaygroundEntityProvider.tsx:26` - legacy side-effect bridge is still imported
-
-### One prompt-related legacy-backed helper
-
-I did not find the main playground prompt editor using legacy state directly, but there is still a prompt-related legacy-backed helper outside the main config editor:
-
-- `web/oss/src/state/newPlayground/legacyEntityBridge.ts:64` - exports `moleculeBackedPromptsAtomFamily`
-- `web/oss/src/features/gateway-tools/prompt/atoms.ts:53` - uses that legacy-backed prompts atom
+All legacy entity usage described below has been removed. The `legacyAppRevision` package, legacy entity bridge, legacy snapshot adapter, and all fallback CRUD branches have been deleted. All paths now use `workflow` entities exclusively.
 
 ## Conclusion
 
-- Yes, legacy entities are still used in the repository and in some active UI flows.
-- No, the main OSS playground prompt editing/config path does not appear to be primarily legacy-backed anymore.
-- For this bug, if the customer repro is on the modern playground flow, the safest implementation scope is the workflow/new-entities path.
-- Legacy-specific fixes should only be added if we reproduce the bug through one of the known legacy entry points.
+- Legacy entities have been fully removed from the codebase.
+- The OSS playground prompt editing/config path uses workflow entities exclusively.
+- For this bug, the implementation scope is the workflow/new-entities path only.

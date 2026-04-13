@@ -1,4 +1,4 @@
-import {EvaluationRow} from "@/oss/components/SaveTestsetModal/types"
+type EvaluationRow = Record<string, any>
 
 type Nullable<T> = T | null | undefined
 

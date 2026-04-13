@@ -1,102 +1,161 @@
 import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
 
 import {expect} from "@agenta/web-tests/utils"
+import {expectAuthenticatedSession} from "../utils/auth"
+import {createScenarios} from "../utils/scenarios"
+import {buildAcceptanceTags} from "../utils/tags"
 import {
-    createTagString,
     TestCoverage,
+    TestcaseType,
     TestPath,
     TestScope,
     TestLensType,
     TestCostType,
     TestLicenseType,
+    TestRoleType,
+    TestSpeedType,
 } from "@agenta/web-tests/playwright/config/testTags"
 
 interface SimpleTestset {
     id: string
     name: string
-    data?: {
-        testcases: Array<{id: string; data: Record<string, unknown>}>
+    _id?: string
+}
+
+interface TestsetsQueryResponse {
+    testsets: SimpleTestset[]
+}
+
+interface TestsetRevision {
+    id: string
+    version: number | string
+    testset_id: string
+}
+
+interface TestsetRevisionsResponse {
+    testset_revisions: TestsetRevision[]
+}
+
+interface TestcasesQueryResponse {
+    count?: number
+    testcases?: Array<{id: string; data?: Record<string, unknown>}>
+}
+
+interface TestsetRevisionDetailResponse {
+    testset_revision: {
+        id: string
+        testset_id: string
     }
 }
 
+const scenarios = createScenarios(test)
+
+const tags = buildAcceptanceTags({
+    scope: [TestScope.DATASETS],
+    coverage: [TestCoverage.SMOKE, TestCoverage.LIGHT, TestCoverage.FULL],
+    path: TestPath.HAPPY,
+    lens: TestLensType.FUNCTIONAL,
+    cost: TestCostType.Free,
+    license: TestLicenseType.OSS,
+    role: TestRoleType.Owner,
+    caseType: TestcaseType.TYPICAL,
+    speed: TestSpeedType.FAST,
+})
+
 const testsetTests = () => {
-    test(
-        "should view the default testset",
-        {
-            tag: [
-                createTagString("scope", TestScope.DATASETS),
-                createTagString("coverage", TestCoverage.SMOKE),
-                createTagString("coverage", TestCoverage.LIGHT),
-                createTagString("coverage", TestCoverage.FULL),
-                createTagString("path", TestPath.HAPPY),
-                createTagString("lens", TestLensType.FUNCTIONAL),
-                createTagString("cost", TestCostType.Free),
-                createTagString("license", TestLicenseType.OSS),
-            ],
-        },
-        async ({page, apiHelpers, uiHelpers}) => {
-            // 1. Navigate to testsets page via sidebar
-            await page.goto("/apps", {waitUntil: "domcontentloaded"})
+    test("should view the default testset", {tag: tags}, async ({page, apiHelpers, uiHelpers}) => {
+        let testsets: SimpleTestset[] = []
+        let testsetId = ""
+        let testsetName = ""
 
-            // Set up API interception before clicking
-            const testsetsResponsePromise = page.waitForResponse(
-                (response) =>
-                    response.url().includes("/api/preview/testsets/query") &&
-                    response.request().method() === "POST",
-            )
+        await scenarios.given("the user is authenticated", async () => {
+            await expectAuthenticatedSession(page)
+        })
 
-            const testSetsLink = page.locator('a:has-text("Test sets")').first()
-            await expect(testSetsLink).toBeVisible({timeout: 10000})
-            await testSetsLink.click()
-            await uiHelpers.waitForPath("/testsets")
+        await scenarios.and(
+            "the user navigates to the Test Sets page via the sidebar",
+            async () => {
+                await page.goto("/apps", {waitUntil: "domcontentloaded"})
 
-            const testsetsResponse = await testsetsResponsePromise
-            const testsetsData = await testsetsResponse.json()
-            const testsets = testsetsData.testsets
+                const testsetsResponsePromise = page.waitForResponse(
+                    (response) =>
+                        response.url().includes("/api/preview/testsets/query") &&
+                        response.request().method() === "POST",
+                )
 
-            // Verify navigation and page title
-            await expect(
-                page.getByRole("heading", {name: /testsets|test sets/i}).first(),
-            ).toBeVisible({timeout: 10000})
+                const testSetsLink = page.locator('a:has-text("Test sets")').first()
+                await expect(testSetsLink).toBeVisible({timeout: 10000})
+                await testSetsLink.click()
+                await uiHelpers.waitForPath("/testsets")
 
-            // Skip if no testsets exist on this deployment
+                const testsetsResponse = await testsetsResponsePromise
+                const testsetsData = (await testsetsResponse.json()) as TestsetsQueryResponse
+                testsets = testsetsData.testsets
+
+                await expect(page.getByRole("heading", {name: "Testsets"})).toBeVisible({
+                    timeout: 10000,
+                })
+            },
+        )
+
+        await scenarios.when("the page loads the default testset list", async () => {
             test.skip(!testsets || testsets.length === 0, "No testsets found on deployment")
 
-            // 3. Verify testset is visible in table
-            // Preview endpoint returns 'id' instead of '_id'
-            const testsetId = testsets[0].id || testsets[0]._id
-            const testsetName = testsets[0].name
+            testsetId = testsets[0].id || testsets[0]._id || ""
+            testsetName = testsets[0].name
 
             if (!testsetId) {
-                console.error("[Testset E2E]: Testset ID not found")
                 throw new Error("Testset ID not found")
             }
 
-            const testsetTable = page.getByRole("table").filter({hasText: testsetName})
-            const testsetRow = testsetTable.getByRole("row", {name: testsetName})
+            const testsetRow = page.locator("[data-row-key]").filter({hasText: testsetName}).first()
             await expect(testsetRow).toBeVisible()
 
-            const testsetResponsePromise = apiHelpers.waitForApiResponse<{testset: SimpleTestset}>({
-                route: `/api/preview/simple/testsets/${testsetId}`,
-                method: "GET",
+            const revisionsResponsePromise =
+                apiHelpers.waitForApiResponse<TestsetRevisionsResponse>({
+                    route: "/api/preview/testsets/revisions/query",
+                    method: "POST",
+                })
+            const revisionDetailResponsePromise =
+                apiHelpers.waitForApiResponse<TestsetRevisionDetailResponse>({
+                    route: "/api/preview/testsets/revisions/",
+                    method: "GET",
+                })
+            const testcasesResponsePromise = apiHelpers.waitForApiResponse<TestcasesQueryResponse>({
+                route: "/api/preview/testcases/query",
+                method: "POST",
             })
 
-            // 4. Click on testset row
-            await uiHelpers.clickTableRow(testsetName)
+            await testsetRow.click()
 
-            // 6. Verify testset page
-            await uiHelpers.waitForPath(`/testsets/${testsetId}`)
-            await expect(
-                page.getByRole("heading", {name: /testset|test set/i}).first(),
-            ).toBeVisible()
+            const revisionsResponse = await revisionsResponsePromise
+            const revisions = revisionsResponse.testset_revisions.filter(
+                (revision) => Number(revision.version) !== 0,
+            )
+            expect(revisions.length).toBeGreaterThan(0)
 
-            const response = await testsetResponsePromise
-            const testset = response.testset
-            expect(testset.name).toBe(testsetName)
-            // Preview endpoint returns data.testcases instead of csvdata
-            expect(testset.data?.testcases?.length).toBeGreaterThan(0)
-        },
-    )
+            const latestRevision = revisions[0]
+            expect(latestRevision.testset_id).toBe(testsetId)
+
+            await uiHelpers.waitForPath(`/testsets/${latestRevision.id}`)
+
+            const revisionDetailResponse = await revisionDetailResponsePromise
+            expect(revisionDetailResponse.testset_revision.id).toBe(latestRevision.id)
+            expect(revisionDetailResponse.testset_revision.testset_id).toBe(testsetId)
+
+            const testcasesResponse = await testcasesResponsePromise
+            expect(
+                testcasesResponse.count ?? testcasesResponse.testcases?.length ?? 0,
+            ).toBeGreaterThan(0)
+        })
+
+        await scenarios.then(
+            "the default testset detail page is visible with test cases",
+            async () => {
+                await expect(page.getByRole("heading", {name: testsetName}).first()).toBeVisible()
+            },
+        )
+    })
 }
 
 export default testsetTests

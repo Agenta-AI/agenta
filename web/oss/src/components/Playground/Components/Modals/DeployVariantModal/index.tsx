@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo} from "react"
 
 import {publishMutationAtom} from "@agenta/entities/runnable"
-import {runnableBridge} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {Rocket} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -43,9 +43,9 @@ const DeployVariantModal = ({
 
     // Derive appId from the revision's entity data (for analytics only)
     const revisionData = useAtomValue(
-        useMemo(() => runnableBridge.data(revisionId ?? ""), [revisionId]),
-    ) as {appId?: string; workflow_id?: string} | null
-    const appId = revisionData?.appId ?? revisionData?.workflow_id ?? null
+        useMemo(() => workflowMolecule.selectors.data(revisionId ?? ""), [revisionId]),
+    )
+    const appId = revisionData?.workflow_id ?? null
 
     // Ensure Jotai store has the necessary identifiers when this modal is used directly
     useEffect(() => {

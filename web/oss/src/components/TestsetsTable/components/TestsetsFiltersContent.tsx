@@ -99,7 +99,7 @@ const TestsetsFiltersContent = ({onClose}: TestsetsFiltersContentProps) => {
     }, [draftDateCreated, draftDateModified, dateCreatedFilter, dateModifiedFilter])
 
     return (
-        <div className="flex flex-col gap-4 p-4 bg-white rounded-lg shadow-lg border border-gray-200 min-w-[280px]">
+        <div className="flex flex-col gap-4 min-w-[280px]">
             <div className="flex flex-col gap-3">
                 <Section title="Date Created">
                     <QuickDateRangePicker

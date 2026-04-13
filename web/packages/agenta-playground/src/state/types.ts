@@ -41,7 +41,6 @@ export type {
     RunnableInputPort,
     RunnableOutputPort,
     RunnableData,
-    EvaluatorRevisionData,
     // Path types
     PathInfo,
     ExtendedPathInfo,
@@ -84,5 +83,5 @@ export interface ChainExecutionResult {
 export interface ChainNodeInfo {
     id: string
     label: string
-    type: "legacyAppRevision" | "evaluatorRevision" | string
+    type: "workflow" | "evaluator" | string
 }

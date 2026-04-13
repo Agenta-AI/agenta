@@ -8,8 +8,6 @@
  * Supports two modes via the unified LoadModeContent:
  * - "load": Initial connection to a testset
  * - "edit": Modify selection of an already-connected testset
- *
- * For saving, use SaveTestsetModal instead.
  */
 
 import type {TestsetSelectionModalContentProps} from "../types"

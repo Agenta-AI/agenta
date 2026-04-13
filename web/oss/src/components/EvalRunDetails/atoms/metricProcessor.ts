@@ -190,7 +190,7 @@ export const createMetricProcessor = ({
         const isPendingScenario = status ? pendingStatuses.has(status) : evaluationType !== "human"
 
         // [HUMAN_EVAL_REFRESH_LOG] Log decision factors for human eval type
-        if (evaluationType === "human") {
+        if (evaluationType === "human" && process.env.NODE_ENV !== "production") {
             console.log("[MetricProcessor:HumanEval] processMetric decision", {
                 scope,
                 metricId: summary.id,

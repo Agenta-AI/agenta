@@ -12,7 +12,6 @@ import {memo, useCallback, useMemo, useState} from "react"
 
 import {annotationSessionController, OUTPUT_KEYS} from "@agenta/annotation"
 import type {AnnotationColumnDef, ScenarioListColumnDef, SessionView} from "@agenta/annotation"
-import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import type {EvaluationStatus} from "@agenta/entities/simpleQueue"
 import {
     traceEntityAtomFamily,
@@ -20,6 +19,7 @@ import {
     traceInputsAtomFamily,
     traceOutputsAtomFamily,
 } from "@agenta/entities/trace"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {EnhancedButton} from "@agenta/ui"
 import {
     SmartCellContent,
@@ -369,8 +369,8 @@ const AnnotationColumnHeader = memo(function AnnotationColumnHeader({
 }: {
     def: AnnotationColumnDef
 }) {
-    const name = useAtomValue(evaluatorMolecule.selectors.name(def.evaluatorId ?? ""))
-    const slug = useAtomValue(evaluatorMolecule.selectors.slug(def.evaluatorId ?? ""))
+    const name = useAtomValue(workflowMolecule.selectors.name(def.evaluatorId ?? ""))
+    const slug = useAtomValue(workflowMolecule.selectors.slug(def.evaluatorId ?? ""))
     const displayName = name || slug || def.evaluatorSlug || def.columnName || def.stepKey
 
     return (
@@ -395,8 +395,8 @@ const AnnotationGroupHeader = memo(function AnnotationGroupHeader({
     isCollapsed: boolean
     onToggle: () => void
 }) {
-    const name = useAtomValue(evaluatorMolecule.selectors.name(def.evaluatorId ?? ""))
-    const slug = useAtomValue(evaluatorMolecule.selectors.slug(def.evaluatorId ?? ""))
+    const name = useAtomValue(workflowMolecule.selectors.name(def.evaluatorId ?? ""))
+    const slug = useAtomValue(workflowMolecule.selectors.slug(def.evaluatorId ?? ""))
     const displayName = name || slug || def.evaluatorSlug || def.columnName || def.stepKey
 
     const handleClick = useCallback(
@@ -1144,10 +1144,10 @@ function resolveExportColumnLabel(
         if (def.columnType === "annotation") {
             const annotationDef = def.annotationDef
             const name = annotationDef.evaluatorId
-                ? store.get(evaluatorMolecule.selectors.name(annotationDef.evaluatorId))
+                ? store.get(workflowMolecule.selectors.name(annotationDef.evaluatorId))
                 : null
             const slug = annotationDef.evaluatorId
-                ? store.get(evaluatorMolecule.selectors.slug(annotationDef.evaluatorId))
+                ? store.get(workflowMolecule.selectors.slug(annotationDef.evaluatorId))
                 : null
             return (
                 name ||

@@ -16,12 +16,14 @@ Environment variables:
 """
 
 import pytest
+import agenta as ag
 
 from agenta.sdk.managers import evaluators
 
 pytestmark = [pytest.mark.acceptance, pytest.mark.asyncio]
 
 
+@ag.evaluator()
 def _evaluator_handler(prediction: str, reference: str) -> float:
     return 1.0 if prediction == reference else 0.0
 

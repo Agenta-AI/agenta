@@ -1,0 +1,7 @@
+interface:
+  display_name: "Scan Codebase"
+  short_description: "Scan code and docs into findings"
+  default_prompt: "Use $scan-codebase with depth=deep to inspect this branch from code and docs and turn review observations into findings."
+
+policy:
+  allow_implicit_invocation: true

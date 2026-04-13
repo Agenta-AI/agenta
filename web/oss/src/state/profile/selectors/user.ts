@@ -1,3 +1,4 @@
+import {logAtom} from "@agenta/shared/state"
 import type {AxiosError} from "axios"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -5,7 +6,6 @@ import Router from "next/router"
 
 import {User} from "@/oss/lib/Types"
 import {fetchProfile, getJWT} from "@/oss/services/api"
-import {logAtom} from "@/oss/state/utils/logAtom"
 
 import {sessionExistsAtom} from "../../session"
 

@@ -19,13 +19,12 @@ import {
     type RefObject,
 } from "react"
 
+import type {GatewayToolsBridge} from "@agenta/ui/drill-in"
+import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {CaretRight, Check, Code, MagnifyingGlass, Plus, Sparkle} from "@phosphor-icons/react"
 import {Button, Dropdown, Empty, Input, Spin, Typography} from "antd"
 import clsx from "clsx"
-
-import type {GatewayToolsBridge} from "../context"
-import {useDrillInUI} from "../context"
 
 import {TOOL_PROVIDERS_META, TOOL_SPECS, type ToolObj} from "./toolUtils"
 

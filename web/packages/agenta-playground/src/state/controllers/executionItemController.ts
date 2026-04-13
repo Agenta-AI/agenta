@@ -89,6 +89,8 @@ import {
     testcaseCellValueAtomFamily,
     testcaseDataAtomFamily,
     setTestcaseCellValueAtom,
+    downstreamNodeQueriesAtom,
+    rowVariableKeysAtomFamily,
 } from "../execution"
 import {buildAssistantMessage} from "../helpers/messageFactory"
 
@@ -168,6 +170,15 @@ export const executionItemController = {
 
         /** Variable keys derived from the linked runnable columns */
         variableKeys: rowVariableKeysWithContextAtom,
+
+        /** Variable keys keyed on downstream node IDs — use this in components
+         *  that also subscribe to playgroundNodesAtom to avoid stale values */
+        variableKeysForDownstream: (downstreamKey: string) =>
+            rowVariableKeysAtomFamily(downstreamKey),
+
+        /** Subscribe to downstream evaluator node queries to ensure they're mounted.
+         * atomWithQuery only fetches when it has a React subscriber. */
+        downstreamNodeQueries: downstreamNodeQueriesAtom,
 
         /** Schema-derived input keys for custom app variable gating */
         schemaInputKeys: schemaInputKeysAtom,

@@ -47,23 +47,15 @@ The API stores and returns the `data` JSON blob **as-is**. No server-side comput
 - Changes go through the workflow molecule's draft mechanism
 - **No code updates `input_keys` when messages change**
 
-#### 2. Legacy App Revision Path
+#### 2. Legacy App Revision Path (REMOVED)
 
-**Commit flow:**
-- `web/packages/agenta-entities/src/legacyAppRevision/state/commit.ts` (line 283-396)
-- Takes `parameters` from the caller (CommitVariantChangesModal)
-- Sends to `PUT /variants/{variantId}/parameters`
+> **Note:** `legacyAppRevision` has been fully removed from the codebase and replaced by `workflow`. This section is kept for historical context only.
 
-**CommitVariantChangesModal** (`web/oss/src/components/Playground/Components/Modals/CommitVariantChangesModal/index.tsx`):
-- Line 104: `parameters: configuration ?? {}`
-- `configuration` comes from `runnableBridge.data(variantId)?.configuration`
-- Bridge's `workflowToRunnable` (line 636): `configuration = entity.data.parameters`
-
-Both paths commit whatever is in `entity.data.parameters` — no `input_keys` recomputation.
+The legacy commit flow previously used `PUT /variants/{variantId}/parameters` via `legacyAppRevision/state/commit.ts`. Both paths committed whatever was in `entity.data.parameters` — no `input_keys` recomputation.
 
 ### The Missing Link: `syncInputKeysInPrompts`
 
-**File:** `web/packages/agenta-entities/src/legacyAppRevision/utils/syncInputKeys.ts`
+**File:** `web/packages/agenta-entities/src/legacyAppRevision/utils/syncInputKeys.ts` (REMOVED — legacyAppRevision has been deleted)
 
 This function:
 1. Iterates ALL prompts
@@ -89,7 +81,7 @@ But **none of them are used during commit** to update `input_keys` in the parame
 
 ### requestBodyBuilder's Partial Fix
 
-`web/packages/agenta-entities/src/legacyAppRevision/utils/requestBodyBuilder.ts` has code (lines 486-511) that sets `input_keys` on the **first prompt config only**:
+`web/packages/agenta-entities/src/shared/execution/requestBodyBuilder.ts` (relocated from legacyAppRevision) has code that sets `input_keys` on the **first prompt config only**:
 
 ```typescript
 const promptKey = Object.keys(ag_config || {})[0]  // ← FIRST ONLY

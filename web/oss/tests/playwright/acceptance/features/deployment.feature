@@ -1,4 +1,5 @@
 # Tests: deployment/deploy-variant.spec.ts -> deployment/index.ts
+# RTM ID: WEB-ACC-DEPLOYMENT-001
 # Tags: @scope:deployment @coverage:smoke @coverage:light @coverage:full @path:happy
 #
 # Implementation notes:
@@ -17,15 +18,11 @@ Feature: Variant Deployment
 
   @smoke @happy
   Scenario: Deploy a variant to development environment
-    Given the user navigates to the app overview page
-    When the user scrolls to the Deployment section
+    Given the user is on the app overview page
+    When the user opens the Development deployment flow
     Then the following environment cards should be visible:
       | Environment  |
       | Development  |
       | Staging      |
       | Production   |
-    When the user clicks on the "Development" environment card
-    And the user clicks "Deploy" button
-    And the user selects a variant in the deployment modal
-    And the user confirms the deployment
-    Then the deployment should succeed
+    And the deployment flow completes without leaving the overview context

@@ -1,0 +1,336 @@
+@host = http://localhost
+@token = change-me-auth
+@api_url = {{host}}/api
+@services_url = {{host}}/services
+
+###
+# @name create_account
+POST {{api_url}}/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+# 0. Fetch catalog
+# @name fetch_catalog
+GET {{api_url}}/preview/evaluators/catalog/templates/
+Authorization: {{authorization}}
+
+###
+# 1. Inspect the auto_custom_code_run template (schema + uri)
+# @name get_template
+GET {{api_url}}/preview/evaluators/catalog/templates/auto_custom_code_run
+Authorization: {{authorization}}
+
+###
+# 2. Create workflow — artifact + variant + committed revision in one shot
+# evaluate() compares output to inputs['correct_answer']
+# @name create_workflow
+POST {{api_url}}/preview/simple/workflows/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "workflow": {
+    "slug": "test-auto-custom-code-run-manual",
+    "name": "test-auto-custom-code-run-manual",
+    "flags": {
+      "is_evaluator": true
+    },
+    "data": {
+      "uri": "agenta:builtin:auto_custom_code_run:v0",
+      "parameters": {
+        "code": "def evaluate(inputs, output, trace):\n    return 1.0 if output == inputs.get('correct_answer') else 0.0\n",
+        "runtime": "python",
+        "version": "2",
+        "correct_answer_key": "correct_answer",
+        "threshold": 0.5
+      }
+    }
+  }
+}
+
+###
+@workflow_slug = {{create_workflow.response.body.workflow.slug}}
+@revision_id   = {{create_workflow.response.body.workflow.revision_id}}
+@workflow_url  = {{create_workflow.response.body.workflow.data.url}}
+
+###
+# 3. Query environments — find the default one
+# @name query_environments
+POST {{api_url}}/preview/environments/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+@environment_id   = {{query_environments.response.body.environments[0].id}}
+@environment_slug = {{query_environments.response.body.environments[0].slug}}
+
+###
+# 4. Deploy revision to environment
+# @name deploy
+POST {{api_url}}/preview/workflows/revisions/deploy
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "workflow_revision_ref": { "id": "{{revision_id}}" },
+  "environment_ref":       { "id": "{{environment_id}}" }
+}
+
+###
+# 4b. Check environment revision
+# @name check_env_revision
+POST {{api_url}}/preview/environments/revisions/retrieve
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "environment_ref": { "id": "{{environment_id}}" }
+}
+
+###
+# 5a. Invoke — direct service mount, no dispatcher
+# exact match → evaluate() returns 1.0 → score=1.0, success=true
+# @name inspect_direct
+POST {{services_url}}/auto_custom_code_run/v0/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+# 5a. Invoke — direct service mount, no dispatcher
+# exact match → evaluate() returns 1.0 → score=1.0, success=true
+# @name invoke_direct
+POST {{services_url}}/auto_custom_code_run/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":     { "correct_answer": "Paris" },
+    "outputs":    "Paris",
+    "parameters": {
+      "code": "def evaluate(inputs, output, trace):\n    return 1.0 if output == inputs.get('correct_answer') else 0.0\n",
+      "runtime": "python",
+      "version": "2",
+      "correct_answer_key": "correct_answer",
+      "threshold": 0.5
+    }
+  }
+}
+
+###
+# 5b. Invoke — /invoke with URI + parameters inline, zero DB calls
+# @name inspect_inline
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:auto_custom_code_run:v0",
+      "parameters": {
+        "code": "def evaluate(inputs, output, trace):\n    return 1.0 if output == inputs.get('correct_answer') else 0.0\n",
+        "runtime": "python",
+        "version": "2",
+        "correct_answer_key": "correct_answer",
+        "threshold": 0.5
+      }
+    }
+  }
+}
+###
+# 5b. Invoke — /invoke with URI + parameters inline, zero DB calls
+# @name invoke_inline
+POST {{services_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  { "correct_answer": "Paris" },
+    "outputs": "Paris",
+    "revision": {
+      "data": {
+        "uri": "agenta:builtin:auto_custom_code_run:v0",
+        "parameters": {
+          "code": "def evaluate(inputs, output, trace):\n    return 1.0 if output == inputs.get('correct_answer') else 0.0\n",
+          "runtime": "python",
+          "version": "2",
+          "correct_answer_key": "correct_answer",
+          "threshold": 0.5
+        }
+      }
+    }
+  }
+}
+
+###
+# 5c. Invoke — /invoke with env ref + selector key
+# @name inspect_by_env
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "environment": {
+      "slug": "{{environment_slug}}"
+    }
+  },
+  "selector": {
+    "key": "{{workflow_slug}}.revision"
+  }
+}
+###
+# 5c. Invoke — /invoke with env ref + selector key
+# @name invoke_by_env
+POST {{services_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "environment": { "slug": "{{environment_slug}}" }
+  },
+  "selector": {
+    "key": "{{workflow_slug}}.revision"
+  },
+  "data": {
+    "inputs":  { "correct_answer": "Paris" },
+    "outputs": "Paris"
+  }
+}
+
+###
+# 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
+# @name inspect_by_url
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:auto_custom_code_run:v0",
+      "parameters": {
+        "code": "def evaluate(inputs, output, trace):\n    return 1.0 if output == inputs.get('correct_answer') else 0.0\n",
+        "runtime": "python",
+        "version": "2",
+        "correct_answer_key": "correct_answer",
+        "threshold": 0.5
+      }
+    }
+  }
+}
+###
+# 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
+# @name invoke_by_url
+POST {{workflow_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":     { "correct_answer": "Paris" },
+    "outputs":    "Paris",
+    "parameters": {
+      "code": "def evaluate(inputs, output, trace):\n    return 1.0 if output == inputs.get('correct_answer') else 0.0\n",
+      "runtime": "python",
+      "version": "2",
+      "correct_answer_key": "correct_answer",
+      "threshold": 0.5
+    }
+  }
+}
+
+###
+# BONUS — custom code returns partial score; threshold filters success
+# score=0.8 vs threshold=0.9 → success=false
+# @name inspect_partial_score
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:auto_custom_code_run:v0",
+      "parameters": {
+        "code": "def evaluate(inputs, output, trace):\n    return 0.8\n",
+        "runtime": "python",
+        "version": "2",
+        "threshold": 0.9
+      }
+    }
+  }
+}
+###
+# BONUS — custom code returns partial score; threshold filters success
+# score=0.8 vs threshold=0.9 → success=false
+# @name invoke_partial_score
+POST {{services_url}}/auto_custom_code_run/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":     {},
+    "outputs":    "anything",
+    "parameters": {
+      "code": "def evaluate(inputs, output, trace):\n    return 0.8\n",
+      "runtime": "python",
+      "version": "2",
+      "threshold": 0.9
+    }
+  }
+}
+
+###
+# BONUS2 — mismatch: evaluate() returns 0.0 → success=false
+# @name inspect_mismatch
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:auto_custom_code_run:v0",
+      "parameters": {
+        "code": "def evaluate(inputs, output, trace):\n    return 1.0 if output == inputs.get('correct_answer') else 0.0\n",
+        "runtime": "python",
+        "version": "2",
+        "correct_answer_key": "correct_answer",
+        "threshold": 0.5
+      }
+    }
+  }
+}
+###
+# BONUS2 — mismatch: evaluate() returns 0.0 → success=false
+# @name invoke_mismatch
+POST {{services_url}}/auto_custom_code_run/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":     { "correct_answer": "Paris" },
+    "outputs":    "London",
+    "parameters": {
+      "code": "def evaluate(inputs, output, trace):\n    return 1.0 if output == inputs.get('correct_answer') else 0.0\n",
+      "runtime": "python",
+      "version": "2",
+      "correct_answer_key": "correct_answer",
+      "threshold": 0.5
+    }
+  }
+}

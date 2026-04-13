@@ -9,6 +9,8 @@ export {
     queryWorkflowVariants,
     // Query / List (Revisions)
     queryWorkflowRevisionsByWorkflow,
+    queryWorkflowRevisionsByWorkflows,
+    type WorkflowRevisionWindowing,
     queryWorkflowRevisions,
     // Fetch (single revision by ID)
     fetchWorkflowRevisionById,
@@ -42,4 +44,35 @@ export {
     unarchiveWorkflow,
     // Batch
     fetchWorkflowsBatch,
+    fetchWorkflowRevisionsByIdsBatch,
+    // Schema
+    fetchAgTypeSchema,
+    // Catalog
+    fetchWorkflowCatalogTemplates,
+    type WorkflowCatalogTemplate,
+    type WorkflowCatalogPreset,
+    type WorkflowCatalogFlags,
+    type WorkflowCatalogTemplatesResponse,
 } from "./api"
+
+// Create from template (legacy endpoint orchestration)
+export {
+    createAppFromTemplate,
+    AppServiceType,
+    type CreateAppFromTemplateParams,
+    type CreateAppFromTemplateResult,
+} from "./createFromTemplate"
+
+// Templates (evaluator catalog)
+export {
+    fetchEvaluatorTemplates,
+    fetchEvaluatorCatalogPresets,
+    type EvaluatorCatalogTemplate,
+    type EvaluatorCatalogTemplatesResponse,
+    type EvaluatorCatalogPreset,
+    type EvaluatorCatalogPresetsResponse,
+    /** @deprecated Use EvaluatorCatalogTemplate */
+    type EvaluatorTemplate,
+    /** @deprecated Use EvaluatorCatalogTemplatesResponse */
+    type EvaluatorTemplatesResponse,
+} from "./templates"

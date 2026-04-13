@@ -1,7 +1,6 @@
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-
-import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 /** promptId may contain colons, so split only on the first ":" */
 function splitCompoundKey(compoundKey: string): [string, string] {
@@ -13,43 +12,67 @@ function splitCompoundKey(compoundKey: string): [string, string] {
  * Remove a tool by identifier from a prompt identified by `${revisionId}:${promptId}`.
  * - function tools: identifier is `value.function.name`
  * - non-function builtin tools: identifier is `__tool`
+ *
+ * Works with workflow entities via workflowMolecule draft updates.
+ * Prompts are stored inside `data.parameters` as enhanced values.
  */
 export const removePromptToolByNameAtomFamily = atomFamily((compoundKey: string) =>
     atom(null, (_get, set, toolIdentifier: string) => {
         if (!toolIdentifier) return
         const [revisionId, promptId] = splitCompoundKey(compoundKey)
 
-        const mutatePrompts = (prev: any[]) => {
-            const list = Array.isArray(prev) ? prev : []
-            return list.map((p: any) => {
-                if (!(p?.__id === promptId || p?.__name === promptId)) return p
+        const entity = workflowMolecule.get.data(revisionId)
+        if (!entity?.data?.parameters) return
 
-                // Preserve whichever key the prompt already uses
-                const configKey = p?.llm_config ? "llm_config" : "llmConfig"
-                const llm = p?.[configKey] || {}
-                const toolsArr = llm?.tools?.value
-                if (!Array.isArray(toolsArr)) return p
+        const parameters = entity.data.parameters as Record<string, unknown>
 
-                const updatedTools = toolsArr.filter(
-                    (tool: any) =>
-                        tool?.value?.function?.name !== toolIdentifier &&
-                        tool?.__tool !== toolIdentifier,
-                )
-                if (updatedTools.length === toolsArr.length) return p
+        // Find and update the prompt in parameters
+        const updatedParameters: Record<string, unknown> = {}
+        let changed = false
 
-                return {
-                    ...p,
-                    [configKey]: {
-                        ...llm,
-                        tools: {
-                            ...llm?.tools,
-                            value: updatedTools,
-                        },
+        for (const [key, value] of Object.entries(parameters)) {
+            const prompt = value as any
+            if (!(prompt?.__id === promptId || prompt?.__name === promptId)) {
+                updatedParameters[key] = value
+                continue
+            }
+
+            // Preserve whichever key the prompt already uses
+            const configKey = prompt?.llm_config ? "llm_config" : "llmConfig"
+            const llm = prompt?.[configKey] || {}
+            const toolsArr = llm?.tools?.value
+            if (!Array.isArray(toolsArr)) {
+                updatedParameters[key] = value
+                continue
+            }
+
+            const updatedTools = toolsArr.filter(
+                (tool: any) =>
+                    tool?.value?.function?.name !== toolIdentifier &&
+                    tool?.__tool !== toolIdentifier,
+            )
+            if (updatedTools.length === toolsArr.length) {
+                updatedParameters[key] = value
+                continue
+            }
+
+            changed = true
+            updatedParameters[key] = {
+                ...prompt,
+                [configKey]: {
+                    ...llm,
+                    tools: {
+                        ...llm?.tools,
+                        value: updatedTools,
                     },
-                }
-            })
+                },
+            }
         }
 
-        set(moleculeBackedPromptsAtomFamily(revisionId), mutatePrompts)
+        if (changed) {
+            set(workflowMolecule.actions.update, revisionId, {
+                data: {parameters: updatedParameters},
+            })
+        }
     }),
 )

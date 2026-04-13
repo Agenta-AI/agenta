@@ -248,6 +248,40 @@ export async function fetchTestsetsList({
 }
 
 /**
+ * Fetch multiple testsets by ID in a single API call (metadata only).
+ * Uses POST /preview/testsets/query with testset_refs.
+ */
+export async function fetchTestsetsBatch(
+    projectId: string,
+    testsetIds: string[],
+): Promise<Map<string, Testset>> {
+    const results = new Map<string, Testset>()
+    if (!projectId || testsetIds.length === 0) return results
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/preview/testsets/query`,
+        {
+            testset_refs: testsetIds.map((id) => ({id})),
+            windowing: {limit: testsetIds.length},
+        },
+        {params: {project_id: projectId}},
+    )
+
+    const validated = safeParseWithLogging(
+        testsetsResponseSchema,
+        response.data,
+        "[fetchTestsetsBatch]",
+    )
+    if (validated) {
+        for (const testset of validated.testsets) {
+            results.set(testset.id, testset)
+        }
+    }
+
+    return results
+}
+
+/**
  * Fetch a single testset by ID (metadata only)
  */
 export async function fetchTestsetDetail({id, projectId}: TestsetDetailParams): Promise<Testset> {

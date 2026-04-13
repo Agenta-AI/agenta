@@ -99,8 +99,8 @@ Authorization: {{authorization}}
 
 {
     "evaluation": {
-        "name": "Test JIT Evaluation",
-        "description": "This is a test jit evaluation",
+        "name": "Test Live Evaluation",
+        "description": "This is a test live evaluation",
         "tags": {
             "my_key": "my_value"
         },
@@ -112,7 +112,7 @@ Authorization: {{authorization}}
                 "{{fetch_query_revision.response.body.query_revision.id}}"
             ],
             "evaluator_steps": [
-                "{{fetch_evaluator_revision.response.body.evaluator_revision.evaluator_id}}"  
+                "{{fetch_evaluator_revision.response.body.evaluator_revision.id}}"
             ]
         }
     }

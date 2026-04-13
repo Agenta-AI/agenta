@@ -7,7 +7,8 @@
 
 import React, {useMemo, useCallback} from "react"
 
-import {Modal, Tabs} from "antd"
+import {EnhancedModal} from "@agenta/ui/components/modal"
+import {Tabs} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {resolveAdapter} from "../adapters/createAdapter"
@@ -90,8 +91,8 @@ export interface EntitySelectorModalProps {
  * const handleClick = async () => {
  *   const selection = await openSelector({
  *     title: 'Add to Playground',
- *     allowedTypes: ['appRevision', 'evaluatorRevision'],
- *     adapters: [appRevisionAdapter, evaluatorRevisionAdapter],
+ *     allowedTypes: ['appRevision', 'evaluator'],
+ *     adapters: [appRevisionAdapter, evaluatorAdapter],
  *   })
  *
  *   if (selection) {
@@ -166,7 +167,7 @@ export function EntitySelectorModal({
     }
 
     return (
-        <Modal
+        <EnhancedModal
             open={isOpen}
             title={title}
             onCancel={handleCancel}
@@ -177,7 +178,6 @@ export function EntitySelectorModal({
             centered={centered}
             className={className}
             footer={footer}
-            destroyOnHidden
         >
             {tabItems.length > 1 ? (
                 <Tabs
@@ -188,7 +188,7 @@ export function EntitySelectorModal({
             ) : tabItems.length === 1 ? (
                 tabItems[0].children
             ) : null}
-        </Modal>
+        </EnhancedModal>
     )
 }
 
@@ -206,14 +206,9 @@ function formatEntityTypeLabel(type: SelectableEntityType): string {
         app: "App",
         variant: "Variant",
         appRevision: "App Revision",
-        ossVariant: "Variant",
-        legacyAppRevision: "App Revision",
         evaluator: "Evaluator",
-        legacyEvaluator: "Evaluator",
         evaluatorVariant: "Evaluator Variant",
         evaluatorRevision: "Evaluator Revision",
-        playgroundVariant: "Variant",
-        playgroundRevision: "Revision",
         workflow: "Workflow",
         workflowVariant: "Workflow Variant",
         workflowRevision: "Workflow Revision",

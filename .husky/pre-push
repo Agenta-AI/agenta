@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
- 
+
 # Delegate to pre-commit which runs pre-push hooks (e.g. gitleaks) from .pre-commit-config.yaml
 if command -v pre-commit >/dev/null 2>&1; then
   pre-commit run --hook-stage pre-push
@@ -9,4 +9,14 @@ else
   echo "  brew install pre-commit gitleaks"
   echo "  (see https://pre-commit.com/#installation and https://github.com/gitleaks/gitleaks#installation for more options)"
   exit 1
+fi
+
+# Run web lint checks if web/ files are being pushed
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+REMOTE_REF=$(git rev-parse @{upstream} 2>/dev/null || echo "origin/main")
+if git diff --name-only "$REMOTE_REF"...HEAD | grep -q '^web/'; then
+  echo ""
+  echo ">> Web files changed — running lint checks..."
+  echo ""
+  (cd "$REPO_ROOT/web" && pnpm lint-fix) || exit 1
 fi

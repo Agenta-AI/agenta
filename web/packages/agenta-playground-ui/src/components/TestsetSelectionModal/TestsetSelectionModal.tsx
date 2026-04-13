@@ -6,8 +6,6 @@
  * - "load" mode: Initial connection to a testset
  * - "edit" mode: Modify selection of an already-connected testset
  *
- * For saving local data as a new testset, use SaveTestsetModal instead.
- *
  * Architecture:
  * - This component is a thin wrapper that handles modal chrome (title, size, open state)
  * - All data layer logic is in TestsetSelectionModalContent, which only renders when open

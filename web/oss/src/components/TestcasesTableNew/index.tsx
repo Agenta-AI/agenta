@@ -1,6 +1,7 @@
 import {useEffect, useMemo, useState} from "react"
 
 import {useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
@@ -9,12 +10,19 @@ import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import useURL from "@/oss/hooks/useURL"
 import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
+import type {testset as DeleteModalTestset} from "@/oss/lib/Types"
 import {
     currentRevisionIdAtom,
     revisionsListQueryAtom,
     testsetMetadataAtom,
 } from "@/oss/state/entities/testcase/queries"
-import {NEW_TESTSET_ID, testset} from "@/oss/state/entities/testset"
+import {
+    NEW_TESTSET_ID,
+    invalidateRevisionsListCache,
+    invalidateTestsetCache,
+    invalidateTestsetsListCache,
+    testset,
+} from "@/oss/state/entities/testset"
 
 import {setDebouncedSearchTermAtom, testcasesSearchTermAtom} from "./atoms/tableStore"
 import {ImportTestsetRevisionModal} from "./components/ImportTestsetRevisionModal"
@@ -26,6 +34,16 @@ import {TestcasesTableShell} from "./components/TestcasesTableShell"
 import {useTestcaseActions} from "./hooks/useTestcaseActions"
 import {useTestcasesTable} from "./hooks/useTestcasesTable"
 import {testcaseRowHeightAtom, TESTCASE_ROW_HEIGHT_CONFIG} from "./state/rowHeight"
+
+const DeleteTestsetModal: any = dynamic(
+    () => import("@/oss/components/pages/testset/modals/DeleteTestset"),
+)
+
+type DeleteTarget = DeleteModalTestset & {
+    __isRevision?: boolean
+    __version?: number
+    __testsetId?: string
+}
 
 /**
  * Props for TestcasesTableNew component
@@ -93,6 +111,8 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
     const [isCommitModalOpen, setIsCommitModalOpen] = useState(false)
     const [isAddColumnModalOpen, setIsAddColumnModalOpen] = useState(false)
     const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+    const [selectedTestsetToDelete, setSelectedTestsetToDelete] = useState<DeleteTarget[]>([])
+    const [isDeleteTestsetModalOpen, setIsDeleteTestsetModalOpen] = useState(false)
     const [isIdCopied, setIsIdCopied] = useState(false)
     const [isRevisionSlugCopied, setIsRevisionSlugCopied] = useState(false)
 
@@ -134,6 +154,23 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
         canExportData,
         metadata,
         availableRevisions,
+        onRequestDeleteRevision: () => {
+            if (!revisionIdParam || !metadata) return
+
+            setSelectedTestsetToDelete([
+                {
+                    id: revisionIdParam,
+                    name: metadata.testsetName,
+                    created_at: metadata.createdAt ?? new Date().toISOString(),
+                    updated_at:
+                        metadata.updatedAt ?? metadata.createdAt ?? new Date().toISOString(),
+                    __isRevision: true,
+                    __version: metadata.revisionVersion,
+                    __testsetId: metadata.testsetId,
+                },
+            ])
+            setIsDeleteTestsetModalOpen(true)
+        },
         onOpenCommitModal: () => setIsCommitModalOpen(true),
         onOpenRenameModal: () => setIsRenameModalOpen(true),
         onOpenAddColumnModal: () => setIsAddColumnModalOpen(true),
@@ -163,6 +200,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
             message:
                 "You have unsaved changes in your testset. Do you want to save these changes before leaving the page?",
             okText: "Save",
+            centered: true,
             onOk: async () => {
                 await actions.handleSaveTestset()
                 return true
@@ -305,6 +343,39 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                 testsetId={metadata?.testsetId ?? ""}
                 testsetName={metadata?.testsetName ?? "Test set"}
             />
+
+            {selectedTestsetToDelete.length > 0 && (
+                <DeleteTestsetModal
+                    selectedTestsetToDelete={selectedTestsetToDelete}
+                    mutate={async () => {
+                        if (metadata?.testsetId) {
+                            invalidateRevisionsListCache(metadata.testsetId)
+                            invalidateTestsetCache(metadata.testsetId)
+                        }
+                        invalidateTestsetsListCache()
+                        return undefined
+                    }}
+                    setSelectedTestsetToDelete={setSelectedTestsetToDelete}
+                    open={isDeleteTestsetModalOpen}
+                    onCancel={() => {
+                        setIsDeleteTestsetModalOpen(false)
+                    }}
+                    onAfterDelete={() => {
+                        const nextRevision = availableRevisions
+                            .filter((revision) => revision.id !== revisionIdParam)
+                            .sort((a, b) => b.version - a.version)[0]
+
+                        if (nextRevision) {
+                            router.push(`${projectURL}/testsets/${nextRevision.id}`, undefined, {
+                                shallow: false,
+                            })
+                            return
+                        }
+
+                        router.push(`${projectURL}/testsets`)
+                    }}
+                />
+            )}
         </div>
     )
 }

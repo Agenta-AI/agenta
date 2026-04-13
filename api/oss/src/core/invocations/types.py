@@ -1,7 +1,10 @@
 from typing import Optional
 
 from oss.src.core.shared.dtos import Reference
-from oss.src.core.workflows.dtos import WorkflowFlags
+from oss.src.core.workflows.dtos import (
+    WorkflowFlags,
+    WorkflowQueryFlags,
+)
 from oss.src.core.tracing.dtos import (
     SimpleTraceOrigin,
     SimpleTraceKind,
@@ -23,6 +26,12 @@ InvocationLinks = SimpleTraceLinks
 
 
 class InvocationFlags(WorkflowFlags):
+    is_sdk: Optional[bool] = None
+    is_web: Optional[bool] = None
+    is_evaluation: Optional[bool] = None
+
+
+class InvocationQueryFlags(WorkflowQueryFlags):
     is_sdk: Optional[bool] = None
     is_web: Optional[bool] = None
     is_evaluation: Optional[bool] = None

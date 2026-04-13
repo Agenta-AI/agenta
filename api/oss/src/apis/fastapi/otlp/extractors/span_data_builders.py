@@ -161,9 +161,7 @@ class OTelFlatSpanBuilder(SpanDataBuilder):
         for k, v in features.type.items():
             del attributes[f"ag.type.{k}"]
 
-            if k == "tree":
-                attributes["ag.type.trace"] = v.lower() if v else None
-            elif k == "node":
+            if k == "node":
                 attributes["ag.type.span"] = v.lower() if v else None
         ## ---------------------------------------------------------------------
 

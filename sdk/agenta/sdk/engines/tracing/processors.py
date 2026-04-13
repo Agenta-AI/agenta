@@ -1,7 +1,8 @@
 from threading import Lock
 from typing import Dict, List, Optional
 
-from agenta.sdk.models.tracing import BaseModel
+
+from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.utils.logging import get_module_logger
 from opentelemetry.baggage import get_all as get_baggage
 from opentelemetry.context import Context
@@ -11,6 +12,9 @@ from opentelemetry.sdk.trace.export import (
     ReadableSpan,
     SpanExporter,
 )
+from opentelemetry.trace import SpanContext
+
+from agenta.sdk.models.tracing import BaseModel
 
 log = get_module_logger(__name__)
 
@@ -49,10 +53,19 @@ class TraceProcessor(SpanProcessor):
         span: Span,
         parent_context: Optional[Context] = None,
     ) -> None:
+        trace_id = span.context.trace_id
+        span_id = span.context.span_id
+
+        # if not self.inline:
+        #     log.debug(
+        #         "[SPAN] [START] ",
+        #         trace_id=UUID(int=trace_id).hex,
+        #         span_id=UUID(int=span_id).hex[-16:],
+        #         span_name=span.name,
+        #     )
+
         for key in self.references.keys():
             ref = self.references[key]
-            if ref is None:
-                continue
             if isinstance(ref, BaseModel):
                 try:
                     ref = ref.model_dump(mode="json", exclude_none=True)
@@ -61,16 +74,76 @@ class TraceProcessor(SpanProcessor):
             if isinstance(ref, dict):
                 for field, value in ref.items():
                     span.set_attribute(f"ag.refs.{key}.{field}", str(value))
-            else:
-                span.set_attribute(f"ag.refs.{key}", str(ref))
 
         baggage = get_baggage(parent_context)
 
-        # Copy any `ag.*` baggage entries onto the span attributes so they can be
-        # used for filtering and grouping (for example `ag.meta.session_id`).
-        for key, value in baggage.items():
+        for key in baggage.keys():
             if key.startswith("ag."):
-                span.set_attribute(key, value)
+                value = baggage[key]
+
+                if key.startswith("ag.refs."):
+                    ref = value
+                    if isinstance(value, BaseModel):
+                        try:
+                            ref = value.model_dump(mode="json", exclude_none=True)  # type: ignore
+                        except Exception:  # pylint: disable=bare-except
+                            pass
+                    if isinstance(ref, dict):
+                        for field, val in ref.items():
+                            span.set_attribute(f"{key}.{field}", str(val))
+                    elif isinstance(ref, (str, bool, int, float, bytes)):
+                        span.set_attribute(key, ref)
+                else:
+                    # Not a reference - only set if it's a valid attribute type
+                    if isinstance(value, (str, bool, int, float, bytes)):
+                        span.set_attribute(key, value)
+
+        context = TracingContext.get()
+
+        if context.flags:
+            for key in context.flags.keys():
+                span.set_attribute(f"ag.flags.{key}", context.flags[key])
+        # if context.tags:
+        #     for key in context.tags.keys():
+        #         span.set_attribute(f"ag.tags.{key}", context.tags[key])
+        # if context.meta:
+        #     span.set_attribute(f"ag.meta.", dumps(context.meta))
+
+        # --- DISTRIBUTED
+        if not self.inline:
+            if context.links:
+                for key, link in context.links.items():
+                    if isinstance(link, BaseModel):
+                        try:
+                            link = link.model_dump(mode="json", exclude_none=True)
+                        except Exception:
+                            pass
+                    if not isinstance(link, dict):
+                        continue
+                    if not link.get("trace_id") or not link.get("span_id"):
+                        continue
+
+                    span.add_link(
+                        context=SpanContext(
+                            trace_id=int(str(link.get("trace_id")), 16),
+                            span_id=int(str(link.get("span_id")), 16),
+                            is_remote=True,
+                        ),
+                        attributes=dict(
+                            key=str(key),
+                        ),
+                    )
+
+        if context.references:
+            for key, ref in context.references.items():
+                if isinstance(ref, BaseModel):
+                    try:
+                        ref = ref.model_dump(mode="json", exclude_none=True)
+                    except Exception:
+                        pass
+                if isinstance(ref, dict):
+                    for field, value in ref.items():
+                        span.set_attribute(f"ag.refs.{key}.{field}", str(value))
 
         trace_id = span.context.trace_id
         span_id = span.context.span_id
@@ -84,6 +157,14 @@ class TraceProcessor(SpanProcessor):
     ):
         trace_id = span.context.trace_id
         span_id = span.context.span_id
+
+        # if not self.inline:
+        #     log.debug(
+        #         "[SPAN] [END]   ",
+        #         trace_id=UUID(int=trace_id).hex,
+        #         span_id=UUID(int=span_id).hex[-16:],
+        #         span_name=span.name,
+        #     )
 
         self._spans.setdefault(trace_id, []).append(span)
         self._registry.setdefault(trace_id, {})

@@ -1,30 +1,21 @@
 """
-Integration tests for the legacy ApplicationsManager.
+Integration tests for the async applications manager.
 
-Tests cover:
-- Legacy application upsert (create/update)
-- Application retrieval by revision ID
-- Application update with new description
-- Response serialization (model_dump)
-
-Run with:
-    pytest sdk/tests/integration/applications/ -v -m integration
-
-Environment variables:
-    AGENTA_API_KEY: Required for authentication
-    AGENTA_HOST: Optional, defaults to https://cloud.agenta.ai
+Tests cover upsert/retrieve flows against the preview application endpoints.
 """
 
 import asyncio
 
 import pytest
+import agenta as ag
 
 from agenta.sdk.managers import applications
 
 pytestmark = [pytest.mark.acceptance, pytest.mark.asyncio]
 
 
-def _legacy_application_handler(prompt: str) -> str:
+@ag.application()
+def _application_handler(prompt: str) -> str:
     return prompt
 
 
@@ -39,14 +30,14 @@ async def _aupsert_with_retry(*, max_retries=3, delay=2.0, **kwargs):
     return None
 
 
-async def test_legacy_applications_upsert_retrieve_update(
+async def test_applications_upsert_retrieve_update(
     deterministic_legacy_application_slug: str, agenta_init
 ):
     rev1_id = await _aupsert_with_retry(
         application_slug=deterministic_legacy_application_slug,
-        name="SDK IT Legacy App v1",
-        description="SDK integration test legacy application",
-        handler=_legacy_application_handler,
+        name="SDK IT App v1",
+        description="SDK integration test application",
+        handler=_application_handler,
     )
     assert rev1_id is not None
 
@@ -61,9 +52,9 @@ async def test_legacy_applications_upsert_retrieve_update(
 
     rev2_id = await _aupsert_with_retry(
         application_slug=deterministic_legacy_application_slug,
-        name="SDK IT Legacy App v1",
-        description="SDK integration test legacy application (updated)",
-        handler=_legacy_application_handler,
+        name="SDK IT App v1",
+        description="SDK integration test application (updated)",
+        handler=_application_handler,
     )
     assert rev2_id is not None
 

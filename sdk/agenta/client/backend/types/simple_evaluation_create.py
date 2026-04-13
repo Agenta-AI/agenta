@@ -22,7 +22,6 @@ class SimpleEvaluationCreate(UniversalBaseModel):
     description: typing.Optional[str] = None
     version: typing.Optional[str] = None
     data: typing.Optional[SimpleEvaluationData] = None
-    jit: typing.Optional[typing.Dict[str, typing.Optional[bool]]] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

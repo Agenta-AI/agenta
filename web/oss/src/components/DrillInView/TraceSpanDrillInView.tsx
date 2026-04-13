@@ -9,7 +9,9 @@ import {
     useState,
 } from "react"
 
+import {traceSpanMolecule} from "@agenta/entities/trace"
 import {
+    CopyButton,
     Editor as EditorWrapper,
     EditorProvider,
     DrillInProvider,
@@ -41,10 +43,8 @@ import yaml from "js-yaml"
 import JSON5 from "json5"
 import dynamic from "next/dynamic"
 
-import CopyButton from "@/oss/components/CopyButton/CopyButton"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
-import {traceSpan} from "@/oss/state/entities/trace"
 
 import type {DrillInContentProps} from "./DrillInContent"
 import {EntityDrillInView} from "./EntityDrillInView"
@@ -158,6 +158,102 @@ const parseStructuredJson = (value: string): unknown | null => {
     }
 }
 
+// ============================================================================
+// VALUE SIMPLIFICATION
+// ============================================================================
+
+/** Keys that are metadata noise — filtered out in rendered JSON mode */
+const METADATA_NOISE_KEYS = new Set([
+    "providerOptions",
+    "experimental_providerMetadata",
+    "rawHeaders",
+    "caller",
+    "messageId",
+    "toolCallId",
+    "rawCall",
+    "rawResponse",
+    "logprobs",
+    "experimental_providerMetadata",
+])
+
+/**
+ * Simplify a value by unwrapping known envelope patterns.
+ * Returns the simplified value, or the original if no simplification applies.
+ */
+const simplifyValue = (value: unknown): unknown => {
+    if (!value || typeof value !== "object") return value
+
+    const rec = value as Record<string, unknown>
+
+    // AI SDK text part: {type: "text", text: "hello"} → "hello"
+    if (rec.type === "text" && typeof rec.text === "string") {
+        return rec.text
+    }
+
+    // AI SDK tool-call: {type: "tool-call", toolName: "fn", input: {...}} → "fn({...})"
+    if (rec.type === "tool-call" && typeof rec.toolName === "string") {
+        const args = rec.input ?? rec.args
+        if (!args || (typeof args === "object" && Object.keys(args as object).length === 0)) {
+            return `${rec.toolName}()`
+        }
+        try {
+            return `${rec.toolName}(${JSON.stringify(args, null, 2)})`
+        } catch {
+            return `${rec.toolName}(...)`
+        }
+    }
+
+    // AI SDK tool-result envelope: {type: "tool-result", output: {type: "json", value: X}} → X
+    if (rec.type === "tool-result" && rec.output !== undefined) {
+        const output = rec.output as Record<string, unknown> | undefined
+        if (output && typeof output === "object" && output.value !== undefined) {
+            return output.value
+        }
+        return rec.output
+    }
+
+    // Single-element array of a simplifiable item: [{type: "text", text: "hello"}] → "hello"
+    if (Array.isArray(value) && value.length === 1) {
+        const simplified = simplifyValue(value[0])
+        if (simplified !== value[0]) return simplified
+    }
+
+    // Multi-element array: simplify each element
+    if (Array.isArray(value) && value.length > 1) {
+        const simplified = value.map(simplifyValue)
+        const changed = simplified.some((s, i) => s !== value[i])
+        if (changed) {
+            // If all simplified to strings, join them
+            if (simplified.every((s) => typeof s === "string")) {
+                return (simplified as string[]).join("\n")
+            }
+            return simplified
+        }
+    }
+
+    // Strip metadata noise keys from objects
+    if (!Array.isArray(value)) {
+        const keys = Object.keys(rec)
+        const noiseKeys = keys.filter((k) => METADATA_NOISE_KEYS.has(k))
+        if (noiseKeys.length > 0 && noiseKeys.length < keys.length) {
+            const cleaned: Record<string, unknown> = {}
+            for (const k of keys) {
+                if (!METADATA_NOISE_KEYS.has(k)) {
+                    cleaned[k] = rec[k]
+                }
+            }
+            // If only one meaningful key remains, unwrap it
+            const cleanedKeys = Object.keys(cleaned)
+            if (cleanedKeys.length === 1) {
+                return cleaned[cleanedKeys[0]]
+            }
+            return cleaned
+        }
+    }
+
+    return value
+}
+
 /** Format a key label: snake_case → Title Case */
 const formatLabel = (key: string): string =>
     key
@@ -165,19 +261,77 @@ const formatLabel = (key: string): string =>
         .replace(/([a-z])([A-Z])/g, "$1 $2")
         .replace(/\b\w/g, (c) => c.toUpperCase())
 
+/** Check if a value is a short primitive suitable for inline display */
+const isShortLeaf = (value: unknown): boolean => {
+    if (value === null || value === undefined) return true
+    if (typeof value === "boolean" || typeof value === "number") return true
+    if (typeof value === "string" && value.length <= 120 && !value.includes("\n")) return true
+    return false
+}
+
+/** Inline key-value pair for compact leaf rendering */
+const InlineKeyValue = memo(function InlineKeyValue({
+    label,
+    value,
+}: {
+    label: string
+    value: string
+}) {
+    return (
+        <div className="flex items-baseline gap-2 min-h-[20px]">
+            <span className="text-xs text-[var(--ant-color-text-tertiary)] shrink-0">{label}</span>
+            <span className="font-mono text-[var(--ant-color-text)] break-all">{value || "—"}</span>
+        </div>
+    )
+})
+
 const EDITOR_RESET_CLASSES =
     "!min-h-0 [&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-inner]:!min-h-0 [&_.editor-container]:!bg-transparent [&_.editor-container]:!min-h-0 [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-0 [&_.editor-input]:!py-0 [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.agenta-editor-wrapper]:!min-h-0"
 
-/** Get text content from a chat message */
+/** Get text content from a chat message, with AI SDK part awareness */
 const getMessageText = (content: unknown): string => {
     if (content === null || content === undefined) return ""
     if (typeof content === "string") return content
-    if (Array.isArray(content)) {
-        const textPart = content.find(
-            (c: unknown) => (c as Record<string, unknown> | null)?.type === "text",
-        ) as Record<string, unknown> | undefined
-        if (textPart?.text) return String(textPart.text)
+
+    // Single AI SDK part object
+    if (content && typeof content === "object" && !Array.isArray(content)) {
+        const rec = content as Record<string, unknown>
+        if (rec.type === "text" && typeof rec.text === "string") return rec.text
+        if (rec.type === "tool-call" && typeof rec.toolName === "string") {
+            const args = rec.args ?? rec.input
+            return args ? `${rec.toolName}(${JSON.stringify(args, null, 2)})` : String(rec.toolName)
+        }
+        if (rec.type === "tool-result") {
+            const output = rec.output as Record<string, unknown> | undefined
+            const value = output?.value ?? output ?? rec.result
+            return typeof value === "string" ? value : JSON.stringify(value, null, 2)
+        }
     }
+
+    if (Array.isArray(content)) {
+        // Collect text from all parts
+        const parts: string[] = []
+        for (const c of content) {
+            const rec = c as Record<string, unknown> | null
+            if (!rec || typeof rec !== "object") {
+                parts.push(String(c))
+                continue
+            }
+            if (rec.type === "text" && typeof rec.text === "string") {
+                parts.push(rec.text)
+            } else if (rec.type === "tool-call" && typeof rec.toolName === "string") {
+                parts.push(`[tool: ${rec.toolName}]`)
+            } else if (rec.type === "tool-result") {
+                const output = rec.output as Record<string, unknown> | undefined
+                const value = output?.value ?? output ?? rec.result
+                parts.push(typeof value === "string" ? value : JSON.stringify(value, null, 2))
+            } else if (typeof rec.text === "string") {
+                parts.push(rec.text)
+            }
+        }
+        if (parts.length > 0) return parts.join("\n")
+    }
+
     try {
         return JSON.stringify(content, null, 2)
     } catch {
@@ -295,13 +449,22 @@ const ReadOnlyVariableField = memo(function ReadOnlyVariableField({
  * - Primitives → read-only editor field
  * - Arrays → per-item rendering
  */
+const DEFAULT_MAX_RENDER_DEPTH = 5
+
 const RenderedValueBlock = memo(function RenderedValueBlock({
-    value,
+    value: rawValue,
     keyPrefix,
+    depth = 0,
+    maxDepth = DEFAULT_MAX_RENDER_DEPTH,
 }: {
     value: unknown
     keyPrefix: string
+    depth?: number
+    maxDepth?: number
 }) {
+    // Simplify envelopes and strip metadata before rendering
+    const value = useMemo(() => simplifyValue(rawValue), [rawValue])
+
     const chatMessages = useMemo(() => extractChatMessages(value), [value])
 
     if (chatMessages && chatMessages.length > 0) {
@@ -312,17 +475,94 @@ const RenderedValueBlock = memo(function RenderedValueBlock({
         return <span className="text-[#758391]">—</span>
     }
 
+    // After simplification, primitives render as text
+    if (typeof value === "string") {
+        return (
+            <EditorProvider
+                id={keyPrefix}
+                initialValue={value}
+                showToolbar={false}
+                enableTokens={false}
+                readOnly
+                className={EDITOR_RESET_CLASSES}
+            >
+                <MarkdownModeSync isMarkdownView={false} />
+                <EditorWrapper
+                    initialValue={value}
+                    disabled
+                    showToolbar={false}
+                    noProvider
+                    readOnly
+                    boundHeight={false}
+                />
+            </EditorProvider>
+        )
+    }
+
     if (Array.isArray(value) && value.length === 0) {
         return <span className="text-[#758391]">—</span>
     }
 
-    // Plain object → render each key as a variable field
+    // Non-empty array of objects → render each item recursively
+    if (
+        depth < maxDepth &&
+        Array.isArray(value) &&
+        value.length > 0 &&
+        value.some((item) => item && typeof item === "object")
+    ) {
+        return (
+            <div className="flex flex-col gap-2">
+                {value.map((item, i) => {
+                    const simplified = simplifyValue(item)
+                    if (
+                        typeof simplified === "string" ||
+                        typeof simplified === "number" ||
+                        typeof simplified === "boolean"
+                    ) {
+                        return (
+                            <ReadOnlyVariableField
+                                key={i}
+                                label={`${i + 1}`}
+                                value={String(simplified)}
+                                editorId={`${keyPrefix}-${i}`}
+                            />
+                        )
+                    }
+                    if (simplified && typeof simplified === "object") {
+                        return (
+                            <div key={i} className="flex flex-col gap-1">
+                                <div className="pl-3">
+                                    <RenderedValueBlock
+                                        value={simplified}
+                                        keyPrefix={`${keyPrefix}-${i}`}
+                                        depth={depth + 1}
+                                        maxDepth={maxDepth}
+                                    />
+                                </div>
+                            </div>
+                        )
+                    }
+                    return (
+                        <ReadOnlyVariableField
+                            key={i}
+                            label={`${i + 1}`}
+                            value={valueToString(simplified)}
+                            editorId={`${keyPrefix}-${i}`}
+                        />
+                    )
+                })}
+            </div>
+        )
+    }
+
+    // Plain object → render each key as a variable field, simplifying nested values
     if (value && typeof value === "object" && !Array.isArray(value)) {
         const entries = Object.entries(value as Record<string, unknown>)
         return (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
                 {entries.map(([k, v]) => {
-                    const nestedChat = extractChatMessages(v)
+                    const simplified = simplifyValue(v)
+                    const nestedChat = extractChatMessages(simplified)
                     if (nestedChat && nestedChat.length > 0) {
                         return (
                             <div key={k} className="flex flex-col gap-1">
@@ -336,11 +576,47 @@ const RenderedValueBlock = memo(function RenderedValueBlock({
                             </div>
                         )
                     }
+
+                    // Short leaf values → inline key: value on one line
+                    if (isShortLeaf(simplified)) {
+                        return (
+                            <InlineKeyValue
+                                key={k}
+                                label={formatLabel(k)}
+                                value={
+                                    simplified === null || simplified === undefined
+                                        ? "—"
+                                        : String(simplified)
+                                }
+                            />
+                        )
+                    }
+
+                    // Recurse for nested objects/arrays (up to depth limit)
+                    if (depth < maxDepth && simplified && typeof simplified === "object") {
+                        return (
+                            <div key={k} className="flex flex-col gap-0.5 mt-1">
+                                <span className="text-xs font-medium text-[var(--ant-color-text-tertiary)]">
+                                    {formatLabel(k)}
+                                </span>
+                                <div className="pl-3">
+                                    <RenderedValueBlock
+                                        value={simplified}
+                                        keyPrefix={`${keyPrefix}-${k}`}
+                                        depth={depth + 1}
+                                        maxDepth={maxDepth}
+                                    />
+                                </div>
+                            </div>
+                        )
+                    }
+
+                    // Long strings or depth-limited objects → editor field
                     return (
                         <ReadOnlyVariableField
                             key={k}
                             label={formatLabel(k)}
-                            value={valueToString(v)}
+                            value={valueToString(simplified)}
                             editorId={`${keyPrefix}-${k}`}
                         />
                     )
@@ -380,17 +656,21 @@ const RenderedValueBlock = memo(function RenderedValueBlock({
  * - Otherwise render as formatted text.
  */
 const RenderedJsonView = memo(function RenderedJsonView({
-    data,
+    data: rawData,
     keyPrefix,
 }: {
     data: unknown
     keyPrefix: string
 }) {
+    // Simplify envelopes (tool-call, tool-result, text parts) before rendering
+    const data = useMemo(() => simplifyValue(rawData), [rawData])
+
     // Determine if this is a direct chat value:
     // - Array of messages → render as chat
     // - Single message object (has "role" key) → render as chat
     // - Object with multiple keys (some may contain chat) → render per-key
     const isDirectChat = useMemo(() => {
+        if (typeof data === "string") return false
         if (Array.isArray(data)) return !!extractChatMessages(data)
         if (data && typeof data === "object" && "role" in (data as Record<string, unknown>)) {
             return !!extractChatMessages(data)
@@ -404,10 +684,20 @@ const RenderedJsonView = memo(function RenderedJsonView({
 
     // For non-chat objects, render each key separately
     const entries = useMemo(() => {
+        if (typeof data === "string") return null
         if (isDirectChat) return null
         if (!data || typeof data !== "object" || Array.isArray(data)) return null
         return Object.entries(data as Record<string, unknown>)
     }, [data, isDirectChat])
+
+    // If simplification produced a string, render as text directly
+    if (typeof data === "string") {
+        return (
+            <div className="p-4">
+                <RenderedValueBlock value={data} keyPrefix={keyPrefix} />
+            </div>
+        )
+    }
 
     if (isDirectChat && directChatMessages && directChatMessages.length > 0) {
         return (
@@ -600,7 +890,7 @@ export const TraceSpanDrillInView = memo(
         allowSpanCollapse = true,
         spanDataOverride,
     }: TraceSpanDrillInViewProps) => {
-        const spanEntityData = useAtomValue(traceSpan.selectors.data(spanId))
+        const spanEntityData = useAtomValue(traceSpanMolecule.selectors.data(spanId))
         const spanData = spanDataOverride !== undefined ? spanDataOverride : spanEntityData
         const textViewerId = useId().replace(/:/g, "")
 
@@ -928,10 +1218,10 @@ export const TraceSpanDrillInView = memo(
             )
         }
 
-        // Type assertion needed because traceSpan.drillIn is optional in the general type
+        // Type assertion needed because traceSpanMolecule.drillIn is optional in the general type
         // but we know it's configured for the trace entity
-        const entityWithDrillIn = traceSpan as typeof traceSpan & {
-            drillIn: NonNullable<typeof traceSpan.drillIn>
+        const entityWithDrillIn = traceSpan as typeof traceSpanMolecule & {
+            drillIn: NonNullable<typeof traceSpanMoleculeMolecule.drillIn>
         }
 
         return (
