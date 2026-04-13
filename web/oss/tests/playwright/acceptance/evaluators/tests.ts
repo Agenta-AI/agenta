@@ -1,6 +1,6 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {expect} from "@agenta/web-tests/utils"
-import {getProjectScopedBasePath} from "tests/tests/fixtures/base.fixture/apiHelpers"
+import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 import type {Locator, Page} from "@playwright/test"
 
 import type {EvaluatorFixtures} from "./assets/types"
