@@ -486,7 +486,7 @@ function settingsTemplateToJsonSchema(
                 break
         }
 
-        if (meta.advanced === true) {
+        if (meta["x-ag-ui-advanced"] === true || meta.advanced === true) {
             prop["x-advanced"] = true
         }
 
@@ -662,16 +662,29 @@ export async function createEvaluatorFromTemplate(templateKey: string): Promise<
     const isJsonSchema =
         parametersTemplate?.type === "object" && typeof parametersTemplate?.properties === "object"
 
-    let parameters: Record<string, unknown> = {}
+    let parameters: Record<string, unknown> = {
+        ...((template.data?.parameters as Record<string, unknown> | undefined) ?? {}),
+    }
 
     if (isJsonSchema) {
-        // Canonical JSON Schema — use as-is, extract defaults from JSON Schema `default` keywords
+        // Canonical JSON Schema — use as-is for UI rendering.
+        // Use explicit catalog parameters as the default preset, then fall back
+        // to property defaults or null placeholders for fields with no value yet.
         schemas.parameters = parametersTemplate
 
         const props = parametersTemplate!.properties as Record<string, Record<string, unknown>>
         for (const [key, prop] of Object.entries(props)) {
-            if (prop?.default !== undefined) {
-                parameters[key] = prop.default
+            // Skip hidden fields — they are managed internally, not user-facing
+            const agType = prop?.["x-ag-type"] as string | undefined
+            if (agType === "hidden") continue
+            if (!(key in parameters)) {
+                if (prop?.default !== undefined) {
+                    parameters[key] = prop.default
+                } else if (prop?.type === "array") {
+                    parameters[key] = []
+                } else {
+                    parameters[key] = null
+                }
             }
         }
     } else if (parametersTemplate) {
@@ -683,7 +696,10 @@ export async function createEvaluatorFromTemplate(templateKey: string): Promise<
             templateSchema,
             hiddenKeys,
         )
-        parameters = extractDefaultValues(parametersTemplate)
+        parameters = {
+            ...extractDefaultValues(parametersTemplate),
+            ...parameters,
+        }
     }
 
     const workflow: Workflow = {

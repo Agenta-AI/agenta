@@ -25,6 +25,17 @@ from oss.src.core.workflows.dtos import (
 from oss.src.core.workflows.service import WorkflowsService
 
 
+def test_get_service_url_derives_builtin_runtime_url():
+    url = WorkflowsService._get_service_url(
+        revision_data=WorkflowRevisionData(
+            uri="agenta:builtin:completion:v0",
+        )
+    )
+
+    assert url is not None
+    assert url.endswith("/services/completion/v0")
+
+
 @pytest.mark.asyncio
 async def test_create_workflow_persists_only_artifact_flags():
     workflows_dao = AsyncMock()
@@ -121,6 +132,77 @@ async def test_fetch_workflow_revision_injects_artifact_flags():
     assert revision.flags.is_application is True
     assert revision.flags.is_chat is True
     assert revision.flags.is_custom is True
+
+
+@pytest.mark.asyncio
+async def test_fetch_workflow_revision_injects_builtin_runtime_url():
+    workflows_dao = AsyncMock()
+    service = WorkflowsService(workflows_dao=workflows_dao)
+
+    artifact_id = uuid4()
+    variant_id = uuid4()
+    revision_id = uuid4()
+
+    workflows_dao.fetch_revision.return_value = WorkflowRevision(
+        id=revision_id,
+        workflow_id=artifact_id,
+        workflow_variant_id=variant_id,
+        slug="rev",
+        version="1",
+        data=WorkflowRevisionData(uri="agenta:builtin:completion:v0"),
+        flags=WorkflowRevisionFlags(is_managed=True, has_url=True),
+    )
+    workflows_dao.fetch_artifact.return_value = Workflow(
+        id=artifact_id,
+        slug="wf",
+        flags=WorkflowArtifactFlags(is_application=True),
+    )
+
+    revision = await service.fetch_workflow_revision(
+        project_id=uuid4(),
+        workflow_variant_ref=Reference(id=variant_id),
+    )
+
+    assert revision is not None
+    assert revision.data is not None
+    assert revision.data.url is not None
+    assert revision.data.url.endswith("/services/completion/v0")
+
+
+@pytest.mark.asyncio
+async def test_retrieve_workflow_revision_injects_builtin_runtime_url():
+    workflows_dao = AsyncMock()
+    service = WorkflowsService(workflows_dao=workflows_dao)
+
+    artifact_id = uuid4()
+    variant_id = uuid4()
+    revision_id = uuid4()
+
+    workflows_dao.fetch_revision.return_value = WorkflowRevision(
+        id=revision_id,
+        workflow_id=artifact_id,
+        workflow_variant_id=variant_id,
+        slug="rev",
+        version="1",
+        data=WorkflowRevisionData(uri="agenta:builtin:completion:v0"),
+        flags=WorkflowRevisionFlags(is_managed=True, has_url=True),
+    )
+    workflows_dao.fetch_artifact.return_value = Workflow(
+        id=artifact_id,
+        slug="wf",
+        flags=WorkflowArtifactFlags(is_application=True),
+    )
+
+    revision, resolution_info = await service.retrieve_workflow_revision(
+        project_id=uuid4(),
+        workflow_variant_ref=Reference(id=variant_id),
+    )
+
+    assert resolution_info is None
+    assert revision is not None
+    assert revision.data is not None
+    assert revision.data.url is not None
+    assert revision.data.url.endswith("/services/completion/v0")
 
 
 @pytest.mark.asyncio

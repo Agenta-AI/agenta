@@ -95,6 +95,18 @@ const SingleDeleteContent = ({
         "this revision"
     const entityVersion = workflowData?.version
 
+    // Guard: check if this is the last visible revision across all variants
+    const store = getDefaultStore()
+    const isLastRevision = useMemo(() => {
+        let totalVisible = 0
+        for (const variant of variants) {
+            if (!variant.id) continue
+            const revisions = store.get(workflowRevisionsListDataAtomFamily(variant.id))
+            totalVisible += revisions.filter(isVisibleWorkflowRevision).length
+        }
+        return totalVisible > 0 && totalVisible <= 1
+    }, [variants, store])
+
     const onDelete = useCallback(async () => {
         setIsMutating(true)
         try {
@@ -128,27 +140,35 @@ const SingleDeleteContent = ({
         <section className="flex flex-col gap-5">
             <div className="flex flex-col gap-2">
                 <Text>
-                    You are about to delete{" "}
-                    <Text strong>
-                        <EntityNameWithVersion name={entityName} version={entityVersion} />
-                    </Text>
-                    .
+                    {isLastRevision ? (
+                        "Cannot delete the only revision. Delete the app instead."
+                    ) : (
+                        <>
+                            You are about to delete{" "}
+                            <Text strong>
+                                <EntityNameWithVersion name={entityName} version={entityVersion} />
+                            </Text>
+                            .
+                        </>
+                    )}
                 </Text>
-                <Text type="secondary">This action cannot be undone.</Text>
+                {!isLastRevision && <Text type="secondary">This action cannot be undone.</Text>}
             </div>
 
             <div className="flex items-center justify-end gap-2">
-                <Button onClick={onClose}>Cancel</Button>
-                <Button
-                    type="primary"
-                    danger
-                    loading={isMutating}
-                    disabled={isMutating}
-                    icon={<Trash size={14} />}
-                    onClick={onDelete}
-                >
-                    Delete
-                </Button>
+                <Button onClick={onClose}>{isLastRevision ? "Close" : "Cancel"}</Button>
+                {!isLastRevision && (
+                    <Button
+                        type="primary"
+                        danger
+                        loading={isMutating}
+                        disabled={isMutating}
+                        icon={<Trash size={14} />}
+                        onClick={onDelete}
+                    >
+                        Delete
+                    </Button>
+                )}
             </div>
         </section>
     )
@@ -331,6 +351,19 @@ const BulkDeleteContent = ({
     const totalSelectedCount = uniqueRevisionIds.length
     const isBulkDelete = deletionPlan.variants.length > 0 || totalSelectedCount > 1
 
+    // Check if this would delete the last revision of the app.
+    // Count ALL visible revisions across every variant of the workflow,
+    // not just the ones in variantGroups (which only covers selected items).
+    const isLastRevision = useMemo(() => {
+        let totalVisible = 0
+        for (const variant of variants) {
+            if (!variant.id) continue
+            const revisions = store.get(workflowRevisionsListDataAtomFamily(variant.id))
+            totalVisible += revisions.filter(isVisibleWorkflowRevision).length
+        }
+        return totalVisible > 0 && totalSelectedCount >= totalVisible
+    }, [variants, store, totalSelectedCount])
+
     const onDeleteVariant = useCallback(async () => {
         setIsMutating(true)
         try {
@@ -442,13 +475,23 @@ const BulkDeleteContent = ({
                     type="primary"
                     danger
                     loading={isMutating}
-                    disabled={isMutating || totalSelectedCount === 0}
+                    disabled={isMutating || totalSelectedCount === 0 || isLastRevision}
                     icon={<Trash size={14} />}
                     onClick={onDeleteVariant}
+                    title={
+                        isLastRevision
+                            ? "Cannot delete the only revision. Delete the app instead."
+                            : undefined
+                    }
                 >
                     {isBulkDelete ? "Delete selected" : "Delete"}
                 </Button>
             </div>
+            {isLastRevision && (
+                <Text type="secondary" className="text-center">
+                    Cannot delete the only revision. Delete the app instead.
+                </Text>
+            )}
         </section>
     )
 }

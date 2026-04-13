@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {resolveOutputSchema} from "@agenta/entities/workflow"
 import {uuidToSpanId} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
@@ -265,8 +266,8 @@ const PreviewAnnotateContent = ({
             if (!slug) continue
 
             // Get required fields from evaluator schema
-            const requiredKeys: string[] =
-                evaluator?.data?.service?.format?.properties?.outputs?.required ?? []
+            const requiredKeys =
+                (resolveOutputSchema(evaluator?.data)?.required as string[] | undefined) ?? []
 
             if (requiredKeys.length === 0) continue
 

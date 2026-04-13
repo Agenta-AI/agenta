@@ -18,6 +18,122 @@ def _clone(value: Any) -> Any:
     return deepcopy(value)
 
 
+def _is_primitive_default(value: Any) -> bool:
+    return value is None or isinstance(value, (str, int, float, bool))
+
+
+def _extract_schema_parameter_defaults(schema: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(schema, dict):
+        return {}
+
+    defaults = {}
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return defaults
+
+    for key, property_schema in properties.items():
+        if not isinstance(property_schema, dict):
+            continue
+        if "default" in property_schema:
+            defaults[key] = _clone(property_schema["default"])
+
+    return defaults
+
+
+def _extract_settings_template_defaults(
+    settings_template: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if not isinstance(settings_template, dict):
+        return {}
+
+    defaults = {}
+    for key, value in settings_template.items():
+        if not isinstance(value, dict):
+            continue
+        if "default" in value:
+            defaults[key] = _clone(value["default"])
+
+    return defaults
+
+
+def _filter_defaults_to_schema(
+    defaults: dict[str, Any],
+    schema: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if not isinstance(schema, dict):
+        return _clone(defaults)
+
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return {}
+
+    return {key: _clone(value) for key, value in defaults.items() if key in properties}
+
+
+def _normalize_parameter_schema_defaults(
+    schema: dict[str, Any] | None,
+    *,
+    parameter_defaults: dict[str, Any],
+) -> dict[str, Any] | None:
+    if not isinstance(schema, dict):
+        return _clone(schema)
+
+    normalized = _clone(schema)
+    properties = normalized.get("properties")
+    if not isinstance(properties, dict):
+        return normalized
+
+    for key, property_schema in properties.items():
+        if not isinstance(property_schema, dict):
+            continue
+
+        if "default" in property_schema and not _is_primitive_default(
+            property_schema["default"]
+        ):
+            property_schema.pop("default", None)
+
+        if key in parameter_defaults and _is_primitive_default(parameter_defaults[key]):
+            property_schema["default"] = _clone(parameter_defaults[key])
+
+    top_level_default = normalized.get("default")
+    if "default" in normalized and not _is_primitive_default(top_level_default):
+        normalized.pop("default", None)
+
+    return normalized
+
+
+def _build_template_data(
+    entry_data: dict[str, Any] | None,
+    *,
+    settings_template: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not isinstance(entry_data, dict):
+        return _clone(entry_data)
+
+    data = _clone(entry_data)
+    schemas = data.get("schemas")
+    parameters_schema = schemas.get("parameters") if isinstance(schemas, dict) else None
+
+    parameter_defaults = _extract_schema_parameter_defaults(parameters_schema)
+    parameter_defaults.update(_extract_settings_template_defaults(settings_template))
+    parameter_defaults = _filter_defaults_to_schema(
+        parameter_defaults, parameters_schema
+    )
+
+    if parameter_defaults:
+        data["parameters"] = _clone(parameter_defaults)
+
+    if isinstance(schemas, dict):
+        normalized_parameters_schema = _normalize_parameter_schema_defaults(
+            parameters_schema,
+            parameter_defaults=parameter_defaults,
+        )
+        if normalized_parameters_schema is not None:
+            schemas["parameters"] = normalized_parameters_schema
+
+    return data
+
+
 def _evaluator_metadata_by_key() -> dict[str, dict[str, Any]]:
     return {
         entry["key"]: _clone(entry)
@@ -70,22 +186,11 @@ def _enrich_entry(
             metadata.get("categories") or metadata.get("tags") or entry["categories"]
         ),
         "flags": flags,
+        "data": _build_template_data(
+            entry.get("data"),
+            settings_template=metadata.get("settings_template"),
+        ),
     }
-
-    if metadata:
-        enriched_data = _clone(enriched["data"])
-        enriched_schemas = _clone(enriched_data.get("schemas") or {})
-
-        settings_template = metadata.get("settings_template")
-        outputs_schema = metadata.get("outputs_schema")
-
-        if settings_template is not None:
-            enriched_schemas["parameters"] = _clone(settings_template)
-        if outputs_schema is not None:
-            enriched_schemas["outputs"] = _clone(outputs_schema)
-
-        enriched_data["schemas"] = enriched_schemas
-        enriched["data"] = enriched_data
 
     presets = (
         metadata.get("presets")

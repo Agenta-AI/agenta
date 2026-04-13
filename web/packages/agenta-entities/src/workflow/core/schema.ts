@@ -150,32 +150,102 @@ export interface WorkflowQueryFlags {
  * Combines WorkflowServiceInterface + WorkflowServiceConfiguration + legacy fields.
  */
 export const workflowDataSchema = z.object({
-    // WorkflowServiceInterface fields
-    /** Data version string (e.g., "2025.07.14") */
-    version: z.string().nullable().optional(),
     /** Workflow URI (e.g., "agenta:builtin:auto_exact_match:v0") */
     uri: z.string().nullable().optional(),
+
+    /** JSON Schema definitions for parameters, inputs, and outputs */
+    schemas: jsonSchemasSchema,
+
+    /** Configuration parameters */
+    parameters: z.record(z.string(), z.unknown()).nullable().optional(),
+
     /** Webhook/service URL */
     url: z.string().nullable().optional(),
     /** Custom headers */
     headers: z.record(z.string(), z.unknown()).nullable().optional(),
-    /** JSON Schema definitions for parameters, inputs, and outputs */
-    schemas: jsonSchemasSchema,
 
-    // WorkflowServiceConfiguration fields
     /** Script content for custom code workflows */
-    script: z.record(z.string(), z.unknown()).nullable().optional(),
-    /** Configuration parameters */
-    parameters: z.record(z.string(), z.unknown()).nullable().optional(),
-
-    // Legacy fields (backward compatibility)
-    /** @deprecated Legacy service configuration */
-    service: z.record(z.string(), z.unknown()).nullable().optional(),
-    /** @deprecated Legacy configuration parameters */
-    configuration: z.record(z.string(), z.unknown()).nullable().optional(),
+    script: z.string().nullable().optional(),
+    /** Runtime identifier for code-backed evaluators */
+    runtime: z.string().nullable().optional(),
 })
 
 export type WorkflowData = z.infer<typeof workflowDataSchema>
+
+/**
+ * Accepted input type for all workflow data resolver functions.
+ * Accepts `WorkflowData`, arbitrary records (e.g. `EvaluatorDto.data`), or nullish values.
+ */
+export type WorkflowDataInput = WorkflowData | Record<string, unknown> | null | undefined
+
+function asRecord(data: WorkflowDataInput): Record<string, unknown> | null {
+    if (!data || typeof data !== "object") return null
+    return data as Record<string, unknown>
+}
+
+function resolveSchemas(data: WorkflowDataInput): Record<string, unknown> | null {
+    const rec = asRecord(data)
+    if (!rec) return null
+
+    const schemas = rec.schemas
+    if (schemas && typeof schemas === "object") {
+        return schemas as Record<string, unknown>
+    }
+
+    return null
+}
+
+function resolveNamedSchema(
+    data: WorkflowDataInput,
+    name: "inputs" | "outputs" | "parameters",
+): Record<string, unknown> | null {
+    const schemas = resolveSchemas(data)
+    const schema = schemas?.[name]
+    if (schema && typeof schema === "object") {
+        return schema as Record<string, unknown>
+    }
+
+    return null
+}
+
+export function resolveParameters(data: WorkflowDataInput): Record<string, unknown> | null {
+    const rec = asRecord(data)
+    if (!rec) return null
+
+    const parameters = rec.parameters
+    if (parameters && typeof parameters === "object") {
+        return parameters as Record<string, unknown>
+    }
+
+    return null
+}
+
+export function resolveScript(data: WorkflowDataInput): string | null {
+    const rec = asRecord(data)
+    if (!rec) return null
+
+    const script = rec.script
+    if (typeof script === "string" && script.trim()) {
+        return script
+    }
+
+    if (script && typeof script === "object") {
+        const content = (script as Record<string, unknown>).content
+        if (typeof content === "string" && content.trim()) {
+            return content
+        }
+    }
+
+    return null
+}
+
+export function resolveInputSchema(data: WorkflowDataInput): Record<string, unknown> | null {
+    return resolveNamedSchema(data, "inputs")
+}
+
+export function resolveParametersSchema(data: WorkflowDataInput): Record<string, unknown> | null {
+    return resolveNamedSchema(data, "parameters")
+}
 
 // ============================================================================
 // WORKFLOW SCHEMA
@@ -617,39 +687,16 @@ export function generateSlug(name: string): string {
 /**
  * Resolve the full output schema object from a workflow's data.
  * Returns the entire schema (including `$defs`, `type`, etc.), not just properties.
- * Checks modern path first (`data.schemas.outputs`),
- * then falls back to legacy path (`data.service.format.properties.outputs`).
  */
-export function resolveOutputSchema(
-    data: Record<string, unknown> | null | undefined,
-): Record<string, unknown> | null {
-    if (!data) return null
-
-    // Modern path: data.schemas.outputs
-    const schemas = data.schemas as Record<string, unknown> | undefined
-    if (schemas?.outputs && typeof schemas.outputs === "object") {
-        return schemas.outputs as Record<string, unknown>
-    }
-
-    // Legacy path: data.service.format.properties.outputs
-    const service = data.service as Record<string, unknown> | undefined
-    const format = service?.format as Record<string, unknown> | undefined
-    const formatProps = format?.properties as Record<string, unknown> | undefined
-    const outputs = formatProps?.outputs as Record<string, unknown> | undefined
-    if (outputs && typeof outputs === "object") {
-        return outputs as Record<string, unknown>
-    }
-
-    return null
+export function resolveOutputSchema(data: WorkflowDataInput): Record<string, unknown> | null {
+    return resolveNamedSchema(data, "outputs")
 }
 
 /**
  * Resolve output metric properties from a workflow's data.
- * Checks modern path first (`data.schemas.outputs.properties`),
- * then falls back to legacy path (`data.service.format.properties.outputs.properties`).
  */
 export function resolveOutputSchemaProperties(
-    data: Record<string, unknown> | null | undefined,
+    data: WorkflowDataInput,
 ): Record<string, unknown> | null {
     const schema = resolveOutputSchema(data)
     if (!schema) return null

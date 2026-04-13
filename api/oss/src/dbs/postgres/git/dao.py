@@ -1420,15 +1420,15 @@ class GitDAO(GitDAOInterface):
                     version=revision.version,
                 )
 
-                # if revision.version == "0":
-                #     await self._null_revision_fields(
-                #         project_id=project_id,
-                #         revision_id=revision.id,  # type: ignore
-                #     )
-                #     revision.flags = None
-                #     revision.tags = None
-                #     revision.meta = None
-                #     revision.data = None
+                if revision.version == "0":
+                    await self._null_revision_fields(
+                        project_id=project_id,
+                        revision_id=revision.id,  # type: ignore
+                    )
+                    revision.flags = None
+                    revision.tags = None
+                    revision.meta = None
+                    revision.data = None
 
                 return revision
 
@@ -1591,24 +1591,24 @@ class GitDAO(GitDAOInterface):
 
             await session.commit()
 
-    # async def _null_revision_fields(
-    #     self,
-    #     *,
-    #     project_id: UUID,
-    #     revision_id: UUID,
-    # ) -> None:
-    #     async with engine.core_session() as session:
-    #         stmt = (
-    #             update(self.RevisionDBE)
-    #             .filter(
-    #                 self.RevisionDBE.project_id == project_id,  # type: ignore
-    #                 self.RevisionDBE.id == revision_id,  # type: ignore
-    #             )
-    #             .values(data=None, flags=None, tags=None, meta=None)  # type: ignore
-    #         )
+    async def _null_revision_fields(
+        self,
+        *,
+        project_id: UUID,
+        revision_id: UUID,
+    ) -> None:
+        async with engine.core_session() as session:
+            stmt = (
+                update(self.RevisionDBE)
+                .filter(
+                    self.RevisionDBE.project_id == project_id,  # type: ignore
+                    self.RevisionDBE.id == revision_id,  # type: ignore
+                )
+                .values(data=None, flags=None, tags=None, meta=None)  # type: ignore
+            )
 
-    #         await session.execute(stmt)
+            await session.execute(stmt)
 
-    #         await session.commit()
+            await session.commit()
 
     # ──────────────────────────────────────────────────────────────────────────

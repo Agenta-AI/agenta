@@ -24,7 +24,6 @@ JSON_SCHEMA = "https://json-schema.org/draft/2020-12/schema"
 
 def obj(
     *,
-    title: str | None = None,
     description: str | None = None,
     properties: Dict[str, Any] | None = None,
     required: list[str] | None = None,
@@ -38,8 +37,6 @@ def obj(
         "properties": properties or {},
         "additionalProperties": additional_properties,
     }
-    if title:
-        schema["title"] = title
     if description:
         schema["description"] = description
     if required:
@@ -128,7 +125,6 @@ MODEL_CATALOG_DEFINITION = {
 LLM_MODEL_FIELD = parameter_field(
     js_field=scalar(
         js_type="string",
-        title="Model",
         description="Model identifier to use for execution.",
     ),
     x_ag_type="grouped_choice",
@@ -138,7 +134,6 @@ LLM_MODEL_FIELD = parameter_field(
 RUNTIME_FIELD = parameter_field(
     js_field=scalar(
         js_type="string",
-        title="Runtime",
         default="python",
         enum=["python", "javascript", "typescript"],
         description="Runtime environment used to execute custom evaluator code.",
@@ -147,7 +142,6 @@ RUNTIME_FIELD = parameter_field(
 )
 
 MESSAGE_SCHEMA = obj(
-    title="Message",
     properties={
         "role": scalar(
             js_type="string",
@@ -233,7 +227,6 @@ CONTENT_PART_DEFS = {
 }
 
 LLM_STATUS_SCHEMA = obj(
-    title="LLM Status",
     properties={
         "code": scalar(js_type="integer"),
         "type": scalar(
@@ -247,7 +240,6 @@ LLM_STATUS_SCHEMA = obj(
 )
 
 LLM_USAGE_SCHEMA = obj(
-    title="LLM Usage",
     properties={
         "completion_tokens": scalar(js_type="integer"),
         "prompt_tokens": scalar(js_type="integer"),
@@ -257,7 +249,6 @@ LLM_USAGE_SCHEMA = obj(
 )
 
 LLM_CONFIG_SCHEMA = obj(
-    title="LLM Config",
     properties={
         "model": deepcopy(LLM_MODEL_FIELD),
         "temperature": scalar(js_type="number", minimum=0.0, maximum=2.0),
@@ -280,14 +271,12 @@ LLM_CONFIG_SCHEMA = obj(
             ]
         },
         "response_format": obj(
-            title="Response Format",
             properties={
                 "type": scalar(
                     js_type="string",
                     enum=["text", "json_object", "json_schema"],
                 ),
                 "json_schema": obj(
-                    title="JSON Schema Response Format",
                     properties={
                         "name": scalar(js_type="string"),
                         "description": scalar(js_type=["string", "null"]),
@@ -317,7 +306,6 @@ CONTENT_PARTS_ARRAY = arr(
 )
 
 LLM_PARAMETERS_SCHEMA = obj(
-    title="LLM Parameters",
     description="Canonical stored configuration for prompt_v0, agent_v0, and llm_v0.",
     properties={
         "llms": arr(items=LLM_CONFIG_SCHEMA, description="Ordered LLM fallback list."),
@@ -391,7 +379,6 @@ LLM_PARAMETERS_SCHEMA = obj(
 )
 
 LLM_INPUTS_SCHEMA = obj(
-    title="LLM Inputs",
     description="Canonical runtime inputs for llm_v0 family handlers.",
     properties={
         "messages": deepcopy(LLM_MESSAGES_ARRAY),
@@ -414,7 +401,6 @@ LLM_INPUTS_SCHEMA = obj(
 )
 
 LLM_OUTPUTS_SCHEMA = obj(
-    title="LLM Outputs",
     description="Unified output envelope for prompt and agent-style managed workflows.",
     properties={
         "status": {
@@ -439,7 +425,6 @@ LLM_OUTPUTS_SCHEMA = obj(
 )
 
 MATCH_OUTPUTS_SCHEMA = obj(
-    title="Match Outputs",
     description="Recursive result tree mirroring the matcher tree.",
     properties={
         "results": arr(items={"$ref": "#/$defs/result"}),
@@ -465,7 +450,6 @@ MATCH_OUTPUTS_SCHEMA = obj(
 )
 
 LEGACY_OPENAI_APP_PARAMETERS = obj(
-    title="Legacy OpenAI App Parameters",
     description=(
         "Compatibility parameter schema for legacy chat/completion workflows. "
         "Precise canonical parameter schemas are not normalized yet."
@@ -484,7 +468,6 @@ LEGACY_OPENAI_APP_PARAMETERS = obj(
 )
 
 GENERIC_EVALUATOR_INPUTS_SCHEMA = obj(
-    title="Evaluator Inputs",
     description=(
         "Generic testcase row object available to evaluator workflows. "
         "This intentionally remains open because many evaluators reference "
@@ -494,14 +477,12 @@ GENERIC_EVALUATOR_INPUTS_SCHEMA = obj(
 )
 
 SUCCESS_ONLY_OUTPUTS_SCHEMA = obj(
-    title="Success-Only Outputs",
     properties={"success": scalar(js_type="boolean")},
     required=["success"],
     additional_properties=False,
 )
 
 SCORE_SUCCESS_OUTPUTS_SCHEMA = obj(
-    title="Score And Success Outputs",
     properties={
         "score": scalar(js_type="number"),
         "success": scalar(js_type="boolean"),
@@ -559,7 +540,6 @@ def evaluator_parameters_schema(
     description: str | None = None,
 ) -> Dict[str, Any]:
     return obj(
-        title="Evaluator Parameters",
         description=description or "Stored evaluator configuration parameters.",
         properties=properties,
         required=required,
@@ -569,13 +549,11 @@ def evaluator_parameters_schema(
 
 def derived_outputs_schema(
     *,
-    title: str,
     default_properties: Dict[str, Any],
     required: list[str] | None = None,
     derivation: Dict[str, Any],
 ) -> Dict[str, Any]:
     schema = obj(
-        title=title,
         properties=default_properties,
         required=required,
         additional_properties=False,
@@ -585,7 +563,6 @@ def derived_outputs_schema(
 
 
 AI_CRITIQUE_OUTPUTS_SCHEMA = derived_outputs_schema(
-    title="AI Critique Outputs",
     default_properties={"score": scalar(js_type="boolean")},
     required=["score"],
     derivation={
@@ -602,7 +579,6 @@ AI_CRITIQUE_OUTPUTS_SCHEMA = derived_outputs_schema(
 )
 
 JSON_MULTI_FIELD_OUTPUTS_SCHEMA = derived_outputs_schema(
-    title="JSON Multi-Field Match Outputs",
     default_properties={"aggregate_score": scalar(js_type="number")},
     required=["aggregate_score"],
     derivation={
@@ -707,13 +683,11 @@ MANAGED_WORKFLOW_INTERFACES: Dict[str, Dict[str, Any]] = {
         description="Legacy chat application workflow.",
         parameters=LEGACY_OPENAI_APP_PARAMETERS,
         inputs=obj(
-            title="Legacy Chat Inputs",
             properties={"messages": deepcopy(LLM_MESSAGES_ARRAY)},
             additional_properties=True,
             defs={**CONTENT_PART_DEFS, "message": MESSAGE_SCHEMA},
         ),
         outputs=obj(
-            title="Chat App Outputs",
             properties={
                 "role": scalar(js_type="string"),
                 "content": scalar(js_type="string"),
@@ -730,12 +704,10 @@ MANAGED_WORKFLOW_INTERFACES: Dict[str, Dict[str, Any]] = {
         description="Legacy completion application workflow.",
         parameters=LEGACY_OPENAI_APP_PARAMETERS,
         inputs=obj(
-            title="Legacy Completion Inputs",
             additional_properties=True,
         ),
         outputs=scalar(
             js_type=["string", "object", "array"],
-            title="Completion App Outputs",
             description="Generated response, which may be text or structured data.",
         ),
         categories=["legacy", "completion"],
@@ -746,15 +718,12 @@ MANAGED_WORKFLOW_INTERFACES: Dict[str, Dict[str, Any]] = {
         name="Echo",
         description="Returns the input value unchanged.",
         parameters=obj(
-            title="Echo Parameters",
             additional_properties=True,
         ),
         inputs=obj(
-            title="Echo Inputs",
             additional_properties=True,
         ),
         outputs=obj(
-            title="Echo Output",
             properties={"got": scalar(js_type="string")},
             required=["got"],
             additional_properties=False,
@@ -767,11 +736,9 @@ MANAGED_WORKFLOW_INTERFACES: Dict[str, Dict[str, Any]] = {
         name="Matcher Workflow",
         description="Recursive matcher tree evaluation.",
         parameters=obj(
-            title="Match Parameters",
             additional_properties=True,
         ),
         inputs=obj(
-            title="Match Inputs",
             additional_properties=True,
         ),
         outputs=MATCH_OUTPUTS_SCHEMA,
@@ -805,7 +772,6 @@ MANAGED_WORKFLOW_INTERFACES: Dict[str, Dict[str, Any]] = {
                 ),
                 "json_schema": parameter_field(
                     js_field=obj(
-                        title="Feedback Configuration",
                         properties={
                             "name": scalar(js_type="string", default="schema"),
                             "schema": obj(additional_properties=True),
@@ -1019,7 +985,7 @@ MANAGED_WORKFLOW_INTERFACES: Dict[str, Dict[str, Any]] = {
         name="Contains JSON",
         description="Checks whether the output contains valid JSON.",
         parameters=evaluator_parameters_schema({}),
-        inputs=obj(title="Contains JSON Inputs", additional_properties=True),
+        inputs=obj(additional_properties=True),
         outputs=deepcopy(SUCCESS_ONLY_OUTPUTS_SCHEMA),
         categories=["evaluator", "catalog", "classifiers"],
     ),
@@ -1070,7 +1036,6 @@ MANAGED_WORKFLOW_INTERFACES: Dict[str, Dict[str, Any]] = {
             required=["regex_pattern"],
         ),
         inputs=obj(
-            title="Regex Test Inputs",
             additional_properties=True,
         ),
         outputs=deepcopy(SUCCESS_ONLY_OUTPUTS_SCHEMA),
@@ -1093,7 +1058,7 @@ MANAGED_WORKFLOW_INTERFACES: Dict[str, Dict[str, Any]] = {
             },
             required=["prefix"],
         ),
-        inputs=obj(title="Starts With Inputs", additional_properties=True),
+        inputs=obj(additional_properties=True),
         outputs=deepcopy(SUCCESS_ONLY_OUTPUTS_SCHEMA),
         categories=["evaluator", "catalog", "classifiers"],
         archived=True,
@@ -1115,7 +1080,7 @@ MANAGED_WORKFLOW_INTERFACES: Dict[str, Dict[str, Any]] = {
             },
             required=["suffix"],
         ),
-        inputs=obj(title="Ends With Inputs", additional_properties=True),
+        inputs=obj(additional_properties=True),
         outputs=deepcopy(SUCCESS_ONLY_OUTPUTS_SCHEMA),
         categories=["evaluator", "catalog", "classifiers"],
         archived=True,
@@ -1137,7 +1102,7 @@ MANAGED_WORKFLOW_INTERFACES: Dict[str, Dict[str, Any]] = {
             },
             required=["substring"],
         ),
-        inputs=obj(title="Contains Inputs", additional_properties=True),
+        inputs=obj(additional_properties=True),
         outputs=deepcopy(SUCCESS_ONLY_OUTPUTS_SCHEMA),
         categories=["evaluator", "catalog", "classifiers"],
         archived=True,
@@ -1160,7 +1125,7 @@ MANAGED_WORKFLOW_INTERFACES: Dict[str, Dict[str, Any]] = {
             },
             required=["substrings"],
         ),
-        inputs=obj(title="Contains Any Inputs", additional_properties=True),
+        inputs=obj(additional_properties=True),
         outputs=deepcopy(SUCCESS_ONLY_OUTPUTS_SCHEMA),
         categories=["evaluator", "catalog", "classifiers"],
         archived=True,
@@ -1183,7 +1148,7 @@ MANAGED_WORKFLOW_INTERFACES: Dict[str, Dict[str, Any]] = {
             },
             required=["substrings"],
         ),
-        inputs=obj(title="Contains All Inputs", additional_properties=True),
+        inputs=obj(additional_properties=True),
         outputs=deepcopy(SUCCESS_ONLY_OUTPUTS_SCHEMA),
         categories=["evaluator", "catalog", "classifiers"],
         archived=True,
