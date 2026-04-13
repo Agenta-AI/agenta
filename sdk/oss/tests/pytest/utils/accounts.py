@@ -1,6 +1,8 @@
 import requests
 import pytest
 
+from uuid import uuid4
+
 from oss.tests.pytest.utils.constants import BASE_TIMEOUT
 
 
@@ -9,15 +11,26 @@ def create_account(ag_env):
     auth_key = ag_env["auth_key"]
 
     headers = {"Authorization": f"Access {auth_key}"}
-    url = f"{api_url}/admin/account"
+    url = f"{api_url}/admin/simple/accounts/"
+
+    unique_id = uuid4().hex[:12]
 
     response = requests.post(
         url=url,
         headers=headers,
         json={
-            "subscription": {
-                "plan": "cloud_v0_business",  # Use BUSINESS plan to avoid quota limits in tests
-            },
+            "accounts": {
+                "user": {
+                    "user": {
+                        "email": f"{unique_id}@test.agenta.ai",
+                    },
+                    "options": {
+                        "create_api_keys": True,
+                        "return_api_keys": True,
+                        "seed_defaults": True,
+                    },
+                }
+            }
         },
         timeout=BASE_TIMEOUT,
     )
@@ -28,18 +41,19 @@ def create_account(ag_env):
     json_data = response.json()
     assert isinstance(json_data, dict), "Response JSON should not be None"
 
-    scopes = json_data.get("scopes")
-    assert scopes and len(scopes) > 0, "No scopes returned in response"
+    accounts = json_data.get("accounts")
+    assert accounts, "No accounts in response"
 
-    scope_data = scopes[0]
-    assert isinstance(scope_data, dict), "Scope should be a dictionary"
+    account = next(iter(accounts.values()))
+    api_keys = account.get("api_keys")
+    assert api_keys and "key" in api_keys, "No api_keys.key in account"
 
-    credentials = scope_data.get("credentials")
-    assert credentials, "No credentials in scopes"
+    raw_key = api_keys["key"]
+    assert raw_key, "No value in api_keys.key"
 
     return {
         "api_url": api_url,
-        "credentials": credentials,
+        "credentials": f"ApiKey {raw_key}",
     }
 
 

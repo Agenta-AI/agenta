@@ -35,6 +35,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.validators import (
     validate_user_email_or_username,
     validate_actual_email,
+    validate_password,
 )
 from oss.src.core.auth.supertokens.overrides import (
     override_emailpassword_apis,
@@ -300,6 +301,7 @@ def init_supertokens():
                             validate=validate_actual_email,
                             optional=True,
                         ),
+                        InputFormField(id="password", validate=validate_password),
                     ]
                 ),
                 override=EmailPasswordInputOverrideConfig(
