@@ -1,20 +1,23 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {invalidateEvaluatorsListCache} from "@agenta/entities/evaluator"
+import {
+    createHumanEvaluatorAtom,
+    resolveOutputSchema,
+    updateHumanEvaluatorAtom,
+    type HumanEvaluatorMetric,
+} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {Plus} from "@phosphor-icons/react"
 import {Alert, Button, Form, Input, Typography} from "antd"
+import deepEqual from "fast-deep-equal"
 import {useSetAtom} from "jotai"
 import {useDebounceValue} from "usehooks-ts"
 
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
-import useEvaluators from "@/oss/lib/hooks/useEvaluators"
-import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
-import {createEvaluator, updateEvaluator} from "@/oss/services/evaluators"
+import {EvaluatorPreviewDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
 import {AnnotateDrawerSteps} from "../enum"
-import {generateNewEvaluatorPayloadData} from "../transforms"
 import {CreateEvaluatorProps} from "../types"
 
 import CreateNewMetric from "./assets/CreateNewMetric"
@@ -42,15 +45,12 @@ const CreateEvaluator = ({
     const [errorMessage, setErrorMessage] = useState<string[]>([])
     const [slugTouched, setSlugTouched] = useState(false)
 
-    console.log("CreateEvaluator")
     const [form] = Form.useForm()
     const name = Form.useWatch("evaluatorName", form)
     const slugValue = Form.useWatch("evaluatorSlug", form)
     const [debouncedName] = useDebounceValue(name, 500)
-    const {mutate} = useEvaluators({
-        preview: true,
-        queries: {is_human: true},
-    })
+    const createHumanEvaluator = useSetAtom(createHumanEvaluatorAtom)
+    const updateHumanEvaluator = useSetAtom(updateHumanEvaluatorAtom)
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
 
     const isEditMode = mode === "edit" && Boolean(evaluator?.id)
@@ -58,9 +58,7 @@ const CreateEvaluator = ({
     const metricsFromEvaluator = useMemo(() => {
         if (!isEditMode || !evaluator) return []
 
-        const outputs =
-            evaluator.data?.service?.format?.properties?.outputs ||
-            (evaluator as EvaluatorWithMeta)?.data?.service?.format?.properties?.outputs
+        const outputs = resolveOutputSchema(evaluator.data)
 
         if (!outputs || typeof outputs !== "object") return []
 
@@ -129,17 +127,17 @@ const CreateEvaluator = ({
 
         if (!isEditMode) {
             return {
-                evaluatorName: "",
-                evaluatorSlug: "",
-                evaluatorDescription: "",
+                evaluatorName: null,
+                evaluatorSlug: null,
+                evaluatorDescription: null,
                 metrics,
             }
         }
 
         return {
-            evaluatorName: evaluator?.name || "",
-            evaluatorSlug: evaluator?.slug || "",
-            evaluatorDescription: evaluator?.description || "",
+            evaluatorName: evaluator?.name,
+            evaluatorSlug: evaluator?.slug,
+            evaluatorDescription: evaluator?.description,
             metrics,
         }
     }, [evaluator, isEditMode, metricsFromEvaluator])
@@ -149,6 +147,7 @@ const CreateEvaluator = ({
         form.setFieldsValue(initialFormValues)
         setErrorMessage([])
         setSlugTouched(isEditMode)
+        setIsFormDirty(false)
     }, [form, initialFormValues, isEditMode])
 
     useEffect(() => {
@@ -173,67 +172,61 @@ const CreateEvaluator = ({
         }, 100)
     }, [])
 
-    const normalizeTags = (input: unknown): Record<string, unknown> | null => {
-        if (input == null) return null
-        if (Array.isArray(input)) return {}
-        if (typeof input === "object") return input as Record<string, unknown>
-        return {}
+    const normalizeTags = (input: unknown): string[] | undefined => {
+        if (input == null) return undefined
+        if (Array.isArray(input)) return []
+        if (typeof input === "object") return Object.keys(input as Record<string, unknown>)
+        return []
     }
+
+    const toMetrics = (formMetrics: MetricFormData[]): HumanEvaluatorMetric[] =>
+        formMetrics.map(({name, type, optional, minimum, maximum, ...rest}) => ({
+            name,
+            type,
+            optional,
+            ...(minimum !== undefined ? {minimum} : {}),
+            ...(maximum !== undefined ? {maximum} : {}),
+            ...((rest as any).enum ? {enum: (rest as any).enum} : {}),
+        }))
 
     const onFinish = useCallback(
         async (values: any) => {
             try {
                 setIsSubmitting(true)
-
-                const metricsData: MetricFormData[] = values.metrics
-                const payloadData = generateNewEvaluatorPayloadData({
-                    metrics: metricsData,
-                    evaluatorName: values.evaluatorName,
-                    evaluatorSlug: values.evaluatorSlug,
-                    evaluatorDescription: values.evaluatorDescription,
-                })
-
-                if (!payloadData.evaluator) return
+                const metrics = toMetrics(values.metrics)
 
                 if (isEditMode && evaluator?.id) {
                     const evaluatorWithMeta = evaluator as EvaluatorWithMeta
-                    const payload = {
-                        evaluator: {
-                            ...payloadData.evaluator,
-                            id: evaluator.id,
-                            flags: {
-                                ...(evaluatorWithMeta.flags || {}),
-                                is_human: true,
-                                is_custom: false,
-                            },
-                            meta: evaluatorWithMeta.meta || {},
-                            ...(evaluatorWithMeta.tags
-                                ? {tags: normalizeTags(evaluatorWithMeta.tags)}
-                                : {}),
-                        },
-                    }
-
-                    await updateEvaluator(evaluator.id, payload)
-                    await mutate()
-                    invalidateEvaluatorsListCache()
+                    await updateHumanEvaluator({
+                        id: evaluator.id,
+                        variantId:
+                            (evaluatorWithMeta as any).workflow_variant_id ??
+                            (evaluatorWithMeta as any).variant_id,
+                        name: values.evaluatorName,
+                        description: values.evaluatorDescription,
+                        metrics,
+                        meta: evaluatorWithMeta.meta as Record<string, unknown> | undefined,
+                        tags: normalizeTags(evaluatorWithMeta.tags),
+                    })
                     message.success("Evaluator updated successfully")
-                    await onSuccess?.(payload.evaluator.slug)
+                    await onSuccess?.(values.evaluatorSlug)
                     return
                 }
 
-                await createEvaluator(payloadData)
-                await mutate()
-                invalidateEvaluatorsListCache()
+                await createHumanEvaluator({
+                    name: values.evaluatorName,
+                    slug: values.evaluatorSlug,
+                    description: values.evaluatorDescription,
+                    metrics,
+                })
 
                 message.success("Evaluator created successfully")
                 recordWidgetEvent("evaluator_created")
                 if (!skipPostCreateStepChange) {
                     setSteps?.(AnnotateDrawerSteps.SELECT_EVALUATORS)
-                    setSelectedEvaluators?.((prev) => [
-                        ...new Set([...prev, payloadData.evaluator.slug]),
-                    ])
+                    setSelectedEvaluators?.((prev) => [...new Set([...prev, values.evaluatorSlug])])
                 }
-                await onSuccess?.(payloadData.evaluator.slug)
+                await onSuccess?.(values.evaluatorSlug)
             } catch (error: any) {
                 if (error?.response?.status === 409) {
                     setErrorMessage(["Evaluator with this slug already exists"])
@@ -254,7 +247,8 @@ const CreateEvaluator = ({
             }
         },
         [
-            mutate,
+            createHumanEvaluator,
+            updateHumanEvaluator,
             setErrorMessage,
             onScrollTo,
             setSteps,
@@ -263,10 +257,21 @@ const CreateEvaluator = ({
             evaluator,
             onSuccess,
             skipPostCreateStepChange,
+            recordWidgetEvent,
         ],
     )
 
     const submitLabel = isEditMode ? "Update" : "Create"
+
+    const [isFormDirty, setIsFormDirty] = useState(false)
+
+    const checkDirty = useCallback(() => {
+        if (!isEditMode) return
+        const current = form.getFieldsValue(true)
+        setIsFormDirty(!deepEqual(current, initialFormValues))
+    }, [form, initialFormValues, isEditMode])
+
+    const isSubmitDisabled = isEditMode && !isFormDirty
 
     return (
         <Form
@@ -274,12 +279,13 @@ const CreateEvaluator = ({
             form={form}
             layout="vertical"
             onFinish={onFinish}
+            onFieldsChange={checkDirty}
             onKeyDown={(e) => {
                 if (e.key === "Enter") {
                     e.preventDefault()
                 }
             }}
-            className="create-eval h-full flex flex-col overflow-y-auto gap-4 p-4"
+            className="create-eval h-full flex flex-col overflow-y-auto gap-4 p-4 pb-0"
             initialValues={initialFormValues}
         >
             {errorMessage?.map((msg, idx) => (
@@ -351,7 +357,7 @@ const CreateEvaluator = ({
 
             <Form.List name="metrics">
                 {(fields, {add, remove}) => (
-                    <div className="flex flex-col gap-4 pb-12">
+                    <div className="flex flex-col gap-4">
                         {fields.map((field) => (
                             <CreateNewMetric
                                 key={field.key}
@@ -361,32 +367,34 @@ const CreateEvaluator = ({
                             />
                         ))}
 
-                        <div className="w-full bg-white h-[50px] border-0 border-t border-solid border-gray-100 flex items-center gap-2 absolute bottom-0 left-0 right-0 pl-4">
-                            <Button
-                                icon={<Plus size={14} />}
-                                className="w-fit"
-                                onClick={() => {
-                                    add()
-                                    onScrollTo("bottom")
-                                }}
-                            >
-                                Add Feedback
-                            </Button>
-                            <Button
-                                type="primary"
-                                className="w-fit"
-                                onClick={(e) => {
-                                    e.preventDefault()
-                                    form.submit()
-                                }}
-                                loading={isSubmitting}
-                            >
-                                {submitLabel}
-                            </Button>
-                        </div>
+                        <Button
+                            icon={<Plus size={14} />}
+                            className="w-fit"
+                            onClick={() => {
+                                add()
+                                onScrollTo("bottom")
+                            }}
+                        >
+                            Add Feedback
+                        </Button>
                     </div>
                 )}
             </Form.List>
+
+            <div className="bg-[var(--ant-color-bg-container)] h-[50px] border-0 border-t border-solid border-[var(--ant-color-border-secondary)] flex items-center justify-end gap-2 sticky bottom-0 -mx-4 px-4 mt-auto shrink-0">
+                <Button
+                    type="primary"
+                    className="w-fit"
+                    onClick={(e) => {
+                        e.preventDefault()
+                        form.submit()
+                    }}
+                    loading={isSubmitting}
+                    disabled={isSubmitDisabled}
+                >
+                    {submitLabel}
+                </Button>
+            </div>
         </Form>
     )
 }

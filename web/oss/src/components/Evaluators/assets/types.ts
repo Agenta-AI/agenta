@@ -1,5 +1,5 @@
-import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {Evaluator, SimpleEvaluator} from "@/oss/lib/Types"
+import {EvaluatorPreviewDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
 export type EvaluatorCategory = "automatic" | "human"
 

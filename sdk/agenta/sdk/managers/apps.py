@@ -1,15 +1,48 @@
-from typing import Optional, Literal
+from typing import List, Literal, Optional
 
-from agenta.sdk.utils.logging import get_module_logger
+from agenta.sdk.utils.client import authed_api, authed_async_api
 from agenta.sdk.utils.exceptions import handle_exceptions
-
-import agenta as ag
-
-log = get_module_logger(__name__)
+from agenta.sdk.utils.types import ReferencesResponse
 
 AppType = Literal["SERVICE:completion", "SERVICE:chat", "CUSTOM"]
 
 DEFAULT_APP_TYPE = "SERVICE:completion"
+
+
+def _build_flags(app_type: Optional[AppType]) -> dict:
+    if app_type == "SERVICE:chat":
+        return {"is_chat": True}
+    if app_type == "CUSTOM":
+        return {"is_custom": True}
+    return {}
+
+
+def _build_simple_application_payload(
+    *,
+    app_slug: str,
+    app_type: Optional[AppType],
+    app_id: Optional[str] = None,
+) -> dict:
+    payload = {
+        "slug": app_slug,
+        "name": app_slug,
+    }
+
+    if app_id:
+        payload["id"] = app_id
+
+    flags = _build_flags(app_type)
+    if flags:
+        payload["flags"] = flags
+
+    return {"application": payload}
+
+
+def _parse_application_reference(payload: dict) -> ReferencesResponse:
+    return ReferencesResponse(
+        app_id=payload.get("id"),
+        app_slug=payload.get("slug"),
+    )
 
 
 class AppManager:
@@ -21,14 +54,18 @@ class AppManager:
         app_slug: str,
         template_key: Optional[AppType] = None,
         app_type: Optional[AppType] = DEFAULT_APP_TYPE,
-    ):
-        template_key = template_key or app_type
-
-        app_response = ag.api.apps.create_app(
-            app_name=app_slug,
-            template_key=template_key,
+    ) -> ReferencesResponse:
+        response = authed_api()(
+            method="POST",
+            endpoint="/preview/simple/applications/",
+            json=_build_simple_application_payload(
+                app_slug=app_slug,
+                app_type=template_key or app_type,
+            ),
         )
-        return app_response
+        response.raise_for_status()
+
+        return _parse_application_reference(response.json()["application"])
 
     @classmethod
     @handle_exceptions()
@@ -38,49 +75,97 @@ class AppManager:
         app_slug: str,
         template_key: Optional[AppType] = None,
         app_type: Optional[AppType] = DEFAULT_APP_TYPE,
-    ):
-        template_key = template_key or app_type
-
-        app_response = await ag.async_api.apps.create_app(
-            app_name=app_slug,
-            template_key=template_key,
+    ) -> ReferencesResponse:
+        response = await authed_async_api()(
+            method="POST",
+            endpoint="/preview/simple/applications/",
+            json=_build_simple_application_payload(
+                app_slug=app_slug,
+                app_type=template_key or app_type,
+            ),
         )
-        return app_response
+        response.raise_for_status()
+
+        return _parse_application_reference(response.json()["application"])
 
     @classmethod
     @handle_exceptions()
-    def list(cls):
-        apps_response = ag.api.apps.list_apps()
-        return apps_response
-
-    @classmethod
-    @handle_exceptions()
-    async def alist(cls):
-        apps_response = await ag.async_api.apps.list_apps()
-        return apps_response
-
-    @classmethod
-    @handle_exceptions()
-    def update(cls, *, app_id: str, app_slug: str):
-        app_response = ag.api.apps.update_app(app_id=app_id, app_name=app_slug)
-        return app_response
-
-    @classmethod
-    @handle_exceptions()
-    async def aupdate(cls, *, app_id: str, app_slug: str):
-        app_response = await ag.async_api.apps.update_app(
-            app_id=app_id, app_name=app_slug
+    def list(cls) -> List[ReferencesResponse]:
+        response = authed_api()(
+            method="POST",
+            endpoint="/preview/simple/applications/query",
+            json={},
         )
-        return app_response
+        response.raise_for_status()
+
+        return [
+            _parse_application_reference(application)
+            for application in response.json().get("applications", [])
+        ]
+
+    @classmethod
+    @handle_exceptions()
+    async def alist(cls) -> List[ReferencesResponse]:
+        response = await authed_async_api()(
+            method="POST",
+            endpoint="/preview/simple/applications/query",
+            json={},
+        )
+        response.raise_for_status()
+
+        return [
+            _parse_application_reference(application)
+            for application in response.json().get("applications", [])
+        ]
+
+    @classmethod
+    @handle_exceptions()
+    def update(cls, *, app_id: str, app_slug: str) -> ReferencesResponse:
+        response = authed_api()(
+            method="PUT",
+            endpoint=f"/preview/simple/applications/{app_id}",
+            json=_build_simple_application_payload(
+                app_slug=app_slug,
+                app_type=None,
+                app_id=app_id,
+            ),
+        )
+        response.raise_for_status()
+
+        return _parse_application_reference(response.json()["application"])
+
+    @classmethod
+    @handle_exceptions()
+    async def aupdate(cls, *, app_id: str, app_slug: str) -> ReferencesResponse:
+        response = await authed_async_api()(
+            method="PUT",
+            endpoint=f"/preview/simple/applications/{app_id}",
+            json=_build_simple_application_payload(
+                app_slug=app_slug,
+                app_type=None,
+                app_id=app_id,
+            ),
+        )
+        response.raise_for_status()
+
+        return _parse_application_reference(response.json()["application"])
 
     @classmethod
     @handle_exceptions()
     def delete(cls, *, app_id: str):
-        ag.api.apps.remove_app(app_id=app_id)
+        response = authed_api()(
+            method="POST",
+            endpoint=f"/preview/simple/applications/{app_id}/archive",
+        )
+        response.raise_for_status()
         return None
 
     @classmethod
     @handle_exceptions()
     async def adelete(cls, *, app_id: str):
-        await ag.async_api.apps.remove_app(app_id=app_id)
+        response = await authed_async_api()(
+            method="POST",
+            endpoint=f"/preview/simple/applications/{app_id}/archive",
+        )
+        response.raise_for_status()
         return None

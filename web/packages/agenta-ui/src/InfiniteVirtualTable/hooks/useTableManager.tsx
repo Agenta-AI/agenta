@@ -1,8 +1,11 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
-import type {Key, MouseEvent, RefObject} from "react"
+import type {Key, MouseEvent, ReactNode, RefObject} from "react"
 
-import {Grid} from "antd"
+import {Grid, Input} from "antd"
 import type {ColumnsType} from "antd/es/table"
+import type {WritableAtom} from "jotai"
+import {useAtom} from "jotai"
+import {atom} from "jotai"
 
 import {cn} from "../../utils/styles"
 import type {InfiniteDatasetStore} from "../createInfiniteDatasetStore"
@@ -20,6 +23,9 @@ import type {
 } from "../types"
 
 import useTableExport from "./useTableExport"
+
+/** Stable no-op atom used when no external search atom is provided (hooks can't be conditional) */
+const dummySearchAtom = atom("")
 
 /**
  * Helper to detect if a click event should be ignored for row navigation
@@ -44,6 +50,18 @@ export const shouldIgnoreRowClick = (event: MouseEvent<HTMLElement>): boolean =>
     return false
 }
 
+/** Configuration for built-in search. When provided, the hook manages search state internally. */
+export interface TableSearchConfig {
+    /** Placeholder text (default: "Search") */
+    placeholder?: string
+    /** Custom className for the search input (default: "max-w-[320px]") */
+    className?: string
+    /** Whether search is disabled */
+    disabled?: boolean
+    /** External Jotai atom to sync search term with (for cross-component access) */
+    atom?: WritableAtom<string, [string], void>
+}
+
 export interface UseTableManagerConfig<T extends InfiniteTableRowBase> {
     /** The dataset store for this table */
     datasetStore: InfiniteDatasetStore<T, unknown, unknown>
@@ -59,6 +77,13 @@ export interface UseTableManagerConfig<T extends InfiniteTableRowBase> {
 
     /** Callback when a row is clicked */
     onRowClick?: (record: T) => void
+
+    /**
+     * Built-in search configuration. When provided, the hook manages search state
+     * and renders a search input in the filters slot of shellProps.
+     * Pass `true` for defaults, or an object for customization.
+     */
+    search?: TableSearchConfig | boolean
 
     /** Dependencies that should trigger pagination reset (e.g., search term) */
     searchDeps?: unknown[]
@@ -143,6 +168,12 @@ export interface UseTableManagerReturn<T extends InfiniteTableRowBase> {
     /** Ref to store current columns for export */
     columnsRef: RefObject<ColumnsType<T> | null>
 
+    /** Search term value (only meaningful when search config is provided) */
+    searchTerm: string
+
+    /** Search term setter (only meaningful when search config is provided) */
+    setSearchTerm: (value: string) => void
+
     /** Spread these props directly to InfiniteVirtualTableFeatureShell */
     shellProps: Pick<
         InfiniteVirtualTableFeatureProps<T>,
@@ -155,6 +186,7 @@ export interface UseTableManagerReturn<T extends InfiniteTableRowBase> {
         | "exportAction"
         | "useSettingsDropdown"
         | "rowKey"
+        | "filters"
     >
 }
 
@@ -195,7 +227,8 @@ export function useTableManager<T extends InfiniteTableRowBase>({
     pageSize = 50,
     rowHeight = 48,
     onRowClick,
-    searchDeps = [],
+    search,
+    searchDeps: externalSearchDeps = [],
     clickableRows = true,
     rowClassName,
     columnVisibilityStorageKey,
@@ -211,6 +244,32 @@ export function useTableManager<T extends InfiniteTableRowBase>({
     const screens = Grid.useBreakpoint()
     const isNarrowScreen = !screens.lg
 
+    // Normalize search config
+    const searchConfig = search === true ? {} : search || undefined
+    const searchAtom = searchConfig?.atom
+
+    // Built-in search state (local or atom-backed)
+    const [localSearchTerm, setLocalSearchTerm] = useState("")
+    const [atomSearchTerm, setAtomSearchTerm] = useAtom(
+        // Use the provided atom, or fall back to a dummy that returns empty string
+        searchAtom || dummySearchAtom,
+    )
+
+    const searchTerm = searchConfig ? (searchAtom ? atomSearchTerm : localSearchTerm) : ""
+    const setSearchTerm = useCallback(
+        (value: string) => {
+            if (searchAtom) {
+                setAtomSearchTerm(value)
+            } else {
+                setLocalSearchTerm(value)
+            }
+        },
+        [searchAtom, setAtomSearchTerm],
+    )
+
+    // Merge built-in search deps with any external searchDeps
+    const searchDeps = searchConfig ? [searchTerm, ...externalSearchDeps] : externalSearchDeps
+
     // Pagination
     const pagination = datasetStore.hooks.usePagination({
         scopeId,
@@ -218,18 +277,27 @@ export function useTableManager<T extends InfiniteTableRowBase>({
         resetOnScopeChange: false,
     })
 
-    const {rows, loadNextPage, resetPages} = pagination
+    const {rows, loadNextPage, resetPages, paginationInfo} = pagination
 
-    // Selection state
-    const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
+    // Selection state — backed by the dataset store's atom so external consumers can read it
+    const storeSelectionAtom = useMemo(
+        () => datasetStore.atoms.selectionAtom({scopeId}),
+        [datasetStore, scopeId],
+    )
+    const [selectedRowKeys, setSelectedRowKeys] = useAtom(storeSelectionAtom)
 
     // Export state
     const [rowExportingKey, setRowExportingKey] = useState<string | null>(null)
     const tableExport = useTableExport<T>()
     const columnsRef = useRef<ColumnsType<T> | null>(null)
 
-    // Auto-reset pagination when search dependencies change
+    // Auto-reset pagination when search dependencies change (skip initial mount)
+    const searchDepsInitialized = useRef(false)
     useEffect(() => {
+        if (!searchDepsInitialized.current) {
+            searchDepsInitialized.current = true
+            return
+        }
         if (searchDeps.length > 0) {
             resetPages()
         }
@@ -308,8 +376,9 @@ export function useTableManager<T extends InfiniteTableRowBase>({
             rows,
             loadNextPage,
             resetPages,
+            paginationInfo,
         }),
-        [rows, loadNextPage, resetPages],
+        [rows, loadNextPage, resetPages, paginationInfo],
     )
 
     // Helper to get selected records
@@ -382,6 +451,21 @@ export function useTableManager<T extends InfiniteTableRowBase>({
     // Row key extractor
     const rowKeyExtractor = useCallback((record: T) => record.key, [])
 
+    // Built-in search node
+    const searchNode = useMemo<ReactNode>(() => {
+        if (!searchConfig) return undefined
+        return (
+            <Input.Search
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={searchConfig.placeholder ?? "Search"}
+                allowClear
+                disabled={searchConfig.disabled}
+                className={cn("w-full", searchConfig.className ?? "max-w-[320px]")}
+            />
+        )
+    }, [searchConfig, searchTerm, setSearchTerm])
+
     // Shell props to spread directly to InfiniteVirtualTableFeatureShell
     const shellProps = useMemo(
         () => ({
@@ -394,6 +478,7 @@ export function useTableManager<T extends InfiniteTableRowBase>({
             exportAction,
             useSettingsDropdown: isNarrowScreen,
             rowKey: rowKeyExtractor,
+            filters: searchNode,
         }),
         [
             datasetStore,
@@ -405,6 +490,7 @@ export function useTableManager<T extends InfiniteTableRowBase>({
             exportAction,
             isNarrowScreen,
             rowKeyExtractor,
+            searchNode,
         ],
     )
 
@@ -425,6 +511,8 @@ export function useTableManager<T extends InfiniteTableRowBase>({
         handleExportRow,
         rowExportingKey,
         columnsRef,
+        searchTerm,
+        setSearchTerm,
         shellProps,
     }
 }

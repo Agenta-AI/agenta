@@ -31,6 +31,8 @@ from oss.src.core.applications.dtos import (
     SimpleApplicationEdit,
     SimpleApplicationQuery,
     SimpleApplicationFlags,
+    SimpleApplicationQueryFlags,
+    ApplicationArtifactQueryFlags,
     ApplicationFlags,
     Application,
     ApplicationQuery,
@@ -557,6 +559,75 @@ class ApplicationsService:
 
         return application_revision
 
+    async def retrieve_application_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        environment_ref: Optional[Reference] = None,
+        environment_variant_ref: Optional[Reference] = None,
+        environment_revision_ref: Optional[Reference] = None,
+        key: Optional[str] = None,
+        #
+        application_ref: Optional[Reference] = None,
+        application_variant_ref: Optional[Reference] = None,
+        application_revision_ref: Optional[Reference] = None,
+        #
+        resolve: bool = False,
+    ) -> tuple[Optional[ApplicationRevision], Optional[ResolutionInfo]]:
+        if environment_ref or environment_variant_ref or environment_revision_ref:
+            environments_service = self.workflows_service.environments_service
+            if not environments_service:
+                return None, None
+
+            (
+                env_revision,
+                _,
+            ) = await environments_service.retrieve_environment_revision(
+                project_id=project_id,
+                #
+                environment_ref=environment_ref,
+                environment_variant_ref=environment_variant_ref,
+                environment_revision_ref=environment_revision_ref,
+            )
+
+            references_by_key = (
+                env_revision.data.references
+                if env_revision and env_revision.data
+                else None
+            )
+            application_references = (
+                references_by_key.get(key) if references_by_key and key else None
+            )
+
+            if not application_references:
+                return None, None
+
+            application_ref = application_references.get("application")
+            application_variant_ref = application_references.get("application_variant")
+            application_revision_ref = application_references.get(
+                "application_revision"
+            )
+
+        if resolve:
+            result = await self.resolve_application_revision(
+                project_id=project_id,
+                #
+                application_ref=application_ref,
+                application_variant_ref=application_variant_ref,
+                application_revision_ref=application_revision_ref,
+            )
+            return result if result else (None, None)
+
+        application_revision = await self.fetch_application_revision(
+            project_id=project_id,
+            #
+            application_ref=application_ref,
+            application_variant_ref=application_variant_ref,
+            application_revision_ref=application_revision_ref,
+        )
+        return application_revision, None
+
     async def edit_application_revision(
         self,
         *,
@@ -767,7 +838,6 @@ class ApplicationsService:
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
         #
         application_ref: Optional[Reference] = None,
         application_variant_ref: Optional[Reference] = None,
@@ -782,7 +852,7 @@ class ApplicationsService:
         """
         Fetch and resolve an application revision with embedded references.
 
-        Applications are workflows with is_evaluator=False. This method
+        Applications are workflows with is_application=True. This method
         delegates to WorkflowsService.resolve_workflow_revision and converts
         the result to Application types for backward compatibility.
 
@@ -846,6 +916,52 @@ class SimpleApplicationsService:
     ):
         self.applications_service = applications_service
 
+    @staticmethod
+    def _build_simple_application_flags(
+        *,
+        application_revision: Optional[ApplicationRevision],
+    ) -> SimpleApplicationFlags:
+        return SimpleApplicationFlags(
+            **(
+                application_revision.flags.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude_unset=True,
+                )
+                if application_revision and application_revision.flags
+                else {}
+            )
+        )
+
+    @staticmethod
+    def _matches_requested_simple_application_flags(
+        *,
+        simple_application: SimpleApplication,
+        requested_flags: Optional[SimpleApplicationQueryFlags],
+    ) -> bool:
+        if not requested_flags:
+            return True
+
+        actual_flags = (
+            simple_application.flags.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude_unset=True,
+            )
+            if simple_application.flags
+            else {}
+        )
+        requested_flag_values = requested_flags.model_dump(
+            mode="json",
+            exclude_none=True,
+            exclude_unset=True,
+        )
+
+        return all(
+            actual_flags.get(flag_name) == expected_value
+            for flag_name, expected_value in requested_flag_values.items()
+        )
+
     # public -------------------------------------------------------------------
 
     async def create(
@@ -865,15 +981,11 @@ class SimpleApplicationsService:
                         mode="json",
                         exclude_none=True,
                         exclude_unset=True,
-                        exclude={"is_evaluator"},
                     )
                 ),
-                is_evaluator=False,
             )
             if simple_application_create.flags
-            else SimpleApplicationFlags(
-                is_evaluator=False,
-            )
+            else SimpleApplicationFlags()
         )
 
         application_flags = ApplicationFlags(
@@ -1010,9 +1122,14 @@ class SimpleApplicationsService:
             updated_by_id=application.updated_by_id,
             deleted_by_id=application.deleted_by_id,
             #
-            flags=simple_application_flags,
+            flags=self._build_simple_application_flags(
+                application_revision=application_revision,
+            ),
             meta=application.meta,
             tags=application.tags,
+            #
+            variant_id=application_variant.id,
+            revision_id=application_revision.id,
             #
             data=SimpleApplicationData(
                 **(
@@ -1061,18 +1178,6 @@ class SimpleApplicationsService:
         if application_revision is None:
             return None
 
-        simple_application_flags = (
-            SimpleApplicationFlags(
-                **application.flags.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                    exclude_unset=True,
-                ),
-            )
-            if application.flags
-            else SimpleApplicationFlags()
-        )
-
         simple_application = SimpleApplication(
             id=application.id,
             slug=application.slug,
@@ -1087,9 +1192,14 @@ class SimpleApplicationsService:
             updated_by_id=application.updated_by_id,
             deleted_by_id=application.deleted_by_id,
             #
-            flags=simple_application_flags,
+            flags=self._build_simple_application_flags(
+                application_revision=application_revision,
+            ),
             meta=application.meta,
             tags=application.tags,
+            #
+            variant_id=application_variant.id,
+            revision_id=application_revision.id,
             #
             data=SimpleApplicationData(
                 **(
@@ -1163,8 +1273,28 @@ class SimpleApplicationsService:
         if application_variant is None:
             return None
 
-        if simple_application_edit.data:
+        should_commit_revision = bool(simple_application_edit.model_fields_set - {"id"})
+
+        if should_commit_revision:
             application_revision_slug = uuid4().hex[-12:]
+
+            if simple_application_edit.data:
+                application_revision_data = ApplicationRevisionData(
+                    **simple_application_edit.data.model_dump(mode="json"),
+                )
+            else:
+                latest_application_revision = (
+                    await self.applications_service.fetch_application_revision(
+                        project_id=project_id,
+                        #
+                        application_variant_ref=Reference(id=application_variant.id),
+                    )
+                )
+
+                if latest_application_revision is None:
+                    return None
+
+                application_revision_data = latest_application_revision.data
 
             application_revision_commit = ApplicationRevisionCommit(
                 slug=application_revision_slug,
@@ -1176,9 +1306,7 @@ class SimpleApplicationsService:
                 tags=application_edit.tags,
                 meta=application_edit.meta,
                 #
-                data=ApplicationRevisionData(
-                    **simple_application_edit.data.model_dump(mode="json"),
-                ),
+                data=application_revision_data,
                 #
                 application_id=application.id,
                 application_variant_id=application_variant.id,
@@ -1203,18 +1331,6 @@ class SimpleApplicationsService:
         if application_revision is None:
             return None
 
-        simple_application_flags = (
-            SimpleApplicationFlags(
-                **application.flags.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                    exclude_unset=True,
-                ),
-            )
-            if application.flags
-            else SimpleApplicationFlags()
-        )
-
         simple_application = SimpleApplication(
             id=application.id,
             slug=application.slug,
@@ -1229,9 +1345,14 @@ class SimpleApplicationsService:
             updated_by_id=application.updated_by_id,
             deleted_by_id=application.deleted_by_id,
             #
-            flags=simple_application_flags,
+            flags=self._build_simple_application_flags(
+                application_revision=application_revision,
+            ),
             meta=application.meta,
             tags=application.tags,
+            #
+            variant_id=application_variant.id,
+            revision_id=application_revision.id,
             #
             data=SimpleApplicationData(
                 **(
@@ -1310,8 +1431,14 @@ class SimpleApplicationsService:
             if simple_application_query
             else {}
         )
-        query_data.setdefault("flags", {})
-        application_query = ApplicationQuery(**query_data)
+        requested_flags = (
+            simple_application_query.flags if simple_application_query else None
+        )
+        query_data.pop("flags", None)
+        application_query = ApplicationQuery(
+            **query_data,
+            flags=ApplicationArtifactQueryFlags(),
+        )
 
         applications = await self.applications_service.query_applications(
             project_id=project_id,
@@ -1332,6 +1459,12 @@ class SimpleApplicationsService:
             )
 
             if simple_application:
+                if not self._matches_requested_simple_application_flags(
+                    simple_application=simple_application,
+                    requested_flags=requested_flags,
+                ):
+                    continue
+
                 simple_applications.append(simple_application)
 
         return simple_applications

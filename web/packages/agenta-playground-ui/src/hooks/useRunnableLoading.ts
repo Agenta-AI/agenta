@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId} from "@agenta/entities/shared"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {useAtomValue} from "jotai"
 
 /**
@@ -15,8 +15,12 @@ import {useAtomValue} from "jotai"
  * Used by both completion and chat comparison cells.
  */
 export function useRunnableLoading(entityId: string): boolean {
-    const runnableQuery = useAtomValue(useMemo(() => runnableBridge.query(entityId), [entityId]))
-    const runnableData = useAtomValue(useMemo(() => runnableBridge.data(entityId), [entityId]))
+    const runnableQuery = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.query(entityId), [entityId]),
+    )
+    const runnableData = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.data(entityId), [entityId]),
+    )
 
     // Local drafts with available bridge data are considered ready,
     // even if the runnable bridge query is still resolving source data.

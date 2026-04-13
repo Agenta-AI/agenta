@@ -1,7 +1,7 @@
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {WorkspaceMember} from "@/oss/lib/Types"
+import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
-import {EvaluatorDto} from "../../useEvaluators/types"
 import {AnnotationResponseDto} from "../types"
 
 import {groupOutputValues} from "./helpers"

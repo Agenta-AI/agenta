@@ -11,8 +11,7 @@
 import React, {useCallback, useEffect, useMemo, useState} from "react"
 
 import {EntityListItem, SearchInput, SearchablePopoverList} from "@agenta/ui/components/selection"
-import {DownOutlined} from "@ant-design/icons"
-import {Plus} from "@phosphor-icons/react"
+import {CaretDown, Plus} from "@phosphor-icons/react"
 import {Button, Empty, Popover, Spin} from "antd"
 
 import {useEntitySelectionCore} from "../../../hooks/useEntitySelectionCore"
@@ -346,7 +345,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
             >
                 {icon}
                 {placeholder}
-                {showDropdownIcon ? <DownOutlined style={{fontSize: 10}} /> : null}
+                {showDropdownIcon ? <CaretDown size={10} /> : null}
             </Button>
         </Popover>
     )

@@ -59,12 +59,12 @@ Additional relevant files:
 | `playgroundAppUriInfoAtom` | URI from variant | Static completion URI |
 
 ### Molecule Pattern
-The current playground uses `legacyAppRevisionMolecule` for revision state:
+The playground uses `workflowMolecule` for revision state (previously `legacyAppRevisionMolecule`, now removed):
 ```typescript
-legacyAppRevisionMolecule.atoms.data(revisionId)       // Merged data
-legacyAppRevisionMolecule.atoms.serverData(revisionId) // Server data
-legacyAppRevisionMolecule.atoms.draft(revisionId)      // Local changes
-legacyAppRevisionMolecule.atoms.isDirty(revisionId)    // Dirty tracking
+workflowMolecule.atoms.data(revisionId)       // Merged data
+workflowMolecule.atoms.serverData(revisionId) // Server data
+workflowMolecule.atoms.draft(revisionId)      // Local changes
+workflowMolecule.atoms.isDirty(revisionId)    // Dirty tracking
 ```
 
 For stateless, we need **draft-only** state with no server data.

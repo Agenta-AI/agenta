@@ -1,7 +1,5 @@
 import {HTMLProps} from "react"
 
-import {EnhancedVariant} from "../../../lib/shared/variant/types"
-
 /**
  * Base interface for components that render as HTML containers
  * @template T - HTML element type, defaults to HTMLDivElement
@@ -14,5 +12,5 @@ export interface BaseContainerProps<T = HTMLDivElement> extends HTMLProps<T> {
 /** Props for components that need variant ID */
 export interface VariantIdProps {
     /** Unique identifier for the variant */
-    variantId: EnhancedVariant["id"]
+    variantId: string
 }

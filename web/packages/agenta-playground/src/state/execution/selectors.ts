@@ -8,8 +8,9 @@
  */
 
 import {loadableStateAtomFamily} from "@agenta/entities/loadable"
-import {loadableController, runnableBridge, type RunnablePort} from "@agenta/entities/runnable"
-import {testcaseMolecule} from "@agenta/entities/testcase"
+import {loadableController, type RunnablePort} from "@agenta/entities/runnable"
+import {testcaseMolecule, isSystemField} from "@agenta/entities/testcase"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {atom, type Getter} from "jotai"
 import {selectAtom} from "jotai/utils"
 import {getDefaultStore} from "jotai/vanilla"
@@ -228,16 +229,119 @@ export const rowVariableValueAtomFamily = atomFamily(
 )
 
 /**
+ * Atom that reads downstream evaluator node queries to ensure they're mounted.
+ *
+ * `atomWithQuery` only starts fetching when it has a React subscriber (is mounted).
+ * `evaluatorExpectedColumnsAtom` reads configuration which depends on the query,
+ * but reading via `get()` in derived atoms doesn't mount the query observer.
+ * This atom acts as a bridge — subscribe to it from a React component to
+ * ensure downstream node queries are active.
+ */
+export const downstreamNodeQueriesAtom = atom((get) => {
+    const nodes = get(playgroundNodesAtom)
+    const downstreamNodes = nodes.filter((n) => n.depth > 0)
+    for (const node of downstreamNodes) {
+        get(workflowMolecule.selectors.query(node.entityId))
+    }
+    return downstreamNodes.length
+})
+
+/**
+ * Columns expected by downstream evaluator nodes (e.g., correct_answer).
+ * Scans evaluator configuration for `*_key` settings that map to testcase columns.
+ * Mirrors the resolution logic in buildFromSchema (runnable/utils.ts).
+ */
+const evaluatorExpectedColumnsAtom = atom<string[]>((get) => {
+    const nodes = get(playgroundNodesAtom)
+    const downstreamNodes = nodes.filter((n) => n.depth > 0)
+
+    const columns: string[] = []
+    const seen = new Set<string>()
+
+    for (const node of downstreamNodes) {
+        const config = get(workflowMolecule.selectors.configuration(node.entityId))
+        if (!config) continue
+
+        // Scan top-level and nested objects (e.g., advanced_config)
+        // for `*_key` settings that map to testcase columns.
+        const entries: [string, unknown][] = Object.entries(config)
+        for (const [key, value] of entries) {
+            // Recurse one level into plain objects (advanced_config, etc.)
+            if (value && typeof value === "object" && !Array.isArray(value)) {
+                entries.push(...Object.entries(value as Record<string, unknown>))
+            }
+            if (!key.endsWith("_key") || typeof value !== "string" || !value) continue
+            const columnName = value.startsWith("testcase.") ? value.split(".")[1] : value
+            if (columnName && !seen.has(columnName)) {
+                seen.add(columnName)
+                columns.push(columnName)
+            }
+        }
+    }
+    return columns
+})
+
+/**
  * Context-aware variable keys for generation input rows.
  *
- * Keys are derived from the linked runnable columns.
+ * Keys are derived from the linked runnable columns, merged with
+ * any additional columns expected by downstream evaluator nodes,
+ * and finally merged with columns that exist in the actual testcase data.
+ *
+ * Uses atomFamily keyed on downstream entity IDs to ensure a fresh atom
+ * is created when evaluators are connected/disconnected. This works around
+ * a Jotai issue where module-level derived atoms don't re-evaluate when
+ * playgroundNodesAtom changes in disconnect→reconnect flows.
  */
-export const rowVariableKeysWithContextAtom = atom<string[]>((get) => {
-    const loadableId = get(derivedLoadableIdAtom)
-    if (!loadableId) return []
-    const columns = get(loadableController.selectors.columns(loadableId))
-    return columns.map((column) => column.key)
-})
+const rowVariableKeysAtomFamily = atomFamily((downstreamKey: string) =>
+    atom<string[]>((get) => {
+        const loadableId = get(derivedLoadableIdAtom)
+        if (!loadableId) return []
+        const isChat = get(isChatModeAtom) === true
+        const columns = get(loadableController.selectors.columns(loadableId))
+        const primaryKeys = columns.map((column) => column.key)
+
+        const evaluatorKeys = get(evaluatorExpectedColumnsAtom)
+
+        // In connected mode (testset loaded), include extra columns from
+        // testcase entity data that aren't in the template (e.g. "expected_output").
+        // In local mode, the template's input ports are the sole authority —
+        // testcase data may contain stale keys from a previous template or app.
+        const mode = get(loadableController.selectors.mode(loadableId))
+        const testcaseKeys: string[] = []
+        if (mode === "connected") {
+            const testcaseColumns = get(testcaseMolecule.atoms.columns) as {key: string}[]
+            if (testcaseColumns) {
+                for (const c of testcaseColumns) {
+                    if (!isSystemField(c.key)) {
+                        testcaseKeys.push(c.key)
+                    }
+                }
+            }
+        }
+
+        const keySet = new Set(primaryKeys)
+        const merged = [...primaryKeys]
+        for (const key of [...evaluatorKeys, ...testcaseKeys]) {
+            if (key && !keySet.has(key)) {
+                keySet.add(key)
+                merged.push(key)
+            }
+        }
+        if (!isChat) return merged
+        return merged.filter((key) => key !== "messages")
+    }),
+)
+
+/**
+ * Backward-compatible selector that reads from the atomFamily with empty key.
+ * For components that also subscribe to playgroundNodesAtom directly (e.g. SingleLayout),
+ * use rowVariableKeysAtomFamily with a key derived from downstream node entity IDs
+ * to avoid stale Jotai dependency tracking.
+ */
+export const rowVariableKeysWithContextAtom = rowVariableKeysAtomFamily("")
+
+export {rowVariableKeysAtomFamily}
 
 // ============================================================================
 // DIRECT TESTCASE ENTITY SELECTORS
@@ -638,11 +742,17 @@ export const generationRowIdsAtom = atom<string[]>((get) => {
         }
         return rowIds
     }
-    if (isChat === undefined) {
-        return []
-    }
-    const stepIds = get(loadableController.selectors.displayRowIds(loadableId))
-    return stepIds
+    if (isChat === undefined) return []
+
+    // Read directly from the molecule's displayRowIds (global atom) and apply
+    // the loadable's hidden-ID filter inline. This avoids going through
+    // displayRowIdsAtomFamily (atomFamily) which can miss Jotai subscription
+    // notifications when testcase IDs are replaced within a write transaction.
+    const allDisplayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+    const state = get(loadableStateAtomFamily(loadableId))
+    const hiddenIds = state.hiddenTestcaseIds
+    if (hiddenIds.size === 0) return allDisplayRowIds
+    return allDisplayRowIds.filter((id) => !hiddenIds.has(id))
 })
 
 /**
@@ -790,12 +900,15 @@ export const executionRowIdsForEntityAtomFamily = atomFamily((entityId: string) 
  */
 export const inputVariableNamesAtom = atom<string[]>((get) => {
     const nodes = get(playgroundNodesAtom).filter((n) => n.depth === 0)
+    const isChat = get(isChatModeAtom) === true
     const seen = new Set<string>()
     const names: string[] = []
     for (const node of nodes) {
-        const scoped = runnableBridge.forType(node.entityType)
-        const ports = get(scoped.inputPorts(node.entityId)) as RunnablePort[]
+        const ports = get(workflowMolecule.selectors.inputPorts(node.entityId)) as RunnablePort[]
         for (const port of ports || []) {
+            if (isChat && port.key === "messages") {
+                continue
+            }
             if (port.key && !seen.has(port.key)) {
                 seen.add(port.key)
                 names.push(port.key)
@@ -817,8 +930,9 @@ export const inputPortSchemaMapAtom = atom<Record<string, {type: string; schema?
         const nodes = get(playgroundNodesAtom).filter((n) => n.depth === 0)
         const map: Record<string, {type: string; schema?: unknown}> = {}
         for (const node of nodes) {
-            const scoped = runnableBridge.forType(node.entityType)
-            const ports = get(scoped.inputPorts(node.entityId)) as RunnablePort[]
+            const ports = get(
+                workflowMolecule.selectors.inputPorts(node.entityId),
+            ) as RunnablePort[]
             for (const port of ports || []) {
                 if (port.key && !(port.key in map)) {
                     map[port.key] = {type: port.type, schema: port.schema}
@@ -844,15 +958,14 @@ export const inputPortSchemaMapAtom = atom<Record<string, {type: string; schema?
 /**
  * App-level chat mode detection.
  *
- * Derives from the primary node's entity ID via `runnableBridge.executionMode`.
+ * Derives from the primary node's entity ID via `workflowMolecule.selectors.executionMode`.
  * Returns `true` for chat apps, `false` for completion apps, `undefined` while loading.
  *
  */
 export const isChatModeAtom = atom<boolean | undefined>((get) => {
     const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
     if (!rootNode) return undefined
-    const scoped = runnableBridge.forType(rootNode.entityType)
-    const mode = get(scoped.executionMode(rootNode.entityId))
+    const mode = get(workflowMolecule.selectors.executionMode(rootNode.entityId))
     return mode === "chat"
 })
 

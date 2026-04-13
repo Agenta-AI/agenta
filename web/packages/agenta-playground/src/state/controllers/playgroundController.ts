@@ -18,18 +18,16 @@
  *
  * // Compound actions for multi-step operations
  * const addPrimary = useSetAtom(playgroundController.actions.addPrimaryNode)
- * addPrimary({ type: 'legacyAppRevision', id: 'rev-123', label: 'My Revision' })
+ * addPrimary({ type: 'workflow', id: 'rev-123', label: 'My Revision' })
  * ```
  */
 
-import {createBaseRunnable, baseRunnableMolecule} from "@agenta/entities/baseRunnable"
 import {loadableStateAtomFamily} from "@agenta/entities/loadable"
 import {loadableController, snapshotAdapterRegistry} from "@agenta/entities/runnable"
-import {registerRunnableTypeHint, clearRunnableTypeHint} from "@agenta/entities/shared"
 import {fetchTestcasesPage} from "@agenta/entities/testcase"
 import type {TraceSpanNode} from "@agenta/entities/trace"
 import {extractAgData, extractInputs, extractOutputs} from "@agenta/entities/trace"
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {workflowMolecule, createEphemeralWorkflow} from "@agenta/entities/workflow"
 import {
     commitWorkflowRevisionAtom,
     archiveWorkflowRevisionAtom,
@@ -80,7 +78,6 @@ import {extractAndLoadChatMessagesAtom} from "../helpers/extractAndLoadChatMessa
 import {normalizeTestcaseRowsForLoad} from "../helpers/testcaseRowNormalization"
 import type {EntitySelection, PlaygroundNode, RunnableType} from "../types"
 
-import {getRunnableBridge} from "./runnableBridgeAccess"
 import {getRunnableTypeResolver} from "./urlSnapshotController"
 
 // Import loadable state from entities (stays there due to entity dependencies)
@@ -183,9 +180,6 @@ const addPrimaryNodeAtom = atom(
             depth: 0,
         }
 
-        // Register type hint so runnableBridge skips probing other molecule types
-        registerRunnableTypeHint(entity.id, entity.type)
-
         // Reset state and add the primary node
         set(playgroundNodesAtom, [node])
         set(selectedNodeIdAtom, nodeId)
@@ -201,6 +195,18 @@ const addPrimaryNodeAtom = atom(
         // Link the loadable to the runnable and create initial row
         // This triggers reactive column derivation from runnable's inputSchema
         const loadableId = `testset:${entity.type}:${entity.id}`
+
+        // Clear stale execution results before linking.
+        // The loadable ID is entity-scoped, so a previous session with the same
+        // entity (e.g. same app selected for a different evaluator) would leave
+        // results in the atom family that shouldn't appear in a fresh playground.
+        const prevState = get(loadableStateAtomFamily(loadableId))
+        if (Object.keys(prevState.executionResults).length > 0) {
+            set(loadableStateAtomFamily(loadableId), {
+                ...prevState,
+                executionResults: {},
+            })
+        }
 
         // Use loadableController action which handles row creation via testcaseMolecule
         // skipInitialRow defers row creation when a loadable/localTestset restore will follow
@@ -238,9 +244,6 @@ const addDownstreamNodeAtom = atom(
             depth: sourceNode.depth + 1,
         }
 
-        // Register type hint so runnableBridge skips probing other molecule types
-        registerRunnableTypeHint(entity.id, entity.type)
-
         set(playgroundNodesAtom, [...nodes, node])
         _onSelectionChange?.(get(entityIdsAtom), [])
 
@@ -261,17 +264,8 @@ const removeNodeAtom = atom(null, (get, set, nodeId: string): string[] => {
     if (nodeIndex === -1) return []
     const removedEntityId = nodes[nodeIndex]?.entityId
 
-    // Clear type hint for removed entity
-    if (removedEntityId) {
-        clearRunnableTypeHint(removedEntityId)
-    }
-
     // If removing primary node, reset everything
     if (nodeIndex === 0) {
-        // Clear all hints since we're resetting
-        for (const node of nodes) {
-            clearRunnableTypeHint(node.entityId)
-        }
         set(playgroundNodesAtom, [])
         set(selectedNodeIdAtom, null)
         set(outputConnectionsAtom, [])
@@ -350,10 +344,7 @@ const connectDownstreamNodeAtom = atom(
         ])
 
         // For downstream entities, eagerly subscribe to the molecule's query atom
-        // so the per-ID fetch fires immediately. We subscribe directly to the
-        // molecule instead of runnableBridge.data() because the bridge probes ALL
-        // registered molecules in order, which would trigger spurious fetches on
-        // unrelated molecules (e.g. legacyAppRevision).
+        // so the per-ID fetch fires immediately.
         if (entity.type === "workflow") {
             const store = getDefaultStore()
             const unsub = store.sub(workflowMolecule.selectors.data(entity.id), () => {})
@@ -426,8 +417,19 @@ const changePrimaryNodeAtom = atom(null, (get, set, entity: EntitySelection) => 
         })
     }
 
-    // Link the loadable to the new runnable via controller API
+    // Clear stale execution results before linking to the new runnable.
+    // This prevents results from a previous session (e.g. a different evaluator
+    // that tested the same app) from leaking into the current playground.
     const loadableId = `testset:${entity.type}:${entity.id}`
+    const prevState = get(loadableStateAtomFamily(loadableId))
+    if (Object.keys(prevState.executionResults).length > 0) {
+        set(loadableStateAtomFamily(loadableId), {
+            ...prevState,
+            executionResults: {},
+        })
+    }
+
+    // Link the loadable to the new runnable via controller API
     set(
         loadableController.actions.linkToRunnable,
         loadableId,
@@ -827,9 +829,9 @@ const restoreLocalTestsetAtom = atom(null, (get, set, localTestset: SnapshotLoca
     // (e.g. when opening a chat trace span in the playground via URL).
     const isChat = get(isChatModeAtom) ?? false
     if (isChat) {
-        // For trace replays (baseRunnable entities), skip appending a blank
+        // For trace replays (ephemeral local workflow entities), skip appending a blank
         // user message — the loaded messages are the complete conversation.
-        const isTraceReplay = loadableId.includes(":baseRunnable:")
+        const isTraceReplay = loadableId.includes(":workflow:local-")
         set(extractAndLoadChatMessagesAtom, {
             loadableId,
             testcaseRows: localTestset.rows as Record<string, unknown>[],
@@ -883,7 +885,7 @@ function looksLikeChat(inputs: Record<string, unknown>): boolean {
 
 /**
  * Split chat messages into config (before first user message) and generation (from first user message).
- * Config messages (typically system prompts) go into baseRunnable parameters.
+ * Config messages (typically system prompts) go into ephemeral workflow parameters.
  * Generation messages (user turns onward) go into testcase/loadable data.
  */
 function splitChatMessages(messages: {role: string; content: unknown}[]): {
@@ -1012,10 +1014,10 @@ function extractReferences(span: TraceSpanNode): TraceReferences {
  * Result from opening a trace in playground.
  * - If `type` is "revision", the trace has a valid application_revision reference
  *   and the playground opened that existing revision.
- * - If `type` is "baseRunnable", a new baseRunnable was created from the trace data.
+ * - If `type` is "ephemeral", a new ephemeral workflow was created from the trace data.
  */
 export interface OpenFromTraceResult {
-    type: "revision" | "baseRunnable"
+    type: "revision" | "ephemeral"
     entityId: string
     label: string
     inputs: Record<string, unknown>
@@ -1029,7 +1031,7 @@ export interface OpenFromTraceResult {
  * Flow:
  * 1. Extracts inputs, outputs, and parameters from the span's ag.data
  * 2. Checks for application_revision reference - if present, opens that revision directly
- * 3. Otherwise, creates a local baseRunnable entity from trace data
+ * 3. Otherwise, creates a local ephemeral workflow entity from trace data
  * 4. Adds it as the primary playground node
  * 5. Populates the loadable with trace inputs as a testset row
  * 6. For chat spans, extracts messages into chat message atoms
@@ -1117,13 +1119,13 @@ const openFromTraceAtom = atom(
                 asString(refs.application_revision?.version)
             if (revisionId) {
                 set(addPrimaryNodeAtom, {
-                    type: "legacyAppRevision",
+                    type: "workflow",
                     id: revisionId,
                     label,
                 })
 
                 if (Object.keys(actualInputs).length > 0) {
-                    const loadableId = `testset:legacyAppRevision:${revisionId}`
+                    const loadableId = `testset:workflow:${revisionId}`
                     set(loadableController.actions.setRows, loadableId, [
                         {id: "trace-input-0", data: actualInputs},
                     ])
@@ -1145,8 +1147,8 @@ const openFromTraceAtom = atom(
                 }
             }
 
-            // No revision — create baseRunnable
-            const {id: entityId, data} = createBaseRunnable({
+            // No revision — create ephemeral workflow
+            const {id: entityId} = createEphemeralWorkflow({
                 label,
                 inputs: actualInputs,
                 outputs,
@@ -1155,11 +1157,10 @@ const openFromTraceAtom = atom(
                     ? {type: "application", id: applicationId, slug: applicationSlug}
                     : undefined,
             })
-            baseRunnableMolecule.set.data(entityId, data)
-            set(addPrimaryNodeAtom, {type: "baseRunnable", id: entityId, label})
+            set(addPrimaryNodeAtom, {type: "workflow", id: entityId, label})
 
             if (Object.keys(actualInputs).length > 0) {
-                const loadableId = `testset:baseRunnable:${entityId}`
+                const loadableId = `testset:workflow:${entityId}`
                 set(loadableController.actions.setRows, loadableId, [
                     {id: "trace-input-0", data: actualInputs},
                 ])
@@ -1173,7 +1174,7 @@ const openFromTraceAtom = atom(
             }
 
             return {
-                type: "baseRunnable",
+                type: "ephemeral",
                 entityId,
                 label,
                 inputs: actualInputs,
@@ -1182,7 +1183,7 @@ const openFromTraceAtom = atom(
         }
 
         // ── CHAT SPANS ─────────────────────────────────────────────────
-        // Chat spans always create a baseRunnable in the project playground.
+        // Chat spans always create an ephemeral workflow in the project playground.
         // Extract config messages (before first user) vs generation messages.
 
         // Get raw prompt messages from inputs.prompt
@@ -1299,7 +1300,7 @@ const openFromTraceAtom = atom(
                 messages: generationMessages,
             }
 
-            const {id: entityId, data} = createBaseRunnable({
+            const {id: entityId} = createEphemeralWorkflow({
                 label,
                 inputs: actualInputs,
                 outputs,
@@ -1312,10 +1313,9 @@ const openFromTraceAtom = atom(
                       }
                     : undefined,
             })
-            baseRunnableMolecule.set.data(entityId, data)
-            set(addPrimaryNodeAtom, {type: "baseRunnable", id: entityId, label})
+            set(addPrimaryNodeAtom, {type: "workflow", id: entityId, label})
 
-            const loadableId = `testset:baseRunnable:${entityId}`
+            const loadableId = `testset:workflow:${entityId}`
             set(loadableController.actions.setRows, loadableId, [
                 {id: "trace-input-0", data: actualInputs},
             ])
@@ -1326,7 +1326,7 @@ const openFromTraceAtom = atom(
             })
 
             return {
-                type: "baseRunnable",
+                type: "ephemeral",
                 entityId,
                 label,
                 inputs: actualInputs,
@@ -1364,7 +1364,7 @@ const openFromTraceAtom = atom(
         ) as Record<string, unknown>
         const parameters = stripOmittedKeys(rawParameters)
 
-        const {id: entityId, data} = createBaseRunnable({
+        const {id: entityId} = createEphemeralWorkflow({
             label,
             inputs: actualInputs,
             outputs,
@@ -1383,11 +1383,10 @@ const openFromTraceAtom = atom(
                     }
                   : undefined,
         })
-        baseRunnableMolecule.set.data(entityId, data)
-        set(addPrimaryNodeAtom, {type: "baseRunnable", id: entityId, label})
+        set(addPrimaryNodeAtom, {type: "workflow", id: entityId, label})
 
         if (Object.keys(actualInputs).length > 0) {
-            const loadableId = `testset:baseRunnable:${entityId}`
+            const loadableId = `testset:workflow:${entityId}`
             set(loadableController.actions.setRows, loadableId, [
                 {id: "trace-input-0", data: actualInputs},
             ])
@@ -1401,7 +1400,7 @@ const openFromTraceAtom = atom(
         }
 
         return {
-            type: "baseRunnable",
+            type: "ephemeral",
             entityId,
             label,
             inputs: actualInputs,
@@ -1457,8 +1456,7 @@ const invalidateQueriesAtom = atom(null, async () => {
     )
 
     // Bump the revision cache version so cache-derived atoms re-evaluate
-    const bridge = getRunnableBridge()
-    bridge.invalidateAllCaches()
+    workflowMolecule.cache.invalidateList()
 })
 
 // ============================================================================
@@ -1610,9 +1608,7 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
     const newRootNodes: PlaygroundNode[] = newIds.map((entityId) => {
         const existing = existingByEntityId.get(entityId)
         if (existing) return existing
-        const entityType = resolver?.getType(entityId) ?? "legacyAppRevision"
-        // Register type hint so runnableBridge skips probing other molecule types
-        registerRunnableTypeHint(entityId, entityType)
+        const entityType = resolver?.getType(entityId) ?? "workflow"
         return {
             id: `node-${entityId}`,
             entityType,
@@ -1621,12 +1617,6 @@ const setEntityIdsAtom = atom(null, (get, set, next: string[] | ((prev: string[]
             depth: 0,
         }
     })
-    // Clear hints for removed entities
-    for (const node of currentRootNodes) {
-        if (!newIds.includes(node.entityId)) {
-            clearRunnableTypeHint(node.entityId)
-        }
-    }
     // Preserve downstream nodes (e.g. evaluators at depth > 0) when updating root selection.
     // If root selection is cleared entirely, downstream nodes are also removed.
     set(playgroundNodesAtom, newRootNodes.length > 0 ? [...newRootNodes, ...downstreamNodes] : [])

@@ -1,5 +1,6 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
+import {InitialsAvatar} from "@agenta/ui"
 import {ArrowsLeftRight, CaretDown, PencilSimple, Trash, SignOut} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {
@@ -39,8 +40,6 @@ import {resetProjectData} from "@/oss/state/project"
 import {clearLastUsedProjectId} from "@/oss/state/project/selectors/project"
 import {authFlowAtom} from "@/oss/state/session"
 import {useWorkspaceMembers} from "@/oss/state/workspace"
-
-import Avatar from "../../Avatar/Avatar"
 
 import AuthUpgradeModal, {AuthUpgradeDetail} from "./AuthUpgradeModal"
 import ListOfProjects from "./ListOfProjects"
@@ -178,7 +177,7 @@ const ListOfOrgs = ({
                 label: (
                     <div className="flex items-center gap-2 justify-between w-full">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <Avatar size="small" name={organization.name} />
+                            <InitialsAvatar size="small" name={organization.name} />
                             <span className="truncate">{organization.name}</span>
                             {isDemo && <Tag className="bg-[#0517290F] m-0">demo</Tag>}
                         </div>
@@ -323,7 +322,7 @@ const ListOfOrgs = ({
             {...sharedButtonProps.rest}
         >
             <div className="flex items-center gap-2">
-                <Avatar size="small" name={label || placeholder} />
+                <InitialsAvatar size="small" name={label || placeholder} />
                 {!collapsed && (
                     <span className="max-w-[150px] truncate" title={label || placeholder}>
                         {label || placeholder}
@@ -811,7 +810,10 @@ const ListOfOrgs = ({
                                             !isLast && "border-b border-gray-100",
                                         )}
                                     >
-                                        <Avatar size="small" name={option.data.displayName} />
+                                        <InitialsAvatar
+                                            size="small"
+                                            name={option.data.displayName}
+                                        />
                                         <span className="truncate font-normal">
                                             {option.data.displayName}
                                         </span>

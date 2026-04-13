@@ -1,8 +1,8 @@
+import {resolveOutputSchema, resolveOutputSchemaProperties} from "@agenta/entities/workflow"
+import {uuidToSpanId} from "@agenta/shared/utils"
 import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-
-import {uuidToSpanId} from "@/oss/lib/traces/helpers"
 
 import type {
     AnnotationDto,
@@ -57,7 +57,7 @@ export const currentScenarioIdAtom = atom<string>("")
 function getMetricFieldsFromEvaluator(
     evaluator: EvaluatorDto,
 ): Record<string, AnnotationMetricField> {
-    const schema = evaluator.data?.service?.format?.properties?.outputs?.properties ?? {}
+    const schema = resolveOutputSchemaProperties(evaluator.data) ?? {}
     const fields: Record<string, AnnotationMetricField> = {}
 
     for (const [key, rawProp] of Object.entries(schema)) {
@@ -98,7 +98,7 @@ function getMetricsFromAnnotation(
     annotation: AnnotationDto,
     evaluator: EvaluatorDto,
 ): Record<string, AnnotationMetricField> {
-    const schema = evaluator.data?.service?.format?.properties?.outputs?.properties ?? {}
+    const schema = resolveOutputSchemaProperties(evaluator.data) ?? {}
     const rawOutputs = (annotation.data?.outputs as Record<string, unknown>) ?? {}
     // Outputs can be nested under metrics/notes/extra or directly at the top level
     const outputs = {
@@ -322,8 +322,8 @@ export const allRequiredFieldsFilledAtom = atom((get) => {
         if (!slug) continue
 
         // Get required fields from evaluator schema
-        const requiredKeys: string[] =
-            evaluator.data?.service?.format?.properties?.outputs?.required ?? []
+        const requiredKeys =
+            (resolveOutputSchema(evaluator.data)?.required as string[] | undefined) ?? []
 
         if (requiredKeys.length === 0) {
             // No required fields for this evaluator, skip

@@ -73,7 +73,13 @@ from oss.src.core.evaluators.dtos import (
     EvaluatorRevision,
 )
 
-from oss.src.core.evaluations.utils import fetch_trace
+from oss.src.core.evaluations.utils import (
+    build_repeat_indices,
+    fetch_trace,
+    fetch_traces_by_hash,
+    make_hash,
+    select_traces_for_reuse,
+)
 
 
 log = get_module_logger(__name__)
@@ -215,6 +221,9 @@ async def evaluate_live_query(
             raise ValueError(f"Evaluation run with id {run_id} has no steps!")
 
         steps = run.data.steps
+        repeats = run.data.repeats or 1
+        repeat_indices = build_repeat_indices(repeats)
+        is_cached = bool(getattr(run.flags, "is_cached", False))
 
         input_steps = {
             step.key: step
@@ -454,7 +463,7 @@ async def evaluate_live_query(
                     run_id=run_id,
                     scenario_id=scenario_id,
                     step_key=query_step_key,
-                    repeat_idx=0,
+                    repeat_idx=repeat_idx,
                     timestamp=timestamp,
                     interval=interval,
                     #
@@ -463,6 +472,7 @@ async def evaluate_live_query(
                     trace_id=query_trace_id,
                 )
                 for scenario_id, query_trace_id in zip(scenario_ids, query_trace_ids)
+                for repeat_idx in repeat_indices
             ]
 
             results = await evaluations_service.create_results(
@@ -472,7 +482,7 @@ async def evaluate_live_query(
                 results=results_create,
             )
 
-            if len(results) != nof_traces:
+            if len(results) != nof_traces * len(repeat_indices):
                 raise ValueError(
                     f"Failed to create evaluation results for run {run_id}!"
                 )
@@ -523,7 +533,6 @@ async def evaluate_live_query(
                 for jdx in range(nof_annotations):
                     annotation_step_key = annotation_steps_keys[jdx]
 
-                    step_has_errors = 0
                     step_status = EvaluationStatus.SUCCESS
 
                     references: Dict[str, Any] = {
@@ -543,7 +552,6 @@ async def evaluate_live_query(
                         log.error(
                             f"Evaluator revision for {annotation_step_key} not found!"
                         )
-                        step_has_errors += 1
                         scenario_has_errors[idx] += 1
                         # run_has_errors += 1
                         step_status = EvaluationStatus.FAILURE
@@ -639,111 +647,134 @@ async def evaluate_live_query(
                         references=references,
                         links=links,
                     )
+                    hash_id = make_hash(references=references, links=links)
+                    cached_traces = []
+                    if is_cached and hash_id:
+                        cached_traces = await fetch_traces_by_hash(
+                            tracing_service,
+                            project_id,
+                            hash_id=hash_id,
+                            limit=len(repeat_indices),
+                        )
 
-                    log.info(
-                        "Invoking evaluator...  ",
-                        scenario_id=scenario.id,
-                        trace_id=query_trace_id,
-                        uri=interface.get("uri"),
+                    reusable_traces = select_traces_for_reuse(
+                        traces=cached_traces,
+                        required_count=len(repeat_indices),
                     )
-                    workflows_service_response = (
-                        await workflows_service.invoke_workflow(
-                            project_id=project_id,
-                            user_id=user_id,
-                            #
-                            request=workflow_service_request,
-                            #
-                            annotate=True,
-                        )
-                    )
-                    log.info(
-                        "Invoked evaluator      ",
-                        scenario_id=scenario.id,
-                        trace_id=workflows_service_response.trace_id,
-                    )
-
-                    trace_id = workflows_service_response.trace_id
-
-                    error = None
-                    has_error = workflows_service_response.status.code != 200
-
-                    # if error in evaluator, no annotation, only step ----------
-                    if has_error:
-                        log.warn(
-                            f"There is an error in evaluator {evaluator_step_key} for query {query_trace_id}."
-                        )
-
-                        step_has_errors += 1
-                        step_status = EvaluationStatus.FAILURE
-                        scenario_has_errors[idx] += 1
-                        scenario_status[idx] = EvaluationStatus.ERRORS
-
-                        error = workflows_service_response.status.model_dump(
-                            mode="json",
-                            exclude_none=True,
-                        )
-                    # ----------------------------------------------------------
-
-                    # else, first annotation, then step ------------------------
-                    else:
-                        outputs = (
-                            workflows_service_response.data.outputs
-                            if workflows_service_response.data
-                            else None
-                        )
-
-                        annotation = workflows_service_response
-
-                        trace_id = annotation.trace_id
-
-                        if not annotation.trace_id:
-                            log.warn("annotation trace_id is missing.")
-                            scenario_has_errors[idx] += 1
-                            scenario_status[idx] = EvaluationStatus.ERRORS
-                            continue
-
-                        trace = None
-                        if annotation.trace_id:
-                            trace = await fetch_trace(
-                                tracing_service=tracing_service,
-                                project_id=project_id,
-                                trace_id=annotation.trace_id,
-                            )
-
-                        if trace:
-                            log.info(
-                                "Trace found  ",
-                                scenario_id=scenario.id,
-                                step_key=annotation_step_key,
-                                trace_id=annotation.trace_id,
-                            )
-                        else:
-                            log.warn(
-                                "Trace missing",
-                                scenario_id=scenario.id,
-                                step_key=annotation_step_key,
-                                trace_id=annotation.trace_id,
-                            )
-                            scenario_has_errors[idx] += 1
-                            scenario_status[idx] = EvaluationStatus.ERRORS
-                            continue
-                    # ----------------------------------------------------------
-
                     results_create = [
                         EvaluationResultCreate(
                             run_id=run_id,
                             scenario_id=scenario_id,
                             step_key=annotation_step_key,
+                            repeat_idx=repeat_idx,
                             #
                             timestamp=timestamp,
                             interval=interval,
                             #
-                            status=step_status,
+                            status=EvaluationStatus.SUCCESS,
                             #
-                            trace_id=trace_id,
-                            error=error,
+                            trace_id=str(reusable_trace.trace_id),
                         )
+                        for repeat_idx, reusable_trace in zip(
+                            repeat_indices,
+                            reusable_traces,
+                        )
+                        if reusable_trace and reusable_trace.trace_id
                     ]
+
+                    for repeat_idx in repeat_indices[len(reusable_traces) :]:
+                        log.info(
+                            "Invoking evaluator...  ",
+                            scenario_id=scenario.id,
+                            repeat_idx=repeat_idx,
+                            trace_id=query_trace_id,
+                            uri=interface.get("uri"),
+                        )
+                        workflows_service_response = (
+                            await workflows_service.invoke_workflow(
+                                project_id=project_id,
+                                user_id=user_id,
+                                #
+                                request=workflow_service_request,
+                                #
+                                annotate=True,
+                            )
+                        )
+                        log.info(
+                            "Invoked evaluator      ",
+                            scenario_id=scenario.id,
+                            repeat_idx=repeat_idx,
+                            trace_id=workflows_service_response.trace_id,
+                        )
+
+                        trace_id = workflows_service_response.trace_id
+                        error = None
+                        step_status = EvaluationStatus.SUCCESS
+                        has_error = workflows_service_response.status.code != 200
+
+                        if has_error:
+                            log.warn(
+                                "There is an error in evaluator %s for query %s.",
+                                annotation_step_key,
+                                query_trace_id,
+                            )
+                            step_status = EvaluationStatus.FAILURE
+                            scenario_has_errors[idx] += 1
+                            scenario_status[idx] = EvaluationStatus.ERRORS
+                            error = workflows_service_response.status.model_dump(
+                                mode="json",
+                                exclude_none=True,
+                            )
+                        else:
+                            annotation = workflows_service_response
+                            trace_id = annotation.trace_id
+
+                            if not annotation.trace_id:
+                                log.warn("annotation trace_id is missing.")
+                                scenario_has_errors[idx] += 1
+                                scenario_status[idx] = EvaluationStatus.ERRORS
+                                continue
+
+                            fetched_trace = await fetch_trace(
+                                tracing_service=tracing_service,
+                                project_id=project_id,
+                                trace_id=annotation.trace_id,
+                            )
+
+                            if fetched_trace:
+                                log.info(
+                                    "Trace found  ",
+                                    scenario_id=scenario.id,
+                                    step_key=annotation_step_key,
+                                    trace_id=annotation.trace_id,
+                                )
+                            else:
+                                log.warn(
+                                    "Trace missing",
+                                    scenario_id=scenario.id,
+                                    step_key=annotation_step_key,
+                                    trace_id=annotation.trace_id,
+                                )
+                                scenario_has_errors[idx] += 1
+                                scenario_status[idx] = EvaluationStatus.ERRORS
+                                continue
+
+                        results_create.append(
+                            EvaluationResultCreate(
+                                run_id=run_id,
+                                scenario_id=scenario_id,
+                                step_key=annotation_step_key,
+                                repeat_idx=repeat_idx,
+                                #
+                                timestamp=timestamp,
+                                interval=interval,
+                                #
+                                status=step_status,
+                                #
+                                trace_id=trace_id,
+                                error=error,
+                            )
+                        )
 
                     results = await evaluations_service.create_results(
                         project_id=project_id,
@@ -752,9 +783,9 @@ async def evaluate_live_query(
                         results=results_create,
                     )
 
-                    if len(results) != 1:
+                    if len(results) != len(repeat_indices):
                         raise ValueError(
-                            f"Failed to create evaluation result for scenario with id {scenario.id}!"
+                            f"Failed to create evaluation results for scenario with id {scenario.id}!"
                         )
                     scenario_results_created = True
                     any_results_created = True

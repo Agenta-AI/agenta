@@ -312,7 +312,7 @@ export function LoadModeContent({
                     })}
                 />
 
-                <Divider type="vertical" className="my-0 mx-8 h-auto self-stretch" />
+                <Divider orientation="vertical" className="my-0 mx-8 h-auto self-stretch" />
 
                 {/* Right panel - custom or default */}
                 {renderPreviewPanel ? (

@@ -143,6 +143,7 @@ export function TestcaseModals(props: TestcaseModalsProps) {
                     setNewColumnName("")
                 }}
                 okText="Add"
+                centered
                 okButtonProps={{
                     disabled: !newColumnName.trim(),
                 }}

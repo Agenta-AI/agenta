@@ -1,54 +1,59 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {archiveWorkflow, invalidateWorkflowsListCache} from "@agenta/entities/workflow"
 import {PageLayout} from "@agenta/ui"
+import type {
+    InfiniteVirtualTableRowSelection,
+    TableFeaturePagination,
+    TableScopeConfig,
+} from "@agenta/ui/table"
 import {message} from "antd"
+import type {TableProps} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
-import useSWR from "swr"
 
-import {TableFeaturePagination, TableScopeConfig} from "@/oss/components/InfiniteVirtualTable"
-import {getTemplateKey, timeout} from "@/oss/components/pages/app-management/assets/helpers"
+import {timeout} from "@/oss/components/pages/app-management/assets/helpers"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import DeleteAppModal from "@/oss/components/pages/app-management/modals/DeleteAppModal"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
-// TEMPORARY: Disabling name editing
-// import EditAppModal from "@/oss/components/pages/app-management/modals/EditAppModal"
-// TEMPORARY: Disabling name editing
-// import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import useURL from "@/oss/hooks/useURL"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
-import {ListAppsItem, Template} from "@/oss/lib/Types"
 import {waitForAppToStart} from "@/oss/services/api"
-import {
-    ServiceType,
-    createAndStartTemplate,
-    deleteApp,
-    updateAppFolder,
-} from "@/oss/services/app-selector/api"
-import {createFolder, deleteFolder, editFolder, queryFolders} from "@/oss/services/folders"
+import {createAppWithTemplate, updateAppFolder} from "@/oss/services/app-selector/api"
+import {createFolder, deleteFolder, editFolder} from "@/oss/services/folders"
 import {Folder, FolderKind} from "@/oss/services/folders/types"
-import {useTemplates, useAppsData} from "@/oss/state/app"
 import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreation/status"
 import {useProfileData} from "@/oss/state/profile"
+import {getProjectValues} from "@/oss/state/project"
 import {useProjectData} from "@/oss/state/project"
 
-import {getAppTypeIcon} from "./assets/iconHelpers"
-import {FolderTreeItem, slugify} from "./assets/utils"
+import {type FolderTreeItem, slugify} from "./assets/utils"
 import PromptsBreadcrumb from "./components/PromptsBreadcrumb"
 import {PromptsTableSection} from "./components/PromptsTableSection"
-import {usePromptsColumns} from "./hooks/usePromptsColumns"
+import {createPromptsColumns, type PromptsColumnActions} from "./hooks/usePromptsColumns"
 import {usePromptsFolderTree} from "./hooks/usePromptsFolderTree"
 import {usePromptsSelection} from "./hooks/usePromptsSelection"
 import DeleteFolderModal from "./modals/DeleteFolderModal"
 import MoveFolderModal from "./modals/MoveFolderModal"
 import NewFolderModal, {FolderModalState} from "./modals/NewFolderModal"
-import {promptsDatasetStore, promptsTableMetaAtom} from "./store"
-import {PromptsTableRow} from "./types"
+import {
+    foldersAtom,
+    foldersLoadingAtom,
+    refetchFoldersAtom,
+    allFoldersAtom,
+    refetchAllFoldersAtom,
+    workflowsAtom,
+    workflowsLoadingAtom,
+    refetchWorkflowsAtom,
+    promptsSearchTermAtom,
+    currentFolderIdAtom,
+} from "./store"
+import type {PromptsTableRow} from "./types"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
@@ -72,19 +77,32 @@ const PromptsPage = () => {
     const router = useRouter()
     const {baseAppURL} = useURL()
     const {user} = useProfileData()
-    const {apps, mutate: mutateApps, isLoading: isLoadingApps} = useAppsData()
-    const [{data: templates = [], isLoading: fetchingTemplate}, noTemplateMessage] = useTemplates()
     const statusData = useAtomValue(appCreationStatusAtom)
     const setStatusData = useSetAtom(appCreationStatusAtom)
     const resetAppCreation = useSetAtom(resetAppCreationAtom)
+
+    // Entity-based data (scoped to current folder, or all when searching)
+    const folders = useAtomValue(foldersAtom)
+    const isLoadingFolders = useAtomValue(foldersLoadingAtom)
+    const refetchFolders = useSetAtom(refetchFoldersAtom)
+    const allFolders = useAtomValue(allFoldersAtom)
+    const refetchAllFolders = useSetAtom(refetchAllFoldersAtom)
+    const workflows = useAtomValue(workflowsAtom)
+    const isLoadingWorkflows = useAtomValue(workflowsLoadingAtom)
+    const refetchWorkflows = useSetAtom(refetchWorkflowsAtom)
+    const searchTerm = useAtomValue(promptsSearchTermAtom)
+    const setSearchTerm = useSetAtom(promptsSearchTermAtom)
+    const currentFolderId = useAtomValue(currentFolderIdAtom)
+    const setCurrentFolderIdState = useSetAtom(currentFolderIdAtom)
+
     const [moveModalOpen, setMoveModalOpen] = useState(false)
     const [statusModalOpen, setStatusModalOpen] = useState(false)
     const [isAddAppFromTemplatedModal, setIsAddAppFromTemplatedModal] = useState(false)
     const [deleteModalOpen, setDeleteModalOpen] = useState(false)
     const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null)
     const [moveSelection, setMoveSelection] = useState<string | null>(null)
-    const [templateKey, setTemplateKey] = useState<ServiceType | undefined>(undefined)
-    const [newApp, setNewApp] = useState("")
+    const [templateKey, setTemplateKey] = useState<string | undefined>(undefined)
+    const [appName, setAppName] = useState("")
     const [fetchingCustomWorkflow, setFetchingCustomWorkflow] = useState(false)
     const [moveEntity, setMoveEntity] = useState<{
         type: "folder" | "app"
@@ -102,29 +120,16 @@ const PromptsPage = () => {
     const [isMovingItem, setIsMovingItem] = useState(false)
     const [isDeletingFolder, setIsDeletingFolder] = useState(false)
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
-    // TEMPORARY: Disabling name editing
-    // const openEditAppModal = useSetAtom(openEditAppModalAtom)
-    const setPromptsTableMeta = useSetAtom(promptsTableMetaAtom)
+
+    // Refetch both scoped folders and all folders together
+    const refetchAllFolderData = useCallback(() => {
+        refetchFolders()
+        refetchAllFolders()
+    }, [refetchFolders, refetchAllFolders])
 
     useBreadcrumbsEffect({breadcrumbs: {prompts: {label: "prompts"}}}, [])
 
     const {
-        data: foldersData,
-        isLoading: isLoadingFolders,
-        mutate,
-    } = useSWR(
-        projectId ? ["folders", projectId] : null,
-        () => queryFolders({folder: {}}, projectId),
-        {
-            revalidateOnFocus: false,
-        },
-    )
-
-    const {
-        currentFolderId,
-        setCurrentFolderId: setCurrentFolderIdState,
-        searchTerm,
-        setSearchTerm,
         foldersById,
         treeData,
         moveDestinationName: getMoveDestinationName,
@@ -135,11 +140,20 @@ const PromptsPage = () => {
         flattenedTableRows,
         getRowKey,
     } = usePromptsFolderTree({
-        foldersData,
-        apps,
+        folders,
+        workflows,
+        allFolders,
         isLoadingFolders,
-        isLoadingApps,
+        isLoadingWorkflows,
+        searchTerm,
     })
+
+    const handleSearchChange = useCallback(
+        (value: string) => {
+            setSearchTerm(value)
+        },
+        [setSearchTerm],
+    )
 
     const updateFolderInUrl = useCallback(
         (folderId: string | null) => {
@@ -177,14 +191,20 @@ const PromptsPage = () => {
         const folderId = (Array.isArray(folderIdParam) ? folderIdParam[0] : folderIdParam) ?? null
 
         if (!folderId) {
-            setCurrentFolderIdState((prev) => (prev !== null ? null : prev))
+            if (currentFolderId !== null) setCurrentFolderIdState(null)
             return
         }
 
         if (!foldersById[folderId]) return
 
-        setCurrentFolderIdState((prev) => (prev === folderId ? prev : folderId))
-    }, [foldersById, router.isReady, router.query.folderId, setCurrentFolderIdState])
+        if (currentFolderId !== folderId) setCurrentFolderIdState(folderId)
+    }, [
+        currentFolderId,
+        foldersById,
+        router.isReady,
+        router.query.folderId,
+        setCurrentFolderIdState,
+    ])
 
     useEffect(() => {
         if (!router.isReady || isLoadingFolders) return
@@ -202,22 +222,13 @@ const PromptsPage = () => {
         setFetchingTemplate: setFetchingCustomWorkflow,
         appId: "",
         folderId: currentFolderId,
-        afterConfigSave: async () => mutateApps(),
+        afterConfigSave: async () => refetchWorkflows(),
     })
 
     const {setSelectedRowKeys, selectedRow, setSelectedRow, rowSelection} = usePromptsSelection({
         flattenedTableRows,
         getRowKey,
     })
-
-    const appNameExist = useMemo(
-        () => apps.some((app: any) => (app.app_name || "").toLowerCase() === newApp.toLowerCase()),
-        [apps, newApp],
-    )
-
-    useEffect(() => {
-        setPromptsTableMeta({projectId})
-    }, [projectId, setPromptsTableMeta])
 
     const moveDestinationName = useMemo(
         () => getMoveDestinationName(moveSelection),
@@ -241,15 +252,13 @@ const PromptsPage = () => {
         return isSameFolder || isSameDestination
     }, [moveEntity, moveSelection])
 
-    const rowKeyExtractor = useCallback((record: PromptsTableRow) => record.key, [])
-
     const handleRowClick = (record: FolderTreeItem) => {
         if (record.type === "folder") {
             setCurrentFolder(record.id as string | null)
             return
         }
 
-        handleOpenAppOverview(record.app_id)
+        handleOpenAppOverview(record.workflowId)
     }
 
     const handleBreadcrumbFolderChange = (folderId: string | null) => {
@@ -286,7 +295,7 @@ const PromptsPage = () => {
         if (newFolderState.mode === "rename" && newFolderState.folderId) {
             const folder = foldersById[newFolderState.folderId]
             if (folder) {
-                return ((folder as any).parent_id as string | null) ?? null
+                return folder.parent_id ?? null
             }
         }
 
@@ -303,14 +312,12 @@ const PromptsPage = () => {
     const newFolderPath = useMemo(() => {
         const segments: string[] = []
 
-        // build path from current folder upwards
         let currentId = parentFolderIdForModal
         while (currentId) {
             const folder = foldersById[currentId]
             if (!folder) break
             segments.push(slugify(folder.name || ""))
-            // assume backend provides parent_id on the folder
-            currentId = (folder as any).parent_id ?? null
+            currentId = folder.parent_id ?? null
         }
 
         segments.reverse()
@@ -357,7 +364,7 @@ const PromptsPage = () => {
                 message.success("Folder created")
             }
 
-            await mutate()
+            refetchAllFolderData()
             resetFolderModalState()
         } catch (error) {
             const apiMessage = (error as any)?.response?.data?.detail
@@ -367,22 +374,24 @@ const PromptsPage = () => {
         }
     }
 
-    const handleTemplateCardClick = async (template_id: string) => {
+    const handleTemplateCardClick = async (templateId: string, submittedAppName: string) => {
+        setAppName(submittedAppName)
+        setTemplateKey(templateId)
         setIsAddAppFromTemplatedModal(false)
         setStatusModalOpen(true)
         resetAppCreation()
 
         const apiKeys = secrets
 
-        await createAndStartTemplate({
-            appName: newApp,
-            templateKey: template_id as ServiceType,
+        await createAppWithTemplate({
+            appName: submittedAppName,
+            templateKey: templateId,
             folderId: currentFolderId ?? null,
             providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
             onStatusChange: async (status, details, appId) => {
                 if (["error", "bad_request", "timeout", "success"].includes(status))
                     if (status === "success") {
-                        await mutateApps()
+                        refetchWorkflows()
                         posthog?.capture?.("app_deployment", {
                             properties: {
                                 app_id: appId,
@@ -400,17 +409,19 @@ const PromptsPage = () => {
     const onErrorRetry = async () => {
         if (statusData.appId) {
             setStatusData((prev) => ({...prev, status: "cleanup", details: undefined}))
-            await deleteApp(statusData.appId).catch(console.error)
-            mutateApps()
+            const {projectId} = getProjectValues()
+            await archiveWorkflow(projectId, statusData.appId).catch(console.error)
+            invalidateWorkflowsListCache()
+            refetchWorkflows()
         }
         if (templateKey) {
-            await handleTemplateCardClick(templateKey as string)
+            await handleTemplateCardClick(templateKey, appName)
         }
     }
 
     const onTimeoutRetry = async () => {
         if (!statusData.appId) return
-        setStatusData((prev) => ({...prev, status: "starting_app", details: undefined}))
+        setStatusData((prev) => ({...prev, status: "configuring_app", details: undefined}))
         try {
             await waitForAppToStart({appId: statusData.appId, timeout})
         } catch (error: any) {
@@ -421,7 +432,7 @@ const PromptsPage = () => {
             }
         }
         setStatusData((prev) => ({...prev, status: "success", details: undefined}))
-        mutateApps()
+        refetchWorkflows()
     }
 
     const handleOpenNewPromptModal = () => {
@@ -432,22 +443,20 @@ const PromptsPage = () => {
         openCustomWorkflowModal()
     }
 
-    const handleOpenAppOverview = (appId: string) => {
-        router.push(`${baseAppURL}/${appId}/overview`)
+    const handleOpenAppOverview = (workflowId: string) => {
+        router.push(`${baseAppURL}/${workflowId}/overview`)
     }
 
     const handleOpenMoveModal = (item: FolderTreeItem) => {
         if (!item) return
 
         const isFolder = item.type === "folder"
-        const parentId = isFolder
-            ? (((item as any).parent_id as string | null) ?? null)
-            : (item.folder_id ?? null)
+        const parentId = isFolder ? (item.parent_id ?? null) : (item.folderId ?? null)
 
         setMoveEntity({
             type: item.type,
-            id: isFolder ? (item.id as string) : item.app_id,
-            name: isFolder ? item.name : item.app_name,
+            id: isFolder ? (item.id as string) : item.workflowId,
+            name: item.name,
             currentParentId: parentId,
         })
         setMoveSelection(isFolder ? ((item.id as string) ?? null) : parentId)
@@ -518,11 +527,11 @@ const PromptsPage = () => {
                     name,
                     slug,
                     kind,
-                    parent_id: destinationId, // new parent
+                    parent_id: destinationId,
                 },
             })
 
-            await mutate()
+            refetchAllFolderData()
             onSuccess?.()
             message.success("Folder moved")
             return true
@@ -536,12 +545,12 @@ const PromptsPage = () => {
     }
 
     const moveApp = async (
-        appId: string | null,
+        workflowId: string | null,
         destinationId: string | null,
         currentFolderId: string | null,
         onSuccess?: () => void,
     ) => {
-        if (!appId) return false
+        if (!workflowId) return false
         if (!destinationId) {
             message.warning("Select a destination folder")
             return false
@@ -554,8 +563,8 @@ const PromptsPage = () => {
 
         setIsMovingItem(true)
         try {
-            await updateAppFolder(appId, destinationId)
-            await mutateApps()
+            await updateAppFolder(workflowId, destinationId)
+            refetchWorkflows()
             onSuccess?.()
             message.success("App moved")
             return true
@@ -591,63 +600,18 @@ const PromptsPage = () => {
 
         if (draggingItem.type === "folder") {
             const folderToMove = foldersById[draggingItem.id]
-            await moveFolder(
-                draggingItem.id,
-                destinationId,
-                (folderToMove as any)?.parent_id ?? null,
-            )
+            await moveFolder(draggingItem.id, destinationId, folderToMove?.parent_id ?? null)
         } else {
-            const appToMove = apps.find((app: ListAppsItem) => app.app_id === draggingItem.id) as
-                | ListAppsItem
-                | undefined
-
-            if (!appToMove) return
-
-            await moveApp(appToMove.app_id, destinationId, appToMove.folder_id ?? null)
+            const workflow = workflows.find((w) => w.workflowId === draggingItem.id)
+            if (!workflow) return
+            await moveApp(workflow.workflowId, destinationId, workflow.folderId ?? null)
         }
 
         setDraggingItem(null)
     }
 
-    const folderHasApps = useCallback(
-        (folderId: string | null) => {
-            if (!folderId) return false
-
-            const folder = foldersById[folderId]
-
-            if (!folder) return false
-
-            const stack = [...(folder.children ?? [])]
-
-            while (stack.length) {
-                const node = stack.pop()
-
-                if (!node) continue
-
-                if (node.type === "app") {
-                    return true
-                }
-
-                if (node.type === "folder") {
-                    stack.push(...(node.children ?? []))
-                }
-            }
-
-            return false
-        },
-        [foldersById],
-    )
-
     const handleOpenDeleteModal = (folderId: string | null) => {
         if (!folderId) return
-
-        if (folderHasApps(folderId)) {
-            message.warning(
-                "Unable to delete folder. Please remove all prompts from this folder and subfolders",
-            )
-            return
-        }
-
         setDeleteFolderId(folderId)
         setDeleteModalOpen(true)
     }
@@ -666,7 +630,7 @@ const PromptsPage = () => {
             const parentId = folder?.parent_id ?? null
 
             await deleteFolder(deleteFolderId)
-            await mutate()
+            refetchAllFolderData()
 
             if (currentFolderId === deleteFolderId) {
                 setCurrentFolder(parentId)
@@ -692,7 +656,10 @@ const PromptsPage = () => {
             return
         }
 
-        openDeleteAppModal(selectedRow as ListAppsItem)
+        openDeleteAppModal({
+            id: selectedRow.workflowId,
+            name: selectedRow.name,
+        })
     }
 
     const tableScope = useMemo<TableScopeConfig>(
@@ -722,14 +689,8 @@ const PromptsPage = () => {
         [searchExpandedRowKeys, searchTerm],
     )
 
-    const tableInstanceKey = useMemo(
-        () => (searchTerm ? `search-${searchTerm}` : `folder-${currentFolderId ?? "root"}`),
-        [currentFolderId, searchTerm],
-    )
-
-    const tableProps = useMemo(
+    const tableProps = useMemo<TableProps<PromptsTableRow>>(
         () => ({
-            key: tableInstanceKey,
             bordered: true,
             size: "small" as const,
             virtual: true,
@@ -745,7 +706,7 @@ const PromptsPage = () => {
                     event.stopPropagation()
                     setDraggingItem({
                         type: record.type,
-                        id: record.type === "folder" ? (record.id as string) : record.app_id,
+                        id: record.type === "folder" ? (record.id as string) : record.workflowId,
                     })
                 },
                 onDragEnd: () => setDraggingItem(null),
@@ -765,22 +726,34 @@ const PromptsPage = () => {
                         : undefined,
             }),
         }),
-        [handleDropOnFolder, handleRowClick, tableExpandableConfig, tableInstanceKey],
+        [handleDropOnFolder, handleRowClick, tableExpandableConfig],
     )
 
-    const renderAppTypeIcon = useCallback((appType?: string) => getAppTypeIcon(appType), [])
+    const columnActions = useMemo<PromptsColumnActions>(
+        () => ({
+            onFolderClick: handleRowClick,
+            onRenameFolder: handleOpenRenameModal,
+            onDeleteFolder: handleOpenDeleteModal,
+            onMoveItem: handleOpenMoveModal,
+            onOpenAppOverview: handleOpenAppOverview,
+            onDeleteApp: (record) => {
+                openDeleteAppModal({
+                    id: record.workflowId,
+                    name: record.name,
+                })
+            },
+        }),
+        [
+            handleRowClick,
+            handleOpenRenameModal,
+            handleOpenDeleteModal,
+            handleOpenMoveModal,
+            handleOpenAppOverview,
+            openDeleteAppModal,
+        ],
+    )
 
-    const columns = usePromptsColumns({
-        onFolderClick: handleRowClick,
-        onRenameFolder: handleOpenRenameModal,
-        onDeleteFolder: handleOpenDeleteModal,
-        onMoveItem: handleOpenMoveModal,
-        onOpenAppOverview: handleOpenAppOverview,
-        // TEMPORARY: Disabling name editing
-        // onOpenEditAppModal: openEditAppModal,
-        onOpenDeleteAppModal: openDeleteAppModal,
-        getAppTypeIcon: renderAppTypeIcon,
-    })
+    const columns = useMemo(() => createPromptsColumns(columnActions), [columnActions])
 
     return (
         <PageLayout className="grow min-h-0" title="Prompts">
@@ -798,15 +771,13 @@ const PromptsPage = () => {
 
             <PromptsTableSection
                 columns={columns}
-                datasetStore={promptsDatasetStore}
                 tableRows={tableRows}
-                rowKeyExtractor={rowKeyExtractor}
                 tableScope={tableScope}
                 tablePagination={tablePagination}
-                rowSelection={rowSelection}
+                rowSelection={rowSelection as InfiniteVirtualTableRowSelection<PromptsTableRow>}
                 tableProps={tableProps}
                 searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
+                onSearchChange={handleSearchChange}
                 selectedRow={selectedRow}
                 onDeleteSelected={handleDeleteSelected}
                 onOpenNewPrompt={handleOpenNewPromptModal}
@@ -851,30 +822,12 @@ const PromptsPage = () => {
             <AddAppFromTemplatedModal
                 open={isAddAppFromTemplatedModal}
                 onCancel={() => setIsAddAppFromTemplatedModal(false)}
-                newApp={newApp}
-                templates={templates}
-                noTemplateMessage={noTemplateMessage}
-                templateKey={templateKey as ServiceType}
-                appNameExist={appNameExist}
-                setNewApp={setNewApp}
-                onCardClick={(template: Template) => {
-                    const selectedTemplateKey = getTemplateKey(template)
-
-                    if (selectedTemplateKey) {
-                        setTemplateKey(selectedTemplateKey)
-                    }
-                }}
                 handleTemplateCardClick={handleTemplateCardClick}
-                fetchingTemplate={!!fetchingTemplate}
-                afterClose={() => {
-                    setTemplateKey(undefined)
-                    setNewApp("")
-                }}
             />
 
             <CreateAppStatusModal
                 open={statusModalOpen}
-                loading={fetchingTemplate || fetchingCustomWorkflow}
+                loading={fetchingCustomWorkflow}
                 onErrorRetry={onErrorRetry}
                 onTimeoutRetry={onTimeoutRetry}
                 onCancel={() => {
@@ -882,12 +835,10 @@ const PromptsPage = () => {
                     resetAppCreation()
                 }}
                 statusData={statusData}
-                appName={newApp}
+                appName={appName}
             />
 
             <DeleteAppModal />
-            {/* TEMPORARY: Disabling name editing */}
-            {/* <EditAppModal /> */}
         </PageLayout>
     )
 }

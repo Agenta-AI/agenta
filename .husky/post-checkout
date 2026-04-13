@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+
+# Runs after `git checkout` / `git switch`.
+# $1 = previous HEAD, $2 = new HEAD, $3 = 1 if branch checkout (0 if file checkout)
+
+PREV_HEAD=$1
+NEW_HEAD=$2
+IS_BRANCH=$3
+
+# Only act on branch checkouts, not file checkouts
+[ "$IS_BRANCH" != "1" ] && exit 0
+
+# Check if the web lockfile changed between the two HEADs
+if ! git diff --quiet "$PREV_HEAD" "$NEW_HEAD" -- web/pnpm-lock.yaml 2>/dev/null; then
+  echo ""
+  echo ">> pnpm-lock.yaml changed — running pnpm install in web/..."
+  echo ""
+  (cd web && pnpm install)
+fi

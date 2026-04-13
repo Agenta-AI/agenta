@@ -1,8 +1,7 @@
 import {memo, type ReactNode} from "react"
 
+import {CopyButton} from "@agenta/ui"
 import {Popover} from "antd"
-
-import CopyButton from "@/oss/components/CopyButton/CopyButton"
 
 interface CellContentPopoverProps {
     children: ReactNode

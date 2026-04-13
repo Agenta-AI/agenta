@@ -53,7 +53,7 @@ const RunEvaluationButton: React.FC<RunEvaluationButtonProps> = ({className}) =>
                 evaluationType="auto"
                 preview={false}
                 preSelectedVariantIds={displayedEntities}
-                preSelectedAppId={currentApp?.app_id}
+                preSelectedAppId={currentApp?.id}
             />
         </>
     )

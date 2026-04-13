@@ -21,11 +21,6 @@
  *     currentUserAtom: userAtom,
  *   },
  *   // Only evaluator needs runtime config (no evaluator relations yet)
- *   evaluatorRevision: {
- *     evaluatorsAtom: evaluatorRevision.selectors.evaluators,
- *     variantsByEvaluatorFamily: evaluatorRevision.selectors.variantsByEvaluator,
- *     revisionsByVariantFamily: evaluatorRevision.selectors.revisions,
- *   },
  * })
  * ```
  */
@@ -36,17 +31,8 @@ import type {Atom} from "jotai"
 import {registerSelectionAdapter} from "./adapters"
 // 1-level evaluator adapter (flat list, runtime configuration)
 import {evaluatorAdapter, setEvaluatorAtoms} from "./adapters/evaluatorAdapter"
-// 3-level evaluator revision adapter (legacy runtime configuration)
-import {
-    evaluatorRevisionAdapter,
-    setEvaluatorRevisionAtoms,
-} from "./adapters/evaluatorRevisionAdapter"
-// 2-level evaluator revision adapter (relation-based, auto-configured)
-import {evaluatorRevisionRelationAdapter} from "./adapters/evaluatorRevisionRelationAdapter"
-import {legacyAppRevisionAdapter} from "./adapters/legacyAppRevisionRelationAdapter"
-// 1-level legacy evaluator adapter (flat list, SimpleEvaluator facade API)
-import {legacyEvaluatorAdapter, setLegacyEvaluatorAtoms} from "./adapters/legacyEvaluatorAdapter"
 import {testsetAdapter} from "./adapters/testsetRelationAdapter"
+import {workflowRevisionAdapter} from "./adapters/workflowRevisionRelationAdapter"
 
 // ============================================================================
 // TYPES
@@ -69,45 +55,6 @@ export interface EvaluatorSelectionConfig {
 }
 
 /**
- * Configuration for legacy evaluator selection adapter (1-level flat list)
- *
- * Uses the SimpleEvaluator facade API (`/preview/simple/evaluators/`).
- */
-export interface LegacyEvaluatorSelectionConfig {
-    /**
-     * Atom that provides the list of legacy evaluators.
-     */
-    evaluatorsAtom: Atom<unknown[]>
-
-    /**
-     * Optional query atom for reflecting loading/error state.
-     */
-    evaluatorsQueryAtom?: Atom<{isPending?: boolean; isError?: boolean; error?: unknown}>
-}
-
-/**
- * Configuration for evaluator revision selection adapter (3-level hierarchy)
- *
- * Evaluator → Variant → Revision
- */
-export interface EvaluatorRevisionSelectionConfig {
-    /**
-     * Atom that provides the list of evaluators.
-     */
-    evaluatorsAtom: Atom<unknown[]>
-
-    /**
-     * Factory function that returns an atom for variants given an evaluator ID.
-     */
-    variantsByEvaluatorFamily: (evaluatorId: string) => Atom<unknown[]>
-
-    /**
-     * Factory function that returns an atom for revisions given a variant ID.
-     */
-    revisionsByVariantFamily: (variantId: string) => Atom<unknown[]>
-}
-
-/**
  * Full configuration for the selection system
  */
 export interface SelectionSystemConfig {
@@ -122,18 +69,6 @@ export interface SelectionSystemConfig {
      * Used in playground for chaining evaluators as downstream nodes.
      */
     evaluator?: EvaluatorSelectionConfig
-
-    /**
-     * Legacy evaluator selection adapter configuration (1-level flat list).
-     * Uses the SimpleEvaluator facade API (`/preview/simple/evaluators/`).
-     */
-    legacyEvaluator?: LegacyEvaluatorSelectionConfig
-
-    /**
-     * Evaluator revision selection adapter configuration (3-level hierarchy).
-     * Required if using the evaluator revision adapter.
-     */
-    evaluatorRevision?: EvaluatorRevisionSelectionConfig
 }
 
 // ============================================================================
@@ -169,29 +104,13 @@ export function initializeSelectionSystem(config: SelectionSystemConfig = {}): v
     // Register testset adapter (auto-configured from @agenta/entities/testset)
     registerSelectionAdapter(testsetAdapter)
 
-    // Register legacy app revision adapter (auto-configured from @agenta/entities/legacyAppRevision)
-    registerSelectionAdapter(legacyAppRevisionAdapter)
-
-    // Register evaluator revision relation adapter (2-level: Evaluator → Revision)
-    // Auto-configured from @agenta/entities/evaluator — supports list-popover variant
-    registerSelectionAdapter(evaluatorRevisionRelationAdapter)
+    // Register workflow revision adapter (auto-configured from @agenta/entities/workflow)
+    registerSelectionAdapter(workflowRevisionAdapter)
 
     // Configure and register evaluator adapter (1-level flat list, if provided)
     if (config.evaluator) {
         setEvaluatorAtoms(config.evaluator)
         registerSelectionAdapter(evaluatorAdapter)
-    }
-
-    // Configure and register legacy evaluator adapter (1-level flat list, if provided)
-    if (config.legacyEvaluator) {
-        setLegacyEvaluatorAtoms(config.legacyEvaluator)
-        registerSelectionAdapter(legacyEvaluatorAdapter)
-    }
-
-    // Configure and register evaluator revision adapter (3-level hierarchy, if provided)
-    if (config.evaluatorRevision) {
-        setEvaluatorRevisionAtoms(config.evaluatorRevision)
-        registerSelectionAdapter(evaluatorRevisionAdapter)
     }
 }
 

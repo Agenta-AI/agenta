@@ -33,7 +33,7 @@ const deploymentTests = () => {
             )
 
             const app = await apiHelpers.getApp("completion")
-            const appId = app.app_id
+            const appId = app.id
 
             // Get variant name via direct API call
             const baseUrl = new URL(page.url()).origin
@@ -42,7 +42,7 @@ const deploymentTests = () => {
             expect(Array.isArray(variants)).toBe(true)
             expect(variants.length).toBeGreaterThan(0)
             const variant = variants[0]
-            const variantName = variant.variant_name || variant.name
+            const variantName = variant.name
 
             // 1. Navigate directly to the scoped app overview
             await page.goto(`${apiHelpers.getProjectScopedBasePath()}/apps/${appId}/overview`, {

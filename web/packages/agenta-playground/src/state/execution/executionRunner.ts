@@ -3,13 +3,13 @@ import {
     computeTopologicalLevels,
     buildEvaluatorExecutionInputs,
     validateEvaluatorInputs,
-    runnableBridge,
+    normalizeWorkflowResponse,
     type RequestPayloadData,
-    type RunnableData,
     type ExecutionResult,
     type StageExecutionResult,
     type EntitySelection,
 } from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {generateId} from "@agenta/shared/utils"
 import type {Getter, Setter} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -135,9 +135,8 @@ function buildUpstreamReferences(params: {
     const sourceNode = params.runnableNodes.find((node) => node.id === sourceNodeId)
     if (!sourceNode) return undefined
 
-    const sourceBridge = runnableBridge.forType(sourceNode.entity.type)
     const sourcePayload = params.get(
-        sourceBridge.requestPayload(sourceNode.entity.id),
+        workflowMolecule.selectors.requestPayload(sourceNode.entity.id),
     ) as RequestPayloadData | null
 
     return normalizeApplicationReferences(sourcePayload?.references)
@@ -362,10 +361,6 @@ export async function executeStepForSessionWithExecutionItems(
                                 nodeResults,
                                 data,
                             )
-                            console.debug(
-                                `[executionRunner] Node "${nodeLabel}" (${nodeId}): using resolveChainInputs (explicit mappings)`,
-                                {resolvedKeys: Object.keys(resolved), resolved},
-                            )
                             nodeInputs = resolved
                         } else {
                             // No explicit mappings — delegate to entity-owned input construction
@@ -379,36 +374,27 @@ export async function executeStepForSessionWithExecutionItems(
                                 upstreamResult?.output ?? upstreamResult?.structuredOutput
 
                             const evalStore = getDefaultStore()
-                            const typeScopedData = runnableBridge.forType(node.entity.type)
-                            const stageRunnableData = evalStore.get(
-                                typeScopedData.data(node.entity.id as string),
-                            ) as RunnableData | null
-
-                            // Extract inputSchema from the bridge's RunnableData.
-                            // The bridge returns { schemas: { inputSchema, outputSchema } }.
-                            const bridgeSchemas = (
-                                stageRunnableData as Record<string, unknown> | null
-                            )?.schemas as {inputSchema?: Record<string, unknown>} | undefined
-                            const inputSchema = bridgeSchemas?.inputSchema ?? null
+                            const stageConfiguration = evalStore.get(
+                                workflowMolecule.selectors.configuration(node.entity.id as string),
+                            )
+                            const stageSchemas = evalStore.get(
+                                workflowMolecule.selectors.ioSchemas(node.entity.id as string),
+                            )
+                            const inputSchema =
+                                (stageSchemas?.inputSchema as
+                                    | Record<string, unknown>
+                                    | undefined) ?? null
 
                             const evaluatorInputContext = {
                                 testcaseData: data,
                                 upstreamOutput,
-                                settings: stageRunnableData?.configuration ?? {},
+                                settings: stageConfiguration ?? {},
                                 inputSchema,
                             }
 
                             // Validate required inputs before building — skip if missing
                             const validation = validateEvaluatorInputs(evaluatorInputContext)
                             if (!validation.valid) {
-                                console.debug(
-                                    `[executionRunner] Node "${nodeLabel}" (${nodeId}): skipping due to missing required inputs`,
-                                    {
-                                        missingInputs: validation.missingInputs,
-                                        message: validation.message,
-                                    },
-                                )
-
                                 // Record skipped result and return (parallel-safe)
                                 const skippedAt = new Date().toISOString()
                                 chainResults[nodeId] = {
@@ -431,29 +417,8 @@ export async function executeStepForSessionWithExecutionItems(
                                 return
                             }
 
-                            console.debug(
-                                `[executionRunner] Node "${nodeLabel}" (${nodeId}): no explicit mappings, using buildEvaluatorExecutionInputs`,
-                                {
-                                    testcaseDataKeys: Object.keys(data),
-                                    testcaseData: data,
-                                    upstreamOutput,
-                                    settings: stageRunnableData?.configuration ?? {},
-                                    hasInputSchema: !!inputSchema,
-                                    inputSchemaProperties: inputSchema?.properties
-                                        ? Object.keys(
-                                              inputSchema.properties as Record<string, unknown>,
-                                          )
-                                        : [],
-                                },
-                            )
-
                             nodeInputs = buildEvaluatorExecutionInputs(evaluatorInputContext)
                         }
-
-                        console.debug(
-                            `[executionRunner] Node "${nodeLabel}" (${nodeId}): final nodeInputs`,
-                            {keys: Object.keys(nodeInputs), nodeInputs},
-                        )
                     }
 
                     const stageRunnableId =
@@ -503,19 +468,6 @@ export async function executeStepForSessionWithExecutionItems(
                         throw new Error(`Failed to build execution item for ${stageRunnableId}`)
                     }
 
-                    if (node.depth > 0) {
-                        console.debug(
-                            `[executionRunner] Node "${nodeLabel}" (${nodeId}): final request`,
-                            {
-                                invocationUrl: stageExecutionItem.invocation.invocationUrl,
-                                requestBodyKeys: Object.keys(
-                                    stageExecutionItem.invocation.requestBody,
-                                ),
-                                requestBody: stageExecutionItem.invocation.requestBody,
-                            },
-                        )
-                    }
-
                     // Use the execution item's invocationUrl and requestBody directly.
                     // This is the same URL the web worker uses (includes /test suffix),
                     // ensuring a single unified URL resolution path for all execution modes.
@@ -528,7 +480,7 @@ export async function executeStepForSessionWithExecutionItems(
                         },
                         abortSignal: abortController.signal,
                         normalizeResponse: (responseData) =>
-                            runnableBridge.normalizeResponse(stageRunnableId, responseData),
+                            normalizeWorkflowResponse(responseData),
                     })
 
                     if (!result) {

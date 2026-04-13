@@ -6,7 +6,7 @@
  *
  * Unlike evaluators which hardcode `is_evaluator: true`, workflow queries accept
  * optional flags to filter by any combination of `is_custom`, `is_evaluator`,
- * `is_human`, `is_chat`.
+ * `is_feedback`, `is_chat`.
  */
 
 import type {WorkflowQueryFlags} from "./schema"
@@ -21,8 +21,21 @@ import type {WorkflowQueryFlags} from "./schema"
  */
 export interface WorkflowListParams {
     projectId: string
+    name?: string
     flags?: WorkflowQueryFlags
+    /**
+     * Filter by folder.
+     * - `undefined` (omitted): no folder filter — returns all workflows
+     * - `null`: root-level items only (folder_id IS NULL)
+     * - `string`: items in the specified folder
+     */
+    folderId?: string | null
     includeArchived?: boolean
+    windowing?: {
+        order?: "ascending" | "descending"
+        limit?: number
+        next?: string | null
+    }
 }
 
 /**

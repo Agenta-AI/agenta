@@ -1,0 +1,319 @@
+@host = http://localhost
+@token = change-me-auth
+@api_url = {{host}}/api
+@services_url = {{host}}/services
+
+###
+# @name create_account
+POST {{api_url}}/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+# 0. Fetch catalog
+# @name fetch_catalog
+GET {{api_url}}/preview/evaluators/catalog/templates/
+Authorization: {{authorization}}
+
+###
+# 1. Inspect the custom_code template (schema + uri)
+# @name get_template
+GET {{api_url}}/preview/evaluators/catalog/templates/custom_code
+Authorization: {{authorization}}
+
+###
+# 2. Create workflow — artifact + variant + committed revision in one shot
+# Generic code evaluator (not in the auto_ series). evaluate() returns a score.
+# @name create_workflow
+POST {{api_url}}/preview/simple/workflows/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "workflow": {
+    "slug": "test-custom-code-manual",
+    "name": "test-custom-code-manual",
+    "flags": {
+      "is_evaluator": true
+    },
+    "data": {
+      "uri": "agenta:custom:code:v0",
+      "parameters": {
+        "code": "def evaluate(inputs, output, trace):\n    return 1.0\n",
+        "runtime": "python",
+        "threshold": 0.5
+      }
+    }
+  }
+}
+
+###
+@workflow_slug = {{create_workflow.response.body.workflow.slug}}
+@revision_id   = {{create_workflow.response.body.workflow.revision_id}}
+@workflow_url  = {{create_workflow.response.body.workflow.data.url}}
+
+###
+# 3. Query environments — find the default one
+# @name query_environments
+POST {{api_url}}/preview/environments/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+@environment_id   = {{query_environments.response.body.environments[0].id}}
+@environment_slug = {{query_environments.response.body.environments[0].slug}}
+
+###
+# 4. Deploy revision to environment
+# @name deploy
+POST {{api_url}}/preview/workflows/revisions/deploy
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "workflow_revision_ref": { "id": "{{revision_id}}" },
+  "environment_ref":       { "id": "{{environment_id}}" }
+}
+
+###
+# 4b. Check environment revision
+# @name check_env_revision
+POST {{api_url}}/preview/environments/revisions/retrieve
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "environment_ref": { "id": "{{environment_id}}" }
+}
+
+###
+# 5a. Invoke — direct service mount, no dispatcher
+# evaluate() always returns 1.0 → score=1.0, success=true
+# @name inspect_direct
+POST {{services_url}}/code/v0/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+# 5a. Invoke — direct service mount, no dispatcher
+# evaluate() always returns 1.0 → score=1.0, success=true
+# @name invoke_direct
+POST {{services_url}}/code/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":     {},
+    "outputs":    "Paris",
+    "parameters": {
+      "code": "def evaluate(inputs, output, trace):\n    return 1.0\n",
+      "runtime": "python",
+      "threshold": 0.5
+    }
+  }
+}
+
+###
+# 5b. Invoke — /invoke with URI + parameters inline, zero DB calls
+# @name inspect_inline
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:custom:code:v0",
+      "parameters": {
+        "code": "def evaluate(inputs, output, trace):\n    return 1.0\n",
+        "runtime": "python",
+        "threshold": 0.5
+      }
+    }
+  }
+}
+###
+# 5b. Invoke — /invoke with URI + parameters inline, zero DB calls
+# @name invoke_inline
+POST {{services_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris",
+    "revision": {
+      "data": {
+        "uri": "agenta:custom:code:v0",
+        "parameters": {
+          "code": "def evaluate(inputs, output, trace):\n    return 1.0\n",
+          "runtime": "python",
+          "threshold": 0.5
+        }
+      }
+    }
+  }
+}
+
+###
+# 5c. Invoke — /invoke with env ref + selector key
+# @name inspect_by_env
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "environment": {
+      "slug": "{{environment_slug}}"
+    }
+  },
+  "selector": {
+    "key": "{{workflow_slug}}.revision"
+  }
+}
+###
+# 5c. Invoke — /invoke with env ref + selector key
+# @name invoke_by_env
+POST {{services_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "environment": { "slug": "{{environment_slug}}" }
+  },
+  "selector": {
+    "key": "{{workflow_slug}}.revision"
+  },
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris"
+  }
+}
+
+###
+# 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
+# @name inspect_by_url
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:custom:code:v0",
+      "parameters": {
+        "code": "def evaluate(inputs, output, trace):\n    return 1.0\n",
+        "runtime": "python",
+        "threshold": 0.5
+      }
+    }
+  }
+}
+###
+# 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
+# @name invoke_by_url
+POST {{workflow_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":     {},
+    "outputs":    "Paris",
+    "parameters": {
+      "code": "def evaluate(inputs, output, trace):\n    return 1.0\n",
+      "runtime": "python",
+      "threshold": 0.5
+    }
+  }
+}
+
+###
+# BONUS — code using inputs and outputs for custom logic
+# Returns length ratio as a score
+# @name inspect_custom_logic
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:custom:code:v0",
+      "parameters": {
+        "code": "def evaluate(inputs, output, trace):\n    expected = inputs.get('expected_length', 10)\n    return min(1.0, len(output) / expected)\n",
+        "runtime": "python",
+        "threshold": 0.8
+      }
+    }
+  }
+}
+###
+# BONUS — code using inputs and outputs for custom logic
+# Returns length ratio as a score
+# @name invoke_custom_logic
+POST {{services_url}}/code/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":     { "expected_length": 5 },
+    "outputs":    "Paris",
+    "parameters": {
+      "code": "def evaluate(inputs, output, trace):\n    expected = inputs.get('expected_length', 10)\n    return min(1.0, len(output) / expected)\n",
+      "runtime": "python",
+      "threshold": 0.8
+    }
+  }
+}
+
+###
+# BONUS2 — code accesses trace metadata
+# @name inspect_trace_access
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:custom:code:v0",
+      "parameters": {
+        "code": "def evaluate(inputs, output, trace):\n    latency = trace.get('latency', 0)\n    return 1.0 if latency < 1.0 else 0.0\n",
+        "runtime": "python",
+        "threshold": 0.5
+      }
+    }
+  }
+}
+###
+# BONUS2 — code accesses trace metadata
+# @name invoke_trace_access
+POST {{services_url}}/code/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":     {},
+    "outputs":    "Paris",
+    "trace":      { "latency": 0.5 },
+    "parameters": {
+      "code": "def evaluate(inputs, output, trace):\n    latency = trace.get('latency', 0)\n    return 1.0 if latency < 1.0 else 0.0\n",
+      "runtime": "python",
+      "threshold": 0.5
+    }
+  }
+}

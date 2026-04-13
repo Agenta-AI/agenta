@@ -1,5 +1,6 @@
+import {createBatchFetcher} from "@agenta/shared/utils"
+
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
 interface PreviewRunBatchKey {
     projectId: string

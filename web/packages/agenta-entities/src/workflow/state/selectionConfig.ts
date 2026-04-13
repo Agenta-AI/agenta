@@ -6,19 +6,15 @@
  * - `workflowRevisionSelectionConfig`: 3-level hierarchy (Workflow → Variant → Revision)
  */
 
-import {
-    workflowsListQueryAtom,
-    nonArchivedWorkflowsAtom,
-    workflowVariantsListDataAtomFamily,
-    workflowRevisionsListDataAtomFamily,
-} from "./store"
+import {nonArchivedWorkflowsAtom, workflowsListQueryStateAtom} from "./allWorkflows"
+import {workflowVariantsListDataAtomFamily, workflowRevisionsListDataAtomFamily} from "./store"
 
 /**
  * Selection config for the 1-level workflow adapter.
  */
 export const workflowSelectionConfig = {
     workflowsAtom: nonArchivedWorkflowsAtom,
-    workflowsQueryAtom: workflowsListQueryAtom,
+    workflowsQueryAtom: workflowsListQueryStateAtom,
 }
 
 export type WorkflowSelectionConfig = typeof workflowSelectionConfig

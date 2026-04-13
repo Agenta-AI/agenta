@@ -1,4 +1,4 @@
-import type {MetricColumnDefinition} from "../atoms/table/types"
+import type {MetricColumnDefinition} from "@agenta/entities/workflow"
 
 // Centralized column widths for easy reuse
 export const COLUMN_WIDTHS = {

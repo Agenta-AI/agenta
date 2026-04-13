@@ -36,6 +36,7 @@ import {showEditorLoadingOverlay} from "../code/utils/loadingOverlay"
 
 import {$convertToMarkdownStringCustom, PLAYGROUND_TRANSFORMERS} from "./assets/transformers"
 import {SET_MARKDOWN_VIEW, TOGGLE_MARKDOWN_VIEW} from "./commands"
+import TableCellResizerPlugin from "./TableCellResizerPlugin"
 import {importMarkdownWithHtmlBatches} from "./utils/htmlImport"
 
 const URL_REGEX =
@@ -540,6 +541,7 @@ const MarkdownPlugin = ({
             {!largeDocumentMode ? <ClickableLinkPlugin /> : null}
             <HorizontalRulePlugin />
             <TablePlugin />
+            <TableCellResizerPlugin />
             <LexicalLinkPlugin />
         </>
     )

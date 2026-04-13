@@ -1,4 +1,4 @@
-import {projectIdAtom} from "@agenta/shared/state"
+import {logAtom, projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -11,7 +11,6 @@ import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@
 import {selectedOrgAtom, selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {profileQueryAtom} from "@/oss/state/profile"
 import {sessionExistsAtom} from "@/oss/state/session"
-import {logAtom} from "@/oss/state/utils/logAtom"
 
 // Re-export the shared projectIdAtom so all OSS code uses the same atom as entity packages
 export {projectIdAtom}

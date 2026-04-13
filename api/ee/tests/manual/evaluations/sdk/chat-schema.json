@@ -1,0 +1,1731 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "FastAPI",
+        "version": "0.1.0"
+    },
+    "paths": {
+        "/health": {
+            "get": {
+                "summary": "Health",
+                "operationId": "health_health_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/run": {
+            "post": {
+                "summary": "Chat",
+                "operationId": "chat_run_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_chat_run_post"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BaseResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-agenta": {
+                    "flags": {
+                        "is_chat": true
+                    }
+                }
+            }
+        },
+        "/generate_deployed": {
+            "post": {
+                "summary": "Chat",
+                "operationId": "chat_generate_deployed_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_chat_generate_deployed_post"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BaseResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/test": {
+            "post": {
+                "summary": "Chat",
+                "operationId": "chat_test_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_chat_test_post"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BaseResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-agenta": {
+                    "flags": {
+                        "is_chat": true
+                    }
+                }
+            }
+        },
+        "/generate": {
+            "post": {
+                "summary": "Chat",
+                "operationId": "chat_generate_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_chat_generate_post"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BaseResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "AgentaNodeDto": {
+                "properties": {},
+                "additionalProperties": true,
+                "type": "object",
+                "title": "AgentaNodeDto",
+                "description": "SDK-internal type for inline trace node representation.\n\nThis type accepts arbitrary fields via extra=\"allow\" since it's\nconstructed from span dictionaries with dynamic keys."
+            },
+            "AgentaNodesResponse": {
+                "properties": {
+                    "version": {
+                        "type": "string",
+                        "title": "Version"
+                    },
+                    "nodes": {
+                        "items": {
+                            "$ref": "#/components/schemas/AgentaNodeDto"
+                        },
+                        "type": "array",
+                        "title": "Nodes",
+                        "default": []
+                    },
+                    "count": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Count"
+                    }
+                },
+                "additionalProperties": true,
+                "type": "object",
+                "required": [
+                    "version"
+                ],
+                "title": "AgentaNodesResponse",
+                "description": "SDK-internal type for inline trace response."
+            },
+            "BaseResponse": {
+                "properties": {
+                    "version": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Version",
+                        "default": "3.0"
+                    },
+                    "data": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "additionalProperties": true,
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Data"
+                    },
+                    "content_type": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Content Type",
+                        "default": "string"
+                    },
+                    "tree": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/AgentaNodesResponse"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "tree_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Tree Id"
+                    },
+                    "trace_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Trace Id"
+                    },
+                    "span_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Span Id"
+                    }
+                },
+                "type": "object",
+                "title": "BaseResponse"
+            },
+            "Body_chat_generate_deployed_post": {
+                "properties": {
+                    "inputs": {
+                        "title": "Inputs"
+                    },
+                    "messages": {
+                        "title": "Messages"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "inputs",
+                    "messages"
+                ],
+                "title": "Body_chat_generate_deployed_post"
+            },
+            "Body_chat_generate_post": {
+                "properties": {
+                    "ag_config": {
+                        "$ref": "#/components/schemas/ChatConfig",
+                        "default": {
+                            "prompt": {
+                                "llm_config": {
+                                    "model": "gpt-4o-mini"
+                                },
+                                "messages": [
+                                    {
+                                        "content": "You are a helpful customer service chatbot. Please help the user with their query.\nUse the following context if available:\n<context>{{context}}</context>",
+                                        "role": "system"
+                                    }
+                                ],
+                                "system_prompt": "You are a helpful customer service chatbot. Please help the user with their query.\nUse the following context if available:\n<context>{{context}}</context>",
+                                "template_format": "curly"
+                            }
+                        }
+                    },
+                    "inputs": {
+                        "title": "Inputs"
+                    },
+                    "messages": {
+                        "title": "Messages"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "inputs",
+                    "messages"
+                ],
+                "title": "Body_chat_generate_post"
+            },
+            "Body_chat_run_post": {
+                "properties": {
+                    "inputs": {
+                        "title": "Inputs"
+                    },
+                    "messages": {
+                        "title": "Messages"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "inputs",
+                    "messages"
+                ],
+                "title": "Body_chat_run_post"
+            },
+            "Body_chat_test_post": {
+                "properties": {
+                    "ag_config": {
+                        "$ref": "#/components/schemas/ChatConfig",
+                        "default": {
+                            "prompt": {
+                                "llm_config": {
+                                    "model": "gpt-4o-mini"
+                                },
+                                "messages": [
+                                    {
+                                        "content": "You are a helpful customer service chatbot. Please help the user with their query.\nUse the following context if available:\n<context>{{context}}</context>",
+                                        "role": "system"
+                                    }
+                                ],
+                                "system_prompt": "You are a helpful customer service chatbot. Please help the user with their query.\nUse the following context if available:\n<context>{{context}}</context>",
+                                "template_format": "curly"
+                            }
+                        }
+                    },
+                    "inputs": {
+                        "title": "Inputs"
+                    },
+                    "messages": {
+                        "title": "Messages"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "inputs",
+                    "messages"
+                ],
+                "title": "Body_chat_test_post"
+            },
+            "ChatConfig": {
+                "properties": {
+                    "prompt": {
+                        "$ref": "#/components/schemas/PromptTemplate",
+                        "default": {
+                            "messages": [
+                                {
+                                    "content": "You are a helpful customer service chatbot. Please help the user with their query.\nUse the following context if available:\n<context>{{context}}</context>",
+                                    "role": "system"
+                                }
+                            ],
+                            "system_prompt": "You are a helpful customer service chatbot. Please help the user with their query.\nUse the following context if available:\n<context>{{context}}</context>",
+                            "template_format": "curly",
+                            "llm_config": {
+                                "model": "gpt-4o-mini"
+                            }
+                        }
+                    }
+                },
+                "type": "object",
+                "title": "ChatConfig"
+            },
+            "ContentPartFile": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "file",
+                        "title": "Type",
+                        "default": "file"
+                    },
+                    "file": {
+                        "$ref": "#/components/schemas/FileInput"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "file"
+                ],
+                "title": "ContentPartFile"
+            },
+            "ContentPartImage": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "image_url",
+                        "title": "Type",
+                        "default": "image_url"
+                    },
+                    "image_url": {
+                        "$ref": "#/components/schemas/ImageURL"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "image_url"
+                ],
+                "title": "ContentPartImage"
+            },
+            "ContentPartText": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "text",
+                        "title": "Type",
+                        "default": "text"
+                    },
+                    "text": {
+                        "type": "string",
+                        "title": "Text"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "text"
+                ],
+                "title": "ContentPartText"
+            },
+            "FileInput": {
+                "properties": {
+                    "file_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "File Id"
+                    },
+                    "file_data": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "File Data"
+                    },
+                    "filename": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Filename"
+                    },
+                    "format": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Format"
+                    }
+                },
+                "type": "object",
+                "title": "FileInput"
+            },
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "type": "array",
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "title": "HTTPValidationError"
+            },
+            "ImageURL": {
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "title": "Url"
+                    },
+                    "detail": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "enum": [
+                                    "auto",
+                                    "low",
+                                    "high"
+                                ]
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "url"
+                ],
+                "title": "ImageURL"
+            },
+            "JSONSchema": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description"
+                    },
+                    "schema": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": true,
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Schema"
+                    },
+                    "strict": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Strict"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name",
+                    "schema"
+                ],
+                "title": "JSONSchema"
+            },
+            "Message": {
+                "properties": {
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "system",
+                            "user",
+                            "assistant",
+                            "tool",
+                            "function"
+                        ],
+                        "title": "Role"
+                    },
+                    "content": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "items": {
+                                    "anyOf": [
+                                        {
+                                            "$ref": "#/components/schemas/ContentPartText"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/ContentPartImage"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/ContentPartFile"
+                                        }
+                                    ]
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Content"
+                    },
+                    "name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Name"
+                    },
+                    "tool_calls": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "$ref": "#/components/schemas/ToolCall"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Tool Calls"
+                    },
+                    "tool_call_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Tool Call Id"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "role"
+                ],
+                "title": "Message"
+            },
+            "ModelConfig": {
+                "properties": {
+                    "model": {
+                        "type": "string",
+                        "title": "Model",
+                        "description": "ID of the model to use",
+                        "default": "gpt-4o-mini",
+                        "choices": {
+                            "anthropic": [
+                                "anthropic/claude-opus-4-6",
+                                "anthropic/claude-sonnet-4-6",
+                                "anthropic/claude-opus-4-5",
+                                "anthropic/claude-sonnet-4-5",
+                                "anthropic/claude-haiku-4-5",
+                                "anthropic/claude-opus-4-1",
+                                "anthropic/claude-sonnet-4-20250514",
+                                "anthropic/claude-opus-4-20250514",
+                                "anthropic/claude-3-7-sonnet-20250219",
+                                "anthropic/claude-3-opus-20240229",
+                                "anthropic/claude-3-haiku-20240307"
+                            ],
+                            "cohere": [
+                                "cohere/command-a-03-2025",
+                                "cohere/command-r7b-12-2024",
+                                "cohere/command-r-plus-08-2024",
+                                "cohere/command-r-08-2024"
+                            ],
+                            "deepinfra": [
+                                "deepinfra/meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+                                "deepinfra/meta-llama/Llama-4-Scout-17B-16E-Instruct",
+                                "deepinfra/meta-llama/Llama-3.3-70B-Instruct",
+                                "deepinfra/meta-llama/Meta-Llama-3.1-70B-Instruct",
+                                "deepinfra/meta-llama/Meta-Llama-3.1-8B-Instruct",
+                                "deepinfra/deepseek-ai/DeepSeek-R1",
+                                "deepinfra/deepseek-ai/DeepSeek-V3",
+                                "deepinfra/deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+                                "deepinfra/Qwen/Qwen3-235B-A22B",
+                                "deepinfra/Qwen/Qwen3-32B",
+                                "deepinfra/Qwen/Qwen2.5-72B-Instruct",
+                                "deepinfra/mistralai/Mixtral-8x7B-Instruct-v0.1",
+                                "deepinfra/mistralai/Mistral-Small-24B-Instruct-2501",
+                                "deepinfra/nvidia/Llama-3.1-Nemotron-70B-Instruct"
+                            ],
+                            "gemini": [
+                                "gemini/gemini-3.1-pro-preview",
+                                "gemini/gemini-3.1-flash-lite-preview",
+                                "gemini/gemini-3-pro-preview",
+                                "gemini/gemini-3-flash-preview",
+                                "gemini/gemini-2.5-pro",
+                                "gemini/gemini-2.5-flash",
+                                "gemini/gemini-2.5-flash-preview-09-2025",
+                                "gemini/gemini-2.5-flash-lite",
+                                "gemini/gemini-2.5-flash-lite-preview-09-2025",
+                                "gemini/gemini-2.0-flash",
+                                "gemini/gemini-2.0-flash-001",
+                                "gemini/gemini-2.0-flash-lite"
+                            ],
+                            "groq": [
+                                "groq/meta-llama/llama-4-maverick-17b-128e-instruct",
+                                "groq/meta-llama/llama-4-scout-17b-16e-instruct",
+                                "groq/llama-3.3-70b-versatile",
+                                "groq/llama-3.1-8b-instant",
+                                "groq/openai/gpt-oss-120b",
+                                "groq/openai/gpt-oss-20b",
+                                "groq/qwen/qwen3-32b"
+                            ],
+                            "mistral": [
+                                "mistral/mistral-tiny",
+                                "mistral/mistral-small",
+                                "mistral/mistral-medium",
+                                "mistral/mistral-large-latest"
+                            ],
+                            "openai": [
+                                "gpt-5.4",
+                                "gpt-5.2-pro",
+                                "gpt-5.2-chat-latest",
+                                "gpt-5.2",
+                                "gpt-5.1-chat-latest",
+                                "gpt-5.1",
+                                "gpt-5-pro",
+                                "gpt-5-chat",
+                                "gpt-5-nano",
+                                "gpt-5-mini",
+                                "gpt-5",
+                                "o4-mini",
+                                "o3-pro",
+                                "o3",
+                                "o3-mini",
+                                "o1-pro",
+                                "o1",
+                                "gpt-5.1-codex",
+                                "codex-mini-latest",
+                                "gpt-4.1-nano",
+                                "gpt-4.1-mini",
+                                "gpt-4.1",
+                                "gpt-4-turbo",
+                                "gpt-4o-mini",
+                                "gpt-4o",
+                                "gpt-4-1106-preview",
+                                "gpt-4",
+                                "gpt-3.5-turbo-1106",
+                                "gpt-3.5-turbo"
+                            ],
+                            "openrouter": [
+                                "openrouter/anthropic/claude-opus-4.5",
+                                "openrouter/anthropic/claude-opus-4.1",
+                                "openrouter/anthropic/claude-sonnet-4.5",
+                                "openrouter/anthropic/claude-haiku-4.5",
+                                "openrouter/anthropic/claude-3.7-sonnet",
+                                "openrouter/anthropic/claude-3.5-sonnet",
+                                "openrouter/deepseek/deepseek-chat",
+                                "openrouter/deepseek/deepseek-r1",
+                                "openrouter/deepseek/deepseek-r1-0528",
+                                "openrouter/deepseek/deepseek-v3.2",
+                                "openrouter/google/gemini-2.5-pro",
+                                "openrouter/google/gemini-2.5-flash",
+                                "openrouter/google/gemini-2.0-flash-001",
+                                "openrouter/meta-llama/llama-3-70b-instruct",
+                                "openrouter/mistralai/mistral-large",
+                                "openrouter/mistralai/mistral-small-3.2-24b-instruct",
+                                "openrouter/mistralai/mixtral-8x22b-instruct",
+                                "openrouter/openai/gpt-4o",
+                                "openrouter/openai/gpt-4.1",
+                                "openrouter/openai/gpt-5",
+                                "openrouter/qwen/qwen-2.5-coder-32b-instruct",
+                                "openrouter/qwen/qwen3-235b-a22b-2507",
+                                "openrouter/x-ai/grok-4"
+                            ],
+                            "perplexityai": [
+                                "perplexity/sonar",
+                                "perplexity/sonar-pro",
+                                "perplexity/sonar-reasoning",
+                                "perplexity/sonar-reasoning-pro"
+                            ],
+                            "together_ai": [
+                                "together_ai/deepseek-ai/DeepSeek-R1",
+                                "together_ai/deepseek-ai/DeepSeek-V3",
+                                "together_ai/meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+                                "together_ai/meta-llama/Llama-4-Scout-17B-16E-Instruct",
+                                "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                                "together_ai/meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+                                "together_ai/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+                                "together_ai/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
+                                "together_ai/meta-llama/Llama-3.2-3B-Instruct-Turbo",
+                                "together_ai/moonshotai/Kimi-K2-Instruct",
+                                "together_ai/mistralai/Mistral-Small-24B-Instruct-2501",
+                                "together_ai/mistralai/Mistral-7B-Instruct-v0.1",
+                                "together_ai/mistralai/Mixtral-8x7B-Instruct-v0.1",
+                                "together_ai/Qwen/Qwen2.5-7B-Instruct-Turbo",
+                                "together_ai/Qwen/Qwen2.5-72B-Instruct-Turbo"
+                            ]
+                        },
+                        "x-model-metadata": {
+                            "anthropic": {
+                                "anthropic/claude-3-7-sonnet-20250219": {
+                                    "input": 3,
+                                    "output": 15
+                                },
+                                "anthropic/claude-3-haiku-20240307": {
+                                    "input": 0.25,
+                                    "output": 1.25
+                                },
+                                "anthropic/claude-3-opus-20240229": {
+                                    "input": 15,
+                                    "output": 75
+                                },
+                                "anthropic/claude-haiku-4-5": {
+                                    "input": 1,
+                                    "output": 5
+                                },
+                                "anthropic/claude-opus-4-1": {
+                                    "input": 15,
+                                    "output": 75
+                                },
+                                "anthropic/claude-opus-4-20250514": {
+                                    "input": 15,
+                                    "output": 75
+                                },
+                                "anthropic/claude-opus-4-5": {
+                                    "input": 5,
+                                    "output": 25
+                                },
+                                "anthropic/claude-opus-4-6": {
+                                    "input": 10,
+                                    "output": 37.5
+                                },
+                                "anthropic/claude-sonnet-4-20250514": {
+                                    "input": 6,
+                                    "output": 22.5
+                                },
+                                "anthropic/claude-sonnet-4-5": {
+                                    "input": 6,
+                                    "output": 22.5
+                                },
+                                "anthropic/claude-sonnet-4-6": {
+                                    "input": 6,
+                                    "output": 22.5
+                                }
+                            },
+                            "cohere": {
+                                "cohere/command-a-03-2025": {
+                                    "input": 2.5,
+                                    "output": 10
+                                },
+                                "cohere/command-r-08-2024": {
+                                    "input": 0.15,
+                                    "output": 0.6
+                                },
+                                "cohere/command-r-plus-08-2024": {
+                                    "input": 2.5,
+                                    "output": 10
+                                },
+                                "cohere/command-r7b-12-2024": {
+                                    "input": 0.15,
+                                    "output": 0.0375
+                                }
+                            },
+                            "deepinfra": {
+                                "deepinfra/Qwen/Qwen2.5-72B-Instruct": {
+                                    "input": 0.12,
+                                    "output": 0.39
+                                },
+                                "deepinfra/Qwen/Qwen3-235B-A22B": {
+                                    "input": 0.18,
+                                    "output": 0.54
+                                },
+                                "deepinfra/Qwen/Qwen3-32B": {
+                                    "input": 0.09999999999999999,
+                                    "output": 0.28
+                                },
+                                "deepinfra/deepseek-ai/DeepSeek-R1": {
+                                    "input": 0.7,
+                                    "output": 2.4
+                                },
+                                "deepinfra/deepseek-ai/DeepSeek-R1-Distill-Llama-70B": {
+                                    "input": 0.19999999999999998,
+                                    "output": 0.6
+                                },
+                                "deepinfra/deepseek-ai/DeepSeek-V3": {
+                                    "input": 0.38,
+                                    "output": 0.8899999999999999
+                                },
+                                "deepinfra/meta-llama/Llama-3.3-70B-Instruct": {
+                                    "input": 0.22999999999999998,
+                                    "output": 0.39999999999999997
+                                },
+                                "deepinfra/meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8": {
+                                    "input": 0.15,
+                                    "output": 0.6
+                                },
+                                "deepinfra/meta-llama/Llama-4-Scout-17B-16E-Instruct": {
+                                    "input": 0.08,
+                                    "output": 0.3
+                                },
+                                "deepinfra/meta-llama/Meta-Llama-3.1-70B-Instruct": {
+                                    "input": 0.39999999999999997,
+                                    "output": 0.39999999999999997
+                                },
+                                "deepinfra/meta-llama/Meta-Llama-3.1-8B-Instruct": {
+                                    "input": 0.03,
+                                    "output": 0.049999999999999996
+                                },
+                                "deepinfra/mistralai/Mistral-Small-24B-Instruct-2501": {
+                                    "input": 0.049999999999999996,
+                                    "output": 0.08
+                                },
+                                "deepinfra/mistralai/Mixtral-8x7B-Instruct-v0.1": {
+                                    "input": 0.39999999999999997,
+                                    "output": 0.39999999999999997
+                                },
+                                "deepinfra/nvidia/Llama-3.1-Nemotron-70B-Instruct": {
+                                    "input": 0.6,
+                                    "output": 0.6
+                                }
+                            },
+                            "gemini": {
+                                "gemini/gemini-2.0-flash": {
+                                    "input": 0.09999999999999999,
+                                    "output": 0.39999999999999997
+                                },
+                                "gemini/gemini-2.0-flash-001": {
+                                    "input": 0.09999999999999999,
+                                    "output": 0.39999999999999997
+                                },
+                                "gemini/gemini-2.0-flash-lite": {
+                                    "input": 0.075,
+                                    "output": 0.3
+                                },
+                                "gemini/gemini-2.5-flash": {
+                                    "input": 0.3,
+                                    "output": 2.5
+                                },
+                                "gemini/gemini-2.5-flash-lite": {
+                                    "input": 0.09999999999999999,
+                                    "output": 0.39999999999999997
+                                },
+                                "gemini/gemini-2.5-flash-lite-preview-09-2025": {
+                                    "input": 0.09999999999999999,
+                                    "output": 0.39999999999999997
+                                },
+                                "gemini/gemini-2.5-flash-preview-09-2025": {
+                                    "input": 0.3,
+                                    "output": 2.5
+                                },
+                                "gemini/gemini-2.5-pro": {
+                                    "input": 2.5,
+                                    "output": 15
+                                },
+                                "gemini/gemini-3-flash-preview": {
+                                    "input": 0.5,
+                                    "output": 3
+                                },
+                                "gemini/gemini-3-pro-preview": {
+                                    "input": 4,
+                                    "output": 18
+                                },
+                                "gemini/gemini-3.1-flash-lite-preview": {
+                                    "input": 0.25,
+                                    "output": 1.5
+                                },
+                                "gemini/gemini-3.1-pro-preview": {
+                                    "input": 4,
+                                    "output": 18
+                                }
+                            },
+                            "groq": {
+                                "groq/llama-3.1-8b-instant": {
+                                    "input": 0.049999999999999996,
+                                    "output": 0.08
+                                },
+                                "groq/llama-3.3-70b-versatile": {
+                                    "input": 0.59,
+                                    "output": 0.7899999999999999
+                                },
+                                "groq/meta-llama/llama-4-maverick-17b-128e-instruct": {
+                                    "input": 0.19999999999999998,
+                                    "output": 0.6
+                                },
+                                "groq/meta-llama/llama-4-scout-17b-16e-instruct": {
+                                    "input": 0.11,
+                                    "output": 0.33999999999999997
+                                },
+                                "groq/openai/gpt-oss-120b": {
+                                    "input": 0.15,
+                                    "output": 0.6
+                                },
+                                "groq/openai/gpt-oss-20b": {
+                                    "input": 0.075,
+                                    "output": 0.3
+                                },
+                                "groq/qwen/qwen3-32b": {
+                                    "input": 0.29,
+                                    "output": 0.59
+                                }
+                            },
+                            "mistral": {
+                                "mistral/mistral-large-latest": {
+                                    "input": 0.5,
+                                    "output": 1.5
+                                },
+                                "mistral/mistral-medium": {
+                                    "input": 2.7,
+                                    "output": 8.1
+                                },
+                                "mistral/mistral-small": {
+                                    "input": 0.09999999999999999,
+                                    "output": 0.3
+                                },
+                                "mistral/mistral-tiny": {
+                                    "input": 0.25,
+                                    "output": 0.25
+                                }
+                            },
+                            "openai": {
+                                "codex-mini-latest": {
+                                    "input": 1.5,
+                                    "output": 6
+                                },
+                                "gpt-3.5-turbo": {
+                                    "input": 0.5,
+                                    "output": 1.5
+                                },
+                                "gpt-3.5-turbo-1106": {
+                                    "input": 1,
+                                    "output": 2
+                                },
+                                "gpt-4": {
+                                    "input": 30,
+                                    "output": 60
+                                },
+                                "gpt-4-1106-preview": {
+                                    "input": 10,
+                                    "output": 30
+                                },
+                                "gpt-4-turbo": {
+                                    "input": 10,
+                                    "output": 30
+                                },
+                                "gpt-4.1": {
+                                    "input": 2,
+                                    "output": 8
+                                },
+                                "gpt-4.1-mini": {
+                                    "input": 0.39999999999999997,
+                                    "output": 1.5999999999999999
+                                },
+                                "gpt-4.1-nano": {
+                                    "input": 0.09999999999999999,
+                                    "output": 0.39999999999999997
+                                },
+                                "gpt-4o": {
+                                    "input": 2.5,
+                                    "output": 10
+                                },
+                                "gpt-4o-mini": {
+                                    "input": 0.15,
+                                    "output": 0.6
+                                },
+                                "gpt-5": {
+                                    "input": 1.25,
+                                    "output": 10
+                                },
+                                "gpt-5-chat": {
+                                    "input": 1.25,
+                                    "output": 10
+                                },
+                                "gpt-5-mini": {
+                                    "input": 0.25,
+                                    "output": 2
+                                },
+                                "gpt-5-nano": {
+                                    "input": 0.049999999999999996,
+                                    "output": 0.39999999999999997
+                                },
+                                "gpt-5-pro": {
+                                    "input": 15,
+                                    "output": 120
+                                },
+                                "gpt-5.1": {
+                                    "input": 1.25,
+                                    "output": 10
+                                },
+                                "gpt-5.1-chat-latest": {
+                                    "input": 1.25,
+                                    "output": 10
+                                },
+                                "gpt-5.1-codex": {
+                                    "input": 1.25,
+                                    "output": 10
+                                },
+                                "gpt-5.2": {
+                                    "input": 1.75,
+                                    "output": 14
+                                },
+                                "gpt-5.2-chat-latest": {
+                                    "input": 1.75,
+                                    "output": 14
+                                },
+                                "gpt-5.2-pro": {
+                                    "input": 21,
+                                    "output": 168
+                                },
+                                "gpt-5.4": {
+                                    "input": 5,
+                                    "output": 22.5
+                                },
+                                "o1": {
+                                    "input": 15,
+                                    "output": 60
+                                },
+                                "o1-pro": {
+                                    "input": 150,
+                                    "output": 600
+                                },
+                                "o3": {
+                                    "input": 2,
+                                    "output": 8
+                                },
+                                "o3-mini": {
+                                    "input": 1.1,
+                                    "output": 4.4
+                                },
+                                "o3-pro": {
+                                    "input": 20,
+                                    "output": 80
+                                },
+                                "o4-mini": {
+                                    "input": 1.1,
+                                    "output": 4.4
+                                }
+                            },
+                            "openrouter": {
+                                "openrouter/anthropic/claude-3.5-sonnet": {
+                                    "input": 3,
+                                    "output": 15
+                                },
+                                "openrouter/anthropic/claude-3.7-sonnet": {
+                                    "input": 3,
+                                    "output": 15
+                                },
+                                "openrouter/anthropic/claude-haiku-4.5": {
+                                    "input": 1,
+                                    "output": 5
+                                },
+                                "openrouter/anthropic/claude-opus-4.1": {
+                                    "input": 15,
+                                    "output": 75
+                                },
+                                "openrouter/anthropic/claude-opus-4.5": {
+                                    "input": 5,
+                                    "output": 25
+                                },
+                                "openrouter/anthropic/claude-sonnet-4.5": {
+                                    "input": 6,
+                                    "output": 22.5
+                                },
+                                "openrouter/deepseek/deepseek-chat": {
+                                    "input": 0.14,
+                                    "output": 0.28
+                                },
+                                "openrouter/deepseek/deepseek-r1": {
+                                    "input": 0.55,
+                                    "output": 2.1900000000000004
+                                },
+                                "openrouter/deepseek/deepseek-r1-0528": {
+                                    "input": 0.5,
+                                    "output": 2.1500000000000004
+                                },
+                                "openrouter/deepseek/deepseek-v3.2": {
+                                    "input": 0.28,
+                                    "output": 0.39999999999999997
+                                },
+                                "openrouter/google/gemini-2.0-flash-001": {
+                                    "input": 0.09999999999999999,
+                                    "output": 0.39999999999999997
+                                },
+                                "openrouter/google/gemini-2.5-flash": {
+                                    "input": 0.3,
+                                    "output": 2.5
+                                },
+                                "openrouter/google/gemini-2.5-pro": {
+                                    "input": 1.25,
+                                    "output": 10
+                                },
+                                "openrouter/meta-llama/llama-3-70b-instruct": {
+                                    "input": 0.59,
+                                    "output": 0.7899999999999999
+                                },
+                                "openrouter/mistralai/mistral-large": {
+                                    "input": 8,
+                                    "output": 24
+                                },
+                                "openrouter/mistralai/mistral-small-3.2-24b-instruct": {
+                                    "input": 0.09999999999999999,
+                                    "output": 0.3
+                                },
+                                "openrouter/mistralai/mixtral-8x22b-instruct": {
+                                    "input": 0.65,
+                                    "output": 0.65
+                                },
+                                "openrouter/openai/gpt-4.1": {
+                                    "input": 2,
+                                    "output": 8
+                                },
+                                "openrouter/openai/gpt-4o": {
+                                    "input": 2.5,
+                                    "output": 10
+                                },
+                                "openrouter/openai/gpt-5": {
+                                    "input": 1.25,
+                                    "output": 10
+                                },
+                                "openrouter/qwen/qwen-2.5-coder-32b-instruct": {
+                                    "input": 0.18,
+                                    "output": 0.18
+                                },
+                                "openrouter/qwen/qwen3-235b-a22b-2507": {
+                                    "input": 0.071,
+                                    "output": 0.09999999999999999
+                                },
+                                "openrouter/x-ai/grok-4": {
+                                    "input": 3,
+                                    "output": 15
+                                }
+                            },
+                            "perplexityai": {
+                                "perplexity/sonar": {
+                                    "input": 1,
+                                    "output": 1
+                                },
+                                "perplexity/sonar-pro": {
+                                    "input": 3,
+                                    "output": 15
+                                },
+                                "perplexity/sonar-reasoning": {
+                                    "input": 1,
+                                    "output": 5
+                                },
+                                "perplexity/sonar-reasoning-pro": {
+                                    "input": 2,
+                                    "output": 8
+                                }
+                            },
+                            "together_ai": {
+                                "together_ai/deepseek-ai/DeepSeek-R1": {
+                                    "input": 3,
+                                    "output": 7
+                                },
+                                "together_ai/deepseek-ai/DeepSeek-V3": {
+                                    "input": 1.25,
+                                    "output": 1.25
+                                },
+                                "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo": {
+                                    "input": 0.88,
+                                    "output": 0.88
+                                },
+                                "together_ai/meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8": {
+                                    "input": 0.27,
+                                    "output": 0.85
+                                },
+                                "together_ai/meta-llama/Llama-4-Scout-17B-16E-Instruct": {
+                                    "input": 0.18,
+                                    "output": 0.59
+                                },
+                                "together_ai/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo": {
+                                    "input": 3.5,
+                                    "output": 3.5
+                                },
+                                "together_ai/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo": {
+                                    "input": 0.88,
+                                    "output": 0.88
+                                },
+                                "together_ai/meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo": {
+                                    "input": 0.18,
+                                    "output": 0.18
+                                },
+                                "together_ai/mistralai/Mixtral-8x7B-Instruct-v0.1": {
+                                    "input": 0.6,
+                                    "output": 0.6
+                                },
+                                "together_ai/moonshotai/Kimi-K2-Instruct": {
+                                    "input": 1,
+                                    "output": 3
+                                }
+                            }
+                        },
+                        "x-parameter": "grouped_choice"
+                    },
+                    "temperature": {
+                        "anyOf": [
+                            {
+                                "type": "number",
+                                "maximum": 2,
+                                "minimum": 0
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Temperature",
+                        "description": "What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic"
+                    },
+                    "max_tokens": {
+                        "anyOf": [
+                            {
+                                "type": "integer",
+                                "maximum": 64000,
+                                "minimum": 0
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Max Tokens",
+                        "description": "The maximum number of tokens that can be generated in the chat completion"
+                    },
+                    "top_p": {
+                        "anyOf": [
+                            {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Top P",
+                        "description": "An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass"
+                    },
+                    "frequency_penalty": {
+                        "anyOf": [
+                            {
+                                "type": "number",
+                                "maximum": 2,
+                                "minimum": -2
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Frequency Penalty",
+                        "description": "Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far"
+                    },
+                    "presence_penalty": {
+                        "anyOf": [
+                            {
+                                "type": "number",
+                                "maximum": 2,
+                                "minimum": -2
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Presence Penalty",
+                        "description": "Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far"
+                    },
+                    "reasoning_effort": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "enum": [
+                                    "none",
+                                    "low",
+                                    "medium",
+                                    "high"
+                                ]
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "enum": [
+                            "none",
+                            "low",
+                            "medium",
+                            "high"
+                        ],
+                        "title": "Reasoning Effort",
+                        "description": "Controls the reasoning effort for thinking models. Options: 'none' (cost-optimized, 0 tokens), 'low' (1024 tokens), 'medium' (2048 tokens), 'high' (4096 tokens)",
+                        "x-parameter": "choice"
+                    },
+                    "response_format": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ResponseFormatText"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ResponseFormatJSONObject"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ResponseFormatJSONSchema"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Response Format",
+                        "description": "An object specifying the format that the model must output"
+                    },
+                    "stream": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Stream",
+                        "description": "If set, partial message deltas will be sent"
+                    },
+                    "tools": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Tools",
+                        "description": "A list of tools the model may call. Currently, only functions are supported as a tool"
+                    },
+                    "tool_choice": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "enum": [
+                                    "none",
+                                    "auto"
+                                ]
+                            },
+                            {
+                                "additionalProperties": true,
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Tool Choice",
+                        "description": "Controls which (if any) tool is called by the model"
+                    }
+                },
+                "type": "object",
+                "title": "ModelConfig",
+                "description": "Configuration for model parameters"
+            },
+            "PromptTemplate": {
+                "properties": {
+                    "messages": {
+                        "items": {
+                            "$ref": "#/components/schemas/Message"
+                        },
+                        "type": "array",
+                        "title": "Messages",
+                        "default": [
+                            {
+                                "role": "system",
+                                "content": ""
+                            },
+                            {
+                                "role": "user",
+                                "content": ""
+                            }
+                        ]
+                    },
+                    "system_prompt": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "System Prompt"
+                    },
+                    "user_prompt": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "User Prompt"
+                    },
+                    "template_format": {
+                        "type": "string",
+                        "enum": [
+                            "fstring",
+                            "jinja2",
+                            "curly"
+                        ],
+                        "title": "Template Format",
+                        "description": "Format type for template variables: fstring {var}, jinja2 {{ var }}, or curly {{var}}",
+                        "default": "curly"
+                    },
+                    "input_keys": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Input Keys",
+                        "description": "Optional list of input keys for validation. If not provided, any inputs will be accepted"
+                    },
+                    "llm_config": {
+                        "$ref": "#/components/schemas/ModelConfig",
+                        "description": "Configuration for the model parameters"
+                    }
+                },
+                "type": "object",
+                "title": "PromptTemplate",
+                "description": "A template for generating prompts with formatting capabilities",
+                "x-parameters": {
+                    "prompt": "true"
+                }
+            },
+            "ResponseFormatJSONObject": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "json_object",
+                        "title": "Type"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "type"
+                ],
+                "title": "ResponseFormatJSONObject"
+            },
+            "ResponseFormatJSONSchema": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "json_schema",
+                        "title": "Type"
+                    },
+                    "json_schema": {
+                        "$ref": "#/components/schemas/JSONSchema"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "type",
+                    "json_schema"
+                ],
+                "title": "ResponseFormatJSONSchema"
+            },
+            "ResponseFormatText": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "text",
+                        "title": "Type"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "type"
+                ],
+                "title": "ResponseFormatText"
+            },
+            "ToolCall": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "type": {
+                        "type": "string",
+                        "const": "function",
+                        "title": "Type",
+                        "default": "function"
+                    },
+                    "function": {
+                        "additionalProperties": {
+                            "type": "string"
+                        },
+                        "type": "object",
+                        "title": "Function"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "function"
+                ],
+                "title": "ToolCall"
+            },
+            "ValidationError": {
+                "properties": {
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "type": "array",
+                        "title": "Location"
+                    },
+                    "msg": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "type": {
+                        "type": "string",
+                        "title": "Error Type"
+                    },
+                    "input": {
+                        "title": "Input"
+                    },
+                    "ctx": {
+                        "type": "object",
+                        "title": "Context"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "title": "ValidationError"
+            }
+        }
+    },
+    "servers": [
+        {
+            "url": "/chat"
+        }
+    ]
+}

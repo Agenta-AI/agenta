@@ -684,3 +684,102 @@ class TestGeneratorTracing:
 
         # Verify span was set to OK status
         self.mock_span.set_status.assert_called_with(status="OK", description=None)
+
+
+class TestAggregateRemoved:
+    """
+    Tests verifying that the 'aggregate' param is gone from @instrument and
+    that the default join/list reduction behavior works correctly.
+
+    The aggregate flag was removed in G5. The decorator now always uses the
+    built-in reduction: strings joined, bytes joined, mixed types as list.
+    """
+
+    def setup_method(self):
+        self.mock_tracer = Mock()
+        self.mock_span = Mock()
+        self.mock_tracer.start_as_current_span.return_value.__enter__ = Mock(
+            return_value=self.mock_span
+        )
+        self.mock_tracer.start_as_current_span.return_value.__exit__ = Mock(
+            return_value=None
+        )
+        self.mock_tracer.get_current_span.return_value = self.mock_span
+        self.mock_tracing = Mock()
+        self.mock_tracing.get_current_span.return_value = self.mock_span
+        self.mock_tracing.redact = None
+
+    def test_instrument_has_no_aggregate_param(self):
+        """instrument.__init__ must not accept an 'aggregate' keyword."""
+        import inspect
+
+        sig = inspect.signature(instrument.__init__)
+        assert "aggregate" not in sig.parameters
+
+    def test_instrument_has_no_annotate_param(self):
+        """instrument.__init__ must not accept an 'annotate' keyword."""
+        import inspect
+
+        sig = inspect.signature(instrument.__init__)
+        assert "annotate" not in sig.parameters
+
+    def test_patch_plain_string_wrapped(self):
+        """_patch wraps a plain string under __default__."""
+        inst = instrument()
+        result = inst._patch("hello")
+        assert result == {"__default__": "hello"}
+
+    def test_patch_list_wrapped_under_default(self):
+        """_patch wraps a list under __default__ (join happens before _patch is called)."""
+        inst = instrument()
+        items = ["text", 42, {"key": "value"}]
+        result = inst._patch(items)
+        assert result == {"__default__": items}
+
+    def test_patch_dict_without_message_cost_usage_returned_as_is(self):
+        """A plain dict is returned unchanged (no __default__ wrapping)."""
+        inst = instrument()
+        d = {"key": "value", "num": 42}
+        result = inst._patch(d)
+        assert result == d
+
+    def test_patch_dict_with_message_cost_usage_unwrapped(self):
+        """Dict with message+cost+usage returns {__default__: message}."""
+        inst = instrument()
+        d = {"message": "hi", "cost": 0.01, "usage": {}}
+        result = inst._patch(d)
+        assert result == {"__default__": "hi"}
+
+    @patch("agenta.sdk.decorators.tracing.ag")
+    def test_sync_generator_chunks_yielded_unchanged(self, mock_ag):
+        """Consumer sees all chunks; generator is not consumed eagerly."""
+        mock_ag.tracer = self.mock_tracer
+        mock_ag.tracing = self.mock_tracing
+        mock_ag.tracing.get_current_span.return_value.is_recording.return_value = True
+
+        @instrument()
+        def str_gen():
+            yield "Hello"
+            yield ", "
+            yield "world"
+
+        assert list(str_gen()) == ["Hello", ", ", "world"]
+
+    @pytest.mark.asyncio
+    @patch("agenta.sdk.decorators.tracing.ag")
+    async def test_async_generator_chunks_yielded_unchanged(self, mock_ag):
+        """Async consumer sees all chunks in order."""
+        mock_ag.tracer = self.mock_tracer
+        mock_ag.tracing = self.mock_tracing
+        mock_ag.tracing.get_current_span.return_value.is_recording.return_value = True
+
+        @instrument()
+        async def async_str_gen():
+            yield "foo"
+            yield "bar"
+
+        results = []
+        async for chunk in async_str_gen():
+            results.append(chunk)
+
+        assert results == ["foo", "bar"]

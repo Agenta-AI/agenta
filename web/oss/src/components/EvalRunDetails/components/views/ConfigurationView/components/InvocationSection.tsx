@@ -2,18 +2,10 @@ import {memo, useEffect, useMemo, useState} from "react"
 
 import {DownOutlined} from "@ant-design/icons"
 import {Button, Segmented, Typography} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import {
-    clearProjectVariantReferencesAtom,
-    prefetchProjectVariantConfigs,
-    setProjectVariantReferencesAtom,
-    type ProjectVariantConfigKey,
-} from "@/oss/state/projectVariantConfig"
-
 import {variantReferenceQueryAtomFamily} from "../../../../atoms/references"
-import {effectiveProjectIdAtom} from "../../../../atoms/run"
 import {runInvocationRefsAtomFamily} from "../../../../atoms/runDerived"
 import {evaluationVariantConfigAtomFamily} from "../../../../atoms/variantConfig"
 import {ApplicationReferenceLabel, VariantRevisionLabel} from "../../../references"
@@ -48,22 +40,18 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
     const applicationVariantRef = rawRefs.applicationVariant ?? rawRefs.application_variant ?? {}
     const variantRef = rawRefs.variant ?? rawRefs.variant_ref ?? {}
 
-    // Use variant ID (not revision ID) for the reference label query
-    // Priority: variant.id > applicationVariant.id > variantConfig.variant_ref.id
-    const variantId = toIdString(
-        variantRef?.id ??
-            applicationVariantRef?.id ??
-            variantConfig?.variant_ref?.id ??
-            variantConfig?.variant_ref?.variant_id ??
-            variantConfig?.variant_ref?.variantId,
-    )
+    // Variant (artifact) ID from rawRefs — NOT a revision ID
+    const variantId = toIdString(variantRef?.id ?? applicationVariantRef?.id ?? null)
 
-    // Revision ID is used for the prompt config card (to get the specific revision's params)
+    // Revision ID: prefer the ID returned by the workflow API (variantConfig.variant_ref.id)
+    // because rawRefs often only contain variant (artifact) IDs, not revision IDs.
+    // The evaluationVariantConfigAtomFamily fetches the actual workflow revision and stores
+    // the true revision ID in variant_ref.id.
     const revisionId = toIdString(
-        applicationRevisionRef?.id ??
+        variantConfig?.variant_ref?.id ??
+            applicationRevisionRef?.id ??
             applicationRevisionRef?.revision_id ??
-            variantRef?.id ??
-            applicationVariantRef?.id,
+            null,
     )
 
     const applicationId = toIdString(
@@ -76,7 +64,11 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
             null,
     )
 
-    const variantAtom = useMemo(() => variantReferenceQueryAtomFamily(variantId), [variantId])
+    // Query with revisionId (not variantId) because workflowMolecule is keyed by revision ID
+    const variantAtom = useMemo(
+        () => variantReferenceQueryAtomFamily(revisionId ?? variantId),
+        [revisionId, variantId],
+    )
     const variantQuery = useAtomValue(variantAtom)
     const variantLoading = variantQuery.isPending || variantQuery.isFetching
     const variantResolved = variantQuery.data
@@ -103,12 +95,8 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
     const hasParamsSnapshot = Boolean(variantConfig?.params)
 
     // Only use actual resolved names as fallback, not truncated IDs
-    // Truncated IDs should not be treated as valid fallback names
     const variantLabel =
-        variantName ??
-        variantConfig?.variant_ref?.name ??
-        variantConfig?.variant_ref?.variant_name ??
-        null
+        variantName ?? variantConfig?.variant_ref?.name ?? variantConfig?.variant_ref?.slug ?? null
 
     // Use revisionId for the prompt config card (specific revision's params)
     const promptVariantKey = useMemo(() => {
@@ -122,73 +110,6 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
         if (refId) return refId
         return revisionId ?? variantId
     }, [variantConfig?.variant_ref, revisionId, variantId])
-
-    const projectId = useAtomValue(effectiveProjectIdAtom)
-    const setProjectVariantReferences = useSetAtom(setProjectVariantReferencesAtom)
-    const clearProjectVariantReferences = useSetAtom(clearProjectVariantReferencesAtom)
-
-    useEffect(() => {
-        if (!projectId) return
-
-        const variantRef =
-            (variantConfig as any)?.variant_ref ??
-            (variantConfig as any)?.variantRef ??
-            applicationVariantRef ??
-            {}
-        const appRef =
-            (variantConfig as any)?.application_ref ??
-            (variantConfig as any)?.applicationRef ??
-            applicationRef ??
-            {}
-
-        const resolvedVariantId =
-            toIdString(variantRef?.id) ??
-            toIdString(variantRef?.variant_id) ??
-            toIdString(applicationRevisionRef?.id) ??
-            toIdString(applicationVariantRef?.id) ??
-            undefined
-
-        const rawVersion =
-            variantRef?.version ??
-            variantRef?.revision ??
-            applicationRevisionRef?.version ??
-            applicationRevisionRef?.revision ??
-            null
-        const variantVersion =
-            typeof rawVersion === "number"
-                ? rawVersion
-                : typeof rawVersion === "string" && rawVersion.trim() !== ""
-                  ? Number(rawVersion)
-                  : null
-
-        if (!resolvedVariantId) {
-            clearProjectVariantReferences()
-            return
-        }
-
-        const entry: ProjectVariantConfigKey = {
-            projectId,
-            appId: toIdString(appRef?.id) ?? undefined,
-            appSlug: appRef?.slug ?? undefined,
-            variantId: resolvedVariantId,
-            variantVersion: Number.isFinite(variantVersion as number) ? variantVersion : null,
-        }
-
-        setProjectVariantReferences([entry])
-        prefetchProjectVariantConfigs([entry])
-
-        return () => {
-            clearProjectVariantReferences()
-        }
-    }, [
-        projectId,
-        setProjectVariantReferences,
-        clearProjectVariantReferences,
-        variantConfig,
-        applicationVariantRef,
-        applicationRef,
-        applicationRevisionRef,
-    ])
 
     const [collapsed, setCollapsed] = useState(false)
 

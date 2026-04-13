@@ -187,7 +187,6 @@ export const createStandardSecretAtom = atom(null, async (get, set, provider: Ll
         const payload = {
             header: {
                 name: provider.title,
-                description: "",
             },
             secret: {
                 kind: SecretDTOKind.PROVIDER_KEY,

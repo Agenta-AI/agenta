@@ -20,6 +20,17 @@ TYPES = {
 }
 
 
+def _has_pytest_option(pytest_args: Optional[tuple], option: str) -> bool:
+    if not pytest_args:
+        return False
+
+    return any(arg == option or arg.startswith(f"{option}=") for arg in pytest_args)
+
+
+def _resolve_license() -> str:
+    return "ee" if os.getenv("AGENTA_LICENSE") == "ee" else "oss"
+
+
 @click.command()
 @click.option(
     "--env-file",
@@ -37,13 +48,6 @@ TYPES = {
     type=str,
     help="Access token for Agenta",
     envvar="AGENTA_AUTH_KEY",
-)
-@click.option(
-    "--license",
-    default="oss",
-    type=click.Choice(TYPES["license"]),
-    help="License [oss|ee]",
-    show_default=True,
 )
 @click.option(
     "--coverage",
@@ -97,7 +101,6 @@ TYPES = {
     type=click.UNPROCESSED,
 )
 def run_tests(
-    license: str,  # pylint: disable=redefined-builtin
     env_file: Optional[str] = None,
     api_url: Optional[str] = None,
     auth_key: Optional[str] = None,
@@ -129,15 +132,11 @@ def run_tests(
         # ----------------------------------------------------------------------
 
         click.echo(f"Loaded environment variables from {env_file}")
-        _license = os.getenv("AGENTA_LICENSE")
-        if _license in TYPES["license"]:
-            license = _license  # noqa: F841
         if not api_url:
             api_url = os.getenv("AGENTA_API_URL")
         if not auth_key:
             auth_key = os.getenv("AGENTA_AUTH_KEY")
 
-    # Set API_URL and AUTH_KEY as env vars for tests
     if api_url:
         os.environ["AGENTA_API_URL"] = api_url
         click.echo(f"AGENTA_API_URL={api_url}")
@@ -147,7 +146,9 @@ def run_tests(
         message = f"AGENTA_AUTH_KEY={auth_key[:2]}" + "." * (L - 4) + f"{auth_key[-2:]}"
         click.echo(message)
 
-    # Set optional dimensions
+    license = _resolve_license()
+    click.echo(f"AGENTA_LICENSE={license}")
+
     for name, value in [
         ("COVERAGE", coverage),
         ("LENS", lens),
@@ -173,13 +174,21 @@ def run_tests(
     else:
         test_dirs = [f"{license}/tests/pytest"]
 
-    # If pytest_args contains test paths, use them instead of test_dirs
     extra_paths = [a for a in (pytest_args or []) if not a.startswith("-")]
     cmd = ["pytest"] + (extra_paths if extra_paths else test_dirs)
 
     if marker_args:
         marker_expr = " and ".join(marker_args)
         cmd += ["-m", marker_expr]
+
+    results_dir = os.path.join(license, "tests", "results")
+    os.makedirs(results_dir, exist_ok=True)
+
+    if not _has_pytest_option(pytest_args, "--junit-xml"):
+        cmd.append(f"--junit-xml={results_dir}/junit.xml")
+    if not _has_pytest_option(pytest_args, "--html"):
+        cmd.append(f"--html={results_dir}/report.html")
+
     if pytest_args:
         flags_only = [a for a in pytest_args if a.startswith("-")]
         cmd += flags_only

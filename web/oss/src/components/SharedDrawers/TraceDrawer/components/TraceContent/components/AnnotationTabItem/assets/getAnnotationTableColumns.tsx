@@ -1,3 +1,4 @@
+import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {TreeStructure} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {Table} from "antd"
@@ -5,7 +6,6 @@ import {ColumnsType} from "antd/es/table"
 import {getDefaultStore} from "jotai"
 
 import CustomAntdTag from "@/oss/components/CustomUIs/CustomAntdTag"
-import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
 import {setTraceDrawerTraceAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
@@ -62,12 +62,12 @@ export const getAnnotationTableColumns = (
                 key: `metrics-${reference}-${metricKey}`,
                 onHeaderCell: () => ({style: {minWidth: 160}}),
                 render: (_: any, record: any) => {
-                    if (!record.data?.outputs?.metrics || !record.data?.outputs?.extra) {
+                    const value = record.data?.outputs?.metrics?.[metricKey]?.value
+                    const extraValue = record.data?.outputs?.extra?.[metricKey]?.value
+
+                    if (value === undefined && extraValue === undefined) {
                         return <span className="text-gray-500">–</span>
                     }
-
-                    const value = record.data.outputs.metrics[metricKey]?.value
-                    const extraValue = record.data.outputs.extra[metricKey]?.value
 
                     return value !== undefined ? (
                         typeof value === "boolean" ? (
@@ -147,7 +147,7 @@ export const getAnnotationTableColumns = (
             render: (_, record) => {
                 return (
                     <div className="flex items-center justify-start">
-                        <UserAvatarTag modifiedBy={record.createdBy || ""} />
+                        <UserAuthorLabel name={record.createdBy || ""} showAvatar />
                     </div>
                 )
             },

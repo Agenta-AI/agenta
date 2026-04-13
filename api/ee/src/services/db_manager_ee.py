@@ -576,28 +576,21 @@ async def create_workspace_db_object(
         session=session,
     )
 
-    # add default testsets and evaluators
+    # add default testsets
     await db_manager.add_default_simple_testsets(
         project_id=str(project_db.id),
         user_id=str(user.id),
     )
-    await db_manager.add_default_simple_evaluators(
-        project_id=str(project_db.id),
-        user_id=str(user.id),
-    )
 
-    # add default human evaluator for annotation
+    # Create default evaluators and environments for the new project.
     # Import here to avoid circular import at module load time
-    from oss.src.core.evaluators.defaults import create_default_human_evaluator
+    from oss.src.core.evaluators.defaults import create_default_evaluators
+    from oss.src.core.environments.defaults import create_default_environments
 
-    await create_default_human_evaluator(
+    await create_default_evaluators(
         project_id=project_db.id,
         user_id=user.id,
     )
-
-    # Create default project-scoped environments for the default project.
-    from oss.src.core.environments.defaults import create_default_environments
-
     await create_default_environments(
         project_id=project_db.id,
         user_id=user.id,

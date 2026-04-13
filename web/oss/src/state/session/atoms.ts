@@ -1,7 +1,6 @@
+import {logAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {withImmer} from "jotai-immer"
-
-import {logAtom} from "../utils/logAtom"
 
 const baseSessionExistsAtom = atom(false)
 export const sessionExistsAtom = withImmer(baseSessionExistsAtom)

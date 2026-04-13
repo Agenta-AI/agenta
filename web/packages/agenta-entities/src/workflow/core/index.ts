@@ -36,10 +36,27 @@ export {
     type WorkflowRevisionResponse,
     workflowRevisionsResponseSchema,
     type WorkflowRevisionsResponse,
+    // Windowing
+    windowingResponseSchema,
+    type WindowingResponse,
     // URI utilities
     parseWorkflowKeyFromUri,
     buildWorkflowUri,
     generateSlug,
+    // Evaluator-specific utilities (for evaluator-type workflows)
+    getEvaluatorColor,
+    type EvaluatorColor,
+    parseEvaluatorKeyFromUri,
+    buildEvaluatorUri,
+    isOnlineCapableEvaluator,
+    collectEvaluatorCandidates,
+    // Output schema utilities
+    resolveInputSchema,
+    resolveOutputSchema,
+    resolveOutputSchemaProperties,
+    resolveParameters,
+    resolveParametersSchema,
+    resolveScript,
 } from "./schema"
 
 // Flag query type (for filtering)
@@ -52,3 +69,15 @@ export type {
     WorkflowReference,
     QueryResult,
 } from "./types"
+
+// Evaluator resolution utilities
+export {
+    extractEvaluatorRef,
+    deduplicateRefs,
+    extractMetrics,
+    toEvaluatorDefinitionFromWorkflow,
+    toEvaluatorDefinitionFromRaw,
+    type EvaluatorRef,
+    type EvaluatorDefinition,
+    type MetricColumnDefinition,
+} from "./evaluatorResolution"

@@ -94,3 +94,24 @@ def test_make_hash_id_changes_when_payload_changes():
     )
 
     assert left != right
+
+
+def test_make_hash_id_ignores_variant_and_revision_reference_keys():
+    hash_a = make_hash_id(
+        references={
+            "testcase": {"id": "tc-1"},
+            "testset": {"id": "ts-1"},
+            "testset_variant": {"id": "tsv-1", "slug": "main"},
+            "testset_revision": {"id": "tsr-1", "version": "v1"},
+        }
+    )
+    hash_b = make_hash_id(
+        references={
+            "testcase": {"id": "tc-1"},
+            "testset": {"id": "ts-1"},
+            "testset_variant": {"id": "tsv-2", "slug": "candidate"},
+            "testset_revision": {"id": "tsr-2", "version": "v2"},
+        }
+    )
+
+    assert hash_a == hash_b

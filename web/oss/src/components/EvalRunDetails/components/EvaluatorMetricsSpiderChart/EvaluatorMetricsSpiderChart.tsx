@@ -1,5 +1,6 @@
 import {memo, useMemo} from "react"
 
+import {formatCurrency, formatLatency} from "@agenta/shared/utils"
 import {Typography} from "antd"
 import clsx from "clsx"
 import {
@@ -13,7 +14,6 @@ import {
 } from "recharts"
 
 import {format3Sig} from "@/oss/components/Evaluations/MetricDetailsPopover"
-import {formatCurrency, formatLatency} from "@/oss/lib/helpers/formatters"
 
 import type {EvaluatorMetricsSpiderChartProps, MetricData, SeriesMeta} from "./types"
 

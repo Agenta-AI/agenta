@@ -1,8 +1,8 @@
+import {createBatchFetcher} from "@agenta/shared/utils"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
 import type {
     QueryFilteringPayload,

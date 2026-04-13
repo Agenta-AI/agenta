@@ -42,7 +42,7 @@ import "./snapshotAdapter"
 // MOLECULE (Primary API)
 // ============================================================================
 
-export {workflowMolecule, type WorkflowMolecule} from "./state/molecule"
+export {workflowMolecule, type WorkflowMolecule, type WorkflowType} from "./state/molecule"
 
 // ============================================================================
 // SCHEMAS & TYPES
@@ -81,6 +81,20 @@ export {
     parseWorkflowKeyFromUri,
     buildWorkflowUri,
     generateSlug,
+    // Evaluator-specific utilities (for evaluator-type workflows)
+    getEvaluatorColor,
+    type EvaluatorColor,
+    parseEvaluatorKeyFromUri,
+    buildEvaluatorUri,
+    isOnlineCapableEvaluator,
+    collectEvaluatorCandidates,
+    // Output schema utilities
+    resolveInputSchema,
+    resolveOutputSchema,
+    resolveOutputSchemaProperties,
+    resolveParameters,
+    resolveParametersSchema,
+    resolveScript,
 } from "./core"
 
 // Flag query type
@@ -95,6 +109,21 @@ export type {
 } from "./core"
 
 // ============================================================================
+// EVALUATOR RESOLUTION
+// ============================================================================
+
+export {
+    extractEvaluatorRef,
+    deduplicateRefs,
+    extractMetrics,
+    toEvaluatorDefinitionFromWorkflow,
+    toEvaluatorDefinitionFromRaw,
+    type EvaluatorRef,
+    type EvaluatorDefinition,
+    type MetricColumnDefinition,
+} from "./core"
+
+// ============================================================================
 // API FUNCTIONS
 // ============================================================================
 
@@ -105,6 +134,7 @@ export {
     queryWorkflowVariants,
     // Query / List (Revisions)
     queryWorkflowRevisionsByWorkflow,
+    queryWorkflowRevisionsByWorkflows,
     queryWorkflowRevisions,
     // Fetch (single revision by ID)
     fetchWorkflowRevisionById,
@@ -116,14 +146,28 @@ export {
     // Create
     createWorkflow,
     type CreateWorkflowPayload,
+    // Create from template (legacy endpoint orchestration)
+    createAppFromTemplate,
+    AppServiceType,
+    type CreateAppFromTemplateParams,
+    type CreateAppFromTemplateResult,
     // Update
     updateWorkflow,
     type UpdateWorkflowPayload,
     // Archive / Unarchive
     archiveWorkflow,
+    archiveWorkflowVariant,
     unarchiveWorkflow,
     // Batch
     fetchWorkflowsBatch,
+    // Schema
+    fetchAgTypeSchema,
+    // Catalog
+    fetchWorkflowCatalogTemplates,
+    type WorkflowCatalogTemplate,
+    type WorkflowCatalogPreset,
+    type WorkflowCatalogFlags,
+    type WorkflowCatalogTemplatesResponse,
 } from "./api"
 
 // ============================================================================
@@ -133,21 +177,30 @@ export {
 export {
     // Project ID
     workflowProjectIdAtom,
-    // List query
-    workflowsListQueryAtom,
+    // App workflows list query (non-evaluator)
+    appWorkflowsListQueryAtom,
+    appWorkflowsListDataAtom,
+    nonArchivedAppWorkflowsAtom,
+    appWorkflowsListQueryStateAtom,
+    // Union atoms (app + evaluator combined)
     workflowsListDataAtom,
     nonArchivedWorkflowsAtom,
+    workflowsListQueryStateAtom,
     // Variant/Revision list queries
     workflowVariantsQueryAtomFamily,
     workflowVariantsListDataAtomFamily,
     workflowRevisionsQueryAtomFamily,
+    workflowRevisionRefsByVariantAtomFamily,
     workflowRevisionsListDataAtomFamily,
     // Revision by workflow
     workflowRevisionsByWorkflowQueryAtomFamily,
     workflowRevisionsByWorkflowListDataAtomFamily,
+    type WorkflowRevisionRef,
+    type WorkflowListRef,
     // Single entity
     workflowQueryAtomFamily,
     workflowDraftAtomFamily,
+    workflowBaseEntityAtomFamily,
     workflowEntityAtomFamily,
     workflowIsDirtyAtomFamily,
     // Mutations
@@ -156,16 +209,21 @@ export {
     // Cache invalidation
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
+    seedCreatedWorkflowCache,
     // ListQueryState wrappers (for selection adapters and relations)
     workflowVariantsListQueryStateAtomFamily,
     workflowRevisionsListQueryStateAtomFamily,
-    workflowsListQueryStateAtom,
     // Local drafts
     workflowLocalServerDataAtomFamily,
     workflowServerDataSelectorFamily,
     createLocalDraftFromWorkflowRevision,
+    // Ephemeral workflows (from trace data)
+    createEphemeralWorkflow,
+    type CreateEphemeralWorkflowParams,
     // Latest revision (derived from already-fetched data)
     workflowLatestRevisionIdAtomFamily,
+    workflowAppTypeAtomFamily,
+    workflowLatestRevisionQueryAtomFamily,
     // Commit / Archive
     commitWorkflowRevisionAtom,
     commitWorkflowRevision,
@@ -174,12 +232,17 @@ export {
     type WorkflowCommitOutcome,
     type WorkflowCommitCallbacks,
     registerWorkflowCommitCallbacks,
+    getWorkflowCommitCallbacks,
     clearWorkflowCommitCallbacks,
+    invokeWorkflowCommitCallbacks,
     // Create Variant
     createWorkflowVariantAtom,
     type WorkflowCreateVariantParams,
     type WorkflowCreateVariantResult,
     type WorkflowCreateVariantOutcome,
+    // Create from Ephemeral
+    createWorkflowFromEphemeralAtom,
+    type WorkflowCreateFromEphemeralParams,
     archiveWorkflowRevisionAtom,
     type WorkflowArchiveParams,
     type WorkflowArchiveResult,
@@ -201,6 +264,66 @@ export {
 } from "./state"
 
 // ============================================================================
+// EVALUATOR UTILITIES (for evaluator-type workflows)
+// ============================================================================
+
+export {
+    // Evaluator-filtered list queries
+    evaluatorsListQueryAtom,
+    evaluatorsListDataAtom,
+    nonArchivedEvaluatorsAtom,
+    // Templates
+    evaluatorTemplatesQueryAtom,
+    evaluatorTemplatesDataAtom,
+    evaluatorTemplatesMapAtom,
+    // Template lookup
+    evaluatorTemplateByKeyAtomFamily,
+    // Catalog presets
+    evaluatorCatalogPresetsQueryAtomFamily,
+    evaluatorPresetsAtomFamily,
+    // Key map
+    evaluatorKeyMapAtom,
+    // Evaluator configs (non-human, non-custom)
+    evaluatorConfigsListDataAtom,
+    evaluatorConfigsQueryStateAtom,
+    // Human evaluators
+    humanEvaluatorsListQueryAtom,
+    humanEvaluatorsListDataAtom,
+    // Cache invalidation
+    invalidateEvaluatorsListCache,
+    onEvaluatorMutation,
+    // Create from template (entity lifecycle)
+    createEvaluatorFromTemplate,
+    // Human evaluator CRUD
+    createHumanEvaluatorAtom,
+    updateHumanEvaluatorAtom,
+    buildHumanEvaluatorOutputsSchema,
+    type CreateHumanEvaluatorParams,
+    type UpdateHumanEvaluatorParams,
+    type HumanEvaluatorMetric,
+    // Selection config
+    evaluatorSelectionConfig,
+    type EvaluatorSelectionConfig,
+} from "./state"
+
+// ============================================================================
+// TEMPLATES API
+// ============================================================================
+
+export {
+    fetchEvaluatorTemplates,
+    fetchEvaluatorCatalogPresets,
+    type EvaluatorCatalogTemplate,
+    type EvaluatorCatalogTemplatesResponse,
+    type EvaluatorCatalogPreset,
+    type EvaluatorCatalogPresetsResponse,
+    /** @deprecated Use EvaluatorCatalogTemplate */
+    type EvaluatorTemplate,
+    /** @deprecated Use EvaluatorCatalogTemplatesResponse */
+    type EvaluatorTemplatesResponse,
+} from "./api"
+
+// ============================================================================
 // RELATIONS
 // ============================================================================
 
@@ -216,7 +339,18 @@ export {
 // RUNNABLE EXTENSION
 // ============================================================================
 
-export {workflowRunnableExtension, runnableAtoms, runnableGet} from "./state"
+export {
+    workflowRunnableExtension,
+    runnableAtoms,
+    runnableGet,
+    // Schema selectors
+    appRoutePathAtomFamily,
+    appOpenApiSchemaAtomFamily,
+    // Request payload
+    requestPayloadAtomFamily,
+    // Helpers
+    resolveBuiltinAppServiceUrl,
+} from "./state"
 
 // ============================================================================
 // SNAPSHOT ADAPTER

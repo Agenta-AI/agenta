@@ -16,9 +16,17 @@ from oss.src.core.workflows.dtos import (
     VariantFork,
     RevisionFork,
     #
-    WorkflowFlags,
-    WorkflowQueryFlags,
+    WorkflowCatalogFlags,
+    WorkflowCatalogType,
+    WorkflowCatalogTemplate,
+    WorkflowCatalogPreset,
     #
+    WorkflowArtifactFlags,
+    WorkflowArtifactQueryFlags,
+    WorkflowVariantFlags,
+    WorkflowVariantQueryFlags,
+    WorkflowRevisionFlags,
+    WorkflowRevisionQueryFlags,
     Workflow,
     WorkflowCreate,
     WorkflowEdit,
@@ -76,31 +84,65 @@ class ApplicationRevisionIdAlias(AliasConfig):
 # globals ----------------------------------------------------------------------
 
 
-class ApplicationFlags(WorkflowFlags):
-    """Application flags - is_evaluator=False means it's an application."""
+class ApplicationArtifactFlags(WorkflowArtifactFlags):
+    """Application flags - is_application=True; other booleans use their normal defaults unless explicitly set."""
 
     def __init__(self, **data):
-        # Applications have is_evaluator=False (forced)
-        data["is_evaluator"] = False
+        data["is_application"] = True
 
         super().__init__(**data)
 
 
-class ApplicationQueryFlags(WorkflowQueryFlags):
-    """Application query flags - filter for is_evaluator=False."""
-
+class ApplicationVariantFlags(WorkflowVariantFlags):
     def __init__(self, **data):
-        # Query for non-evaluators (applications) (forced)
-        data["is_evaluator"] = False
+        data["is_application"] = True
 
         super().__init__(**data)
+
+
+class ApplicationRevisionFlags(WorkflowRevisionFlags):
+    def __init__(self, **data):
+        data["is_application"] = True
+
+        super().__init__(**data)
+
+
+class ApplicationArtifactQueryFlags(WorkflowArtifactQueryFlags):
+    """Application query flags - filter for is_application=True."""
+
+    def __init__(self, **data):
+        data["is_application"] = True
+
+        super().__init__(**data)
+
+
+class ApplicationVariantQueryFlags(WorkflowVariantQueryFlags):
+    def __init__(self, **data):
+        data["is_application"] = True
+
+        super().__init__(**data)
+
+
+class ApplicationRevisionQueryFlags(WorkflowRevisionQueryFlags):
+    def __init__(self, **data):
+        data["is_application"] = True
+
+        super().__init__(**data)
+
+
+class ApplicationFlags(ApplicationRevisionFlags):
+    """Legacy full application flag set."""
+
+
+class ApplicationQueryFlags(ApplicationRevisionQueryFlags):
+    """Legacy full application query flag set."""
 
 
 # applications -----------------------------------------------------------------
 
 
 class Application(Workflow):
-    flags: Optional[ApplicationFlags] = None
+    flags: Optional[ApplicationArtifactFlags] = None
 
 
 class ApplicationCreate(WorkflowCreate):
@@ -112,7 +154,7 @@ class ApplicationEdit(WorkflowEdit):
 
 
 class ApplicationQuery(WorkflowQuery):
-    flags: Optional[ApplicationQueryFlags] = None
+    flags: Optional[ApplicationArtifactQueryFlags] = None
 
 
 # application variants ---------------------------------------------------------
@@ -122,7 +164,7 @@ class ApplicationVariant(
     WorkflowVariant,
     ApplicationIdAlias,
 ):
-    flags: Optional[ApplicationFlags] = None
+    flags: Optional[ApplicationVariantFlags] = None
 
     def model_post_init(self, __context) -> None:
         sync_alias("application_id", "workflow_id", self)
@@ -143,7 +185,7 @@ class ApplicationVariantEdit(WorkflowVariantEdit):
 
 
 class ApplicationVariantQuery(WorkflowVariantQuery):
-    flags: Optional[ApplicationQueryFlags] = None
+    flags: Optional[ApplicationVariantQueryFlags] = None
 
 
 # application revisions --------------------------------------------------------
@@ -158,7 +200,7 @@ class ApplicationRevision(
     ApplicationIdAlias,
     ApplicationVariantIdAlias,
 ):
-    flags: Optional[ApplicationFlags] = None
+    flags: Optional[ApplicationRevisionFlags] = None
 
     data: Optional[ApplicationRevisionData] = None
 
@@ -184,7 +226,7 @@ class ApplicationRevisionEdit(WorkflowRevisionEdit):
 
 
 class ApplicationRevisionQuery(WorkflowRevisionQuery):
-    flags: Optional[ApplicationQueryFlags] = None
+    flags: Optional[ApplicationRevisionQueryFlags] = None
 
 
 class ApplicationRevisionCommit(
@@ -265,11 +307,11 @@ class ApplicationFork(
 # simple applications ----------------------------------------------------------
 
 
-class SimpleApplicationFlags(ApplicationFlags):
+class SimpleApplicationFlags(ApplicationRevisionFlags):
     pass
 
 
-class SimpleApplicationQueryFlags(ApplicationQueryFlags):
+class SimpleApplicationQueryFlags(ApplicationRevisionQueryFlags):
     pass
 
 
@@ -300,6 +342,21 @@ class SimpleApplicationEdit(Identifier, Header, Metadata):
 
 class SimpleApplicationQuery(Metadata):
     flags: Optional[SimpleApplicationQueryFlags] = None
+
+
+# APPLICATION CATALOG ----------------------------------------------------------
+
+
+class ApplicationCatalogType(WorkflowCatalogType):
+    pass
+
+
+class ApplicationCatalogTemplate(WorkflowCatalogTemplate):
+    flags: Optional[WorkflowCatalogFlags] = None
+
+
+class ApplicationCatalogPreset(WorkflowCatalogPreset):
+    flags: Optional[WorkflowCatalogFlags] = None
 
 
 # ------------------------------------------------------------------------------

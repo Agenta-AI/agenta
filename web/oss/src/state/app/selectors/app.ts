@@ -1,24 +1,22 @@
+import type {Workflow} from "@agenta/entities/workflow"
 import {eagerAtom} from "jotai-eager"
-
-import {ListAppsItem} from "@/oss/lib/Types"
 
 import {appsQueryAtom, routerAppIdAtom, recentAppIdAtom} from "../atoms/fetcher"
 
-const EmptyApps: ListAppsItem[] = []
-export const appsAtom = eagerAtom<ListAppsItem[]>((get) => {
-    const res = (get(appsQueryAtom) as any)?.data
-    return res ?? EmptyApps
+const EmptyApps: Workflow[] = []
+export const appsAtom = eagerAtom<Workflow[]>((get) => {
+    return get(appsQueryAtom).data ?? EmptyApps
 })
 
 export const selectedAppIdAtom = eagerAtom<string | null>((get) => {
     return get(routerAppIdAtom) || get(recentAppIdAtom) || null
 })
 
-export const currentAppAtom = eagerAtom<ListAppsItem | null>((get) => {
-    const apps = get(appsAtom) as ListAppsItem[]
+export const currentAppAtom = eagerAtom<Workflow | null>((get) => {
+    const apps = get(appsAtom)
     const appId = get(routerAppIdAtom) || get(recentAppIdAtom)
     if (!appId) return null
-    return apps.find((a) => a.app_id === appId) || null
+    return apps.find((a) => a.id === appId) || null
 })
 
 // Convenience re-exports for consumers needing raw ID atoms
@@ -36,8 +34,14 @@ export const currentAppContextAtom = eagerAtom((get) => {
     return {
         app: currentApp,
         appId: selectedId,
-        appName: currentApp?.app_name || null,
-        appType: currentApp?.app_type || null,
+        appName: currentApp?.name ?? currentApp?.slug ?? null,
+        appType: currentApp?.flags?.is_custom
+            ? "custom"
+            : currentApp?.flags?.is_chat
+              ? "chat"
+              : currentApp
+                ? "completion"
+                : null,
         hasApp: !!currentApp,
         loading: isLoading,
     }

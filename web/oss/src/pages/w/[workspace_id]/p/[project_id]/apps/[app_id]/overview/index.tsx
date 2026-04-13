@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {memo, useState} from "react"
 
 import {PageLayout} from "@agenta/ui"
@@ -37,13 +36,12 @@ const AppDetailsSection = memo(() => {
     const {currentApp, mutate: mutateApps} = useAppsData()
     const {openModal} = useCustomWorkflowConfig({
         afterConfigSave: mutateApps,
-        configureWorkflow: true,
     })
     return (
         <>
             <Space className="flex items-center gap-3">
                 <Title level={3} className="!m-0">
-                    {currentApp?.app_name || ""}
+                    {currentApp?.name ?? currentApp?.slug ?? ""}
                 </Title>
 
                 <Dropdown
@@ -55,7 +53,7 @@ const AppDetailsSection = memo(() => {
                     }}
                     menu={{
                         items: [
-                            ...(currentApp?.app_type === "custom"
+                            ...(currentApp?.flags?.is_custom
                                 ? [
                                       {
                                           key: "configure",
@@ -85,7 +83,11 @@ const AppDetailsSection = memo(() => {
                                 label: "Delete",
                                 icon: <Trash size={16} />,
                                 danger: true,
-                                onClick: () => openDeleteAppModal(currentApp!),
+                                onClick: () =>
+                                    openDeleteAppModal({
+                                        id: currentApp!.id,
+                                        name: currentApp!.name ?? currentApp!.slug ?? "",
+                                    }),
                             },
                         ],
                     }}
@@ -99,7 +101,7 @@ const AppDetailsSection = memo(() => {
 
 const OverviewPage = () => {
     const {currentApp} = useAppsData()
-    const appId = currentApp?.app_id ?? null
+    const appId = currentApp?.id ?? null
     const [isCustomWorkflowHistoryDrawerOpen, setIsCustomWorkflowHistoryDrawerOpen] =
         useState(false)
 

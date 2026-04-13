@@ -1,11 +1,9 @@
 import {useMemo, useState} from "react"
 
+import {VariantDetailsWithStatus, VariantNameCell} from "@agenta/entity-ui/variant"
 import {Dropdown, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
-
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import VariantNameCell from "@/oss/components/VariantNameCell"
 
 import {
     comparisonModalAllVariantsAtom,

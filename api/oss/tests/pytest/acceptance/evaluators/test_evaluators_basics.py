@@ -36,7 +36,7 @@ class TestEvaluatorsBasics:
                     "flags": {
                         "is_custom": False,
                         "is_evaluator": False,
-                        "is_human": False,
+                        "is_feedback": False,
                     },
                     "tags": {
                         "tag1": "value1",
@@ -49,10 +49,9 @@ class TestEvaluatorsBasics:
                         "meta3": "value3",
                     },
                     "data": {
-                        "service": {
-                            "agenta": "v0.1.0",
-                            "format": _format,
-                        }
+                        "schemas": {
+                            "outputs": _format,
+                        },
                     },
                 }
             },
@@ -64,7 +63,7 @@ class TestEvaluatorsBasics:
         response = response.json()
         assert response["count"] == 1
         assert response["evaluator"]["slug"] == f"evaluator-{evaluator_slug}"
-        assert response["evaluator"]["data"]["service"]["format"] == _format
+        assert response["evaluator"]["data"]["schemas"]["outputs"] == _format
         # ----------------------------------------------------------------------
 
     def test_fetch_evaluator(self, authed_api):
@@ -101,7 +100,7 @@ class TestEvaluatorsBasics:
                     "flags": {
                         "is_custom": False,
                         "is_evaluator": False,
-                        "is_human": False,
+                        "is_feedback": False,
                     },
                     "tags": {
                         "tag1": "value1",
@@ -114,10 +113,9 @@ class TestEvaluatorsBasics:
                         "meta3": "value3",
                     },
                     "data": {
-                        "service": {
-                            "agenta": "v0.1.0",
-                            "format": _format,
-                        }
+                        "schemas": {
+                            "outputs": _format,
+                        },
                     },
                 }
             },
@@ -139,7 +137,7 @@ class TestEvaluatorsBasics:
         assert response.status_code == 200
         response = response.json()
         assert response["evaluator"]["slug"] == f"evaluator-{evaluator_slug}"
-        assert response["evaluator"]["data"]["service"]["format"] == _format
+        assert response["evaluator"]["data"]["schemas"]["outputs"] == _format
         # ----------------------------------------------------------------------
 
     def test_edit_evaluator(self, authed_api):
@@ -176,7 +174,7 @@ class TestEvaluatorsBasics:
                     "flags": {
                         "is_custom": False,
                         "is_evaluator": False,
-                        "is_human": False,
+                        "is_feedback": False,
                     },
                     "tags": {
                         "tag1": "value1",
@@ -189,10 +187,9 @@ class TestEvaluatorsBasics:
                         "meta3": "value3",
                     },
                     "data": {
-                        "service": {
-                            "agenta": "v0.1.0",
-                            "format": _format,
-                        }
+                        "schemas": {
+                            "outputs": _format,
+                        },
                     },
                 }
             },
@@ -226,7 +223,7 @@ class TestEvaluatorsBasics:
                     "flags": {
                         "is_custom": False,
                         "is_evaluator": False,
-                        "is_human": False,
+                        "is_feedback": False,
                     },
                     "tags": {
                         "tag1": "value3",
@@ -239,10 +236,9 @@ class TestEvaluatorsBasics:
                         "meta3": "value1",
                     },
                     "data": {
-                        "service": {
-                            "agenta": "v0.1.0",
-                            "format": _format,
-                        }
+                        "schemas": {
+                            "outputs": _format,
+                        },
                     },
                 }
             },
@@ -252,7 +248,7 @@ class TestEvaluatorsBasics:
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
-        assert response["evaluator"]["data"]["service"]["format"] == _format
+        assert response["evaluator"]["data"]["schemas"]["outputs"] == _format
         # ----------------------------------------------------------------------
 
     def test_archive_evaluator(self, authed_api):
@@ -289,7 +285,7 @@ class TestEvaluatorsBasics:
                     "flags": {
                         "is_custom": False,
                         "is_evaluator": False,
-                        "is_human": False,
+                        "is_feedback": False,
                     },
                     "tags": {
                         "tag1": "value1",
@@ -302,10 +298,9 @@ class TestEvaluatorsBasics:
                         "meta3": "value3",
                     },
                     "data": {
-                        "service": {
-                            "agenta": "v0.1.0",
-                            "format": _format,
-                        }
+                        "schemas": {
+                            "outputs": _format,
+                        },
                     },
                 }
             },
@@ -364,7 +359,7 @@ class TestEvaluatorsBasics:
                     "flags": {
                         "is_custom": False,
                         "is_evaluator": False,
-                        "is_human": False,
+                        "is_feedback": False,
                     },
                     "tags": {
                         "tag1": "value1",
@@ -377,10 +372,9 @@ class TestEvaluatorsBasics:
                         "meta3": "value3",
                     },
                     "data": {
-                        "service": {
-                            "agenta": "v0.1.0",
-                            "format": _format,
-                        }
+                        "schemas": {
+                            "outputs": _format,
+                        },
                     },
                 }
             },

@@ -6,6 +6,7 @@
  */
 
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
+import {v4 as uuidv4} from "uuid"
 
 import {safeParseWithLogging} from "../../shared"
 import {
@@ -182,10 +183,13 @@ export async function commitEnvironmentRevision(
 ): Promise<EnvironmentRevision | null> {
     const {projectId, environmentId, environmentVariantId, data, delta, message} = params
 
+    const slug = uuidv4().replace(/-/g, "").slice(-12)
+
     const response = await axios.post(
         `${getAgentaApiUrl()}/preview/environments/revisions/commit`,
         {
             environment_revision_commit: {
+                slug,
                 environment_id: environmentId,
                 environment_variant_id: environmentVariantId,
                 data,

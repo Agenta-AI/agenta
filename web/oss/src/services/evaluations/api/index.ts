@@ -10,16 +10,6 @@ import {
 } from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
-// Re-export evaluator config functions from the canonical source
-// This maintains backward compatibility for existing imports
-export {
-    fetchAllEvaluatorConfigs,
-    createEvaluatorConfig,
-    updateEvaluatorConfig,
-    deleteEvaluatorConfig,
-    type CreateEvaluatorConfigData,
-} from "@/oss/services/evaluators"
-
 //Prefix convention:
 //  - fetch: GET single entity from server
 //  - fetchAll: GET all entities from server
@@ -159,7 +149,7 @@ export type CreateEvaluationData =
           testset_id: string
           testset_revision_id?: string
           variant_ids?: string[]
-          evaluator_ids: string[]
+          evaluator_revision_ids: string[]
           rate_limit: LLMRunRateLimit
           lm_providers_keys?: KeyValuePair
           correct_answer_column: string
@@ -168,7 +158,7 @@ export type CreateEvaluationData =
           testset_id: string
           testset_revision_id?: string
           revisions_ids?: string[]
-          evaluator_ids: string[]
+          evaluator_revision_ids: string[]
           rate_limit: LLMRunRateLimit
           lm_providers_keys?: KeyValuePair
           correct_answer_column: string
@@ -186,12 +176,12 @@ export const createEvaluation = async (appId: string, evaluation: CreateEvaluati
               : undefined
     const name = "name" in evaluation ? evaluation.name : "Evaluation" // Default name for legacy variant
 
-    // Use simple evaluations endpoint which auto-starts execution
+    // Frontend provides revision IDs directly.
     return await axios.post(`/preview/simple/evaluations/?project_id=${projectId}`, {
         evaluation: {
             name,
             data: {
-                // Simple evaluations API expects Target = Dict[UUID, Origin] for auto-evaluations
+                // All steps use revision IDs directly.
                 testset_steps: evaluation.testset_revision_id
                     ? {[evaluation.testset_revision_id]: "auto"}
                     : undefined,
@@ -200,7 +190,7 @@ export const createEvaluation = async (appId: string, evaluation: CreateEvaluati
                         (acc, id) => ({...acc, [id]: "auto"}),
                         {} as Record<string, "auto">,
                     ) || {},
-                evaluator_steps: evaluation.evaluator_ids.reduce(
+                evaluator_steps: evaluation.evaluator_revision_ids.reduce(
                     (acc, id) => ({...acc, [id]: "auto"}),
                     {} as Record<string, "auto">,
                 ),
@@ -211,7 +201,6 @@ export const createEvaluation = async (appId: string, evaluation: CreateEvaluati
                 is_closed: false,
             },
         },
-        jit: true,
     })
 }
 
