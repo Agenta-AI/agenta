@@ -14,6 +14,19 @@ import {atomWithReset, RESET} from "jotai/utils"
 import {getEntityAdapter} from "../adapters"
 import type {CommitContext, EntityReference} from "../types"
 
+function extractAxiosErrorMessage(error: unknown): string {
+    if (error && typeof error === "object") {
+        const axiosData = (error as {response?: {data?: unknown}}).response?.data
+        if (axiosData && typeof axiosData === "object") {
+            const data = axiosData as Record<string, unknown>
+            if (typeof data.detail === "string" && data.detail) return data.detail
+            if (typeof data.message === "string" && data.message) return data.message
+        }
+    }
+    if (error instanceof Error) return error.message
+    return String(error)
+}
+
 // ============================================================================
 // CORE STATE ATOMS
 // ============================================================================
@@ -235,9 +248,13 @@ export const executeCommitAtom = atom(null, async (get, set) => {
 
         return {success: true}
     } catch (error) {
-        set(commitModalErrorAtom, error as Error)
+        const message = extractAxiosErrorMessage(error)
+        set(
+            commitModalErrorAtom,
+            error instanceof Error ? Object.assign(error, {message}) : new Error(message),
+        )
         set(commitModalLoadingAtom, false)
-        return {success: false, error: (error as Error).message}
+        return {success: false, error: message}
     }
 })
 

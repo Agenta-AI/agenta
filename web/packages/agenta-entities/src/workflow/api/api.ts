@@ -691,13 +691,15 @@ export async function createWorkflow(
     const workflowId = validatedWorkflow.workflow.id
 
     // Step 2: Create a default variant (revisions require a variant_id)
+    const DEFAULT_VARIANT_NAME = "default"
+    const variantSlug = `${payload.slug}.${DEFAULT_VARIANT_NAME}`
     const variantResponse = await axios.post(
         `${getAgentaApiUrl()}/preview/workflows/variants/`,
         {
             workflow_variant: {
                 workflow_id: workflowId,
-                slug: generateId().replace(/-/g, "").slice(0, 12),
-                name: payload.name,
+                slug: variantSlug,
+                name: DEFAULT_VARIANT_NAME,
             },
         },
         {params: {project_id: projectId}},
@@ -724,7 +726,7 @@ export async function createWorkflow(
                     workflow_id: workflowId,
                     workflow_variant_id: variantId,
                     slug: generateId().replace(/-/g, "").slice(0, 12),
-                    name: payload.name,
+                    name: DEFAULT_VARIANT_NAME,
                     message: "Initial commit",
                 },
             },
@@ -740,7 +742,7 @@ export async function createWorkflow(
                     workflow_id: workflowId,
                     workflow_variant_id: variantId,
                     slug: generateId().replace(/-/g, "").slice(0, 12),
-                    name: payload.name,
+                    name: DEFAULT_VARIANT_NAME,
                     data: payload.data,
                     flags: revisionFlags,
                     message: payload.message ?? undefined,
