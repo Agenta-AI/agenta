@@ -59,6 +59,7 @@ def _flatten_revision_response(
     environment_slug: Optional[str] = None,
 ) -> Dict[str, Any]:
     data = application_revision.get("data") or {}
+    params = data.get("parameters") or {}
 
     flattened: Dict[str, Any] = {
         "app_id": application_revision.get("application_id")
@@ -72,7 +73,7 @@ def _flatten_revision_response(
         or application_revision.get("created_at"),
         "committed_by": application_revision.get("updated_by"),
         "committed_by_id": application_revision.get("updated_by_id"),
-        "params": data.get("parameters") or {},
+        "params": params,
     }
 
     if environment_revision:
@@ -114,6 +115,39 @@ def _empty_configuration_response(
         deployed_by_id=None,
         params={},
     )
+
+
+def _raise_revision_not_found(
+    *,
+    app_id: Optional[str] = None,
+    app_slug: Optional[str] = None,
+    variant_id: Optional[str] = None,
+    variant_slug: Optional[str] = None,
+    variant_version: Optional[int] = None,
+) -> None:
+    parts = []
+    if app_id:
+        parts.append(f"app_id={app_id}")
+    if app_slug:
+        parts.append(f"app_slug={app_slug}")
+    if variant_id:
+        parts.append(f"variant_id={variant_id}")
+    if variant_slug:
+        parts.append(f"variant_slug={variant_slug}")
+    if variant_version is not None:
+        parts.append(f"variant_version={variant_version}")
+
+    details = ", ".join(parts) if parts else "provided references"
+    raise ValueError(f"Application revision not found for {details}.")
+
+
+def _revision_has_parameters(revision: Optional[Dict[str, Any]]) -> bool:
+    if not revision:
+        return False
+
+    data = revision.get("data") or {}
+    parameters = data.get("parameters") if isinstance(data, dict) else None
+    return bool(parameters)
 
 
 class SharedManager:
@@ -377,7 +411,7 @@ class SharedManager:
             environment_version=environment_version,
         )
 
-        request: Dict[str, Any] = {}
+        request: Dict[str, Any] = {"resolve": True}
         resolved_application_id = fetch_signatures["app_id"]
         resolved_application_slug = fetch_signatures["app_slug"]
         resolved_variant_id = fetch_signatures["variant_id"]
@@ -394,23 +428,6 @@ class SharedManager:
                 app_slug=fetch_signatures["app_slug"],
             )
         else:
-            if resolved_variant_id or resolved_variant_slug:
-                variant = cls._resolve_variant(
-                    app_id=resolved_application_id,
-                    app_slug=resolved_application_slug,
-                    variant_id=resolved_variant_id,
-                    variant_slug=resolved_variant_slug,
-                )
-                resolved_variant_id = variant.get(
-                    "application_variant_id"
-                ) or variant.get("id")
-                resolved_variant_slug = resolved_variant_slug or variant.get("slug")
-                resolved_application_id = (
-                    resolved_application_id
-                    or variant.get("application_id")
-                    or variant.get("artifact_id")
-                )
-
             request["application_ref"] = cls._build_application_ref(
                 app_id=resolved_application_id,
                 app_slug=resolved_application_slug,
@@ -430,7 +447,35 @@ class SharedManager:
         )
         _raise_for_status(response)
 
-        revision = response.json().get("application_revision")
+        result = response.json()
+        revision = result.get("application_revision")
+
+        if not _revision_has_parameters(revision) and not (
+            fetch_signatures["environment_id"] or fetch_signatures["environment_slug"]
+        ):
+            fallback_request = {
+                key: value
+                for key, value in {
+                    "resolve": True,
+                    "workflow_ref": request.get("application_ref"),
+                    "workflow_variant_ref": request.get("application_variant_ref"),
+                    "workflow_revision_ref": request.get("application_revision_ref"),
+                }.items()
+                if value is not None
+            }
+
+            fallback_response = authed_api()(
+                method="POST",
+                endpoint="/preview/workflows/revisions/retrieve",
+                json=fallback_request,
+            )
+            _raise_for_status(fallback_response)
+            fallback_result = fallback_response.json()
+            fallback_revision = fallback_result.get("workflow_revision")
+
+            if _revision_has_parameters(fallback_revision):
+                revision = fallback_revision
+
         if not revision:
             variant = None
             if resolved_variant_id or resolved_variant_slug:
@@ -450,6 +495,15 @@ class SharedManager:
                     resolved_application_id
                     or variant.get("application_id")
                     or variant.get("artifact_id")
+                )
+
+            if fetch_signatures["variant_version"] is not None:
+                _raise_revision_not_found(
+                    app_id=resolved_application_id,
+                    app_slug=resolved_application_slug,
+                    variant_id=resolved_variant_id,
+                    variant_slug=resolved_variant_slug,
+                    variant_version=fetch_signatures["variant_version"],
                 )
 
             return _empty_configuration_response(
@@ -492,7 +546,7 @@ class SharedManager:
             environment_version=environment_version,
         )
 
-        request: Dict[str, Any] = {}
+        request: Dict[str, Any] = {"resolve": True}
         resolved_application_id = fetch_signatures["app_id"]
         resolved_application_slug = fetch_signatures["app_slug"]
         resolved_variant_id = fetch_signatures["variant_id"]
@@ -509,23 +563,6 @@ class SharedManager:
                 app_slug=fetch_signatures["app_slug"],
             )
         else:
-            if resolved_variant_id or resolved_variant_slug:
-                variant = await cls._aresolve_variant(
-                    app_id=resolved_application_id,
-                    app_slug=resolved_application_slug,
-                    variant_id=resolved_variant_id,
-                    variant_slug=resolved_variant_slug,
-                )
-                resolved_variant_id = variant.get(
-                    "application_variant_id"
-                ) or variant.get("id")
-                resolved_variant_slug = resolved_variant_slug or variant.get("slug")
-                resolved_application_id = (
-                    resolved_application_id
-                    or variant.get("application_id")
-                    or variant.get("artifact_id")
-                )
-
             request["application_ref"] = cls._build_application_ref(
                 app_id=resolved_application_id,
                 app_slug=resolved_application_slug,
@@ -545,7 +582,35 @@ class SharedManager:
         )
         _raise_for_status(response)
 
-        revision = response.json().get("application_revision")
+        result = response.json()
+        revision = result.get("application_revision")
+
+        if not _revision_has_parameters(revision) and not (
+            fetch_signatures["environment_id"] or fetch_signatures["environment_slug"]
+        ):
+            fallback_request = {
+                key: value
+                for key, value in {
+                    "resolve": True,
+                    "workflow_ref": request.get("application_ref"),
+                    "workflow_variant_ref": request.get("application_variant_ref"),
+                    "workflow_revision_ref": request.get("application_revision_ref"),
+                }.items()
+                if value is not None
+            }
+
+            fallback_response = await authed_async_api()(
+                method="POST",
+                endpoint="/preview/workflows/revisions/retrieve",
+                json=fallback_request,
+            )
+            _raise_for_status(fallback_response)
+            fallback_result = fallback_response.json()
+            fallback_revision = fallback_result.get("workflow_revision")
+
+            if _revision_has_parameters(fallback_revision):
+                revision = fallback_revision
+
         if not revision:
             variant = None
             if resolved_variant_id or resolved_variant_slug:
@@ -565,6 +630,15 @@ class SharedManager:
                     resolved_application_id
                     or variant.get("application_id")
                     or variant.get("artifact_id")
+                )
+
+            if fetch_signatures["variant_version"] is not None:
+                _raise_revision_not_found(
+                    app_id=resolved_application_id,
+                    app_slug=resolved_application_slug,
+                    variant_id=resolved_variant_id,
+                    variant_slug=resolved_variant_slug,
+                    variant_version=fetch_signatures["variant_version"],
                 )
 
             return _empty_configuration_response(
@@ -1105,7 +1179,6 @@ class SharedManager:
             variant_slug=variant_slug,
             variant_version=variant_version,
         )
-        environment = cls._query_simple_environment(environment_slug=environment_slug)
 
         response = authed_api()(
             method="POST",
@@ -1123,8 +1196,7 @@ class SharedManager:
                     variant_version=config.variant_version,
                 ),
                 "environment_ref": cls._build_environment_ref(
-                    environment_id=environment.get("id"),
-                    environment_slug=environment.get("slug"),
+                    environment_slug=environment_slug,
                 ),
             },
         )
@@ -1135,7 +1207,7 @@ class SharedManager:
             raise ValueError("Failed to deploy application revision.")
 
         environment_revision = cls._query_simple_environment(
-            environment_id=environment.get("id"),
+            environment_slug=environment_slug,
         )
 
         return DeploymentResponse(
@@ -1144,7 +1216,7 @@ class SharedManager:
                 environment_revision=environment_revision,
                 app_slug=config.app_slug,
                 variant_slug=config.variant_slug,
-                environment_slug=environment.get("slug"),
+                environment_slug=environment_slug,
             )
         )
 
@@ -1166,9 +1238,6 @@ class SharedManager:
             variant_slug=variant_slug,
             variant_version=variant_version,
         )
-        environment = await cls._aquery_simple_environment(
-            environment_slug=environment_slug
-        )
 
         response = await authed_async_api()(
             method="POST",
@@ -1186,8 +1255,7 @@ class SharedManager:
                     variant_version=config.variant_version,
                 ),
                 "environment_ref": cls._build_environment_ref(
-                    environment_id=environment.get("id"),
-                    environment_slug=environment.get("slug"),
+                    environment_slug=environment_slug,
                 ),
             },
         )
@@ -1198,7 +1266,7 @@ class SharedManager:
             raise ValueError("Failed to deploy application revision.")
 
         environment_revision = await cls._aquery_simple_environment(
-            environment_id=environment.get("id"),
+            environment_slug=environment_slug,
         )
 
         return DeploymentResponse(
@@ -1207,7 +1275,7 @@ class SharedManager:
                 environment_revision=environment_revision,
                 app_slug=config.app_slug,
                 variant_slug=config.variant_slug,
-                environment_slug=environment.get("slug"),
+                environment_slug=environment_slug,
             )
         )
 
