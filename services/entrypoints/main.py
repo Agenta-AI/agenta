@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-# from starlette.routing import Mount
 
 import agenta as ag
 from agenta.sdk.utils.logging import get_module_logger
@@ -37,8 +36,9 @@ from oss.src.managed import (
     custom_hook_app,
     custom_config_app,
 )
-from oss.src.chat import chat_app, chat_v0_app
-from oss.src.completion import completion_app, completion_v0_app
+from oss.src.chat import chat_v0_app
+from oss.src.completion import completion_v0_app
+from entrypoints.legacy import register_legacy_routes
 
 
 ag.init()
@@ -104,8 +104,13 @@ async def health():
 
 app.mount("/chat/v0", chat_v0_app)
 app.mount("/completion/v0", completion_v0_app)
-app.mount("/chat", chat_app)
-app.mount("/completion", completion_app)
+
+register_legacy_routes(
+    app=app,
+    services=("chat", "completion"),
+    paths=("generate_deployed", "run", "generate", "test"),
+    target_version="v0",
+)
 #
 app.mount("/config/v0", custom_config_app)
 app.mount("/code/v0", custom_code_app)
