@@ -76,6 +76,9 @@ def _flatten_revision_response(
         "params": params,
     }
 
+    if environment_slug:
+        flattened["environment_slug"] = environment_slug
+
     if environment_revision:
         flattened.update(
             {

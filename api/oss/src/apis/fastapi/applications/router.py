@@ -1162,16 +1162,6 @@ class ApplicationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        log.info(
-            "[applications.revisions.retrieve] request project_id=%s user_id=%s resolve=%s app_ref=%s variant_ref=%s revision_ref=%s",
-            request.state.project_id,
-            request.state.user_id,
-            application_revision_retrieve_request.resolve,
-            application_revision_retrieve_request.application_ref,
-            application_revision_retrieve_request.application_variant_ref,
-            application_revision_retrieve_request.application_revision_ref,
-        )
-
         application_ref = application_revision_retrieve_request.application_ref
         application_variant_ref = (
             application_revision_retrieve_request.application_variant_ref
@@ -1258,24 +1248,10 @@ class ApplicationsRouter:
                 detail="Environment revision does not contain application references for the requested key.",
             )
 
-        log.info(
-            "[applications.revisions.retrieve] fetched project_id=%s revision_id=%s has_data=%s",
-            request.state.project_id,
-            getattr(application_revision, "id", None),
-            bool(application_revision and application_revision.data),
-        )
-
         application_revision_response = ApplicationRevisionResponse(
             count=1 if application_revision else 0,
             application_revision=application_revision,
             resolution_info=resolution_info,
-        )
-
-        log.info(
-            "[applications.revisions.retrieve] response project_id=%s count=%s revision_id=%s",
-            request.state.project_id,
-            application_revision_response.count,
-            getattr(application_revision, "id", None),
         )
 
         return application_revision_response
