@@ -101,6 +101,9 @@ export {
 // OpenAPI schema utilities
 export {dereferenceSchema, type DereferencedSchemaResult} from "./openapi"
 
+// API error utilities
+export {extractApiErrorMessage} from "./extractApiErrorMessage"
+
 // Formatting utilities
 export {
     createFormatter,

@@ -2,7 +2,7 @@
 
 ## Scope
 
-This RTM covers the **existing OSS web acceptance tests only**. It is the left side of the
+This RTM covers the **existing OSS and EE web acceptance tests**. It is the left side of the
 acceptance matrix discussed in the testing meeting:
 
 - The RTM entry is the intent.
@@ -390,3 +390,396 @@ For every RTM entry below:
 - And the user is on the Observability page
 - When the user opens the traces table
 - Then the trace detail drawer opens
+
+### WEB-ACC-PROMPTS-001 - Navigate to the Prompts page
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/prompts.feature`
+- Test file: `web/oss/tests/playwright/acceptance/prompts/index.ts`
+- Playwright title: `OSS Prompts Flow > navigates to the Prompts page and displays it`
+
+#### Markers
+
+- Scope: `apps`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+#### Scenarios
+
+- Given the user is authenticated
+- When the user navigates to the Prompts page
+- Then the Prompts page is displayed with the Create new button
+
+### WEB-ACC-PROMPTS-002 - Create a new prompt via the Create new dropdown
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/prompts.feature`
+- Test file: `web/oss/tests/playwright/acceptance/prompts/index.ts`
+- Playwright title: `OSS Prompts Flow > creates a new prompt via the Create new dropdown`
+
+#### Markers
+
+- Scope: `apps`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+#### Scenarios
+
+- Given the user is authenticated
+- And the user is on the Prompts page
+- When the user clicks Create new, selects New prompt, and fills in the form
+- Then the new prompt modal was opened and submitted successfully
+
+### WEB-ACC-PROMPTS-003 - Create a new folder via the Create new dropdown
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/prompts.feature`
+- Test file: `web/oss/tests/playwright/acceptance/prompts/index.ts`
+- Playwright title: `OSS Prompts Flow > creates a new folder via the Create new dropdown`
+
+#### Markers
+
+- Scope: `apps`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+#### Scenarios
+
+- Given the user is authenticated
+- And the user is on the Prompts page
+- When the user clicks Create new, selects New folder, and enters a folder name
+- Then the new folder is created and visible in the prompts table
+
+### WEB-ACC-EVALUATORS-001 - Navigate to the Evaluators page and verify both tabs
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
+- Playwright title: `Evaluators > should navigate to the evaluators page and display both automatic and human evaluator tabs`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `smoke`, `light`, `full`
+- Path: `happy`
+- Case: not set
+- Lens: not set
+- Speed: not set
+- Cost: not set
+- Role: not set
+- Plan: environment-defined
+- License: not set
+- Status: active
+
+#### Scenarios
+
+- Given the user is authenticated
+- When the user navigates to the Evaluators page
+- Then the Automatic Evaluators tab is visible and selected by default
+- And the Human Evaluators tab is visible but not selected
+- And the Create new button is visible on both tabs
+- When the user switches between tabs
+- Then the active tab and URL parameter update correctly
+
+### WEB-ACC-EVALUATORS-002 - Create an Exact Match evaluator from the template dropdown
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
+- Playwright title: `Evaluators > should create an Exact Match evaluator from the template dropdown`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `smoke`, `light`, `full`
+- Path: `happy`
+- Case: not set
+- Lens: not set
+- Speed: not set
+- Cost: not set
+- Role: not set
+- Plan: environment-defined
+- License: not set
+- Status: active
+
+#### Scenarios
+
+- Given the user is authenticated
+- And the user is on the Evaluators page
+- When the user opens the template dropdown and selects Exact Match
+- Then the New Evaluator drawer opens
+- When the user clicks Create, enters a name, and submits the commit modal
+- Then the evaluator creation succeeds and the new evaluator appears in the table
+
+### WEB-ACC-EVALUATORS-003 - Open evaluator playground, select a completion app, and run
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
+- Playwright title: `Evaluators > should open the evaluator playground, select a completion app, and run the evaluator`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `light`, `full`
+- Path: `happy`
+- Case: not set
+- Lens: not set
+- Speed: not set
+- Cost: not set
+- Role: not set
+- Plan: environment-defined
+- License: not set
+- Status: active with conditional skip when no apps or no completion app exists
+
+#### Scenarios
+
+- Given the user is authenticated
+- And the user is on the Evaluators page
+- When the user creates a fresh Exact Match evaluator
+- And the user opens the evaluator view drawer and expands it to playground mode
+- And the user selects a completion-type app and its first revision
+- And the user fills in the testcase fields
+- When the user clicks Run
+- Then the evaluator result card appears
+
+### WEB-ACC-EVALUATORS-004 - Create a human evaluator with a boolean feedback metric
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature` (not yet created)
+- Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
+- Playwright title: `Evaluators > should create a human evaluator with a boolean feedback metric`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `smoke`, `light`, `full`
+- Path: `happy`
+- Case: not set
+- Lens: not set
+- Speed: not set
+- Cost: not set
+- Role: not set
+- Plan: environment-defined
+- License: not set
+- Status: active
+
+#### Scenarios
+
+- Given the user is authenticated
+- And the user is on the Evaluators page on the Human Evaluators tab
+- When the user clicks Create new, fills in the evaluator name, feedback name, and selects Boolean type
+- Then the evaluator creation succeeds and the new human evaluator appears in the table
+
+### WEB-ACC-AUTOEVAL-001 - Run a single auto evaluation
+
+#### Source
+
+- Feature file: not yet created
+- Test file: `web/ee/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Playwright title: `Auto Evaluation: Run evaluation > should run a single evaluation`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `smoke`, `light`, `full`
+- Path: `happy`
+- Case: not set
+- Lens: not set
+- Speed: not set
+- Cost: not set
+- Role: not set
+- Plan: environment-defined
+- License: `ee`
+- Status: active
+
+#### Scenarios
+
+- Given the user is authenticated
+- And a completion app and at least one variant exist
+- And the user navigates to the auto evaluations page for that app
+- When the user creates a testset and runs an auto evaluation with Exact Match
+- Then the modal closes and the user is navigated to the evaluation results page
+- And the URL contains the auto evaluation results path
+
+### WEB-ACC-AUTOEVAL-002 - Show error when creating auto evaluation with mismatched testset
+
+#### Source
+
+- Feature file: not yet created
+- Test file: `web/ee/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Playwright title: `Auto Evaluation: Run evaluation > should show an error when attempting to create an evaluation with a mismatched testset`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `smoke`, `light`, `full`
+- Path: `happy`
+- Case: not set
+- Lens: not set
+- Speed: not set
+- Cost: not set
+- Role: not set
+- Plan: environment-defined
+- License: `ee`
+- Status: active
+
+#### Scenarios
+
+- Given the user is authenticated
+- And a chat app with at least one variant exists
+- And the user navigates to the auto evaluations page for that app
+- When the user opens the New Auto Evaluation modal and selects a testset with mismatched columns
+- Then the expected input variables note is shown and does not contain the mismatched column name
+- And the modal allows proceeding with the mismatched testset selected
+
+### WEB-ACC-HUMAN-001 - Human evaluation entry point on the human tab
+
+#### Source
+
+- Feature file: not yet created
+- Test file: `web/ee/tests/playwright/acceptance/human-annotation/index.ts`
+- Playwright title: `Human Annotation > should show the human evaluation entry point on the human tab`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `smoke`, `light`, `full`
+- Path: `happy`
+- Case: not set
+- Lens: not set
+- Speed: not set
+- Cost: not set
+- Role: not set
+- Plan: environment-defined
+- License: `ee`
+- Status: active
+
+#### Scenarios
+
+- Given the user is authenticated
+- And a completion app exists
+- When the user navigates to the human evaluations tab for that app
+- Then the human evaluation entry point is displayed
+
+### WEB-ACC-HUMAN-002 - Mismatched testset when configuring a human evaluation
+
+#### Source
+
+- Feature file: not yet created
+- Test file: `web/ee/tests/playwright/acceptance/human-annotation/index.ts`
+- Playwright title: `Human Annotation > should use a deliberately mismatched testset when configuring a human evaluation`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `smoke`, `light`, `full`
+- Path: `happy`
+- Case: not set
+- Lens: not set
+- Speed: not set
+- Cost: not set
+- Role: not set
+- Plan: environment-defined
+- License: `ee`
+- Status: active
+
+#### Scenarios
+
+- Given the user is authenticated
+- And a chat app with at least one variant exists
+- When the user opens the New Human Evaluation modal and selects a testset with mismatched columns
+- Then the expected input variables note is shown and does not contain the mismatched column name
+- And the modal allows proceeding with the mismatched testset selected
+
+### WEB-ACC-HUMAN-003 - Create a human evaluation and land on the results page
+
+#### Source
+
+- Feature file: not yet created
+- Test file: `web/ee/tests/playwright/acceptance/human-annotation/index.ts`
+- Playwright title: `Human Annotation > should create a human evaluation and land on the results page`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `smoke`, `light`, `full`
+- Path: `happy`
+- Case: not set
+- Lens: not set
+- Speed: not set
+- Cost: not set
+- Role: not set
+- Plan: environment-defined
+- License: `ee`
+- Status: active
+
+#### Scenarios
+
+- Given the user is authenticated
+- And a completion app with at least one variant exists
+- When the user creates a testset and runs a human evaluation
+- Then the modal closes and the user is navigated to the human evaluation results page
+- And the Annotate tab is selected with the inputs, outputs, and annotations sections visible
+
+### WEB-ACC-HUMAN-004 - Create evaluator inline and annotate a scenario from the Annotate tab
+
+#### Source
+
+- Feature file: not yet created
+- Test file: `web/ee/tests/playwright/acceptance/human-annotation/index.ts`
+- Playwright title: `Human Annotation > should create a new evaluator inline and annotate a scenario from the annotate tab`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `light`, `full`
+- Path: `happy`
+- Case: not set
+- Lens: not set
+- Speed: not set
+- Cost: not set
+- Role: not set
+- Plan: environment-defined
+- License: `ee`
+- Status: active
+
+#### Scenarios
+
+- Given the user is authenticated
+- And a completion app with at least one variant exists
+- When the user creates a human evaluation run with an inline evaluator metric
+- Then the user is navigated to the human evaluation results page
+- And the user annotates the current scenario with a boolean metric value
+- Then the annotation is submitted successfully
