@@ -50,9 +50,6 @@ def _marshall(
 
         return marshalled
 
-    print()
-    print(unmarshalled)
-
     if isinstance(unmarshalled, dict):
         # Otherwise,
         # iterate over the unmarshalled attributes and marshall them
