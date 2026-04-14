@@ -1,4 +1,5 @@
 # Tests: playground/run-variant.spec.ts -> playground/index.ts -> playground/tests.ts
+# RTM IDs: WEB-ACC-PLAYGROUND-001, WEB-ACC-PLAYGROUND-002, WEB-ACC-PLAYGROUND-003
 # Tags: @scope:playground @coverage:smoke @coverage:light @coverage:full @path:happy
 #
 # Implementation notes:
@@ -20,34 +21,21 @@ Feature: Playground Variant Execution
   @smoke @happy @scope:playground @scope:observability
   Scenario: Run single view variant for completion
     Given the active project has a configured test provider
-    And the user navigates to the playground for a completion app
-    And the user selects the configured test model
-    When the user enters a message in the input field
-    And the user clicks the "Run" button
-    Then the API should return a successful response
-    And the output area should display generated text (not "Click run to generate output")
-    And no error message should be visible
-    When the user clicks "+ Test case" to add a new test case
-    Then a new test case section should appear
+    And the user is on the playground for a completion app
+    When the user runs the completion variant with test inputs
+    Then the completion variant run succeeds without UI errors
 
   @smoke @happy @scope:playground
   Scenario: Run single view variant for chat
     Given the active project has a configured test provider
-    And the user navigates to the playground for a chat app
-    And the user selects the configured test model
-    When the user types a message in the chat input
-    And the user clicks the "Run" button
-    Then the API should return a successful response
-    And no error message should be visible
+    And the user is on the playground for a chat app
+    When the user runs the chat variant with test inputs
+    Then the chat variant run succeeds without UI errors
 
   @smoke @happy @scope:playground
   Scenario: Update prompt and save changes
-    Given the user navigates to the playground for a completion app
-    When the user adds a new prompt message with role "User"
-    And the user enters prompt text with a template variable
-    And the user modifies the template variable key
-    And the user clicks "Commit"
-    And the user selects "As a new version"
-    And the user confirms the commit
-    Then the commit modal should close
-    And the variant version number should increment
+    Given the user is on the playground for a completion app
+    When the user adds new prompt messages
+    And the user changes the template variable keys
+    And the user commits the changes "As a new version"
+    Then the prompt changes are saved successfully

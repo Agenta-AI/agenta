@@ -447,6 +447,47 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
         const entity = get(workflowEntityAtomFamily(workflowId))
         const storedSchema = resolveParametersSchema(entity?.data) ?? null
 
+        const enrichSchemaRefs = (schema: unknown): unknown => {
+            if (!schema || typeof schema !== "object" || Array.isArray(schema)) return schema
+
+            const node = schema as Record<string, unknown>
+            const agTypeRef = node["x-ag-type-ref"] as string | undefined
+            let merged: Record<string, unknown> = node
+
+            if (agTypeRef) {
+                const agTypeQuery = get(agTypeSchemaAtomFamily(agTypeRef))
+                const agTypeSchema = agTypeQuery.data
+                if (agTypeSchema && typeof agTypeSchema === "object") {
+                    merged = {
+                        ...agTypeSchema,
+                        ...node,
+                        "x-ag-type-ref": agTypeRef,
+                        ...(node.title ? {title: node.title} : {}),
+                        ...(node.description ? {description: node.description} : {}),
+                        ...(node.default !== undefined ? {default: node.default} : {}),
+                    }
+                }
+            }
+
+            const properties = merged.properties as Record<string, unknown> | undefined
+            const items = merged.items
+
+            return {
+                ...merged,
+                ...(properties
+                    ? {
+                          properties: Object.fromEntries(
+                              Object.entries(properties).map(([key, value]) => [
+                                  key,
+                                  enrichSchemaRefs(value),
+                              ]),
+                          ),
+                      }
+                    : {}),
+                ...(items ? {items: enrichSchemaRefs(items)} : {}),
+            }
+        }
+
         // For non-evaluators, enrich any opaque x-ag-type-ref properties with
         // full sub-property schemas fetched from the ag-types endpoint
         if (!entity?.flags?.is_evaluator) {
@@ -457,25 +498,11 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
             const enrichedProperties: Record<string, unknown> = {}
 
             for (const [key, prop] of Object.entries(properties)) {
-                const agType =
-                    (prop?.["x-ag-type"] as string | undefined) ??
-                    (prop?.["x-ag-type-ref"] as string | undefined)
-                // Only enrich if the property has x-ag-type/x-ag-type-ref but no sub-properties
-                if (agType && !prop.properties) {
-                    const agTypeQuery = get(agTypeSchemaAtomFamily(agType))
-                    const agTypeSchema = agTypeQuery.data
-                    if (agTypeSchema?.properties) {
-                        enrichedProperties[key] = {
-                            ...prop,
-                            ...agTypeSchema,
-                            // Preserve the original semantic ref and local overrides.
-                            "x-ag-type-ref": agType,
-                            ...(prop.title ? {title: prop.title} : {}),
-                            ...(prop.default !== undefined ? {default: prop.default} : {}),
-                        }
-                        enriched = true
-                        continue
-                    }
+                const enrichedProp = enrichSchemaRefs(prop)
+                if (enrichedProp !== prop) {
+                    enrichedProperties[key] = enrichedProp
+                    enriched = true
+                    continue
                 }
                 enrichedProperties[key] = prop
             }
@@ -486,7 +513,9 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
 
         // If stored schema is valid JSON Schema (has type + properties), return as-is.
         // Settings_template format has properties but no type — needs enrichment.
-        if (storedSchema?.properties && storedSchema?.type) return storedSchema
+        if (storedSchema?.properties && storedSchema?.type) {
+            return enrichSchemaRefs(storedSchema) as Record<string, unknown>
+        }
 
         // Evaluator with no/incomplete schema — try to enrich from catalog template
         const uri = entity?.data?.uri as string | undefined
@@ -509,13 +538,14 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
         // If the template schema has properties, merge with stored schema
         if (templateParams.properties) {
             // Template already in JSON Schema format — merge (stored takes precedence)
-            return {
+            const mergedTemplateSchema = {
                 ...templateParams,
                 properties: {
                     ...(templateParams.properties as Record<string, unknown>),
                     ...((storedSchema?.properties as Record<string, unknown>) ?? {}),
                 },
             }
+            return enrichSchemaRefs(mergedTemplateSchema) as Record<string, unknown>
         }
 
         // Template is in settings_template metadata format — convert to JSON Schema
@@ -602,7 +632,7 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
             },
         }
 
-        return mergedSchema
+        return enrichSchemaRefs(mergedSchema) as Record<string, unknown>
     }),
 )
 

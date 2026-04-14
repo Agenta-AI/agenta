@@ -1,25 +1,26 @@
 # Tests: prompt-registry/prompt-registry-flow.spec.ts -> prompt-registry/index.ts
+# RTM ID: WEB-ACC-REGISTRY-001
 # Tags: @scope:playground @coverage:smoke @coverage:light @coverage:full @path:happy
 #
 # Implementation notes:
-# - Navigation: /apps -> Prompts sidebar link -> prompts table -> click app row
-# - Direct URL to /prompts returns 404 (requires workspace prefix)
-# - Prompts table uses div-based rows (not <tr>); use cursor-class locator for row clicks
-# - Clicking a prompt row navigates to the app overview page (not a drawer)
+# - Navigation: open the app workflow revisions page directly via the scoped project path
+# - The registry data comes from POST /api/preview/workflows/revisions/query
+# - The first published workflow revision is opened via its data-row-key
+# - The drawer action transitions the user into Playground with a revisionId query parameter
 
-Feature: Prompt Registry
+Feature: Prompt Registry Workflow Revisions
   As a user
-  I want to browse the prompt registry
-  So that I can view and manage my prompt apps
+  I want to browse workflow revisions from the prompt registry
+  So that I can jump into Playground for a selected revision
 
   Background:
     Given the user is authenticated
-    And at least one prompt app exists
+    And at least one completion app exists
 
   @smoke @happy
-  Scenario: Open prompt details from the registry
-    Given the user navigates to the Prompts page via sidebar
-    Then the "Prompts" heading should be visible
-    And a prompts table should be visible
-    When the user clicks on the first app row
-    Then the user should be navigated to the app overview page
+  Scenario: Open Playground from the first published workflow revision
+    Given the user is on the workflow revisions page for that app
+    When the user opens the first published workflow revision
+    And the workflow revision drawer is visible
+    And the user opens Playground from that drawer
+    Then the Playground opens for the selected revision

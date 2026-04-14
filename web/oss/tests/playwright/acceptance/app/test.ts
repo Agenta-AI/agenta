@@ -1,6 +1,7 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {expect} from "@agenta/web-tests/utils"
 
+import {APP_TYPE_LABELS} from "./assets/types"
 import type {AppFixtures, CreateAppResponse} from "./assets/types"
 
 /**
@@ -39,8 +40,7 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
         await use(async (appName: string, appType) => {
             await uiHelpers.clickButton("Create New Prompt")
 
-            const input = page.getByRole("textbox", {name: "Enter a name"})
-            let dialog = page.getByRole("dialog")
+            let dialog = page.getByRole("dialog").last()
 
             // Wait for dialog with a short timeout
             const isDialogVisible = await dialog.isVisible().catch(() => false)
@@ -48,14 +48,18 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
             // If dialog is not visible, click the button and wait for it
             if (!isDialogVisible) {
                 await uiHelpers.clickButton("Create New Prompt")
-                dialog = page.getByRole("dialog")
+                dialog = page.getByRole("dialog").last()
                 await expect(dialog).toBeVisible()
             }
+            const input = dialog.getByRole("textbox", {name: "Enter a name"})
             await expect(input).toBeVisible()
             const dialogTitle = dialog.getByText("Create New Prompt").first()
             await expect(dialogTitle).toBeVisible()
             await uiHelpers.typeWithDelay('input[placeholder="Enter a name"]', appName)
-            await page.getByText(appType).first().click()
+            const appTypeLabel = APP_TYPE_LABELS[appType]
+            const appTypeOption = dialog.getByText(appTypeLabel).first()
+            await expect(appTypeOption).toBeVisible()
+            await appTypeOption.click()
             const createAppPromise = page.waitForResponse((response) => {
                 if (
                     !response.url().includes("/preview/workflows") ||

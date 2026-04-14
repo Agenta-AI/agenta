@@ -1,5 +1,6 @@
 # Test: smoke.spec.ts
-# Tags: @coverage:smoke
+# RTM ID: WEB-ACC-AUTH-001
+# Tags: @scope:auth @coverage:smoke @path:happy @case:typical @speed:fast
 
 Feature: Authentication and Basic Navigation
   As a user

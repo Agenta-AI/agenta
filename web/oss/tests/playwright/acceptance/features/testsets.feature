@@ -1,4 +1,5 @@
 # Tests: testsset/testset.spec.ts -> testsset/index.ts
+# RTM ID: WEB-ACC-DATASETS-001
 # Tags: @scope:datasets @coverage:smoke @coverage:light @coverage:full @path:happy
 #
 # Implementation notes:
@@ -19,10 +20,8 @@ Feature: Test Sets
   @smoke @happy
   Scenario: View the default testset and its details
     Given the user navigates to the Test Sets page via sidebar
-    Then the "Test Sets" heading should be visible
     When the testsets API returns data
     Then the test is skipped if no testsets exist
-    And a testset should be visible in the table
-    When the user clicks on the testset row
-    Then the user should be navigated to the testset detail page
-    And the testset should have a name and at least one test case
+    And the default testset is visible in the table
+    When the user opens that testset
+    Then the default testset detail page is visible with test cases

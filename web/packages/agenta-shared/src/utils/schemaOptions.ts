@@ -10,7 +10,8 @@ export interface OptionGroup {
 export interface SchemaWithOptions {
     enum?: unknown[] // Allow unknown[] to be compatible with SchemaProperty
     choices?: Record<string, string[]>
-    "x-model-metadata"?: Record<string, Record<string, {input: number; output: number}>>
+    "x-ag-metadata"?: Record<string, Record<string, {input: number; output: number}>>
+    "x-model-metadata"?: Record<string, Record<string, {input: number; output: number}>> // LEGACY
 }
 
 export function getOptionsFromSchema<TSchema extends SchemaWithOptions>(
@@ -20,7 +21,7 @@ export function getOptionsFromSchema<TSchema extends SchemaWithOptions>(
 
     const choices = schema.choices as Record<string, string[]> | undefined
     if (choices && typeof choices === "object" && !Array.isArray(choices)) {
-        const modelMetadata = schema["x-model-metadata"] as
+        const modelMetadata = (schema["x-ag-metadata"] ?? schema["x-model-metadata"]) as
             | Record<string, Record<string, {input: number; output: number}>>
             | undefined
         const grouped = choices
