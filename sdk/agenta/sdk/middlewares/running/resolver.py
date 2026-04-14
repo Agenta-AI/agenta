@@ -4,7 +4,6 @@ from typing import Callable, Any, Optional, Dict
 import httpx
 import agenta as ag
 
-from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.models.workflows import (
     WorkflowRequestData,
     WorkflowInvokeRequest,
@@ -15,9 +14,6 @@ from agenta.sdk.engines.running.utils import (
     retrieve_handler,
 )
 from agenta.sdk.engines.running.errors import InvalidInterfaceURIV0Error
-
-
-log = get_module_logger(__name__)
 
 # Internal embeds resolution defaults (not user-configurable)
 _EMBEDS_MAX_CHECKS = 20
@@ -145,7 +141,6 @@ async def resolve_references(
 
     try:
         if not ag.async_api:
-            log.warning("No backend client available - skipping reference resolution")
             return None
 
         api_url = ag.async_api._client_wrapper._base_url
@@ -162,7 +157,7 @@ async def resolve_references(
                 return None
             if isinstance(ref, dict):
                 return {k: v for k, v in ref.items() if v is not None}
-            return ref.model_dump(exclude_none=True)
+            return ref.model_dump(mode="json", exclude_none=True)
 
         # "key" comes from request.selector.key only.
         key: Optional[str] = None
@@ -170,14 +165,41 @@ async def resolve_references(
             key = request.selector.key
 
         body: Dict[str, Any] = {"resolve": True}
-        for field, ref_key in [
+
+        application_mapping = [
+            ("application_ref", "application"),
+            ("application_variant_ref", "application_variant"),
+            ("application_revision_ref", "application_revision"),
+        ]
+        evaluator_mapping = [
+            ("evaluator_ref", "evaluator"),
+            ("evaluator_variant_ref", "evaluator_variant"),
+            ("evaluator_revision_ref", "evaluator_revision"),
+        ]
+        environment_mapping = [
             ("environment_ref", "environment"),
             ("environment_variant_ref", "environment_variant"),
             ("environment_revision_ref", "environment_revision"),
+        ]
+        workflow_mapping = [
             ("workflow_ref", "workflow"),
             ("workflow_variant_ref", "workflow_variant"),
             ("workflow_revision_ref", "workflow_revision"),
-        ]:
+        ]
+
+        has_application_refs = any(
+            ref_key in refs for _, ref_key in application_mapping
+        )
+        has_evaluator_refs = any(ref_key in refs for _, ref_key in evaluator_mapping)
+
+        if has_application_refs:
+            selected_mapping = application_mapping + environment_mapping
+        elif has_evaluator_refs:
+            selected_mapping = evaluator_mapping + environment_mapping
+        else:
+            selected_mapping = environment_mapping + workflow_mapping
+
+        for field, ref_key in selected_mapping:
             d = _ref_dict(ref_key)
             if d is not None:
                 body[field] = d
@@ -185,9 +207,19 @@ async def resolve_references(
         if key:
             body["key"] = key
 
+        if has_application_refs:
+            retrieve_url = f"{api_url}/preview/applications/revisions/retrieve"
+            response_key = "application_revision"
+        elif has_evaluator_refs:
+            retrieve_url = f"{api_url}/preview/evaluators/revisions/retrieve"
+            response_key = "evaluator_revision"
+        else:
+            retrieve_url = f"{api_url}/preview/workflows/revisions/retrieve"
+            response_key = "workflow_revision"
+
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{api_url}/preview/workflows/revisions/retrieve",
+                retrieve_url,
                 headers=headers,
                 json=body,
                 timeout=30.0,
@@ -196,14 +228,73 @@ async def resolve_references(
             response.raise_for_status()
             result = response.json()
 
-            revision = result.get("workflow_revision")
+            revision = result.get(response_key)
             if revision and revision.get("data"):
                 return WorkflowRevisionData(**revision["data"])
+            if has_application_refs:
+                # Compatibility fallback for deployments where application retrieve
+                # does not resolve but equivalent workflow retrieve does.
+                fallback_body: Dict[str, Any] = {"resolve": True}
+                application_to_workflow_mapping = [
+                    ("workflow_ref", "application"),
+                    ("workflow_variant_ref", "application_variant"),
+                    ("workflow_revision_ref", "application_revision"),
+                    ("environment_ref", "environment"),
+                    ("environment_variant_ref", "environment_variant"),
+                    ("environment_revision_ref", "environment_revision"),
+                ]
+                for field, ref_key in application_to_workflow_mapping:
+                    d = _ref_dict(ref_key)
+                    if d is not None:
+                        fallback_body[field] = d
+                if key:
+                    fallback_body["key"] = key
+
+                fallback_response = await client.post(
+                    f"{api_url}/preview/workflows/revisions/retrieve",
+                    headers=headers,
+                    json=fallback_body,
+                    timeout=30.0,
+                )
+                fallback_response.raise_for_status()
+                fallback_result = fallback_response.json()
+                fallback_revision = fallback_result.get("workflow_revision")
+                if fallback_revision and fallback_revision.get("data"):
+                    return WorkflowRevisionData(**fallback_revision["data"])
+            if has_evaluator_refs:
+                # Compatibility fallback for deployments where evaluator retrieve
+                # does not resolve but equivalent workflow retrieve does.
+                fallback_body = {"resolve": True}
+                evaluator_to_workflow_mapping = [
+                    ("workflow_ref", "evaluator"),
+                    ("workflow_variant_ref", "evaluator_variant"),
+                    ("workflow_revision_ref", "evaluator_revision"),
+                    ("environment_ref", "environment"),
+                    ("environment_variant_ref", "environment_variant"),
+                    ("environment_revision_ref", "environment_revision"),
+                ]
+                for field, ref_key in evaluator_to_workflow_mapping:
+                    d = _ref_dict(ref_key)
+                    if d is not None:
+                        fallback_body[field] = d
+                if key:
+                    fallback_body["key"] = key
+
+                fallback_response = await client.post(
+                    f"{api_url}/preview/workflows/revisions/retrieve",
+                    headers=headers,
+                    json=fallback_body,
+                    timeout=30.0,
+                )
+                fallback_response.raise_for_status()
+                fallback_result = fallback_response.json()
+                fallback_revision = fallback_result.get("workflow_revision")
+                if fallback_revision and fallback_revision.get("data"):
+                    return WorkflowRevisionData(**fallback_revision["data"])
 
         return None
 
-    except Exception as e:
-        log.error(f"Failed to resolve references: {e}")
+    except Exception:
         raise
 
 
@@ -235,7 +326,6 @@ async def resolve_embeds(
     error_policy = _EMBEDS_ERROR_POLICY
     try:
         if not ag.async_api:
-            log.warning("No backend client available - skipping embeds resolution")
             return parameters
 
         api_url = ag.async_api._client_wrapper._base_url
@@ -266,8 +356,7 @@ async def resolve_embeds(
 
         return parameters
 
-    except Exception as e:
-        log.error(f"Failed to resolve embeds: {e}")
+    except Exception:
         if error_policy == "exception":
             raise
         return parameters
@@ -297,12 +386,18 @@ class ResolverMiddleware:
         ctx = RunningContext.get()
         revision = await resolve_revision(request=request)
 
-        # Resolve references (env/workflow refs → revision) if not already present
-        if revision is None and request.references:
-            revision = await resolve_references(
+        needs_reference_hydration = bool(
+            request.references and (revision is None or not revision.parameters)
+        )
+
+        # Resolve references (env/workflow/application refs → revision) when needed
+        if needs_reference_hydration:
+            existing_revision = revision
+            hydrated_revision = await resolve_references(
                 request=request,
                 credentials=ctx.credentials or request.credentials,
             )
+            revision = hydrated_revision or existing_revision
 
         # Resolve embeds in parameters if enabled (via flags.resolve)
         resolve_flag = (request.flags or {}).get("resolve", True)
@@ -313,15 +408,12 @@ class ResolverMiddleware:
             and _has_embed_markers(revision.parameters)
         ):
             try:
-                log.info("Resolving embeds in configuration parameters")
                 resolved_params = await resolve_embeds(
                     parameters=revision.parameters,
                     credentials=ctx.credentials or request.credentials,
                 )
                 revision.parameters = resolved_params
-                log.info("Embeds resolution completed successfully")
-            except Exception as e:
-                log.error(f"Embeds resolution failed: {e}")
+            except Exception:
                 raise
 
         handler = await resolve_handler(uri=(revision.uri if revision else None))
