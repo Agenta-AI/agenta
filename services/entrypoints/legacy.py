@@ -6,8 +6,17 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 
+def _environment_slug(value: Any) -> Optional[Any]:
+    if isinstance(value, dict):
+        return value.get("slug") or value.get("name")
+    return value
+
+
 LEGACY_REFERENCE_FIELDS = (
+    ("application", "id", "application_id", "application_id", None),
     ("application", "id", "app_id", "application_id", None),
+    ("application", "slug", "application_slug", None, None),
+    ("application", "slug", "app_slug", None, None),
     ("application", "slug", "app", None, None),
     ("application_variant", "id", "variant_id", None, None),
     ("application_variant", "slug", "variant_slug", None, None),
@@ -15,6 +24,7 @@ LEGACY_REFERENCE_FIELDS = (
     ("environment", "id", "environment_id", None, None),
     ("environment", "slug", "environment_slug", None, None),
     ("environment_revision", "version", "environment_version", None, str),
+    ("environment", "slug", "environment", None, _environment_slug),
 )
 
 
@@ -91,8 +101,12 @@ def build_legacy_invoke_payload(
     references = {}
     for ref_name, ref_field, body_key, query_key, transform in LEGACY_REFERENCE_FIELDS:
         value = _reference_value(body, query, body_key, query_key)
-        if value is not None and transform is not None:
+        if value is None:
+            continue
+        if transform is not None:
             value = transform(value)
+        if value is None:
+            continue
         references.setdefault(ref_name, {})[ref_field] = value
 
     references = _without_empty(references)
