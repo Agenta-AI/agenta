@@ -7,6 +7,7 @@
 
 import {useEffect, useCallback, useRef, useState, type ReactNode} from "react"
 
+import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -33,19 +34,6 @@ import {
 import {EntityCommitContent, type CommitModeOption} from "./EntityCommitContent"
 import {EntityCommitFooter} from "./EntityCommitFooter"
 import {EntityCommitTitle} from "./EntityCommitTitle"
-
-function extractAxiosErrorMessage(error: unknown): string {
-    if (error && typeof error === "object") {
-        const axiosData = (error as {response?: {data?: unknown}}).response?.data
-        if (axiosData && typeof axiosData === "object") {
-            const data = axiosData as Record<string, unknown>
-            if (typeof data.detail === "string" && data.detail) return data.detail
-            if (typeof data.message === "string" && data.message) return data.message
-        }
-    }
-    if (error instanceof Error) return error.message
-    return String(error)
-}
 
 // Ensure modal adapters are registered even when side-effect imports are tree-shaken.
 void testsetModalAdapter
@@ -267,7 +255,9 @@ export function EntityCommitModal({
                 })
 
                 if (!result.success) {
-                    setCommitError(new Error(result.error || "Commit failed"))
+                    setCommitError(
+                        new Error(extractApiErrorMessage(result.error || "Commit failed")),
+                    )
                     setCommitLoading(false)
                     return
                 }
@@ -287,7 +277,7 @@ export function EntityCommitModal({
                 await onAfterSuccess?.(result)
                 return
             } catch (error) {
-                const msg = extractAxiosErrorMessage(error)
+                const msg = extractApiErrorMessage(error)
                 setCommitError(
                     error instanceof Error ? Object.assign(error, {message: msg}) : new Error(msg),
                 )

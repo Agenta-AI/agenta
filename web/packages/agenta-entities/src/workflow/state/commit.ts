@@ -23,26 +23,8 @@
  */
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
+import {extractApiErrorMessage, stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
-
-/**
- * Extract a human-readable error message from an unknown thrown value.
- * For Axios errors the server's `detail` or `message` field takes precedence
- * over the generic "Request failed with status code NNN" axios message.
- */
-function extractErrorMessage(error: unknown): string {
-    if (error && typeof error === "object") {
-        const axiosData = (error as {response?: {data?: unknown}}).response?.data
-        if (axiosData && typeof axiosData === "object") {
-            const data = axiosData as Record<string, unknown>
-            if (typeof data.detail === "string" && data.detail) return data.detail
-            if (typeof data.message === "string" && data.message) return data.message
-        }
-    }
-    if (error instanceof Error) return error.message
-    return String(error)
-}
 
 import {flattenEvaluatorConfiguration} from "../../runnable/evaluatorTransforms"
 import {
@@ -324,7 +306,7 @@ export const commitWorkflowRevisionAtom = atom(
 
             return result
         } catch (error) {
-            const err = new Error(extractErrorMessage(error))
+            const err = new Error(extractApiErrorMessage(error))
 
             if (_commitCallbacks.onError) {
                 _commitCallbacks.onError(err, params)
@@ -493,7 +475,7 @@ export const createWorkflowVariantAtom = atom(
                 newVariantId: newVariant.id,
             }
         } catch (error) {
-            const err = new Error(extractErrorMessage(error))
+            const err = new Error(extractApiErrorMessage(error))
             return {
                 success: false,
                 error: err,
@@ -603,7 +585,7 @@ export const createWorkflowFromEphemeralAtom = atom(
 
             return result
         } catch (error) {
-            const err = new Error(extractErrorMessage(error))
+            const err = new Error(extractApiErrorMessage(error))
 
             if (_commitCallbacks.onError) {
                 _commitCallbacks.onError(err, {revisionId, commitMessage})

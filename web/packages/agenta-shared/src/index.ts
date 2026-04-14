@@ -72,6 +72,7 @@ export {
     isValidRegex,
     isValidUUID,
     validateUUID,
+    extractApiErrorMessage,
     createBatchFetcher,
     filterItems,
     formatEnumLabel,
