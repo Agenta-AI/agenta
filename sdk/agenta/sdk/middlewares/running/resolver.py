@@ -191,8 +191,29 @@ async def resolve_references(
             ref_key in refs for _, ref_key in application_mapping
         )
         has_evaluator_refs = any(ref_key in refs for _, ref_key in evaluator_mapping)
+        has_environment_refs = any(
+            ref_key in refs for _, ref_key in environment_mapping
+        )
+        has_application_revision_refs = any(
+            ref_key in refs
+            for ref_key in (
+                "application_variant",
+                "application_revision",
+            )
+        )
 
-        if has_application_refs:
+        environment_backed_application_lookup = (
+            has_application_refs
+            and has_environment_refs
+            and not has_application_revision_refs
+        )
+
+        if environment_backed_application_lookup:
+            selected_mapping = environment_mapping
+            application_ref = _ref_dict("application") or {}
+            if not key and application_ref.get("slug"):
+                key = f"{application_ref['slug']}.revision"
+        elif has_application_refs:
             selected_mapping = application_mapping + environment_mapping
         elif has_evaluator_refs:
             selected_mapping = evaluator_mapping + environment_mapping
@@ -386,8 +407,11 @@ class ResolverMiddleware:
         ctx = RunningContext.get()
         revision = await resolve_revision(request=request)
 
+        request_has_parameters = bool(request.data and request.data.parameters)
         needs_reference_hydration = bool(
-            request.references and (revision is None or not revision.parameters)
+            request.references
+            and not request_has_parameters
+            and (revision is None or not revision.parameters)
         )
 
         # Resolve references (env/workflow/application refs → revision) when needed

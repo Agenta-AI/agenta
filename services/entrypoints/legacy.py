@@ -41,6 +41,44 @@ def _reference_value(
     return query.get(query_key or body_key)
 
 
+def _selector_key(
+    *,
+    body: Dict[str, Any],
+    query: Dict[str, str],
+    references: Dict[str, Any],
+) -> Optional[str]:
+    selector = body.get("selector")
+    if isinstance(selector, dict) and selector.get("key"):
+        return selector["key"]
+
+    for key in ("key", "selector_key"):
+        value = _reference_value(body, query, key)
+        if value:
+            return value
+
+    has_environment_refs = any(
+        references.get(ref_name)
+        for ref_name in (
+            "environment",
+            "environment_variant",
+            "environment_revision",
+        )
+    )
+    has_application_revision_refs = any(
+        references.get(ref_name)
+        for ref_name in (
+            "application_variant",
+            "application_revision",
+        )
+    )
+
+    application_slug = (references.get("application") or {}).get("slug")
+    if has_environment_refs and not has_application_revision_refs and application_slug:
+        return f"{application_slug}.revision"
+
+    return None
+
+
 def build_legacy_invoke_payload(
     *,
     body: Dict[str, Any],
@@ -57,6 +95,9 @@ def build_legacy_invoke_payload(
             value = transform(value)
         references.setdefault(ref_name, {})[ref_field] = value
 
+    references = _without_empty(references)
+    selector_key = _selector_key(body=body, query=query, references=references)
+
     return _without_empty(
         {
             "data": {
@@ -64,6 +105,9 @@ def build_legacy_invoke_payload(
                 "parameters": body.get("ag_config"),
             },
             "references": references,
+            "selector": {
+                "key": selector_key,
+            },
         }
     )
 
