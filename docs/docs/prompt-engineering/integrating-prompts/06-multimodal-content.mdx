@@ -103,64 +103,76 @@ When using `file_data`, also provide `filename` and `format` (the MIME type). Wh
 ### Example: sending an image
 
 ```bash
-curl -X POST "https://cloud.agenta.ai/services/chat/run" \
+curl -X POST "https://cloud.agenta.ai/services/chat/v0/invoke" \
   -H "Content-Type: application/json" \
   -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
-    "environment": "production",
-    "app": "my-chat-app",
-    "inputs": {},
-    "messages": [
-      {
-        "role": "user",
-        "content": [
-          {"type": "text", "text": "What is in this image?"},
+    "data": {
+      "inputs": {
+        "messages": [
           {
-            "type": "image_url",
-            "image_url": {
-              "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-              "detail": "auto"
-            }
+            "role": "user",
+            "content": [
+              {"type": "text", "text": "What is in this image?"},
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                  "detail": "auto"
+                }
+              }
+            ]
           }
         ]
       }
-    ]
+    },
+    "references": {
+      "application": {"slug": "my-chat-app"},
+      "environment": {"slug": "production"}
+    },
+    "selector": {"key": "my-chat-app.revision"}
   }'
 ```
 
 ### Example: sending both image and PDF
 
 ```bash
-curl -X POST "https://cloud.agenta.ai/services/chat/run" \
+curl -X POST "https://cloud.agenta.ai/services/chat/v0/invoke" \
   -H "Content-Type: application/json" \
   -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
-    "environment": "production",
-    "app": "my-chat-app",
-    "inputs": {},
-    "messages": [
-      {
-        "role": "user",
-        "content": [
-          {"type": "text", "text": "Summarize this document and describe the attached image."},
+    "data": {
+      "inputs": {
+        "messages": [
           {
-            "type": "image_url",
-            "image_url": {
-              "url": "https://example.com/photo.jpg",
-              "detail": "high"
-            }
-          },
-          {
-            "type": "file",
-            "file": {
-              "file_data": "data:application/pdf;base64,JVBERi0xLjQK...",
-              "filename": "invoice.pdf",
-              "format": "application/pdf"
-            }
+            "role": "user",
+            "content": [
+              {"type": "text", "text": "Summarize this document and describe the attached image."},
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": "https://example.com/photo.jpg",
+                  "detail": "high"
+                }
+              },
+              {
+                "type": "file",
+                "file": {
+                  "file_data": "data:application/pdf;base64,JVBERi0xLjQK...",
+                  "filename": "invoice.pdf",
+                  "format": "application/pdf"
+                }
+              }
+            ]
           }
         ]
       }
-    ]
+    },
+    "references": {
+      "application": {"slug": "my-chat-app"},
+      "environment": {"slug": "production"}
+    },
+    "selector": {"key": "my-chat-app.revision"}
   }'
 ```
 
@@ -180,38 +192,44 @@ with open("report.pdf", "rb") as f:
     pdf_b64 = base64.b64encode(f.read()).decode("utf-8")
 
 response = requests.post(
-    "https://cloud.agenta.ai/services/chat/run",
+    "https://cloud.agenta.ai/services/chat/v0/invoke",
     headers={
         "Content-Type": "application/json",
         "Authorization": f"ApiKey {os.environ['AGENTA_API_KEY']}",
     },
     json={
-        "environment": "production",
-        "app": "my-chat-app",
-        "inputs": {},
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "Analyze this image and PDF."},
+        "data": {
+            "inputs": {
+                "messages": [
                     {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{image_b64}",
-                            "detail": "auto",
-                        },
-                    },
-                    {
-                        "type": "file",
-                        "file": {
-                            "file_data": f"data:application/pdf;base64,{pdf_b64}",
-                            "filename": "report.pdf",
-                            "format": "application/pdf",
-                        },
-                    },
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "Analyze this image and PDF."},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{image_b64}",
+                                    "detail": "auto",
+                                },
+                            },
+                            {
+                                "type": "file",
+                                "file": {
+                                    "file_data": f"data:application/pdf;base64,{pdf_b64}",
+                                    "filename": "report.pdf",
+                                    "format": "application/pdf",
+                                },
+                            },
+                        ],
+                    }
                 ],
-            }
-        ],
+            },
+        },
+        "references": {
+            "application": {"slug": "my-chat-app"},
+            "environment": {"slug": "production"},
+        },
+        "selector": {"key": "my-chat-app.revision"},
     },
 )
 
@@ -222,10 +240,13 @@ The response follows the same format as any other gateway call:
 
 ```json
 {
-    "version": "3.0",
-    "data": "The image shows a bar chart comparing...",
-    "content_type": "text/plain",
-    "tree_id": "0ef1d6b7-84c3-4b8a-705b-ae5974e51954"
+    "version": "2025-07-14",
+    "status": {"code": null, "message": null, "stacktrace": null},
+    "trace_id": "0ef1d6b7-84c3-4b8a-705b-ae5974e51954",
+    "span_id": "a1b2c3d4e5f6",
+    "data": {
+        "outputs": "The image shows a bar chart comparing..."
+    }
 }
 ```
 

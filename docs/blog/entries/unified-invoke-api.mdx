@@ -1,0 +1,303 @@
+---
+title: "Unified Invoke API"
+slug: unified-invoke-api
+date: 2026-04-14
+tags: [v0.96.0]
+description: "All application invocation endpoints are now unified into a single /v0/invoke endpoint with a structured request/response format. Includes a full migration guide from the legacy endpoints."
+---
+
+# Unified Invoke API
+
+## Overview
+
+In v0.96.0, we unified all application invocation endpoints into a single `POST /services/{service}/v0/invoke` endpoint. The four legacy endpoints (`/generate`, `/generate_deployed`, `/test`, `/run`) are replaced by one consistent interface with structured references and a cleaner response format.
+
+The old endpoints will continue to work temporarily via an adapter layer, but we strongly recommend migrating to the new format.
+
+## What Changed
+
+### Single Endpoint
+
+All invocations now go through one endpoint:
+
+```
+POST /services/{service}/v0/invoke
+```
+
+This replaces:
+- `POST /services/{service}/generate` (draft testing)
+- `POST /services/{service}/test` (draft testing)
+- `POST /services/{service}/generate_deployed` (deployed config)
+- `POST /services/{service}/run` (deployed config)
+
+### New Request Format
+
+The most common use case is calling a prompt deployed to an environment using `generate_deployed`. Here is how that changes end-to-end:
+
+**Before** — `POST /services/completion/generate_deployed`
+```python
+response = requests.post(
+    "https://cloud.agenta.ai/services/completion/generate_deployed",
+    headers={
+        "Content-Type": "application/json",
+        "Authorization": f"ApiKey {api_key}",
+    },
+    json={
+        "environment": "production",
+        "app": "my-app",
+        "inputs": {"country": "France"},
+    },
+)
+
+result = response.json()
+print(result["data"])       # "The capital of France is Paris."
+print(result["tree_id"])    # trace ID for observability
+```
+
+**After** — `POST /services/completion/v0/invoke`
+```python
+response = requests.post(
+    "https://cloud.agenta.ai/services/completion/v0/invoke",
+    headers={
+        "Content-Type": "application/json",
+        "Authorization": f"ApiKey {api_key}",
+    },
+    json={
+        "data": {
+            "inputs": {"country": "France"},
+        },
+        "references": {
+            "application": {"slug": "my-app"},
+            "environment": {"slug": "production"},
+        },
+        "selector": {"key": "my-app.revision"},
+    },
+)
+
+result = response.json()
+print(result["data"]["outputs"])  # "The capital of France is Paris."
+print(result["trace_id"])         # trace ID for observability
+```
+
+The request body is now structured into three sections: `data` (your inputs and optional parameters), `references` (which app/environment/variant to target), and `selector` (the key used to resolve the deployed revision).
+
+Key changes:
+- `inputs` moves to `data.inputs`
+- `messages` merges into `data.inputs.messages`
+- `ag_config` becomes `data.parameters`
+- Flat params (`app`, `variant_slug`, `environment`, etc.) become structured `references`
+- New `selector.key` field for environment-based resolution
+- `?application_id=` query parameter removed — use `references.application.id` instead
+
+:::info Understanding the selector key
+When invoking via an environment (without specifying a variant/revision), the `selector.key` tells the system which deployed revision to resolve. The format is `{app_slug}.revision` — for example, if your application slug is `my-app`, the key is `my-app.revision`. This field is not needed when invoking a specific variant and revision directly.
+:::
+
+### New Response Format
+
+**Before:**
+```json
+{
+  "version": "3.0",
+  "data": "The capital of France is Paris.",
+  "content_type": "text/plain",
+  "tree_id": "0ef1d6b7-84c3-4b8a-705b-ae5974e51954"
+}
+```
+
+**After:**
+```json
+{
+  "version": "2025-07-14",
+  "status": {"code": null, "message": null, "stacktrace": null},
+  "trace_id": "0ef1d6b7-84c3-4b8a-705b-ae5974e51954",
+  "span_id": "a1b2c3d4e5f6",
+  "data": {
+    "outputs": "The capital of France is Paris."
+  }
+}
+```
+
+Key changes:
+- `version` changed from `"3.0"` to `"2025-07-14"` (date-based versioning)
+- `data` (direct value) becomes `data.outputs` (nested)
+- `content_type` removed
+- `tree_id` replaced by `trace_id` and `span_id`
+- New `status` object for error reporting
+
+## Migration Guide
+
+### Quick Reference Table
+
+| Old | New |
+|-----|-----|
+| `POST /services/{svc}/run` | `POST /services/{svc}/v0/invoke` |
+| `POST /services/{svc}/generate_deployed` | `POST /services/{svc}/v0/invoke` |
+| `POST /services/{svc}/generate` | `POST /services/{svc}/v0/invoke` |
+| `POST /services/{svc}/test` | `POST /services/{svc}/v0/invoke` |
+| `"inputs": {...}` | `"data": {"inputs": {...}}` |
+| `"messages": [...]` | `"data": {"inputs": {"messages": [...]}}` |
+| `"ag_config": {...}` | `"data": {"parameters": {...}}` |
+| `"environment": "prod"` | `"references": {"environment": {"slug": "prod"}}` |
+| `"app": "my-app"` | `"references": {"application": {"slug": "my-app"}}` |
+| `"variant_slug": "v1"` | `"references": {"application_variant": {"slug": "v1"}}` |
+| `"variant_version": 1` | `"references": {"application_revision": {"version": "1"}}` |
+| Response `"data": "text"` | Response `"data": {"outputs": "text"}` |
+| Response `"tree_id"` | Response `"trace_id"` |
+
+### Example: Invoking a Deployed Prompt (Completion)
+
+**Before:**
+```python
+import requests
+
+response = requests.post(
+    "https://cloud.agenta.ai/services/completion/run",
+    headers={
+        "Content-Type": "application/json",
+        "Authorization": f"ApiKey {api_key}",
+    },
+    json={
+        "environment": "production",
+        "app": "my-app",
+        "inputs": {"country": "France"},
+    },
+)
+data = response.json()
+print(data["data"])  # "The capital of France is Paris."
+```
+
+**After:**
+```python
+import requests
+
+response = requests.post(
+    "https://cloud.agenta.ai/services/completion/v0/invoke",
+    headers={
+        "Content-Type": "application/json",
+        "Authorization": f"ApiKey {api_key}",
+    },
+    json={
+        "data": {
+            "inputs": {"country": "France"},
+        },
+        "references": {
+            "application": {"slug": "my-app"},
+            "environment": {"slug": "production"},
+        },
+        "selector": {"key": "my-app.revision"},
+    },
+)
+data = response.json()
+print(data["data"]["outputs"])  # "The capital of France is Paris."
+```
+
+### Example: Invoking a Chat Application
+
+**Before:**
+```python
+response = requests.post(
+    "https://cloud.agenta.ai/services/chat/run",
+    headers={
+        "Content-Type": "application/json",
+        "Authorization": f"ApiKey {api_key}",
+    },
+    json={
+        "environment": "production",
+        "app": "my-chat",
+        "inputs": {"context": "Be helpful."},
+        "messages": [{"role": "user", "content": "Hello!"}],
+    },
+)
+```
+
+**After:**
+```python
+response = requests.post(
+    "https://cloud.agenta.ai/services/chat/v0/invoke",
+    headers={
+        "Content-Type": "application/json",
+        "Authorization": f"ApiKey {api_key}",
+    },
+    json={
+        "data": {
+            "inputs": {
+                "context": "Be helpful.",
+                "messages": [{"role": "user", "content": "Hello!"}],
+            },
+        },
+        "references": {
+            "application": {"slug": "my-chat"},
+            "environment": {"slug": "production"},
+        },
+        "selector": {"key": "my-chat.revision"},
+    },
+)
+```
+
+### Example: Testing with Draft Configuration
+
+**Before:**
+```python
+response = requests.post(
+    "https://cloud.agenta.ai/services/completion/generate?application_id=xxx",
+    headers={
+        "Content-Type": "application/json",
+        "Authorization": f"ApiKey {api_key}",
+    },
+    json={
+        "inputs": {"country": "France"},
+        "ag_config": {
+            "prompt": {
+                "messages": [{"role": "user", "content": "Capital of {{country}}?"}],
+                "llm_config": {"model": "gpt-4o-mini"},
+                "template_format": "curly",
+            }
+        },
+    },
+)
+```
+
+**After:**
+```python
+response = requests.post(
+    "https://cloud.agenta.ai/services/completion/v0/invoke",
+    headers={
+        "Content-Type": "application/json",
+        "Authorization": f"ApiKey {api_key}",
+    },
+    json={
+        "data": {
+            "inputs": {"country": "France"},
+            "parameters": {
+                "prompt": {
+                    "messages": [{"role": "user", "content": "Capital of {{country}}?"}],
+                    "llm_config": {"model": "gpt-4o-mini"},
+                    "template_format": "curly",
+                }
+            },
+        },
+        "references": {
+            "application": {"id": "xxx"},
+        },
+    },
+)
+```
+
+## SDK Unchanged
+
+The Python SDK (`ag.ConfigManager.get_from_registry()`) continues to work with the same interface. The SDK handles the new API format internally. No changes needed in your SDK code.
+
+```python
+# This still works exactly the same
+config = ag.ConfigManager.get_from_registry(
+    app_slug="my-app",
+    variant_slug="default",
+    variant_version=1,
+)
+
+config = ag.ConfigManager.get_from_registry(
+    app_slug="my-app",
+    environment_slug="production",
+)
+```
