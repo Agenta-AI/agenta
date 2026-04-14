@@ -23,7 +23,7 @@
  */
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
+import {extractApiErrorMessage, stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
 
 import {flattenEvaluatorConfiguration} from "../../runnable/evaluatorTransforms"
@@ -37,6 +37,7 @@ import {
 } from "../api"
 import {generateSlug, type Workflow, type WorkflowData} from "../core"
 
+import {workflowsListDataAtom} from "./allWorkflows"
 import {invalidateEvaluatorsListCache} from "./evaluatorUtils"
 import {
     workflowEntityAtomFamily,
@@ -44,6 +45,7 @@ import {
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
     invalidateWorkflowRevisionsByWorkflowCache,
+    invalidateWorkflowVariantsCache,
     getFlatSourceData,
 } from "./store"
 
@@ -304,7 +306,7 @@ export const commitWorkflowRevisionAtom = atom(
 
             return result
         } catch (error) {
-            const err = error instanceof Error ? error : new Error(String(error))
+            const err = new Error(extractApiErrorMessage(error))
 
             if (_commitCallbacks.onError) {
                 _commitCallbacks.onError(err, params)
@@ -394,7 +396,12 @@ export const createWorkflowVariantAtom = atom(
             }
 
             // 2. Create the new variant
-            const slug = newVariantName.toLowerCase().replace(/[^a-z0-9_-]/g, "_")
+            const allWorkflows = get(workflowsListDataAtom)
+            const workflowArtifact = allWorkflows.find((w) => w.id === workflowId)
+            const variantSlugSuffix = generateSlug(newVariantName)
+            const slug = workflowArtifact?.slug
+                ? `${workflowArtifact.slug}.${variantSlugSuffix}`
+                : variantSlugSuffix
             const newVariant = await createWorkflowVariantApi(projectId, {
                 workflowId,
                 slug,
@@ -457,6 +464,7 @@ export const createWorkflowVariantAtom = atom(
             invalidateEvaluatorsListCache()
             invalidateWorkflowCache(baseRevisionId)
             invalidateWorkflowRevisionsByWorkflowCache(workflowId)
+            invalidateWorkflowVariantsCache(workflowId)
             if (_commitCallbacks.onQueryInvalidate) {
                 void _commitCallbacks.onQueryInvalidate()
             }
@@ -467,7 +475,7 @@ export const createWorkflowVariantAtom = atom(
                 newVariantId: newVariant.id,
             }
         } catch (error) {
-            const err = error instanceof Error ? error : new Error(String(error))
+            const err = new Error(extractApiErrorMessage(error))
             return {
                 success: false,
                 error: err,
@@ -577,7 +585,7 @@ export const createWorkflowFromEphemeralAtom = atom(
 
             return result
         } catch (error) {
-            const err = error instanceof Error ? error : new Error(String(error))
+            const err = new Error(extractApiErrorMessage(error))
 
             if (_commitCallbacks.onError) {
                 _commitCallbacks.onError(err, {revisionId, commitMessage})
