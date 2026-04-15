@@ -24,6 +24,27 @@ class SuperTokensConfig(BaseModel):
     application: str = os.getenv("SUPERTOKENS_APPLICATION") or "default"
     tenant: str = os.getenv("SUPERTOKENS_TENANT") or "tenant"
 
+    # ---------------------------------------------------------------------------
+    # Password policy
+    #
+    # SUPERTOKENS_PASSWORD_MIN_LENGTH  — minimum password length (default: 8)
+    # SUPERTOKENS_PASSWORD_MAX_LENGTH  — maximum password length (default: no limit)
+    # SUPERTOKENS_PASSWORD_POLICY      — "none" | "basic" | "strong" (default: "basic")
+    #   none:   no validation beyond SuperTokens defaults
+    #   basic:  enforce min/max length only
+    #   strong: basic + at least one uppercase, one digit, one special character
+    # SUPERTOKENS_PASSWORD_REGEX       — custom regex that overrides policy checks
+    #                                    when set; the full password must match
+    # ---------------------------------------------------------------------------
+    password_min_length: int = int(os.getenv("SUPERTOKENS_PASSWORD_MIN_LENGTH") or "8")
+    password_max_length: int | None = (
+        int(os.getenv("SUPERTOKENS_PASSWORD_MAX_LENGTH"))
+        if os.getenv("SUPERTOKENS_PASSWORD_MAX_LENGTH")
+        else None
+    )
+    password_policy: str = os.getenv("SUPERTOKENS_PASSWORD_POLICY") or "strong"
+    password_regex: str | None = os.getenv("SUPERTOKENS_PASSWORD_REGEX") or None
+
     model_config = ConfigDict(extra="ignore")
 
     @property

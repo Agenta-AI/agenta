@@ -26,7 +26,7 @@ You can find the specific endpoint information to invoke your deployed prompt di
 
 ## Making a Proxy Call
 
-You can invoke your deployed prompt using REST API.
+You can invoke your deployed prompt using REST API. All invocations use the unified `/v0/invoke` endpoint.
 
 Here's how to call your deployed prompt using Python with the requests library:
 
@@ -36,17 +36,34 @@ import requests
 import json
 
 # Endpoint for the proxy service
-url = "https://cloud.agenta.ai/services/completion/run"
+url = "https://cloud.agenta.ai/services/completion/v0/invoke"
 
-# Parameters specifying the environment, application, and input variables
+# Parameters specifying the application, environment, and input variables
 params = {
-  "environment": "development",  # The environment (production, development, staging)
-  "app": "classification",       # Your application name
-  "inputs": {
-    "country": "France"          # Input variables required by your prompt
+  "data": {
+    "inputs": {
+      "country": "France"          # Input variables required by your prompt
+    }
+  },
+  "references": {
+    "application": {
+      "slug": "classification"     # Your application name
+    },
+    "environment": {
+      "slug": "development"        # The environment (production, development, staging)
+    }
+  },
+  "selector": {
+    "key": "classification.revision"  # Resolves the deployed revision for this app
   }
 }
+```
 
+:::info Understanding the selector key
+When invoking via an environment, the `selector.key` tells the system which deployed revision to resolve. The format is `{app_slug}.revision` — for example, if your application slug is `classification`, the key is `classification.revision`. This key is only needed when using environment references; it is not required when invoking a specific variant and revision directly.
+:::
+
+```python
 # Required headers including your API key
 headers = {
     "Content-Type": "application/json",    
@@ -61,20 +78,44 @@ data = response.json()
 print(json.dumps(data, indent=4))
 ```
 
+:::tip Invoking a specific variant
+To invoke a specific variant and version instead of an environment deployment, use `application_variant` and `application_revision` references instead of `environment`:
+
+```python
+params = {
+  "data": {
+    "inputs": {"country": "France"}
+  },
+  "references": {
+    "application": {"slug": "classification"},
+    "application_variant": {"slug": "default"},
+    "application_revision": {"version": "2"}
+  }
+}
+```
+:::
+
 ## Understanding the Response
 
 The proxy service returns a structured response with the following fields:
 
 ```json
 {
-    "version": "3.0",                                     // SDK version
-    "data": "The capital of France is Paris.",            // LLM output
-    "content_type": "text/plain",                         // Output format (text/plain or application/json)
-    "tree_id": "0ef1d6b7-84c3-4b8a-705b-ae5974e51954"    // Tree ID for observability
+    "version": "2025-07-14",                               // API version
+    "status": {                                             // Status information
+        "code": null,
+        "message": null,
+        "stacktrace": null
+    },
+    "trace_id": "0ef1d6b7-84c3-4b8a-705b-ae5974e51954",   // Trace ID for observability
+    "span_id": "a1b2c3d4e5f6",                             // Span ID for observability
+    "data": {
+        "outputs": "The capital of France is Paris."        // LLM output
+    }
 }
 ```
 
-The `tree_id` can be used to locate this specific request in the observability dashboard.
+The `trace_id` can be used to locate this specific request in the observability dashboard.
 
 ## Viewing Traces in the Observability Dashboard
 
@@ -95,7 +136,7 @@ The dashboard provides comprehensive insights into your LLM application's behavi
 - Model parameters used
 - Associated costs
 
-## Tracking sessions
+## Tracking Sessions
 
 For chat applications, you can group multiple requests into sessions using the `Baggage` header. This helps you track complete conversations across multiple requests.
 
@@ -107,7 +148,7 @@ session_id = "chat_session_123"
 user_id = "user-456"
 
 response = requests.post(
-    "https://cloud.agenta.ai/services/completion/run",
+    "https://cloud.agenta.ai/services/chat/v0/invoke",
     headers={
         "Content-Type": "application/json",
         "Authorization": f"ApiKey {os.environ['AGENTA_API_KEY']}",
@@ -115,13 +156,18 @@ response = requests.post(
         "Baggage": f"ag.session.id={session_id},ag.user.id={user_id}"
     },
     json={
-        "environment": "development",
-        "app": "chatbot",
-        "inputs": {
-            "message": "Hello"
-        }
+        "data": {
+            "inputs": {
+                "messages": [{"role": "user", "content": "Hello"}]
+            }
+        },
+        "references": {
+            "application": {"slug": "chatbot"},
+            "environment": {"slug": "development"}
+        },
+        "selector": {"key": "chatbot.revision"}
     }
 )
 ```
 
-All requests with the same session ID will be grouped together in the observability dashboard. You can also track users to see who is interacting with your application. 
+All requests with the same session ID will be grouped together in the observability dashboard. You can also track users to see who is interacting with your application.

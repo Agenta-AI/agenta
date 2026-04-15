@@ -107,9 +107,7 @@ export async function updateAnnotation(
 ): Promise<Annotation | null> {
     if (!projectId || !traceId) return null
 
-    const path = spanId
-        ? `${getAgentaApiUrl()}/preview/simple/traces/${traceId}/${spanId}`
-        : `${getAgentaApiUrl()}/preview/simple/traces/${traceId}`
+    const path = `${getAgentaApiUrl()}/preview/simple/traces/${traceId}`
 
     const response = await axios.patch(
         path,
@@ -141,9 +139,7 @@ export async function deleteAnnotation(
 ): Promise<void> {
     if (!projectId || !traceId) return
 
-    const path = spanId
-        ? `${getAgentaApiUrl()}/preview/simple/traces/${traceId}/${spanId}`
-        : `${getAgentaApiUrl()}/preview/simple/traces/${traceId}`
+    const path = `${getAgentaApiUrl()}/preview/simple/traces/${traceId}`
 
     await axios.delete(path, {
         params: {project_id: projectId},

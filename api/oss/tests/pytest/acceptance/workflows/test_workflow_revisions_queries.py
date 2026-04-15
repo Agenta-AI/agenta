@@ -79,15 +79,30 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/preview/workflows/revisions/commit",
+        json={
+            "workflow_revision": {
+                "slug": f"workflow-revision-{workflow_revision_slug}-initial",
+                "name": f"Workflow Revision Initial {workflow_revision_slug}",
+                "description": "Workflow Revision Initial Description",
+                "workflow_id": workflow_id,
+                "workflow_variant_id": workflow_variant_id,
+            }
+        },
+    )
+
+    assert response.status_code == 200
+
+    workflow_revision_slug = uuid4()
+
+    response = authed_api(
+        "POST",
+        "/preview/workflows/revisions/commit",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_revision_slug}",
                 "name": f"Workflow Revision {workflow_revision_slug}",
                 "description": "Workflow Revision Description",
-                "flags": {
-                    "is_custom": True,
-                },
                 "tags": {
                     "tag1": "value1",
                     "tag2": "value2",
@@ -99,6 +114,9 @@ def mock_data(authed_api):
                     "meta2": "value2",
                     "meta3": "value3",
                     "_marker": unique_marker,
+                },
+                "data": {
+                    "uri": "agenta:custom:feedback:v0",
                 },
                 "workflow_id": workflow_id,
                 "workflow_variant_id": workflow_variant_id,
@@ -114,15 +132,12 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/preview/workflows/revisions/commit",
         json={
             "workflow_revision": {
                 "slug": f"workflow-Revision-{workflow_revision_slug}",
                 "name": f"Workflow Revision {workflow_revision_slug}",
                 "description": "Workflow Revision Description",
-                "flags": {
-                    "is_custom": False,
-                },
                 "tags": {
                     "tag1": "value3",
                     "tag2": "value2",
@@ -134,6 +149,9 @@ def mock_data(authed_api):
                     "meta2": "value2",
                     "meta3": "value1",
                     "_marker": unique_marker,
+                },
+                "data": {
+                    "uri": "agenta:builtin:chat:v0",
                 },
                 "workflow_id": workflow_id,
                 "workflow_variant_id": workflow_variant_id,
@@ -313,7 +331,7 @@ class TestWorkflowRevisionsQueries:
             "/preview/workflows/revisions/query",
             json={
                 "workflow_revision": {
-                    "flags": {"is_application": True},
+                    "flags": {"is_custom": True},
                     "tags": {"_marker": marker},
                 },
             },

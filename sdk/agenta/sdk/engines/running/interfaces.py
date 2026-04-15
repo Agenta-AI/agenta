@@ -71,7 +71,7 @@ def ag_field(
     *,
     base: dict,
     x_ag_type: str | None = None,
-    x_ag_type_ref: str | dict | None = None,
+    x_ag_type_ref: str | None = None,
     x_ag_ui_advanced: bool | None = None,
 ) -> dict:
     field = dict(base)
@@ -82,30 +82,6 @@ def ag_field(
     if x_ag_ui_advanced is not None:
         field["x-ag-ui-advanced"] = x_ag_ui_advanced
     return field
-
-
-MODEL_CATALOG_REF = {
-    "type": "model_catalog",
-    "version": "v1",
-    "mode": "reference",
-    "source": {
-        "kind": "sdk_asset",
-        "path": "agenta.sdk.utils.assets.supported_llm_models",
-    },
-    "metadata_source": {
-        "kind": "sdk_asset",
-        "path": "agenta.sdk.utils.assets.model_metadata",
-    },
-}
-
-MODEL_FIELD = ag_field(
-    base=scalar(
-        jtype="string",
-        description="Model identifier to use for execution.",
-    ),
-    x_ag_type="grouped_choice",
-    x_ag_type_ref=MODEL_CATALOG_REF,
-)
 
 
 def semantic_field(
@@ -344,7 +320,13 @@ llm_v0_interface = WorkflowRevisionData(
                     jtype="array",
                     items=obj(
                         properties={
-                            "model": MODEL_FIELD,
+                            "model": ag_field(
+                                base=scalar(
+                                    jtype="string",
+                                    description="Model identifier to use for execution.",
+                                ),
+                                x_ag_type_ref="model",
+                            ),
                             "temperature": scalar(
                                 jtype="number", minimum=0.0, maximum=2.0
                             ),
@@ -731,7 +713,13 @@ auto_ai_critique_v0_interface = WorkflowRevisionData(
                     description="Ordered list of normalized chat messages.",
                     default=[],
                 ),
-                "model": MODEL_FIELD,
+                "model": ag_field(
+                    base=scalar(
+                        jtype="string",
+                        description="Model identifier to use for execution.",
+                    ),
+                    x_ag_type_ref="model",
+                ),
                 "response_type": ag_field(
                     base=scalar(jtype="string", default="json_schema"),
                     x_ag_type="hidden",

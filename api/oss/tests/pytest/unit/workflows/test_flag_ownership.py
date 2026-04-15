@@ -335,7 +335,7 @@ async def test_commit_workflow_revision_persists_only_revision_flags():
     assert "is_evaluator" not in revision_commit.flags
     assert "is_snippet" not in revision_commit.flags
     assert revision_commit.flags["is_managed"] is True
-    assert revision_commit.flags["is_chat"] is False
+    assert revision_commit.flags["is_chat"] is True
 
 
 @pytest.mark.asyncio

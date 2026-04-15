@@ -73,7 +73,25 @@ def _create_workflow_variant(authed_api, *, workflow_id: str):
         ),
         200,
     )
-    return body["workflow_variant"]["id"]
+    variant_id = body["workflow_variant"]["id"]
+
+    # Create a version-0 stub so the first real commit gets version 1.
+    # The API assigns version 0 to the first revision per variant and nullifies
+    # its data, so we must seed an empty commit before committing real data.
+    authed_api(
+        "POST",
+        "/preview/workflows/revisions/commit",
+        json={
+            "workflow_revision": {
+                "slug": _random_slug("stub"),
+                "workflow_id": workflow_id,
+                "workflow_variant_id": variant_id,
+                "data": {},
+            }
+        },
+    )
+
+    return variant_id
 
 
 def _commit_workflow_revision(

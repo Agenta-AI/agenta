@@ -1,6 +1,7 @@
 # Tests: app/create.spec.ts -> app/index.ts -> app/test.ts
+# RTM IDs: WEB-ACC-APP-001, WEB-ACC-APP-002
 # Tags: @scope:apps @scope:playground @scope:evaluations @scope:deployment @scope:observability
-#       @coverage:smoke @coverage:light @path:happy
+#       @coverage:smoke @coverage:light @path:happy @case:typical @speed:fast
 
 Feature: Prompt App Creation
   As a user
@@ -13,18 +14,10 @@ Feature: Prompt App Creation
 
   @smoke @happy
   Scenario: Create a new completion prompt app
-    When the user clicks "Create new"
-    And the user enters a unique app name
-    And the user selects "Completion Prompt" as the app type
-    And the user confirms the creation
-    Then the app should appear in the prompts table
-    And the app type should be "completion"
+    When the user creates a "Completion Prompt" app with a unique name
+    Then the new completion prompt app is visible after creation
 
   @smoke @happy
   Scenario: Create a new chat prompt app
-    When the user clicks "Create new"
-    And the user enters a unique app name
-    And the user selects "Chat Prompt" as the app type
-    And the user confirms the creation
-    Then the app should appear in the prompts table
-    And the app type should be "chat"
+    When the user creates a "Chat Prompt" app with a unique name
+    Then the new chat prompt app is visible after creation

@@ -8,6 +8,7 @@
  * (creating a new revision with a commit message).
  */
 
+import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {atomWithReset, RESET} from "jotai/utils"
 
@@ -235,9 +236,13 @@ export const executeCommitAtom = atom(null, async (get, set) => {
 
         return {success: true}
     } catch (error) {
-        set(commitModalErrorAtom, error as Error)
+        const message = extractApiErrorMessage(error)
+        set(
+            commitModalErrorAtom,
+            error instanceof Error ? Object.assign(error, {message}) : new Error(message),
+        )
         set(commitModalLoadingAtom, false)
-        return {success: false, error: (error as Error).message}
+        return {success: false, error: message}
     }
 })
 

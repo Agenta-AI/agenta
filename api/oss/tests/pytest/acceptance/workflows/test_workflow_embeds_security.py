@@ -57,6 +57,20 @@ class TestWorkflowEmbedsArchived:
             "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
+                    "slug": uuid4().hex[-12:],
+                    "workflow_id": base_id,
+                    "workflow_variant_id": base_variant_id,
+                    "message": "Initial commit",
+                }
+            },
+        )
+        assert response.status_code == 200
+
+        response = authed_api(
+            "POST",
+            "/preview/workflows/revisions/commit",
+            json={
+                "workflow_revision": {
                     "slug": f"{base_slug}-v1",
                     "workflow_id": base_id,
                     "workflow_variant_id": base_variant_id,
@@ -97,6 +111,20 @@ class TestWorkflowEmbedsArchived:
         )
         assert response.status_code == 200
         ref_variant_id = response.json()["workflow_variant"]["id"]
+
+        response = authed_api(
+            "POST",
+            "/preview/workflows/revisions/commit",
+            json={
+                "workflow_revision": {
+                    "slug": uuid4().hex[-12:],
+                    "workflow_id": ref_id,
+                    "workflow_variant_id": ref_variant_id,
+                    "message": "Initial commit",
+                }
+            },
+        )
+        assert response.status_code == 200
 
         response = authed_api(
             "POST",
@@ -188,6 +216,20 @@ class TestWorkflowEmbedsArchived:
             "/preview/workflows/revisions/commit",
             json={
                 "workflow_revision": {
+                    "slug": uuid4().hex[-12:],
+                    "workflow_id": base_id,
+                    "workflow_variant_id": base_variant_id,
+                    "message": "Initial commit",
+                }
+            },
+        )
+        assert response.status_code == 200
+
+        response = authed_api(
+            "POST",
+            "/preview/workflows/revisions/commit",
+            json={
+                "workflow_revision": {
                     "slug": f"{base_slug}-v1",
                     "workflow_id": base_id,
                     "workflow_variant_id": base_variant_id,
@@ -228,6 +270,20 @@ class TestWorkflowEmbedsArchived:
         )
         assert response.status_code == 200
         ref_variant_id = response.json()["workflow_variant"]["id"]
+
+        response = authed_api(
+            "POST",
+            "/preview/workflows/revisions/commit",
+            json={
+                "workflow_revision": {
+                    "slug": uuid4().hex[-12:],
+                    "workflow_id": ref_id,
+                    "workflow_variant_id": ref_variant_id,
+                    "message": "Initial commit",
+                }
+            },
+        )
+        assert response.status_code == 200
 
         response = authed_api(
             "POST",

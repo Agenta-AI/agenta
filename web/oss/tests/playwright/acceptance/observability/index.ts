@@ -1,47 +1,57 @@
 import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
 
 import {expect} from "@agenta/web-tests/utils"
+import {expectAuthenticatedSession} from "../utils/auth"
+import {createScenarios} from "../utils/scenarios"
+import {buildAcceptanceTags} from "../utils/tags"
 import {
-    createTagString,
     TestCoverage,
+    TestcaseType,
     TestPath,
     TestScope,
     TestLensType,
     TestCostType,
     TestLicenseType,
+    TestRoleType,
+    TestSpeedType,
 } from "@agenta/web-tests/playwright/config/testTags"
-const observabilityTests = () => {
-    test(
-        "view traces",
-        {
-            tag: [
-                createTagString("scope", TestScope.OBSERVABILITY),
-                createTagString("coverage", TestCoverage.SMOKE),
-                createTagString("coverage", TestCoverage.LIGHT),
-                createTagString("coverage", TestCoverage.FULL),
-                createTagString("path", TestPath.HAPPY),
-                createTagString("lens", TestLensType.FUNCTIONAL),
-                createTagString("cost", TestCostType.Free),
-                createTagString("license", TestLicenseType.OSS),
-            ],
-        },
-        async ({page, uiHelpers, apiHelpers}) => {
-            test.skip(
-                true,
-                "Skipped until Playground execution guarantees fresh traces in the ephemeral project.",
-            )
 
-            // 1. Navigate directly to the ephemeral project's observability page
+const scenarios = createScenarios(test)
+
+const tags = buildAcceptanceTags({
+    scope: [TestScope.OBSERVABILITY],
+    coverage: [TestCoverage.SMOKE, TestCoverage.LIGHT, TestCoverage.FULL],
+    path: TestPath.HAPPY,
+    lens: TestLensType.FUNCTIONAL,
+    cost: TestCostType.Free,
+    license: TestLicenseType.OSS,
+    role: TestRoleType.Owner,
+    caseType: TestcaseType.TYPICAL,
+    speed: TestSpeedType.SLOW,
+})
+
+const observabilityTests = () => {
+    test("view traces", {tag: tags}, async ({page, uiHelpers, apiHelpers}) => {
+        test.skip(
+            true,
+            "Skipped until Playground execution guarantees fresh traces in the ephemeral project.",
+        )
+
+        await scenarios.given("the user is authenticated", async () => {
+            await expectAuthenticatedSession(page)
+        })
+
+        await scenarios.and("the user is on the Observability page", async () => {
             await page.goto(`${apiHelpers.getProjectScopedBasePath()}/observability`, {
                 waitUntil: "domcontentloaded",
             })
             await uiHelpers.expectPath(`/observability`)
+        })
 
-            // 2. Wait for the Traces tab to be visible and selected
+        await scenarios.when("the user opens the traces table", async () => {
             const tracesTab = page.getByRole("tab", {name: "Traces"})
             await expect(tracesTab).toBeVisible({timeout: 15000})
 
-            // 3. Wait for traces table to load with data
             const emptyState = page.getByText("No traces found", {exact: true})
             if (await emptyState.isVisible().catch(() => false)) {
                 throw new Error(
@@ -51,21 +61,16 @@ const observabilityTests = () => {
 
             const tracesTable = page.getByRole("table").last()
             await expect(tracesTable).toBeVisible({timeout: 15000})
-
-            // Wait for at least one data row to appear
             const firstDataRow = tracesTable.getByRole("row").nth(1)
             await expect(firstDataRow).toBeVisible({timeout: 15000})
+            await firstDataRow.getByRole("cell").nth(2).click()
+        })
 
-            // 4. Click on the first trace row to open drawer
-            const firstCell = firstDataRow.getByRole("cell").nth(2)
-            await expect(firstCell).toBeVisible()
-            await firstCell.click()
-
-            // 5. Assert drawer opens
+        await scenarios.then("the trace detail drawer opens", async () => {
             const drawer = page.locator(".ant-drawer-content-wrapper")
             await expect(drawer).toBeVisible({timeout: 10000})
-        },
-    )
+        })
+    })
 }
 
 export default observabilityTests

@@ -1,4 +1,5 @@
 # Tests: observability/observability.spec.ts -> observability/index.ts
+# RTM ID: WEB-ACC-OBS-001
 # Tags: @scope:observability @coverage:smoke @coverage:light @coverage:full @path:happy
 #
 # Implementation notes:
@@ -18,8 +19,6 @@ Feature: Observability Traces
 
   @smoke @happy
   Scenario: View traces and open trace detail drawer
-    Given the user navigates to the Observability page via sidebar
-    Then the "Traces" tab should be visible and selected
-    And a traces table should be visible with at least one data row
-    When the user clicks on the first trace row
-    Then a detail drawer should open
+    Given the user is on the Observability page
+    When the user opens the traces table
+    Then the trace detail drawer opens

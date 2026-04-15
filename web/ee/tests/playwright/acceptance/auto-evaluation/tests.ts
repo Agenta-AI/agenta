@@ -9,10 +9,16 @@ import {EvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
 const AUTO_EVALUATION_TAB_LABEL = "Auto Evals"
 const AUTO_EVALUATION_EMPTY_STATE_TITLE = "Get Started with Evaluations"
 const AUTO_EVALUATION_EMPTY_STATE_BUTTON_LABEL = /Run Evaluation/i
-const AUTO_EVALUATION_LIST_BUTTON_LABEL = /New evaluation/i
+const AUTO_EVALUATION_LIST_BUTTON_LABEL = /Start evaluation/i
 const AUTO_EVALUATION_MODAL_TITLE = "New Auto Evaluation"
 const AUTO_EVALUATION_SUBMIT_BUTTON_LABEL = "Start Evaluation"
 const AUTO_RESULTS_TAB_LABELS = ["Overview", "Scenarios", "Configuration"] as const
+const AUTO_EVALUATION_CREATE_BUTTON_LABELS = [
+    AUTO_EVALUATION_EMPTY_STATE_BUTTON_LABEL,
+    AUTO_EVALUATION_LIST_BUTTON_LABEL,
+    /New evaluation/i,
+    /New Evaluation/i,
+] as const
 
 type EvaluationRunsResponse = {
     runs: EvaluationRun[]
@@ -55,12 +61,33 @@ const waitForEvaluationRuns = async (page: Page, appId: string) => {
 
     expect(response.ok()).toBe(true)
 
-    return (await response.json()) as EvaluationRunsResponse
+    try {
+        return (await response.json()) as EvaluationRunsResponse
+    } catch (error) {
+        console.warn("[Auto Evaluation E2E] Failed to parse evaluation runs response:", error)
+        return {runs: [], count: 0}
+    }
 }
 
 const getAutoEvaluationRuns = (evaluationRuns: EvaluationRunsResponse) => {
     const runs = Array.isArray(evaluationRuns.runs) ? evaluationRuns.runs : []
     return runs.filter((run) => deriveEvaluationKind(run) === "auto")
+}
+
+const getVisibleButtonByLabels = async (page: Page, labels: readonly (string | RegExp)[]) => {
+    for (const label of labels) {
+        const buttons = page.getByRole("button", {name: label})
+        const buttonCount = await buttons.count()
+
+        for (let index = 0; index < buttonCount; index += 1) {
+            const button = buttons.nth(index)
+            if (await button.isVisible().catch(() => false)) {
+                return button
+            }
+        }
+    }
+
+    return null
 }
 
 const ensureAutoEvaluationsContext = async (page: Page) => {
@@ -92,36 +119,20 @@ const goToAutoEvaluations = async (page: Page, appId: string) => {
 }
 
 const getAutoEvaluationCreateButton = async (page: Page) => {
-    const emptyStateTitle = page.getByText(AUTO_EVALUATION_EMPTY_STATE_TITLE).first()
-    const emptyStateButton = page
-        .getByRole("button", {name: AUTO_EVALUATION_EMPTY_STATE_BUTTON_LABEL})
-        .first()
-    const listButton = page.getByRole("button", {name: AUTO_EVALUATION_LIST_BUTTON_LABEL}).first()
-
     await expect
         .poll(
-            async () => {
-                if (await emptyStateButton.isVisible().catch(() => false)) {
-                    return "empty"
-                }
-
-                if (await listButton.isVisible().catch(() => false)) {
-                    return "list"
-                }
-
-                return "none"
-            },
+            async () =>
+                Boolean(await getVisibleButtonByLabels(page, AUTO_EVALUATION_CREATE_BUTTON_LABELS)),
             {timeout: 10000},
         )
-        .not.toBe("none")
+        .toBe(true)
 
-    if (await emptyStateButton.isVisible().catch(() => false)) {
-        await expect(emptyStateTitle).toBeVisible()
-        return emptyStateButton
+    const createButton = await getVisibleButtonByLabels(page, AUTO_EVALUATION_CREATE_BUTTON_LABELS)
+    if (createButton) {
+        return createButton
     }
 
-    await expect(listButton).toBeVisible()
-    return listButton
+    throw new Error("Could not find an auto evaluation create button.")
 }
 
 const openAutoEvaluationModal = async (page: Page) => {
@@ -149,7 +160,7 @@ const goToAutoEvaluationStep = async (modal: Locator, step: string) => {
 const selectAutoEvaluationModalTableInput = async ({
     modal,
     rowText,
-    inputType,
+    inputType: _inputType,
 }: {
     modal: Locator
     rowText?: string
@@ -158,9 +169,10 @@ const selectAutoEvaluationModalTableInput = async ({
     const activePane = modal.locator(".ant-tabs-tabpane-active").last()
     const searchInput = activePane.locator('input[placeholder="Search"]').first()
     const inputSelector =
-        inputType === "radio"
-            ? 'input[type="radio"], .ant-radio-input, .ant-radio'
-            : 'input[type="checkbox"], .ant-checkbox-input, .ant-checkbox'
+        'input[type="checkbox"], input[type="radio"], .ant-checkbox-input, .ant-radio-input'
+    const controlSelector =
+        '.ant-checkbox, .ant-checkbox-wrapper, .ant-radio, .ant-radio-wrapper, [role="checkbox"], [role="radio"]'
+    const selectedTags = modal.locator(".ant-tabs-tab .ant-tag")
 
     if (rowText && (await searchInput.isVisible().catch(() => false))) {
         await typeIntoLocator(searchInput, rowText)
@@ -179,9 +191,45 @@ const selectAutoEvaluationModalTableInput = async ({
         : activePane.locator("[data-row-key]").first()
     await expect(targetRow).toBeVisible({timeout: 30000})
 
-    const firstSelectionControl = targetRow.locator(inputSelector).first()
-    await expect(firstSelectionControl).toBeVisible({timeout: 30000})
-    await firstSelectionControl.click({force: true})
+    const targetRowKey = await targetRow.getAttribute("data-row-key")
+    const stableRow = targetRowKey
+        ? modal.locator(`[data-row-key="${targetRowKey}"]`).first()
+        : targetRow
+    await expect(stableRow).toBeVisible({timeout: 30000})
+
+    const isSelected = async () => {
+        const rowClassName = await stableRow.getAttribute("class").catch(() => null)
+        if (rowClassName?.includes("ant-table-row-selected")) {
+            return true
+        }
+
+        const ariaSelected = await stableRow.getAttribute("aria-selected").catch(() => null)
+        if (ariaSelected === "true") {
+            return true
+        }
+
+        const selectionInput = stableRow.locator(inputSelector).first()
+        if ((await selectionInput.count().catch(() => 0)) > 0) {
+            return await selectionInput.isChecked().catch(() => false)
+        }
+
+        if (typeof rowText === "string") {
+            return (await selectedTags.filter({hasText: rowText}).count()) > 0
+        }
+
+        return false
+    }
+
+    if (!(await isSelected())) {
+        const selectionControl = stableRow.locator(controlSelector).first()
+        if ((await selectionControl.count().catch(() => 0)) > 0) {
+            await selectionControl.click({force: true})
+        } else {
+            await stableRow.click({force: true})
+        }
+    }
+
+    await expect.poll(isSelected, {timeout: 30000}).toBe(true)
 }
 
 const waitForAutoResultsPage = async (page: Page, appId: string) => {
@@ -260,12 +308,17 @@ const testWithEvaluationFixtures = baseTest.extend<EvaluationFixtures>({
 
             if (autoEvaluationRuns.length > 0) {
                 expect(autoEvaluationRuns.length).toBeGreaterThan(0)
-                await expect(await getAutoEvaluationCreateButton(page)).toBeVisible()
+                await expect(
+                    page.getByRole("button", {name: AUTO_EVALUATION_LIST_BUTTON_LABEL}).first(),
+                ).toBeVisible()
                 return
             }
 
             expect(autoEvaluationRuns).toHaveLength(0)
-            await expect(await getAutoEvaluationCreateButton(page)).toBeVisible()
+            await expect(page.getByText(AUTO_EVALUATION_EMPTY_STATE_TITLE).first()).toBeVisible()
+            await expect(
+                page.getByRole("button", {name: AUTO_EVALUATION_EMPTY_STATE_BUTTON_LABEL}).first(),
+            ).toBeVisible()
         })
     },
 

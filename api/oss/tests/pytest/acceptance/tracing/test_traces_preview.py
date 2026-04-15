@@ -523,7 +523,25 @@ class TestTracesQueryByRevisionRef:
             },
         )
         assert query_resp.status_code == 200, query_resp.text
-        query_revision_id = query_resp.json()["query"]["revision_id"]
+        query = query_resp.json()["query"]
+
+        query_revision_resp = authed_api(
+            "POST",
+            "/preview/queries/revisions/commit",
+            json={
+                "query_revision_commit": {
+                    "slug": uuid4().hex[-12:],
+                    "query_id": query["id"],
+                    "query_variant_id": query["variant_id"],
+                    "data": {
+                        "filtering": filtering,
+                        "windowing": {"limit": 50},
+                    },
+                }
+            },
+        )
+        assert query_revision_resp.status_code == 200, query_revision_resp.text
+        query_revision_id = query_revision_resp.json()["query_revision"]["id"]
         # -------------------------------------------------------------------
 
         # ACT — wait for traces to be queryable via revision ref ------------
@@ -565,7 +583,25 @@ class TestTracesQueryByRevisionRef:
             },
         )
         assert query_resp.status_code == 200, query_resp.text
-        query_revision_id = query_resp.json()["query"]["revision_id"]
+        query = query_resp.json()["query"]
+
+        query_revision_resp = authed_api(
+            "POST",
+            "/preview/queries/revisions/commit",
+            json={
+                "query_revision_commit": {
+                    "slug": uuid4().hex[-12:],
+                    "query_id": query["id"],
+                    "query_variant_id": query["variant_id"],
+                    "data": {
+                        "formatting": {"focus": "span"},
+                        "filtering": {"operator": "and", "conditions": []},
+                    },
+                }
+            },
+        )
+        assert query_revision_resp.status_code == 200, query_revision_resp.text
+        query_revision_id = query_revision_resp.json()["query_revision"]["id"]
         # -------------------------------------------------------------------
 
         # ACT ---------------------------------------------------------------

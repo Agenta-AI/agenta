@@ -42,18 +42,10 @@ export function normalizeWorkflowResponse(responseData: unknown): {
     let output: unknown = nestedObj?.outputs ?? data?.outputs ?? data
 
     // The invoke endpoint serializes handler return values as JSON-encoded strings.
-    // Decode the string to extract the actual value, then unwrap single-key objects
-    // (e.g. { "message": "..." } or { "capital": "..." }) to a plain string.
+    // Decode the string to extract the actual value.
     if (typeof output === "string") {
         try {
-            const parsed = JSON.parse(output)
-            if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
-                const keys = Object.keys(parsed)
-                // Single-key object → unwrap to the value (common pattern for completion apps)
-                output = keys.length === 1 ? parsed[keys[0]] : parsed
-            } else {
-                output = parsed
-            }
+            output = JSON.parse(output)
         } catch {
             // Not JSON — use as-is
         }

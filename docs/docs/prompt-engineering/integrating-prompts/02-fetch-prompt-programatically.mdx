@@ -71,17 +71,15 @@ Example Output:
 
 ```javascript
 // Fetch configuration from production environment (default behavior)
-const fetchResponse = await fetch('https://cloud.agenta.ai/api/variants/configs/fetch', {
+const fetchResponse = await fetch('https://cloud.agenta.ai/api/preview/applications/revisions/retrieve', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': 'Bearer YOUR_API_KEY'
+    'Authorization': 'ApiKey YOUR_API_KEY'
   },
   body: JSON.stringify({
     application_ref: {
-      slug: 'my-app-slug',
-      version: null,
-      id: null
+      slug: 'my-app-slug'
     }
   })
 });
@@ -95,14 +93,12 @@ console.log(config);
 
 ```bash
 # Fetch configuration from production environment (default behavior)
-curl -X POST "https://cloud.agenta.ai/api/variants/configs/fetch" \
+curl -X POST "https://cloud.agenta.ai/api/preview/applications/revisions/retrieve" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
     "application_ref": {
-      "slug": "my-app-slug",
-      "version": null,
-      "id": null
+      "slug": "my-app-slug"
     }
   }'
 ```
@@ -154,22 +150,21 @@ print(config)
 
 ```javascript
 // Fetch configuration by variant
-const fetchResponse = await fetch('https://cloud.agenta.ai/api/variants/configs/fetch', {
+const fetchResponse = await fetch('https://cloud.agenta.ai/api/preview/applications/revisions/retrieve', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': 'Bearer YOUR_API_KEY'
+    'Authorization': 'ApiKey YOUR_API_KEY'
   },
   body: JSON.stringify({
-    variant_ref: {
-      slug: 'my-variant-slug',
-      version: 2,
-      id: null
-    },
     application_ref: {
-      slug: 'my-app-slug',
-      version: null,
-      id: null
+      slug: 'my-app-slug'
+    },
+    application_variant_ref: {
+      slug: 'my-variant-slug'
+    },
+    application_revision_ref: {
+      version: 2
     }
   })
 });
@@ -183,24 +178,24 @@ console.log(config);
 
 ```bash
 # Fetch configuration by variant
-curl -X POST "https://cloud.agenta.ai/api/variants/configs/fetch" \
+curl -X POST "https://cloud.agenta.ai/api/preview/applications/revisions/retrieve" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
-    "variant_ref": {
-      "slug": "my-variant-slug",
-      "version": 2,
-      "id": null
-    },
     "application_ref": {
-      "slug": "my-app-slug",
-      "version": null,
-      "id": null
+      "slug": "my-app-slug"
+    },
+    "application_variant_ref": {
+      "slug": "my-variant-slug"
+    },
+    "application_revision_ref": {
+      "version": 2
     }
   }'
 ```
   </TabItem>
 </Tabs>
+
 
 ### Fetching by Environment Reference
 
@@ -223,22 +218,19 @@ print(config)
 
 ```javascript
 // Fetch the latest configuration from the staging environment
-const fetchResponse = await fetch('https://cloud.agenta.ai/api/variants/configs/fetch', {
+const fetchResponse = await fetch('https://cloud.agenta.ai/api/preview/applications/revisions/retrieve', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': 'Bearer YOUR_API_KEY'
+    'Authorization': 'ApiKey YOUR_API_KEY'
   },
   body: JSON.stringify({
+    application_ref: {
+      slug: 'my-app'
+    },
     environment_ref: {
       slug: 'staging',
-      version: 1,  // Optional: omit to fetch latest
-      id: null
-    },
-    application_ref: {
-      slug: 'my-app',
-      version: null,
-      id: null
+      version: 1  // Optional: omit to fetch latest
     }
   })
 });
@@ -252,19 +244,16 @@ console.log(config);
 
 ```bash
 # Fetch the latest configuration from the staging environment
-curl -X POST "https://cloud.agenta.ai/api/variants/configs/fetch" \
+curl -X POST "https://cloud.agenta.ai/api/preview/applications/revisions/retrieve" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
+    "application_ref": {
+      "slug": "my-app"
+    },
     "environment_ref": {
       "slug": "staging",
-      "version": 1,
-      "id": null
-    },
-    "application_ref": {
-      "slug": "my-app",
-      "version": null,
-      "id": null
+      "version": 1
     }
   }'
 ```
@@ -273,7 +262,7 @@ curl -X POST "https://cloud.agenta.ai/api/variants/configs/fetch" \
 
 ## Response Format
 
-The API response contains your prompt configuration under `params`:
+The SDK returns the configuration parameters directly as a dictionary. When using the REST API, the response contains the full revision data including configuration under `params` along with reference metadata:
 
 ```json
 {
@@ -303,7 +292,6 @@ The API response contains your prompt configuration under `params`:
   "url": "https://cloud.agenta.ai/services/completion",
   "application_ref": {
     "slug": "my-app-slug",
-    "version": null,
     "id": "..."
   },
   "variant_ref": {

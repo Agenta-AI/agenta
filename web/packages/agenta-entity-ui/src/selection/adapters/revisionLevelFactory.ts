@@ -46,6 +46,7 @@ export interface RevisionEntity {
     commitMessage?: string
     author?: string | null
     created_by_id?: string | null
+    variant_name?: string | null
 }
 
 /**
@@ -62,6 +63,8 @@ export interface RevisionFieldMappings {
     message?: string
     /** Field name for author (default: 'author' or 'created_by_id') */
     author?: string
+    /** Field name for variant name (default: 'variant_name') */
+    variantName?: string
 }
 
 /**
@@ -163,6 +166,7 @@ function extractRevisionFields(
     createdAt: string | undefined
     message: string | undefined
     author: string | undefined
+    variantName: string | undefined
 } {
     return {
         id: getField<string>(entity, mappings.id ?? "id") ?? "",
@@ -170,6 +174,7 @@ function extractRevisionFields(
         createdAt: getField<string>(entity, mappings.createdAt ?? "created_at", "createdAt"),
         message: getField<string>(entity, mappings.message ?? "message", "commitMessage"),
         author: getField<string>(entity, mappings.author ?? "author", "created_by_id"),
+        variantName: getField<string>(entity, mappings.variantName ?? "variant_name"),
     }
 }
 
@@ -277,6 +282,7 @@ export function createRevisionLevel(
                 author: fields.author,
                 renderAuthor: effectiveRenderAuthor,
                 maxMessageWidth,
+                variantName: fields.variantName,
             })
         },
 

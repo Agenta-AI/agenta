@@ -4,6 +4,7 @@ const TRACE_ENABLED_PATH_MATCHERS = [
     "/playground",
     "/evaluations",
     "/annotations",
+    "/evaluators",
 ] as const
 
 const DRAWER_ENABLED_PATH_MATCHERS = ["/variants", "/overview", "/evaluators"] as const

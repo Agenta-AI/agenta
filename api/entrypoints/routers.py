@@ -108,6 +108,7 @@ from oss.src.apis.fastapi.evaluators.router import EvaluatorsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 from oss.src.apis.fastapi.environments.router import EnvironmentsRouter
 from oss.src.apis.fastapi.environments.router import SimpleEnvironmentsRouter
+from oss.src.apis.fastapi.legacy_variants.router import LegacyVariantsRouter
 from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
@@ -115,6 +116,9 @@ from oss.src.apis.fastapi.traces.router import SimpleTracesRouter
 
 from oss.src.core.ai_services.service import AIServicesService
 from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
+
+from oss.src.core.accounts.service import PlatformAdminAccountsService
+from oss.src.apis.fastapi.accounts.router import PlatformAdminAccountsRouter
 from oss.src.dbs.postgres.tools.dao import ToolsDAO
 from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
@@ -490,6 +494,11 @@ simple_environments = SimpleEnvironmentsRouter(
     simple_environments_service=simple_environments_service,
 )
 
+legacy_variants = LegacyVariantsRouter(
+    applications_service=applications_service,
+    environments_service=environments_service,
+)
+
 evaluations = EvaluationsRouter(
     evaluations_service=evaluations_service,
     queries_service=queries_service,
@@ -516,6 +525,13 @@ simple_traces = SimpleTracesRouter(
 ai_services_service = AIServicesService.from_env()
 ai_services = AIServicesRouter(
     ai_services_service=ai_services_service,
+)
+
+# PLATFORM ADMIN ---------------------------------------------------------------
+
+platform_admin_accounts_service = PlatformAdminAccountsService()
+platform_admin_accounts = PlatformAdminAccountsRouter(
+    accounts_service=platform_admin_accounts_service,
 )
 
 # MOUNTING ROUTERS TO APP ROUTES -----------------------------------------------
@@ -758,6 +774,12 @@ app.include_router(
 )
 
 app.include_router(
+    router=legacy_variants.router,
+    prefix="/variants",
+    tags=["Variants"],
+)
+
+app.include_router(
     router=tools.router,
     prefix="/preview/tools",
     tags=["Tools"],
@@ -803,6 +825,12 @@ app.include_router(
 
 app.include_router(
     admin_router.router,
+    prefix="/admin",
+    tags=["Admin"],
+)
+
+app.include_router(
+    router=platform_admin_accounts.router,
     prefix="/admin",
     tags=["Admin"],
 )
