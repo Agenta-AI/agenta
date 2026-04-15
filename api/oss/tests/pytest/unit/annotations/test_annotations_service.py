@@ -7,18 +7,17 @@ from uuid import uuid4
 
 import pytest
 
+sys.modules.setdefault("genson", types.SimpleNamespace(SchemaBuilder=object))
 
-from oss.src.core.annotations.service import AnnotationsService
-from oss.src.core.annotations.types import (
+from oss.src.core.annotations.service import AnnotationsService  # noqa: E402
+from oss.src.core.annotations.types import (  # noqa: E402
     Annotation,
     AnnotationChannel,
     AnnotationEdit,
     AnnotationKind,
     AnnotationOrigin,
 )
-from oss.src.core.shared.dtos import Link
-
-sys.modules.setdefault("genson", types.SimpleNamespace(SchemaBuilder=object))
+from oss.src.core.shared.dtos import Link  # noqa: E402
 
 
 @pytest.mark.asyncio

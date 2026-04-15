@@ -93,10 +93,8 @@ def test_get_parameters_from_schemas_detects_chat_messages():
 
 def test_build_invoke_request_wraps_inputs_for_invoke_endpoint():
     request = build_invoke_request(
-        payload={
-            "inputs": {
-                "country": "France",
-            },
+        inputs={
+            "country": "France",
             "messages": [
                 {
                     "role": "user",
