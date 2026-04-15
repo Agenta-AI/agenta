@@ -77,7 +77,7 @@ async def validate_password(value: str, tenant_id: str) -> Optional[str]:
             return "Password does not meet the required format."
         return None
 
-    policy = (cfg.password_policy or "basic").lower()
+    policy = (cfg.password_policy or "strong").lower()
 
     if policy == "none":
         return None
