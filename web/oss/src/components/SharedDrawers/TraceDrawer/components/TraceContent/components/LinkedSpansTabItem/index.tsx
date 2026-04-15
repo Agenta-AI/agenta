@@ -127,6 +127,8 @@ const LinkedSpansTabItem = ({isActive: _isActive}: LinkedSpansTabItemProps) => {
             columns={filteredColumns}
             dataSource={linkedSpans}
             scroll={{x: "max-content"}}
+            bordered
+            pagination={false}
             onRow={(record) => ({
                 onClick: () => {
                     navigateToLink(record)

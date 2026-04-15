@@ -2,7 +2,7 @@ import {type Key, type ReactNode, useCallback, useEffect, useMemo, useState} fro
 
 import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
 import type {TableFeaturePagination, TableScopeConfig} from "@agenta/ui/table"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
 import {setTraceDrawerActiveSpanAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
@@ -56,6 +56,7 @@ const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
 }
 
 const ObservabilityTable = () => {
+    const store = useStore()
     const {
         traces,
         traceCount,
@@ -281,7 +282,7 @@ const ObservabilityTable = () => {
             {isEmptyState ? (
                 <EmptyObservability showOnboarding={showOnboarding} />
             ) : (
-                <InfiniteVirtualTableFeatureShell<TraceSpanNode>
+                <InfiniteVirtualTableFeatureShell
                     tableScope={tableScope}
                     columns={columns}
                     rowKey={(record) => record.span_id || record.key}
@@ -289,6 +290,7 @@ const ObservabilityTable = () => {
                     resizableColumns
                     enableExport={false}
                     useSettingsDropdown={false}
+                    store={store}
                     className="flex-1 min-h-0 [&_.ant-table-thead_tr:nth-child(2)]:hidden"
                     rowSelection={{
                         selectedRowKeys,
