@@ -10,6 +10,18 @@ import Image from "@theme/IdealImage";
 
 <section class="changelog">
 
+### [Unified Invoke API](/changelog/unified-invoke-api)
+
+_14 April 2026_
+
+**v0.96.0**
+
+All application invocation endpoints (`/generate`, `/generate_deployed`, `/test`, `/run`) are now unified into a single `POST /services/{service}/v0/invoke` endpoint. The new format uses structured `references` for targeting applications and environments, and returns outputs under `data.outputs` with `trace_id` and `span_id` for observability.
+
+The old endpoints remain available temporarily via an adapter. See the [full migration guide](/changelog/unified-invoke-api) for before/after examples.
+
+---
+
 ### [Webhooks and GitHub Automations for Prompt Deployments](/changelog/deployment-webhooks-and-github-automations)
 
 _11 March 2026_

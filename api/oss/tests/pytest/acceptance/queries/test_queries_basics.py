@@ -48,10 +48,11 @@ class TestSimpleQueriesCreate:
         and returns the full query object.
         """
         # ACT -----------------------------------------------------------------
+        payload = _make_query_payload()
         response = authed_api(
             "POST",
             "/preview/simple/queries/",
-            json=_make_query_payload(),
+            json=payload,
         )
         # ---------------------------------------------------------------------
 
@@ -60,10 +61,26 @@ class TestSimpleQueriesCreate:
         body = response.json()
         assert "query" in body
         query = body["query"]
+
+        commit_response = authed_api(
+            "POST",
+            "/preview/queries/revisions/commit",
+            json={
+                "query_revision_commit": {
+                    "slug": uuid4().hex[-12:],
+                    "query_id": query["id"],
+                    "query_variant_id": query["variant_id"],
+                    "data": payload["query"]["data"],
+                }
+            },
+        )
+        assert commit_response.status_code == 200, commit_response.text
+        query_revision = commit_response.json()["query_revision"]
+
         assert query.get("id") is not None
-        assert query.get("revision_id") is not None
+        assert query_revision.get("id") is not None
         assert query.get("slug") is not None
-        assert query.get("data") is not None
+        assert query_revision.get("data") is not None
         # ---------------------------------------------------------------------
 
     def test_create_simple_query_stores_filtering(self, authed_api):
@@ -84,7 +101,22 @@ class TestSimpleQueriesCreate:
 
         # ASSERT --------------------------------------------------------------
         assert response.status_code == 200, response.text
-        data = response.json()["query"].get("data") or {}
+        query = response.json()["query"]
+
+        commit_response = authed_api(
+            "POST",
+            "/preview/queries/revisions/commit",
+            json={
+                "query_revision_commit": {
+                    "slug": uuid4().hex[-12:],
+                    "query_id": query["id"],
+                    "query_variant_id": query["variant_id"],
+                    "data": payload["query"]["data"],
+                }
+            },
+        )
+        assert commit_response.status_code == 200, commit_response.text
+        data = commit_response.json()["query_revision"].get("data") or {}
         assert data.get("filtering") == filtering
         # ---------------------------------------------------------------------
 
