@@ -23,7 +23,7 @@ import {Button, Checkbox, Empty, Popover, Spin, Tabs} from "antd"
 
 import {useEntitySelectionCore} from "../../../hooks/useEntitySelectionCore"
 import {useLevelData} from "../../../hooks/utilities"
-import type {EntitySelectionResult, HierarchyLevel} from "../../../types"
+import type {EntitySelectionResult, HierarchyLevel, SelectionPathItem} from "../../../types"
 import type {PopoverCascaderVariantProps} from "../types"
 
 // ============================================================================
