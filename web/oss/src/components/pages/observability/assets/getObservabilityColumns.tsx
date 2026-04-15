@@ -144,15 +144,12 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
                           title: null,
                           key: evaluatorSlug,
                           onHeaderCell: () => ({style: {display: "none"}}),
-                          render: (_: unknown, record: TraceSpanNode) => {
-                              console.log("EvaluatorMetricsCell", {record, evaluatorSlug})
-                              return (
-                                  <EvaluatorMetricsCell
-                                      invocationKey={`${record.invocationIds?.trace_id || ""}:${record.invocationIds?.span_id || ""}`}
-                                      evaluatorSlug={evaluatorSlug}
-                                  />
-                              )
-                          },
+                          render: (_: unknown, record: TraceSpanNode) => (
+                              <EvaluatorMetricsCell
+                                  invocationKey={`${record.invocationIds?.trace_id || ""}:${record.invocationIds?.span_id || ""}`}
+                                  evaluatorSlug={evaluatorSlug}
+                              />
+                          ),
                       })),
                   },
               ]
