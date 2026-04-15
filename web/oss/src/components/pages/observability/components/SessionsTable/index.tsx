@@ -8,6 +8,7 @@ import dynamic from "next/dynamic"
 import {SessionDrawer} from "@/oss/components/SharedDrawers/SessionDrawer"
 import {isNewUserAtom} from "@/oss/lib/onboarding"
 import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
+import {SESSIONS_PAGE_SIZE} from "@/oss/state/newObservability"
 import {hasReceivedSessionsAtom} from "@/oss/state/newObservability/atoms/controls"
 import {useSessions} from "@/oss/state/newObservability/hooks/useSessions"
 import {openSessionDrawerWithUrlAtom} from "@/oss/state/url/session"
@@ -20,8 +21,6 @@ import {getSessionColumns, SessionRow} from "./assets/getSessionColumns"
 const ObservabilityHeader = dynamic(() => import("../../components/ObservabilityHeader"), {
     ssr: false,
 })
-
-const SESSIONS_PAGE_SIZE = 20
 
 const tableScope: TableScopeConfig = {
     scopeId: "sessions",
@@ -40,8 +39,6 @@ const SessionsTable: React.FC = () => {
         isLoading,
         sessionIds,
         sessionCount,
-        refetchSessions,
-        refetchSessionSpans,
         realtimeMode,
         setRealtimeMode,
         autoRefresh,
@@ -49,6 +46,7 @@ const SessionsTable: React.FC = () => {
         fetchMoreSessions,
         hasMoreSessions,
         isFetchingMore,
+        resetSessionPages,
     } = useSessions()
 
     const isNewUser = useAtomValue(isNewUserAtom)
@@ -77,9 +75,10 @@ const SessionsTable: React.FC = () => {
     )
 
     const handleRefresh = useCallback(async () => {
-        await Promise.all([refetchSessions(), refetchSessionSpans()])
+        // Reset to page 1 so only one API call per query on refresh.
+        resetSessionPages()
         setRefreshTrigger((prev) => prev + 1)
-    }, [refetchSessions, refetchSessionSpans])
+    }, [resetSessionPages])
 
     // Auto-refresh logic: refresh every 15 seconds when enabled
     useEffect(() => {
@@ -97,16 +96,16 @@ const SessionsTable: React.FC = () => {
         () => ({
             rows: data,
             loadNextPage: () => fetchMoreSessions(),
-            resetPages: () => {},
+            resetPages: resetSessionPages,
             paginationInfo: {
                 hasMore: hasMoreSessions,
                 nextCursor: null,
                 nextOffset: null,
-                isFetching: isLoading || isFetchingMore,
+                isFetching: isFetchingMore,
                 totalCount: sessionCount,
             },
         }),
-        [data, fetchMoreSessions, hasMoreSessions, isLoading, isFetchingMore, sessionCount],
+        [data, fetchMoreSessions, hasMoreSessions, isFetchingMore, sessionCount, resetSessionPages],
     )
 
     const isEmptyState = sessionIds.length === 0 && !isLoading

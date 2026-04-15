@@ -61,7 +61,6 @@ const ObservabilityTable = () => {
         traceCount,
         isLoading,
         traceTabs,
-        fetchTraces,
         selectedTraceId,
         setSelectedTraceId,
         selectedRowKeys,
@@ -76,6 +75,8 @@ const ObservabilityTable = () => {
         isFetchingMore,
         autoRefresh,
         fetchAnnotations,
+        resetTracePages,
+        limit,
     } = useObservability()
     const setTraceDrawerActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
     const isNewUser = useAtomValue(isNewUserAtom)
@@ -123,11 +124,11 @@ const ObservabilityTable = () => {
     const tableScope: TableScopeConfig = useMemo(
         () => ({
             scopeId: "observability-traces-table",
-            pageSize: 50,
+            pageSize: limit,
             columnVisibilityStorageKey: "observability-table-columns",
             columnVisibilityDefaults: defaultHiddenColumnKeys,
         }),
-        [defaultHiddenColumnKeys],
+        [defaultHiddenColumnKeys, limit],
     )
 
     useEffect(() => {
@@ -160,9 +161,12 @@ const ObservabilityTable = () => {
     }, [activeTrace, selectedNode, setSelectedNode])
 
     const handleRefresh = useCallback(async () => {
-        await Promise.all([fetchAnnotations(), fetchTraces()])
+        // Reset to page 1 first so only one API call is made on refresh
+        // instead of refetching every page the user has scrolled through.
+        resetTracePages()
+        await fetchAnnotations()
         setRefreshTrigger((prev) => prev + 1)
-    }, [fetchAnnotations, fetchTraces])
+    }, [fetchAnnotations, resetTracePages])
 
     useEffect(() => {
         if (!autoRefresh) return
@@ -247,16 +251,16 @@ const ObservabilityTable = () => {
         () => ({
             rows: traces,
             loadNextPage: () => fetchMoreTraces(),
-            resetPages: () => {},
+            resetPages: resetTracePages,
             paginationInfo: {
                 hasMore: hasMoreTraces,
                 nextCursor: null,
                 nextOffset: null,
-                isFetching: isLoading || isFetchingMore,
+                isFetching: isFetchingMore,
                 totalCount: traceCount,
             },
         }),
-        [traces, fetchMoreTraces, hasMoreTraces, isLoading, isFetchingMore, traceCount],
+        [traces, fetchMoreTraces, resetTracePages, hasMoreTraces, isFetchingMore, traceCount],
     )
 
     useEffect(() => {
@@ -285,7 +289,7 @@ const ObservabilityTable = () => {
                     resizableColumns
                     enableExport={false}
                     useSettingsDropdown={false}
-                    className="flex-1 min-h-0"
+                    className="flex-1 min-h-0 [&_.ant-table-thead_tr:nth-child(2)]:hidden"
                     rowSelection={{
                         selectedRowKeys,
                         type: "checkbox",

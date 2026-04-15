@@ -11,6 +11,7 @@ import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import type {Filter} from "@/oss/lib/Types"
 
 import {routerAppIdAtom} from "../../app"
+import {SESSIONS_PAGE_SIZE, TRACES_PAGE_SIZE} from "../constants"
 
 export type TraceTabTypes = "trace" | "span" | "chat"
 export type ObservabilityTabInfo = "traces" | "sessions"
@@ -70,7 +71,7 @@ export const traceTabsAtomFamily = atomFamily((_tab: ObservabilityTabInfo) =>
     atom<TraceTabTypes>("trace"),
 )
 export const limitAtomFamily = atomFamily((tab: ObservabilityTabInfo) =>
-    atom<number>(tab === "sessions" ? 20 : 50),
+    atom<number>(tab === "sessions" ? SESSIONS_PAGE_SIZE : TRACES_PAGE_SIZE),
 )
 export const sortAtomFamily = atomFamily((_tab: ObservabilityTabInfo) =>
     atom<SortResult>(DEFAULT_SORT as SortResult),

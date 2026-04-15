@@ -1,6 +1,7 @@
 import {useCallback, useMemo} from "react"
 
 import {useAtom, useAtomValue} from "jotai"
+import {queryClientAtom} from "jotai-tanstack-query"
 
 import {
     searchQueryAtom,
@@ -99,6 +100,17 @@ export const useObservability = () => {
         return pages.length ? pages[pages.length - 1].traces : []
     }, [fetchNextPage, hasNextPage])
 
+    const queryClient = useAtomValue(queryClientAtom)
+
+    /**
+     * Resets the traces infinite query to its initial state (page 1 only).
+     * TanStack Query clears the cache and re-fetches page 1 on next render.
+     * Use this for auto-refresh so N loaded pages don't cause N API calls.
+     */
+    const resetTracePages = useCallback(() => {
+        queryClient.resetQueries({queryKey: ["traces"]})
+    }, [queryClient])
+
     const clearQueryStates = useCallback(() => {
         setSearchQuery("")
         setTraceTabs("trace")
@@ -117,6 +129,7 @@ export const useObservability = () => {
         isFetchingMore: isFetchingNextPage,
         fetchTraces,
         fetchAnnotations,
+        resetTracePages,
         clearQueryStates,
         searchQuery,
         setSearchQuery,

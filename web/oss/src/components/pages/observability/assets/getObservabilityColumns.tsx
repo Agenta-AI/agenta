@@ -26,13 +26,6 @@ interface ObservabilityColumnsProps {
     evaluatorSlugs: string[]
 }
 
-const formatEvaluatorHeaderLabel = (slug: string) =>
-    slug
-        .replace(/[_-]+/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .replace(/\b\w/g, (char) => char.toUpperCase())
-
 const collectDefaultHiddenColumnKeys = <T,>(columns: ColumnsType<T>): string[] => {
     const hiddenKeys = new Set<string>()
 
@@ -141,31 +134,36 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
                 )
             },
         },
-        {
-            title: "Evaluators",
-            key: "evaluators",
-            align: "start",
-            children: evaluatorSlugs.map((evaluatorSlug) => ({
-                title: formatEvaluatorHeaderLabel(evaluatorSlug),
-                key: evaluatorSlug,
-                onHeaderCell: () => ({
-                    style: {minWidth: 180},
-                }),
-                render: (_, record) => (
-                    <EvaluatorMetricsCell
-                        invocationKey={`${record.invocationIds?.trace_id || ""}:${record.invocationIds?.span_id || ""}`}
-                        evaluatorSlug={evaluatorSlug}
-                    />
-                ),
-            })),
-        },
+        ...(evaluatorSlugs.length > 0
+            ? [
+                  {
+                      title: "Evaluators",
+                      key: "evaluators",
+                      align: "start" as const,
+                      children: evaluatorSlugs.map((evaluatorSlug) => ({
+                          title: null,
+                          key: evaluatorSlug,
+                          onHeaderCell: () => ({style: {display: "none"}}),
+                          render: (_: unknown, record: TraceSpanNode) => {
+                              console.log("EvaluatorMetricsCell", {record, evaluatorSlug})
+                              return (
+                                  <EvaluatorMetricsCell
+                                      invocationKey={`${record.invocationIds?.trace_id || ""}:${record.invocationIds?.span_id || ""}`}
+                                      evaluatorSlug={evaluatorSlug}
+                                  />
+                              )
+                          },
+                      })),
+                  },
+              ]
+            : []),
         {
             title: "Duration",
             key: "duration",
             dataIndex: ["time", "span"],
-            width: 90,
+            width: 150,
             onHeaderCell: () => ({
-                style: {minWidth: 90},
+                style: {minWidth: 150},
             }),
             render: (_, record) => {
                 const duration = getLatency(record)
@@ -176,9 +174,9 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             title: "Cost",
             key: "cost",
             dataIndex: ["attributes", "ag", "metrics", "costs", "cumulative", "total"],
-            width: 90,
+            width: 150,
             onHeaderCell: () => ({
-                style: {minWidth: 90},
+                style: {minWidth: 150},
             }),
             render: (_, record) => {
                 const cost = getCost(record)
@@ -189,9 +187,9 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             title: "Usage",
             key: "usage",
             dataIndex: ["attributes", "ag", "metrics", "tokens", "cumulative", "total"],
-            width: 90,
+            width: 150,
             onHeaderCell: () => ({
-                style: {minWidth: 90},
+                style: {minWidth: 150},
             }),
             render: (_, record) => {
                 const tokens = getTokens(record)
