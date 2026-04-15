@@ -18,6 +18,7 @@ import {
 } from "../atoms/controls"
 import {
     tracesQueryAtom,
+    traceCountAtom,
     annotationsQueryAtom,
     tracesWithAnnotationsAtom,
     observabilityLoadingAtom,
@@ -66,6 +67,7 @@ export const useObservability = () => {
     const isLoadingObservability = useAtomValue(observabilityLoadingAtom)
 
     const traces = useAtomValue(tracesWithAnnotationsAtom)
+    const traceCount = useAtomValue(traceCountAtom)
     const activeTraceIndex = useAtomValue(activeTraceIndexAtom)
     const activeTrace = useAtomValue(activeTraceAtom)
     const selectedItem = useAtomValue(selectedItemAtom)
@@ -106,6 +108,7 @@ export const useObservability = () => {
 
     return {
         traces,
+        traceCount,
         annotations,
         isLoading:
             isLoadingObservability || isLoadingTraces || isLoadingAnnotations || isRefreshing,

@@ -1,7 +1,7 @@
 import {type Key, type ReactNode, useCallback, useEffect, useMemo, useState} from "react"
 
-import {InfiniteVirtualTable} from "@agenta/ui/table"
-import {Button} from "antd"
+import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
+import type {TableFeaturePagination, TableScopeConfig} from "@agenta/ui/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -27,8 +27,6 @@ const TestsetDrawer = dynamic(
         ssr: false,
     },
 )
-
-const ESTIMATED_TRACE_ROW_HEIGHT = 136
 
 const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
     const slugs = new Set<string>()
@@ -60,6 +58,7 @@ const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
 const ObservabilityTable = () => {
     const {
         traces,
+        traceCount,
         isLoading,
         traceTabs,
         fetchTraces,
@@ -121,6 +120,16 @@ const ObservabilityTable = () => {
         [evaluatorSlugs],
     )
 
+    const tableScope: TableScopeConfig = useMemo(
+        () => ({
+            scopeId: "observability-traces-table",
+            pageSize: 50,
+            columnVisibilityStorageKey: "observability-table-columns",
+            columnVisibilityDefaults: defaultHiddenColumnKeys,
+        }),
+        [defaultHiddenColumnKeys],
+    )
+
     useEffect(() => {
         if (traceParam && traceParam !== selectedTraceId) {
             setSelectedTraceId(traceParam)
@@ -164,12 +173,6 @@ const ObservabilityTable = () => {
 
         return () => clearInterval(intervalId)
     }, [autoRefresh, handleRefresh])
-
-    const handleLoadMore = useCallback(() => {
-        if (isFetchingMore || !hasMoreTraces) return
-
-        fetchMoreTraces().catch((error) => console.error("Failed to fetch more traces", error))
-    }, [fetchMoreTraces, hasMoreTraces, isFetchingMore])
 
     const handleTraceRowClick = useCallback(
         (record: TraceSpanNode) => {
@@ -238,9 +241,22 @@ const ObservabilityTable = () => {
     const showTableLoading = isLoading && traces.length === 0
     const isEmptyState = traces.length === 0 && !isLoading
     const showOnboarding = isNewUser && !hasReceivedTraces
-    const tableBodyHeight = useMemo(
-        () => Math.max(traces.length, 1) * ESTIMATED_TRACE_ROW_HEIGHT,
-        [traces.length],
+
+    // Build pagination object expected by InfiniteVirtualTableFeatureShell
+    const pagination: TableFeaturePagination<TraceSpanNode> = useMemo(
+        () => ({
+            rows: traces,
+            loadNextPage: () => fetchMoreTraces(),
+            resetPages: () => {},
+            paginationInfo: {
+                hasMore: hasMoreTraces,
+                nextCursor: null,
+                nextOffset: null,
+                isFetching: isLoading || isFetchingMore,
+                totalCount: traceCount,
+            },
+        }),
+        [traces, fetchMoreTraces, hasMoreTraces, isLoading, isFetchingMore, traceCount],
     )
 
     useEffect(() => {
@@ -250,7 +266,7 @@ const ObservabilityTable = () => {
     }, [onboardingStorageUserId, traces.length, hasReceivedTraces, setHasReceivedTraces])
 
     return (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col h-full min-h-0">
             <ObservabilityHeader
                 columns={columns}
                 componentType="traces"
@@ -261,52 +277,31 @@ const ObservabilityTable = () => {
             {isEmptyState ? (
                 <EmptyObservability showOnboarding={showOnboarding} />
             ) : (
-                <div className="flex flex-col gap-2">
-                    <InfiniteVirtualTable<TraceSpanNode>
-                        columns={columns}
-                        dataSource={traces}
-                        loadMore={() => {}}
-                        rowKey={(record) => record.span_id || record.key}
-                        bodyHeight={tableBodyHeight}
-                        tableClassName="[&_.ant-table-tbody_.ant-table-cell]:align-top"
-                        containerClassName="w-full"
-                        rowSelection={{
-                            selectedRowKeys,
-                            type: "checkbox",
-                            ...rowSelection,
-                        }}
-                        resizableColumns
-                        scopeId="observability-traces-table"
-                        columnVisibility={{
-                            storageKey: "observability-table-columns",
-                            defaultHiddenKeys: defaultHiddenColumnKeys,
-                            viewportTrackingEnabled: false,
-                        }}
-                        tableProps={{
-                            bordered: true,
-                            loading: showTableLoading,
-                            sticky: {
-                                offsetHeader: 0,
-                                offsetScroll: 0,
-                            },
-                            style: {cursor: "pointer"},
-                            onRow: (record, index) => ({
-                                onClick: () => handleTraceRowClick(record),
-                                "data-tour": index === 0 ? "trace-row" : undefined,
-                            }),
-                        }}
-                    />
-                    {hasMoreTraces && (
-                        <Button
-                            onClick={handleLoadMore}
-                            disabled={isFetchingMore}
-                            type="text"
-                            size="large"
-                        >
-                            {isFetchingMore ? "Loading…" : "Click here to load more"}
-                        </Button>
-                    )}
-                </div>
+                <InfiniteVirtualTableFeatureShell<TraceSpanNode>
+                    tableScope={tableScope}
+                    columns={columns}
+                    rowKey={(record) => record.span_id || record.key}
+                    pagination={pagination}
+                    resizableColumns
+                    enableExport={false}
+                    useSettingsDropdown={false}
+                    className="flex-1 min-h-0"
+                    rowSelection={{
+                        selectedRowKeys,
+                        type: "checkbox",
+                        ...rowSelection,
+                    }}
+                    tableProps={{
+                        bordered: true,
+                        loading: showTableLoading,
+                        sticky: true,
+                        style: {cursor: "pointer"},
+                        onRow: (record, index) => ({
+                            onClick: () => handleTraceRowClick(record),
+                            "data-tour": index === 0 ? "trace-row" : undefined,
+                        }),
+                    }}
+                />
             )}
 
             <TestsetDrawer

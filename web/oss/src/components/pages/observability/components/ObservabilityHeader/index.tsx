@@ -470,7 +470,7 @@ const ObservabilityHeader = ({
                 className={clsx([
                     "flex justify-between gap-2 flex-col transition-[transform,opacity] duration-200 ease-linear",
                     {
-                        "!flex-row sticky top-2 z-10 bg-white py-2 px-2 border border-solid border-gray-200 rounded-lg mx-2 shadow-md":
+                        "!flex-row sticky top-2 z-[1000] bg-white py-2 px-2 border border-solid border-gray-200 rounded-lg mx-2 shadow-md":
                             isScrolled,
                         "translate-y-0 opacity-100": isScrolled,
                     },
@@ -583,6 +583,7 @@ const ObservabilityHeader = ({
                             </Radio.Group>
                         </Space>
                         <Space>
+                            {renderTraceSecondaryActions()}
                             <AddActionsDropdown
                                 dataTour="create-testset-button"
                                 testsetAction={{
@@ -596,7 +597,6 @@ const ObservabilityHeader = ({
                                     onItemsAdded: handleQueueItemsAdded,
                                 }}
                             />
-                            {renderTraceSecondaryActions()}
                         </Space>
                     </div>
                 ) : null}
