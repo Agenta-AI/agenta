@@ -7,6 +7,7 @@
 
 import {useEffect, useCallback, useRef, useState, type ReactNode} from "react"
 
+import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -254,7 +255,9 @@ export function EntityCommitModal({
                 })
 
                 if (!result.success) {
-                    setCommitError(new Error(result.error || "Commit failed"))
+                    setCommitError(
+                        new Error(extractApiErrorMessage(result.error || "Commit failed")),
+                    )
                     setCommitLoading(false)
                     return
                 }
@@ -274,7 +277,10 @@ export function EntityCommitModal({
                 await onAfterSuccess?.(result)
                 return
             } catch (error) {
-                setCommitError(error instanceof Error ? error : new Error(String(error)))
+                const msg = extractApiErrorMessage(error)
+                setCommitError(
+                    error instanceof Error ? Object.assign(error, {message: msg}) : new Error(msg),
+                )
                 setCommitLoading(false)
                 return
             }

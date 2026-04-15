@@ -258,6 +258,7 @@ MANAGED_WORKFLOW_CASES = [
             },
             "inputs": {},
             "outputs": "Paris is the capital of France",
+            "output_kind": "numeric_score",
             "requires_llm": True,
         },
         id="auto_ai_critique",
@@ -524,6 +525,16 @@ def _assert_case_outputs(payload: dict, *, case: Dict[str, Any]) -> None:
         )
         assert isinstance(outputs["aggregate_score"], (int, float)), (
             f"[{case_id}] 'aggregate_score' should be numeric, got: {outputs}"
+        )
+        return
+
+    if output_kind == "numeric_score":
+        assert "score" in outputs, f"[{case_id}] outputs missing 'score': {outputs}"
+        assert isinstance(outputs["score"], (int, float)), (
+            f"[{case_id}] 'score' should be numeric, got: {outputs}"
+        )
+        assert 0 <= outputs["score"] <= 1, (
+            f"[{case_id}] 'score' should be between 0 and 1, got: {outputs}"
         )
         return
 

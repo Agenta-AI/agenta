@@ -1,5 +1,6 @@
 # /agenta/sdk/decorators/tracing.py
 
+import warnings
 from functools import wraps
 from inspect import (
     getfullargspec,
@@ -63,6 +64,16 @@ class instrument:  # pylint: disable=invalid-name
         self.redact_on_error = redact_on_error
         self.max_depth = max_depth
 
+    @staticmethod
+    def _warn_if_not_initialized(handler_name: str) -> None:
+        if ag.tracing is None:
+            warnings.warn(
+                f"ag.instrument() used on '{handler_name}' before ag.init() was called. "
+                "Tracing will be disabled. Call ag.init() before using @ag.instrument().",
+                RuntimeWarning,
+                stacklevel=3,
+            )
+
     def __call__(self, handler: Callable[..., Any]):
         is_coroutine_function = iscoroutinefunction(handler)
         is_sync_generator = isgeneratorfunction(handler)
@@ -73,6 +84,7 @@ class instrument:  # pylint: disable=invalid-name
 
             @wraps(handler)
             def astream_wrapper(*args, **kwargs):
+                self._warn_if_not_initialized(handler.__name__)
                 with tracing_context_manager(context=TracingContext.get()):
                     # debug_otel_context("[ASYNC] [BEFORE STREAM] [BEFORE SETUP]")
 
@@ -141,6 +153,7 @@ class instrument:  # pylint: disable=invalid-name
 
             @wraps(handler)
             def stream_wrapper(*args, **kwargs):
+                self._warn_if_not_initialized(handler.__name__)
                 with tracing_context_manager(context=TracingContext.get()):
                     # debug_otel_context("[.SYNC] [BEFORE STREAM] [BEFORE SETUP]")
 
@@ -204,6 +217,7 @@ class instrument:  # pylint: disable=invalid-name
 
             @wraps(handler)
             async def awrapper(*args, **kwargs):
+                self._warn_if_not_initialized(handler.__name__)
                 with tracing_context_manager(context=TracingContext.get()):
                     # debug_otel_context("[ASYNC] [BEFORE BATCH] [BEFORE SETUP]")
 
@@ -239,6 +253,7 @@ class instrument:  # pylint: disable=invalid-name
         # ---- SYNC FUNCTION ----
         @wraps(handler)
         def wrapper(*args, **kwargs):
+            self._warn_if_not_initialized(handler.__name__)
             with tracing_context_manager(context=TracingContext.get()):
                 # debug_otel_context("[.SYNC] [BEFORE BATCH] [BEFORE SETUP]")
 

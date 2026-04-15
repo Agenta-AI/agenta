@@ -80,6 +80,7 @@ async def test_handle_events_reads_subscription_created_metadata_from_stripe_obj
     request = DummyRequest()
 
     monkeypatch.setattr(billing_router_module.env.stripe, "api_key", "sk_test_123")
+    monkeypatch.setattr(billing_router_module.env.stripe, "webhook_secret", None)
     monkeypatch.setattr(
         billing_router_module.stripe.Event,
         "construct_from",
@@ -125,6 +126,7 @@ async def test_handle_events_reads_invoice_metadata_from_stripe_objects(monkeypa
     request = DummyRequest()
 
     monkeypatch.setattr(billing_router_module.env.stripe, "api_key", "sk_test_123")
+    monkeypatch.setattr(billing_router_module.env.stripe, "webhook_secret", None)
     monkeypatch.setattr(
         billing_router_module.stripe.Event,
         "construct_from",

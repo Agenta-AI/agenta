@@ -1162,16 +1162,6 @@ class ApplicationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        log.info(
-            "[applications.revisions.retrieve] request project_id=%s user_id=%s resolve=%s app_ref=%s variant_ref=%s revision_ref=%s",
-            request.state.project_id,
-            request.state.user_id,
-            application_revision_retrieve_request.resolve,
-            application_revision_retrieve_request.application_ref,
-            application_revision_retrieve_request.application_variant_ref,
-            application_revision_retrieve_request.application_revision_ref,
-        )
-
         application_ref = application_revision_retrieve_request.application_ref
         application_variant_ref = (
             application_revision_retrieve_request.application_variant_ref
@@ -1205,14 +1195,6 @@ class ApplicationsRouter:
         )
         environment_lookup_requested = environment_refs_requested or key is not None
 
-        if application_lookup_requested and environment_lookup_requested:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "Provide either application refs or environment refs with key, not both."
-                ),
-            )
-
         if not application_lookup_requested and not environment_lookup_requested:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -1229,10 +1211,24 @@ class ApplicationsRouter:
                 )
 
             if not key:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Environment-backed application retrieve requires key.",
-                )
+                if application_ref and application_ref.slug:
+                    key = f"{application_ref.slug}.revision"
+                elif application_ref and application_ref.id:
+                    application = await self.applications_service.fetch_application(
+                        project_id=UUID(request.state.project_id),
+                        application_ref=application_ref,
+                    )
+                    if not application or not application.slug:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Environment-backed application retrieve could not derive key from application slug.",
+                        )
+                    key = f"{application.slug}.revision"
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Environment-backed application retrieve requires key.",
+                    )
 
         (
             application_revision,
@@ -1258,24 +1254,10 @@ class ApplicationsRouter:
                 detail="Environment revision does not contain application references for the requested key.",
             )
 
-        log.info(
-            "[applications.revisions.retrieve] fetched project_id=%s revision_id=%s has_data=%s",
-            request.state.project_id,
-            getattr(application_revision, "id", None),
-            bool(application_revision and application_revision.data),
-        )
-
         application_revision_response = ApplicationRevisionResponse(
             count=1 if application_revision else 0,
             application_revision=application_revision,
             resolution_info=resolution_info,
-        )
-
-        log.info(
-            "[applications.revisions.retrieve] response project_id=%s count=%s revision_id=%s",
-            request.state.project_id,
-            application_revision_response.count,
-            getattr(application_revision, "id", None),
         )
 
         return application_revision_response

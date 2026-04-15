@@ -39,5 +39,4 @@ def create_chat_app():
     return app
 
 
-chat_app = create_chat_app()
 chat_v0_app = create_chat_app()

@@ -16,6 +16,7 @@ import {
     workflowsListQueryStateAtom,
     workflowLatestRevisionIdAtomFamily,
     createLocalDraftFromWorkflowRevision,
+    workflowVariantsListDataAtomFamily,
 } from "@agenta/entities/workflow"
 import {
     createWorkflowRevisionAdapter,
@@ -307,16 +308,38 @@ const SelectVariant = ({
     const rawWorkflowEntity = useAtomValue(
         workflowMolecule.selectors.data(singleSelectedValue || ""),
     )
+    const selectedWorkflowId =
+        (rawWorkflowEntity as {workflow_id?: string | null} | null)?.workflow_id ?? ""
+    const selectedVariantId =
+        (
+            rawWorkflowEntity as {
+                workflow_variant_id?: string | null
+                variant_id?: string | null
+            } | null
+        )?.workflow_variant_id ??
+        (
+            rawWorkflowEntity as {
+                workflow_variant_id?: string | null
+                variant_id?: string | null
+            } | null
+        )?.variant_id ??
+        ""
+    const workflowVariants = useAtomValue(workflowVariantsListDataAtomFamily(selectedWorkflowId))
+    const selectedVariantName = useMemo(() => {
+        if (!selectedVariantId) return null
+        const variant = workflowVariants.find((item) => item.id === selectedVariantId)
+        const name = variant?.name?.trim()
+        return name && name.length > 0 ? name : null
+    }, [selectedVariantId, workflowVariants])
 
     // Look up the parent workflow name for browse mode trigger label
     const workflowsList = useAtomValue(workflowsListQueryStateAtom)
     const workflowName = useMemo(() => {
         if (mode !== "browse") return null
-        const workflowId = (rawWorkflowEntity as {workflow_id?: string | null} | null)?.workflow_id
-        if (!workflowId) return null
-        const wf = workflowsList.data.find((w) => w.id === workflowId)
+        if (!selectedWorkflowId) return null
+        const wf = workflowsList.data.find((w) => w.id === selectedWorkflowId)
         return wf?.name ?? null
-    }, [mode, rawWorkflowEntity, workflowsList.data])
+    }, [mode, selectedWorkflowId, workflowsList.data])
 
     // Build display label from already-fetched individual revision data.
     // Uses singleSelectedValue directly (not selectedValueForControl which
@@ -324,17 +347,24 @@ const SelectVariant = ({
     const triggerLabel = useMemo(() => {
         if (!singleSelectedValue) return selectPlaceholder
         if (isLocalDraftId(singleSelectedValue)) {
-            return selectedRevisionData?.name ?? "Draft"
+            return selectedVariantName ?? selectedRevisionData?.name ?? "Draft"
         }
         if (selectedRevisionQuery.isPending) return "Loading..."
-        const variantName = selectedRevisionData?.name ?? selectPlaceholder
-        // In browse mode, prefix with the workflow (app/evaluator) name
-        if (mode === "browse" && workflowName) {
+        const variantName = selectedVariantName ?? selectedRevisionData?.name ?? selectPlaceholder
+        // In browse mode, keep workflow context available only when the variant
+        // label cannot disambiguate on its own.
+        if (
+            mode === "browse" &&
+            workflowName &&
+            variantName !== selectPlaceholder &&
+            variantName === workflowName
+        ) {
             return `${workflowName} / ${variantName}`
         }
         return variantName
     }, [
         singleSelectedValue,
+        selectedVariantName,
         selectedRevisionData,
         selectedRevisionQuery.isPending,
         selectPlaceholder,

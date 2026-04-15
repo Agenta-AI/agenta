@@ -5,9 +5,64 @@ import PasswordlessReact from "supertokens-auth-react/recipe/passwordless"
 import SessionReact from "supertokens-auth-react/recipe/session"
 import ThirdPartyReact from "supertokens-auth-react/recipe/thirdparty"
 
-import {getEffectiveAuthConfig} from "../lib/helpers/dynamicEnv"
+import {getEffectiveAuthConfig, getEnv} from "../lib/helpers/dynamicEnv"
 
 import {appInfo} from "./appInfo"
+
+/**
+ * Validate a password against the configured SuperTokens password policy.
+ *
+ * Mirrors the logic in api/oss/src/utils/validators.py:validate_password().
+ * Resolution order:
+ *   1. Custom regex (NEXT_PUBLIC_SUPERTOKENS_PASSWORD_REGEX) — full-match required.
+ *   2. Policy "none"   — no validation.
+ *   3. Policy "basic"  — min/max length only.
+ *   4. Policy "strong" — basic + uppercase, digit, special char.
+ */
+const validatePassword = (value: string): Promise<string | undefined> => {
+    const policy = (getEnv("NEXT_PUBLIC_SUPERTOKENS_PASSWORD_POLICY") || "strong").toLowerCase()
+    const minLength = parseInt(getEnv("NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MIN_LENGTH") || "8", 10)
+    const maxLengthRaw = getEnv("NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MAX_LENGTH")
+    const maxLength = maxLengthRaw ? parseInt(maxLengthRaw, 10) : null
+    const regex = getEnv("NEXT_PUBLIC_SUPERTOKENS_PASSWORD_REGEX")
+
+    if (regex) {
+        // Anchor the pattern so it behaves like Python's fullmatch().
+        return Promise.resolve(
+            new RegExp(`^${regex}$`).test(value)
+                ? undefined
+                : "Password does not meet the required format.",
+        )
+    }
+
+    if (policy === "none") {
+        return Promise.resolve(undefined)
+    }
+
+    if (value.length < minLength) {
+        return Promise.resolve(`Password must be at least ${minLength} characters long.`)
+    }
+
+    if (maxLength !== null && value.length > maxLength) {
+        return Promise.resolve(`Password must be at most ${maxLength} characters long.`)
+    }
+
+    if (policy === "strong") {
+        if (!/[A-Z]/.test(value)) {
+            return Promise.resolve("Password must contain at least one uppercase letter.")
+        }
+        if (!/[0-9]/.test(value)) {
+            return Promise.resolve("Password must contain at least one digit.")
+        }
+        if (!/[!@#$%^&*()_+\-=[\]{}|;':",./<>?]/.test(value)) {
+            return Promise.resolve(
+                "Password must contain at least one special character (!@#$%^&* etc.).",
+            )
+        }
+    }
+
+    return Promise.resolve(undefined)
+}
 
 export const frontendConfig = (): SuperTokensConfig => {
     const {authnEmail, oidcProviders} = getEffectiveAuthConfig()
@@ -59,6 +114,7 @@ export const frontendConfig = (): SuperTokensConfig => {
                                 id: "password",
                                 label: "Password",
                                 placeholder: "Custom value",
+                                validate: validatePassword,
                             },
                         ],
                     },
