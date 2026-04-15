@@ -28,6 +28,14 @@ def test_prompt_template_messages_roundtrip_in_variant_config(
         "prompt_messages": raw_messages,
     }
 
+    # Seed a version-0 stub so the real commit gets version 1 and its data is
+    # preserved (the API nullifies data on the very first commit per variant).
+    SharedManager.commit(
+        parameters={},
+        variant_slug=test_variant["variant_slug"],
+        app_id=test_variant["app_id"],
+    )
+
     committed = SharedManager.commit(
         parameters=params,
         variant_slug=test_variant["variant_slug"],
