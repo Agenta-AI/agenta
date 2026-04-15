@@ -390,6 +390,14 @@ class TestSharedManagerSync:
         """Test committing config via SharedManager.commit()."""
         test_params = {"temperature": 0.7, "max_tokens": 100, "test_key": "test_value"}
 
+        # Seed a version-0 stub so the real commit below gets version 1 and its
+        # data is preserved (the API nullifies data on the very first commit).
+        SharedManager.commit(
+            parameters={},
+            variant_slug=test_variant["variant_slug"],
+            app_id=test_variant["app_id"],
+        )
+
         result = SharedManager.commit(
             parameters=test_params,
             variant_slug=test_variant["variant_slug"],
@@ -510,6 +518,14 @@ class TestSharedManagerSync:
             )
             assert_not_none(fetch_result)
 
+            # Seed a version-0 stub so the real commit below gets version 1 and
+            # its data is preserved (the API nullifies data on the very first commit).
+            SharedManager.commit(
+                parameters={},
+                variant_slug=variant_slug,
+                app_id=test_app["app_id"],
+            )
+
             # Commit config
             commit_result = SharedManager.commit(
                 parameters={"workflow_test": True},
@@ -522,7 +538,10 @@ class TestSharedManagerSync:
             # List configs
             list_result = SharedManager.list(app_id=test_app["app_id"])
             assert isinstance(list_result, list)
-            assert any(c.variant_slug.endswith(variant_slug) for c in list_result)
+            assert any(
+                c.variant_slug and c.variant_slug.endswith(variant_slug)
+                for c in list_result
+            )
 
             # History
             history_result = SharedManager.history(
@@ -619,6 +638,14 @@ class TestSharedManagerAsync:
     async def test_acommit_config(self, agenta_init, test_variant):
         """Test committing config via SharedManager.acommit()."""
         test_params = {"async_key": "async_value", "number": 42}
+
+        # Seed a version-0 stub so the real commit below gets version 1 and its
+        # data is preserved (the API nullifies data on the very first commit).
+        await SharedManager.acommit(
+            parameters={},
+            variant_slug=test_variant["variant_slug"],
+            app_id=test_variant["app_id"],
+        )
 
         result = await SharedManager.acommit(
             parameters=test_params,
