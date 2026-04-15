@@ -179,23 +179,25 @@ function ChildPanelContent<TSelection = EntitySelectionResult>({
     return (
         <div style={{minWidth: panelWidth, maxWidth: panelWidth}}>
             {/* Child panel header */}
-            <div className="px-3 py-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-[#05172905] h-8 flex items-start justify-between">
-                <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] font-medium truncate" title={parentLabel}>
-                        {parentLabel}
-                    </span>
-                    {multiSelect && (
-                        <span className="text-zinc-500 text-[10px]">
-                            {selectedCount} of {filteredItems.length} selected
+            {multiSelect && (
+                <div className="px-3 py-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-[#05172905] h-8 flex items-start justify-between">
+                    <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] font-medium truncate" title={parentLabel}>
+                            {parentLabel}
                         </span>
+                        {multiSelect && (
+                            <span className="text-zinc-500 text-[10px]">
+                                {selectedCount} of {filteredItems.length} selected
+                            </span>
+                        )}
+                    </div>
+                    {multiSelect && enabledChildren.length > 0 && (
+                        <Button type="text" onClick={handleSelectAll} size="small">
+                            {allSelected ? "Deselect all" : "Select all"}
+                        </Button>
                     )}
                 </div>
-                {multiSelect && enabledChildren.length > 0 && (
-                    <Button type="text" onClick={handleSelectAll} size="small">
-                        {allSelected ? "Deselect all" : "Select all"}
-                    </Button>
-                )}
-            </div>
+            )}
 
             {/* Child items */}
             <div className="overflow-y-auto py-1 px-1" style={{maxHeight}}>
@@ -403,6 +405,16 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
         return {groups, ungrouped}
     }, [tabs, activeTabKey, rootLevel, tabFilteredRootItems])
 
+    const selectionSummaryText = useMemo(() => {
+        if (!selectionSummary) return null
+
+        const selectionCount = selectedChildIds?.size ?? (selectedChildId ? 1 : 0)
+
+        if (selectionCount === 0) return "No selections"
+        if (selectionCount === 1) return "1 selected"
+        return `${selectionCount} selected`
+    }, [selectionSummary, selectedChildIds, selectedChildId])
+
     // Maintain auto-selection to prevent pixel shifts when searching/filtering
     useEffect(() => {
         if (!open || totalLevels <= 1) return
@@ -606,13 +618,13 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                     style={{minWidth: panelMinWidth}}
                 >
                     {/* Selection summary */}
-                    {selectionSummary ? (
+                    {selectionSummaryText ? (
                         <div className="px-3 py-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-[#05172905] h-8 flex items-center">
-                            <span className="text-zinc-500 text-[10px]">{selectionSummary}</span>
+                            <span className="text-zinc-500 text-[10px]">
+                                {selectionSummaryText}
+                            </span>
                         </div>
-                    ) : (
-                        <div className="border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-[#05172905] h-8" />
-                    )}
+                    ) : null}
 
                     {/* Root items */}
                     <div className="overflow-y-auto flex-1 py-0.5 px-1" style={{maxHeight}}>

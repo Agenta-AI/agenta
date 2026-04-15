@@ -684,11 +684,11 @@ export interface PopoverCascaderVariantProps<
     // ========================================================================
 
     /**
-     * Optional summary text displayed above the root item list.
-     * Consumer controls the content (e.g., "No versions selected", "3 versions selected").
-     * When omitted, no summary is rendered.
+     * Whether to display an internally generated selection summary above the root item list.
+     * The picker derives the summary text from the current selection state.
+     * @default false
      */
-    selectionSummary?: string
+    selectionSummary?: boolean
 }
 
 // ============================================================================

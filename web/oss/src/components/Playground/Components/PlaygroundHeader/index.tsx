@@ -289,13 +289,6 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         [nodes, connectedEvaluatorNodes, connectDownstreamNode, disconnectSingleDownstreamNode],
     )
 
-    // Selection summary text
-    const selectionSummary = useMemo(() => {
-        const count = connectedEvaluatorNodes.length
-        if (count === 0) return "No evaluators selected"
-        return `${count} evaluator${count === 1 ? "" : "s"} selected`
-    }, [connectedEvaluatorNodes.length])
-
     // Simplified refresh function - atoms will handle the data updates automatically
     const handleUpdate = useCallback(async () => {
         // For now, use a simple page reload since atoms auto-refresh on mount
@@ -402,7 +395,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                 disabled={!hasRootNode}
                                 multiSelect
                                 selectedChildIds={connectedRevisionIds}
-                                selectionSummary={selectionSummary}
+                                selectionSummary
                                 childItemLabelMode="simple"
                                 onCreateNew={handleOpenTemplateDropdown}
                                 createNewLabel="New evaluator"
