@@ -1,14 +1,30 @@
 from typing import Any, Dict, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer, field_validator
 
 
 class ReferenceRequestModel(BaseModel):
     slug: Optional[str] = None
-    version: Optional[Union[int, str]] = None
+    version: Optional[str] = None
     commit_message: Optional[str] = None
     id: Optional[UUID] = None
+
+    @field_validator("version", mode="before")
+    @classmethod
+    def coerce_version_to_str(cls, v: Optional[Union[int, str]]) -> Optional[str]:
+        if v is None:
+            return None
+        return str(v)
+
+    @field_serializer("version")
+    def serialize_version(self, v: Optional[str]) -> Optional[int]:
+        if v is None:
+            return None
+        try:
+            return int(v)
+        except (ValueError, TypeError):
+            return None
 
 
 class LegacyLifecycleDTO(BaseModel):
