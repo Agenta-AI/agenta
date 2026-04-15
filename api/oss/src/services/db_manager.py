@@ -1657,7 +1657,13 @@ async def admin_transfer_org_ownership_batch(
     org_ids: List[uuid.UUID],
     target_id: uuid.UUID,
 ) -> None:
-    """Update owner_id on multiple orgs. created_by_id is intentionally unchanged."""
+    """Update owner_id and created_by_id on multiple orgs.
+
+    Both columns carry a RESTRICT FK to users.id at the DB level.
+    Transferring created_by_id alongside owner_id ensures the source
+    user has no remaining FK references, so a subsequent cascade delete
+    of that user does not destroy orgs now owned by the target.
+    """
     now = datetime.now(timezone.utc)
     async with engine.core_session() as session:
         for org_id in org_ids:
@@ -1666,6 +1672,7 @@ async def admin_transfer_org_ownership_batch(
                 .where(OrganizationDB.id == org_id)
                 .values(
                     owner_id=target_id,
+                    created_by_id=target_id,
                     updated_at=now,
                     updated_by_id=target_id,
                 )

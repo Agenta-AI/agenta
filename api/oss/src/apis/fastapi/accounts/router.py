@@ -21,6 +21,7 @@ from oss.src.core.accounts.service import PlatformAdminAccountsService
 from oss.src.core.accounts.errors import (
     AdminApiKeyNotFoundError,
     AdminError,
+    AdminInvalidReferenceError,
     AdminMembershipNotFoundError,
     AdminNotImplementedError,
     AdminOrganizationNotFoundError,
@@ -73,8 +74,10 @@ def _handle_admin_error(exc: AdminError) -> None:
         raise BadRequestException(code=501, message=exc.message, **exc.details)
     if isinstance(exc, AdminValidationError):
         raise BadRequestException(message=exc.message, **(exc.details or {}))
+    if isinstance(exc, AdminInvalidReferenceError):
+        raise BadRequestException(message=exc.message, **exc.details)
     # Generic admin error → 400
-    raise BadRequestException(message=exc.message, code=exc.code)
+    raise BadRequestException(message=exc.message)
 
 
 class PlatformAdminAccountsRouter:

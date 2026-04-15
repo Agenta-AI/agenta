@@ -52,7 +52,7 @@ def is_input_email(email: str):
     )
 
 
-_SPECIAL_CHARS = frozenset(r"!@#$%^&*()_+\-=\[\]{}|;':\",./<>?")
+_SPECIAL_CHARS = frozenset('!@#$%^&*()_+-=[]{}|;\':",./<>?')
 
 
 async def validate_password(value: str, tenant_id: str) -> Optional[str]:
