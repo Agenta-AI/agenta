@@ -881,10 +881,15 @@ class TestLoadableStrategiesEdgeCases:
                 "include_trace_ids": True,
                 "windowing": {"limit": 1},
             },
-            condition_fn=lambda r: len(
-                r.json().get("query_revision", {}).get("data", {}).get("trace_ids", [])
-            )
-            == 1,
+            condition_fn=lambda r: (
+                len(
+                    r.json()
+                    .get("query_revision", {})
+                    .get("data", {})
+                    .get("trace_ids", [])
+                )
+                == 1
+            ),
         )
         # ---------------------------------------------------------------------
 
@@ -919,10 +924,12 @@ class TestLoadableStrategiesEdgeCases:
                 "include_traces": True,
                 "windowing": {"limit": 1},
             },
-            condition_fn=lambda r: len(
-                r.json().get("query_revision", {}).get("data", {}).get("traces", [])
-            )
-            == 1,
+            condition_fn=lambda r: (
+                len(
+                    r.json().get("query_revision", {}).get("data", {}).get("traces", [])
+                )
+                == 1
+            ),
         )
         # ---------------------------------------------------------------------
 

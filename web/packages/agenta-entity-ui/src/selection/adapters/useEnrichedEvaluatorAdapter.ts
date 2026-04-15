@@ -200,13 +200,25 @@ export function useEnrichedEvaluatorOnlyAdapter(
                 getLabelNode,
                 getGroupKey,
                 getGroupLabel,
-                tabs: [
-                    {key: "all", label: "All"},
-                    {key: "ai_llm", label: "AI / LLM"},
-                    {key: "classifiers", label: "Classifiers"},
-                    {key: "similarity", label: "Similarity"},
-                    {key: "custom", label: "Custom"},
-                ],
+                buildTabs: (entities: unknown[]) => {
+                    const ORDERED_CATEGORIES = ["ai_llm", "classifiers", "similarity", "custom"]
+                    const categorySeen = new Set<string>()
+                    for (const e of entities) {
+                        const w = e as {id: string}
+                        const key = evaluatorKeyMapRef.current.get(w.id)
+                        const cat = key
+                            ? (templateCategoryMapRef.current.get(key) ?? "custom")
+                            : "custom"
+                        categorySeen.add(cat)
+                    }
+                    const result: {key: string; label: string}[] = [{key: "all", label: "All"}]
+                    for (const cat of ORDERED_CATEGORIES) {
+                        if (categorySeen.has(cat)) {
+                            result.push({key: cat, label: CATEGORY_LABELS[cat]})
+                        }
+                    }
+                    return result
+                },
             },
         }
 

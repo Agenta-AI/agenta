@@ -359,9 +359,8 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     const [selectedRootId, setSelectedRootId] = useState<string | null>(null)
     const [selectedRootEntity, setSelectedRootEntity] = useState<unknown>(null)
 
-    // Tab state (driven by adapter's rootLevel.tabs)
-    const tabs = rootLevel?.tabs
-    const [activeTabKey, setActiveTabKey] = useState<string>(tabs?.[0]?.key ?? "all")
+    // Active tab state — always starts on "all", reset on close
+    const [activeTabKey, setActiveTabKey] = useState<string>("all")
 
     // Fetch root items
     const {items: rootItems, query: rootQuery} = useLevelData({
@@ -369,6 +368,9 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
         parentId: null,
         isEnabled: true,
     })
+
+    // Derive tabs dynamically from loaded items (adapter provides buildTabs function)
+    const tabs = useMemo(() => rootLevel?.buildTabs?.(rootItems) ?? null, [rootItems, rootLevel])
 
     // Filter root items by search
     const filteredRootItems = useMemo(() => {
@@ -533,18 +535,15 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     )
 
     // Reset state when popover closes
-    const handleOpenChange = useCallback(
-        (newOpen: boolean) => {
-            setOpen(newOpen)
-            if (!newOpen) {
-                setSearchTerm("")
-                setSelectedRootId(null)
-                setSelectedRootEntity(null)
-                setActiveTabKey(tabs?.[0]?.key ?? "all")
-            }
-        },
-        [tabs],
-    )
+    const handleOpenChange = useCallback((newOpen: boolean) => {
+        setOpen(newOpen)
+        if (!newOpen) {
+            setSearchTerm("")
+            setSelectedRootId(null)
+            setSelectedRootEntity(null)
+            setActiveTabKey("all")
+        }
+    }, [])
 
     const handleCreateNew = useCallback(() => {
         onCreateNew?.()
@@ -644,13 +643,6 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                                 {Array.from(groupedItems.groups.entries()).map(
                                     ([groupKey, items]) => (
                                         <div key={groupKey}>
-                                            <div className="px-2 pt-3 pb-1 text-xs font-medium text-zinc-400 uppercase tracking-wider flex items-center gap-2">
-                                                <span>
-                                                    {rootLevel.getGroupLabel?.(groupKey) ??
-                                                        groupKey}
-                                                </span>
-                                                <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-700" />
-                                            </div>
                                             {items.map((item) => (
                                                 <RootItemRenderer
                                                     key={rootLevel.getId(item)}

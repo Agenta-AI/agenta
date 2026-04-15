@@ -280,12 +280,12 @@ export interface HierarchyLevel<T = unknown> {
     getGroupLabel?: (key: string) => string
 
     /**
-     * Optional tab definitions for filtering items by group.
-     * When provided, the component renders tabs above the item list.
+     * Optional function that derives tab definitions from loaded items.
+     * Called after items load — only shows tabs for groups that actually have data.
      * Each tab filters items by `getGroupKey` match. The "all" key shows all items grouped.
      * Requires `getGroupKey` to be defined for meaningful filtering.
      */
-    tabs?: TabDefinition[]
+    buildTabs?: (items: T[]) => TabDefinition[]
 }
 
 /**

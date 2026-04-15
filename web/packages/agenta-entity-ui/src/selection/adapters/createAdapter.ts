@@ -101,7 +101,7 @@ export function createAdapter<TSelection>(
             getGroupKey: level.getGroupKey,
             getGroupLabel: level.getGroupLabel,
             // Tabs
-            tabs: level.tabs,
+            buildTabs: level.buildTabs,
         }
     })
 

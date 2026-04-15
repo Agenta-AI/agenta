@@ -25,6 +25,8 @@ export interface EntityEvaluatorSelectorProps {
     onSelect: (selection: WorkflowRevisionSelectionResult) => void
     instanceId: string
     buttonLabel?: string
+    onCreate?: () => void
+    createLabel?: string
     disabledRevisionIds?: Set<string>
     disabledRevisionTooltip?: string
     panelMinWidth?: number
@@ -124,6 +126,8 @@ export function EntityEvaluatorSelector({
     onSelect,
     instanceId,
     buttonLabel = "Add evaluator",
+    onCreate,
+    createLabel = "Create evaluator",
     disabledRevisionIds,
     disabledRevisionTooltip = "Already added",
     panelMinWidth = 280,
@@ -179,6 +183,8 @@ export function EntityEvaluatorSelector({
                 disabledChildTooltip={disabledRevisionTooltip}
                 openChildOnHover={openVersionOnHover}
                 size="middle"
+                onCreateNew={onCreate}
+                createNewLabel={createLabel}
             />
         </div>
     )
