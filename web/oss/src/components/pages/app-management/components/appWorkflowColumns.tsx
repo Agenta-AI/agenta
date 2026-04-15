@@ -76,7 +76,7 @@ export function createAppWorkflowColumns(actions: AppWorkflowColumnActions) {
             items: [
                 {
                     key: "open_app",
-                    label: "Open",
+                    label: "Open overview",
                     icon: <Note size={16} />,
                     onClick: (record) => actions.onOpen(record),
                 },
@@ -89,7 +89,7 @@ export function createAppWorkflowColumns(actions: AppWorkflowColumnActions) {
                 {type: "divider"},
                 {
                     key: "delete_app",
-                    label: "Delete",
+                    label: "Archive",
                     icon: <Trash size={16} />,
                     danger: true,
                     onClick: (record) => actions.onDelete(record),
