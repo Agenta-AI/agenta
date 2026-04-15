@@ -19,7 +19,11 @@ def _create_account(admin_api, *, email):
     resp = admin_api(
         "POST",
         "/admin/simple/accounts/",
-        json={"accounts": {"u": {"user": {"email": email}, "options": {"seed_defaults": True}}}},
+        json={
+            "accounts": {
+                "u": {"user": {"email": email}, "options": {"seed_defaults": True}}
+            }
+        },
     )
     assert resp.status_code == 200, resp.text
     return resp.json()["accounts"]["u"]
@@ -52,11 +56,7 @@ class TestSimpleUsers:
         assert response.status_code == 200
         body = response.json()
         assert "accounts" in body
-        user_entries = [
-            a["users"]
-            for a in body["accounts"]
-            if a.get("users")
-        ]
+        user_entries = [a["users"] for a in body["accounts"] if a.get("users")]
         assert user_entries, "Expected at least one user entry in response"
 
 
@@ -128,8 +128,6 @@ class TestSimpleOrganizations:
     def test_create_and_delete_organization(self, admin_api):
         uid = uuid4().hex[:12]
         email = f"org-owner-{uid}@test.agenta.ai"
-        account = _create_account(admin_api, email=email)
-        user_id = account["user"]["id"]
 
         create_resp = admin_api(
             "POST",

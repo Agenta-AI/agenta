@@ -32,7 +32,7 @@ class TestSpecialChars:
     def test_expected_chars_present(self):
         from oss.src.utils.validators import _SPECIAL_CHARS
 
-        expected = set('!@#$%^&*()_+-=[]{}|;\':",./<>?')
+        expected = set("!@#$%^&*()_+-=[]{}|;':\",./<>?")
         missing = expected - _SPECIAL_CHARS
         assert not missing, f"Missing special chars: {missing!r}"
 
@@ -40,7 +40,7 @@ class TestSpecialChars:
         from oss.src.utils.validators import _SPECIAL_CHARS
 
         # Raw-string escapes that used to leak into the set
-        leaking = {r"\-", r"\[", r"\]", r'\"'}
+        leaking = {r"\-", r"\[", r"\]", r"\""}
         for fragment in leaking:
             for ch in fragment:
                 if ch == "\\":
@@ -62,12 +62,18 @@ class TestValidatePassword:
 
         monkeypatch.setattr(
             "oss.src.utils.env.env",
-            type("env", (), {"supertokens": SuperTokensConfig(
-                password_min_length=8,
-                password_max_length=None,
-                password_policy="basic",
-                password_regex=None,
-            )})(),
+            type(
+                "env",
+                (),
+                {
+                    "supertokens": SuperTokensConfig(
+                        password_min_length=8,
+                        password_max_length=None,
+                        password_policy="basic",
+                        password_regex=None,
+                    )
+                },
+            )(),
         )
 
         result = await validators.validate_password("short", "tenant")
@@ -80,12 +86,18 @@ class TestValidatePassword:
 
         monkeypatch.setattr(
             "oss.src.utils.env.env",
-            type("env", (), {"supertokens": SuperTokensConfig(
-                password_min_length=8,
-                password_max_length=None,
-                password_policy="basic",
-                password_regex=None,
-            )})(),
+            type(
+                "env",
+                (),
+                {
+                    "supertokens": SuperTokensConfig(
+                        password_min_length=8,
+                        password_max_length=None,
+                        password_policy="basic",
+                        password_regex=None,
+                    )
+                },
+            )(),
         )
 
         result = await validators.validate_password("exactly8", "tenant")
@@ -97,12 +109,18 @@ class TestValidatePassword:
 
         monkeypatch.setattr(
             "oss.src.utils.env.env",
-            type("env", (), {"supertokens": SuperTokensConfig(
-                password_min_length=8,
-                password_max_length=None,
-                password_policy="strong",
-                password_regex=None,
-            )})(),
+            type(
+                "env",
+                (),
+                {
+                    "supertokens": SuperTokensConfig(
+                        password_min_length=8,
+                        password_max_length=None,
+                        password_policy="strong",
+                        password_regex=None,
+                    )
+                },
+            )(),
         )
 
         result = await validators.validate_password("alllower1!", "tenant")
@@ -115,12 +133,18 @@ class TestValidatePassword:
 
         monkeypatch.setattr(
             "oss.src.utils.env.env",
-            type("env", (), {"supertokens": SuperTokensConfig(
-                password_min_length=8,
-                password_max_length=None,
-                password_policy="strong",
-                password_regex=None,
-            )})(),
+            type(
+                "env",
+                (),
+                {
+                    "supertokens": SuperTokensConfig(
+                        password_min_length=8,
+                        password_max_length=None,
+                        password_policy="strong",
+                        password_regex=None,
+                    )
+                },
+            )(),
         )
 
         result = await validators.validate_password("NoDigitHere!", "tenant")
@@ -133,12 +157,18 @@ class TestValidatePassword:
 
         monkeypatch.setattr(
             "oss.src.utils.env.env",
-            type("env", (), {"supertokens": SuperTokensConfig(
-                password_min_length=8,
-                password_max_length=None,
-                password_policy="strong",
-                password_regex=None,
-            )})(),
+            type(
+                "env",
+                (),
+                {
+                    "supertokens": SuperTokensConfig(
+                        password_min_length=8,
+                        password_max_length=None,
+                        password_policy="strong",
+                        password_regex=None,
+                    )
+                },
+            )(),
         )
 
         result = await validators.validate_password("NoSpecial1", "tenant")
@@ -151,12 +181,18 @@ class TestValidatePassword:
 
         monkeypatch.setattr(
             "oss.src.utils.env.env",
-            type("env", (), {"supertokens": SuperTokensConfig(
-                password_min_length=8,
-                password_max_length=None,
-                password_policy="strong",
-                password_regex=None,
-            )})(),
+            type(
+                "env",
+                (),
+                {
+                    "supertokens": SuperTokensConfig(
+                        password_min_length=8,
+                        password_max_length=None,
+                        password_policy="strong",
+                        password_regex=None,
+                    )
+                },
+            )(),
         )
 
         result = await validators.validate_password("StrongPass1!", "tenant")
@@ -173,12 +209,18 @@ class TestValidatePassword:
 
         monkeypatch.setattr(
             "oss.src.utils.env.env",
-            type("env", (), {"supertokens": SuperTokensConfig(
-                password_min_length=8,
-                password_max_length=None,
-                password_policy="strong",
-                password_regex=None,
-            )})(),
+            type(
+                "env",
+                (),
+                {
+                    "supertokens": SuperTokensConfig(
+                        password_min_length=8,
+                        password_max_length=None,
+                        password_policy="strong",
+                        password_regex=None,
+                    )
+                },
+            )(),
         )
 
         # Backslash is the only "special" character here — should fail
@@ -193,12 +235,18 @@ class TestValidatePassword:
 
         monkeypatch.setattr(
             "oss.src.utils.env.env",
-            type("env", (), {"supertokens": SuperTokensConfig(
-                password_min_length=8,
-                password_max_length=None,
-                password_policy="strong",
-                password_regex=r"^PIN\d{4}$",
-            )})(),
+            type(
+                "env",
+                (),
+                {
+                    "supertokens": SuperTokensConfig(
+                        password_min_length=8,
+                        password_max_length=None,
+                        password_policy="strong",
+                        password_regex=r"^PIN\d{4}$",
+                    )
+                },
+            )(),
         )
 
         assert await validators.validate_password("PIN1234", "tenant") is None
@@ -211,12 +259,18 @@ class TestValidatePassword:
 
         monkeypatch.setattr(
             "oss.src.utils.env.env",
-            type("env", (), {"supertokens": SuperTokensConfig(
-                password_min_length=8,
-                password_max_length=None,
-                password_policy="none",
-                password_regex=None,
-            )})(),
+            type(
+                "env",
+                (),
+                {
+                    "supertokens": SuperTokensConfig(
+                        password_min_length=8,
+                        password_max_length=None,
+                        password_policy="none",
+                        password_regex=None,
+                    )
+                },
+            )(),
         )
 
         result = await validators.validate_password("x", "tenant")

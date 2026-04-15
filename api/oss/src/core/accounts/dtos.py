@@ -19,9 +19,13 @@ class EntityRef(BaseModel):
 
     @model_validator(mode="after")
     def _exactly_one(self) -> "EntityRef":
-        set_fields = sum(1 for v in (self.ref, self.id, self.slug, self.email) if v is not None)
+        set_fields = sum(
+            1 for v in (self.ref, self.id, self.slug, self.email) if v is not None
+        )
         if set_fields != 1:
-            raise ValueError("Exactly one of 'ref', 'id', 'slug', or 'email' must be provided.")
+            raise ValueError(
+                "Exactly one of 'ref', 'id', 'slug', or 'email' must be provided."
+            )
         return self
 
 

@@ -323,7 +323,9 @@ async def create_workspace_membership(
             )
         )
         workspace_db = workspace.scalars().first()
-        workspace_organization_id = workspace_db.organization_id if workspace_db else None
+        workspace_organization_id = (
+            workspace_db.organization_id if workspace_db else None
+        )
 
         membership_db = WorkspaceMembershipDB(
             # id=uuid7()  # use default

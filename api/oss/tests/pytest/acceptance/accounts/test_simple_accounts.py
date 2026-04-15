@@ -65,9 +65,7 @@ class TestSimpleAccountsCreate:
             "/admin/simple/accounts/",
             json={
                 "options": {"dry_run": True},
-                "accounts": {
-                    "dry": {"user": {"email": f"dry-{uid}@test.agenta.ai"}}
-                },
+                "accounts": {"dry": {"user": {"email": f"dry-{uid}@test.agenta.ai"}}},
             },
         )
 
@@ -78,9 +76,7 @@ class TestSimpleAccountsCreate:
             "DELETE",
             "/admin/simple/accounts/",
             json={
-                "accounts": {
-                    "dry": {"user": {"email": f"dry-{uid}@test.agenta.ai"}}
-                },
+                "accounts": {"dry": {"user": {"email": f"dry-{uid}@test.agenta.ai"}}},
                 "confirm": "delete",
             },
         )
@@ -156,9 +152,7 @@ class TestSimpleAccountsDelete:
             "/admin/simple/accounts/",
             json={
                 "accounts": {
-                    "ghost": {
-                        "user": {"email": f"ghost-{uuid4().hex}@test.agenta.ai"}
-                    }
+                    "ghost": {"user": {"email": f"ghost-{uuid4().hex}@test.agenta.ai"}}
                 },
                 "confirm": "delete",
             },

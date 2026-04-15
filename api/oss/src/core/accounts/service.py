@@ -16,7 +16,6 @@ from uuid import UUID
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.services.api_key_service import create_api_key as _create_raw_api_key
-from oss.src.utils.env import env as _env
 from oss.src.services.db_manager import (
     admin_get_user_by_id as _db_get_user_by_id,
     admin_get_user_by_email as _db_get_user_by_email,
@@ -1272,7 +1271,10 @@ class PlatformAdminAccountsService:
         identity_id: str,
     ) -> AdminDeleteResponseDTO:
         """Delete a SuperTokens recipe identity (recipe user) by its ID."""
-        from supertokens_python.asyncio import get_user as _st_get_user, delete_user as _st_delete_user
+        from supertokens_python.asyncio import (
+            get_user as _st_get_user,
+            delete_user as _st_delete_user,
+        )
 
         st_user = await _st_get_user(identity_id)
         if st_user is None:
@@ -1431,7 +1433,11 @@ class PlatformAdminAccountsService:
                 for lm in st_user.login_methods:
                     if lm.recipe_id == "emailpassword":
                         rid = lm.recipe_user_id
-                        recipe_user_id = rid.get_as_string() if hasattr(rid, "get_as_string") else str(rid)
+                        recipe_user_id = (
+                            rid.get_as_string()
+                            if hasattr(rid, "get_as_string")
+                            else str(rid)
+                        )
                         break
                 if recipe_user_id:
                     break

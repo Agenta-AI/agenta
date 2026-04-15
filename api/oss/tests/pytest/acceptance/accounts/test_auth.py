@@ -9,29 +9,47 @@ import pytest
 
 
 _ADMIN_ENDPOINTS = [
-    ("POST",   "/admin/accounts/"),
+    ("POST", "/admin/accounts/"),
     ("DELETE", "/admin/accounts/"),
-    ("POST",   "/admin/simple/accounts/"),
+    ("POST", "/admin/simple/accounts/"),
     ("DELETE", "/admin/simple/accounts/"),
-    ("POST",   "/admin/simple/accounts/users/"),
-    ("POST",   "/admin/simple/accounts/users/identities/"),
-    ("DELETE", "/admin/simple/accounts/users/00000000-0000-0000-0000-000000000001/identities/00000000-0000-0000-0000-000000000002/"),
-    ("POST",   "/admin/simple/accounts/organizations/"),
-    ("DELETE", "/admin/simple/accounts/organizations/00000000-0000-0000-0000-000000000001/"),
-    ("POST",   "/admin/simple/accounts/organizations/memberships/"),
-    ("DELETE", "/admin/simple/accounts/organizations/00000000-0000-0000-0000-000000000001/memberships/00000000-0000-0000-0000-000000000002/"),
-    ("POST",   "/admin/simple/accounts/workspaces/"),
-    ("DELETE", "/admin/simple/accounts/workspaces/00000000-0000-0000-0000-000000000001/"),
-    ("POST",   "/admin/simple/accounts/workspaces/memberships/"),
-    ("DELETE", "/admin/simple/accounts/workspaces/00000000-0000-0000-0000-000000000001/memberships/00000000-0000-0000-0000-000000000002/"),
-    ("POST",   "/admin/simple/accounts/projects/"),
+    ("POST", "/admin/simple/accounts/users/"),
+    ("POST", "/admin/simple/accounts/users/identities/"),
+    (
+        "DELETE",
+        "/admin/simple/accounts/users/00000000-0000-0000-0000-000000000001/identities/00000000-0000-0000-0000-000000000002/",
+    ),
+    ("POST", "/admin/simple/accounts/organizations/"),
+    (
+        "DELETE",
+        "/admin/simple/accounts/organizations/00000000-0000-0000-0000-000000000001/",
+    ),
+    ("POST", "/admin/simple/accounts/organizations/memberships/"),
+    (
+        "DELETE",
+        "/admin/simple/accounts/organizations/00000000-0000-0000-0000-000000000001/memberships/00000000-0000-0000-0000-000000000002/",
+    ),
+    ("POST", "/admin/simple/accounts/workspaces/"),
+    (
+        "DELETE",
+        "/admin/simple/accounts/workspaces/00000000-0000-0000-0000-000000000001/",
+    ),
+    ("POST", "/admin/simple/accounts/workspaces/memberships/"),
+    (
+        "DELETE",
+        "/admin/simple/accounts/workspaces/00000000-0000-0000-0000-000000000001/memberships/00000000-0000-0000-0000-000000000002/",
+    ),
+    ("POST", "/admin/simple/accounts/projects/"),
     ("DELETE", "/admin/simple/accounts/projects/00000000-0000-0000-0000-000000000001/"),
-    ("POST",   "/admin/simple/accounts/projects/memberships/"),
-    ("DELETE", "/admin/simple/accounts/projects/00000000-0000-0000-0000-000000000001/memberships/00000000-0000-0000-0000-000000000002/"),
-    ("POST",   "/admin/simple/accounts/api-keys/"),
+    ("POST", "/admin/simple/accounts/projects/memberships/"),
+    (
+        "DELETE",
+        "/admin/simple/accounts/projects/00000000-0000-0000-0000-000000000001/memberships/00000000-0000-0000-0000-000000000002/",
+    ),
+    ("POST", "/admin/simple/accounts/api-keys/"),
     ("DELETE", "/admin/simple/accounts/api-keys/00000000-0000-0000-0000-000000000001/"),
-    ("POST",   "/admin/simple/accounts/reset-password"),
-    ("POST",   "/admin/simple/accounts/transfer-ownership"),
+    ("POST", "/admin/simple/accounts/reset-password"),
+    ("POST", "/admin/simple/accounts/transfer-ownership"),
 ]
 
 
