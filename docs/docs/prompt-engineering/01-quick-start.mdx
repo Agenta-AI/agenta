@@ -171,23 +171,22 @@ response = client.chat.completions.create(
 
 ```javascript
 const fetchConfigs = async () => {
-  const url = 'https://cloud.agenta.ai/api/variants/configs/fetch';
+  const url = 'https://cloud.agenta.ai/api/preview/applications/revisions/retrieve';
 
   const headers = {
     'Accept': 'application/json',
-    'Authorization': 'YOUR_API_KEY',
+    'Authorization': 'ApiKey YOUR_API_KEY',
     'Content-Type': 'application/json'
   };
 
   const requestData = {
-    environment_ref: {
-      slug: 'production',
-      id: null
-    },
     application_ref: {
-      slug: 'testprompt',
-      id: null
-    }
+      slug: 'testprompt'
+    },
+    environment_ref: {
+      slug: 'production'
+    },
+    key: 'testprompt.revision'
   };
 
   try {
@@ -229,43 +228,23 @@ The response will contain your prompt configuration under `params.prompt`:
           "model": "gpt-3.5-turbo",
           "tools": []
         },
-        "user_prompt": "What is the capital of {{country}}?",
-        "system_prompt": "You are an expert in geography",
         "template_format": "curly"
       }
-    }
-  },
+    },
   "url": "https://cloud.agenta.ai/services/completion",
   "application_ref": {
-    "slug": "we",
-    "version": null,
-    "commit_message": null,
+    "slug": "testprompt",
     "id": "0196869b-2337-7d51-8a24-fc3893191b5b"
   },
-  "service_ref": null,
   "variant_ref": {
-    "slug": "key",
+    "slug": "default",
     "version": 1,
-    "commit_message": "variant commit message",
     "id": "0196869b-259c-7e11-ba08-ac316a2d41fa"
   },
   "environment_ref": {
     "slug": "production",
     "version": 1,
-    "commit_message": "test commit message",
     "id": "0196869c-bd67-7f41-b7bb-d1196f87d4e9"
-  },
-  "variant_lifecycle": {
-    "created_at": "2025-04-30T12:10:36.828905+00:00",
-    "updated_at": "2025-04-30T12:10:36.315388+00:00",
-    "updated_by_id": "01966e0a-9094-7562-8d47-87002335e22b",
-    "updated_by": "me@gmail.com"
-  },
-  "environment_lifecycle": {
-    "created_at": "2025-04-30T12:12:21.223715+00:00",
-    "updated_at": "2025-04-30T12:12:21.223715+00:00",
-    "updated_by_id": "01966e0a-9094-7562-8d47-87002335e22b",
-    "updated_by": "me@gmail.com"
   }
 }
 ```
