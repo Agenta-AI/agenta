@@ -25,6 +25,7 @@ from oss.src.services.db_manager import (
     admin_get_workspace_by_id as _db_get_workspace_by_id,
     admin_get_project_by_id as _db_get_project_by_id,
     admin_get_api_key_by_id as _db_get_api_key_by_id,
+    admin_get_api_key_by_prefix as _db_get_api_key_by_prefix,
     admin_get_orgs_owned_by_user as _db_get_orgs_owned_by_user,
     admin_get_workspace_ids_for_orgs as _db_get_workspace_ids_for_orgs,
     admin_get_project_ids_for_orgs as _db_get_project_ids_for_orgs,
@@ -59,6 +60,7 @@ try:
         admin_delete_org_membership as _ee_delete_org_membership,
         admin_delete_workspace_membership as _ee_delete_workspace_membership,
         admin_delete_project_membership as _ee_delete_project_membership,
+        admin_delete_user_memberships as _ee_delete_user_memberships,
         admin_transfer_workspace_memberships as _ee_transfer_workspace_memberships,
         admin_transfer_project_memberships as _ee_transfer_project_memberships,
     )
@@ -81,9 +83,12 @@ try:
         get_default_plan as _ee_get_default_plan,
         Plan as _EePlan,
     )
+    from ee.src.core.meters.service import MetersService as _EeMetersService  # type: ignore[import]
+    from ee.src.dbs.postgres.meters.dao import MetersDAO as _EeMetersDAO  # type: ignore[import]
 
     _ee_subscription_service = _EeSubscriptionsService(
-        subscriptions_dao=_EeSubscriptionsDAO()
+        subscriptions_dao=_EeSubscriptionsDAO(),
+        meters_service=_EeMetersService(meters_dao=_EeMetersDAO()),
     )
 except ImportError:
     pass
@@ -157,6 +162,7 @@ from oss.src.core.accounts.errors import (
     AdminNotImplementedError,
     AdminOrganizationNotFoundError,
     AdminProjectNotFoundError,
+    AdminUserAlreadyExistsError,
     AdminUserNotFoundError,
     AdminValidationError,
     AdminWorkspaceNotFoundError,
@@ -364,7 +370,7 @@ class PlatformAdminAccountsService:
 
         # 2. User identities
         if dto.user_identities and options.create_identities:
-            tenant_id = _env.supertokens.tenant
+            tenant_id = "public"
             for identity_ref, identity_create in dto.user_identities.items():
                 if identity_create.method != "email:password":
                     errors.append(
@@ -575,7 +581,9 @@ class PlatformAdminAccountsService:
                     project_id=str(proj_id_for_key),
                 )
                 prefix = raw_key.split(".")[0]
+                key_db = await _db_get_api_key_by_prefix(prefix)
                 key_dto = AdminApiKeyResponseDTO(
+                    id=str(key_db.id) if key_db else None,
                     prefix=prefix,
                     project_id=str(proj_id_for_key),
                     user_id=str(user_id_for_key),
@@ -583,7 +591,7 @@ class PlatformAdminAccountsService:
                 )
                 account.api_keys = account.api_keys or {}
                 account.api_keys[key_ref] = key_dto
-                tracker.api_keys[key_ref] = _uuid_mod.uuid4()  # placeholder
+                tracker.api_keys[key_ref] = key_db.id if key_db else _uuid_mod.uuid4()
 
         return AdminAccountsResponseDTO(
             accounts=[account],
@@ -789,6 +797,9 @@ class PlatformAdminAccountsService:
         result = AdminSimpleAccountsResponseDTO()
 
         for account_ref, entry in dto.accounts.items():
+            existing = await _db_get_user_by_email(entry.user.email)
+            if existing:
+                raise AdminUserAlreadyExistsError(entry.user.email)
             sub = await self._create_one_simple_account(
                 entry=entry,
                 global_options=global_options,
@@ -954,10 +965,18 @@ class PlatformAdminAccountsService:
         dto: AdminSimpleAccountsDeleteDTO,
     ) -> None:
         """Delete one or more accounts identified by user ref."""
+        if dto.dry_run:
+            return
+
         for _ref, entry in dto.accounts.items():
             user_ref = entry.user
             if user_ref.id:
                 await self.delete_user(user_id=user_ref.id)
+            elif user_ref.email:
+                user = await _db_get_user_by_email(user_ref.email)
+                if user:
+                    await self.delete_user(user_id=str(user.id))
+                # else: user not found — silently no-op (idempotent delete)
             else:
                 raise AdminInvalidReferenceError("user", str(user_ref))
 
@@ -1019,7 +1038,57 @@ class PlatformAdminAccountsService:
         *,
         dto: AdminSimpleAccountsUsersIdentitiesCreateDTO,
     ) -> AdminAccountsResponseDTO:
-        raise AdminNotImplementedError("create_user_identity")
+        """Create a SuperTokens identity for an existing user."""
+        identity = dto.user_identity
+        if identity.method != "email:password":
+            raise AdminNotImplementedError(
+                f"create_user_identity for method '{identity.method}'"
+            )
+
+        email = identity.email or identity.subject
+        password = identity.password
+        if not email or not password:
+            raise AdminValidationError(
+                "email:password identity requires 'email' (or 'subject') and 'password'."
+            )
+
+        # Resolve the user this identity should attach to
+        user_id_str: Optional[str] = None
+        if dto.user_ref.id:
+            user_id_str = dto.user_ref.id
+        elif dto.user_ref.email:
+            u = await _db_get_user_by_email(dto.user_ref.email)
+            if not u:
+                raise AdminUserNotFoundError(dto.user_ref.email)
+            user_id_str = str(u.id)
+
+        st_result = await _ep.sign_up(
+            tenant_id="public",
+            email=email,
+            password=password,
+        )
+
+        if isinstance(st_result, _EpEmailAlreadyExistsError):
+            raise AdminValidationError(
+                f"An email:password identity for '{email}' already exists in SuperTokens."
+            )
+        if not isinstance(st_result, _EpSignUpOkResult):
+            raise AdminValidationError(
+                "SuperTokens sign_up returned an unexpected result."
+            )
+
+        identity_dto = AdminUserIdentityReadDTO(
+            id=st_result.recipe_user_id.get_as_string(),
+            user_id=user_id_str or "",
+            method="email:password",
+            subject=email,
+            email=email,
+            verified=identity.verified or False,
+            status="created",
+        )
+        account = AdminAccountReadDTO()
+        account.user_identities["identity_0"] = identity_dto
+        return AdminAccountsResponseDTO(accounts=[account])
 
     async def create_organization(
         self,
@@ -1029,6 +1098,10 @@ class PlatformAdminAccountsService:
         options = dto.options or AdminAccountCreateOptionsDTO()
         users: dict = {}
         if dto.owner:
+            # Require the owner to already exist — look up by email
+            owner_db = await _db_get_user_by_email(dto.owner.email)
+            if not owner_db:
+                raise AdminUserNotFoundError(dto.owner.email)
             users["owner"] = dto.owner
             owner_ref = EntityRef(ref="owner")
         else:
@@ -1178,6 +1251,10 @@ class PlatformAdminAccountsService:
         if not user:
             raise AdminUserNotFoundError(user_id)
 
+        # Remove EE membership records before deleting the user to avoid FK violations
+        if is_ee():
+            await _ee_delete_user_memberships(uid)
+
         deleted_org_ids = await _db_delete_user_with_cascade(uid)
         deleted = AdminDeletedEntitiesDTO(
             organizations=[
@@ -1194,7 +1271,18 @@ class PlatformAdminAccountsService:
         user_id: str,
         identity_id: str,
     ) -> AdminDeleteResponseDTO:
-        raise AdminNotImplementedError("delete_user_identity")
+        """Delete a SuperTokens recipe identity (recipe user) by its ID."""
+        from supertokens_python.asyncio import get_user as _st_get_user, delete_user as _st_delete_user
+
+        st_user = await _st_get_user(identity_id)
+        if st_user is None:
+            raise AdminUserNotFoundError(identity_id)
+
+        await _st_delete_user(user_id=identity_id, remove_all_linked_accounts=False)
+        deleted = AdminDeletedEntitiesDTO(
+            user_identities=[AdminDeletedEntityDTO(id=identity_id)]
+        )
+        return AdminDeleteResponseDTO(dry_run=False, deleted=deleted)
 
     async def delete_organization(
         self,
@@ -1315,7 +1403,7 @@ class PlatformAdminAccountsService:
         2. Find the ``emailpassword`` login method on that user.
         3. Call ``update_email_or_password`` with the new password.
         """
-        tenant_id = _env.supertokens.tenant
+        tenant_id = "public"
 
         for identity in dto.user_identities:
             if identity.method != "email:password":
@@ -1387,18 +1475,30 @@ class PlatformAdminAccountsService:
                 "transfer_ownership requires 'source' and 'target' keys in 'users'."
             )
 
-        if source_ref.id is None:
-            raise AdminValidationError("users.source must use 'id'.")
-        if target_ref.id is None:
-            raise AdminValidationError("users.target must use 'id'.")
+        # Resolve source/target by id or email
+        if source_ref.id is not None:
+            source_id = _parse_uuid(source_ref.id, "users.source")
+            if not await _db_get_user_by_id(source_id):
+                raise AdminUserNotFoundError(str(source_id))
+        elif source_ref.email is not None:
+            source_user = await _db_get_user_by_email(source_ref.email)
+            if not source_user:
+                raise AdminUserNotFoundError(source_ref.email)
+            source_id = source_user.id
+        else:
+            raise AdminValidationError("users.source must use 'id' or 'email'.")
 
-        source_id = _parse_uuid(source_ref.id, "users.source")
-        target_id = _parse_uuid(target_ref.id, "users.target")
-
-        if not await _db_get_user_by_id(source_id):
-            raise AdminUserNotFoundError(str(source_id))
-        if not await _db_get_user_by_id(target_id):
-            raise AdminUserNotFoundError(str(target_id))
+        if target_ref.id is not None:
+            target_id = _parse_uuid(target_ref.id, "users.target")
+            if not await _db_get_user_by_id(target_id):
+                raise AdminUserNotFoundError(str(target_id))
+        elif target_ref.email is not None:
+            target_user = await _db_get_user_by_email(target_ref.email)
+            if not target_user:
+                raise AdminUserNotFoundError(target_ref.email)
+            target_id = target_user.id
+        else:
+            raise AdminValidationError("users.target must use 'id' or 'email'.")
 
         # All orgs currently owned by source (used for both modes)
         owned_by_source = {

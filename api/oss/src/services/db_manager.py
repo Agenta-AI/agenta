@@ -1471,6 +1471,12 @@ async def admin_get_api_key_by_id(key_id: uuid.UUID) -> Optional[APIKeyDB]:
         return result.scalars().first()
 
 
+async def admin_get_api_key_by_prefix(prefix: str) -> Optional[APIKeyDB]:
+    async with engine.core_session() as session:
+        result = await session.execute(select(APIKeyDB).filter_by(prefix=prefix))
+        return result.scalars().first()
+
+
 async def admin_get_orgs_owned_by_user(user_id: uuid.UUID) -> List[OrganizationDB]:
     """Return orgs where user is owner OR creator (both carry RESTRICT FK)."""
     async with engine.core_session() as session:

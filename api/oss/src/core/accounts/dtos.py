@@ -9,17 +9,19 @@ from pydantic import BaseModel, model_validator
 
 class EntityRef(BaseModel):
     """Polymorphic reference that can point to a request-local key, an
-    existing persisted ID, or a stable slug.  Exactly one field must be set."""
+    existing persisted ID, a stable slug, or an email address.
+    Exactly one field must be set."""
 
     ref: Optional[str] = None  # request-local map key
     id: Optional[str] = None  # persisted UUID
     slug: Optional[str] = None  # stable unique slug
+    email: Optional[str] = None  # email address (users only)
 
     @model_validator(mode="after")
     def _exactly_one(self) -> "EntityRef":
-        set_fields = sum(1 for v in (self.ref, self.id, self.slug) if v is not None)
+        set_fields = sum(1 for v in (self.ref, self.id, self.slug, self.email) if v is not None)
         if set_fields != 1:
-            raise ValueError("Exactly one of 'ref', 'id', or 'slug' must be provided.")
+            raise ValueError("Exactly one of 'ref', 'id', 'slug', or 'email' must be provided.")
         return self
 
 

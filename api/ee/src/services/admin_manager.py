@@ -88,11 +88,7 @@ class ProjectRequest(BaseModel):
 
 OrganizationRole = Literal[
     "owner",
-    "admin",
-    "developer",
-    "editor",
-    "annotator",
-    "viewer",
+    "member",
 ]
 
 
@@ -327,6 +323,7 @@ async def create_workspace_membership(
             )
         )
         workspace_db = workspace.scalars().first()
+        workspace_organization_id = workspace_db.organization_id if workspace_db else None
 
         membership_db = WorkspaceMembershipDB(
             # id=uuid7()  # use default
@@ -344,7 +341,7 @@ async def create_workspace_membership(
 
         log.info(
             "[scopes] workspace membership created",
-            organization_id=workspace_db.organization_id,
+            organization_id=workspace_organization_id,
             workspace_id=request.workspace_ref.id,
             user_id=request.user_ref.id,
             membership_id=membership_db.id,
@@ -365,6 +362,8 @@ async def create_project_membership(
             )
         )
         project_db = project.scalars().first()
+        project_organization_id = project_db.organization_id if project_db else None
+        project_workspace_id = project_db.workspace_id if project_db else None
 
         membership_db = ProjectMembershipDB(
             # id=uuid7()  # use default
@@ -382,8 +381,8 @@ async def create_project_membership(
 
         log.info(
             "[scopes] project membership created",
-            organization_id=project_db.organization_id,
-            workspace_id=project_db.workspace_id,
+            organization_id=project_organization_id,
+            workspace_id=project_workspace_id,
             project_id=request.project_ref.id,
             user_id=request.user_ref.id,
             membership_id=membership_db.id,

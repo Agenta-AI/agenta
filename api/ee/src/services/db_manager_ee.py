@@ -2022,3 +2022,21 @@ async def admin_transfer_project_memberships(
             .values(user_id=target_id)
         )
         await session.commit()
+
+
+async def admin_delete_user_memberships(user_id: uuid.UUID) -> None:
+    """Delete all org/workspace/project memberships for a user.
+
+    Called before hard-deleting a user so FK constraints are not violated.
+    """
+    async with engine.core_session() as session:
+        await session.execute(
+            delete(OrganizationMemberDB).where(OrganizationMemberDB.user_id == user_id)
+        )
+        await session.execute(
+            delete(WorkspaceMemberDB).where(WorkspaceMemberDB.user_id == user_id)
+        )
+        await session.execute(
+            delete(ProjectMemberDB).where(ProjectMemberDB.user_id == user_id)
+        )
+        await session.commit()
