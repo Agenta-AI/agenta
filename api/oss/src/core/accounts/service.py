@@ -60,8 +60,10 @@ try:
         admin_delete_workspace_membership as _ee_delete_workspace_membership,
         admin_delete_project_membership as _ee_delete_project_membership,
         admin_delete_user_memberships as _ee_delete_user_memberships,
-        admin_transfer_workspace_memberships as _ee_transfer_workspace_memberships,
-        admin_transfer_project_memberships as _ee_transfer_project_memberships,
+        admin_get_member_org_ids as _ee_get_member_org_ids,
+        admin_swap_org_memberships as _ee_swap_org_memberships,
+        admin_swap_workspace_memberships as _ee_swap_workspace_memberships,
+        admin_swap_project_memberships as _ee_swap_project_memberships,
     )
     from ee.src.services.admin_manager import (  # type: ignore[import]
         Reference as _EeReference,
@@ -1558,6 +1560,15 @@ class PlatformAdminAccountsService:
                     org_ids.append(oid)
 
         if org_ids:
+            # Pre-condition (EE): both source and target must be members.
+            # Filter org_ids to only those where target also has a membership row.
+            if is_ee():
+                target_member_org_ids = await _ee_get_member_org_ids(
+                    target_id, org_ids
+                )
+                org_ids = [oid for oid in org_ids if oid in target_member_org_ids]
+
+        if org_ids:
             # 1. Transfer org ownership
             await _db_transfer_org_ownership_batch(org_ids, target_id)
 
@@ -1584,14 +1595,15 @@ class PlatformAdminAccountsService:
                 }
                 proj_scope = [pid for pid in all_proj_ids if pid in proj_filter]
 
-            # 3. Transfer EE workspace + project memberships
-            if is_ee() and (ws_scope or proj_scope):
+            # 3. Swap EE org/workspace/project membership roles
+            if is_ee():
+                await _ee_swap_org_memberships(org_ids, source_id, target_id)
                 if ws_scope:
-                    await _ee_transfer_workspace_memberships(
+                    await _ee_swap_workspace_memberships(
                         ws_scope, source_id, target_id
                     )
                 if proj_scope:
-                    await _ee_transfer_project_memberships(
+                    await _ee_swap_project_memberships(
                         proj_scope, source_id, target_id
                     )
 
