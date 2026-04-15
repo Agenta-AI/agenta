@@ -1,11 +1,11 @@
-from typing import List, Union, NoReturn, Optional, Tuple
+from typing import List, Set, Union, NoReturn, Optional, Tuple
 import uuid
 from datetime import datetime, timezone
 
 import sendgrid
 from fastapi import HTTPException
 
-from sqlalchemy import func
+from sqlalchemy import delete, func, update
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, load_only
@@ -1911,3 +1911,275 @@ async def transfer_organization_ownership(
         )
 
         return organization
+
+
+# ---------------------------------------------------------------------------
+# Platform Admin helpers
+# ---------------------------------------------------------------------------
+
+
+async def admin_delete_org_membership(membership_id: uuid.UUID) -> bool:
+    """Delete an org membership by ID. Returns False if not found."""
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(OrganizationMemberDB).filter_by(id=membership_id)
+        )
+        membership = result.scalars().first()
+        if not membership:
+            return False
+        await session.delete(membership)
+        await session.commit()
+        return True
+
+
+async def admin_delete_workspace_membership(membership_id: uuid.UUID) -> bool:
+    """Delete a workspace membership by ID. Returns False if not found."""
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(WorkspaceMemberDB).filter_by(id=membership_id)
+        )
+        membership = result.scalars().first()
+        if not membership:
+            return False
+        await session.delete(membership)
+        await session.commit()
+        return True
+
+
+async def admin_delete_project_membership(membership_id: uuid.UUID) -> bool:
+    """Delete a project membership by ID. Returns False if not found."""
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(ProjectMemberDB).filter_by(id=membership_id)
+        )
+        membership = result.scalars().first()
+        if not membership:
+            return False
+        await session.delete(membership)
+        await session.commit()
+        return True
+
+
+async def admin_get_member_org_ids(
+    user_id: uuid.UUID,
+    org_ids: List[uuid.UUID],
+) -> Set[uuid.UUID]:
+    """Return the subset of org_ids where the user has a membership row."""
+    async with engine.core_session() as session:
+        rows = (
+            (
+                await session.execute(
+                    select(OrganizationMemberDB.organization_id).where(
+                        OrganizationMemberDB.user_id == user_id,
+                        OrganizationMemberDB.organization_id.in_(org_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return set(rows)
+
+
+async def admin_swap_org_memberships(
+    org_ids: List[uuid.UUID],
+    source_id: uuid.UUID,
+    target_id: uuid.UUID,
+) -> None:
+    """Swap org membership roles between source and target.
+
+    Pre-condition: only acts on orgs where BOTH source and target already have
+    a membership row.  For each qualifying org, target gets source's role and
+    source gets target's prior role.
+    """
+    async with engine.core_session() as session:
+        source_rows = (
+            (
+                await session.execute(
+                    select(OrganizationMemberDB).where(
+                        OrganizationMemberDB.user_id == source_id,
+                        OrganizationMemberDB.organization_id.in_(org_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        target_rows = (
+            (
+                await session.execute(
+                    select(OrganizationMemberDB).where(
+                        OrganizationMemberDB.user_id == target_id,
+                        OrganizationMemberDB.organization_id.in_(org_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        source_by_org = {row.organization_id: row.role for row in source_rows}
+        target_by_org = {row.organization_id: row.role for row in target_rows}
+
+        for org_id in set(source_by_org) & set(target_by_org):
+            await session.execute(
+                update(OrganizationMemberDB)
+                .where(
+                    OrganizationMemberDB.user_id == target_id,
+                    OrganizationMemberDB.organization_id == org_id,
+                )
+                .values(role=source_by_org[org_id])
+            )
+            await session.execute(
+                update(OrganizationMemberDB)
+                .where(
+                    OrganizationMemberDB.user_id == source_id,
+                    OrganizationMemberDB.organization_id == org_id,
+                )
+                .values(role=target_by_org[org_id])
+            )
+
+        await session.commit()
+
+
+async def admin_swap_workspace_memberships(
+    workspace_ids: List[uuid.UUID],
+    source_id: uuid.UUID,
+    target_id: uuid.UUID,
+) -> None:
+    """Swap workspace membership roles between source and target.
+
+    Pre-condition: only acts on workspaces where BOTH source and target already
+    have a membership row.  For each qualifying workspace, target gets source's
+    role and source gets target's prior role.
+    """
+    async with engine.core_session() as session:
+        source_rows = (
+            (
+                await session.execute(
+                    select(WorkspaceMemberDB).where(
+                        WorkspaceMemberDB.user_id == source_id,
+                        WorkspaceMemberDB.workspace_id.in_(workspace_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        target_rows = (
+            (
+                await session.execute(
+                    select(WorkspaceMemberDB).where(
+                        WorkspaceMemberDB.user_id == target_id,
+                        WorkspaceMemberDB.workspace_id.in_(workspace_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        source_by_ws = {row.workspace_id: row.role for row in source_rows}
+        target_by_ws = {row.workspace_id: row.role for row in target_rows}
+
+        for ws_id in set(source_by_ws) & set(target_by_ws):
+            await session.execute(
+                update(WorkspaceMemberDB)
+                .where(
+                    WorkspaceMemberDB.user_id == target_id,
+                    WorkspaceMemberDB.workspace_id == ws_id,
+                )
+                .values(role=source_by_ws[ws_id])
+            )
+            await session.execute(
+                update(WorkspaceMemberDB)
+                .where(
+                    WorkspaceMemberDB.user_id == source_id,
+                    WorkspaceMemberDB.workspace_id == ws_id,
+                )
+                .values(role=target_by_ws[ws_id])
+            )
+
+        await session.commit()
+
+
+async def admin_swap_project_memberships(
+    project_ids: List[uuid.UUID],
+    source_id: uuid.UUID,
+    target_id: uuid.UUID,
+) -> None:
+    """Swap project membership roles between source and target.
+
+    Pre-condition: only acts on projects where BOTH source and target already
+    have a membership row.  For each qualifying project, target gets source's
+    role and source gets target's prior role.
+    """
+    async with engine.core_session() as session:
+        source_rows = (
+            (
+                await session.execute(
+                    select(ProjectMemberDB).where(
+                        ProjectMemberDB.user_id == source_id,
+                        ProjectMemberDB.project_id.in_(project_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        target_rows = (
+            (
+                await session.execute(
+                    select(ProjectMemberDB).where(
+                        ProjectMemberDB.user_id == target_id,
+                        ProjectMemberDB.project_id.in_(project_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        source_by_proj = {row.project_id: row.role for row in source_rows}
+        target_by_proj = {row.project_id: row.role for row in target_rows}
+
+        for proj_id in set(source_by_proj) & set(target_by_proj):
+            await session.execute(
+                update(ProjectMemberDB)
+                .where(
+                    ProjectMemberDB.user_id == target_id,
+                    ProjectMemberDB.project_id == proj_id,
+                )
+                .values(role=source_by_proj[proj_id])
+            )
+            await session.execute(
+                update(ProjectMemberDB)
+                .where(
+                    ProjectMemberDB.user_id == source_id,
+                    ProjectMemberDB.project_id == proj_id,
+                )
+                .values(role=target_by_proj[proj_id])
+            )
+
+        await session.commit()
+
+
+async def admin_delete_user_memberships(user_id: uuid.UUID) -> None:
+    """Delete all org/workspace/project memberships for a user.
+
+    Called before hard-deleting a user so FK constraints are not violated.
+    """
+    async with engine.core_session() as session:
+        await session.execute(
+            delete(OrganizationMemberDB).where(OrganizationMemberDB.user_id == user_id)
+        )
+        await session.execute(
+            delete(WorkspaceMemberDB).where(WorkspaceMemberDB.user_id == user_id)
+        )
+        await session.execute(
+            delete(ProjectMemberDB).where(ProjectMemberDB.user_id == user_id)
+        )
+        await session.commit()

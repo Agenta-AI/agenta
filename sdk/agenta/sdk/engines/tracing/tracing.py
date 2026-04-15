@@ -1,3 +1,4 @@
+import warnings
 from typing import Optional, Any, Dict, Callable
 from enum import Enum
 
@@ -127,11 +128,21 @@ class Tracing(metaclass=Singleton):
 
         return _span
 
+    def _warn_if_not_initialized(self, method_name: str) -> None:
+        if self.tracer is None:
+            warnings.warn(
+                f"ag.tracing.{method_name}() called before ag.init(). "
+                "No span is active; data will not be recorded. Call ag.init() first.",
+                RuntimeWarning,
+                stacklevel=3,
+            )
+
     def store_internals(
         self,
         attributes: Dict[str, Any],
         span: Optional[Span] = None,
     ):
+        self._warn_if_not_initialized("store_internals")
         with suppress():
             if span is None:
                 span = self.get_current_span()
@@ -146,6 +157,7 @@ class Tracing(metaclass=Singleton):
         refs: Dict[str, str],
         span: Optional[Span] = None,
     ):
+        self._warn_if_not_initialized("store_refs")
         with suppress():
             if span is None:
                 span = self.get_current_span()
@@ -168,6 +180,7 @@ class Tracing(metaclass=Singleton):
         meta: Dict[str, Any],
         span: Optional[Span] = None,
     ):
+        self._warn_if_not_initialized("store_meta")
         with suppress():
             if span is None:
                 span = self.get_current_span()
@@ -185,6 +198,7 @@ class Tracing(metaclass=Singleton):
         metrics: Dict[str, Any],
         span: Optional[Span] = None,
     ):
+        self._warn_if_not_initialized("store_metrics")
         with suppress():
             if span is None:
                 span = self.get_current_span()
@@ -208,6 +222,7 @@ class Tracing(metaclass=Singleton):
             session_id: Unique identifier for the session
             span: Optional span to set attributes on (defaults to current span)
         """
+        self._warn_if_not_initialized("store_session")
         with suppress():
             if span is None:
                 span = self.get_current_span()
@@ -226,6 +241,7 @@ class Tracing(metaclass=Singleton):
             user_id: Unique identifier for the user
             span: Optional span to set attributes on (defaults to current span)
         """
+        self._warn_if_not_initialized("store_user")
         with suppress():
             if span is None:
                 span = self.get_current_span()

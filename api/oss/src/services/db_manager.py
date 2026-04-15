@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
 from sqlalchemy.future import select
-from sqlalchemy import func, or_, update
+from sqlalchemy import delete, func, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from supertokens_python.types import AccountInfo
 from sqlalchemy.orm import joinedload, load_only
@@ -432,125 +432,6 @@ async def check_if_user_invitation_exists(email: str, organization_id: str):
             return False
 
         return True
-
-
-async def delete_accounts() -> None:
-    async with engine.core_session() as session:
-        # fetch all projects
-
-        stmt = select(ProjectDB)
-
-        result = await session.execute(stmt)
-
-        projects = result.scalars().all()
-
-        # delete all projects
-
-        for project in projects:
-            try:
-                await session.delete(project)
-                log.info(
-                    "[scopes] project deleted",
-                    project_id=project.id,
-                )
-            except Exception:
-                log.error(
-                    "[scopes] error deleting project",
-                    project_id=project.id,
-                    exc_info=True,
-                )
-
-        # fetch all workspaces
-
-        stmt = select(WorkspaceDB)
-
-        result = await session.execute(stmt)
-
-        workspaces = result.scalars().all()
-
-        # delete all workspaces
-
-        for workspace in workspaces:
-            try:
-                await session.delete(workspace)
-                log.info(
-                    "[scopes] workspace deleted",
-                    workspace_id=workspace.id,
-                )
-            except Exception:
-                log.error(
-                    "[scopes] error deleting workspace",
-                    workspace_id=workspace.id,
-                    exc_info=True,
-                )
-
-        # fetch all organizations
-
-        stmt = select(OrganizationDB)
-
-        result = await session.execute(stmt)
-
-        organizations = result.scalars().all()
-
-        # delete all organizations
-
-        for organization in organizations:
-            try:
-                await session.delete(organization)
-                log.info(
-                    "[scopes] organization deleted",
-                    organization_id=organization.id,
-                )
-            except Exception:
-                log.error(
-                    "[scopes] error deleting organization",
-                    organization_id=organization.id,
-                    exc_info=True,
-                )
-
-        await session.commit()
-
-        # fetch all users
-
-        stmt = select(UserDB)
-
-        result = await session.execute(stmt)
-
-        users = result.scalars().all()
-
-        # delete all users (supertokens)
-
-        for user in users:
-            try:
-                await delete_user_from_supertokens(user.uid)
-                log.info(
-                    "[scopes] user deleted (supertokens)",
-                    user_uid=user.uid,
-                )
-            except Exception:
-                log.error(
-                    "[scopes] error deleting user from supertokens",
-                    user_uid=user.uid,
-                    exc_info=True,
-                )
-
-        # delete all users
-
-        for user in users:
-            try:
-                await session.delete(user)
-                log.info(
-                    "[scopes] user deleted",
-                    user_id=user.id,
-                )
-            except Exception:
-                log.error(
-                    "[scopes] error deleting user",
-                    user_id=user.id,
-                    exc_info=True,
-                )
-
-        await session.commit()
 
 
 async def create_accounts(payload: dict) -> UserDB:
@@ -1541,3 +1422,265 @@ async def get_user_api_key_by_prefix(
         )
         api_key = result.scalars().first()
         return api_key
+
+
+# ---------------------------------------------------------------------------
+# Platform Admin helpers
+# ---------------------------------------------------------------------------
+
+
+async def admin_get_user_by_id(user_id: uuid.UUID) -> Optional[UserDB]:
+    async with engine.core_session() as session:
+        result = await session.execute(select(UserDB).filter_by(id=user_id))
+        return result.scalars().first()
+
+
+async def admin_get_user_by_email(email: str) -> Optional[UserDB]:
+    async with engine.core_session() as session:
+        result = await session.execute(select(UserDB).filter_by(email=email))
+        return result.scalars().first()
+
+
+async def admin_get_org_by_id(org_id: uuid.UUID) -> Optional[OrganizationDB]:
+    async with engine.core_session() as session:
+        result = await session.execute(select(OrganizationDB).filter_by(id=org_id))
+        return result.scalars().first()
+
+
+async def admin_get_org_by_slug(slug: str) -> Optional[OrganizationDB]:
+    async with engine.core_session() as session:
+        result = await session.execute(select(OrganizationDB).filter_by(slug=slug))
+        return result.scalars().first()
+
+
+async def admin_get_workspace_by_id(ws_id: uuid.UUID) -> Optional[WorkspaceDB]:
+    async with engine.core_session() as session:
+        result = await session.execute(select(WorkspaceDB).filter_by(id=ws_id))
+        return result.scalars().first()
+
+
+async def admin_get_project_by_id(proj_id: uuid.UUID) -> Optional[ProjectDB]:
+    async with engine.core_session() as session:
+        result = await session.execute(select(ProjectDB).filter_by(id=proj_id))
+        return result.scalars().first()
+
+
+async def admin_get_api_key_by_id(key_id: uuid.UUID) -> Optional[APIKeyDB]:
+    async with engine.core_session() as session:
+        result = await session.execute(select(APIKeyDB).filter_by(id=key_id))
+        return result.scalars().first()
+
+
+async def admin_get_api_key_by_prefix(prefix: str) -> Optional[APIKeyDB]:
+    async with engine.core_session() as session:
+        result = await session.execute(select(APIKeyDB).filter_by(prefix=prefix))
+        return result.scalars().first()
+
+
+async def admin_get_orgs_owned_by_user(user_id: uuid.UUID) -> List[OrganizationDB]:
+    """Return orgs where user is owner OR creator (both carry RESTRICT FK)."""
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(OrganizationDB).where(
+                or_(
+                    OrganizationDB.owner_id == user_id,
+                    OrganizationDB.created_by_id == user_id,
+                )
+            )
+        )
+        return list(result.scalars().all())
+
+
+async def admin_get_workspace_ids_for_orgs(
+    org_ids: List[uuid.UUID],
+) -> List[uuid.UUID]:
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(WorkspaceDB.id).where(WorkspaceDB.organization_id.in_(org_ids))
+        )
+        return [row[0] for row in result]
+
+
+async def admin_get_project_ids_for_orgs(
+    org_ids: List[uuid.UUID],
+) -> List[uuid.UUID]:
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(ProjectDB.id).where(ProjectDB.organization_id.in_(org_ids))
+        )
+        return [row[0] for row in result]
+
+
+async def admin_get_or_create_user(
+    email: str,
+    username: Optional[str] = None,
+) -> UserDB:
+    existing = await admin_get_user_by_email(email)
+    if existing:
+        return existing
+    async with engine.core_session() as session:
+        user_db = UserDB(
+            uid=str(uuid.uuid4()),
+            username=username or email.split("@")[0],
+            email=email,
+        )
+        session.add(user_db)
+        await session.commit()
+        await session.refresh(user_db)
+        log.info("[admin] user created", user_id=str(user_db.id))
+        return user_db
+
+
+async def admin_create_organization(
+    name: str,
+    slug: Optional[str],
+    owner_id: uuid.UUID,
+) -> OrganizationDB:
+    async with engine.core_session() as session:
+        org_db = OrganizationDB(
+            name=name,
+            slug=slug,
+            flags={"is_demo": False},
+            owner_id=owner_id,
+            created_by_id=owner_id,
+        )
+        session.add(org_db)
+        await session.commit()
+        await session.refresh(org_db)
+        log.info("[admin] organization created", organization_id=str(org_db.id))
+        return org_db
+
+
+async def admin_create_workspace(
+    name: str,
+    org_id: uuid.UUID,
+    *,
+    is_default: bool = False,
+) -> WorkspaceDB:
+    async with engine.core_session() as session:
+        ws_db = WorkspaceDB(
+            name=name,
+            type="default" if is_default else None,
+            organization_id=org_id,
+        )
+        session.add(ws_db)
+        await session.commit()
+        await session.refresh(ws_db)
+        log.info("[admin] workspace created", workspace_id=str(ws_db.id))
+        return ws_db
+
+
+async def admin_create_project(
+    name: str,
+    org_id: uuid.UUID,
+    ws_id: uuid.UUID,
+    *,
+    is_default: bool = False,
+) -> ProjectDB:
+    async with engine.core_session() as session:
+        proj_db = ProjectDB(
+            project_name=name,
+            is_default=is_default,
+            organization_id=org_id,
+            workspace_id=ws_id,
+        )
+        session.add(proj_db)
+        await session.commit()
+        await session.refresh(proj_db)
+        log.info("[admin] project created", project_id=str(proj_db.id))
+        return proj_db
+
+
+async def admin_delete_user(user_id: uuid.UUID) -> None:
+    async with engine.core_session() as session:
+        await session.execute(delete(UserDB).where(UserDB.id == user_id))
+        await session.commit()
+
+
+async def admin_delete_organization(org_id: uuid.UUID) -> None:
+    async with engine.core_session() as session:
+        await session.execute(delete(OrganizationDB).where(OrganizationDB.id == org_id))
+        await session.commit()
+
+
+async def admin_delete_workspace(ws_id: uuid.UUID) -> None:
+    async with engine.core_session() as session:
+        await session.execute(delete(WorkspaceDB).where(WorkspaceDB.id == ws_id))
+        await session.commit()
+
+
+async def admin_delete_project(proj_id: uuid.UUID) -> None:
+    async with engine.core_session() as session:
+        await session.execute(delete(ProjectDB).where(ProjectDB.id == proj_id))
+        await session.commit()
+
+
+async def admin_delete_api_key(key_id: uuid.UUID) -> None:
+    async with engine.core_session() as session:
+        await session.execute(delete(APIKeyDB).where(APIKeyDB.id == key_id))
+        await session.commit()
+
+
+async def admin_delete_accounts_batch(
+    *,
+    org_ids: List[uuid.UUID],
+    workspace_ids: List[uuid.UUID],
+    project_ids: List[uuid.UUID],
+    user_ids: List[uuid.UUID],
+) -> None:
+    """Delete a batch of entities atomically, in dependency order."""
+    async with engine.core_session() as session:
+        for proj_id in project_ids:
+            await session.execute(delete(ProjectDB).where(ProjectDB.id == proj_id))
+        for ws_id in workspace_ids:
+            await session.execute(delete(WorkspaceDB).where(WorkspaceDB.id == ws_id))
+        for org_id in org_ids:
+            await session.execute(
+                delete(OrganizationDB).where(OrganizationDB.id == org_id)
+            )
+        for uid in user_ids:
+            await session.execute(delete(UserDB).where(UserDB.id == uid))
+        await session.commit()
+
+
+async def admin_delete_user_with_cascade(user_id: uuid.UUID) -> List[uuid.UUID]:
+    """Delete a user together with all orgs they own or created.
+
+    Returns the list of deleted org IDs.
+    """
+    orgs = await admin_get_orgs_owned_by_user(user_id)
+    org_ids = [org.id for org in orgs]
+    await admin_delete_accounts_batch(
+        org_ids=org_ids,
+        workspace_ids=[],
+        project_ids=[],
+        user_ids=[user_id],
+    )
+    return org_ids
+
+
+async def admin_transfer_org_ownership_batch(
+    org_ids: List[uuid.UUID],
+    target_id: uuid.UUID,
+) -> None:
+    """Update owner_id and created_by_id on multiple orgs.
+
+    Both columns carry a RESTRICT FK to users.id at the DB level.
+    Transferring created_by_id alongside owner_id ensures the source
+    user has no remaining FK references, so a subsequent cascade delete
+    of that user does not destroy orgs now owned by the target.
+    """
+    now = datetime.now(timezone.utc)
+    async with engine.core_session() as session:
+        for org_id in org_ids:
+            await session.execute(
+                update(OrganizationDB)
+                .where(OrganizationDB.id == org_id)
+                .values(
+                    owner_id=target_id,
+                    created_by_id=target_id,
+                    updated_at=now,
+                    updated_by_id=target_id,
+                )
+            )
+        await session.commit()

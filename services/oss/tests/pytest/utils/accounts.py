@@ -13,15 +13,21 @@ def create_account(ag_env):
     unique_id = uuid4().hex[:12]
 
     response = requests.post(
-        url=f"{api_url}/admin/account",
+        url=f"{api_url}/admin/simple/accounts/",
         headers={"Authorization": f"Access {auth_key}"},
         json={
-            "user": {
-                "email": f"{unique_id}@test.agenta.ai",
-            },
-            "subscription": {
-                "plan": "cloud_v0_business",
-            },
+            "accounts": {
+                "user": {
+                    "user": {
+                        "email": f"{unique_id}@test.agenta.ai",
+                    },
+                    "options": {
+                        "create_api_keys": True,
+                        "return_api_keys": True,
+                        "seed_defaults": True,
+                    },
+                }
+            }
         },
         timeout=BASE_TIMEOUT,
     )
@@ -32,22 +38,26 @@ def create_account(ag_env):
     json_data = response.json()
     assert isinstance(json_data, dict), "Response JSON should not be None"
 
-    scopes = json_data.get("scopes")
-    assert scopes and len(scopes) > 0, "No scopes returned in response"
+    accounts = json_data.get("accounts")
+    assert accounts, "No accounts in response"
 
-    scope_data = scopes[0]
-    assert isinstance(scope_data, dict), "Scope should be a dictionary"
+    account = next(iter(accounts.values()))
+    api_keys = account.get("api_keys")
+    assert api_keys and "key" in api_keys, "No api_keys.key in account"
 
-    credentials = scope_data.get("credentials")
-    assert credentials, "No credentials in scopes"
+    raw_key = api_keys["key"]
+    assert raw_key, "No value in api_keys.key"
 
-    project_id = scope_data.get("project_id")
-    assert project_id, "No project_id in scopes"
+    projects = account.get("projects")
+    assert projects and "prj" in projects, "No projects.prj in account"
+
+    project_id = projects["prj"].get("id")
+    assert project_id, "No id in projects.prj"
 
     return {
         "api_url": api_url,
         "project_id": project_id,
-        "credentials": credentials,
+        "credentials": f"ApiKey {raw_key}",
     }
 
 
