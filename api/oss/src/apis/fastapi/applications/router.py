@@ -1195,14 +1195,6 @@ class ApplicationsRouter:
         )
         environment_lookup_requested = environment_refs_requested or key is not None
 
-        if application_lookup_requested and environment_lookup_requested:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "Provide either application refs or environment refs with key, not both."
-                ),
-            )
-
         if not application_lookup_requested and not environment_lookup_requested:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -1219,10 +1211,24 @@ class ApplicationsRouter:
                 )
 
             if not key:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Environment-backed application retrieve requires key.",
-                )
+                if application_ref and application_ref.slug:
+                    key = f"{application_ref.slug}.revision"
+                elif application_ref and application_ref.id:
+                    application = await self.applications_service.fetch_application(
+                        project_id=UUID(request.state.project_id),
+                        application_ref=application_ref,
+                    )
+                    if not application or not application.slug:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Environment-backed application retrieve could not derive key from application slug.",
+                        )
+                    key = f"{application.slug}.revision"
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Environment-backed application retrieve requires key.",
+                    )
 
         (
             application_revision,

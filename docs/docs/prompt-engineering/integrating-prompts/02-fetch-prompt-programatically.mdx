@@ -196,9 +196,6 @@ curl -X POST "https://cloud.agenta.ai/api/preview/applications/revisions/retriev
   </TabItem>
 </Tabs>
 
-:::info Understanding the `key` field
-When fetching by environment, the `key` field tells the system which deployed revision to resolve. The format is `{app_slug}.revision` — for example, if your application slug is `my-app`, the key is `my-app.revision`. This field is only needed when fetching by environment reference; it is not required when fetching by variant reference.
-:::
 
 ### Fetching by Environment Reference
 
@@ -234,8 +231,7 @@ const fetchResponse = await fetch('https://cloud.agenta.ai/api/preview/applicati
     environment_ref: {
       slug: 'staging',
       version: 1  // Optional: omit to fetch latest
-    },
-    key: 'my-app.revision'
+    }
   })
 });
 
@@ -258,8 +254,7 @@ curl -X POST "https://cloud.agenta.ai/api/preview/applications/revisions/retriev
     "environment_ref": {
       "slug": "staging",
       "version": 1
-    },
-    "key": "my-app.revision"
+    }
   }'
 ```
   </TabItem>
