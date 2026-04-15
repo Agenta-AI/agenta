@@ -23,7 +23,7 @@ import {Button, Checkbox, Empty, Popover, Spin, Tabs} from "antd"
 
 import {useEntitySelectionCore} from "../../../hooks/useEntitySelectionCore"
 import {useLevelData} from "../../../hooks/utilities"
-import type {EntitySelectionResult, HierarchyLevel, SelectionPathItem} from "../../../types"
+import type {EntitySelectionResult, HierarchyLevel} from "../../../types"
 import type {PopoverCascaderVariantProps} from "../types"
 
 // ============================================================================
@@ -35,7 +35,7 @@ import type {PopoverCascaderVariantProps} from "../types"
  * - Header showing parent name + selection count (multi-select)
  * - List of child items (checkboxes in multi-select, click in single-select)
  */
-function ChildPanelContent<TSelection = EntitySelectionResult>({
+function ChildPanelContent({
     parentId,
     parentLabel,
     childLevelConfig,
@@ -48,11 +48,6 @@ function ChildPanelContent<TSelection = EntitySelectionResult>({
     // Multi-select props
     multiSelect = false,
     selectedChildIds,
-    onSelectAll,
-    createSelection,
-    rootLevel,
-    rootEntity,
-    hierarchyLevels,
     childItemLabelMode = "full",
 }: {
     parentId: string
@@ -67,15 +62,6 @@ function ChildPanelContent<TSelection = EntitySelectionResult>({
     // Multi-select props
     multiSelect?: boolean
     selectedChildIds?: Set<string>
-    onSelectAll?: (
-        selections: TSelection[],
-        action: "select" | "deselect",
-        parentId: string,
-    ) => void
-    createSelection?: (path: SelectionPathItem[], leafEntity: unknown) => TSelection
-    rootLevel?: HierarchyLevel<unknown>
-    rootEntity?: unknown
-    hierarchyLevels?: HierarchyLevel<unknown>[]
     childItemLabelMode?: "full" | "simple"
 }) {
     const {items, query} = useLevelData({
@@ -109,62 +95,6 @@ function ChildPanelContent<TSelection = EntitySelectionResult>({
                   .length
             : 0
 
-    const allSelected =
-        multiSelect && selectedCount === enabledChildren.length && enabledChildren.length > 0
-
-    const handleSelectAll = useCallback(() => {
-        if (!onSelectAll || !createSelection || !rootLevel || !rootEntity || !hierarchyLevels)
-            return
-
-        const childLevel = hierarchyLevels[1]
-        if (!childLevel) return
-
-        if (allSelected) {
-            // Deselect all — send full items and 'deselect'
-            const allSelections = enabledChildren.map((childEntity) => {
-                const path: SelectionPathItem[] = [
-                    {type: rootLevel.type, id: parentId, label: parentLabel},
-                    {
-                        type: childLevel.type,
-                        id: childLevel.getId(childEntity),
-                        label: childLevel.getLabel(childEntity),
-                    },
-                ]
-                return createSelection(path, childEntity)
-            })
-            onSelectAll(allSelections, "deselect", parentId)
-        } else {
-            // Select all unselected enabled children
-            const unselected = enabledChildren.filter(
-                (item) => !selectedChildIds?.has(childLevelConfig.getId(item)),
-            )
-            const selections = unselected.map((childEntity) => {
-                const path: SelectionPathItem[] = [
-                    {type: rootLevel.type, id: parentId, label: parentLabel},
-                    {
-                        type: childLevel.type,
-                        id: childLevel.getId(childEntity),
-                        label: childLevel.getLabel(childEntity),
-                    },
-                ]
-                return createSelection(path, childEntity)
-            })
-            onSelectAll(selections, "select", parentId)
-        }
-    }, [
-        onSelectAll,
-        createSelection,
-        rootLevel,
-        rootEntity,
-        hierarchyLevels,
-        allSelected,
-        enabledChildren,
-        selectedChildIds,
-        childLevelConfig,
-        parentId,
-        parentLabel,
-    ])
-
     if (query.isPending) {
         return (
             <div
@@ -191,11 +121,6 @@ function ChildPanelContent<TSelection = EntitySelectionResult>({
                             </span>
                         )}
                     </div>
-                    {multiSelect && enabledChildren.length > 0 && (
-                        <Button type="text" onClick={handleSelectAll} size="small">
-                            {allSelected ? "Deselect all" : "Select all"}
-                        </Button>
-                    )}
                 </div>
             )}
 
@@ -339,7 +264,6 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     // New props
     multiSelect = false,
     selectedChildIds,
-    onSelectAll,
     selectionSummary,
     childItemLabelMode = "full",
 }: PopoverCascaderVariantProps<TSelection>) {
@@ -681,7 +605,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                 {/* CHILD PANEL */}
                 {selectedRootId && totalLevels > 1 && (
                     <div className="flex flex-col" style={{minWidth: panelMinWidth}}>
-                        <ChildPanelContent<TSelection>
+                        <ChildPanelContent
                             parentId={selectedRootId}
                             parentLabel={rootLevel.getLabel(selectedRootEntity!)}
                             childLevelConfig={hierarchyLevels[1]}
@@ -695,11 +619,6 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                             disabledTooltip={disabledChildTooltip}
                             multiSelect={multiSelect}
                             selectedChildIds={selectedChildIds}
-                            onSelectAll={onSelectAll}
-                            createSelection={createSelection}
-                            rootLevel={rootLevel}
-                            rootEntity={selectedRootEntity}
-                            hierarchyLevels={hierarchyLevels}
                             childItemLabelMode={childItemLabelMode}
                         />
                     </div>

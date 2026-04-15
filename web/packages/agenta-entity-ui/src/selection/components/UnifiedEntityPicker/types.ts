@@ -660,18 +660,6 @@ export interface PopoverCascaderVariantProps<
     selectedChildIds?: Set<string>
 
     /**
-     * Callback for bulk select/deselect operations (e.g., "Select all").
-     * Called with all newly selected items when "Select all" is clicked.
-     * Called with an empty array when "Deselect all" is clicked
-     * (consumer interprets empty array as "clear all for this parent").
-     */
-    onSelectAll?: (
-        selections: TSelection[],
-        action: "select" | "deselect",
-        parentId: string,
-    ) => void
-
-    /**
      * Controls the rendering mode for child item labels.
      * - "full": Render using `labelNode` from adapter (if available), which may contain avatars/metadata.
      * - "simple": Force render using simple string label, ignoring `labelNode`.

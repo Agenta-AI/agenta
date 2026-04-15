@@ -252,43 +252,6 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         [nodes, connectedEvaluatorNodes, connectDownstreamNode, disconnectSingleDownstreamNode],
     )
 
-    // Multi-select: bulk connect or disconnect
-    const handleEvaluatorsSelectAll = useCallback(
-        (
-            selections: WorkflowRevisionSelectionResult[],
-            action: "select" | "deselect",
-            parentId: string,
-        ) => {
-            const rootNode = nodes.find((n) => n.depth === 0)
-            if (!rootNode) return
-
-            if (action === "select") {
-                // Connect all new selections
-                selections.forEach((selection) => {
-                    connectDownstreamNode({
-                        sourceNodeId: rootNode.id,
-                        entity: {
-                            type: "workflow",
-                            id: selection.id,
-                            label: selection.label,
-                            metadata: selection.metadata,
-                        },
-                    })
-                })
-            } else if (action === "deselect") {
-                // Determine which nodes belong to the selections and remove them
-                const selectionIds = new Set(selections.map((s) => s.id))
-                const nodesToRemove = connectedEvaluatorNodes.filter((n) =>
-                    selectionIds.has(n.entityId),
-                )
-                nodesToRemove.forEach((node) => {
-                    disconnectSingleDownstreamNode(node.id)
-                })
-            }
-        },
-        [nodes, connectedEvaluatorNodes, connectDownstreamNode, disconnectSingleDownstreamNode],
-    )
-
     // Simplified refresh function - atoms will handle the data updates automatically
     const handleUpdate = useCallback(async () => {
         // For now, use a simple page reload since atoms auto-refresh on mount
@@ -388,7 +351,6 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                 variant="popover-cascader"
                                 adapter={evaluatorWorkflowAdapter}
                                 onSelect={handleEvaluatorToggle}
-                                onSelectAll={handleEvaluatorsSelectAll}
                                 size="small"
                                 placeholder="Evaluator"
                                 icon={<Gavel size={14} />}
