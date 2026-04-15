@@ -1,6 +1,6 @@
 import {workflowAppTypeAtomFamily} from "@agenta/entities/workflow"
 import {createStandardColumns} from "@agenta/ui/table"
-import {Note, Trash} from "@phosphor-icons/react"
+import {Note, Rocket, Trash} from "@phosphor-icons/react"
 import {Tag} from "antd"
 import {useAtomValue} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -42,6 +42,7 @@ export const AppNameCell = ({workflowId, name}: {workflowId: string; name: strin
 
 export interface AppWorkflowColumnActions {
     onOpen: (record: AppWorkflowRow) => void
+    onOpenPlayground: (record: AppWorkflowRow) => void
     onDelete: (record: AppWorkflowRow) => void
 }
 
@@ -78,6 +79,12 @@ export function createAppWorkflowColumns(actions: AppWorkflowColumnActions) {
                     label: "Open",
                     icon: <Note size={16} />,
                     onClick: (record) => actions.onOpen(record),
+                },
+                {
+                    key: "open_playground",
+                    label: "Open in playground",
+                    icon: <Rocket size={16} />,
+                    onClick: (record) => actions.onOpenPlayground(record),
                 },
                 {type: "divider"},
                 {

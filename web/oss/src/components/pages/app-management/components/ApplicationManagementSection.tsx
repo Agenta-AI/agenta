@@ -7,6 +7,7 @@ import {useSetAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
+import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
 
 import {
@@ -35,6 +36,7 @@ const ApplicationManagementSection = ({
 }: ApplicationManagementSectionProps) => {
     const router = useRouter()
     const {baseAppURL} = useURL()
+    const {goToPlayground} = usePlaygroundNavigation()
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
     const filteredAppCount = useAtomValue(appWorkflowCountAtom)
     const totalAppCount = useAtomValue(appWorkflowTotalCountAtom)
@@ -51,6 +53,9 @@ const ApplicationManagementSection = ({
             onOpen: (record) => {
                 router.push(`${baseAppURL}/${record.workflowId}/overview`)
             },
+            onOpenPlayground: (record) => {
+                goToPlayground(undefined, {appId: record.workflowId})
+            },
             onDelete: (record) => {
                 openDeleteAppModal({
                     id: record.workflowId,
@@ -58,7 +63,7 @@ const ApplicationManagementSection = ({
                 })
             },
         }),
-        [router, baseAppURL, openDeleteAppModal],
+        [router, baseAppURL, goToPlayground, openDeleteAppModal],
     )
 
     const table = useTableManager<AppWorkflowRow>({
