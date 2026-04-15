@@ -109,24 +109,12 @@ const ImagePreview = ({
                 centered
                 width={800}
                 height={600}
-                modalRender={(modal) => (
-                    <div
-                        onClick={stopPropagation}
-                        onMouseDown={stopPropagation}
-                        onMouseUp={stopPropagation}
-                    >
-                        {modal}
-                    </div>
-                )}
             >
                 {isValidPreview && imageURL && (
                     <img
                         src={imageURL}
                         alt={alt}
                         className="w-full h-full max-h-[600px] max-w-[800px] object-contain"
-                        onClick={stopPropagation}
-                        onMouseDown={stopPropagation}
-                        onMouseUp={stopPropagation}
                     />
                 )}
             </Modal>
