@@ -113,7 +113,8 @@ def test_build_evaluator_data_json_multi_field_match_no_fields():
 
 def test_build_evaluator_data_webhook_url():
     data = _data("auto_webhook_test", webhook_url="https://example.com/hook")
-    assert data.url == "https://example.com/hook"
+    assert data.url is None
+    assert data.parameters == {"webhook_url": "https://example.com/hook"}
 
 
 def test_build_evaluator_data_non_webhook_url_is_none():
@@ -128,8 +129,9 @@ def test_build_evaluator_data_non_webhook_url_is_none():
 
 def test_build_evaluator_data_custom_code_script():
     data = _data("auto_custom_code_run", code="def evaluate(): pass")
-    assert data.script == "def evaluate(): pass"
-    assert data.runtime == "python"
+    assert data.script is None
+    assert data.runtime is None
+    assert data.parameters == {"code": "def evaluate(): pass"}
 
 
 def test_build_evaluator_data_non_custom_code_script_is_none():
@@ -166,12 +168,13 @@ def test_build_evaluator_data_ai_critique_has_parameters_schema():
 
 
 def test_build_evaluator_data_exact_match_no_parameters_schema():
-    # auto_contains_json has an empty settings_template ({})
+    # auto_contains_json exposes an empty interface parameters schema.
     data = _data("auto_contains_json")
-    assert data.schemas.parameters is None
+    assert data.schemas.parameters is not None
+    assert data.schemas.parameters["properties"] == {}
 
 
 def test_build_evaluator_data_parameters_schema_contains_known_key():
-    # auto_ai_critique settings_template has at least a "model" field
+    # auto_ai_critique exposes interface-defined settings.
     data = _data("auto_ai_critique")
-    assert "model" in data.schemas.parameters
+    assert "prompt_template" in data.schemas.parameters["properties"]

@@ -63,9 +63,13 @@ Every **variant** is **versioned** and each **version** is immutable. When you m
 
 ### Environments
 
-**Environments** are the interfaces where your deployed variants are accessible. You can deploy a **version** of a **variant** to an **environment**. Each **environment** has a user-defined environment name (e.g. development, staging, production) that specifies its context or stage.
+**Environments** are the interfaces where your deployed variants are accessible. You can deploy a **version** of a **variant** to an **environment**. Each **environment** has an environment name (e.g. development, staging, production) that specifies its context or stage.
 
-You can then integrate the **environment** into your codebase to fetch the configuration deployed on that **environment**. Additionally, you can directly invoke the endpoints relating to the **environment** containing the application running with that configuration.
+You can then integrate the **environment** into your codebase to:
+- **Fetch the configuration** deployed on that **environment** using the SDK or API.
+- **Invoke the application** directly through the unified `/v0/invoke` endpoint, referencing the environment by slug.
+
+When invoking via an environment, Agenta resolves the deployed revision using a **key** (formatted as `{app_slug}.revision`). This key maps the environment to the specific application revision that was deployed to it.
 
 By default, applications come with three predefined **environments**:
 

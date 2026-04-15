@@ -275,12 +275,13 @@ def create_universal_resolver(
             if deepest_level == "revision":
                 entity = await _resolve_revision_with_normalization(
                     ref=revision_ref,
-                    fetch_revision_by_refs=lambda vref,
-                    rref: workflows_service.fetch_workflow_revision(
-                        project_id=project_id,
-                        workflow_variant_ref=vref or scoping_ref,
-                        workflow_revision_ref=rref,
-                        include_archived=include_archived,
+                    fetch_revision_by_refs=lambda vref, rref: (
+                        workflows_service.fetch_workflow_revision(
+                            project_id=project_id,
+                            workflow_variant_ref=vref or scoping_ref,
+                            workflow_revision_ref=rref,
+                            include_archived=include_archived,
+                        )
                     ),
                 )
                 if not entity or not entity.data:
@@ -327,12 +328,13 @@ def create_universal_resolver(
             if deepest_level == "revision":
                 entity = await _resolve_revision_with_normalization(
                     ref=revision_ref,
-                    fetch_revision_by_refs=lambda vref,
-                    rref: environments_service.fetch_environment_revision(
-                        project_id=project_id,
-                        environment_variant_ref=vref or scoping_ref,
-                        environment_revision_ref=rref,
-                        include_archived=include_archived,
+                    fetch_revision_by_refs=lambda vref, rref: (
+                        environments_service.fetch_environment_revision(
+                            project_id=project_id,
+                            environment_variant_ref=vref or scoping_ref,
+                            environment_revision_ref=rref,
+                            include_archived=include_archived,
+                        )
                     ),
                 )
                 if not entity or not entity.data:
@@ -379,12 +381,13 @@ def create_universal_resolver(
             if deepest_level == "revision":
                 entity = await _resolve_revision_with_normalization(
                     ref=revision_ref,
-                    fetch_revision_by_refs=lambda vref,
-                    rref: applications_service.fetch_application_revision(
-                        project_id=project_id,
-                        application_variant_ref=vref or scoping_ref,
-                        application_revision_ref=rref,
-                        include_archived=include_archived,
+                    fetch_revision_by_refs=lambda vref, rref: (
+                        applications_service.fetch_application_revision(
+                            project_id=project_id,
+                            application_variant_ref=vref or scoping_ref,
+                            application_revision_ref=rref,
+                            include_archived=include_archived,
+                        )
                     ),
                 )
                 if not entity or not entity.data:
@@ -431,12 +434,13 @@ def create_universal_resolver(
             if deepest_level == "revision":
                 entity = await _resolve_revision_with_normalization(
                     ref=revision_ref,
-                    fetch_revision_by_refs=lambda vref,
-                    rref: evaluators_service.fetch_evaluator_revision(
-                        project_id=project_id,
-                        evaluator_variant_ref=vref or scoping_ref,
-                        evaluator_revision_ref=rref,
-                        include_archived=include_archived,
+                    fetch_revision_by_refs=lambda vref, rref: (
+                        evaluators_service.fetch_evaluator_revision(
+                            project_id=project_id,
+                            evaluator_variant_ref=vref or scoping_ref,
+                            evaluator_revision_ref=rref,
+                            include_archived=include_archived,
+                        )
                     ),
                 )
                 if not entity or not entity.data:

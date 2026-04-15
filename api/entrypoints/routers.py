@@ -108,6 +108,7 @@ from oss.src.apis.fastapi.evaluators.router import EvaluatorsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 from oss.src.apis.fastapi.environments.router import EnvironmentsRouter
 from oss.src.apis.fastapi.environments.router import SimpleEnvironmentsRouter
+from oss.src.apis.fastapi.legacy_variants.router import LegacyVariantsRouter
 from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
@@ -493,6 +494,11 @@ simple_environments = SimpleEnvironmentsRouter(
     simple_environments_service=simple_environments_service,
 )
 
+legacy_variants = LegacyVariantsRouter(
+    applications_service=applications_service,
+    environments_service=environments_service,
+)
+
 evaluations = EvaluationsRouter(
     evaluations_service=evaluations_service,
     queries_service=queries_service,
@@ -765,6 +771,12 @@ app.include_router(
     router=simple_environments.router,
     prefix="/preview/simple/environments",
     tags=["Environments"],
+)
+
+app.include_router(
+    router=legacy_variants.router,
+    prefix="/variants",
+    tags=["Variants"],
 )
 
 app.include_router(

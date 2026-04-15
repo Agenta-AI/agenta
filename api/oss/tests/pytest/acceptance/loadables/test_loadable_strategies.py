@@ -37,6 +37,8 @@ from uuid import uuid4
 
 import pytest
 
+from utils.polling import wait_for_response
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -161,7 +163,24 @@ def mock_data(authed_api):
     assert response.status_code == 200, response.text
     query = response.json()["query"]
     query_id = query["id"]
-    query_revision_id = query["revision_id"]
+
+    response = authed_api(
+        "POST",
+        "/preview/queries/revisions/commit",
+        json={
+            "query_revision_commit": {
+                "slug": uuid4().hex[-12:],
+                "query_id": query_id,
+                "query_variant_id": query["variant_id"],
+                "data": {
+                    "filtering": filtering,
+                    "windowing": windowing,
+                },
+            }
+        },
+    )
+    assert response.status_code == 200, response.text
+    query_revision_id = response.json()["query_revision"]["id"]
 
     return {
         "testset_id": testset_id,
@@ -666,7 +685,35 @@ class TestLoadableStrategiesGrumpyPaths:
             },
         )
         assert response.status_code == 200
-        query_revision_id = response.json()["query"]["revision_id"]
+        query = response.json()["query"]
+
+        response = authed_api(
+            "POST",
+            "/preview/queries/revisions/commit",
+            json={
+                "query_revision_commit": {
+                    "slug": uuid4().hex[-12:],
+                    "query_id": query["id"],
+                    "query_variant_id": query["variant_id"],
+                    "data": {
+                        "filtering": {
+                            "operator": "and",
+                            "conditions": [
+                                {
+                                    "field": "attributes",
+                                    "key": ghost_tag,
+                                    "value": "never_matches",
+                                    "operator": "is",
+                                }
+                            ],
+                        },
+                        "windowing": {"limit": 50},
+                    },
+                }
+            },
+        )
+        assert response.status_code == 200, response.text
+        query_revision_id = response.json()["query_revision"]["id"]
 
         # ACT -----------------------------------------------------------------
         response = authed_api(
@@ -825,7 +872,8 @@ class TestLoadableStrategiesEdgeCases:
         """
 
         # ACT -----------------------------------------------------------------
-        response = authed_api(
+        response = wait_for_response(
+            authed_api,
             "POST",
             "/preview/queries/revisions/retrieve",
             json={
@@ -833,6 +881,10 @@ class TestLoadableStrategiesEdgeCases:
                 "include_trace_ids": True,
                 "windowing": {"limit": 1},
             },
+            condition_fn=lambda r: len(
+                r.json().get("query_revision", {}).get("data", {}).get("trace_ids", [])
+            )
+            == 1,
         )
         # ---------------------------------------------------------------------
 
@@ -858,7 +910,8 @@ class TestLoadableStrategiesEdgeCases:
         """
 
         # ACT -----------------------------------------------------------------
-        response = authed_api(
+        response = wait_for_response(
+            authed_api,
             "POST",
             "/preview/queries/revisions/retrieve",
             json={
@@ -866,6 +919,10 @@ class TestLoadableStrategiesEdgeCases:
                 "include_traces": True,
                 "windowing": {"limit": 1},
             },
+            condition_fn=lambda r: len(
+                r.json().get("query_revision", {}).get("data", {}).get("traces", [])
+            )
+            == 1,
         )
         # ---------------------------------------------------------------------
 

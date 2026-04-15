@@ -35,5 +35,4 @@ def create_completion_app():
     return app
 
 
-completion_app = create_completion_app()
 completion_v0_app = create_completion_app()

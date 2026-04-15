@@ -2006,6 +2006,24 @@ export function invalidateWorkflowCache(workflowId: string, options?: StoreOptio
 }
 
 /**
+ * Invalidate the variants cache for a given workflow ID.
+ * This forces the variant selector dropdown to refetch after a new variant is created.
+ */
+export function invalidateWorkflowVariantsCache(workflowId: string, options?: StoreOptions) {
+    const store = getStore(options)
+    try {
+        const qc = store.get(queryClientAtom)
+        qc.invalidateQueries({
+            queryKey: ["workflows", "variants", workflowId],
+            exact: false,
+        })
+    } catch {
+        // queryClientAtom may not be initialized yet
+    }
+    store.set(workflowVariantsQueryAtomFamily(workflowId))
+}
+
+/**
  * Invalidate the revisions-by-workflow cache for a given workflow ID.
  * This forces the variant/revision selector dropdown to refetch the revision list.
  */
