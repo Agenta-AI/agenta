@@ -1967,13 +1967,17 @@ async def admin_get_member_org_ids(
     """Return the subset of org_ids where the user has a membership row."""
     async with engine.core_session() as session:
         rows = (
-            await session.execute(
-                select(OrganizationMemberDB.organization_id).where(
-                    OrganizationMemberDB.user_id == user_id,
-                    OrganizationMemberDB.organization_id.in_(org_ids),
+            (
+                await session.execute(
+                    select(OrganizationMemberDB.organization_id).where(
+                        OrganizationMemberDB.user_id == user_id,
+                        OrganizationMemberDB.organization_id.in_(org_ids),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         return set(rows)
 
 
@@ -1990,22 +1994,30 @@ async def admin_swap_org_memberships(
     """
     async with engine.core_session() as session:
         source_rows = (
-            await session.execute(
-                select(OrganizationMemberDB).where(
-                    OrganizationMemberDB.user_id == source_id,
-                    OrganizationMemberDB.organization_id.in_(org_ids),
+            (
+                await session.execute(
+                    select(OrganizationMemberDB).where(
+                        OrganizationMemberDB.user_id == source_id,
+                        OrganizationMemberDB.organization_id.in_(org_ids),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         target_rows = (
-            await session.execute(
-                select(OrganizationMemberDB).where(
-                    OrganizationMemberDB.user_id == target_id,
-                    OrganizationMemberDB.organization_id.in_(org_ids),
+            (
+                await session.execute(
+                    select(OrganizationMemberDB).where(
+                        OrganizationMemberDB.user_id == target_id,
+                        OrganizationMemberDB.organization_id.in_(org_ids),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         source_by_org = {row.organization_id: row.role for row in source_rows}
         target_by_org = {row.organization_id: row.role for row in target_rows}
@@ -2044,22 +2056,30 @@ async def admin_swap_workspace_memberships(
     """
     async with engine.core_session() as session:
         source_rows = (
-            await session.execute(
-                select(WorkspaceMemberDB).where(
-                    WorkspaceMemberDB.user_id == source_id,
-                    WorkspaceMemberDB.workspace_id.in_(workspace_ids),
+            (
+                await session.execute(
+                    select(WorkspaceMemberDB).where(
+                        WorkspaceMemberDB.user_id == source_id,
+                        WorkspaceMemberDB.workspace_id.in_(workspace_ids),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         target_rows = (
-            await session.execute(
-                select(WorkspaceMemberDB).where(
-                    WorkspaceMemberDB.user_id == target_id,
-                    WorkspaceMemberDB.workspace_id.in_(workspace_ids),
+            (
+                await session.execute(
+                    select(WorkspaceMemberDB).where(
+                        WorkspaceMemberDB.user_id == target_id,
+                        WorkspaceMemberDB.workspace_id.in_(workspace_ids),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         source_by_ws = {row.workspace_id: row.role for row in source_rows}
         target_by_ws = {row.workspace_id: row.role for row in target_rows}
@@ -2098,22 +2118,30 @@ async def admin_swap_project_memberships(
     """
     async with engine.core_session() as session:
         source_rows = (
-            await session.execute(
-                select(ProjectMemberDB).where(
-                    ProjectMemberDB.user_id == source_id,
-                    ProjectMemberDB.project_id.in_(project_ids),
+            (
+                await session.execute(
+                    select(ProjectMemberDB).where(
+                        ProjectMemberDB.user_id == source_id,
+                        ProjectMemberDB.project_id.in_(project_ids),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         target_rows = (
-            await session.execute(
-                select(ProjectMemberDB).where(
-                    ProjectMemberDB.user_id == target_id,
-                    ProjectMemberDB.project_id.in_(project_ids),
+            (
+                await session.execute(
+                    select(ProjectMemberDB).where(
+                        ProjectMemberDB.user_id == target_id,
+                        ProjectMemberDB.project_id.in_(project_ids),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         source_by_proj = {row.project_id: row.role for row in source_rows}
         target_by_proj = {row.project_id: row.role for row in target_rows}

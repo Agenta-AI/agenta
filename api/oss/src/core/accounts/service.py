@@ -1563,9 +1563,7 @@ class PlatformAdminAccountsService:
             # Pre-condition (EE): both source and target must be members.
             # Filter org_ids to only those where target also has a membership row.
             if is_ee():
-                target_member_org_ids = await _ee_get_member_org_ids(
-                    target_id, org_ids
-                )
+                target_member_org_ids = await _ee_get_member_org_ids(target_id, org_ids)
                 org_ids = [oid for oid in org_ids if oid in target_member_org_ids]
 
         if org_ids:
@@ -1599,13 +1597,9 @@ class PlatformAdminAccountsService:
             if is_ee():
                 await _ee_swap_org_memberships(org_ids, source_id, target_id)
                 if ws_scope:
-                    await _ee_swap_workspace_memberships(
-                        ws_scope, source_id, target_id
-                    )
+                    await _ee_swap_workspace_memberships(ws_scope, source_id, target_id)
                 if proj_scope:
-                    await _ee_swap_project_memberships(
-                        proj_scope, source_id, target_id
-                    )
+                    await _ee_swap_project_memberships(proj_scope, source_id, target_id)
 
             log.info(
                 "[admin] ownership transferred",
