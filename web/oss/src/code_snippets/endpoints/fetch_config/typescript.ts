@@ -6,16 +6,17 @@ export default function tsCode(appName: string, env_name: string, apiKey: string
     const codeString = `import axios from 'axios';
 
 const getConfig = async (appName: string, environmentSlug: string) => {
-    const baseUrl = '${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}/variants/configs/fetch';
+    const baseUrl = '${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}/preview/applications/revisions/retrieve';
 
     try {
         const response = await axios.post(baseUrl, {
-            environment_ref: {
-                slug: environmentSlug,
-            },
             application_ref: {
                 slug: appName,
             },
+            environment_ref: {
+                slug: environmentSlug,
+            },
+            key: appName + '.revision',
         }, {
             headers: {
                 'Content-Type': 'application/json',

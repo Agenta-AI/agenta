@@ -6,19 +6,21 @@ export const buildTypescriptSnippet = (
     variantVersion: number,
     apiKey: string,
 ) => {
-    return `const fetchResponse = await fetch('${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}/variants/configs/fetch', {
+    return `const fetchResponse = await fetch('${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}/preview/applications/revisions/retrieve', {
     method: 'POST',
     headers: {
         'Content-Type': 'application/json',
         'Authorization': 'ApiKey ${apiKey}',
     },
     body: JSON.stringify({
-        variant_ref: {
-            slug: '${variantSlug}',
-            version: ${variantVersion},
-        },
         application_ref: {
             slug: '${appSlug}',
+        },
+        application_variant_ref: {
+            slug: '${variantSlug}',
+        },
+        application_revision_ref: {
+            version: '${variantVersion}',
         },
     }),
 });
