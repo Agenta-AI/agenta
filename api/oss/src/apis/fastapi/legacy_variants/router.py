@@ -183,21 +183,23 @@ class LegacyVariantsRouter:
                     environment_revision_ref = Reference(
                         version=str(environment_ref.version)
                     )
-                    revision, _ = (
-                        await self.applications_service.retrieve_application_revision(
-                            project_id=project_id,
-                            environment_variant_ref=environment_variant_ref,
-                            environment_revision_ref=environment_revision_ref,
-                            key=key,
-                            resolve=True,
-                        )
+                    (
+                        revision,
+                        _,
+                    ) = await self.applications_service.retrieve_application_revision(
+                        project_id=project_id,
+                        environment_variant_ref=environment_variant_ref,
+                        environment_revision_ref=environment_revision_ref,
+                        key=key,
+                        resolve=True,
                     )
-                    environment_revision, _ = (
-                        await self.environments_service.retrieve_environment_revision(
-                            project_id=project_id,
-                            environment_variant_ref=environment_variant_ref,
-                            environment_revision_ref=environment_revision_ref,
-                        )
+                    (
+                        environment_revision,
+                        _,
+                    ) = await self.environments_service.retrieve_environment_revision(
+                        project_id=project_id,
+                        environment_variant_ref=environment_variant_ref,
+                        environment_revision_ref=environment_revision_ref,
                     )
                     return revision, environment_revision
 
@@ -209,11 +211,12 @@ class LegacyVariantsRouter:
             key=key,
             resolve=True,
         )
-        environment_revision, _ = (
-            await self.environments_service.retrieve_environment_revision(
-                project_id=project_id,
-                environment_ref=current_environment_ref,
-            )
+        (
+            environment_revision,
+            _,
+        ) = await self.environments_service.retrieve_environment_revision(
+            project_id=project_id,
+            environment_ref=current_environment_ref,
         )
 
         if revision or not environment_ref.id:
@@ -226,11 +229,12 @@ class LegacyVariantsRouter:
             key=key,
             resolve=True,
         )
-        environment_revision, _ = (
-            await self.environments_service.retrieve_environment_revision(
-                project_id=project_id,
-                environment_revision_ref=environment_revision_ref,
-            )
+        (
+            environment_revision,
+            _,
+        ) = await self.environments_service.retrieve_environment_revision(
+            project_id=project_id,
+            environment_revision_ref=environment_revision_ref,
         )
 
         return revision, environment_revision
