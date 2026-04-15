@@ -1430,7 +1430,8 @@ class PlatformAdminAccountsService:
             for st_user in st_users:
                 for lm in st_user.login_methods:
                     if lm.recipe_id == "emailpassword":
-                        recipe_user_id = lm.recipe_user_id
+                        rid = lm.recipe_user_id
+                        recipe_user_id = rid.get_as_string() if hasattr(rid, "get_as_string") else str(rid)
                         break
                 if recipe_user_id:
                     break
