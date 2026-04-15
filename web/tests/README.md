@@ -33,10 +33,7 @@ Auth behavior in global setup:
 - If the frontend renders password auth, OSS owner email/password must be available.
 - If the frontend renders OTP auth, Testmail envs must be available.
 
-Safety behavior in teardown:
-
-- Destructive cleanup is disabled by default.
-- Enable only when needed with `AGENTA_TEST_ALLOW_DESTRUCTIVE_TEARDOWN=true`.
+Teardown cleans up the ephemeral project and model hub secrets created by the run.
 
 ---
 

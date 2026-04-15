@@ -1,0 +1,261 @@
+---
+title: Platform Administration API
+description: Programmatically manage users, organizations, projects, and API keys via the admin API
+slug: /administration/access-control/platform-administration-api
+---
+
+# Platform Administration API
+
+The Platform Administration API lets you programmatically create and manage user accounts, organizations, workspaces, projects, and API keys. It is designed for platform teams that need to automate user provisioning, onboarding flows, or integrate Agenta into existing identity infrastructure.
+
+
+## Configuration
+
+Admin endpoints are protected by a shared secret key. Before using the API, set the `AGENTA_AUTH_KEY` environment variable on your Agenta deployment.
+
+```bash
+# In your deployment environment (e.g. docker-compose, Kubernetes, .env)
+AGENTA_AUTH_KEY=your-secure-secret-key
+```
+
+:::warning
+The default value is `replace-me`. **You must change this before using admin endpoints in production.** Use a long, random string (e.g. 32+ characters generated with `openssl rand -hex 32`).
+:::
+
+## Authentication
+
+All admin endpoints require the following header:
+
+```http
+Authorization: Access <AGENTA_AUTH_KEY>
+```
+
+This is separate from regular user authentication and API keys. Only requests with a valid admin key can access `/admin/` endpoints.
+
+## Quick start
+
+### Create a user account
+
+The simplest way to provision a user is the **simple account** endpoint. It creates a user along with a default organization, workspace, and project in one call.
+
+```bash
+curl -X POST https://your-agenta-instance/api/admin/simple/accounts/ \
+  -H "Authorization: Access $AGENTA_AUTH_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "accounts": {
+      "alice": {
+        "user": {
+          "email": "alice@example.com",
+          "username": "alice"
+        },
+        "user_identities": [
+          {
+            "method": "email:password",
+            "subject": "alice@example.com",
+            "email": "alice@example.com",
+            "password": "S3cr3tPass!",
+            "verified": true
+          }
+        ]
+      }
+    }
+  }'
+```
+
+The response includes IDs for all created entities:
+
+```json
+{
+  "accounts": {
+    "alice": {
+      "user": { "id": "<user-id>", "email": "alice@example.com" },
+      "organizations": { "org": { "id": "<org-id>" } },
+      "workspaces": { "wrk": { "id": "<workspace-id>" } },
+      "projects": { "prj": { "id": "<project-id>" } },
+      "api_keys": { "key": "<api-key>" }
+    }
+  }
+}
+```
+
+### Create multiple accounts in batch
+
+Pass multiple entries under `accounts` to provision several users at once:
+
+```bash
+curl -X POST https://your-agenta-instance/api/admin/simple/accounts/ \
+  -H "Authorization: Access $AGENTA_AUTH_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "accounts": {
+      "alice": {
+        "user": { "email": "alice@example.com", "username": "alice" },
+        "user_identities": [{
+          "method": "email:password",
+          "subject": "alice@example.com",
+          "email": "alice@example.com",
+          "password": "S3cr3tPass!",
+          "verified": true
+        }]
+      },
+      "bob": {
+        "user": { "email": "bob@example.com", "username": "bob" },
+        "user_identities": [{
+          "method": "email:password",
+          "subject": "bob@example.com",
+          "email": "bob@example.com",
+          "password": "B0bSecure!",
+          "verified": true
+        }]
+      }
+    }
+  }'
+```
+
+## Common operations
+
+### Reset a user's password
+
+Force a password reset for users with `email:password` identities:
+
+```bash
+curl -X POST https://your-agenta-instance/api/admin/simple/accounts/reset-password \
+  -H "Authorization: Access $AGENTA_AUTH_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_identities": [
+      {
+        "method": "email:password",
+        "subject": "alice@example.com",
+        "email": "alice@example.com",
+        "password": "N3wPassw0rd!",
+        "verified": true
+      }
+    ]
+  }'
+```
+
+Returns `204 No Content` on success.
+
+### Transfer organization ownership
+
+Transfer ownership from one user to another. This atomically swaps roles across the organization, workspaces, and projects:
+
+```bash
+curl -X POST https://your-agenta-instance/api/admin/simple/accounts/transfer-ownership \
+  -H "Authorization: Access $AGENTA_AUTH_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "users": {
+      "source": { "id": "<current-owner-user-id>" },
+      "target": { "id": "<new-owner-user-id>" }
+    }
+  }'
+```
+
+To transfer ownership for a specific organization only:
+
+```bash
+curl -X POST https://your-agenta-instance/api/admin/simple/accounts/transfer-ownership \
+  -H "Authorization: Access $AGENTA_AUTH_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "organizations": {
+      "my_org": { "id": "<org-id>" }
+    },
+    "users": {
+      "source": { "id": "<current-owner-user-id>" },
+      "target": { "id": "<new-owner-user-id>" }
+    }
+  }'
+```
+
+Returns `204 No Content` on success.
+
+### Delete a user account
+
+```bash
+curl -X DELETE https://your-agenta-instance/api/admin/simple/accounts/ \
+  -H "Authorization: Access $AGENTA_AUTH_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "accounts": {
+      "alice": {
+        "user": { "id": "<user-id>" }
+      }
+    }
+  }'
+```
+
+Returns `204 No Content` on success.
+
+### Create individual entities
+
+You can also create entities independently using the precision endpoints:
+
+| Operation | Method | Path |
+|-----------|--------|------|
+| Create user | POST | `/admin/simple/accounts/users/` |
+| Create organization | POST | `/admin/simple/accounts/organizations/` |
+| Create workspace | POST | `/admin/simple/accounts/workspaces/` |
+| Create project | POST | `/admin/simple/accounts/projects/` |
+| Create API key | POST | `/admin/simple/accounts/api-keys/` |
+| Create login identity | POST | `/admin/simple/accounts/users/identities/` |
+| Add organization membership | POST | `/admin/simple/accounts/organizations/memberships/` |
+| Add workspace membership | POST | `/admin/simple/accounts/workspaces/memberships/` |
+| Add project membership | POST | `/admin/simple/accounts/projects/memberships/` |
+
+Each entity also has a corresponding `DELETE` endpoint for removal.
+
+## Advanced: full account graph
+
+For complex provisioning scenarios (e.g. multiple organizations, custom workspace structures), use the full account graph endpoint:
+
+```
+POST /admin/accounts/
+```
+
+This endpoint accepts a detailed specification of the entire account graph including organizations, workspaces, projects, memberships, and API keys. See the [API reference](/reference/api/create-accounts) for the full request schema.
+
+### Options
+
+The account creation endpoints support the following options:
+
+| Option | Description |
+|--------|-------------|
+| `dry_run` | Validate the request without creating anything |
+| `idempotency_key` | Prevent duplicate operations |
+| `create_identities` | Create login identities for users |
+| `create_api_keys` | Generate API keys for projects (default: `false`) |
+| `return_api_keys` | Include raw API key values in the response |
+| `seed_defaults` | Seed default resources in new projects |
+| `reason` | Audit trail note |
+
+## Entity references
+
+When linking entities (e.g. assigning a user to an organization), you can reference them by:
+
+- **Request-local key**: `{ "ref": "alice" }` &mdash; refers to an entity created in the same request
+- **ID**: `{ "id": "<uuid>" }` &mdash; refers to an existing entity by its ID
+- **Slug**: `{ "slug": "my-org" }` &mdash; refers to an existing entity by its slug
+
+## Identity methods
+
+The following login identity methods are supported:
+
+| Method | Description |
+|--------|-------------|
+| `email:password` | Email and password authentication |
+| `email:otp` | Email-based one-time password |
+| `social:google` | Google OAuth |
+| `social:github` | GitHub OAuth |
+| `saml` | SAML-based SSO |
+| `oidc` | OpenID Connect SSO |
+
+## API reference
+
+For complete request/response schemas, see the auto-generated API reference:
+
+- [Create Account](/reference/api/create-account) &mdash; single account creation
+- [Create Accounts](/reference/api/create-accounts) &mdash; batch account creation
