@@ -54,6 +54,20 @@ def _create_workflow_with_embed(
         "/preview/workflows/revisions/commit",
         json={
             "workflow_revision": {
+                "slug": f"{base_slug}-v0",
+                "workflow_id": base_id,
+                "workflow_variant_id": base_variant_id,
+                "message": "Initial commit",
+            }
+        },
+    )
+    assert r.status_code == 200
+
+    r = authed_api(
+        "POST",
+        "/preview/workflows/revisions/commit",
+        json={
+            "workflow_revision": {
                 "slug": f"{base_slug}-v1",
                 "workflow_id": base_id,
                 "workflow_variant_id": base_variant_id,
@@ -96,6 +110,20 @@ def _create_workflow_with_embed(
     }
     if embed_selector_path:
         embed_spec["@ag.embed"]["@ag.selector"] = {"path": embed_selector_path}
+
+    r = authed_api(
+        "POST",
+        "/preview/workflows/revisions/commit",
+        json={
+            "workflow_revision": {
+                "slug": f"{embed_slug}-v0",
+                "workflow_id": embed_id,
+                "workflow_variant_id": embed_variant_id,
+                "message": "Initial commit",
+            }
+        },
+    )
+    assert r.status_code == 200
 
     r = authed_api(
         "POST",
@@ -232,6 +260,20 @@ class TestWorkflowRetrieveWithResolve:
         )
         assert r.status_code == 200
         variant_id = r.json()["workflow_variant"]["id"]
+
+        r = authed_api(
+            "POST",
+            "/preview/workflows/revisions/commit",
+            json={
+                "workflow_revision": {
+                    "slug": f"{slug}-v0",
+                    "workflow_id": wf_id,
+                    "workflow_variant_id": variant_id,
+                    "message": "Initial commit",
+                }
+            },
+        )
+        assert r.status_code == 200
 
         r = authed_api(
             "POST",

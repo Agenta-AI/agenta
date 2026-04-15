@@ -119,6 +119,22 @@ def _deploy_config_to_environment(authed_api, config):
     )
     env_variant_id = body["environment_variant"]["id"]
 
+    _assert_ok(
+        authed_api(
+            "POST",
+            "/preview/environments/revisions/commit",
+            json={
+                "environment_revision_commit": {
+                    "slug": uuid4().hex[-12:],
+                    "environment_id": env_id,
+                    "environment_variant_id": env_variant_id,
+                    "message": "Initial commit",
+                    "data": {"references": {}},
+                }
+            },
+        )
+    )
+
     body = _assert_ok(
         authed_api(
             "POST",

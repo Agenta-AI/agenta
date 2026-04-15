@@ -5,6 +5,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 
+import oss.src.apis.fastapi.legacy_variants.router as legacy_variants_router_module
 from oss.src.apis.fastapi.legacy_variants.models import ReferenceRequestModel
 from oss.src.apis.fastapi.legacy_variants.router import LegacyVariantsRouter
 from oss.src.core.applications.dtos import (
@@ -24,6 +25,16 @@ def _request(project_id):
             user_id=str(uuid4()),
         )
     )
+
+
+@pytest.fixture(autouse=True)
+def _allow_view_access(monkeypatch):
+    if hasattr(legacy_variants_router_module, "check_action_access"):
+        monkeypatch.setattr(
+            legacy_variants_router_module,
+            "check_action_access",
+            AsyncMock(return_value=True),
+        )
 
 
 def _revision(application_id, variant_id, revision_id=None):
