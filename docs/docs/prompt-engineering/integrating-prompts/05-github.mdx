@@ -205,20 +205,17 @@ jobs:
         env:
           AGENTA_API_KEY: ${{ secrets.AGENTA_API_KEY }}
         run: |
-          curl -X POST "https://cloud.agenta.ai/api/variants/configs/fetch" \
+          curl -X POST "https://cloud.agenta.ai/api/preview/applications/revisions/retrieve" \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${AGENTA_API_KEY}" \
+            -H "Authorization: ApiKey ${AGENTA_API_KEY}" \
             -d '{
               "application_ref": {
-                "slug": "your-app-slug",
-                "version": null,
-                "id": null
+                "slug": "your-app-slug"
               },
               "environment_ref": {
-                "slug": "production",
-                "version": null,
-                "id": null
-              }
+                "slug": "production"
+              },
+              "key": "your-app-slug.revision"
             }' > prompt-config.json
 
       - name: Create pull request if prompt changed
