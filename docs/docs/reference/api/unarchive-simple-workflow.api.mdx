@@ -1,0 +1,71 @@
+---
+id: unarchive-simple-workflow
+title: "Unarchive Simple Workflow"
+description: "Unarchive Simple Workflow"
+sidebar_label: "Unarchive Simple Workflow"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWUtv2zgQ/ivGnFpAjbPFnnxab9Ii2babIE7aQ2AEtDS22FKUyodb19B/XwxJWZJfcl0X2ENOiaWZb4bfDIfD0RIMm2kYPMKnXH2ZivybhnEEeYGKGZ7L6wQGYCVTccrn+KR5Vgh8+hZkIYKCKZahQUUgS5AsQxhAJfDEE4iASxhAwUwKESj8arnCBAZGWYxAxylmDAZLMIuCVLVRXM4ggmmuMmbIvHUohhtBApWjvesEynJMkLrIpUZNKK/Pz+lPgjpWvKAlwABGNo5R66kVvbsgDBHEuTQoDYmzohA8divuf9aks2x4Vijiw3BvIc6tVwoOc2lwhqrh4YWTiCDBKbPCwOC8jFaUOHNycTN1fLWhp8IFY7cA108NVxtOTPJcIJMNJ651b9gQbXgzZUJjGREYzpmwzOSqC+rNSnA7kJa8KNB0wYyC2HaQjEk2o9TYD/IhiG0Hia02edaFceGltkMI0an/XuxSTvP8S5f2FcnscD9PsNN5ktlFoYnTbgJJaDvAFDGZsLhzCW8ruR3LSFlnMlyQzBb1lOknq8Re9Sumew9K7FL3m78TYeTFdoCkTCYC928NQrkKchswZVQp5pPPGJuG3sgV0qqUvXX7voxWhqQVAsoxAWxUBJYknLY0E7et2lBLrHnbwA3FlZ5sh4GYq9gKpl68ZxMU/+hcvrqxprDmJayvhmpvtZ51adhY++bqau17v3zI0LAjF9tY2VpdbhnOJu0nTY66GHlrRQch0RK4wexALaYUW+zlZU3350j9QGSWUTiSD6JsA+Nf0i2j9nF6HNRlA6KMIFbIDCZPvkzsAmx0AQkz+Mpw589uKxcetjd0ZNki+R1GHjxsMJKgwN9g5NLDBiMVXZMFtVSH2XF90yFk/b1wvVTN10mtVGytrFSEndRKRdfKihZ2dmyujkiXDrKTuRdWztbrW7u9s4of6/KD4i6C/tw8DkEQQooscd38r5bh9tLmqPQvVI+PQf1/Gdg95/wdTlGhjDGc5gdX76sQhjICZaWrFns9RmkzusYVC5O6dp8EdNXffGZzFn6M91m9C6aI5lULdRTRXrusLnh7bzXNO+Tz4X+Sw/+2ppTSXRbWPJN7KnKvPZ1lBLnTfmb2VMzeBD73lVQCH4WisvXK9FxOfms5OfhWe8ncBWRLhOZMcSbNCdu/jx4x9H4K55zahRMauAuQvY4Dv03BtuUfrLwaVZYlKf35+vXmZPMjEzxxE77eG6XceO7IsWaChnHXPIa0WxcQedx6+zPbptH7+ExtTA7yMKGk+7+ebZsE1zdardkM69TdLerI6N3T2+r8c+LNCu7uVeZ7A2YjIBfE5XezNeL1JPvRcePdD3Kt1KxC5CO0m4pLH4J9GXJ1f3+7Aejzo50YD9XMvueTqvepntlnaNKcBvtFro2b4ZsUBtD30/1+NanW/WVjjl/2V58BIAKNal7N/N2dA/qs4C72/mdqTKEH/T7as1jkNjljM5SGnTHuBceEEVvFzcKBDG+v3+HCd70weBw3BVy190nYFlsFjhX8HRKV4fvD0Jo0V/xHNft2XyD8zcbRy+U0b+bD0DnXG95eQ1RfVeD87I+zc1intiVMu43FLrkq2+41RGtErNZPzXrmthoYZNlf9QvyjEKSMdnA2xfJtblMYINStl8IxmXjSuiD/Ag+yFB/kNAQwaD9waaO9DiClJJk8AjL5YRpfFCiLOnxV4uKQjcO5XxCRD4uIeGa/k/CEHTDx1V5ghd3YQe97NUHWdv3KrySYkufIOgXRPAFF2tfmVyJSav0WQaJYRyjuwBVuhsVkfJstR9ub0b3UJb/AWUaShI=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Unarchive Simple Workflow"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/simple/workflows/{workflow_id}/unarchive"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Unarchive Simple Workflow
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"workflow_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Workflow Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"workflow":{"anyOf":[{"properties":{"flags":{"anyOf":[{"properties":{"is_application":{"type":"boolean","title":"Is Application","default":false},"is_evaluator":{"type":"boolean","title":"Is Evaluator","default":false},"is_snippet":{"type":"boolean","title":"Is Snippet","default":false},"is_managed":{"type":"boolean","title":"Is Managed","default":false},"is_custom":{"type":"boolean","title":"Is Custom","default":false},"is_llm":{"type":"boolean","title":"Is Llm","default":false},"is_hook":{"type":"boolean","title":"Is Hook","default":false},"is_code":{"type":"boolean","title":"Is Code","default":false},"is_match":{"type":"boolean","title":"Is Match","default":false},"is_feedback":{"type":"boolean","title":"Is Feedback","default":false},"is_chat":{"type":"boolean","title":"Is Chat","default":false},"has_url":{"type":"boolean","title":"Has Url","default":false},"has_script":{"type":"boolean","title":"Has Script","default":false},"has_handler":{"type":"boolean","title":"Has Handler","default":false}},"type":"object","title":"SimpleWorkflowFlags"},{"type":"null"}]},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"},"data":{"anyOf":[{"properties":{"uri":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Uri"},"url":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Url"},"headers":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"properties":{"version":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Version"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"Reference"}]},"type":"object"},{"type":"null"}],"title":"Headers"},"runtime":{"anyOf":[{"type":"string","enum":["python","typescript","javascript"]},{"type":"null"}],"title":"Runtime"},"script":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Script"},"schemas":{"anyOf":[{"properties":{"parameters":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Parameters"},"inputs":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Inputs"},"outputs":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Outputs"}},"type":"object","title":"JsonSchemas"},{"type":"null"}]},"parameters":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Parameters"}},"type":"object","title":"SimpleWorkflowData"},{"type":"null"}]},"variant_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Variant Id"},"revision_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Revision Id"}},"type":"object","title":"SimpleWorkflow"},{"type":"null"}]}},"type":"object","title":"SimpleWorkflowResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

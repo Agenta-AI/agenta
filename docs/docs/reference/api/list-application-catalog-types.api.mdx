@@ -1,0 +1,63 @@
+---
+id: list-application-catalog-types
+title: "List Application Catalog Types"
+description: "List Application Catalog Types"
+sidebar_label: "List Application Catalog Types"
+hide_title: true
+hide_table_of_contents: true
+api: eJydVE1v2zAM/SsBTxugxdmOPi3YZ9dhLdbuFAQBIzOJOtlyJapYFvi/D5Sd2PGKrlgujuXHR+o9kgdg3AbIFzCva2s0snFVgKUCV5NPbxcF5GBN4BX2kJVGRuu2K97XFECBp1C7KlCA/ABvZjN5FBS0N7XgIYebqDWFsIl28r0DgwLtKqaKBT6gz+6CxBwg6B2VKP9qLxWxaTNoF9sgyQ85mIppSx4UsGErJ+8SQkFBG4yWIZ81Ctpq8wMYpjL8TVthSamUan+1gXxx4g/sTbWFRp1OqmgtNMs+4TeJbdT5rf+P6v2AolHwk/aDq3bxPfqS9oISyVa9XlgURgjQXp9d8Rn1HMU8K7Fcn5+snbOEVTp6PBdo43W06F98jNZ+Ca56dRW5jvwS1JHFre9IcyLpLHlOFHqP+ycVHMVCM87YQwU2uWl1ax7BebqPxlMhQyJOnCs9yDmYoHftdNwKVTMquw+47Wbn1KKL5WMFPM0fTsPUyG/Uf/DVBJ4MIidd6OSYvCTeORnxLUmyGnkHOWSDYQxZN+xZGp8MFATyD+RDaqPobRtgkiPt6465DnmWUZxq62IxxS1VjFM0LXApHDp6w/tEMr++uKT9Z8KCfNJhAEjetM17DjvZj7W5TM608wvzyDvnze9UPigwosSujRKJTLVxKfyobCpuMr++AAVysVa72fT1dAZjRc/Asr5Qc787us+gRkKc7g8KqEQj35iwfNt/kMpqF7jEasD3TwNH+6aThOkXZ7VFkzZIquXQmbsYblph6OyF435UIG29c0FaEg6HNQb64W3TyPF9JC+eLRU8oDe4FgUXy0YdBRY708aCudZUS1M9oI2tT6MNLzafGvDTh1tomj+2hULf
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Application Catalog Types"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/applications/catalog/types/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+List Application Catalog Types
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"types":{"items":{"properties":{"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"key":{"type":"string","title":"Key"},"json_schema":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object","title":"Json Schema"}},"type":"object","required":["key","json_schema"],"title":"ApplicationCatalogType"},"type":"array","title":"Types","default":[]}},"type":"object","title":"ApplicationCatalogTypesResponse"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      
