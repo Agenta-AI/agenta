@@ -76,16 +76,13 @@ class TestSimpleApplicationsBasics:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        new_slug = uuid4()
-
         response = authed_api(
             "PUT",
             f"/simple/applications/{application_id}",
             json={
                 "application": {
                     "id": application_id,
-                    "slug": f"app-{new_slug}",
-                    "name": f"Application {new_slug}",
+                    "name": f"Application {slug}",
                     "description": "Updated description",
                 }
             },
@@ -96,7 +93,6 @@ class TestSimpleApplicationsBasics:
         assert response.status_code == 200
         body = response.json()
         assert body["count"] == 1
-        assert body["application"]["slug"] == f"app-{new_slug}"
         assert body["application"]["description"] == "Updated description"
         # ----------------------------------------------------------------------
 

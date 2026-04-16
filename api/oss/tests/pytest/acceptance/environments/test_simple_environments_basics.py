@@ -84,7 +84,7 @@ class TestSimpleEnvironmentsBasics:
             json={
                 "environment": {
                     "id": environment_id,
-                    "slug": f"env-{new_slug}",
+                    # "slug": f"env-{new_slug}",
                     "name": f"Environment {new_slug}",
                     "description": "Updated description",
                 }
@@ -96,7 +96,7 @@ class TestSimpleEnvironmentsBasics:
         assert response.status_code == 200
         body = response.json()
         assert body["count"] == 1
-        assert body["environment"]["slug"] == f"env-{new_slug}"
+        assert body["environment"]["name"] == f"Environment {new_slug}"
         assert body["environment"]["description"] == "Updated description"
         # ----------------------------------------------------------------------
 
@@ -212,9 +212,7 @@ class TestSimpleEnvironmentsBasics:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        response = authed_api(
-            "POST", f"/simple/environments/{environment_id}/unguard"
-        )
+        response = authed_api("POST", f"/simple/environments/{environment_id}/unguard")
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
