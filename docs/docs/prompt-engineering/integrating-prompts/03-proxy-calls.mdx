@@ -53,15 +53,8 @@ params = {
       "slug": "development"        # The environment (production, development, staging)
     }
   },
-  "selector": {
-    "key": "classification.revision"  # Resolves the deployed revision for this app
-  }
 }
 ```
-
-:::info Understanding the selector key
-When invoking via an environment, the `selector.key` tells the system which deployed revision to resolve. The format is `{app_slug}.revision` — for example, if your application slug is `classification`, the key is `classification.revision`. This key is only needed when using environment references; it is not required when invoking a specific variant and revision directly.
-:::
 
 ```python
 # Required headers including your API key
@@ -165,7 +158,6 @@ response = requests.post(
             "application": {"slug": "chatbot"},
             "environment": {"slug": "development"}
         },
-        "selector": {"key": "chatbot.revision"}
     }
 )
 ```
