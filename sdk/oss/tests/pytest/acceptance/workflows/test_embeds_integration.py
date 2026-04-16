@@ -11,7 +11,7 @@ import requests
 
 from tests.pytest.utils.constants import BASE_TIMEOUT
 
-pytestmark = [pytest.mark.e2e]
+pytestmark = [pytest.mark.acceptance]
 
 
 def _random_slug(prefix: str) -> str:
@@ -157,7 +157,7 @@ def _resolve_application_revision(authed_api, *, revision_id: str):
     )
 
 
-@pytest.mark.e2e
+@pytest.mark.acceptance
 class TestSDKEmbedsIntegration:
     def test_sdk_resolves_simple_embed(self, authed_api):
         base_slug = _random_slug("sdk-e2e-base")

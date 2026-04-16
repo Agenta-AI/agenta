@@ -878,6 +878,7 @@ class SharedManager:
                 app_id=app_id,
                 app_slug=app_slug,
                 variant_id=variant.get("application_variant_id") or variant.get("id"),
+                variant_slug=variant.get("slug"),
             )
             for variant in variants
         ]
@@ -910,6 +911,7 @@ class SharedManager:
                     app_slug=app_slug,
                     variant_id=variant.get("application_variant_id")
                     or variant.get("id"),
+                    variant_slug=variant.get("slug"),
                 )
             )
         return results
