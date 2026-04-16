@@ -1,0 +1,71 @@
+---
+id: fetch-evaluator-catalog-template
+title: "Fetch Evaluator Catalog Template"
+description: "Fetch Evaluator Catalog Template"
+sidebar_label: "Fetch Evaluator Catalog Template"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWEtzGzcM/isanJIZ1nI9Pe2pGj8a1W3tkZX0oNF46F1IosNdbvhQo2r2v3fA5b4keeUo6c0nW1zgIwh8BAFswfKlgWgG12suHbdKG5gzUDlqboXKxglEsEAbrx6xkniMueVSLR8tprnkFoFBzjVP0aImsC1kPEWIoBJ4/IwbYCAyiCDndgUMNH5xQmMCkdUOGZh4hSmHaAt2k5OusVpkS2BghZW0MA1gg1vcQFHMCcPkKjNoSO3i/Jz+JGhiLXKyHSJ4cHGMxiycHEyCMDCIVWYxsyTO81yK2B91+GxIZ9syJdfkCCvKHWLlSqVgocgsLlG3TLz0EgwSXHAnLUTnBaud4LfLNncL76EudOmv9veuFwpWr2ROSqDTV5v+RboF6578NKirFkTBgKLWExAfBwYxt7hUOpyk2VZYTM2+PnmkXOBa802vPZcNdMFgIT1XX/aiMI9cxyuxJlrVqE9KSeRZy/CxGYwquVawFlwaLBjBaIxVmmKWHEeatEQPg7U4dtSsluhhsPoWHoOqL/QLQCYTeY72GMxDENsDaeKonp4xti21v5X+vJDqn8syT9z4uO3HmTjLLe+LqNPiVC5/1IJI47Q8HUESwgp54vNaG4UniaAocXnfMbhvn+7R1qjNd1zVT0G9YGCkW54K80C6RIikD4HBQumUW4jAOZH0Io4T6OPGBBeoMYuxJEBXrA/3QwhDwUC7zIr+hMkAM5fSw5Zv7MrfJhIo0xsweOZrHn7M+3adhK3IzaX4qY4utYvqpetNZO3X9HtZt/NYdWxMn7orVQagpcN7QSx07CTX726clL8blf1052zu7Hs4FMzwBrxG6/hrsKML30Sf+8alRPcsd/bNuT/KuePSnQUD5bXfPPujPHsX/NmXUgn8ISSVg6/sWzr5X9PJKyqhCa4FPddXVO8ciNEBiKZBmvlCvLV5XdqFAqvqjF6JfAym7pSKgtR/ubjYb6w+cSkSX6cOrrX2ReaJXVWClgtfo9UNQ1dAqrjz9VvYOd/tNprT/6FCnV0wSM2yr9H5E43hS2wY8rKod8ZgSl+rZ8aLtxOlb5rs1xbMXmguyZdf7UFutYlBvinND3LtCrEOURmhl11xVYagjysfptP7PcCSH11i3NCsoGk+BoFbg2kzK0jRrhTNFZa+r/ADgQiGdWdjhmHAMKxaZzPctkcJBTAwqNfVtMHX+DDkufAkKH+urM1NNByiO4ulcskZX2Jm+RkXpeCcMGKnhd14kNH9+BY3ZZUJ0WzeFvDZtWRjV6yOIM/FrZ9xhMnHyNmV0uLfqpXzo4+yk/B+FtlCtYkx8sYNRvdjYE1rAOdnP5+dw66PO8J07XhsmylC+AxsxxH1+ak4Tv2dA4s8/bX5QJblytiUZy28V4R0Z/YQnEIUHuaSi6zViZXhnkETbvAzBIKEZlpCq1FnfjRnsFLGku52+8QNftSyKGj5i0NNQZwzWHMt+BO5dLaFRBj6Pwkt656ZdcaCd5Nwqd4Pmieka34V6IyiTLbTLwhDku6ky6edVcWkbRAZxTH63qNS3suSRLn6cvx2PYWi+A88McVy
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Evaluator Catalog Template"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/evaluators/catalog/templates/{template_key}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch Evaluator Catalog Template
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"template_key","in":"path","required":true,"schema":{"type":"string","title":"Template Key"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"template":{"anyOf":[{"properties":{"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"key":{"type":"string","title":"Key"},"categories":{"anyOf":[{"items":{"type":"string"},"type":"array"},{"type":"null"}],"title":"Categories"},"flags":{"anyOf":[{"properties":{"is_archived":{"type":"boolean","title":"Is Archived","default":false},"is_recommended":{"type":"boolean","title":"Is Recommended","default":false},"is_application":{"type":"boolean","title":"Is Application","default":false},"is_evaluator":{"type":"boolean","title":"Is Evaluator","default":false},"is_snippet":{"type":"boolean","title":"Is Snippet","default":false}},"type":"object","title":"WorkflowCatalogFlags"},{"type":"null"}]},"data":{"anyOf":[{"properties":{"uri":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Uri"},"url":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Url"},"headers":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"properties":{"version":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Version"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"Reference"}]},"type":"object"},{"type":"null"}],"title":"Headers"},"runtime":{"anyOf":[{"type":"string","enum":["python","typescript","javascript"]},{"type":"null"}],"title":"Runtime"},"script":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Script"},"schemas":{"anyOf":[{"properties":{"parameters":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Parameters"},"inputs":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Inputs"},"outputs":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Outputs"}},"type":"object","title":"JsonSchemas"},{"type":"null"}]},"parameters":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Parameters"}},"type":"object","title":"WorkflowRevisionData"},{"type":"null"}]}},"type":"object","required":["key"],"title":"EvaluatorCatalogTemplate"},{"type":"null"}]}},"type":"object","title":"EvaluatorCatalogTemplateResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

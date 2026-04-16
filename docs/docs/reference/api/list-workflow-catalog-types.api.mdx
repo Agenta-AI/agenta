@@ -1,0 +1,63 @@
+---
+id: list-workflow-catalog-types
+title: "List Workflow Catalog Types"
+description: "List Workflow Catalog Types"
+sidebar_label: "List Workflow Catalog Types"
+hide_title: true
+hide_table_of_contents: true
+api: eJydVMtuGzEM/BWDpxZQvW6Pe6qRvtIUTdCk6MEwDFpL20q0K0WPpK6x/15Q+7K3QRDUF9vScEjNkDxAwK2HfAG/jLvbaPPoYSnAWHIYlKnOC8hBKx9Wj+39SmJAbbarsLfkQYAjb03lyUN+gHezGX8V5KVTlhkgh+soJXm/iXryowWDAGmqQFVgOFqrlUwJs1vPMQfwckcl8i/ruJygmgzSxCaI80MOqgq0JQcCggqaT84SQkBBG4w6QD6rBTTV5gdQgUr/L22FJaVSqv3lBvJFz++DU9UWatGfVFFrqJdDwu8cW4vTV/8f1YcjilrAHe2PntrGD+gL2jOKJVsNemFRKCZAfXXyxBfU04l5UmK5Pj1ZG6MJq3T0dC6Qysmo0b36FLX+6k315jIGG8NrEB2LWd+SDImkteQlUegc7p9VcBQL9TjjAGXY5LrRrX4C5+g+KkcFjwc7car0Uc5uds6a0bhhnnpU84C+aQen78/F8qnsz5D7foxq/ow6D74pHyZd2KSNm3RpSwo7w2O9JU5jMewgh6ybb5+1A56lkclAgCf3QM6n1olOMxqtSi40f3chWJ9nGcWp1CYWU9xSFXCKqgEumUNGp8I+kcyvzi9o/4WwIJeefwRIfjQNewrrLUerLpIbzczCPIadcepP2h8gQLEGuyaKxVHVxqTwVtB5Km4yvzoHAfywRrXZ9O10BmMtT8C8slCGYV+01yBGQvTvBwFUouK7QFi+Hy64Mmt8KLE64nveutGCafUI9DtkVqNKKyMVcmhtXUBvK5ff0EG3DQVwE++M5x6Ew2GNnn46Xdd8fB/JsVtLAQ/oFK5Zu8WyFp20bGTaTzCXkiz30gPq2Dg02udscN93nz/eQF3/BfL0Ohc=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Workflow Catalog Types"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/workflows/catalog/types/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+List Workflow Catalog Types
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"types":{"items":{"properties":{"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"key":{"type":"string","title":"Key"},"json_schema":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object","title":"Json Schema"}},"type":"object","required":["key","json_schema"],"title":"WorkflowCatalogType"},"type":"array","title":"Types","default":[]}},"type":"object","title":"WorkflowCatalogTypesResponse"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,0 +1,71 @@
+---
+id: admin-delete-simple-accounts
+title: "Delete simple accounts by user ref"
+description: "Delete simple accounts by user ref"
+sidebar_label: "Delete simple accounts by user ref"
+hide_title: true
+hide_table_of_contents: true
+api: eJydVk1v20gM/SsDnnYBxc4GPfm0bm2gQbtokGT3khgJLVH2NKMZdYZqozX03wvO+EOOU6ewL1YokiH53qO5AsZFgNEdjItKW5hl4GryyNrZywJGgGJ+KMgQ00PQVW3oAfPcNZYDZODpW0OB37uihdEKcmeZLMsj1rXReUw0/BqcFVvIl1ShPNVe/g1rCtF3k1Cei0JLEJqrPZ/9iCaQP7R6KmMK234pYXS3Am5rghEE9touoMu2FtsYA90sA9ZsxHBNJXQZ6OLUBJeFxAfTLE7NcCOxXQZUoTanJpnG4K7LNh5u/pVyhp6HZc2t9JtBQSH3upZ5wwiunGkr5+ulzpWnkjzZnBQvkVWOVtVOW1bsFKo17GfG5WjUE7WZQntv6VkH1nahavJBB6ZCXU4yhSowzg0pmU6mnFdoVexSYVF4CmFwb6fPmLNplbOkSk2mUFUTWM1JBeLBqx1JFdpTIfSNhOjNIdL5JvJ1nNg1iRyeWvbt5PbLQfNfLKk1DxWJk9JWoZoj50uViH+24alKetiMYXBv7+1lQZZ1qSkoXu5SzVulOSgpT/3Bba1zNKaN5uLPARzBabwRRZdB4dsH39hXSTF3zhDao6yY+FZdNzY2XWJjGEYlmkCdDBHX6jxNNjG6y0T6pfbVqYk+rMPfwnm7Ko5iHRLYr+H8/gigEcjHx4318VHpoFAJZOTPnqilQlVYK1dGikSs3S52ivlyw5232eCpFFp3/f7YNwmTUDsb0lK7OH8nX/td3DR5TiGUjVHXa2cB4d3FxaHvf2h0ERexmnrvPGSn7umCeL2aNFP1ylo2Lt97+xtM0JZpQR662Q559B7bnhQ+u1SgtFiFuGD38+1c/6EQcEE7Yf3aNQ5D3cpb2fy2buJAtgs9GoTZ/NxLc6DTDzLLZ36TuTKbVP7ar8fgHUQJoV+PYpIgOLbgP97eXh0k7CLT9omRRLLWgtpqYd5uCSoFEy+dXAKJ5pBBjbyEEQzjaTBM0cNN9BAyCOS/kw8R98ab6FvrCHr6c8lch9FwSM0gN64pBrggyzhAnRxnkiNvvOY2JhlfXX6i9iNhIb/6d7O+w41wNbFv322LGNb6E8kMLVZxXTS8dF7/nyglyEtJKUqGJCq43t0102eUDl/cKf2lLKrdLdId0bYrcUd70LZ0fZaNY+dqfHUJGcjUEjTng78G5we7a89ZNIx5pOymsfgashdT3g4XtrcFMGH19+6FtF27wBXaXr7f4sdehduZiyKGtUEdNRvrWa2Jc5duSuFJTAwZ9A5KUcXSBRa/1WqOgf71puvE/K0hL3yYZfAdvZaLIpIh24AnVHmidqNJy2dR3OJumsSEF7tOKJkixnlONR/1nfXEMJl+nt5OIYP5+vKtXCFRHn+I7PEHjADklpb4dJuKbQUG7aKRBTWClFU+PwG6D/kJ
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete simple accounts by user ref"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/admin/simple/accounts/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete simple accounts by user ref
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"accounts":{"additionalProperties":{"properties":{"user":{"properties":{"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"},"id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Id"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"email":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Email"}},"type":"object","title":"EntityRef","description":"Polymorphic reference that can point to a request-local key, an\nexisting persisted ID, a stable slug, or an email address.\nExactly one field must be set."}},"type":"object","required":["user"],"title":"AdminSimpleAccountDeleteEntryDTO","description":"One account entry in a batch simple-accounts delete request.\n\nIdentifies the account by its user (typically by id)."},"type":"object","title":"Accounts"},"dry_run":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Dry Run","default":false},"reason":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Reason"},"confirm":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Confirm"}},"type":"object","required":["accounts"],"title":"AdminSimpleAccountsDeleteDTO","description":"Batch simple-accounts delete.\n\n``accounts`` is a caller-keyed map of entries to delete.\nEach entry identifies the account by its user ref."}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"204":{"description":"Successful Response"},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      
