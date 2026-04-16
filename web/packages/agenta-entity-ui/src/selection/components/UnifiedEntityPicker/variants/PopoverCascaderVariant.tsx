@@ -14,7 +14,7 @@
  * Pattern: Button trigger → Popover → [Root Panel | Child Panel]
  */
 
-import React, {useCallback, useEffect, useMemo, useState} from "react"
+import React, {useCallback, useEffect, useMemo, useState, type CSSProperties} from "react"
 
 import {cn} from "@agenta/ui"
 import {EntityListItem, SearchInput} from "@agenta/ui/components/selection"
@@ -42,7 +42,7 @@ function ChildPanelContent({
     onSelect,
     selectedId,
     maxHeight,
-    panelWidth,
+    panelStyle,
     disabledIds,
     disabledTooltip,
     // Multi-select props
@@ -56,7 +56,7 @@ function ChildPanelContent({
     onSelect: (child: unknown) => void
     selectedId?: string | null
     maxHeight: number
-    panelWidth: number
+    panelStyle: CSSProperties
     disabledIds?: Set<string>
     disabledTooltip?: string
     // Multi-select props
@@ -97,17 +97,14 @@ function ChildPanelContent({
 
     if (query.isPending) {
         return (
-            <div
-                className="flex items-center justify-center py-4 px-6"
-                style={{minWidth: panelWidth}}
-            >
+            <div className="flex items-center justify-center py-4 px-6" style={panelStyle}>
                 <Spin size="small" />
             </div>
         )
     }
 
     return (
-        <div style={{minWidth: panelWidth, maxWidth: panelWidth}}>
+        <div style={panelStyle}>
             {/* Child panel header */}
             {multiSelect && (
                 <div className="px-3 py-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-[#05172905] h-8 flex items-start justify-between">
@@ -252,6 +249,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     showDropdownIcon = true,
     placement = "bottomLeft",
     panelMinWidth = 220,
+    panelWidth,
     maxHeight = 340,
     popupFooter,
     onCreateNew,
@@ -340,6 +338,19 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
         if (selectionCount === 1) return "1 selected"
         return `${selectionCount} selected`
     }, [selectionSummary, selectedChildIds, selectedChildId])
+
+    const panelStyle = useMemo<CSSProperties>(
+        () => (panelWidth != null ? {width: panelWidth} : {minWidth: panelMinWidth}),
+        [panelWidth, panelMinWidth],
+    )
+
+    const childPanelStyle = useMemo<CSSProperties>(
+        () =>
+            panelWidth != null
+                ? {width: panelWidth}
+                : {minWidth: panelMinWidth, maxWidth: panelMinWidth},
+        [panelWidth, panelMinWidth],
+    )
 
     // Maintain auto-selection to prevent pixel shifts when searching/filtering
     useEffect(() => {
@@ -538,7 +549,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                 {/* ROOT PANEL */}
                 <div
                     className="flex flex-col border-0 border-r border-solid border-[rgba(5,23,41,0.06)]"
-                    style={{minWidth: panelMinWidth}}
+                    style={panelStyle}
                 >
                     {/* Selection summary */}
                     {selectionSummaryText ? (
@@ -604,7 +615,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
 
                 {/* CHILD PANEL */}
                 {selectedRootId && totalLevels > 1 && (
-                    <div className="flex flex-col" style={{minWidth: panelMinWidth}}>
+                    <div className="flex flex-col" style={panelStyle}>
                         <ChildPanelContent
                             parentId={selectedRootId}
                             parentLabel={rootLevel.getLabel(selectedRootEntity!)}
@@ -614,7 +625,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                                 selectedRootId === selectedParentId ? selectedChildId : null
                             }
                             maxHeight={maxHeight}
-                            panelWidth={panelMinWidth}
+                            panelStyle={childPanelStyle}
                             disabledIds={disabledChildIds}
                             disabledTooltip={disabledChildTooltip}
                             multiSelect={multiSelect}

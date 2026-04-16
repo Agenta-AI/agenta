@@ -599,6 +599,13 @@ export interface PopoverCascaderVariantProps<
     panelMinWidth?: number
 
     /**
+     * Fixed width of each cascading panel (px).
+     * When set, this takes precedence over `panelMinWidth` and prevents
+     * content-driven panel resizing.
+     */
+    panelWidth?: number
+
+    /**
      * Maximum height of item lists (px)
      * @default 340
      */

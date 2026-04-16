@@ -30,6 +30,7 @@ export interface EntityEvaluatorSelectorProps {
     disabledRevisionIds?: Set<string>
     disabledRevisionTooltip?: string
     panelMinWidth?: number
+    panelWidth?: number
     disabled?: boolean
     selectedEvaluatorId?: string | null
     selectedRevisionId?: string | null
@@ -131,6 +132,7 @@ export function EntityEvaluatorSelector({
     disabledRevisionIds,
     disabledRevisionTooltip = "Already added",
     panelMinWidth = 280,
+    panelWidth,
     disabled = false,
     selectedEvaluatorId,
     selectedRevisionId,
@@ -176,6 +178,7 @@ export function EntityEvaluatorSelector({
                 icon={<Plus size={14} />}
                 showDropdownIcon={false}
                 panelMinWidth={panelMinWidth}
+                panelWidth={panelWidth}
                 disabled={disabled}
                 selectedParentId={selectedEvaluatorId}
                 selectedChildId={selectedRevisionId}

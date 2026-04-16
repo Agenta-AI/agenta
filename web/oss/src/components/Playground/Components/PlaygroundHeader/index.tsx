@@ -359,6 +359,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                 selectedChildIds={connectedRevisionIds}
                                 selectionSummary
                                 childItemLabelMode="simple"
+                                panelWidth={280}
                                 onCreateNew={handleOpenTemplateDropdown}
                                 createNewLabel="New evaluator"
                                 popupFooter={
