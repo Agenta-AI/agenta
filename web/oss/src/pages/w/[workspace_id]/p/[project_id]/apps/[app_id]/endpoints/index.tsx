@@ -104,7 +104,8 @@ export const createParams = (
     inputParams: Parameter[] | null,
     environmentName: string,
     value: string | number,
-    app?: {name?: string | null; slug?: string; flags?: {is_chat?: boolean}} | null,
+    app?: { name?: string | null; slug?: string; flags?: { is_chat?: boolean } } | null,
+    revision?: { flags?: { is_chat?: boolean } } | null,
 ) => {
     const inputs: GenericObject = {}
 
@@ -118,7 +119,7 @@ export const createParams = (
     const hasMessagesParam = Array.isArray(inputParams)
         ? inputParams.some((p) => p?.name === "messages")
         : false
-    const isChat = !!app?.flags?.is_chat || hasMessagesParam
+    const isChat = !!revision?.flags?.is_chat || hasMessagesParam
     if (isChat) {
         inputs["messages"] = [{role: "user", content: ""}]
     }
