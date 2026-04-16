@@ -2017,7 +2017,11 @@ class SimpleWorkflowsService:
                     **WorkflowsService._dump_flags(simple_workflow_edit.flags),
                 )
                 if simple_workflow_edit.flags
-                else WorkflowFlags(**WorkflowsService._dump_flags(workflow.flags))
+                else (
+                    WorkflowFlags(**WorkflowsService._dump_flags(workflow.flags))
+                    if workflow.flags
+                    else None
+                )
             ),
             meta=simple_workflow_edit.meta
             if simple_workflow_edit.meta is not None

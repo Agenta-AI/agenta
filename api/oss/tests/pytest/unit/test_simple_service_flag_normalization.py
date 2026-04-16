@@ -18,6 +18,13 @@ from oss.src.core.environments.dtos import (
     EnvironmentVariant,
 )
 from oss.src.core.environments.service import SimpleEnvironmentsService
+from oss.src.core.workflows.dtos import (
+    SimpleWorkflowEdit,
+    Workflow,
+    WorkflowRevision,
+    WorkflowVariant,
+)
+from oss.src.core.workflows.service import SimpleWorkflowsService
 
 
 @pytest.mark.asyncio
@@ -100,3 +107,77 @@ async def test_simple_environment_fetch_accepts_dict_backed_flags():
     )
 
     assert simple_environment.flags.is_guarded is True
+
+
+@pytest.mark.asyncio
+async def test_simple_workflow_edit_preserves_missing_existing_flags():
+    workflows_service = AsyncMock()
+    service = SimpleWorkflowsService(workflows_service=workflows_service)
+
+    workflow_id = uuid4()
+    variant_id = uuid4()
+    revision_id = uuid4()
+
+    workflow = Workflow(
+        id=workflow_id,
+        slug="workflow",
+        name="Workflow",
+    )
+
+    workflows_service.fetch_workflow.return_value = workflow
+    workflows_service.edit_workflow.return_value = workflow
+    workflows_service.fetch_workflow_variant.return_value = WorkflowVariant(
+        id=variant_id,
+        slug="main",
+        workflow_id=workflow_id,
+    )
+    workflows_service.fetch_workflow_revision.return_value = WorkflowRevision(
+        id=revision_id,
+        slug="rev",
+        workflow_id=workflow_id,
+        workflow_variant_id=variant_id,
+    )
+
+    await service.edit(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        simple_workflow_edit=SimpleWorkflowEdit(id=workflow_id),
+    )
+
+    workflow_edit = workflows_service.edit_workflow.await_args.kwargs["workflow_edit"]
+    assert workflow_edit.flags is None
+
+
+@pytest.mark.asyncio
+async def test_simple_environment_query_accepts_dict_backed_flags():
+    environments_service = AsyncMock()
+    service = SimpleEnvironmentsService(environments_service=environments_service)
+
+    environment_id = uuid4()
+    variant_id = uuid4()
+    revision_id = uuid4()
+
+    environment = Environment(
+        id=environment_id,
+        slug="env",
+        name="Environment",
+    )
+    environment.flags = {"is_guarded": True}
+
+    environments_service.query_environments.return_value = [environment]
+    environments_service.fetch_environment_variant.return_value = EnvironmentVariant(
+        id=variant_id,
+        slug="main",
+        environment_id=environment_id,
+    )
+    environments_service.fetch_environment_revision.return_value = EnvironmentRevision(
+        id=revision_id,
+        slug="rev",
+        environment_id=environment_id,
+        environment_variant_id=variant_id,
+    )
+
+    simple_environments = await service.query(project_id=uuid4())
+
+    assert len(simple_environments) == 1
+    assert simple_environments[0].flags.is_guarded is True

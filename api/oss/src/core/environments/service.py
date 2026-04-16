@@ -1703,7 +1703,7 @@ class SimpleEnvironmentsService:
                 flags=(
                     environment.flags
                     if isinstance(environment.flags, EnvironmentFlags)
-                    else EnvironmentFlags(**environment.flags)
+                    else EnvironmentFlags(**_dump_flags(environment.flags))
                     if environment.flags
                     else None
                 ),
