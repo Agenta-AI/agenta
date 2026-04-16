@@ -70,27 +70,30 @@ const createParamsFromSchema = (
     isChat: boolean,
     appName: string | null,
 ): string => {
-    const mainParams: GenericObject = {}
+    const inputs: GenericObject = {}
 
     if (inputSchema) {
         const properties = inputSchema.properties as Record<string, unknown> | undefined
         if (properties) {
             for (const [key, schemaDef] of Object.entries(properties)) {
                 const schema = schemaDef as Record<string, unknown> | undefined
-                mainParams[key] = schema?.default ?? "add_a_value"
+                inputs[key] = schema?.default ?? "add_a_value"
             }
         }
     }
 
     if (isChat) {
-        mainParams["messages"] = [{role: "user", content: ""}]
+        inputs["messages"] = [{role: "user", content: ""}]
     }
 
-    mainParams["environment"] = environmentName
-    if (appName) {
-        mainParams["app"] = appName
+    const params: GenericObject = {
+        data: {inputs},
+        references: {
+            ...(appName ? {application: {slug: appName}} : {}),
+            environment: {slug: environmentName},
+        },
     }
-    return JSON.stringify(mainParams, null, 2)
+    return JSON.stringify(params, null, 2)
 }
 
 /**
@@ -103,14 +106,13 @@ export const createParams = (
     value: string | number,
     app?: {name?: string | null; slug?: string; flags?: {is_chat?: boolean}} | null,
 ) => {
-    const mainParams: GenericObject = {}
-    const secondaryParams: GenericObject = {}
+    const inputs: GenericObject = {}
 
     inputParams?.forEach((item) => {
         if (item.input) {
-            mainParams[item.name] = item.default || value
+            inputs[item.name] = item.default || value
         } else {
-            secondaryParams[item.name] = item.default || value
+            inputs[item.name] = item.default || value
         }
     })
     const hasMessagesParam = Array.isArray(inputParams)
@@ -118,17 +120,18 @@ export const createParams = (
         : false
     const isChat = !!app?.flags?.is_chat || hasMessagesParam
     if (isChat) {
-        mainParams["messages"] = [{role: "user", content: ""}]
-        mainParams["inputs"] = secondaryParams
-    } else if (Object.keys(secondaryParams).length > 0) {
-        mainParams["inputs"] = secondaryParams
+        inputs["messages"] = [{role: "user", content: ""}]
     }
 
-    mainParams["environment"] = environmentName
-    if (app) {
-        mainParams["app"] = app.name ?? app.slug
+    const appSlug = app?.name ?? app?.slug
+    const params: GenericObject = {
+        data: {inputs},
+        references: {
+            ...(appSlug ? {application: {slug: appSlug}} : {}),
+            environment: {slug: environmentName},
+        },
     }
-    return JSON.stringify(mainParams, null, 2)
+    return JSON.stringify(params, null, 2)
 }
 
 export default function VariantEndpoint() {

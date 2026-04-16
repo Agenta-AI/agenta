@@ -70,7 +70,7 @@ const UseApiContent = ({
         return createParams(synthesized, envName || "none", "add_a_value", currentApp)
     }, [variableNames, envName, currentApp])
 
-    // deploymentUrl resolves to /run (resolves config from the deployed environment).
+    // deploymentUrl resolves to /v0/invoke (resolves config from the deployed environment).
     const invokeLlmUrl = useMemo(() => uri?.trim() || "", [uri])
 
     const invokeLlmAppCodeSnippet = useMemo(
