@@ -1370,8 +1370,9 @@ class WorkflowsService:
             **workflow_revision_commit.model_dump(
                 mode="json",
                 exclude_none=True,
-                exclude={"flags", "data"},
+                exclude={"flags", "data", "slug"},
             ),
+            slug=workflow_revision_commit.slug or uuid4().hex[-12:],
             flags=self._dump_stored_revision_flags(
                 self._revision_flags_from_any(
                     infer_flags_from_data(
