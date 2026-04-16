@@ -1520,10 +1520,7 @@ class WorkflowsService:
         request: WorkflowServiceRequest,
         #
         **kwargs,
-    ) -> Union[
-        WorkflowServiceBatchResponse,
-        WorkflowServiceStreamResponse,
-    ]:
+    ) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse,]:
         project = await get_project_by_id(
             project_id=str(project_id),
         )
@@ -1755,20 +1752,8 @@ class SimpleWorkflowsService:
         if not requested_flags:
             return True
 
-        actual_flags = (
-            simple_workflow.flags.model_dump(
-                mode="json",
-                exclude_none=True,
-                exclude_unset=True,
-            )
-            if simple_workflow.flags
-            else {}
-        )
-        requested_flag_values = requested_flags.model_dump(
-            mode="json",
-            exclude_none=True,
-            exclude_unset=True,
-        )
+        actual_flags = WorkflowsService._dump_flags(simple_workflow.flags)
+        requested_flag_values = WorkflowsService._dump_flags(requested_flags)
 
         return all(
             actual_flags.get(flag_name) == expected_value
@@ -1788,23 +1773,11 @@ class SimpleWorkflowsService:
         workflow_id: Optional[UUID] = None,
     ) -> Optional[SimpleWorkflow]:
         simple_workflow_flags = SimpleWorkflowFlags(
-            **(
-                simple_workflow_create.flags.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                    exclude_unset=True,
-                )
-                if simple_workflow_create.flags
-                else {}
-            )
+            **WorkflowsService._dump_flags(simple_workflow_create.flags)
         )
 
         workflow_flags = WorkflowFlags(
-            **simple_workflow_flags.model_dump(
-                mode="json",
-                exclude_none=True,
-                exclude_unset=True,
-            ),
+            **WorkflowsService._dump_flags(simple_workflow_flags),
         )
 
         workflow_create = WorkflowCreate(
@@ -1930,15 +1903,7 @@ class SimpleWorkflowsService:
             deleted_by_id=workflow.deleted_by_id,
             #
             flags=SimpleWorkflowFlags(
-                **(
-                    workflow_revision.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                    )
-                    if workflow_revision.flags
-                    else {}
-                )
+                **WorkflowsService._dump_flags(workflow_revision.flags)
             ),
             meta=workflow.meta,
             tags=workflow.tags,
@@ -2006,15 +1971,7 @@ class SimpleWorkflowsService:
             deleted_by_id=workflow.deleted_by_id,
             #
             flags=SimpleWorkflowFlags(
-                **(
-                    workflow_revision.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                    )
-                    if workflow_revision.flags
-                    else {}
-                )
+                **WorkflowsService._dump_flags(workflow_revision.flags)
             ),
             meta=workflow.meta,
             tags=workflow.tags,
@@ -2054,14 +2011,10 @@ class SimpleWorkflowsService:
             #
             flags=(
                 WorkflowFlags(
-                    **simple_workflow_edit.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                    ),
+                    **WorkflowsService._dump_flags(simple_workflow_edit.flags),
                 )
                 if simple_workflow_edit.flags
-                else workflow.flags
+                else WorkflowFlags(**WorkflowsService._dump_flags(workflow.flags))
             ),
             meta=simple_workflow_edit.meta
             if simple_workflow_edit.meta is not None
@@ -2102,12 +2055,10 @@ class SimpleWorkflowsService:
                     **simple_workflow_edit.data.model_dump(mode="json"),
                 )
             else:
-                latest_workflow_revision = (
-                    await self.workflows_service.fetch_workflow_revision(
-                        project_id=project_id,
-                        #
-                        workflow_variant_ref=Reference(id=workflow_variant.id),
-                    )
+                latest_workflow_revision = await self.workflows_service.fetch_workflow_revision(
+                    project_id=project_id,
+                    #
+                    workflow_variant_ref=Reference(id=workflow_variant.id),
                 )
 
                 if latest_workflow_revision is None:
@@ -2163,15 +2114,7 @@ class SimpleWorkflowsService:
             deleted_by_id=workflow.deleted_by_id,
             #
             flags=SimpleWorkflowFlags(
-                **(
-                    workflow_revision.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                    )
-                    if workflow_revision.flags
-                    else {}
-                )
+                **WorkflowsService._dump_flags(workflow_revision.flags)
             ),
             meta=workflow.meta,
             tags=workflow.tags,

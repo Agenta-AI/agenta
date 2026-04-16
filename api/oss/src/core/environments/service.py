@@ -78,6 +78,17 @@ def _to_jsonable(value: Any) -> Any:
     return value
 
 
+def _dump_flags(flags: Optional[object]) -> Dict[str, Any]:
+    normalized = _to_jsonable(flags)
+
+    if isinstance(normalized, dict):
+        return {
+            str(key): value for key, value in normalized.items() if value is not None
+        }
+
+    return {}
+
+
 def _normalize_environment_references(
     references: Optional[Dict[str, Dict[str, Reference]]],
 ) -> Dict[str, Dict[str, Any]]:
@@ -1335,13 +1346,7 @@ class SimpleEnvironmentsService:
             description=environment.description,
             #
             flags=(
-                EnvironmentFlags(
-                    **environment.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                    )
-                )
+                EnvironmentFlags(**_dump_flags(environment.flags))
                 if environment.flags
                 else None
             ),
@@ -1433,13 +1438,7 @@ class SimpleEnvironmentsService:
             description=environment.description,
             #
             flags=(
-                EnvironmentFlags(
-                    **environment.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                    )
-                )
+                EnvironmentFlags(**_dump_flags(environment.flags))
                 if environment.flags
                 else None
             ),
@@ -1587,13 +1586,7 @@ class SimpleEnvironmentsService:
             description=environment.description,
             #
             flags=(
-                EnvironmentFlags(
-                    **environment.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                    )
-                )
+                EnvironmentFlags(**_dump_flags(environment.flags))
                 if environment.flags
                 else None
             ),
