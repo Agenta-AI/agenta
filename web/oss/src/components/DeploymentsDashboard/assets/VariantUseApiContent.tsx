@@ -178,7 +178,7 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
         }
 
         return JSON.stringify(params, null, 2)
-    }, [variableNames, currentApp?.flags?.is_chat, appSlug, variantSlug, variantVersion])
+    }, [variableNames, selectedRevision?.flags?.is_chat, appSlug, variantSlug, variantVersion])
 
     const fetchConfigCodeSnippet = useMemo(
         () => ({
