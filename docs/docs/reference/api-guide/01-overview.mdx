@@ -1,0 +1,90 @@
+---
+title: "Overview"
+description: "Entities, references, and the shape of the Agenta REST API."
+sidebar_position: 1
+---
+
+This guide documents the conventions used across the Agenta REST API. The [API Reference](/reference/api/) describes every endpoint individually. This guide explains the patterns that apply across endpoints so the reference pages are easier to read.
+
+## Base URL and authentication
+
+All REST endpoints are served under `/api/` on your Agenta host.
+
+- Cloud: `https://us.cloud.agenta.ai/api` (US) or `https://eu.cloud.agenta.ai/api` (EU)
+- Self-hosted: `$AGENTA_HOST/api`
+
+Requests are authenticated with an API key passed in the `Authorization` header:
+
+```
+Authorization: ApiKey YOUR_API_KEY
+```
+
+API keys are scoped to a single project. Endpoints do not accept a `project_id` parameter; the project is resolved from the key.
+
+## Entity model
+
+Resources that support history (applications, evaluators, testsets, workflows, queries, environments) are modeled as three nested entities:
+
+| Entity | What it represents |
+|--------|--------------------|
+| **Artifact** | The top-level container (for example, an application) |
+| **Variant** | A branch of the artifact |
+| **Revision** | A commit on a variant |
+
+Each entity has an independent `id`, `slug`, and (for revisions) `version`. Endpoints that touch these resources live under paths that mirror the hierarchy, for example:
+
+- `/applications/` (artifact-level operations)
+- `/applications/variants/query` (variant-level operations)
+- `/applications/revisions/retrieve` (revision-level operations)
+
+For endpoints that expose this hierarchy, see the [Query Pattern](/reference/api-guide/query-pattern). For endpoints that collapse all three layers into a single call, see [Simple Endpoints](/reference/api-guide/simple-endpoints).
+
+## References
+
+Wherever an endpoint needs to identify an artifact, variant, revision, or environment, it accepts a **reference object** with three optional fields:
+
+```json
+{
+  "id": "019d952f-5945-71b1-b8cb-d6d8e675c18d",
+  "slug": "my-app",
+  "version": "1"
+}
+```
+
+Provide whichever fields you have. `id` is always sufficient. `slug` is resolved within the project scope. `version` applies to revisions and must be a string.
+
+References appear both individually (`application_ref`) and in arrays (`application_refs`), depending on the endpoint.
+
+## Response envelope
+
+Responses wrap the payload in a named key and include a `count`:
+
+```json
+{
+  "count": 42,
+  "applications": [ ... ]
+}
+```
+
+Single-resource responses use the singular key:
+
+```json
+{
+  "count": 1,
+  "application": { ... }
+}
+```
+
+## Errors
+
+Validation errors return HTTP `422` with a JSON body describing the offending fields:
+
+```json
+{
+  "detail": [
+    {"loc": ["body", "application", "slug"], "msg": "field required", "type": "value_error.missing"}
+  ]
+}
+```
+
+Authorization failures return `401` or `403`. Missing resources return `404`. Server errors return `5xx` with a `detail` message.
