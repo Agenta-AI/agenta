@@ -202,7 +202,7 @@ class TestLegacyConfigsFetchAcceptance:
         assert variant_response["url"] == "https://example.test/run"
         assert variant_response["application_ref"]["slug"] == config["app_slug"]
         assert variant_response["variant_ref"]["slug"] == config["variant_slug"]
-        assert variant_response["variant_ref"]["version"] == "1"
+        assert variant_response["variant_ref"]["version"] == 1
 
         environment_response = _assert_ok(
             authed_api(
