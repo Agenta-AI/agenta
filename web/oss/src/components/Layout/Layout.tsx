@@ -57,7 +57,7 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     const isTestsets = pathname.includes("/testsets") || pathname.includes("/prompts")
     const isAnnotations = pathname.includes("/annotations")
     const isRegistry = pathname.includes("/variants")
-    const isObservability = pathname.includes("/observability")
+    const isObservability = pathname.includes("/observability") || pathname.includes("/traces")
 
     return {
         isAuthRoute:
