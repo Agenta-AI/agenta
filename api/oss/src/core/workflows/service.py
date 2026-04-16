@@ -1520,7 +1520,10 @@ class WorkflowsService:
         request: WorkflowServiceRequest,
         #
         **kwargs,
-    ) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse,]:
+    ) -> Union[
+        WorkflowServiceBatchResponse,
+        WorkflowServiceStreamResponse,
+    ]:
         project = await get_project_by_id(
             project_id=str(project_id),
         )
@@ -2055,10 +2058,12 @@ class SimpleWorkflowsService:
                     **simple_workflow_edit.data.model_dump(mode="json"),
                 )
             else:
-                latest_workflow_revision = await self.workflows_service.fetch_workflow_revision(
-                    project_id=project_id,
-                    #
-                    workflow_variant_ref=Reference(id=workflow_variant.id),
+                latest_workflow_revision = (
+                    await self.workflows_service.fetch_workflow_revision(
+                        project_id=project_id,
+                        #
+                        workflow_variant_ref=Reference(id=workflow_variant.id),
+                    )
                 )
 
                 if latest_workflow_revision is None:

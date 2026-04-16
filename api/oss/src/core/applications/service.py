@@ -1139,10 +1139,12 @@ class SimpleApplicationsService:
         if application_variant is None:
             return None
 
-        application_revision = await self.applications_service.fetch_application_revision(
-            project_id=project_id,
-            #
-            application_variant_ref=Reference(id=application_variant.id),
+        application_revision = (
+            await self.applications_service.fetch_application_revision(
+                project_id=project_id,
+                #
+                application_variant_ref=Reference(id=application_variant.id),
+            )
         )
 
         if application_revision is None:
@@ -1251,10 +1253,12 @@ class SimpleApplicationsService:
                     **simple_application_edit.data.model_dump(mode="json"),
                 )
             else:
-                latest_application_revision = await self.applications_service.fetch_application_revision(
-                    project_id=project_id,
-                    #
-                    application_variant_ref=Reference(id=application_variant.id),
+                latest_application_revision = (
+                    await self.applications_service.fetch_application_revision(
+                        project_id=project_id,
+                        #
+                        application_variant_ref=Reference(id=application_variant.id),
+                    )
                 )
 
                 if latest_application_revision is None:
@@ -1286,10 +1290,12 @@ class SimpleApplicationsService:
                 )
             )
         else:
-            application_revision = await self.applications_service.fetch_application_revision(
-                project_id=project_id,
-                #
-                application_variant_ref=Reference(id=application_variant.id),
+            application_revision = (
+                await self.applications_service.fetch_application_revision(
+                    project_id=project_id,
+                    #
+                    application_variant_ref=Reference(id=application_variant.id),
+                )
             )
 
         if application_revision is None:
