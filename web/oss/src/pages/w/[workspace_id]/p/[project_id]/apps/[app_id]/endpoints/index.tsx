@@ -92,7 +92,6 @@ const createParamsFromSchema = (
             ...(appName ? {application: {slug: appName}} : {}),
             environment: {slug: environmentName},
         },
-        selector: {key: `${appName}.revision`},
     }
     return JSON.stringify(params, null, 2)
 }
