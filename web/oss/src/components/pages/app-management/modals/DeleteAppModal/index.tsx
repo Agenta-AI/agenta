@@ -60,7 +60,7 @@ const DeleteAppModal = (props = {}) => {
             {...props}
             open={open}
         >
-            <p>Are you sure you want to delete {appDetails?.name}?</p>
+            <p>Are you sure you want to archive {appDetails?.name}?</p>
         </Modal>
     )
 }

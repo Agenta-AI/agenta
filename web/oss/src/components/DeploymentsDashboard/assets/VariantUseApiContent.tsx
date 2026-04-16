@@ -63,6 +63,12 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
         () => (inputPorts || []).map((p: any) => p.key) as string[],
         [inputPorts],
     )
+    const isChat = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.isChat(selectedRevisionId || ""),
+            [selectedRevisionId],
+        ),
+    )
 
     const initialRevision = useMemo(
         () => revisionList.find((rev) => rev.id === initialRevisionId),
@@ -149,40 +155,32 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
 
     // Build params for invoke LLM (with variant refs instead of environment)
     const params = useMemo(() => {
-        const synthesized = variableNames.map((name) => ({name, input: name === "messages"}))
+        const inputs: Record<string, any> = {}
 
-        const mainParams: Record<string, any> = {}
-        const secondaryParams: Record<string, any> = {}
-
-        synthesized.forEach((item) => {
-            if (item.input) {
-                mainParams[item.name] = "add_a_value"
-            } else {
-                secondaryParams[item.name] = "add_a_value"
-            }
+        variableNames.forEach((name) => {
+            inputs[name] = "add_a_value"
         })
 
-        const hasMessagesParam = synthesized.some((p) => p?.name === "messages")
-        const isChat = !!currentApp?.flags?.is_chat || hasMessagesParam
         if (isChat) {
-            mainParams["messages"] = [
+            inputs["messages"] = [
                 {
                     role: "user",
                     content: "",
                 },
             ]
-            mainParams["inputs"] = secondaryParams
-        } else if (Object.keys(secondaryParams).length > 0) {
-            mainParams["inputs"] = secondaryParams
         }
 
-        // Use variant refs instead of environment
-        mainParams["app"] = appSlug
-        mainParams["variant_slug"] = variantSlug
-        mainParams["variant_version"] = variantVersion
+        const params: Record<string, any> = {
+            data: {inputs},
+            references: {
+                application: {slug: appSlug},
+                application_variant: {slug: variantSlug},
+                application_revision: {version: String(variantVersion)},
+            },
+        }
 
-        return JSON.stringify(mainParams, null, 2)
-    }, [variableNames, currentApp?.flags?.is_chat, appSlug, variantSlug, variantVersion])
+        return JSON.stringify(params, null, 2)
+    }, [variableNames, isChat, appSlug, variantSlug, variantVersion])
 
     const fetchConfigCodeSnippet = useMemo(
         () => ({
