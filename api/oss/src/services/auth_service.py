@@ -63,6 +63,8 @@ _PUBLIC_ENDPOINTS = (
     # TOOLS — OAuth callback arrives from provider with no auth token
     "/tools/connections/callback",
     "/api/tools/connections/callback",
+    "/preview/tools/connections/callback",
+    "/api/preview/tools/connections/callback",
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
