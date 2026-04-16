@@ -1,6 +1,6 @@
 class TestApplicationCatalogTypes:
     def test_lists_prompt_template_type_refs(self, authed_api):
-        response = authed_api("GET", "/preview/applications/catalog/types/")
+        response = authed_api("GET", "/applications/catalog/types/")
 
         assert response.status_code == 200
         body = response.json()

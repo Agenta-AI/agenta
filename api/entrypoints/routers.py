@@ -577,7 +577,20 @@ app.include_router(
 
 app.include_router(
     router=traces.router,
+    prefix="/traces",
+    tags=["Observability"],
+)
+
+app.include_router(
+    router=traces.router,
     prefix="/preview/traces",
+    tags=["Observability"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=spans.router,
+    prefix="/spans",
     tags=["Observability"],
 )
 
@@ -585,6 +598,7 @@ app.include_router(
     router=spans.router,
     prefix="/preview/spans",
     tags=["Observability"],
+    include_in_schema=False,
 )
 
 app.include_router(
@@ -763,7 +777,20 @@ app.include_router(
 
 app.include_router(
     router=environments.router,
+    prefix="/environments",
+    tags=["Environments"],
+)
+
+app.include_router(
+    router=environments.router,
     prefix="/preview/environments",
+    tags=["Environments"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_environments.router,
+    prefix="/simple/environments",
     tags=["Environments"],
 )
 
@@ -771,6 +798,7 @@ app.include_router(
     router=simple_environments.router,
     prefix="/preview/simple/environments",
     tags=["Environments"],
+    include_in_schema=False,
 )
 
 app.include_router(
@@ -781,8 +809,15 @@ app.include_router(
 
 app.include_router(
     router=tools.router,
+    prefix="/tools",
+    tags=["Tools"],
+)
+
+app.include_router(
+    router=tools.router,
     prefix="/preview/tools",
     tags=["Tools"],
+    include_in_schema=False,
 )
 
 app.include_router(
@@ -819,8 +854,15 @@ app.include_router(
 
 app.include_router(
     router=simple_queues.router,
+    prefix="/simple/queues",
+    tags=["Evaluations"],
+)
+
+app.include_router(
+    router=simple_queues.router,
     prefix="/preview/simple/queues",
     tags=["Evaluations"],
+    include_in_schema=False,
 )
 
 app.include_router(

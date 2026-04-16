@@ -67,7 +67,7 @@ fetch_app_by_id(app_id)                        # line 2261
 ```
 
 **Who uses this:**
-- `SimpleEvaluationsRouter` mounted at `/preview/simple/evaluations/`
+- `SimpleEvaluationsRouter` mounted at `/simple/evaluations/`
 - Frontend: `web/oss/src/services/onlineEvaluations/api.ts`
 - This is the "Online Evaluations" feature (live evaluations on traces)
 

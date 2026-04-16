@@ -4,7 +4,7 @@
  * HTTP API functions for Annotation entities backed by `simple/traces`.
  * These are pure functions with no Jotai dependencies.
  *
- * Base endpoint: `/preview/simple/traces/`
+ * Base endpoint: `/simple/traces/`
  *
  * @packageDocumentation
  */
@@ -38,7 +38,7 @@ const simpleTracesResponseSchema = z.object({
 /**
  * Create a new annotation.
  *
- * Endpoint: `POST /preview/simple/traces/`
+ * Endpoint: `POST /simple/traces/`
  */
 export async function createAnnotation(
     projectId: string,
@@ -47,7 +47,7 @@ export async function createAnnotation(
     if (!projectId) return null
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/traces/`,
+        `${getAgentaApiUrl()}/simple/traces/`,
         {trace: payload},
         {params: {project_id: projectId}},
     )
@@ -67,7 +67,7 @@ export async function createAnnotation(
 /**
  * Fetch all annotations for a specific trace/span pair.
  *
- * Uses `POST /preview/simple/traces/query` because multiple annotation traces
+ * Uses `POST /simple/traces/query` because multiple annotation traces
  * can exist per invocation trace/span pair.
  */
 export async function fetchAnnotation({
@@ -97,7 +97,7 @@ export async function fetchAnnotation({
 /**
  * Update an existing annotation.
  *
- * Endpoint: `PATCH /preview/simple/traces/{traceId}/{spanId}`
+ * Endpoint: `PATCH /simple/traces/{traceId}/{spanId}`
  */
 export async function updateAnnotation(
     projectId: string,
@@ -107,7 +107,7 @@ export async function updateAnnotation(
 ): Promise<Annotation | null> {
     if (!projectId || !traceId) return null
 
-    const path = `${getAgentaApiUrl()}/preview/simple/traces/${traceId}`
+    const path = `${getAgentaApiUrl()}/simple/traces/${traceId}`
 
     const response = await axios.patch(
         path,
@@ -130,7 +130,7 @@ export async function updateAnnotation(
 /**
  * Delete an annotation.
  *
- * Endpoint: `DELETE /preview/simple/traces/{traceId}/{spanId}`
+ * Endpoint: `DELETE /simple/traces/{traceId}/{spanId}`
  */
 export async function deleteAnnotation(
     projectId: string,
@@ -139,7 +139,7 @@ export async function deleteAnnotation(
 ): Promise<void> {
     if (!projectId || !traceId) return
 
-    const path = `${getAgentaApiUrl()}/preview/simple/traces/${traceId}`
+    const path = `${getAgentaApiUrl()}/simple/traces/${traceId}`
 
     await axios.delete(path, {
         params: {project_id: projectId},
@@ -153,7 +153,7 @@ export async function deleteAnnotation(
 /**
  * Query annotations by trace/span links or annotation filters.
  *
- * Endpoint: `POST /preview/simple/traces/query`
+ * Endpoint: `POST /simple/traces/query`
  *
  * This wrapper keeps annotation-oriented naming for callers while translating
  * request/response envelopes to the backend `simple/traces` contract. Callers can:
@@ -184,7 +184,7 @@ export async function queryAnnotations({
         body.windowing = windowing
     }
 
-    const response = await axios.post(`${getAgentaApiUrl()}/preview/simple/traces/query`, body, {
+    const response = await axios.post(`${getAgentaApiUrl()}/simple/traces/query`, body, {
         params: {project_id: projectId},
     })
 
@@ -237,7 +237,7 @@ export async function queryAnnotationsByInvocationLink({
         },
     }
 
-    const spansResponse = await axios.post(`${getAgentaApiUrl()}/preview/spans/query`, spansBody, {
+    const spansResponse = await axios.post(`${getAgentaApiUrl()}/spans/query`, spansBody, {
         params: {project_id: projectId},
     })
 

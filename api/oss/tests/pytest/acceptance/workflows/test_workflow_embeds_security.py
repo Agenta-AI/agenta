@@ -32,7 +32,7 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={"workflow": {"slug": base_slug, "name": "Base to Archive"}},
         )
         assert response.status_code == 200
@@ -40,7 +40,7 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{base_slug}-v",
@@ -54,7 +54,7 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": uuid4().hex[-12:],
@@ -68,7 +68,7 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{base_slug}-v1",
@@ -83,7 +83,7 @@ class TestWorkflowEmbedsArchived:
         # Archive the base workflow
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base_id}/archive",
+            f"/workflows/{base_id}/archive",
         )
         assert response.status_code == 200
 
@@ -92,7 +92,7 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={"workflow": {"slug": ref_slug, "name": "Refs Archived"}},
         )
         assert response.status_code == 200
@@ -100,7 +100,7 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{ref_slug}-v",
@@ -114,7 +114,7 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": uuid4().hex[-12:],
@@ -128,7 +128,7 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{ref_slug}-v1",
@@ -161,7 +161,7 @@ class TestWorkflowEmbedsArchived:
         # but we can test with explicit False in future)
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/resolve",
+            "/workflows/revisions/resolve",
             json={
                 "workflow_revision_ref": {"id": ref_revision_id},
                 "error_policy": "exception",
@@ -191,7 +191,7 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={"workflow": {"slug": base_slug, "name": "Archived Included"}},
         )
         assert response.status_code == 200
@@ -199,7 +199,7 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{base_slug}-v",
@@ -213,7 +213,7 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": uuid4().hex[-12:],
@@ -227,7 +227,7 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{base_slug}-v1",
@@ -242,7 +242,7 @@ class TestWorkflowEmbedsArchived:
         # Archive it
         response = authed_api(
             "POST",
-            f"/preview/workflows/{base_id}/archive",
+            f"/workflows/{base_id}/archive",
         )
         assert response.status_code == 200
 
@@ -251,7 +251,7 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={"workflow": {"slug": ref_slug, "name": "Refs Archived Included"}},
         )
         assert response.status_code == 200
@@ -259,7 +259,7 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{ref_slug}-v",
@@ -273,7 +273,7 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": uuid4().hex[-12:],
@@ -287,7 +287,7 @@ class TestWorkflowEmbedsArchived:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{ref_slug}-v1",
@@ -318,7 +318,7 @@ class TestWorkflowEmbedsArchived:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/resolve",
+            "/workflows/revisions/resolve",
             json={
                 "workflow_revision_ref": {"id": ref_revision_id},
             },

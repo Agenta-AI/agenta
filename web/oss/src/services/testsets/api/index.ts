@@ -16,7 +16,7 @@ export const fetchPreviewTestsets = async (payload: PreviewTestsetsQueryPayload 
     const {projectId} = getProjectValues()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/testsets/query?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/testsets/query?project_id=${projectId}`,
         payload,
     )
 
@@ -38,9 +38,9 @@ export async function createNewTestset(
 
     const baseSlug = testsetName.toLowerCase().replace(/\s+/g, "_")
 
-    // Use /preview/simple/testsets endpoint - creates testset, variant, and revision in one call
+    // Use /simple/testsets endpoint - creates testset, variant, and revision in one call
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/testsets/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/testsets/?project_id=${projectId}`,
         {
             testset: {
                 slug: baseSlug,
@@ -80,7 +80,7 @@ export async function fetchSimpleTestset(testsetId: string) {
     const {projectId} = getProjectValues()
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/preview/simple/testsets/${testsetId}?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/testsets/${testsetId}?project_id=${projectId}`,
     )
 
     return response.data?.testset
@@ -97,7 +97,7 @@ export async function updateTestsetMetadata(
     const {projectId} = getProjectValues()
 
     const response = await axios.put(
-        `${getAgentaApiUrl()}/preview/testsets/${testsetId}?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/testsets/${testsetId}?project_id=${projectId}`,
         {
             testset: {
                 id: testsetId,
@@ -126,7 +126,7 @@ export async function renameTestset(testsetId: string, newName: string) {
 
     // Update with new name, preserving existing data
     const response = await axios.put(
-        `${getAgentaApiUrl()}/preview/simple/testsets/${testsetId}?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/testsets/${testsetId}?project_id=${projectId}`,
         {
             testset: {
                 id: testsetId,
@@ -158,7 +158,7 @@ export async function cloneTestset(sourceTestsetId: string, newName: string) {
     const baseSlug = newName.toLowerCase().replace(/\s+/g, "_")
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/testsets/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/testsets/?project_id=${projectId}`,
         {
             testset: {
                 slug: baseSlug,
@@ -207,7 +207,7 @@ export const uploadTestsetPreview = async (
     }
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/testsets/upload?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/testsets/upload?project_id=${projectId}`,
         formData,
         {
             headers: {
@@ -240,7 +240,7 @@ export const uploadTestsetRevisionPreview = async (
     }
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/testsets/${testsetId}/upload?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/testsets/${testsetId}/upload?project_id=${projectId}`,
         formData,
         {
             headers: {
@@ -259,7 +259,7 @@ export const deleteTestsets = async (ids: string[]) => {
     const results = await Promise.all(
         ids.map((id) =>
             axios.post(
-                `${getAgentaApiUrl()}/preview/simple/testsets/${id}/archive`,
+                `${getAgentaApiUrl()}/simple/testsets/${id}/archive`,
                 {},
                 {params: {project_id: projectId}},
             ),
@@ -289,7 +289,7 @@ export async function commitTestsetRevision(
     const {projectId} = getProjectValues()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/commit?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/testsets/revisions/commit?project_id=${projectId}`,
         {
             testset_revision_commit: {
                 testset_id: testsetId,
@@ -360,7 +360,7 @@ export async function patchTestsetRevision(
     const {projectId} = getProjectValues()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/commit?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/testsets/revisions/commit?project_id=${projectId}`,
         {
             testset_revision_commit: {
                 testset_id: testsetId,
@@ -405,7 +405,7 @@ export async function archiveTestsetRevision(revisionId: string) {
     const {projectId} = getProjectValues()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/${revisionId}/archive?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/testsets/revisions/${revisionId}/archive?project_id=${projectId}`,
     )
 
     return response.data
@@ -447,7 +447,7 @@ export async function downloadTestset(
     const {projectId} = getProjectValues()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/testsets/${testsetId}/download`,
+        `${getAgentaApiUrl()}/simple/testsets/${testsetId}/download`,
         {},
         {
             params: {project_id: projectId, file_type: fileType},
@@ -491,7 +491,7 @@ export async function downloadRevision(
     const {projectId} = getProjectValues()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/${revisionId}/download`,
+        `${getAgentaApiUrl()}/testsets/revisions/${revisionId}/download`,
         {},
         {
             params: {project_id: projectId, file_type: fileType, _t: Date.now()},

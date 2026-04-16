@@ -6,7 +6,7 @@
 # - Navigation: /apps -> "Test sets" sidebar link -> testsets table
 # - Direct URL to /testsets returns 404 (requires workspace prefix)
 # - Test gracefully skips with test.skip() if no testsets exist on the deployment
-# - API interception is set up BEFORE sidebar click to capture the POST /api/preview/testsets/query response
+# - API interception is set up BEFORE sidebar click to capture the POST /api/testsets/query response
 # - Preview endpoint returns 'id' (not '_id') and data.testcases (not csvdata)
 
 Feature: Test Sets

@@ -522,7 +522,7 @@ function primeTestsetDetailCache(
  *
  * Uses createBatchFetcher for request deduplication and batching, which groups
  * concurrent requests within a 10ms window. Fetches testsets in batches using
- * POST /preview/testsets/query for better performance.
+ * POST /testsets/query for better performance.
  */
 const testsetBatchFetcher = createBatchFetcher<TestsetRequest, Testset | null>({
     maxBatchSize: 50,

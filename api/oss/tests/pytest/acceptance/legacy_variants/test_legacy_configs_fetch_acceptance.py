@@ -13,7 +13,7 @@ def _create_application_config(authed_api):
     body = _assert_ok(
         authed_api(
             "POST",
-            "/preview/applications/",
+            "/applications/",
             json={
                 "application": {
                     "slug": app_slug,
@@ -27,7 +27,7 @@ def _create_application_config(authed_api):
     body = _assert_ok(
         authed_api(
             "POST",
-            "/preview/applications/variants/",
+            "/applications/variants/",
             json={
                 "application_variant": {
                     "slug": variant_slug,
@@ -42,7 +42,7 @@ def _create_application_config(authed_api):
     _assert_ok(
         authed_api(
             "POST",
-            "/preview/applications/revisions/commit",
+            "/applications/revisions/commit",
             json={
                 "application_revision_commit": {
                     "slug": f"{app_slug}-v0",
@@ -57,7 +57,7 @@ def _create_application_config(authed_api):
     body = _assert_ok(
         authed_api(
             "POST",
-            "/preview/applications/revisions/commit",
+            "/applications/revisions/commit",
             json={
                 "application_revision_commit": {
                     "slug": f"{app_slug}-v1",
@@ -93,7 +93,7 @@ def _deploy_config_to_environment(authed_api, config):
     body = _assert_ok(
         authed_api(
             "POST",
-            "/preview/environments/",
+            "/environments/",
             json={
                 "environment": {
                     "slug": env_slug,
@@ -107,7 +107,7 @@ def _deploy_config_to_environment(authed_api, config):
     body = _assert_ok(
         authed_api(
             "POST",
-            "/preview/environments/variants/",
+            "/environments/variants/",
             json={
                 "environment_variant": {
                     "slug": f"{env_slug}-variant",
@@ -122,7 +122,7 @@ def _deploy_config_to_environment(authed_api, config):
     _assert_ok(
         authed_api(
             "POST",
-            "/preview/environments/revisions/commit",
+            "/environments/revisions/commit",
             json={
                 "environment_revision_commit": {
                     "slug": uuid4().hex[-12:],
@@ -138,7 +138,7 @@ def _deploy_config_to_environment(authed_api, config):
     body = _assert_ok(
         authed_api(
             "POST",
-            "/preview/environments/revisions/commit",
+            "/environments/revisions/commit",
             json={
                 "environment_revision_commit": {
                     "slug": f"{env_slug}-v1",

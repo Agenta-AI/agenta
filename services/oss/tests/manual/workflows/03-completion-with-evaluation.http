@@ -16,7 +16,7 @@ Authorization: Access {{token}}
 ###
 # 1. Create completion workflow — instructs the LLM to answer in a structured format
 # @name create_completion
-POST {{api_url}}/preview/simple/workflows/
+POST {{api_url}}/simple/workflows/
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -52,7 +52,7 @@ Authorization: {{authorization}}
 # 2. Create auto_regex_test evaluator — verifies the structured format and correct answer
 # Regex: "The capital of France is Paris." (case-sensitive, must match)
 # @name create_evaluator
-POST {{api_url}}/preview/simple/workflows/
+POST {{api_url}}/simple/workflows/
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -80,7 +80,7 @@ Authorization: {{authorization}}
 ###
 # 3. Query environments — find the default one
 # @name query_environments
-POST {{api_url}}/preview/environments/query
+POST {{api_url}}/environments/query
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -93,7 +93,7 @@ Authorization: {{authorization}}
 ###
 # 4. Deploy completion to environment
 # @name deploy_completion
-POST {{api_url}}/preview/workflows/revisions/deploy
+POST {{api_url}}/workflows/revisions/deploy
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -105,7 +105,7 @@ Authorization: {{authorization}}
 ###
 # 5. Deploy evaluator to environment
 # @name deploy_evaluator
-POST {{api_url}}/preview/workflows/revisions/deploy
+POST {{api_url}}/workflows/revisions/deploy
 Content-Type: application/json
 Authorization: {{authorization}}
 

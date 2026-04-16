@@ -179,7 +179,7 @@ export interface WorkflowRevisionSelectionResult extends EntitySelectionResult {
  *
  * Hierarchy: Workflow → Variant → Revision
  *
- * Uses the workflow backend API via `/preview/workflows/` endpoints.
+ * Uses the workflow backend API via `/workflows/` endpoints.
  * Fetches all workflows (no flag filter) by default.
  */
 export const workflowRevisionAdapter = createThreeLevelAdapter<WorkflowRevisionSelectionResult>({

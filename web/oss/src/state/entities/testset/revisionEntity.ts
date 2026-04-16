@@ -77,7 +77,7 @@ const revisionBatchFetcher = createBatchFetcher<RevisionRequest, Revision | null
                     windowing: {limit: revisionIds.length},
                 }
                 const response = await axios.post(
-                    `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+                    `${getAgentaApiUrl()}/testsets/revisions/query`,
                     requestBody,
                     {params: {project_id: projectId, include_testcases: false}},
                 )
@@ -266,7 +266,7 @@ export const revisionsListQueryAtomFamily = atomFamily(
                     if (!projectId || !testsetId) return []
 
                     const response = await axios.post(
-                        `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+                        `${getAgentaApiUrl()}/testsets/revisions/query`,
                         {
                             testset_refs: [{id: testsetId}],
                             windowing: {limit: 100, order: "descending"},
@@ -376,7 +376,7 @@ async function fetchLatestRevisionsBatch(
 
     try {
         const response = await axios.post(
-            `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+            `${getAgentaApiUrl()}/testsets/revisions/query`,
             {
                 testset_refs: validTestsetIds.map((id) => ({id})),
                 windowing: {limit: validTestsetIds.length * 5, order: "descending"},

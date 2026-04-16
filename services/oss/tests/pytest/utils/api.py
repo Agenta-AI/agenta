@@ -59,7 +59,7 @@ def mod_api(mod_account, ag_env):
     Module-scoped callable for authenticated API endpoints.
 
     Usage:
-        resp = mod_api("POST", "/preview/workflows/", json={...})
+        resp = mod_api("POST", "/workflows/", json={...})
     """
     api_url = ag_env["api_url"]
     credentials = mod_account["credentials"]

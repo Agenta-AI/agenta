@@ -14,7 +14,7 @@ FastAPI API → OpenAPI spec → Fern → Python SDK (sdk/agenta/client/backend/
 `sdk/scripts/setup_fern.sh` references `core/agenta-cli/agenta/client` which doesn't exist. Correct path: `sdk/agenta/client`
 
 ### 2. OpenAPI Spec Issues (FIXED in PR #3441)
-- Deprecated `/preview/tracing/*` routes caused duplicate type declarations
+- Deprecated `/tracing/*` routes caused duplicate type declarations
 - `start_evaluation` operationId collision between two endpoints
 - Fix: Added `include_in_schema=False` and explicit `operation_id`
 

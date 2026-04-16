@@ -41,8 +41,8 @@ Both stacks share the same underlying services and database. The legacy adapter 
 | `DELETE /apps/{app_id}/` | `POST /applications/{id}/archive` | **Covered** (archive instead of delete) |
 | `GET /apps/{app_id}/variants/` | `POST /applications/variants/query` | **Covered** |
 | `GET /apps/get_variant_by_env/` | — | **Needs wrapper** (see Deployments section) |
-| `GET /apps/{app_id}/environments/` | `POST /preview/environments/query` | **Covered** (not app-scoped, but environments are project-level now) |
-| `GET /apps/{app_id}/revisions/{env_name}/` | `POST /preview/environments/revisions/log` | **Covered** (query by environment, not by app) |
+| `GET /apps/{app_id}/environments/` | `POST /environments/query` | **Covered** (not app-scoped, but environments are project-level now) |
+| `GET /apps/{app_id}/revisions/{env_name}/` | `POST /environments/revisions/log` | **Covered** (query by environment, not by app) |
 | `POST /apps/{app_id}/variant/from-service/` | Variant create + revision commit | **Deprecated** — replaced by workflow catalog |
 | `POST /apps/{app_id}/variant/from-template/` | — | **Deprecated** — template_key concept removed |
 

@@ -337,7 +337,7 @@
 - Uses `createPaginatedEntityStore` from `../shared`
 - Meta atom: `testsetsPaginatedMetaAtom` with `{projectId, searchTerm, dateCreatedFilter, dateModifiedFilter}`
 - Filter atoms: `testsetsSearchTermAtom` (persisted), `testsetsDateCreatedFilterAtom`, `testsetsDateModifiedFilterAtom`, `testsetsExportFormatAtom` (persisted)
-- Fetch function: Direct axios call to `/preview/testsets/query`
+- Fetch function: Direct axios call to `/testsets/query`
 - Row types: `TestsetApiRow` -> `TestsetTableRow extends InfiniteTableRowBase`
 - Exposed as `testsetPaginatedStore` with `.store`, `.refreshAtom`
 

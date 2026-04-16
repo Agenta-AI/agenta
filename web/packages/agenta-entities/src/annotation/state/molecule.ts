@@ -58,7 +58,7 @@ interface AnnotationBatchRequest {
 
 /**
  * Batch fetcher that collects concurrent annotation requests and fetches
- * them in a single `POST /preview/annotations/query` call.
+ * them in a single `POST /annotations/query` call.
  *
  * Groups by projectId, deduplicates by (traceId, spanId) pair.
  * Indexes results by both the annotation's own trace_id:span_id AND

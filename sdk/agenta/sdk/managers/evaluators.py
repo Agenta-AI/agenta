@@ -68,7 +68,7 @@ async def _retrieve_evaluator(
 
     response = authed_api()(
         method="POST",
-        endpoint="/preview/evaluators/revisions/retrieve",
+        endpoint="/evaluators/revisions/retrieve",
         json=payload,
     )
 
@@ -89,7 +89,7 @@ async def _fetch_simple_evaluator(
 ) -> Optional[SimpleEvaluator]:
     response = authed_api()(
         method="GET",
-        endpoint=f"/preview/simple/evaluators/{evaluator_id}",
+        endpoint=f"/simple/evaluators/{evaluator_id}",
     )
 
     if response.status_code == 404:
@@ -299,7 +299,7 @@ async def aupsert(
 
         response = authed_api()(
             method="PUT",
-            endpoint=f"/preview/simple/evaluators/{evaluator_id}",
+            endpoint=f"/simple/evaluators/{evaluator_id}",
             json={
                 "evaluator": evaluator_edit_request.model_dump(
                     mode="json",
@@ -335,7 +335,7 @@ async def aupsert(
 
         response = authed_api()(
             method="POST",
-            endpoint="/preview/simple/evaluators/",
+            endpoint="/simple/evaluators/",
             json={
                 "evaluator": evaluator_create_request.model_dump(
                     mode="json",

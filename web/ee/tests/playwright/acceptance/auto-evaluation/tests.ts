@@ -50,7 +50,7 @@ const typeIntoLocator = async (locator: Locator, text: string) => {
 const waitForEvaluationRuns = async (page: Page, appId: string) => {
     const response = await page.waitForResponse((response) => {
         if (
-            !response.url().includes("/api/preview/evaluations/runs/query") ||
+            !response.url().includes("/api/evaluations/runs/query") ||
             response.request().method() !== "POST"
         ) {
             return false
@@ -374,12 +374,12 @@ const testWithEvaluationFixtures = baseTest.extend<EvaluationFixtures>({
 
             const createResponsePromise = page.waitForResponse(
                 (response) =>
-                    response.url().includes("/api/preview/simple/evaluations/") &&
+                    response.url().includes("/api/simple/evaluations/") &&
                     response.request().method() === "POST",
             )
             const runsRefreshPromise = page.waitForResponse(
                 (response) =>
-                    response.url().includes("/api/preview/evaluations/runs/query") &&
+                    response.url().includes("/api/evaluations/runs/query") &&
                     response.request().method() === "POST" &&
                     new URL(response.url()).searchParams.get("app_id") === appId,
             )

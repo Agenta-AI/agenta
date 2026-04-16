@@ -257,14 +257,10 @@ const ensureEvaluatorRevisions = async ({
                 patchedRun,
             })
         }
-        await axios.patch(
-            `/preview/evaluations/runs/${encodeURIComponent(runId)}`,
-            {run: patchedRun},
-            {
-                params: {project_id: projectId},
-                _ignoreError: true,
-            } as any,
-        )
+        await axios.patch(`/evaluations/runs/${encodeURIComponent(runId)}`, {run: patchedRun}, {
+            params: {project_id: projectId},
+            _ignoreError: true,
+        } as any)
         if (process.env.NODE_ENV !== "production") {
             console.debug("[EvalRunDetails2] Run patch successful", {
                 runId,

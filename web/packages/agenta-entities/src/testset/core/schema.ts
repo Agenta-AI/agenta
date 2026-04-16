@@ -38,7 +38,7 @@ import {SYSTEM_FIELDS} from "../../testcase/core"
 
 /**
  * Complete revision schema matching backend API
- * Endpoint: POST /preview/testsets/revisions/query
+ * Endpoint: POST /testsets/revisions/query
  *
  * Revisions are immutable snapshots of testset data.
  */

@@ -71,7 +71,7 @@ Example Output:
 
 ```javascript
 // Fetch configuration from production environment (default behavior)
-const fetchResponse = await fetch('https://cloud.agenta.ai/api/preview/applications/revisions/retrieve', {
+const fetchResponse = await fetch('https://cloud.agenta.ai/api/applications/revisions/retrieve', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -93,7 +93,7 @@ console.log(config);
 
 ```bash
 # Fetch configuration from production environment (default behavior)
-curl -X POST "https://cloud.agenta.ai/api/preview/applications/revisions/retrieve" \
+curl -X POST "https://cloud.agenta.ai/api/applications/revisions/retrieve" \
   -H "Content-Type: application/json" \
   -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
@@ -150,7 +150,7 @@ print(config)
 
 ```javascript
 // Fetch configuration by variant
-const fetchResponse = await fetch('https://cloud.agenta.ai/api/preview/applications/revisions/retrieve', {
+const fetchResponse = await fetch('https://cloud.agenta.ai/api/applications/revisions/retrieve', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -178,7 +178,7 @@ console.log(config);
 
 ```bash
 # Fetch configuration by variant
-curl -X POST "https://cloud.agenta.ai/api/preview/applications/revisions/retrieve" \
+curl -X POST "https://cloud.agenta.ai/api/applications/revisions/retrieve" \
   -H "Content-Type: application/json" \
   -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
@@ -218,7 +218,7 @@ print(config)
 
 ```javascript
 // Fetch the latest configuration from the staging environment
-const fetchResponse = await fetch('https://cloud.agenta.ai/api/preview/applications/revisions/retrieve', {
+const fetchResponse = await fetch('https://cloud.agenta.ai/api/applications/revisions/retrieve', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -244,7 +244,7 @@ console.log(config);
 
 ```bash
 # Fetch the latest configuration from the staging environment
-curl -X POST "https://cloud.agenta.ai/api/preview/applications/revisions/retrieve" \
+curl -X POST "https://cloud.agenta.ai/api/applications/revisions/retrieve" \
   -H "Content-Type: application/json" \
   -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{

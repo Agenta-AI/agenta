@@ -2,7 +2,7 @@
  * SelectVariant Component
  *
  * Uses createWorkflowRevisionAdapter for workflow-based variant/revision selection.
- * Lists variants and revisions via the workflow API (/preview/workflows/*).
+ * Lists variants and revisions via the workflow API (/workflows/*).
  *
  * Supports two modes:
  * - "scoped" (default): 2-level (Variant → Revision), scoped to the current app

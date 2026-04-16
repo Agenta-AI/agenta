@@ -7,15 +7,15 @@
  * ## Backend Model Hierarchy
  *
  * ```
- * Workflow (Artifact) — listed via POST /preview/workflows/query
+ * Workflow (Artifact) — listed via POST /workflows/query
  *   ├── id, slug, name, description, flags, tags, meta
  *   └── (no data field)
  *
- * WorkflowVariant — listed via POST /preview/workflows/variants/query
+ * WorkflowVariant — listed via POST /workflows/variants/query
  *   ├── id, slug, name, workflow_id, flags
  *   └── (no data field)
  *
- * WorkflowRevision — fetched via GET /preview/workflows/revisions/{id}
+ * WorkflowRevision — fetched via GET /workflows/revisions/{id}
  *   ├── id, slug, name, version, workflow_id, workflow_variant_id, flags
  *   └── data: WorkflowRevisionData (uri, url, schemas, parameters, script)
  * ```
@@ -255,8 +255,8 @@ export function resolveParametersSchema(data: WorkflowDataInput): Record<string,
  * Workflow entity schema.
  *
  * Flexible schema that accommodates both:
- * - Workflow objects from `POST /preview/workflows/query` (list, no data)
- * - WorkflowRevision objects from `GET /preview/workflows/revisions/{id}` (detail, has data)
+ * - Workflow objects from `POST /workflows/query` (list, no data)
+ * - WorkflowRevision objects from `GET /workflows/revisions/{id}` (detail, has data)
  */
 export const workflowSchema = z
     .object({

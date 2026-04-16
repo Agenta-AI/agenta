@@ -96,7 +96,7 @@ class TestEvaluationRunsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/",
+            "/evaluations/runs/",
             json={"runs": runs},
         )
         # ----------------------------------------------------------------------
@@ -128,7 +128,7 @@ class TestEvaluationRunsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/",
+            "/evaluations/runs/",
             json={"runs": runs},
         )
 
@@ -145,7 +145,7 @@ class TestEvaluationRunsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            "/preview/evaluations/runs/",
+            "/evaluations/runs/",
             json={
                 "run_ids": [run_id_1, run_id_2],
             },
@@ -163,7 +163,7 @@ class TestEvaluationRunsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            "/preview/evaluations/runs/",
+            "/evaluations/runs/",
             json={
                 "run_ids": [run_id_1, run_id_2],
             },
@@ -185,7 +185,7 @@ class TestEvaluationRunsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/",
+            "/evaluations/runs/",
             json={"runs": runs},
         )
 
@@ -202,7 +202,7 @@ class TestEvaluationRunsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/close",
+            "/evaluations/runs/close",
             json={"run_ids": [run_id_1, run_id_2]},
         )
         # ----------------------------------------------------------------------
@@ -224,7 +224,7 @@ class TestEvaluationRunsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/",
+            "/evaluations/runs/",
             json={"runs": runs},
         )
 
@@ -237,7 +237,7 @@ class TestEvaluationRunsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/close",
+            "/evaluations/runs/close",
             json={"run_ids": [run_id_1, run_id_2]},
         )
 
@@ -249,7 +249,7 @@ class TestEvaluationRunsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/open",
+            "/evaluations/runs/open",
             json={"run_ids": [run_id_1, run_id_2]},
         )
         # ----------------------------------------------------------------------
@@ -270,7 +270,7 @@ class TestEvaluationRunsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/",
+            "/evaluations/runs/",
             json={"runs": runs},
         )
 
@@ -281,7 +281,7 @@ class TestEvaluationRunsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/evaluations/runs/{run_id}",
+            f"/evaluations/runs/{run_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -314,7 +314,7 @@ class TestEvaluationRunsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/",
+            "/evaluations/runs/",
             json={"runs": runs},
         )
 
@@ -345,7 +345,7 @@ class TestEvaluationRunsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "PATCH",
-            f"/preview/evaluations/runs/{run_id}",
+            f"/evaluations/runs/{run_id}",
             json={"run": run},
         )
         # ----------------------------------------------------------------------
@@ -367,7 +367,7 @@ class TestEvaluationRunsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/",
+            "/evaluations/runs/",
             json={"runs": runs},
         )
 
@@ -379,7 +379,7 @@ class TestEvaluationRunsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/evaluations/runs/{run_id}",
+            f"/evaluations/runs/{run_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -393,7 +393,7 @@ class TestEvaluationRunsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/evaluations/runs/{run_id}",
+            f"/evaluations/runs/{run_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -411,7 +411,7 @@ class TestEvaluationRunsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/",
+            "/evaluations/runs/",
             json={"runs": runs},
         )
 
@@ -423,7 +423,7 @@ class TestEvaluationRunsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            f"/preview/evaluations/runs/{run_id}/close",
+            f"/evaluations/runs/{run_id}/close",
         )
         # ----------------------------------------------------------------------
 
@@ -442,7 +442,7 @@ class TestEvaluationRunsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/",
+            "/evaluations/runs/",
             json={"runs": runs},
         )
 
@@ -452,7 +452,7 @@ class TestEvaluationRunsBasics:
 
         response = authed_api(
             "POST",
-            f"/preview/evaluations/runs/{run_id}/close",
+            f"/evaluations/runs/{run_id}/close",
         )
 
         assert response.status_code == 200
@@ -461,7 +461,7 @@ class TestEvaluationRunsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            f"/preview/evaluations/runs/{run_id}/open",
+            f"/evaluations/runs/{run_id}/open",
         )
         # ----------------------------------------------------------------------
 

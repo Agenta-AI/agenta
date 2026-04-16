@@ -1,6 +1,6 @@
 class TestEvaluatorCatalogTypes:
     def test_lists_prompt_template_type_refs(self, authed_api):
-        response = authed_api("GET", "/preview/evaluators/catalog/types/")
+        response = authed_api("GET", "/evaluators/catalog/types/")
 
         assert response.status_code == 200
         body = response.json()

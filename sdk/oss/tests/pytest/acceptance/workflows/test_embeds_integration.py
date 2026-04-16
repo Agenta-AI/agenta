@@ -52,7 +52,7 @@ def _create_workflow(
         workflow["is_evaluator"] = is_evaluator
 
     body = _assert_status(
-        authed_api("POST", "/preview/workflows/", json={"workflow": workflow}),
+        authed_api("POST", "/workflows/", json={"workflow": workflow}),
         200,
     )
     return body["workflow"]["id"]
@@ -62,7 +62,7 @@ def _create_workflow_variant(authed_api, *, workflow_id: str):
     body = _assert_status(
         authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": _random_slug("variant"),
@@ -80,7 +80,7 @@ def _create_workflow_variant(authed_api, *, workflow_id: str):
     # its data, so we must seed an empty commit before committing real data.
     authed_api(
         "POST",
-        "/preview/workflows/revisions/commit",
+        "/workflows/revisions/commit",
         json={
             "workflow_revision": {
                 "slug": _random_slug("stub"),
@@ -105,7 +105,7 @@ def _commit_workflow_revision(
     body = _assert_status(
         authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": revision_slug,
@@ -123,7 +123,7 @@ def _commit_workflow_revision(
 def _resolve_workflow_revision(authed_api, *, revision_id: str):
     return authed_api(
         "POST",
-        "/preview/workflows/revisions/resolve",
+        "/workflows/revisions/resolve",
         json={
             "workflow_revision_ref": {"id": revision_id, "slug": None, "version": None},
             "max_depth": 10,
@@ -137,13 +137,13 @@ def _retrieve_workflow_revision(authed_api, *, revision_id: str, resolve: bool =
     payload = {"workflow_revision_ref": {"id": revision_id}}
     if resolve:
         payload["resolve"] = True
-    return authed_api("POST", "/preview/workflows/revisions/retrieve", json=payload)
+    return authed_api("POST", "/workflows/revisions/retrieve", json=payload)
 
 
 def _resolve_application_revision(authed_api, *, revision_id: str):
     return authed_api(
         "POST",
-        "/preview/applications/revisions/resolve",
+        "/applications/revisions/resolve",
         json={
             "application_revision_ref": {
                 "id": revision_id,

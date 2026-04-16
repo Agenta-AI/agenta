@@ -29,20 +29,20 @@ Authorization: Access {{token}}
 ###
 # 0. Fetch catalog
 # @name fetch_catalog
-GET {{api_url}}/preview/evaluators/catalog/templates/
+GET {{api_url}}/evaluators/catalog/templates/
 Authorization: {{authorization}}
 
 ###
 # 1. Inspect the match template (schema + uri)
 # @name get_template
-GET {{api_url}}/preview/evaluators/catalog/templates/match
+GET {{api_url}}/evaluators/catalog/templates/match
 Authorization: {{authorization}}
 
 ###
 # ============================================================
 # 2. Lifecycle setup — create a minimal match workflow for env-based tests
 # @name create_workflow
-POST {{api_url}}/preview/simple/workflows/
+POST {{api_url}}/simple/workflows/
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -76,7 +76,7 @@ Authorization: {{authorization}}
 ###
 # 3. Query environments — find the default one
 # @name query_environments
-POST {{api_url}}/preview/environments/query
+POST {{api_url}}/environments/query
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -89,7 +89,7 @@ Authorization: {{authorization}}
 ###
 # 4. Deploy revision to environment
 # @name deploy
-POST {{api_url}}/preview/workflows/revisions/deploy
+POST {{api_url}}/workflows/revisions/deploy
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -101,7 +101,7 @@ Authorization: {{authorization}}
 ###
 # 4b. Check environment revision
 # @name check_env_revision
-POST {{api_url}}/preview/environments/revisions/retrieve
+POST {{api_url}}/environments/revisions/retrieve
 Content-Type: application/json
 Authorization: {{authorization}}
 
