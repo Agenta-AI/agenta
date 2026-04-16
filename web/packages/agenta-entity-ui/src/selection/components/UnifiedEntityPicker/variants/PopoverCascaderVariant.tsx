@@ -26,6 +26,12 @@ import {useLevelData} from "../../../hooks/utilities"
 import type {EntitySelectionResult, HierarchyLevel, SelectionPathItem} from "../../../types"
 import type {PopoverCascaderVariantProps} from "../types"
 
+const POPOVER_CASCADER_TEST_IDS = {
+    content: "popover-cascader-content",
+    rootPanel: "popover-cascader-root-panel",
+    childPanel: "popover-cascader-child-panel",
+} as const
+
 // ============================================================================
 // CHILD PANEL (internal component)
 // ============================================================================
@@ -104,7 +110,7 @@ function ChildPanelContent({
     }
 
     return (
-        <div style={panelStyle}>
+        <div data-testid={POPOVER_CASCADER_TEST_IDS.childPanel} style={panelStyle}>
             {/* Child panel header */}
             {multiSelect && (
                 <div className="px-3 py-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-[#05172905] h-8 flex items-start justify-between">
@@ -507,7 +513,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
 
     // Popover content
     const content = (
-        <div className="flex flex-col">
+        <div className="flex flex-col" data-testid={POPOVER_CASCADER_TEST_IDS.content}>
             {/* HEADER ROW: Search + Action Button */}
             <div className="flex items-center gap-2 p-2 pb-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
                 <div className="flex-1">
@@ -548,6 +554,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
             <div className="flex">
                 {/* ROOT PANEL */}
                 <div
+                    data-testid={POPOVER_CASCADER_TEST_IDS.rootPanel}
                     className="flex flex-col border-0 border-r border-solid border-[rgba(5,23,41,0.06)]"
                     style={panelStyle}
                 >

@@ -36,6 +36,9 @@ const EVALUATOR_CREATE_SUCCESS_MESSAGE = "Evaluator created successfully"
 // Playground - app selection
 const EVALUATOR_SELECT_APP_PLACEHOLDER = "Select app"
 const EVALUATOR_NO_APPS_TEXT = "No items found"
+const EVALUATOR_POPOVER_TEST_ID = "popover-cascader-content"
+const EVALUATOR_POPOVER_ROOT_PANEL_TEST_ID = "popover-cascader-root-panel"
+const EVALUATOR_POPOVER_CHILD_PANEL_TEST_ID = "popover-cascader-child-panel"
 // Type labels shown on non-completion apps inside the popover
 const EVALUATOR_NON_COMPLETION_TYPE_LABELS = ["Chat", "Custom"]
 
@@ -209,7 +212,7 @@ const selectCompletionAppFromDrawer = async (
     await selectAppButton.click()
 
     // Wait for the popover to open
-    const popover = page.locator(".ant-popover").last()
+    const popover = page.getByTestId(EVALUATOR_POPOVER_TEST_ID).last()
     await expect(popover).toBeVisible({timeout: 5000})
 
     // Check for empty state — no apps in this environment
@@ -220,7 +223,9 @@ const selectCompletionAppFromDrawer = async (
     }
 
     // Wait for app items to load in the left panel
-    const appItems = popover.locator('[role="option"]')
+    const appItems = popover
+        .getByTestId(EVALUATOR_POPOVER_ROOT_PANEL_TEST_ID)
+        .locator('[role="option"]')
     await expect(appItems.first()).toBeVisible({timeout: 10000})
 
     // Find a completion-type app (items without Chat/Custom type badge text)
@@ -245,8 +250,7 @@ const selectCompletionAppFromDrawer = async (
     // Click the completion app to reveal the revision panel on the right
     await completionItem.click()
 
-    // The right panel uses a border-l separator from the root panel
-    const revisionPanel = popover.locator(".border-l.border-solid").first()
+    const revisionPanel = popover.getByTestId(EVALUATOR_POPOVER_CHILD_PANEL_TEST_ID)
     await expect(revisionPanel).toBeVisible({timeout: 5000})
 
     // Select the first available revision
