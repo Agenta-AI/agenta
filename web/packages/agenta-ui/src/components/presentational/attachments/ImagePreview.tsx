@@ -17,7 +17,8 @@
  * ```
  */
 
-import {useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
+import type {KeyboardEvent, MouseEvent} from "react"
 
 import {MagnifyingGlassPlus} from "@phosphor-icons/react"
 import {Modal} from "antd"
@@ -62,15 +63,34 @@ const ImagePreview = ({
         return resolveSafeImagePreviewSrc(src)
     }, [src])
 
+    const stopPropagation = useCallback((event?: {stopPropagation?: () => void}) => {
+        event?.stopPropagation?.()
+    }, [])
+
+    const handleOpen = useCallback(
+        (event: MouseEvent<HTMLDivElement>) => {
+            stopPropagation(event)
+            setOpen(true)
+        },
+        [stopPropagation],
+    )
+
+    const handleCancel = useCallback(
+        (event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) => {
+            stopPropagation(event)
+            setOpen(false)
+        },
+        [stopPropagation],
+    )
+
     return (
         <>
             <div
                 className={`relative group rounded overflow-hidden cursor-pointer flex-shrink-0 ${className}`}
                 style={{width: size, height: size}}
-                onClick={(e) => {
-                    e.stopPropagation()
-                    setOpen(true)
-                }}
+                onClick={handleOpen}
+                onMouseDown={stopPropagation}
+                onMouseUp={stopPropagation}
             >
                 <ImageWithFallback
                     src={imageURL}
@@ -85,7 +105,7 @@ const ImagePreview = ({
             <Modal
                 open={open}
                 footer={null}
-                onCancel={() => setOpen(false)}
+                onCancel={handleCancel}
                 centered
                 width={800}
                 height={600}
