@@ -278,10 +278,6 @@ tracing_service = TracingService(
     tracing_dao=tracing_dao,
 )
 
-simple_traces_service = SimpleTracesService(
-    tracing_service=tracing_service,
-)
-
 events_service = EventsService(
     events_dao=events_dao,
 )
@@ -349,6 +345,12 @@ evaluators_service.embeds_service = embeds_service
 
 simple_evaluators_service = SimpleEvaluatorsService(
     evaluators_service=evaluators_service,
+)
+
+simple_traces_service = SimpleTracesService(
+    tracing_service=tracing_service,
+    evaluators_service=evaluators_service,
+    simple_evaluators_service=simple_evaluators_service,
 )
 
 simple_workflows_service = SimpleWorkflowsService(

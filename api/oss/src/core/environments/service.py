@@ -1708,7 +1708,11 @@ class SimpleEnvironmentsService:
                 description=environment.description,
                 #
                 flags=(
-                    EnvironmentFlags(**environment.flags) if environment.flags else None
+                    environment.flags
+                    if isinstance(environment.flags, EnvironmentFlags)
+                    else EnvironmentFlags(**environment.flags)
+                    if environment.flags
+                    else None
                 ),
                 tags=environment.tags,
                 meta=environment.meta,

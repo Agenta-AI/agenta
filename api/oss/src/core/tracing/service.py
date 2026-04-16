@@ -1,9 +1,16 @@
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 from uuid import UUID, uuid4
 from datetime import datetime
 
+from genson import SchemaBuilder
+
 from oss.src.utils.logging import get_module_logger
 
+from oss.src.core.evaluators.dtos import (
+    SimpleEvaluatorCreate,
+    SimpleEvaluatorData,
+    SimpleEvaluatorFlags,
+)
 from oss.src.core.tracing.interfaces import TracingDAOInterface
 from oss.src.core.tracing.utils.parsing import (
     parse_span_id_to_uuid,
@@ -71,6 +78,10 @@ from oss.src.core.shared.dtos import Link, Reference
 
 if TYPE_CHECKING:
     from oss.src.core.queries.service import QueriesService
+    from oss.src.core.evaluators.service import (
+        EvaluatorsService,
+        SimpleEvaluatorsService,
+    )
 
 
 log = get_module_logger(__name__)
@@ -846,8 +857,12 @@ class SimpleTracesService:
         self,
         *,
         tracing_service: "TracingService",
+        evaluators_service: Optional["EvaluatorsService"] = None,
+        simple_evaluators_service: Optional["SimpleEvaluatorsService"] = None,
     ):
         self.tracing_service = tracing_service
+        self.evaluators_service = evaluators_service
+        self.simple_evaluators_service = simple_evaluators_service
 
     # --- helpers ---------------------------------------------------------------
 
@@ -921,6 +936,97 @@ class SimpleTracesService:
             links=parsed.links,
         )
 
+    async def _resolve_evaluator_references(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        trace_create: SimpleTraceCreate,
+    ) -> SimpleTraceReferences:
+        references = trace_create.references.model_copy(deep=True)
+
+        if not references.evaluator or not trace_create.links:
+            return references
+
+        if not self.evaluators_service or not self.simple_evaluators_service:
+            return references
+
+        evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
+            project_id=project_id,
+            evaluator_ref=references.evaluator,
+            evaluator_variant_ref=references.evaluator_variant,
+            evaluator_revision_ref=references.evaluator_revision,
+        )
+
+        if evaluator_revision is None:
+            builder = SchemaBuilder()
+            builder.add_object(trace_create.data)
+            evaluator_outputs_schema: Dict[str, Any] = builder.to_schema()
+
+            evaluator_slug = references.evaluator.slug or uuid4().hex[-12:]
+            simple_evaluator = await self.simple_evaluators_service.create(
+                project_id=project_id,
+                user_id=user_id,
+                simple_evaluator_create=SimpleEvaluatorCreate(
+                    slug=evaluator_slug,
+                    name=evaluator_slug,
+                    flags=SimpleEvaluatorFlags(is_evaluator=True),
+                    data=SimpleEvaluatorData(
+                        uri="agenta:custom:feedback:v0",
+                        schemas={"outputs": evaluator_outputs_schema},
+                    ),
+                ),
+            )
+
+            if simple_evaluator is None:
+                return references
+
+            references.evaluator = Reference(
+                id=simple_evaluator.id,
+                slug=simple_evaluator.slug,
+            )
+            references.evaluator_variant = Reference(id=simple_evaluator.variant_id)
+            references.evaluator_revision = Reference(id=simple_evaluator.revision_id)
+
+            evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
+                project_id=project_id,
+                evaluator_revision_ref=references.evaluator_revision,
+            )
+
+        if evaluator_revision is None:
+            return references
+
+        evaluator = await self.evaluators_service.fetch_evaluator(
+            project_id=project_id,
+            evaluator_ref=Reference(id=evaluator_revision.evaluator_id),
+        )
+        evaluator_variant = await self.evaluators_service.fetch_evaluator_variant(
+            project_id=project_id,
+            evaluator_variant_ref=Reference(id=evaluator_revision.evaluator_variant_id),
+        )
+
+        references.evaluator = Reference(
+            id=evaluator_revision.evaluator_id,
+            slug=(references.evaluator.slug if references.evaluator else None)
+            or (evaluator.slug if evaluator else None),
+        )
+        references.evaluator_variant = Reference(
+            id=evaluator_revision.evaluator_variant_id,
+            slug=(
+                references.evaluator_variant.slug
+                if references.evaluator_variant
+                else None
+            )
+            or (evaluator_variant.slug if evaluator_variant else None),
+        )
+        references.evaluator_revision = Reference(
+            id=evaluator_revision.id,
+            slug=evaluator_revision.slug,
+            version=evaluator_revision.version,
+        )
+
+        return references
+
     # --- public API ------------------------------------------------------------
 
     async def create(
@@ -934,11 +1040,16 @@ class SimpleTracesService:
     ) -> Optional[SimpleTrace]:
         trace_id = uuid4().hex
         span_id = uuid4().hex[16:]
+        references = await self._resolve_evaluator_references(
+            project_id=project_id,
+            user_id=user_id,
+            trace_create=trace_create,
+        )
 
         _flags = self._flags(
             trace_create.origin, trace_create.kind, trace_create.channel
         )
-        _references = trace_create.references.model_dump(
+        _references = references.model_dump(
             mode="json", exclude_none=True, exclude_unset=True
         )
         _links = build_otel_links(trace_create.links)
@@ -980,7 +1091,7 @@ class SimpleTracesService:
             tags=trace_create.tags,
             meta=trace_create.meta,
             data=trace_create.data,
-            references=trace_create.references,
+            references=references,
             links=trace_create.links or {},
         )
 
