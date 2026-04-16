@@ -130,7 +130,6 @@ export const createParams = (
             ...(appSlug ? {application: {slug: appSlug}} : {}),
             environment: {slug: environmentName},
         },
-        selector: {key: `${appSlug}.revision`},
     }
     return JSON.stringify(params, null, 2)
 }
