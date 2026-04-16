@@ -10,8 +10,7 @@ export default function cURLCode(appName: string, env_name: string, apiKey: stri
     },
     "environment_ref": {
         "slug": "${env_name}"
-    },
-    "key": "${appName}.revision"
+    }
 }'
 `
 }
