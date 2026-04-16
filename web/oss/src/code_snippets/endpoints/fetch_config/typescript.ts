@@ -16,7 +16,6 @@ const getConfig = async (appName: string, environmentSlug: string) => {
             environment_ref: {
                 slug: environmentSlug,
             },
-            key: appName + '.revision',
         }, {
             headers: {
                 'Content-Type': 'application/json',
