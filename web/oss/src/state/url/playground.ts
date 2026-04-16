@@ -33,7 +33,7 @@ import {appStateSnapshotAtom} from "@/oss/state/appState"
 
 /**
  * Determines which entity system the current playground uses.
- * Currently always "workflow" (modern /preview/workflows/ API).
+ * Currently always "workflow" (modern /workflows/ API).
  */
 export const playgroundEntityModeAtom = atom<"workflow">("workflow")
 

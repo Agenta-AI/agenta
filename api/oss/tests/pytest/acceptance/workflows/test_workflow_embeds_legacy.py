@@ -18,12 +18,12 @@ class TestApplicationsEmbeds:
         Test resolving an application that references another workflow via embed.
 
         Applications are workflows with is_evaluator=False, but use the
-        legacy /preview/applications API.
+        legacy /applications API.
 
         Flow:
         1. Create base workflow with parameters
         2. Create application that embeds the base workflow
-        3. Resolve via POST /preview/applications/revisions/resolve
+        3. Resolve via POST /applications/revisions/resolve
         4. Verify embed is resolved
         """
         # ARRANGE --------------------------------------------------------------
@@ -32,7 +32,7 @@ class TestApplicationsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={"workflow": {"slug": base_slug, "name": "App Base"}},
         )
         assert response.status_code == 200
@@ -40,7 +40,7 @@ class TestApplicationsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{base_slug}-v",
@@ -54,7 +54,7 @@ class TestApplicationsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": uuid4().hex[-12:],
@@ -68,7 +68,7 @@ class TestApplicationsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{base_slug}-v1",
@@ -85,7 +85,7 @@ class TestApplicationsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={
                 "workflow": {
                     "slug": app_slug,
@@ -99,7 +99,7 @@ class TestApplicationsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{app_slug}-v",
@@ -113,7 +113,7 @@ class TestApplicationsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": uuid4().hex[-12:],
@@ -127,7 +127,7 @@ class TestApplicationsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{app_slug}-v1",
@@ -162,7 +162,7 @@ class TestApplicationsEmbeds:
         # Resolve via legacy applications API
         response = authed_api(
             "POST",
-            "/preview/applications/revisions/resolve",
+            "/applications/revisions/resolve",
             json={
                 "application_revision_ref": {"id": app_revision_id},
             },
@@ -193,7 +193,7 @@ class TestApplicationsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={"workflow": {"slug": base_slug, "name": "App String Base"}},
         )
         assert response.status_code == 200
@@ -201,7 +201,7 @@ class TestApplicationsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{base_slug}-v",
@@ -215,7 +215,7 @@ class TestApplicationsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": uuid4().hex[-12:],
@@ -229,7 +229,7 @@ class TestApplicationsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{base_slug}-v1",
@@ -246,7 +246,7 @@ class TestApplicationsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={
                 "workflow": {
                     "slug": app_slug,
@@ -260,7 +260,7 @@ class TestApplicationsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{app_slug}-v",
@@ -274,7 +274,7 @@ class TestApplicationsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": uuid4().hex[-12:],
@@ -288,7 +288,7 @@ class TestApplicationsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{app_slug}-v1",
@@ -309,7 +309,7 @@ class TestApplicationsEmbeds:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/applications/revisions/resolve",
+            "/applications/revisions/resolve",
             json={
                 "application_revision_ref": {"id": app_revision_id},
             },
@@ -334,12 +334,12 @@ class TestEvaluatorsEmbeds:
         Test resolving an evaluator that references another workflow via embed.
 
         Evaluators are workflows with is_evaluator=True, but use the
-        legacy /preview/evaluators API.
+        legacy /evaluators API.
 
         Flow:
         1. Create base workflow with criteria
         2. Create evaluator that embeds the base workflow
-        3. Resolve via POST /preview/evaluators/revisions/resolve
+        3. Resolve via POST /evaluators/revisions/resolve
         4. Verify embed is resolved
         """
         # ARRANGE --------------------------------------------------------------
@@ -348,7 +348,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={"workflow": {"slug": base_slug, "name": "Eval Base"}},
         )
         assert response.status_code == 200
@@ -356,7 +356,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{base_slug}-v",
@@ -370,7 +370,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": uuid4().hex[-12:],
@@ -384,7 +384,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{base_slug}-v1",
@@ -406,7 +406,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={
                 "workflow": {
                     "slug": eval_slug,
@@ -420,7 +420,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{eval_slug}-v",
@@ -434,7 +434,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": uuid4().hex[-12:],
@@ -448,7 +448,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{eval_slug}-v1",
@@ -480,7 +480,7 @@ class TestEvaluatorsEmbeds:
         # Resolve via legacy evaluators API
         response = authed_api(
             "POST",
-            "/preview/evaluators/revisions/resolve",
+            "/evaluators/revisions/resolve",
             json={
                 "evaluator_revision_ref": {"id": eval_revision_id},
             },
@@ -517,7 +517,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={"workflow": {"slug": level2_slug, "name": "Eval Nest L2"}},
         )
         assert response.status_code == 200
@@ -525,7 +525,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{level2_slug}-v",
@@ -539,7 +539,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": uuid4().hex[-12:],
@@ -553,7 +553,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{level2_slug}-v1",
@@ -570,7 +570,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={"workflow": {"slug": level1_slug, "name": "Eval Nest L1"}},
         )
         assert response.status_code == 200
@@ -578,7 +578,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{level1_slug}-v",
@@ -592,7 +592,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": uuid4().hex[-12:],
@@ -606,7 +606,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{level1_slug}-v1",
@@ -637,7 +637,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={
                 "workflow": {
                     "slug": eval_slug,
@@ -651,7 +651,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{eval_slug}-v",
@@ -665,7 +665,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": uuid4().hex[-12:],
@@ -679,7 +679,7 @@ class TestEvaluatorsEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{eval_slug}-v1",
@@ -710,7 +710,7 @@ class TestEvaluatorsEmbeds:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluators/revisions/resolve",
+            "/evaluators/revisions/resolve",
             json={
                 "evaluator_revision_ref": {"id": eval_revision_id},
             },
@@ -755,7 +755,7 @@ class TestCrossEntityReferences:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={
                 "workflow": {
                     "slug": eval_slug,
@@ -769,7 +769,7 @@ class TestCrossEntityReferences:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{eval_slug}-v",
@@ -783,7 +783,7 @@ class TestCrossEntityReferences:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": uuid4().hex[-12:],
@@ -797,7 +797,7 @@ class TestCrossEntityReferences:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{eval_slug}-v1",
@@ -819,7 +819,7 @@ class TestCrossEntityReferences:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={
                 "workflow": {
                     "slug": wf_slug,
@@ -833,7 +833,7 @@ class TestCrossEntityReferences:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{wf_slug}-v",
@@ -847,7 +847,7 @@ class TestCrossEntityReferences:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": uuid4().hex[-12:],
@@ -861,7 +861,7 @@ class TestCrossEntityReferences:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{wf_slug}-v1",
@@ -892,7 +892,7 @@ class TestCrossEntityReferences:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/resolve",
+            "/workflows/revisions/resolve",
             json={
                 "workflow_revision_ref": {"id": wf_revision_id},
             },
@@ -930,7 +930,7 @@ class TestCrossEntityReferences:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={
                 "workflow": {
                     "slug": app_slug,
@@ -944,7 +944,7 @@ class TestCrossEntityReferences:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{app_slug}-v",
@@ -958,7 +958,7 @@ class TestCrossEntityReferences:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": uuid4().hex[-12:],
@@ -972,7 +972,7 @@ class TestCrossEntityReferences:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{app_slug}-v1",
@@ -994,7 +994,7 @@ class TestCrossEntityReferences:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={
                 "workflow": {
                     "slug": eval_slug,
@@ -1008,7 +1008,7 @@ class TestCrossEntityReferences:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{eval_slug}-v",
@@ -1022,7 +1022,7 @@ class TestCrossEntityReferences:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": uuid4().hex[-12:],
@@ -1036,7 +1036,7 @@ class TestCrossEntityReferences:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{eval_slug}-v1",
@@ -1067,7 +1067,7 @@ class TestCrossEntityReferences:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluators/revisions/resolve",
+            "/evaluators/revisions/resolve",
             json={
                 "evaluator_revision_ref": {"id": eval_revision_id},
             },

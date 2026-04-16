@@ -74,7 +74,7 @@ GET /variants/{id}/revisions/
 
 **Broken path (evaluation, before fix):**
 ```
-POST /evaluations/preview/start
+POST /evaluations/start
   -> evaluation_router.start_evaluation()
   -> setup_evaluation()
   -> fetch_app_variant_revision_by_id()
@@ -83,7 +83,7 @@ POST /evaluations/preview/start
 
 **Fixed path (evaluation, after fix):**
 ```
-POST /evaluations/preview/start
+POST /evaluations/start
   -> evaluation_router.start_evaluation()
   -> setup_evaluation()
   -> _resolve_app_info()

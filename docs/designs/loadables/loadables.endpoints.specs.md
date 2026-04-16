@@ -6,7 +6,7 @@
 
 ### 1.1 Testsets (Artifact)
 
-Base prefix: `/api/preview/testsets`
+Base prefix: `/api/testsets`
 
 | Method | Path                       | Operation ID           |
 |--------|----------------------------|------------------------|
@@ -19,7 +19,7 @@ Base prefix: `/api/preview/testsets`
 
 ### 1.2 Testset Variants
 
-Base prefix: `/api/preview/testsets/variants`
+Base prefix: `/api/testsets/variants`
 
 | Method | Path                              | Operation ID                |
 |--------|-----------------------------------|-----------------------------|
@@ -32,7 +32,7 @@ Base prefix: `/api/preview/testsets/variants`
 
 ### 1.3 Testset Revisions
 
-Base prefix: `/api/preview/testsets/revisions`
+Base prefix: `/api/testsets/revisions`
 
 | Method | Path                               | Operation ID                        |
 |--------|------------------------------------|-------------------------------------|
@@ -52,7 +52,7 @@ Base prefix: `/api/preview/testsets/revisions`
 
 ## 2. (Simple) Testsets
 
-Base prefix: `/api/preview/simple/testsets`
+Base prefix: `/api/simple/testsets`
 
 | Method | Path                       | Operation ID                      |
 |--------|----------------------------|-----------------------------------|
@@ -70,7 +70,7 @@ Base prefix: `/api/preview/simple/testsets`
 
 ## 3. Testcases
 
-Base prefix: `/api/preview/testcases`
+Base prefix: `/api/testcases`
 
 | Method | Path             | Operation ID      |
 |--------|------------------|-------------------|
@@ -84,7 +84,7 @@ Base prefix: `/api/preview/testcases`
 
 ### 4.1 Queries (Artifact)
 
-Base prefix: `/api/preview/queries`
+Base prefix: `/api/queries`
 
 | Method | Path                      | Operation ID      |
 |--------|---------------------------|-------------------|
@@ -97,7 +97,7 @@ Base prefix: `/api/preview/queries`
 
 ### 4.2 Query Variants
 
-Base prefix: `/api/preview/queries/variants`
+Base prefix: `/api/queries/variants`
 
 | Method | Path                              | Operation ID              |
 |--------|-----------------------------------|---------------------------|
@@ -110,7 +110,7 @@ Base prefix: `/api/preview/queries/variants`
 
 ### 4.3 Query Revisions
 
-Base prefix: `/api/preview/queries/revisions`
+Base prefix: `/api/queries/revisions`
 
 | Method | Path                               | Operation ID               |
 |--------|------------------------------------|----------------------------|
@@ -128,7 +128,7 @@ Base prefix: `/api/preview/queries/revisions`
 
 ## 5. (Simple) Queries
 
-Base prefix: `/api/preview/simple/queries`
+Base prefix: `/api/simple/queries`
 
 | Method | Path                      | Operation ID             |
 |--------|---------------------------|--------------------------|
@@ -145,7 +145,7 @@ Base prefix: `/api/preview/simple/queries`
 
 ### 6.1 Traces
 
-Base prefix: `/api/preview/traces`
+Base prefix: `/api/traces`
 
 | Method | Path           | Operation ID    |
 |--------|----------------|-----------------|
@@ -157,7 +157,7 @@ Base prefix: `/api/preview/traces`
 
 ### 6.2 Spans
 
-Base prefix: `/api/preview/spans`
+Base prefix: `/api/spans`
 
 | Method | Path                     | Operation ID    |
 |--------|--------------------------|-----------------|

@@ -118,7 +118,7 @@ export const triggerRunInvocationAtom = atom(
             if (testcaseId) {
                 try {
                     const testcaseResponse = await axios.post(
-                        `/preview/testcases/query`,
+                        `/testcases/query`,
                         {testcase_ids: [testcaseId]},
                         {params: {project_id: projectId}},
                     )

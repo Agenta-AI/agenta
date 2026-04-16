@@ -1561,9 +1561,27 @@ class PlatformAdminAccountsService:
 
         if org_ids:
             # Pre-condition (EE): both source and target must be members.
-            # Filter org_ids to only those where target also has a membership row.
+            # Drop orgs where target has no membership and emit a structured
+            # error so the caller knows those orgs were not transferred and
+            # would be lost if the source user is later deleted.
             if is_ee():
                 target_member_org_ids = await _ee_get_member_org_ids(target_id, org_ids)
+                skipped = [oid for oid in org_ids if oid not in target_member_org_ids]
+                for oid in skipped:
+                    errors.append(
+                        AdminStructuredErrorDTO(
+                            code="target_not_member",
+                            message=(
+                                f"Organization '{oid}' was not transferred: target "
+                                "user has no membership in this organization. "
+                                "Deleting the source user will cascade-delete it."
+                            ),
+                            details={
+                                "organization_id": str(oid),
+                                "target_user_id": str(target_id),
+                            },
+                        )
+                    )
                 org_ids = [oid for oid in org_ids if oid in target_member_org_ids]
 
         if org_ids:

@@ -561,7 +561,7 @@ const useTestsetNameMap = (testsetIds: string[]) => {
         const fetchNames = async () => {
             try {
                 const response = await axios.post(
-                    "/preview/testsets/query",
+                    "/testsets/query",
                     {
                         testset_refs: memoizedIds.ids.map((id) => ({id})),
                         include_archived: true,

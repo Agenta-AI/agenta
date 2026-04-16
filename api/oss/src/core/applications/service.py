@@ -58,6 +58,10 @@ from oss.src.core.applications.dtos import (
 log = get_module_logger(__name__)
 
 
+def _dump_flags(flags: Optional[object]) -> dict:
+    return WorkflowsService._dump_flags(flags)
+
+
 class ApplicationsService:
     def __init__(
         self,
@@ -922,15 +926,7 @@ class SimpleApplicationsService:
         application_revision: Optional[ApplicationRevision],
     ) -> SimpleApplicationFlags:
         return SimpleApplicationFlags(
-            **(
-                application_revision.flags.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                    exclude_unset=True,
-                )
-                if application_revision and application_revision.flags
-                else {}
-            )
+            **_dump_flags(application_revision.flags if application_revision else None)
         )
 
     @staticmethod
@@ -942,20 +938,8 @@ class SimpleApplicationsService:
         if not requested_flags:
             return True
 
-        actual_flags = (
-            simple_application.flags.model_dump(
-                mode="json",
-                exclude_none=True,
-                exclude_unset=True,
-            )
-            if simple_application.flags
-            else {}
-        )
-        requested_flag_values = requested_flags.model_dump(
-            mode="json",
-            exclude_none=True,
-            exclude_unset=True,
-        )
+        actual_flags = _dump_flags(simple_application.flags)
+        requested_flag_values = _dump_flags(requested_flags)
 
         return all(
             actual_flags.get(flag_name) == expected_value
@@ -975,25 +959,13 @@ class SimpleApplicationsService:
         application_id: Optional[UUID] = None,
     ) -> Optional[SimpleApplication]:
         simple_application_flags = (
-            SimpleApplicationFlags(
-                **(
-                    simple_application_create.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                    )
-                ),
-            )
+            SimpleApplicationFlags(**_dump_flags(simple_application_create.flags))
             if simple_application_create.flags
             else SimpleApplicationFlags()
         )
 
         application_flags = ApplicationFlags(
-            **simple_application_flags.model_dump(
-                mode="json",
-                exclude_none=True,
-                exclude_unset=True,
-            ),
+            **_dump_flags(simple_application_flags),
         )
 
         application_create = ApplicationCreate(
@@ -1236,15 +1208,13 @@ class SimpleApplicationsService:
             description=simple_application_edit.description,
             #
             flags=(
-                ApplicationFlags(
-                    **simple_application_edit.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                    ),
-                )
+                ApplicationFlags(**_dump_flags(simple_application_edit.flags))
                 if simple_application_edit.flags
-                else application.flags
+                else (
+                    ApplicationFlags(**_dump_flags(application.flags))
+                    if application.flags
+                    else None
+                )
             ),
             meta=simple_application_edit.meta
             if simple_application_edit.meta is not None

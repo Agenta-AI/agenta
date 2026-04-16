@@ -25,11 +25,11 @@ All requested features have been fully implemented and tested.
 **File:** `api/oss/tests/pytest/e2e/workflows/test_workflow_embeds_legacy.py`
 
 **Applications Tests:**
-- ✅ Application resolution via `POST /preview/applications/revisions/resolve`
+- ✅ Application resolution via `POST /applications/revisions/resolve`
 - ✅ Application with string embeds
 
 **Evaluators Tests:**
-- ✅ Evaluator resolution via `POST /preview/evaluators/revisions/resolve`
+- ✅ Evaluator resolution via `POST /evaluators/revisions/resolve`
 - ✅ Evaluator with nested embeds
 
 **Cross-Entity Tests:**

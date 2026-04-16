@@ -10,8 +10,8 @@ This planning workspace documents the migration of the Evaluator Playground fron
 
 | PR | Scope | Description |
 |----|-------|-------------|
-| **PR 1** | CRUD | Migrate to `/preview/simple/evaluators/*`, change internal types to `SimpleEvaluator` |
-| **PR 2** | Run | Migrate to `/preview/workflows/invoke`, add workflow service types |
+| **PR 1** | CRUD | Migrate to `/simple/evaluators/*`, change internal types to `SimpleEvaluator` |
+| **PR 2** | Run | Migrate to `/workflows/invoke`, add workflow service types |
 
 See [plan.md](./plan.md) for detailed implementation steps.
 
@@ -40,11 +40,11 @@ See [plan.md](./plan.md) for detailed implementation steps.
 | `EvaluatorConfig` | `SimpleEvaluator` |
 | `evaluator_key` | derived from `data.uri` |
 | `settings_values` | `data.parameters` |
-| `GET /evaluators/configs/` | `POST /preview/simple/evaluators/query` |
-| `POST /evaluators/configs/` | `POST /preview/simple/evaluators/` |
-| `PUT /evaluators/configs/{id}/` | `PUT /preview/simple/evaluators/{id}` |
-| `DELETE /evaluators/configs/{id}/` | `POST /preview/simple/evaluators/{id}/archive` |
-| `POST /evaluators/{key}/run/` | `POST /preview/workflows/invoke` |
+| `GET /evaluators/configs/` | `POST /simple/evaluators/query` |
+| `POST /evaluators/configs/` | `POST /simple/evaluators/` |
+| `PUT /evaluators/configs/{id}/` | `PUT /simple/evaluators/{id}` |
+| `DELETE /evaluators/configs/{id}/` | `POST /simple/evaluators/{id}/archive` |
+| `POST /evaluators/{key}/run/` | `POST /workflows/invoke` |
 
 ## Files Affected
 

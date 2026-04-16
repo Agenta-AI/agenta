@@ -317,7 +317,7 @@ function isEmptyMetrics(fields: Record<string, {value: unknown}>): boolean {
 
 async function patchScenarioStatus(projectId: string, scenarioId: string, status: string) {
     await axios.patch(
-        `${getAgentaApiUrl()}/preview/evaluations/scenarios/`,
+        `${getAgentaApiUrl()}/evaluations/scenarios/`,
         {
             scenarios: [{id: scenarioId, status}],
         },
@@ -417,7 +417,7 @@ async function upsertStepResultWithAnnotation({
 
     if (existingResult?.id) {
         await axios.patch(
-            `${apiUrl}/preview/evaluations/results/`,
+            `${apiUrl}/evaluations/results/`,
             {
                 results: [
                     {
@@ -432,7 +432,7 @@ async function upsertStepResultWithAnnotation({
         )
     } else {
         await axios.post(
-            `${apiUrl}/preview/evaluations/results/`,
+            `${apiUrl}/evaluations/results/`,
             {
                 results: [
                     {
@@ -527,7 +527,7 @@ async function upsertAnnotationMetrics({
     let existingMetric: {id?: string; data?: Record<string, unknown>; status?: string} | null = null
     try {
         const queryResponse = await axios.post(
-            `${apiUrl}/preview/evaluations/metrics/query`,
+            `${apiUrl}/evaluations/metrics/query`,
             {
                 metrics: {run_ids: [runId], scenario_ids: [scenarioId]},
                 windowing: {},
@@ -550,7 +550,7 @@ async function upsertAnnotationMetrics({
 
     if (existingMetric?.id) {
         await axios.patch(
-            `${apiUrl}/preview/evaluations/metrics/`,
+            `${apiUrl}/evaluations/metrics/`,
             {
                 metrics: [
                     {
@@ -564,7 +564,7 @@ async function upsertAnnotationMetrics({
         )
     } else {
         await axios.post(
-            `${apiUrl}/preview/evaluations/metrics/`,
+            `${apiUrl}/evaluations/metrics/`,
             {
                 metrics: [
                     {
@@ -588,7 +588,7 @@ async function checkAndUpdateRunStatus(projectId: string, runId: string) {
 
     try {
         const scenariosResponse = await axios.post(
-            `${apiUrl}/preview/evaluations/scenarios/query`,
+            `${apiUrl}/evaluations/scenarios/query`,
             {
                 scenario: {run_ids: [runId]},
                 windowing: {limit: 1000},
@@ -604,7 +604,7 @@ async function checkAndUpdateRunStatus(projectId: string, runId: string) {
 
         // Fetch existing run data to preserve all fields
         const runResponse = await axios.post(
-            `${apiUrl}/preview/evaluations/runs/query`,
+            `${apiUrl}/evaluations/runs/query`,
             {run: {ids: [runId]}},
             {params: {project_id: projectId}},
         )
@@ -613,7 +613,7 @@ async function checkAndUpdateRunStatus(projectId: string, runId: string) {
         if (!existingRun) return
 
         await axios.patch(
-            `${apiUrl}/preview/evaluations/runs/${runId}`,
+            `${apiUrl}/evaluations/runs/${runId}`,
             {run: {...existingRun, id: runId, status: newRunStatus}},
             {params: {project_id: projectId}},
         )

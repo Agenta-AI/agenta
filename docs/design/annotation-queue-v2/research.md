@@ -195,7 +195,7 @@ Key observations:
 
 Location: `api/oss/src/apis/fastapi/evaluations/router.py`
 
-Mounted at: `/preview/evaluations/queues/`
+Mounted at: `/evaluations/queues/`
 
 | Method | Path | Description |
 |--------|------|-------------|

@@ -62,8 +62,7 @@ const getEvaluatorsUrl = (page: Page, tab?: string) => {
 const waitForEvaluatorsQuery = async (page: Page) => {
     const response = await page.waitForResponse(
         (response) =>
-            response.url().includes("/preview/workflows/query") &&
-            response.request().method() === "POST",
+            response.url().includes("/workflows/query") && response.request().method() === "POST",
     )
 
     expect(response.ok()).toBe(true)
@@ -94,7 +93,7 @@ const ensureEvaluatorTab = async (page: Page, tabLabel: string, tabParam: string
 const waitForWorkflowCreation = async (page: Page) => {
     const response = await page.waitForResponse(
         (response) =>
-            response.url().includes("/preview/workflows/") &&
+            response.url().includes("/workflows/") &&
             !response.url().includes("/query") &&
             !response.url().includes("/variants") &&
             !response.url().includes("/revisions") &&

@@ -3,15 +3,15 @@ E2E tests for the resolve=True flag on workflow/application/evaluator retrieve
 and query endpoints.
 
 These tests verify that:
-1. POST /preview/workflows/revisions/retrieve with resolve=True returns a
+1. POST /workflows/revisions/retrieve with resolve=True returns a
    pre-resolved revision (embeds inlined) in a single API call.
-2. POST /preview/workflows/revisions/retrieve without resolve returns raw
+2. POST /workflows/revisions/retrieve without resolve returns raw
    config with @ag.embed markers intact.
-3. POST /preview/applications/revisions/retrieve with resolve=True resolves
+3. POST /applications/revisions/retrieve with resolve=True resolves
    embeds inline.
-4. POST /preview/evaluators/revisions/retrieve with resolve=True resolves
+4. POST /evaluators/revisions/retrieve with resolve=True resolves
    embeds inline.
-5. POST /preview/workflows/revisions/query with resolve=True resolves all
+5. POST /workflows/revisions/query with resolve=True resolves all
    returned revisions.
 """
 
@@ -29,7 +29,7 @@ def _create_workflow_with_embed(
     # Create base workflow
     r = authed_api(
         "POST",
-        "/preview/workflows/",
+        "/workflows/",
         json={"workflow": {"slug": base_slug, "name": "Base"}},
     )
     assert r.status_code == 200
@@ -37,7 +37,7 @@ def _create_workflow_with_embed(
 
     r = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"{base_slug}-v",
@@ -51,7 +51,7 @@ def _create_workflow_with_embed(
 
     r = authed_api(
         "POST",
-        "/preview/workflows/revisions/commit",
+        "/workflows/revisions/commit",
         json={
             "workflow_revision": {
                 "slug": f"{base_slug}-v0",
@@ -65,7 +65,7 @@ def _create_workflow_with_embed(
 
     r = authed_api(
         "POST",
-        "/preview/workflows/revisions/commit",
+        "/workflows/revisions/commit",
         json={
             "workflow_revision": {
                 "slug": f"{base_slug}-v1",
@@ -81,7 +81,7 @@ def _create_workflow_with_embed(
     # Create embedding workflow
     r = authed_api(
         "POST",
-        "/preview/workflows/",
+        "/workflows/",
         json={"workflow": {"slug": embed_slug, "name": "Embedding"}},
     )
     assert r.status_code == 200
@@ -89,7 +89,7 @@ def _create_workflow_with_embed(
 
     r = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"{embed_slug}-v",
@@ -113,7 +113,7 @@ def _create_workflow_with_embed(
 
     r = authed_api(
         "POST",
-        "/preview/workflows/revisions/commit",
+        "/workflows/revisions/commit",
         json={
             "workflow_revision": {
                 "slug": f"{embed_slug}-v0",
@@ -127,7 +127,7 @@ def _create_workflow_with_embed(
 
     r = authed_api(
         "POST",
-        "/preview/workflows/revisions/commit",
+        "/workflows/revisions/commit",
         json={
             "workflow_revision": {
                 "slug": f"{embed_slug}-v1",
@@ -144,7 +144,7 @@ def _create_workflow_with_embed(
 
 
 class TestWorkflowRetrieveWithResolve:
-    """Tests for resolve=True on POST /preview/workflows/revisions/retrieve."""
+    """Tests for resolve=True on POST /workflows/revisions/retrieve."""
 
     def test_retrieve_with_resolve_true_resolves_embed(self, authed_api):
         """
@@ -165,7 +165,7 @@ class TestWorkflowRetrieveWithResolve:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/retrieve",
+            "/workflows/revisions/retrieve",
             json={
                 "workflow_revision_ref": {"id": embed_revision_id},
                 "resolve": True,
@@ -189,7 +189,7 @@ class TestWorkflowRetrieveWithResolve:
         # Cleanup
         for wf_id in [embed_id, base_id]:
             try:
-                authed_api("DELETE", f"/preview/workflows/{wf_id}")
+                authed_api("DELETE", f"/workflows/{wf_id}")
             except Exception:
                 pass
 
@@ -211,7 +211,7 @@ class TestWorkflowRetrieveWithResolve:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/retrieve",
+            "/workflows/revisions/retrieve",
             json={"workflow_revision_ref": {"id": embed_revision_id}},
         )
         # ----------------------------------------------------------------------
@@ -228,7 +228,7 @@ class TestWorkflowRetrieveWithResolve:
 
         for wf_id in [embed_id, base_id]:
             try:
-                authed_api("DELETE", f"/preview/workflows/{wf_id}")
+                authed_api("DELETE", f"/workflows/{wf_id}")
             except Exception:
                 pass
 
@@ -241,7 +241,7 @@ class TestWorkflowRetrieveWithResolve:
 
         r = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={"workflow": {"slug": slug, "name": "No Embed"}},
         )
         assert r.status_code == 200
@@ -249,7 +249,7 @@ class TestWorkflowRetrieveWithResolve:
 
         r = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{slug}-v",
@@ -263,7 +263,7 @@ class TestWorkflowRetrieveWithResolve:
 
         r = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{slug}-v0",
@@ -277,7 +277,7 @@ class TestWorkflowRetrieveWithResolve:
 
         r = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{slug}-v1",
@@ -293,7 +293,7 @@ class TestWorkflowRetrieveWithResolve:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/retrieve",
+            "/workflows/revisions/retrieve",
             json={"workflow_revision_ref": {"id": revision_id}, "resolve": True},
         )
         # ----------------------------------------------------------------------
@@ -308,13 +308,13 @@ class TestWorkflowRetrieveWithResolve:
         # ----------------------------------------------------------------------
 
         try:
-            authed_api("DELETE", f"/preview/workflows/{wf_id}")
+            authed_api("DELETE", f"/workflows/{wf_id}")
         except Exception:
             pass
 
 
 class TestApplicationRetrieveWithResolve:
-    """Tests for resolve=True on POST /preview/applications/revisions/retrieve."""
+    """Tests for resolve=True on POST /applications/revisions/retrieve."""
 
     def test_application_retrieve_with_resolve_true(self, authed_api):
         """
@@ -335,7 +335,7 @@ class TestApplicationRetrieveWithResolve:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/applications/revisions/retrieve",
+            "/applications/revisions/retrieve",
             json={
                 "application_revision_ref": {"id": embed_revision_id},
                 "resolve": True,
@@ -357,13 +357,13 @@ class TestApplicationRetrieveWithResolve:
 
         for wf_id in [embed_id, base_id]:
             try:
-                authed_api("DELETE", f"/preview/workflows/{wf_id}")
+                authed_api("DELETE", f"/workflows/{wf_id}")
             except Exception:
                 pass
 
 
 class TestEvaluatorRetrieveWithResolve:
-    """Tests for resolve=True on POST /preview/evaluators/revisions/retrieve."""
+    """Tests for resolve=True on POST /evaluators/revisions/retrieve."""
 
     def test_evaluator_retrieve_with_resolve_true(self, authed_api):
         """
@@ -384,7 +384,7 @@ class TestEvaluatorRetrieveWithResolve:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluators/revisions/retrieve",
+            "/evaluators/revisions/retrieve",
             json={
                 "evaluator_revision_ref": {"id": embed_revision_id},
                 "resolve": True,
@@ -406,6 +406,6 @@ class TestEvaluatorRetrieveWithResolve:
 
         for wf_id in [embed_id, base_id]:
             try:
-                authed_api("DELETE", f"/preview/workflows/{wf_id}")
+                authed_api("DELETE", f"/workflows/{wf_id}")
             except Exception:
                 pass

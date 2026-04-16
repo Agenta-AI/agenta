@@ -114,7 +114,7 @@ def annotate(trace_id, span_id, annotation, evaluator_slug):
 
     # Send the annotation to the Agenta API
     response = requests.post(
-        f"{os.environ.get('AGENTA_HOST', 'https://cloud.agenta.ai')}/api/preview/annotations/",
+        f"{os.environ.get('AGENTA_HOST', 'https://cloud.agenta.ai')}/api/annotations/",
         headers=headers,
         json=annotation_data,
     )

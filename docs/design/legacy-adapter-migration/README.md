@@ -9,11 +9,11 @@ This document scopes the migration away from the legacy adapter-backed routers:
 
 The goal is to replace those router families with the new entity routers:
 
-- `/preview/applications`
-- `/preview/workflows`
-- `/preview/evaluators`
-- `/preview/environments`
-- `/preview/simple/environments`
+- `/applications`
+- `/workflows`
+- `/evaluators`
+- `/environments`
+- `/simple/environments`
 
 ## Summary
 
@@ -93,9 +93,9 @@ That is cleaner than preserving `/apps`, `/variants`, `/configs`, and the old `/
 
 Add RPCs that operate on environment deployment state directly:
 
-- `POST /preview/environments/deploy`
-- `POST /preview/environments/retrieve`
-- `POST /preview/environments/revert`
+- `POST /environments/deploy`
+- `POST /environments/retrieve`
+- `POST /environments/revert`
 
 Suggested semantics:
 
@@ -109,13 +109,13 @@ These endpoints are the closest replacement for the old deployment-oriented adap
 
 Optional thin wrappers can improve ergonomics:
 
-- `POST /preview/workflows/deploy`
-- `POST /preview/workflows/retrieve`
+- `POST /workflows/deploy`
+- `POST /workflows/retrieve`
 
 or equivalently on applications:
 
-- `POST /preview/applications/deploy`
-- `POST /preview/applications/retrieve`
+- `POST /applications/deploy`
+- `POST /applications/retrieve`
 
 If we only add one family, environments should win. Deployment state belongs to environments.
 

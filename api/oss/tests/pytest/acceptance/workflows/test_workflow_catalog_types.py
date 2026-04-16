@@ -1,6 +1,6 @@
 class TestWorkflowCatalogTypes:
     def test_lists_prompt_template_type_refs(self, authed_api):
-        response = authed_api("GET", "/preview/workflows/catalog/types/")
+        response = authed_api("GET", "/workflows/catalog/types/")
 
         assert response.status_code == 200
         body = response.json()
@@ -29,7 +29,7 @@ class TestWorkflowCatalogTypes:
     def test_fetches_prompt_template_schema(self, authed_api):
         response = authed_api(
             "GET",
-            "/preview/workflows/catalog/types/prompt-template",
+            "/workflows/catalog/types/prompt-template",
         )
 
         assert response.status_code == 200
@@ -43,7 +43,7 @@ class TestWorkflowCatalogTypes:
     def test_fetches_model_schema(self, authed_api):
         response = authed_api(
             "GET",
-            "/preview/workflows/catalog/types/model",
+            "/workflows/catalog/types/model",
         )
 
         assert response.status_code == 200

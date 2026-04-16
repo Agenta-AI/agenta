@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 
 from pydantic import Field
@@ -341,6 +341,9 @@ class SimpleApplicationEdit(Identifier, Header, Metadata):
 
 
 class SimpleApplicationQuery(Metadata):
+    slug: Optional[str] = None
+    slugs: Optional[List[str]] = None
+
     flags: Optional[SimpleApplicationQueryFlags] = None
 
 

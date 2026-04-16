@@ -17,7 +17,7 @@ This RFC proposes a thin convenience layer — both API and UI — that hides ev
 The backend has a complete `EvaluationQueue` implementation:
 
 - `EvaluationQueue` entity with assignment algorithm (block-based, deterministic)
-- Full CRUD API at `/preview/evaluations/queues/`
+- Full CRUD API at `/evaluations/queues/`
 - Per-repeat assignment via `data.user_ids`
 - Scenario partitioning via `filter_scenario_ids()`
 - Stateless dispatch (same inputs → same assignment)
@@ -99,15 +99,15 @@ The consumer layer is a **convenience API** and a **set of UI views** that orche
    - An EvaluationQueue linked to the run, with user assignments if specified
 4. Annotator opens their annotation queues page → sees assigned queues → opens one → works through traces → annotates → submits
 5. On submit:
-   - `POST /preview/annotations/` creates the annotation OTel span (same as today)
-   - `PATCH /preview/evaluations/results/` links the annotation `trace_id` to the step result (same as today)
+   - `POST /annotations/` creates the annotation OTel span (same as today)
+   - `PATCH /evaluations/results/` links the annotation `trace_id` to the step result (same as today)
    - The annotation is also visible on the trace span in observability (existing write-through via OTel links)
 
 6. **Deletion:** When the user deletes an annotation queue, the convenience API cleans up the backing infrastructure — deletes the EvaluationQueue, associated EvaluationScenarios/Results, and the EvaluationRun (but NOT the annotations themselves, which are immutable OTel spans).
 
 **Frontend: tracking progress and status.** The FE discovers status per item and overall progress through:
 - **Per-item status:** Each `EvaluationResult` for a human annotation step has a `status` field (PENDING, COMPLETED, FAILURE). When the annotator submits, the result is updated to COMPLETED and gets a `trace_id` linking to the annotation OTel span. The FE queries results for the queue's scenarios to determine which items are done vs open.
-- **Overall progress:** Count of COMPLETED results vs total scenarios × annotation steps. The convenience API can expose this as `GET /preview/annotation-queues/{queue_id}` returning `{completed: N, total: M}`.
+- **Overall progress:** Count of COMPLETED results vs total scenarios × annotation steps. The convenience API can expose this as `GET /annotation-queues/{queue_id}` returning `{completed: N, total: M}`.
 - **Editing after completion:** Yes — the annotator can re-submit an annotation for a completed item. This creates a new annotation OTel span (annotations are append-only traces) and updates the `EvaluationResult.trace_id` to point to the latest annotation. The previous annotation span is preserved in the tracing store.
 
 **Key design choice: evaluations without inputs.** The run has no input steps. The trace being annotated is referenced as the invocation in the scenario. This requires backend support for runs where only invocation references exist (no testset inputs). See [Appendix A](#appendix-a-evaluations-without-inputs--technical-analysis) for a detailed technical analysis of what needs to change.
@@ -180,7 +180,7 @@ A thin layer over existing endpoints. Internally, each call orchestrates multipl
 ### Create Annotation Queue
 
 ```
-POST /preview/annotation-queues/
+POST /annotation-queues/
 {
   "name": "Q1 Trace Review",
   "description": "Review flagged production traces",
@@ -224,7 +224,7 @@ POST /preview/annotation-queues/
 ### Add Items to Queue
 
 ```
-POST /preview/annotation-queues/{queue_id}/items
+POST /annotation-queues/{queue_id}/items
 {
   // For trace-sourced queues:
   "trace_ids": ["new-trace-1", "new-trace-2"]
@@ -240,7 +240,7 @@ Adds new scenarios to the underlying evaluation run. Validates that the item typ
 ### List Queues (for current user)
 
 ```
-GET /preview/annotation-queues/?user_id={user_id}
+GET /annotation-queues/?user_id={user_id}
 ```
 
 Returns all queues where the user is an assignee. Each queue includes:
@@ -251,7 +251,7 @@ Returns all queues where the user is an assignee. Each queue includes:
 ### Get Queue Detail + Items
 
 ```
-GET /preview/annotation-queues/{queue_id}?user_id={user_id}
+GET /annotation-queues/{queue_id}?user_id={user_id}
 ```
 
 Returns queue metadata + the user's assigned items with their annotation status. Internally calls `filter_scenario_ids()` to scope to the user's partition.
@@ -259,13 +259,13 @@ Returns queue metadata + the user's assigned items with their annotation status.
 ### Submit Annotation
 
 Uses existing endpoints — no change needed:
-- `POST /preview/annotations/` to create the annotation
-- `PATCH /preview/evaluations/results/` to link it to the step result
+- `POST /annotations/` to create the annotation
+- `PATCH /evaluations/results/` to link it to the step result
 
 ### Write Back / Save as Test Set
 
 ```
-POST /preview/annotation-queues/{queue_id}/export
+POST /annotation-queues/{queue_id}/export
 {
   // For testset-sourced queues: create new revision with annotation columns
   "target": "testset_revision",
@@ -309,12 +309,12 @@ The key principle: **one annotation view, multiple data types**. The view render
 
 **Observability (traces):**
 - User selects traces → clicks "Send to annotation queue" → modal to configure or select existing queue
-- FE calls `POST /preview/annotation-queues/` with `source.type = "traces"` and selected trace_ids
+- FE calls `POST /annotation-queues/` with `source.type = "traces"` and selected trace_ids
 - Annotator sees this queue on the Annotation Queues page, clicks Open → annotation view shows trace data
 
 **Test set view:**
 - User opens test set → clicks "Send to annotation queue" → modal to configure labels and assignees
-- FE calls `POST /preview/annotation-queues/` with `source.type = "testset"` and testset_revision_id
+- FE calls `POST /annotation-queues/` with `source.type = "testset"` and testset_revision_id
 - Annotator sees this queue on the Annotation Queues page, clicks Open → annotation view shows testcase data
 - On completion: queue admin clicks "Export to test set" → creates new revision with annotation columns
 
@@ -458,7 +458,7 @@ The metadata-on-traces approach (tagging spans with review status) was considere
 
 ### Phase 2: Convenience API + trace annotation
 
-- New convenience endpoints (`/preview/annotation-queues/`)
+- New convenience endpoints (`/annotation-queues/`)
 - Support creating queues from traces
 - "Send to review" button in observability view
 - Inbox view
@@ -540,7 +540,7 @@ There are **two separate annotation contexts** in the current frontend:
 - **What it shows:** A 400px side drawer with ONLY the annotation form. No trace inputs/outputs are shown in the drawer — the user sees them in the trace detail behind the drawer.
 - **Evaluator source:** User selects from ALL human evaluators via a multi-step wizard (Annotate → Select Evaluators → Create Evaluator). Selection persisted in localStorage.
 - **Annotation kind:** `adhoc` (origin: human, channel: web)
-- **API calls:** `POST /preview/annotations/` to create, `PATCH /preview/annotations/{traceId}/{spanId}` to update
+- **API calls:** `POST /annotations/` to create, `PATCH /annotations/{traceId}/{spanId}` to update
 - **State:** SWR for fetching, local React state for form values
 - **No assignment, no queue, no progress tracking**
 
@@ -596,7 +596,7 @@ Create a new page at the annotation queue route that wraps the focus view patter
 
 #### 2. Assignment filtering
 
-- New atom: `assignedScenarioIdsAtom` — fetched from `GET /preview/annotation-queues/{queue_id}?user_id=X`
+- New atom: `assignedScenarioIdsAtom` — fetched from `GET /annotation-queues/{queue_id}?user_id=X`
 - `ScenarioNavigator`: Filter `loadedScenarios` to only show assigned IDs
 - `ActionCell` (if table view is used): Only show "Annotate" button for assigned scenarios
 

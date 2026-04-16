@@ -443,7 +443,7 @@ class TestsetsRouter:
             response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
-        # POST /api/preview/testsets/revisions/{testset_revision_id}/download
+        # POST /api/testsets/revisions/{testset_revision_id}/download
         self.router.add_api_route(
             "/revisions/{testset_revision_id}/download",
             self.fetch_testset_revision_to_file,
@@ -452,7 +452,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
         )
 
-        # POST /api/preview/testsets/revisions/{testset_revision_id}/upload
+        # POST /api/testsets/revisions/{testset_revision_id}/upload
         self.router.add_api_route(
             "/revisions/{testset_revision_id}/upload",
             self.create_testset_revision_from_file,
@@ -1466,7 +1466,7 @@ class SimpleTestsetsRouter:
 
         # SIMPLE TESTSETS ------------------------------------------------------
 
-        # POST /api/preview/simple/testsets/
+        # POST /api/simple/testsets/
         self.router.add_api_route(
             "/",
             self.create_simple_testset,
@@ -1477,7 +1477,7 @@ class SimpleTestsetsRouter:
             response_model_exclude_none=True,
         )
 
-        # GET /api/preview/simple/testsets/{testset_id}
+        # GET /api/simple/testsets/{testset_id}
         self.router.add_api_route(
             "/{testset_id}",
             self.fetch_simple_testset,
@@ -1488,7 +1488,7 @@ class SimpleTestsetsRouter:
             response_model_exclude_none=True,
         )
 
-        # PUT /api/preview/simple/testsets/{testset_id}
+        # PUT /api/simple/testsets/{testset_id}
         self.router.add_api_route(
             "/{testset_id}",
             self.edit_simple_testset,
@@ -1499,7 +1499,7 @@ class SimpleTestsetsRouter:
             response_model_exclude_none=True,
         )
 
-        # POST /api/preview/simple/testsets/{testset_id}/archive
+        # POST /api/simple/testsets/{testset_id}/archive
         self.router.add_api_route(
             "/{testset_id}/archive",
             self.archive_simple_testset,
@@ -1510,7 +1510,7 @@ class SimpleTestsetsRouter:
             response_model_exclude_none=True,
         )
 
-        # POST /api/preview/simple/testsets/{testset_id}/unarchive
+        # POST /api/simple/testsets/{testset_id}/unarchive
         self.router.add_api_route(
             "/{testset_id}/unarchive",
             self.unarchive_simple_testset,
@@ -1521,7 +1521,7 @@ class SimpleTestsetsRouter:
             response_model_exclude_none=True,
         )
 
-        # POST /api/preview/simple/testsets/{testset_id}/upload
+        # POST /api/simple/testsets/{testset_id}/upload
         self.router.add_api_route(
             "/{testset_id}/upload",
             self.edit_simple_testset_from_file,
@@ -1532,7 +1532,7 @@ class SimpleTestsetsRouter:
             response_model_exclude_none=True,
         )
 
-        # POST /api/preview/simple/testsets/{testset_id}/download
+        # POST /api/simple/testsets/{testset_id}/download
         self.router.add_api_route(
             "/{testset_id}/download",
             self.fetch_simple_testset_to_file,
@@ -1541,7 +1541,7 @@ class SimpleTestsetsRouter:
             status_code=status.HTTP_200_OK,
         )
 
-        # POST /api/preview/simple/testsets/query
+        # POST /api/simple/testsets/query
         self.router.add_api_route(
             "/query",
             self.query_simple_testsets,
@@ -1552,7 +1552,7 @@ class SimpleTestsetsRouter:
             response_model_exclude_none=True,
         )
 
-        # POST /api/preview/simple/testsets/upload
+        # POST /api/simple/testsets/upload
         self.router.add_api_route(
             "/upload",
             self.create_simple_testset_from_file,

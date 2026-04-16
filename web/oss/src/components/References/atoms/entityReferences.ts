@@ -570,7 +570,7 @@ const queryReferenceBatchFetcher = createBatchFetcher<
 
                 try {
                     const response = await axios.post(
-                        "/preview/queries/query",
+                        "/queries/query",
                         {
                             query_refs: dedupRefs.map((ref) => ({
                                 id: ref.id,

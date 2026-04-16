@@ -162,7 +162,7 @@ References:
 Migration should preserve compatibility while moving to new APIs.
 
 - Keep old and new routes running in parallel until migration is complete.
-- New stack commonly ships under `/preview/*` while old endpoints remain mounted.
+- New stack commonly ships under `/*` while old endpoints remain mounted.
 - Prefer data compatibility adapters over breaking payload changes.
 - Preserve old IDs/shape when continuity is required.
 - If old storage temporarily carries new payload shape, mark it explicitly.

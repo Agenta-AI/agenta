@@ -61,7 +61,7 @@ def mock_data(authed_api):
     testset_slug = uuid4().hex
     response = authed_api(
         "POST",
-        "/preview/simple/testsets/",
+        "/simple/testsets/",
         json={
             "testset": {
                 "slug": testset_slug,
@@ -85,7 +85,7 @@ def mock_data(authed_api):
     # (independent of the strategies under test)
     response = authed_api(
         "POST",
-        "/preview/testcases/query",
+        "/testcases/query",
         json={
             "testset_revision_ref": {"id": testset_revision_id},
             "windowing": {"limit": 100},
@@ -121,7 +121,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/traces/ingest",
+        "/traces/ingest",
         json={"traces": traces},
     )
     # Ingestion is asynchronous; 202 Accepted
@@ -148,7 +148,7 @@ def mock_data(authed_api):
     query_slug = uuid4().hex
     response = authed_api(
         "POST",
-        "/preview/simple/queries/",
+        "/simple/queries/",
         json={
             "query": {
                 "slug": query_slug,
@@ -166,7 +166,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/queries/revisions/commit",
+        "/queries/revisions/commit",
         json={
             "query_revision_commit": {
                 "slug": uuid4().hex[-12:],
@@ -218,7 +218,7 @@ class TestLoadableStrategies:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/testsets/revisions/retrieve",
+            "/testsets/revisions/retrieve",
             json={
                 "testset_revision_ref": {"id": mock_data["testset_revision_id"]},
                 "include_testcase_ids": False,
@@ -251,7 +251,7 @@ class TestLoadableStrategies:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/queries/revisions/retrieve",
+            "/queries/revisions/retrieve",
             json={
                 "query_revision_ref": {"id": mock_data["query_revision_id"]},
             },
@@ -284,7 +284,7 @@ class TestLoadableStrategies:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/testsets/revisions/retrieve",
+            "/testsets/revisions/retrieve",
             json={
                 "testset_revision_ref": {"id": mock_data["testset_revision_id"]},
                 "include_testcase_ids": True,
@@ -315,7 +315,7 @@ class TestLoadableStrategies:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/queries/revisions/retrieve",
+            "/queries/revisions/retrieve",
             json={
                 "query_revision_ref": {"id": mock_data["query_revision_id"]},
                 "include_trace_ids": True,
@@ -347,7 +347,7 @@ class TestLoadableStrategies:
         # ACT — use default (no include flags); both default to true ----------
         response = authed_api(
             "POST",
-            "/preview/testsets/revisions/retrieve",
+            "/testsets/revisions/retrieve",
             json={
                 "testset_revision_ref": {"id": mock_data["testset_revision_id"]},
             },
@@ -377,7 +377,7 @@ class TestLoadableStrategies:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/queries/revisions/retrieve",
+            "/queries/revisions/retrieve",
             json={
                 "query_revision_ref": {"id": mock_data["query_revision_id"]},
                 "include_traces": True,
@@ -412,14 +412,14 @@ class TestLoadableStrategies:
         [B.0] Query only — filtering + windowing from [A.0] pushed directly
         to the traces record endpoint.
 
-        Status: GREEN — POST /preview/traces/query already accepts filtering
+        Status: GREEN — POST /traces/query already accepts filtering
         and windowing directly.
         """
 
         # ARRANGE — get filtering + windowing from [A.0] ----------------------
         response = authed_api(
             "POST",
-            "/preview/queries/revisions/retrieve",
+            "/queries/revisions/retrieve",
             json={"query_revision_ref": {"id": mock_data["query_revision_id"]}},
         )
         assert response.status_code == 200
@@ -430,7 +430,7 @@ class TestLoadableStrategies:
         # ACT — push stored expressions to record endpoint --------------------
         response = authed_api(
             "POST",
-            "/preview/traces/query",
+            "/traces/query",
             json={
                 "filtering": revision_data["filtering"],
                 "windowing": revision_data["windowing"],
@@ -451,14 +451,14 @@ class TestLoadableStrategies:
         [B.1] Testset — testcase IDs (from mock_data setup) used to fetch
         testcases directly from the record endpoint.
 
-        Status: GREEN — GET /preview/testcases?testcase_ids=... already exists.
+        Status: GREEN — GET /testcases?testcase_ids=... already exists.
         """
 
         # ACT -----------------------------------------------------------------
         ids_param = ",".join(str(i) for i in mock_data["testcase_ids"])
         response = authed_api(
             "GET",
-            f"/preview/testcases/?testcase_ids={ids_param}",
+            f"/testcases/?testcase_ids={ids_param}",
         )
         # ---------------------------------------------------------------------
 
@@ -474,7 +474,7 @@ class TestLoadableStrategies:
         [B.1] Query — trace IDs (from mock_data ingestion) used to fetch
         traces directly from the record endpoint.
 
-        Status: GREEN — GET /preview/traces?trace_ids=... already exists.
+        Status: GREEN — GET /traces?trace_ids=... already exists.
         Note: depends on async trace ingestion having completed (1s sleep in
         mock_data).
         """
@@ -483,7 +483,7 @@ class TestLoadableStrategies:
         ids_param = ",".join(mock_data["trace_ids"])
         response = authed_api(
             "GET",
-            f"/preview/traces/?trace_ids={ids_param}",
+            f"/traces/?trace_ids={ids_param}",
         )
         # ---------------------------------------------------------------------
 
@@ -505,7 +505,7 @@ class TestLoadableStrategies:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/testcases/query",
+            "/testcases/query",
             json={
                 "testset_revision_ref": {"id": mock_data["testset_revision_id"]},
                 "windowing": {"limit": 50},
@@ -526,7 +526,7 @@ class TestLoadableStrategies:
         endpoint resolves the revision, executes its stored filter (merged with
         request windowing), and returns traces.
 
-        Status: GREEN — POST /preview/traces/query accepts query_revision_ref,
+        Status: GREEN — POST /traces/query accepts query_revision_ref,
         query_variant_ref, and query_ref; resolves the stored filter and
         windowing from the revision, then executes against the tracing service.
         """
@@ -534,7 +534,7 @@ class TestLoadableStrategies:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/traces/query",
+            "/traces/query",
             json={
                 "query_revision_ref": {"id": mock_data["query_revision_id"]},
                 "windowing": {"limit": 50},
@@ -565,7 +565,7 @@ class TestLoadableStrategiesGrumpyPaths:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/testsets/revisions/retrieve",
+            "/testsets/revisions/retrieve",
             json={
                 "testset_revision_ref": {"id": str(uuid4())},
                 "include_testcase_ids": False,
@@ -589,7 +589,7 @@ class TestLoadableStrategiesGrumpyPaths:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/queries/revisions/retrieve",
+            "/queries/revisions/retrieve",
             json={"query_revision_ref": {"id": str(uuid4())}},
         )
         # ---------------------------------------------------------------------
@@ -610,7 +610,7 @@ class TestLoadableStrategiesGrumpyPaths:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/testcases/query",
+            "/testcases/query",
             json={
                 "testset_revision_ref": {"id": str(uuid4())},
                 "windowing": {"limit": 50},
@@ -635,7 +635,7 @@ class TestLoadableStrategiesGrumpyPaths:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/traces/query",
+            "/traces/query",
             json={
                 "query_revision_ref": {"id": str(uuid4())},
                 "windowing": {"limit": 50},
@@ -662,7 +662,7 @@ class TestLoadableStrategiesGrumpyPaths:
         query_slug = uuid4().hex
         response = authed_api(
             "POST",
-            "/preview/simple/queries/",
+            "/simple/queries/",
             json={
                 "query": {
                     "slug": query_slug,
@@ -689,7 +689,7 @@ class TestLoadableStrategiesGrumpyPaths:
 
         response = authed_api(
             "POST",
-            "/preview/queries/revisions/commit",
+            "/queries/revisions/commit",
             json={
                 "query_revision_commit": {
                     "slug": uuid4().hex[-12:],
@@ -718,7 +718,7 @@ class TestLoadableStrategiesGrumpyPaths:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/queries/revisions/retrieve",
+            "/queries/revisions/retrieve",
             json={
                 "query_revision_ref": {"id": query_revision_id},
                 "include_trace_ids": True,
@@ -746,7 +746,7 @@ class TestLoadableStrategiesGrumpyPaths:
         testset_slug = uuid4().hex
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/",
+            "/simple/testsets/",
             json={
                 "testset": {
                     "slug": testset_slug,
@@ -762,7 +762,7 @@ class TestLoadableStrategiesGrumpyPaths:
         # ACT — retrieve with default flags (include_testcase_ids and include_testcases both True)
         response = authed_api(
             "POST",
-            "/preview/testsets/revisions/retrieve",
+            "/testsets/revisions/retrieve",
             json={"testset_revision_ref": {"id": empty_revision_id}},
         )
         # ---------------------------------------------------------------------
@@ -795,7 +795,7 @@ class TestLoadableStrategiesEdgeCases:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/testsets/revisions/retrieve",
+            "/testsets/revisions/retrieve",
             json={
                 "testset_revision_ref": {"id": mock_data["testset_revision_id"]},
                 "include_testcase_ids": True,
@@ -824,7 +824,7 @@ class TestLoadableStrategiesEdgeCases:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/testsets/revisions/retrieve",
+            "/testsets/revisions/retrieve",
             json={
                 "testset_revision_ref": {"id": mock_data["testset_revision_id"]},
                 "windowing": {"limit": 1},
@@ -850,7 +850,7 @@ class TestLoadableStrategiesEdgeCases:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/testsets/revisions/retrieve",
+            "/testsets/revisions/retrieve",
             json={
                 "testset_revision_ref": {"id": mock_data["testset_revision_id"]},
                 "windowing": {"limit": 10000},
@@ -875,7 +875,7 @@ class TestLoadableStrategiesEdgeCases:
         response = wait_for_response(
             authed_api,
             "POST",
-            "/preview/queries/revisions/retrieve",
+            "/queries/revisions/retrieve",
             json={
                 "query_revision_ref": {"id": mock_data["query_revision_id"]},
                 "include_trace_ids": True,
@@ -913,7 +913,7 @@ class TestLoadableStrategiesEdgeCases:
         response = wait_for_response(
             authed_api,
             "POST",
-            "/preview/queries/revisions/retrieve",
+            "/queries/revisions/retrieve",
             json={
                 "query_revision_ref": {"id": mock_data["query_revision_id"]},
                 "include_traces": True,
@@ -946,7 +946,7 @@ class TestLoadableStrategiesEdgeCases:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/testcases/query",
+            "/testcases/query",
             json={
                 "testset_ref": {"id": mock_data["testset_id"]},
                 "windowing": {"limit": 50},
@@ -969,13 +969,13 @@ class TestLoadableStrategiesEdgeCases:
         self, authed_api, mock_data
     ):
         """
-        [B.2] Testset — windowing on /preview/testcases/query with revision refs
+        [B.2] Testset — windowing on /testcases/query with revision refs
         follows revision testcase_ids order (A.2-equivalent), not created_at order.
         """
 
         page_1 = authed_api(
             "POST",
-            "/preview/testcases/query",
+            "/testcases/query",
             json={
                 "testset_revision_ref": {"id": mock_data["testset_revision_id"]},
                 "windowing": {"limit": 1},
@@ -990,7 +990,7 @@ class TestLoadableStrategiesEdgeCases:
 
         page_2 = authed_api(
             "POST",
-            "/preview/testcases/query",
+            "/testcases/query",
             json={
                 "testset_revision_ref": {"id": mock_data["testset_revision_id"]},
                 "windowing": {

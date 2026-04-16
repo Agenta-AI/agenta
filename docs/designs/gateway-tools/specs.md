@@ -8,7 +8,7 @@ Analysis of the two tool execution endpoints: the AI Services `tools/call` (PR #
 
 | Aspect | `tools/call` (AI Services) | `tools/invoke` (Gateway Tools) |
 |--------|---------------------------|-------------------------------|
-| **Path** | `POST /preview/ai/services/tools/call` | `POST /preview/tools/invoke` |
+| **Path** | `POST /ai/services/tools/call` | `POST /tools/invoke` |
 | **Shape** | MCP-shaped | OpenAI-shaped |
 | **Cardinality** | Single call per request | Batch (multiple `tool_calls`) |
 | **Request** | `{ name, arguments: dict }` | `{ version, tools: [ToolDefinition], tool_calls: [{ id, type, function: { name, arguments: str } }] }` |
@@ -215,7 +215,7 @@ Composio → Agenta:  split by toolkit.slug prefix                →  (gmail, S
 
 ## 10. Catalog Endpoints
 
-Base path: `/preview/tools/catalog`
+Base path: `/tools/catalog`
 
 Two access patterns:
 1. **Browse** — REST hierarchy for UI drill-down
@@ -562,7 +562,7 @@ Notes:
 
 Search/filter **tools** — fully resolved entities (action × connection). Returns one tool per connection binding. This is for "what can I invoke?"
 
-Mounted at `/preview/tools/query` alongside other slug-based operations.
+Mounted at `/tools/query` alongside other slug-based operations.
 
 #### Request
 
@@ -768,7 +768,7 @@ Two access patterns:
 
 ### 11.1 REST — Connection CRUD (within integration hierarchy)
 
-Base path: `/preview/tools/catalog/providers/{provider_key}/integrations/{integration_key}/connections`
+Base path: `/tools/catalog/providers/{provider_key}/integrations/{integration_key}/connections`
 
 ```
 GET    .../connections                              → list connections for this integration
@@ -887,7 +887,7 @@ If `force=true` or re-authentication required, `is_valid=false` and `redirect_ur
 
 For callers that work with tool slugs directly (e.g., LLM agents, playground).
 
-Base path: `/preview/tools`
+Base path: `/tools`
 
 ```
 POST /query       → search/filter actions (see section 10.3)
@@ -958,7 +958,7 @@ Execute a tool call. Uses the full slug with optional `connection_slug` for disa
 After the user completes OAuth in the provider's popup, the provider redirects to a server-side callback. This endpoint handles the redirect, updates the connection status, and closes the popup.
 
 ```
-GET /preview/tools/callback?state={state}&code={code}
+GET /tools/callback?state={state}&code={code}
 ```
 
 #### Flow
@@ -968,7 +968,7 @@ GET /preview/tools/callback?state={state}&code={code}
 3. **Provider** (Composio) redirects the user to the callback URL after OAuth consent.
 4. **Callback endpoint** receives the redirect, verifies `state`, exchanges the `code` with the provider adapter, marks the connection as `is_valid=true`, and returns an HTML page that closes the popup.
 
-#### `GET /preview/tools/callback`
+#### `GET /tools/callback`
 
 Query params (provider-dependent, but standard OAuth2):
 
@@ -1010,7 +1010,7 @@ The `callback_url` in the connect request can be:
 
 | Strategy | `callback_url` value | Description |
 |----------|---------------------|-------------|
-| **Server-side** | `https://api.agenta.ai/preview/tools/callback` | Backend handles redirect directly. Simplest. |
+| **Server-side** | `https://api.agenta.ai/tools/callback` | Backend handles redirect directly. Simplest. |
 | **Frontend proxy** | `https://app.agenta.ai/tools/callback` | Frontend receives redirect, relays to backend, then closes popup. More control over UX. |
 
 When using the server-side strategy, Composio's `redirect_url` already includes the `state` param. The backend callback endpoint:
@@ -1765,7 +1765,7 @@ tools = ToolsRouter(tools_service=tools_service)
 
 app.include_router(
     router=tools.router,
-    prefix="/preview/tools",
+    prefix="/tools",
     tags=["Tools"],
 )
 ```
@@ -1787,12 +1787,12 @@ app.include_router(
 
 ## 13. AI Services Convergence
 
-The existing AI Services PR (`feat/refine-ai-feature`, `POST /preview/ai/services/tools/call`) ships a single Agenta-internal tool (`tools.agenta.api.refine_prompt`) with MCP-shaped contracts and hardcoded dispatch. This section describes how to fold it into the Gateway Tools architecture.
+The existing AI Services PR (`feat/refine-ai-feature`, `POST /ai/services/tools/call`) ships a single Agenta-internal tool (`tools.agenta.api.refine_prompt`) with MCP-shaped contracts and hardcoded dispatch. This section describes how to fold it into the Gateway Tools architecture.
 
 ### 13.1 Current AI Services Shape
 
 ```
-POST /preview/ai/services/tools/call
+POST /ai/services/tools/call
 
 Request:  { name: str, arguments: Dict }              ← MCP-shaped, single call
 Response: { content: [{type, text}], isError: bool }   ← MCP-shaped
@@ -1920,7 +1920,7 @@ class AgentaAdapter(GatewayAdapterInterface):
 | `core/ai_services/client.py` | HTTP client to cloud | **Kept as-is** — reused inside `AgentaAdapter` |
 | `core/ai_services/service.py` | Dispatches tool calls | **Removed** — replaced by `ToolsService` + `AgentaAdapter` |
 | `core/ai_services/dtos.py` | `ToolDefinition`, `ToolCallRequest/Response` | **Removed** — replaced by `core/tools/dtos.py` |
-| `apis/fastapi/ai_services/router.py` | `POST /preview/ai/services/tools/call` | **Kept as deprecation alias** (see below) |
+| `apis/fastapi/ai_services/router.py` | `POST /ai/services/tools/call` | **Kept as deprecation alias** (see below) |
 | `apis/fastapi/ai_services/models.py` | MCP-shaped request/response | **Kept** for the legacy alias endpoint |
 | Env config (`AIServicesConfig`) | Standalone | **Moved to** `AgentaAdapter` constructor |
 | Rate limiting | In router | **Moved to** `ToolsRouter` or `ToolsService` |
@@ -1957,14 +1957,14 @@ tools_service = ToolsService(
     adapter_registry=adapter_registry,
 )
 tools = ToolsRouter(tools_service=tools_service)
-app.include_router(tools.router, prefix="/preview/tools", tags=["Tools"])
+app.include_router(tools.router, prefix="/tools", tags=["Tools"])
 ```
 
-After this, `tools.agenta.api.refine_prompt` is invokable via `POST /preview/tools/invoke` — same endpoint as `tools.composio.gmail.SEND_EMAIL`.
+After this, `tools.agenta.api.refine_prompt` is invokable via `POST /tools/invoke` — same endpoint as `tools.composio.gmail.SEND_EMAIL`.
 
 **Phase 2: Legacy alias (keep old endpoint running)**
 
-The existing `POST /preview/ai/services/tools/call` stays mounted during transition. Its handler becomes a thin adapter:
+The existing `POST /ai/services/tools/call` stays mounted during transition. Its handler becomes a thin adapter:
 
 ```python
 # apis/fastapi/ai_services/router.py (modified)
@@ -1990,12 +1990,12 @@ async def call_tool(self, request: Request, *, tool_call: ToolCallRequest):
 
 **Phase 3: Deprecate legacy endpoint**
 
-Once callers migrate to `POST /preview/tools/invoke`, remove the legacy alias.
+Once callers migrate to `POST /tools/invoke`, remove the legacy alias.
 
 ### 13.5 Slug Dispatch Flow
 
 ```
-POST /preview/tools/invoke
+POST /tools/invoke
   body: { tool_calls: [{ function: { name: "tools.agenta.api.refine_prompt", arguments: "..." } }] }
 
 → ToolsRouter parses slug: provider_key="agenta", integration_key="api", action_key="refine_prompt"

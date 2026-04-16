@@ -6,7 +6,7 @@ export const buildTypescriptSnippet = (
     variantVersion: number,
     apiKey: string,
 ) => {
-    return `const fetchResponse = await fetch('${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}/preview/applications/revisions/retrieve', {
+    return `const fetchResponse = await fetch('${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}/applications/revisions/retrieve', {
     method: 'POST',
     headers: {
         'Content-Type': 'application/json',

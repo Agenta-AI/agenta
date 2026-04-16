@@ -61,6 +61,10 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
+def _dump_flags(flags: Optional[object]) -> dict:
+    return WorkflowsService._dump_flags(flags)
+
+
 class EvaluatorsService:
     def __init__(
         self,
@@ -923,15 +927,7 @@ class SimpleEvaluatorsService:
         evaluator_revision: Optional[EvaluatorRevision],
     ) -> SimpleEvaluatorFlags:
         return SimpleEvaluatorFlags(
-            **(
-                evaluator_revision.flags.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                    exclude_unset=True,
-                )
-                if evaluator_revision and evaluator_revision.flags
-                else {}
-            )
+            **_dump_flags(evaluator_revision.flags if evaluator_revision else None)
         )
 
     @staticmethod
@@ -943,20 +939,8 @@ class SimpleEvaluatorsService:
         if not requested_flags:
             return True
 
-        actual_flags = (
-            simple_evaluator.flags.model_dump(
-                mode="json",
-                exclude_none=True,
-                exclude_unset=True,
-            )
-            if simple_evaluator.flags
-            else {}
-        )
-        requested_flag_values = requested_flags.model_dump(
-            mode="json",
-            exclude_none=True,
-            exclude_unset=True,
-        )
+        actual_flags = _dump_flags(simple_evaluator.flags)
+        requested_flag_values = _dump_flags(requested_flags)
 
         return all(
             actual_flags.get(flag_name) == expected_value
@@ -1050,30 +1034,15 @@ class SimpleEvaluatorsService:
         #
         evaluator_id: Optional[UUID] = None,
     ) -> Optional[SimpleEvaluator]:
-        simple_evaluator_flags = (
-            SimpleEvaluatorFlags(
-                **(
-                    simple_evaluator_create.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                        exclude={"is_evaluator"},
-                    )
-                ),
-                is_evaluator=True,
-            )
-            if simple_evaluator_create.flags
-            else SimpleEvaluatorFlags(
-                is_evaluator=True,
-            )
+        simple_evaluator_flag_values = _dump_flags(simple_evaluator_create.flags)
+        simple_evaluator_flag_values.pop("is_evaluator", None)
+        simple_evaluator_flags = SimpleEvaluatorFlags(
+            **simple_evaluator_flag_values,
+            is_evaluator=True,
         )
 
         evaluator_flags = EvaluatorFlags(
-            **simple_evaluator_flags.model_dump(
-                mode="json",
-                exclude_none=True,
-                exclude_unset=True,
-            ),
+            **_dump_flags(simple_evaluator_flags),
         )
 
         evaluator_create = EvaluatorCreate(
@@ -1325,27 +1294,18 @@ class SimpleEvaluatorsService:
     ) -> Optional[SimpleEvaluator]:
         simple_evaluator_flags = (
             SimpleEvaluatorFlags(
-                **(
-                    simple_evaluator_edit.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                        exclude={"is_evaluator"},
-                    )
-                ),
+                **{
+                    key: value
+                    for key, value in _dump_flags(simple_evaluator_edit.flags).items()
+                    if key != "is_evaluator"
+                },
                 is_evaluator=True,
             )
             if simple_evaluator_edit.flags
             else SimpleEvaluatorFlags()
         )
 
-        evaluator_flags = EvaluatorFlags(
-            **simple_evaluator_flags.model_dump(
-                mode="json",
-                exclude_none=True,
-                exclude_unset=True,
-            )
-        )
+        evaluator_flags = EvaluatorFlags(**_dump_flags(simple_evaluator_flags))
 
         evaluator_ref = Reference(
             id=simple_evaluator_edit.id,

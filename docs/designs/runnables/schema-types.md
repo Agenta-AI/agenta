@@ -39,9 +39,9 @@ These are frontend/editor rendering hints for configuring a runnable.
 Current source:
 
 - `settings_template` in the builtin evaluator registry
-- exposed unchanged by legacy `GET /preview/simple/evaluators/templates`
+- exposed unchanged by legacy `GET /simple/evaluators/templates`
 - also remapped into `data.schemas.parameters` by
-  `GET /preview/evaluators/catalog/templates`
+  `GET /evaluators/catalog/templates`
 
 Examples:
 
@@ -311,7 +311,7 @@ That is the main cleanup target.
 
 Returned by:
 
-- `GET /preview/simple/evaluators/templates`
+- `GET /simple/evaluators/templates`
 
 Shape:
 
@@ -341,7 +341,7 @@ Status:
 
 Returned by:
 
-- `GET /preview/evaluators/catalog/templates`
+- `GET /evaluators/catalog/templates`
 
 Shape:
 
@@ -369,7 +369,7 @@ Status:
 
 Returned by:
 
-- `GET /preview/evaluators/catalog/templates/{template_key}/presets`
+- `GET /evaluators/catalog/templates/{template_key}/presets`
 
 Shape:
 
@@ -400,7 +400,7 @@ Additional note:
 
 Stored/read through:
 
-- `/preview/simple/evaluators/*`
+- `/simple/evaluators/*`
 
 Shape:
 

@@ -3,7 +3,7 @@
  *
  * Zod schemas for validation and type safety of Annotation entities.
  * The entity shape maps to the backend simple trace payload used to persist
- * annotations via `POST /preview/simple/traces/`.
+ * annotations via `POST /simple/traces/`.
  *
  * Annotations are keyed by a composite `{trace_id, span_id}` pair.
  * Use `encodeAnnotationId` / `decodeAnnotationId` to convert between

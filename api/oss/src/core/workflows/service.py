@@ -1370,8 +1370,9 @@ class WorkflowsService:
             **workflow_revision_commit.model_dump(
                 mode="json",
                 exclude_none=True,
-                exclude={"flags", "data"},
+                exclude={"flags", "data", "slug"},
             ),
+            slug=workflow_revision_commit.slug or uuid4().hex[-12:],
             flags=self._dump_stored_revision_flags(
                 self._revision_flags_from_any(
                     infer_flags_from_data(
@@ -1754,20 +1755,8 @@ class SimpleWorkflowsService:
         if not requested_flags:
             return True
 
-        actual_flags = (
-            simple_workflow.flags.model_dump(
-                mode="json",
-                exclude_none=True,
-                exclude_unset=True,
-            )
-            if simple_workflow.flags
-            else {}
-        )
-        requested_flag_values = requested_flags.model_dump(
-            mode="json",
-            exclude_none=True,
-            exclude_unset=True,
-        )
+        actual_flags = WorkflowsService._dump_flags(simple_workflow.flags)
+        requested_flag_values = WorkflowsService._dump_flags(requested_flags)
 
         return all(
             actual_flags.get(flag_name) == expected_value
@@ -1787,23 +1776,11 @@ class SimpleWorkflowsService:
         workflow_id: Optional[UUID] = None,
     ) -> Optional[SimpleWorkflow]:
         simple_workflow_flags = SimpleWorkflowFlags(
-            **(
-                simple_workflow_create.flags.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                    exclude_unset=True,
-                )
-                if simple_workflow_create.flags
-                else {}
-            )
+            **WorkflowsService._dump_flags(simple_workflow_create.flags)
         )
 
         workflow_flags = WorkflowFlags(
-            **simple_workflow_flags.model_dump(
-                mode="json",
-                exclude_none=True,
-                exclude_unset=True,
-            ),
+            **WorkflowsService._dump_flags(simple_workflow_flags),
         )
 
         workflow_create = WorkflowCreate(
@@ -1929,15 +1906,7 @@ class SimpleWorkflowsService:
             deleted_by_id=workflow.deleted_by_id,
             #
             flags=SimpleWorkflowFlags(
-                **(
-                    workflow_revision.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                    )
-                    if workflow_revision.flags
-                    else {}
-                )
+                **WorkflowsService._dump_flags(workflow_revision.flags)
             ),
             meta=workflow.meta,
             tags=workflow.tags,
@@ -2005,15 +1974,7 @@ class SimpleWorkflowsService:
             deleted_by_id=workflow.deleted_by_id,
             #
             flags=SimpleWorkflowFlags(
-                **(
-                    workflow_revision.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                    )
-                    if workflow_revision.flags
-                    else {}
-                )
+                **WorkflowsService._dump_flags(workflow_revision.flags)
             ),
             meta=workflow.meta,
             tags=workflow.tags,
@@ -2053,14 +2014,14 @@ class SimpleWorkflowsService:
             #
             flags=(
                 WorkflowFlags(
-                    **simple_workflow_edit.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                    ),
+                    **WorkflowsService._dump_flags(simple_workflow_edit.flags),
                 )
                 if simple_workflow_edit.flags
-                else workflow.flags
+                else (
+                    WorkflowFlags(**WorkflowsService._dump_flags(workflow.flags))
+                    if workflow.flags
+                    else None
+                )
             ),
             meta=simple_workflow_edit.meta
             if simple_workflow_edit.meta is not None
@@ -2162,15 +2123,7 @@ class SimpleWorkflowsService:
             deleted_by_id=workflow.deleted_by_id,
             #
             flags=SimpleWorkflowFlags(
-                **(
-                    workflow_revision.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                    )
-                    if workflow_revision.flags
-                    else {}
-                )
+                **WorkflowsService._dump_flags(workflow_revision.flags)
             ),
             meta=workflow.meta,
             tags=workflow.tags,

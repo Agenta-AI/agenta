@@ -7,8 +7,8 @@
  * builtin URI.
  *
  * Endpoints:
- * - `GET /preview/evaluators/catalog/templates/`
- * - `GET /preview/evaluators/catalog/templates/{template_key}/presets/`
+ * - `GET /evaluators/catalog/templates/`
+ * - `GET /evaluators/catalog/templates/{template_key}/presets/`
  */
 
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
@@ -18,7 +18,7 @@ import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 // ============================================================================
 
 /**
- * Catalog template as returned by `GET /preview/evaluators/catalog/templates/`.
+ * Catalog template as returned by `GET /evaluators/catalog/templates/`.
  *
  * Replaces the legacy `EvaluatorTemplate` shape.
  * Key differences:
@@ -53,7 +53,7 @@ export interface EvaluatorCatalogTemplatesResponse {
 
 /**
  * Catalog preset as returned by
- * `GET /preview/evaluators/catalog/templates/{template_key}/presets/`.
+ * `GET /evaluators/catalog/templates/{template_key}/presets/`.
  */
 export interface EvaluatorCatalogPreset {
     key: string
@@ -108,7 +108,7 @@ export async function fetchEvaluatorTemplates(
     }
 
     const response = await axios.get<EvaluatorCatalogTemplatesResponse>(
-        `${getAgentaApiUrl()}/preview/evaluators/catalog/templates/`,
+        `${getAgentaApiUrl()}/evaluators/catalog/templates/`,
         {params: {project_id: projectId, include_archived: includeArchived}},
     )
 
@@ -130,7 +130,7 @@ export async function fetchEvaluatorCatalogPresets(
     }
 
     const response = await axios.get<EvaluatorCatalogPresetsResponse>(
-        `${getAgentaApiUrl()}/preview/evaluators/catalog/templates/${encodeURIComponent(templateKey)}/presets/`,
+        `${getAgentaApiUrl()}/evaluators/catalog/templates/${encodeURIComponent(templateKey)}/presets/`,
         {params: {project_id: projectId}},
     )
 

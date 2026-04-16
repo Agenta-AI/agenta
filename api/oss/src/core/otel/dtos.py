@@ -3,7 +3,7 @@ from uuid import UUID
 from datetime import datetime
 from typing import List, Dict, Any, Union, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from oss.src.core.shared.dtos import LegacyLifecycleDTO, Windowing
 
@@ -67,11 +67,10 @@ class StatusCode(Enum):
 
 
 class StatusDTO(BaseModel):
+    model_config = ConfigDict(use_enum_values=True)
+
     code: StatusCode
     message: Optional[str] = None
-
-    class Config:
-        use_enum_values = True
 
 
 Attributes = Dict[str, Any]
@@ -84,12 +83,6 @@ class ExceptionDTO(BaseModel):
     stacktrace: Optional[str] = None
     attributes: Optional[Attributes] = None
 
-    class Config:
-        json_encoders = {
-            UUID: lambda v: str(v),  # pylint: disable=unnecessary-lambda
-            datetime: lambda dt: dt.isoformat(),
-        }
-
 
 Data = Dict[str, Any]
 Metrics = Dict[str, Any]
@@ -98,15 +91,11 @@ Refs = Dict[str, Any]
 
 
 class LinkDTO(BaseModel):
+    model_config = ConfigDict(use_enum_values=True)
+
     type: TreeType  # Yes, this is correct
     id: UUID  # node_id, this is correct
     tree_id: Optional[UUID] = None
-
-    class Config:
-        use_enum_values = True
-        json_encoders = {
-            UUID: lambda v: str(v),  # pylint: disable=unnecessary-lambda
-        }
 
 
 class OTelSpanKind(Enum):
@@ -156,6 +145,12 @@ class OTelExtraDTO(BaseModel):
 ## --- ENTITIES --- ##
 
 
+SPAN_JSON_ENCODERS = {
+    UUID: str,
+    datetime: lambda dt: dt.isoformat(),
+}
+
+
 class SpanDTO(BaseModel):
     trace_id: str
     span_id: str
@@ -184,19 +179,12 @@ class SpanDTO(BaseModel):
 
     nodes: Optional[Dict[str, Union["SpanDTO", List["SpanDTO"]]]] = None
 
-    model_config = {
-        "json_encoders": {
-            UUID: lambda v: str(v),
-            datetime: lambda dt: dt.isoformat(),
-        },
-    }
-
     def encode(self, data: Any) -> Any:
         if isinstance(data, dict):
             return {k: self.encode(v) for k, v in data.items()}
         elif isinstance(data, list):
             return [self.encode(item) for item in data]
-        for type_, encoder in self.model_config["json_encoders"].items():  # type: ignore
+        for type_, encoder in SPAN_JSON_ENCODERS.items():
             if isinstance(data, type_):
                 return encoder(data)
         return data
@@ -302,13 +290,11 @@ class ConditionDTO(BaseModel):
 
 
 class FilteringDTO(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     operator: Optional[LogicalOperator] = LogicalOperator.AND
 
     conditions: List[Union[ConditionDTO, "FilteringDTO"]]
-
-    model_config = {
-        "arbitrary_types_allowed": True,
-    }
 
 
 class Focus(Enum):

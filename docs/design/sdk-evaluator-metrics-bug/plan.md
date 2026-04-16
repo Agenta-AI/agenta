@@ -67,7 +67,7 @@ PROPOSED (First-Scenario Deferral):
 
 #### Phase 1: Restructure evaluate.py for first-scenario handling
 
-**File:** `sdk/agenta/sdk/evaluations/preview/evaluate.py`
+**File:** `sdk/agenta/sdk/evaluations/evaluate.py`
 
 ```python
 # Track which evaluators need schema inference

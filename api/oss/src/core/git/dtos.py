@@ -33,7 +33,8 @@ class ArtifactEdit(Identifier, Header, Metadata, FolderScope):
 
 
 class ArtifactQuery(Header, Metadata, FolderScope):
-    pass
+    slug: Optional[str] = None
+    slugs: Optional[List[str]] = None
 
 
 # variants ---------------------------------------------------------------------
@@ -52,7 +53,8 @@ class VariantEdit(Identifier, Header, Metadata):
 
 
 class VariantQuery(Header, Metadata):
-    pass
+    slug: Optional[str] = None
+    slugs: Optional[List[str]] = None
 
 
 # revisions --------------------------------------------------------------------
@@ -75,6 +77,9 @@ class RevisionEdit(Identifier, Header, Metadata):
 
 
 class RevisionQuery(Header, Metadata):
+    slug: Optional[str] = None
+    slugs: Optional[List[str]] = None
+
     author: Optional[UUID] = None
     authors: Optional[List[UUID]] = None
 

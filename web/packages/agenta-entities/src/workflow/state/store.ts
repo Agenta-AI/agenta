@@ -832,7 +832,7 @@ export const workflowAppTypeAtomFamily = atomFamily((workflowId: string) =>
  * Query atom family for fetching a single workflow revision by its revision ID.
  * Returns the WorkflowRevision which contains `data` (uri, schemas, parameters).
  *
- * Uses `fetchWorkflowRevisionsByIdsBatch` (POST /preview/workflows/revisions/query)
+ * Uses `fetchWorkflowRevisionsByIdsBatch` (POST /workflows/revisions/query)
  * via the batch fetcher because the playground stores revision IDs, not workflow IDs.
  */
 export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
@@ -871,7 +871,7 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
 
 /**
  * Inspect query atom family.
- * After revision data loads, calls `/preview/workflows/inspect` with the
+ * After revision data loads, calls `/workflows/inspect` with the
  * revision's URI to resolve the full interface schema (including inputs).
  *
  * Fires for **any workflow with a URI** — evaluators, managed apps, builtins.
@@ -1001,7 +1001,7 @@ export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
 // INTERFACE SCHEMAS QUERY (builtin workflow fallback)
 // ============================================================================
 
-// NOTE: Disabled — re-enable when `/preview/workflows/interfaces/schemas` is available.
+// NOTE: Disabled — re-enable when `/workflows/interfaces/schemas` is available.
 // function isBuiltinUri(uri: string | null | undefined): boolean {
 //     if (!uri) return false
 //     return uri.startsWith("agenta:builtin:")
@@ -1010,7 +1010,7 @@ export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
 /**
  * Interface schemas query atom family.
  * For builtin workflows, fetches the interface schemas from the
- * `/preview/workflows/interfaces/schemas` endpoint.
+ * `/workflows/interfaces/schemas` endpoint.
  *
  * This is a lightweight fallback that returns static schema definitions
  * for builtin evaluators without requiring the handler to be running.
@@ -1018,7 +1018,7 @@ export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
  * **Only fires for builtin workflows** (URI starts with "agenta:builtin:").
  *
  * NOTE: Currently disabled — the backend endpoint is not yet implemented.
- * Re-enable `enabled` when `/preview/workflows/interfaces/schemas` is available.
+ * Re-enable `enabled` when `/workflows/interfaces/schemas` is available.
  */
 export const workflowInterfaceSchemasAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery((_get) => {

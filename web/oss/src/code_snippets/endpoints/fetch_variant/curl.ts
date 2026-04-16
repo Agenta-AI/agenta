@@ -6,7 +6,7 @@ export const buildCurlSnippet = (
     variantVersion: number,
     apiKey: string,
 ) => {
-    return `curl -X POST "${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}/preview/applications/revisions/retrieve" \\
+    return `curl -X POST "${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}/applications/revisions/retrieve" \\
   -H "Content-Type: application/json" \\
   -H "Authorization: ApiKey ${apiKey}" \\
   -d '{

@@ -5,7 +5,7 @@ import {getProjectValues} from "@/oss/state/project"
 import {iqrsLevels, PERCENTILE_STOPS} from "./assets/contants"
 import {BasicStats} from "./types"
 
-export const METRICS_ENDPOINT = "/preview/evaluations/metrics/"
+export const METRICS_ENDPOINT = "/evaluations/metrics/"
 
 const fetchJSON = async (url: string, options: RequestInit) => {
     const res = await fetch(url, options)

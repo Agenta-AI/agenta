@@ -43,9 +43,9 @@ Each file tests:
 
 | Entity | Catalog endpoint | Status |
 |--------|-----------------|--------|
-| Evaluators | `GET /preview/evaluators/catalog/templates` | ✅ Implemented |
-| Evaluators | `GET /preview/evaluators/catalog/templates/{key}` | ✅ Implemented |
-| Evaluators | `GET /preview/evaluators/catalog/templates/{key}/presets` | ✅ Implemented |
+| Evaluators | `GET /evaluators/catalog/templates` | ✅ Implemented |
+| Evaluators | `GET /evaluators/catalog/templates/{key}` | ✅ Implemented |
+| Evaluators | `GET /evaluators/catalog/templates/{key}/presets` | ✅ Implemented |
 | Workflows | None | ❌ Missing |
 | Applications | None | ❌ Missing |
 
@@ -372,7 +372,7 @@ configuration: Optional[dict] = None
 ## Constraints and Compatibility
 
 - **`/invoke` not added**: applications and evaluators do not expose an invoke endpoint. The workflows invoke proxy is intentionally not replicated; invoke goes directly to the service URL.
-- **Existing evaluator catalog endpoints** (`/preview/evaluators/catalog/*`) must not break. Response shapes stay the same; only the backing registry source changes (G12a step S13).
+- **Existing evaluator catalog endpoints** (`/evaluators/catalog/*`) must not break. Response shapes stay the same; only the backing registry source changes (G12a step S13).
 - **`settings_template`** stays as UI convenience metadata — not removed in this plan.
 - **Simple routers** (`/simple/applications/`, `/simple/evaluators/`) are not touched — CRUD only.
 - **Legacy `service`/`configuration` fields in DTOs** stay in place until a DB migration is written — they are just never written by new code (S15) and are normalized away on read (S16).

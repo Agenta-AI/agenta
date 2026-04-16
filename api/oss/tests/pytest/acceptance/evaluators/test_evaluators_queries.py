@@ -29,7 +29,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/simple/evaluators/",
+        "/simple/evaluators/",
         json={
             "evaluator": {
                 "slug": f"evaluator-{evaluator_slug}",
@@ -70,7 +70,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/simple/evaluators/",
+        "/simple/evaluators/",
         json={
             "evaluator": {
                 "slug": f"evaluator-{evaluator_slug}",
@@ -109,7 +109,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        f"/preview/simple/evaluators/{evaluator_2['id']}/archive",
+        f"/simple/evaluators/{evaluator_2['id']}/archive",
     )
 
     assert response.status_code == 200
@@ -135,7 +135,7 @@ class TestEvaluatorsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/evaluators/query",
+            "/simple/evaluators/query",
             json={},
         )
         # ----------------------------------------------------------------------
@@ -156,7 +156,7 @@ class TestEvaluatorsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/evaluators/query",
+            "/simple/evaluators/query",
             json={
                 "include_archived": True,
             },
@@ -180,7 +180,7 @@ class TestEvaluatorsQueries:
         # First, get total count with include_archived
         response = authed_api(
             "POST",
-            "/preview/simple/evaluators/query",
+            "/simple/evaluators/query",
             json={
                 "include_archived": True,
             },
@@ -200,7 +200,7 @@ class TestEvaluatorsQueries:
                 windowing["next"] = next_cursor
             response = authed_api(
                 "POST",
-                "/preview/simple/evaluators/query",
+                "/simple/evaluators/query",
                 json={
                     "include_archived": True,
                     "windowing": windowing,
@@ -222,7 +222,7 @@ class TestEvaluatorsQueries:
         # Verify next page is empty
         response = authed_api(
             "POST",
-            "/preview/simple/evaluators/query",
+            "/simple/evaluators/query",
             json={
                 "include_archived": True,
                 "windowing": {"limit": 1, "next": next_cursor},
@@ -241,7 +241,7 @@ class TestEvaluatorsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/evaluators/query",
+            "/simple/evaluators/query",
             json={
                 "evaluator": {
                     "flags": mock_data["evaluators"][0]["flags"],
@@ -266,7 +266,7 @@ class TestEvaluatorsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/evaluators/query",
+            "/simple/evaluators/query",
             json={
                 "evaluator": {
                     "tags": mock_data["evaluators"][0]["tags"],

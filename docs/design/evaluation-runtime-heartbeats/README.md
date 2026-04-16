@@ -26,7 +26,7 @@ See also:
 The SDK creates a persisted evaluation run and then executes the loop locally in the client process.
 
 - create/persist run: `sdk/agenta/sdk/evaluations/runs.py`
-- local execution loop: `sdk/agenta/sdk/evaluations/preview/evaluate.py`
+- local execution loop: `sdk/agenta/sdk/evaluations/evaluate.py`
 
 Important property:
 
@@ -318,8 +318,8 @@ Practical rule:
 
 Suggested endpoints:
 
-- `POST /preview/simple/evaluations/{run_id}/heartbeat`
-- `DELETE /preview/simple/evaluations/{run_id}/heartbeat`
+- `POST /simple/evaluations/{run_id}/heartbeat`
+- `DELETE /simple/evaluations/{run_id}/heartbeat`
 
 Note: `{run_id}` here is the evaluation run id (`run.id`). In `SimpleEvaluationsService` this is also referred to as `evaluation_id`.
 

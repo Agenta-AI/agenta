@@ -158,7 +158,7 @@ annotation_data = {
 
 # Make the API request
 response = requests.post(
-    f"{base_url}/api/preview/annotations/",
+    f"{base_url}/api/annotations/",
     headers=headers,
     json=annotation_data
 )
@@ -208,7 +208,7 @@ async function createAnnotation() {
   };
 
   try {
-    const response = await fetch(`${baseUrl}/api/preview/annotations/`, {
+    const response = await fetch(`${baseUrl}/api/annotations/`, {
       method: 'POST',
       headers: headers,
       body: JSON.stringify(annotationData)
@@ -319,7 +319,7 @@ query_data = {
 }
 
 response = requests.post(
-    f"{base_url}/api/preview/annotations/query",
+    f"{base_url}/api/annotations/query",
     headers=headers,
     json=query_data
 )
@@ -348,7 +348,7 @@ query_data = {
 }
 
 response = requests.post(
-    f"{base_url}/api/preview/annotations/query",
+    f"{base_url}/api/annotations/query",
     headers=headers,
     json=query_data
 )
@@ -379,7 +379,7 @@ async function queryAnnotation() {
   };
 
   try {
-    const response = await fetch(`${baseUrl}/api/preview/annotations/query`, {
+    const response = await fetch(`${baseUrl}/api/annotations/query`, {
       method: 'POST',
       headers: headers,
       body: JSON.stringify(queryData)
@@ -425,7 +425,7 @@ async function queryAnnotationsForInvocation() {
   };
 
   try {
-    const response = await fetch(`${baseUrl}/api/preview/annotations/query`, {
+    const response = await fetch(`${baseUrl}/api/annotations/query`, {
       method: 'POST',
       headers: headers,
       body: JSON.stringify(queryData)
@@ -470,7 +470,7 @@ span_id = "a1713ea8f59291f6"
 
 # Make the delete request
 response = requests.delete(
-    f"{base_url}/api/preview/annotations/{trace_id}/{span_id}",
+    f"{base_url}/api/annotations/{trace_id}/{span_id}",
     headers=headers
 )
 
@@ -499,7 +499,7 @@ async function deleteAnnotation() {
   const spanId = "a1713ea8f59291f6";
 
   try {
-    const response = await fetch(`${baseUrl}/api/preview/annotations/${traceId}/${spanId}`, {
+    const response = await fetch(`${baseUrl}/api/annotations/${traceId}/${spanId}`, {
       method: 'DELETE',
       headers: headers
     });
