@@ -63,12 +63,20 @@ const UseApiContent = ({
         () => (inputPorts || []).map((p: any) => p.key) as string[],
         [inputPorts],
     )
+    const isChat = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.isChat(effectiveRevisionId || ""),
+            [effectiveRevisionId],
+        ),
+    )
 
     const params = useMemo(() => {
         const synthesized = variableNames.map((name) => ({name, input: name === "messages"}))
 
-        return createParams(synthesized, envName || "none", "add_a_value", currentApp)
-    }, [variableNames, envName, currentApp])
+        return createParams(synthesized, envName || "none", "add_a_value", currentApp, {
+            flags: {is_chat: isChat},
+        })
+    }, [variableNames, envName, currentApp, isChat])
 
     // deploymentUrl resolves to /v0/invoke (resolves config from the deployed environment).
     const invokeLlmUrl = useMemo(() => uri?.trim() || "", [uri])

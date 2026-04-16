@@ -104,8 +104,8 @@ export const createParams = (
     inputParams: Parameter[] | null,
     environmentName: string,
     value: string | number,
-    app?: { name?: string | null; slug?: string; flags?: { is_chat?: boolean } } | null,
-    revision?: { flags?: { is_chat?: boolean } } | null,
+    app?: {name?: string | null; slug?: string | null; flags?: {is_chat?: boolean} | null} | null,
+    revision?: {flags?: {is_chat?: boolean} | null} | null,
 ) => {
     const inputs: GenericObject = {}
 

@@ -63,6 +63,12 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
         () => (inputPorts || []).map((p: any) => p.key) as string[],
         [inputPorts],
     )
+    const isChat = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.isChat(selectedRevisionId || ""),
+            [selectedRevisionId],
+        ),
+    )
 
     const initialRevision = useMemo(
         () => revisionList.find((rev) => rev.id === initialRevisionId),
@@ -149,16 +155,12 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
 
     // Build params for invoke LLM (with variant refs instead of environment)
     const params = useMemo(() => {
-        const synthesized = variableNames.map((name) => ({name, input: name === "messages"}))
-
         const inputs: Record<string, any> = {}
 
-        synthesized.forEach((item) => {
-            inputs[item.name] = "add_a_value"
+        variableNames.forEach((name) => {
+            inputs[name] = "add_a_value"
         })
 
-        const hasMessagesParam = synthesized.some((p) => p?.name === "messages")
-        const isChat = !!selectedRevision?.flags?.is_chat || hasMessagesParam
         if (isChat) {
             inputs["messages"] = [
                 {
@@ -178,7 +180,7 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
         }
 
         return JSON.stringify(params, null, 2)
-    }, [variableNames, selectedRevision?.flags?.is_chat, appSlug, variantSlug, variantVersion])
+    }, [variableNames, isChat, appSlug, variantSlug, variantVersion])
 
     const fetchConfigCodeSnippet = useMemo(
         () => ({

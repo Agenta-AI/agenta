@@ -8,6 +8,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {deploymentsDrawerStateAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentDrawerStore"
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
+import {currentAppAtom} from "@/oss/state/app"
 
 import UseApiContent from "../../assets/UseApiContent"
 import VariantUseApiContent from "../../assets/VariantUseApiContent"
@@ -89,7 +90,8 @@ const DeploymentsDrawerContent = ({
     const drawerState = useAtomValue(deploymentsDrawerStateAtom)
     const envName = drawerState.envName || ""
 
-    // Resolve deployed revision ID from environment entities
+    // Resolve deployed revision ID from environment entities, scoped to the current app
+    const currentApp = useAtomValue(currentAppAtom)
     const entityEnvironments = useAtomValue(environmentsListQueryAtomFamily(false))
     const deployedRevisionId = useMemo(() => {
         if (!envName) return null
@@ -103,10 +105,23 @@ const DeploymentsDrawerContent = ({
         if (!env) return null
 
         const refs = env.data?.references ?? {}
-        const firstKey = Object.keys(refs)[0]
-        const appRef = firstKey ? refs[firstKey] : null
-        return appRef?.application_revision?.id ?? null
-    }, [envName, entityEnvironments.data])
+        const currentAppId = currentApp?.id
+        const currentAppSlug = currentApp?.name || currentApp?.slug
+
+        // Find the reference entry that belongs to the current app
+        for (const appRef of Object.values(refs)) {
+            const ref = appRef as Record<string, {id?: string; slug?: string; version?: string}>
+            const appEntry = ref?.application
+            if (
+                (currentAppId && appEntry?.id === currentAppId) ||
+                (currentAppSlug && appEntry?.slug === currentAppSlug)
+            ) {
+                return ref?.application_revision?.id ?? null
+            }
+        }
+
+        return null
+    }, [envName, entityEnvironments.data, currentApp?.id, currentApp?.name, currentApp?.slug])
 
     const openSelectDeployVariantModal = useSetAtom(openSelectDeployVariantModalAtom)
     const handleOpenSelectDeployVariantModal = () => openSelectDeployVariantModal({envName})
