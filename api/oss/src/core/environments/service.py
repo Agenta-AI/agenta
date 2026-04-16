@@ -1335,7 +1335,15 @@ class SimpleEnvironmentsService:
             description=environment.description,
             #
             flags=(
-                EnvironmentFlags(**environment.flags) if environment.flags else None
+                EnvironmentFlags(
+                    **environment.flags.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                        exclude_unset=True,
+                    )
+                )
+                if environment.flags
+                else None
             ),
             tags=environment.tags,
             meta=environment.meta,
@@ -1425,7 +1433,15 @@ class SimpleEnvironmentsService:
             description=environment.description,
             #
             flags=(
-                EnvironmentFlags(**environment.flags) if environment.flags else None
+                EnvironmentFlags(
+                    **environment.flags.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                        exclude_unset=True,
+                    )
+                )
+                if environment.flags
+                else None
             ),
             tags=environment.tags,
             meta=environment.meta,
@@ -1571,7 +1587,15 @@ class SimpleEnvironmentsService:
             description=environment.description,
             #
             flags=(
-                EnvironmentFlags(**environment.flags) if environment.flags else None
+                EnvironmentFlags(
+                    **environment.flags.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                        exclude_unset=True,
+                    )
+                )
+                if environment.flags
+                else None
             ),
             tags=environment.tags,
             meta=environment.meta,

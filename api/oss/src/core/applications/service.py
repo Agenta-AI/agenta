@@ -1244,7 +1244,17 @@ class SimpleApplicationsService:
                     ),
                 )
                 if simple_application_edit.flags
-                else application.flags
+                else (
+                    ApplicationFlags(
+                        **application.flags.model_dump(
+                            mode="json",
+                            exclude_none=True,
+                            exclude_unset=True,
+                        )
+                    )
+                    if application.flags
+                    else None
+                )
             ),
             meta=simple_application_edit.meta
             if simple_application_edit.meta is not None
