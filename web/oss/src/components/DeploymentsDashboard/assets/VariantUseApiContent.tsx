@@ -158,7 +158,7 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
         })
 
         const hasMessagesParam = synthesized.some((p) => p?.name === "messages")
-        const isChat = !!currentApp?.flags?.is_chat || hasMessagesParam
+        const isChat = !!selectedRevision?.flags?.is_chat || hasMessagesParam
         if (isChat) {
             inputs["messages"] = [
                 {
