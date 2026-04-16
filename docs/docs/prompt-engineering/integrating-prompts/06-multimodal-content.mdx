@@ -130,7 +130,6 @@ curl -X POST "https://cloud.agenta.ai/services/chat/v0/invoke" \
       "application": {"slug": "my-chat-app"},
       "environment": {"slug": "production"}
     },
-    "selector": {"key": "my-chat-app.revision"}
   }'
 ```
 
@@ -172,7 +171,6 @@ curl -X POST "https://cloud.agenta.ai/services/chat/v0/invoke" \
       "application": {"slug": "my-chat-app"},
       "environment": {"slug": "production"}
     },
-    "selector": {"key": "my-chat-app.revision"}
   }'
 ```
 
@@ -229,7 +227,6 @@ response = requests.post(
             "application": {"slug": "my-chat-app"},
             "environment": {"slug": "production"},
         },
-        "selector": {"key": "my-chat-app.revision"},
     },
 )
 

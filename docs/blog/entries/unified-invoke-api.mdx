@@ -70,7 +70,6 @@ response = requests.post(
             "application": {"slug": "my-app"},
             "environment": {"slug": "production"},
         },
-        "selector": {"key": "my-app.revision"},
     },
 )
 
@@ -79,19 +78,14 @@ print(result["data"]["outputs"])  # "The capital of France is Paris."
 print(result["trace_id"])         # trace ID for observability
 ```
 
-The request body is now structured into three sections: `data` (your inputs and optional parameters), `references` (which app/environment/variant to target), and `selector` (the key used to resolve the deployed revision).
+The request body is now structured into two sections: `data` (your inputs and optional parameters) and `references` (which application/variant/revision/environment to target).
 
 Key changes:
 - `inputs` moves to `data.inputs`
 - `messages` merges into `data.inputs.messages`
 - `ag_config` becomes `data.parameters`
 - Flat params (`app`, `variant_slug`, `environment`, etc.) become structured `references`
-- New `selector.key` field for environment-based resolution
 - `?application_id=` query parameter removed — use `references.application.id` instead
-
-:::info Understanding the selector key
-When invoking via an environment (without specifying a variant/revision), the `selector.key` tells the system which deployed revision to resolve. The format is `{app_slug}.revision` — for example, if your application slug is `my-app`, the key is `my-app.revision`. This field is not needed when invoking a specific variant and revision directly.
-:::
 
 ### New Response Format
 
@@ -185,7 +179,6 @@ response = requests.post(
             "application": {"slug": "my-app"},
             "environment": {"slug": "production"},
         },
-        "selector": {"key": "my-app.revision"},
     },
 )
 data = response.json()
@@ -230,7 +223,6 @@ response = requests.post(
             "application": {"slug": "my-chat"},
             "environment": {"slug": "production"},
         },
-        "selector": {"key": "my-chat.revision"},
     },
 )
 ```
