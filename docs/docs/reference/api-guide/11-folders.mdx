@@ -1,0 +1,107 @@
+---
+title: "Folders"
+description: "Organize applications, workflows, evaluators, testsets, and other resources into a folder tree."
+sidebar_position: 11
+---
+
+A **folder** is a named container used to group resources inside a project. Folders are project-scoped and organized as a tree. The `kind` field scopes a folder to a resource family — only `applications` is defined today, and it also covers workflows, evaluators, and testsets (they share the artifact table).
+
+## Path and naming
+
+Each folder has a URL-safe `slug` and a human-readable `name`. The server builds a dot-separated `path` from the folder's slug and its ancestors' slugs (for example, `support.prod`). Nest folders by setting `parent_id`; never put a separator inside a slug.
+
+| Rule | Limit |
+|------|-------|
+| `name` characters | Letters, digits, underscore, space, hyphen |
+| `slug` length | 64 characters |
+| Path depth | 10 levels |
+| Path uniqueness | Unique per project |
+
+A name with other characters returns `400` (`Folder name contains invalid characters`). A path that already exists under the same parent returns `409`. A `parent_id` that does not exist returns `404`.
+
+## Assigning resources
+
+A resource is attached to a folder through a `folder_id` on the resource itself, not through a separate endpoint. Set `folder_id` when creating or editing an application, workflow, evaluator, or testset, and pass it in `/query` bodies to list resources inside a folder. Moving a resource is an edit on the resource, not on the folder.
+
+## Operations
+
+| Verb | Path | Purpose |
+|------|------|---------|
+| POST | `/folders/` | Create a folder |
+| GET | `/folders/{folder_id}` | Fetch one folder |
+| PUT | `/folders/{folder_id}` | Rename or move (change `slug`, `name`, or `parent_id`) |
+| DELETE | `/folders/{folder_id}` | Hard-delete the folder and every descendant |
+| POST | `/folders/query` | Filter folders |
+
+`DELETE` removes the folder and its subtree in one statement. There is no archive or unarchive step. Resources that were assigned to any of the removed folders continue to exist; they are no longer reachable through the deleted folder.
+
+## Listing
+
+`POST /folders/query` uses the envelope from the [Query Pattern](/reference/api-guide/query-pattern) but does not accept `windowing` or `include_archived`; it returns the full filtered set. Filters include `id`/`ids`, `slug`/`slugs`, `kind`/`kinds`, `parent_id`/`parent_ids` (send `null` for root folders), `path`/`paths`, and `prefix`/`prefixes` (the folder and every descendant).
+
+To list resources stored inside a folder, call the resource's query endpoint with `folder_id` set, for example `POST /applications/query` with `{"application": {"folder_id": "<folder-uuid>"}}`.
+
+## Example
+
+Create a nested folder and move a resource into it.
+
+```bash
+# 1. Create a root folder
+curl -X POST "$AGENTA_HOST/api/folders/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{"folder": {"slug": "support", "name": "support", "kind": "applications"}}'
+```
+
+```json
+{
+  "count": 1,
+  "folder": {
+    "id": "019d9ca1-0000-0000-0000-000000000001",
+    "slug": "support",
+    "name": "support",
+    "kind": "applications",
+    "path": "support"
+  }
+}
+```
+
+```bash
+# 2. Nest a child folder under it
+curl -X POST "$AGENTA_HOST/api/folders/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "folder": {
+      "slug": "prod",
+      "name": "prod",
+      "kind": "applications",
+      "parent_id": "019d9ca1-0000-0000-0000-000000000001"
+    }
+  }'
+```
+
+The child folder's `path` is `support.prod`.
+
+```bash
+# 3. Move an existing application into the child folder
+curl -X PUT "$AGENTA_HOST/api/applications/$APPLICATION_ID" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "application": {
+      "id": "'"$APPLICATION_ID"'",
+      "folder_id": "019d9ca2-0000-0000-0000-000000000002"
+    }
+  }'
+```
+
+```bash
+# 4. List the applications stored inside the child folder
+curl -X POST "$AGENTA_HOST/api/applications/query" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{"application": {"folder_id": "019d9ca2-0000-0000-0000-000000000002"}}'
+```
+
+`DELETE /folders/019d9ca1-0000-0000-0000-000000000001` removes the root folder and the `support.prod` subfolder in one call. The application keeps existing and remains reachable through `/applications/query`.
