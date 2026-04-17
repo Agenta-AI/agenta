@@ -93,6 +93,44 @@ class SimpleTracesRouter:
         *,
         trace_create_request: SimpleTraceCreateRequest,
     ) -> SimpleTraceResponse:
+        """Create a single-span "simple" trace.
+
+        This endpoint is a higher-level helper for the common case of
+        recording one self-contained event — an evaluator output, a human
+        annotation, a feedback entry, a manually-logged inference. It
+        creates one span under a fresh `trace_id` and returns the resulting
+        handle.
+
+        ## When to use this vs. `/tracing/spans/ingest`
+
+        - **Use this endpoint** when you have a single payload to record
+          with no internal hierarchy: evaluation results, human feedback,
+          manual annotations, or a standalone completion. It takes care of
+          `trace_id`/`span_id` generation, attribute namespacing, and link
+          wiring for you.
+        - **Use `POST /tracing/spans/ingest`** when you need multi-span
+          traces (e.g. an agent run with nested tool calls and LLM spans),
+          precise control over IDs, timings, or parent/child relationships,
+          or when forwarding traces from another OTel-compatible source.
+
+        ## Request body
+
+        Send a `trace` object with:
+
+        - `origin` — who produced the trace (`human`, `auto`, `custom`).
+        - `kind` — intent (`adhoc`, `eval`, `play`).
+        - `channel` — transport that produced it (`sdk`, `api`, `web`, `otlp`).
+        - `data` — required dict carrying the actual payload (inputs,
+          outputs, or evaluator results).
+        - `tags`, `meta` — optional free-form dicts for filtering and
+          metadata.
+        - `references` — optional links to Agenta entities (application,
+          variant, revision, evaluator, testset, etc.).
+        - `links` — optional OTel-style links to other traces/spans.
+
+        Use `PATCH /preview/tracing/traces/{trace_id}` to update fields
+        later, `GET` to fetch, and `DELETE` to remove.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
