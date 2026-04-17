@@ -33,8 +33,8 @@ import {useDrillInUI} from "@agenta/ui/drill-in"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {CaretDown, CaretRight, MagicWand} from "@phosphor-icons/react"
-import {Button, Input, Popover, Select, Tooltip, Typography} from "antd"
+import {CaretDown, CaretRight, MagicWand, X} from "@phosphor-icons/react"
+import {Button, InputNumber, Popover, Select, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import type {Atom, WritableAtom} from "jotai"
 import {atom} from "jotai"
@@ -118,6 +118,15 @@ export interface ConfigSectionMoleculeAdapter {
 function hasParameters(data: {parameters?: Record<string, unknown>} | null | undefined): boolean {
     return Boolean(data?.parameters && Object.keys(data.parameters).length > 0)
 }
+
+const FALLBACK_POLICY_OPTIONS = ["off", "availability", "capacity", "access", "any"].map(
+    (value) => ({label: value, value}),
+)
+const DEFAULT_RETRY_POLICY = {
+    max_retries: 1,
+    delay_ms: 0,
+}
+const PROMPT_EXTENSION_KEYS = ["fallback_llm_configs", "retry_policy", "fallback_policy"]
 
 // ============================================================================
 // AGENTA_METADATA HELPERS
@@ -359,6 +368,137 @@ function buildDefaultAdapter(): ConfigSectionMoleculeAdapter {
 }
 
 const defaultAdapter = buildDefaultAdapter()
+
+// ============================================================================
+// LLM CONFIG EDITOR (shared by primary model + fallback configs)
+// ============================================================================
+
+interface LLMConfigEditorProps {
+    value: Record<string, unknown>
+    onChange: (key: string, next: unknown) => void
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    llmConfigProps: Record<string, any>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    modelOptions: any[]
+    footerContent?: React.ReactNode
+    disabled?: boolean
+    title?: string
+    onReset?: () => void
+}
+
+function LLMConfigEditor({
+    value,
+    onChange,
+    llmConfigProps,
+    modelOptions,
+    footerContent,
+    disabled,
+    title = "Model Parameters",
+    onReset,
+}: LLMConfigEditorProps) {
+    return (
+        <div className="flex flex-col gap-4 w-[320px] max-h-[calc(100vh-120px)] overflow-y-auto">
+            <div className="flex items-center justify-between sticky top-0 bg-white z-[1] pb-2 -mb-2">
+                <Typography.Text strong>{title}</Typography.Text>
+                {onReset && (
+                    <Button size="small" onClick={onReset} disabled={disabled}>
+                        Reset default
+                    </Button>
+                )}
+            </div>
+            <SelectLLMProviderBase
+                showGroup
+                options={modelOptions}
+                value={(value.model as string | undefined) ?? undefined}
+                onChange={(nextModel) => onChange("model", nextModel)}
+                size="small"
+                footerContent={footerContent}
+                disabled={disabled}
+            />
+            {Object.entries(llmConfigProps).map(([key, propSchema]) => {
+                const resolved = resolveAnyOfSchema(propSchema)
+                const schemaType = resolved?.type
+                const enumValues = (resolved?.enum ?? propSchema?.enum) as string[] | undefined
+
+                if (key === "chat_template_kwargs") {
+                    const currentValue = value?.[key]
+                    const editorValue =
+                        currentValue == null ? "" : JSON.stringify(currentValue, null, 2)
+                    return (
+                        <div key={key} className="flex flex-col gap-1">
+                            <Typography.Text className="font-medium">
+                                {formatLabel(key)}
+                            </Typography.Text>
+                            <SharedEditor
+                                key={`llm-config-${key}`}
+                                editorType="border"
+                                placeholder='{"thinking": true}'
+                                initialValue={editorValue}
+                                handleChange={(nextEditorValue) => {
+                                    const raw = nextEditorValue.trim()
+                                    if (!raw) {
+                                        onChange(key, null)
+                                        return
+                                    }
+                                    try {
+                                        onChange(key, JSON.parse(raw))
+                                    } catch {
+                                        // Keep the last valid value.
+                                    }
+                                }}
+                                disabled={disabled}
+                                className="min-h-[96px] overflow-hidden"
+                                editorProps={{
+                                    codeOnly: true,
+                                    language: "json",
+                                    showLineNumbers: false,
+                                }}
+                                syncWithInitialValueChanges
+                            />
+                        </div>
+                    )
+                }
+
+                if (enumValues && enumValues.length > 0) {
+                    return (
+                        <div key={key} className="flex flex-col gap-1">
+                            <Typography.Text className="font-medium">
+                                {formatLabel(key)}
+                            </Typography.Text>
+                            <Select
+                                value={(value?.[key] as string | null) ?? undefined}
+                                onChange={(v) => onChange(key, v ?? null)}
+                                disabled={disabled}
+                                size="small"
+                                allowClear
+                                placeholder="Select one"
+                                options={enumValues.map((v) => ({
+                                    label: formatLabel(String(v)),
+                                    value: v,
+                                }))}
+                            />
+                        </div>
+                    )
+                }
+
+                if (schemaType === "number" || schemaType === "integer") {
+                    return (
+                        <NumberSliderControl
+                            key={key}
+                            schema={resolved}
+                            label={formatLabel(key)}
+                            value={(value?.[key] as number | null) ?? null}
+                            onChange={(v) => onChange(key, v)}
+                            disabled={disabled}
+                        />
+                    )
+                }
+
+                return null
+            })}
+        </div>
+    )
+}
 
 // ============================================================================
 // COMPONENT
@@ -622,12 +762,15 @@ function PlaygroundConfigSection({
 
         // Extract LLM config property schemas for sliders
         const llmConfigProps = getLLMConfigProperties(promptSchema as EntitySchemaProperty | null)
+        const promptSchemaProps = ((promptSchema as EntitySchemaProperty | null)?.properties ??
+            {}) as Record<string, EntitySchemaProperty>
 
         return {
             modelSchema,
             modelOptions,
             currentModel,
             promptValue,
+            promptSchemaProps,
             llmConfigValue,
             llmConfigProps,
             isRootLevel: !hasNestedPrompt && hasRootMessages,
@@ -693,6 +836,321 @@ function PlaygroundConfigSection({
     const handleLLMConfigChange = useCallback(
         (key: string, newValue: number | null) => updatePromptLLMConfigKey(key, newValue),
         [updatePromptLLMConfigKey],
+    )
+
+    const updatePromptRootFields = useCallback(
+        (changes: Record<string, unknown>) => {
+            if (disabled || !activeData || !promptModelInfo) return
+
+            const applyChanges = (base: Record<string, unknown>) => {
+                const next = {...base}
+                for (const [key, value] of Object.entries(changes)) {
+                    if (value === null || value === undefined) {
+                        delete next[key]
+                    } else {
+                        next[key] = value
+                    }
+                }
+                return next
+            }
+
+            if (promptModelInfo.isRootLevel) {
+                dispatchUpdate(revisionId, applyChanges(parameters))
+                return
+            }
+
+            const currentPrompt = (parameters.prompt as Record<string, unknown>) || {}
+            dispatchUpdate(revisionId, {
+                ...parameters,
+                prompt: applyChanges(currentPrompt),
+            })
+        },
+        [disabled, activeData, promptModelInfo, dispatchUpdate, revisionId, parameters],
+    )
+
+    const updatePromptRootField = useCallback(
+        (key: string, nextValue: unknown) => {
+            updatePromptRootFields({[key]: nextValue})
+        },
+        [updatePromptRootFields],
+    )
+
+    const fallbackConfigs = useMemo(() => {
+        const raw = promptModelInfo?.promptValue.fallback_llm_configs
+        return Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []
+    }, [promptModelInfo])
+
+    const retryPolicy = useMemo(() => {
+        const raw = promptModelInfo?.promptValue.retry_policy
+        return raw && typeof raw === "object" && !Array.isArray(raw)
+            ? (raw as Record<string, unknown>)
+            : {}
+    }, [promptModelInfo])
+
+    const effectiveRetryPolicy = useMemo(
+        () => ({
+            max_retries:
+                typeof retryPolicy.max_retries === "number"
+                    ? retryPolicy.max_retries
+                    : DEFAULT_RETRY_POLICY.max_retries,
+            delay_ms:
+                typeof retryPolicy.delay_ms === "number"
+                    ? retryPolicy.delay_ms
+                    : DEFAULT_RETRY_POLICY.delay_ms,
+        }),
+        [retryPolicy],
+    )
+
+    const hasPromptExtensionFields = useMemo(() => {
+        if (!promptModelInfo) return false
+        return PROMPT_EXTENSION_KEYS.some(
+            (key) => key in promptModelInfo.promptSchemaProps || key in promptModelInfo.promptValue,
+        )
+    }, [promptModelInfo])
+
+    const fallbackPolicyOptions = useMemo(() => {
+        const schema = promptModelInfo?.promptSchemaProps.fallback_policy as
+            | {enum?: unknown[]; "x-ag-metadata"?: Record<string, {description?: string}>}
+            | undefined
+        const metadata = schema?.["x-ag-metadata"] ?? {}
+        const enumValues = schema?.enum
+        const values =
+            Array.isArray(enumValues) && enumValues.length > 0
+                ? enumValues.map((v) => String(v))
+                : FALLBACK_POLICY_OPTIONS.map((o) => o.value)
+        return values.map((value) => ({
+            label: value,
+            value,
+            description: metadata[value]?.description,
+        }))
+    }, [promptModelInfo])
+
+    const fallbackModelOptions = useMemo(
+        () => [
+            ...(llmProviderConfig?.extraOptionGroups ?? []),
+            ...(promptModelInfo?.modelOptions ?? []),
+        ],
+        [llmProviderConfig?.extraOptionGroups, promptModelInfo?.modelOptions],
+    )
+
+    const handleRetryPolicyFieldChange = useCallback(
+        (key: "max_retries" | "delay_ms", nextValue: number | null) => {
+            const nextPolicy = {...retryPolicy}
+            if (nextValue === null) {
+                delete nextPolicy[key]
+            } else {
+                nextPolicy[key] = nextValue
+            }
+
+            updatePromptRootField(
+                "retry_policy",
+                Object.keys(nextPolicy).length > 0 ? nextPolicy : null,
+            )
+        },
+        [retryPolicy, updatePromptRootField],
+    )
+
+    const handleFallbackConfigChange = useCallback(
+        (index: number, key: string, nextValue: unknown) => {
+            const nextConfigs = fallbackConfigs.map((config, configIndex) => {
+                if (configIndex !== index) return config
+                const nextConfig = {...config}
+                if (nextValue === null || nextValue === undefined) {
+                    delete nextConfig[key]
+                } else {
+                    nextConfig[key] = nextValue
+                }
+                return nextConfig
+            })
+            updatePromptRootField(
+                "fallback_llm_configs",
+                nextConfigs.length > 0 ? nextConfigs : null,
+            )
+        },
+        [fallbackConfigs, updatePromptRootField],
+    )
+
+    const handleAddFallbackModel = useCallback(() => {
+        const primaryModel =
+            typeof promptModelInfo?.llmConfigValue?.model === "string"
+                ? promptModelInfo.llmConfigValue.model
+                : ""
+        updatePromptRootField("fallback_llm_configs", [
+            ...fallbackConfigs,
+            {model: primaryModel || "gpt-4o-mini"},
+        ])
+    }, [fallbackConfigs, promptModelInfo, updatePromptRootField])
+
+    const handleRemoveFallbackModel = useCallback(
+        (index: number) => {
+            const nextConfigs = fallbackConfigs.filter((_, configIndex) => configIndex !== index)
+            updatePromptRootField(
+                "fallback_llm_configs",
+                nextConfigs.length > 0 ? nextConfigs : null,
+            )
+        },
+        [fallbackConfigs, updatePromptRootField],
+    )
+
+    const handleResetFallbackConfig = useCallback(
+        (index: number) => {
+            const current = fallbackConfigs[index]
+            const model = (current?.model as string | undefined) ?? ""
+            const nextConfigs = fallbackConfigs.map((config, configIndex) =>
+                configIndex === index ? {model} : config,
+            )
+            updatePromptRootField("fallback_llm_configs", nextConfigs)
+        },
+        [fallbackConfigs, updatePromptRootField],
+    )
+
+    const handleResetFallbackPolicy = useCallback(() => {
+        updatePromptRootFields({
+            fallback_policy: null,
+            fallback_llm_configs: null,
+        })
+    }, [updatePromptRootFields])
+
+    const retryPolicyPopoverContent = (
+        <div className="w-[360px] max-w-[calc(100vw-48px)] p-1">
+            <div className="mb-4 flex items-center justify-between gap-3">
+                <Typography.Text className="font-medium">Retry</Typography.Text>
+                <Button
+                    size="small"
+                    onClick={() => updatePromptRootField("retry_policy", null)}
+                    disabled={disabled}
+                >
+                    Reset default
+                </Button>
+            </div>
+            <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between gap-3">
+                    <Typography.Text>Max retries</Typography.Text>
+                    <InputNumber
+                        min={0}
+                        precision={0}
+                        value={effectiveRetryPolicy.max_retries}
+                        onChange={(nextValue) =>
+                            handleRetryPolicyFieldChange(
+                                "max_retries",
+                                typeof nextValue === "number" ? nextValue : null,
+                            )
+                        }
+                        disabled={disabled}
+                        className="w-[130px]"
+                    />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                    <Typography.Text>Delay ms</Typography.Text>
+                    <InputNumber
+                        min={0}
+                        precision={0}
+                        value={effectiveRetryPolicy.delay_ms}
+                        onChange={(nextValue) =>
+                            handleRetryPolicyFieldChange(
+                                "delay_ms",
+                                typeof nextValue === "number" ? nextValue : null,
+                            )
+                        }
+                        disabled={disabled}
+                        className="w-[130px]"
+                    />
+                </div>
+            </div>
+        </div>
+    )
+
+    const fallbackPolicyPopoverContent = (
+        <div className="w-[420px] max-w-[calc(100vw-48px)] max-h-[calc(100vh-120px)] overflow-y-auto p-1">
+            <div className="mb-4 flex items-center justify-between gap-3">
+                <Typography.Text className="font-medium">Fallback</Typography.Text>
+                <Button size="small" onClick={handleResetFallbackPolicy} disabled={disabled}>
+                    Reset default
+                </Button>
+            </div>
+            <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1">
+                    <Typography.Text>Policy</Typography.Text>
+                    <Select
+                        size="small"
+                        allowClear
+                        value={
+                            (promptModelInfo?.promptValue.fallback_policy as
+                                | string
+                                | null
+                                | undefined) ?? undefined
+                        }
+                        onChange={(nextValue) =>
+                            updatePromptRootField("fallback_policy", nextValue ?? null)
+                        }
+                        options={fallbackPolicyOptions}
+                        placeholder="Select one"
+                        disabled={disabled}
+                        optionRender={(option) => {
+                            const description = (option.data as {description?: string}).description
+                            return (
+                                <div className="flex items-center justify-between gap-3">
+                                    <span>{option.label}</span>
+                                    {description && (
+                                        <Typography.Text type="secondary" className="text-xs">
+                                            {description}
+                                        </Typography.Text>
+                                    )}
+                                </div>
+                            )
+                        }}
+                    />
+                </div>
+                <div className="flex flex-col gap-2">
+                    <Typography.Text>Models</Typography.Text>
+                    {fallbackConfigs.map((config, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                            <Popover
+                                trigger="click"
+                                placement="bottomRight"
+                                arrow={false}
+                                content={
+                                    <LLMConfigEditor
+                                        value={config}
+                                        onChange={(key, next) =>
+                                            handleFallbackConfigChange(index, key, next)
+                                        }
+                                        llmConfigProps={promptModelInfo?.llmConfigProps ?? {}}
+                                        modelOptions={fallbackModelOptions}
+                                        footerContent={llmProviderConfig?.footerContent}
+                                        disabled={disabled}
+                                        onReset={() => handleResetFallbackConfig(index)}
+                                    />
+                                }
+                            >
+                                <Button
+                                    size="small"
+                                    type="default"
+                                    disabled={disabled}
+                                    className="flex-1 flex items-center justify-between"
+                                >
+                                    <span className="truncate">
+                                        {(config.model as string) || "Select model"}
+                                    </span>
+                                    <CaretDown size={12} />
+                                </Button>
+                            </Popover>
+                            <Button
+                                size="small"
+                                type="text"
+                                icon={<X size={14} />}
+                                onClick={() => handleRemoveFallbackModel(index)}
+                                disabled={disabled}
+                                aria-label="Remove fallback model"
+                            />
+                        </div>
+                    ))}
+                    <Button size="small" onClick={handleAddFallbackModel} disabled={disabled} block>
+                        Add fallback model
+                    </Button>
+                </div>
+            </div>
+        </div>
     )
 
     // ========== FIELD ACTIONS SLOT ==========
@@ -784,6 +1242,42 @@ function PlaygroundConfigSection({
                                     />
                                 </Tooltip>
                             )}
+                            {hasPromptExtensionFields && (
+                                <>
+                                    <Popover
+                                        trigger="click"
+                                        placement="bottomRight"
+                                        arrow={false}
+                                        content={retryPolicyPopoverContent}
+                                    >
+                                        <Button
+                                            size="small"
+                                            type="default"
+                                            disabled={disabled}
+                                            className="flex items-center gap-1"
+                                        >
+                                            Retry
+                                            <CaretDown size={12} />
+                                        </Button>
+                                    </Popover>
+                                    <Popover
+                                        trigger="click"
+                                        placement="bottomRight"
+                                        arrow={false}
+                                        content={fallbackPolicyPopoverContent}
+                                    >
+                                        <Button
+                                            size="small"
+                                            type="default"
+                                            disabled={disabled}
+                                            className="flex items-center gap-1"
+                                        >
+                                            Fallback
+                                            <CaretDown size={12} />
+                                        </Button>
+                                    </Popover>
+                                </>
+                            )}
                             <Popover
                                 trigger="click"
                                 open={isModelConfigOpen}
@@ -791,180 +1285,47 @@ function PlaygroundConfigSection({
                                 placement="bottomRight"
                                 arrow={false}
                                 content={
-                                    <div className="flex flex-col gap-4 w-[320px]">
-                                        <div className="flex items-center justify-between">
-                                            <Typography.Text strong>
-                                                Model Parameters
-                                            </Typography.Text>
-                                            <Button
-                                                size="small"
-                                                onClick={() => {
-                                                    const currentPrompt =
-                                                        (parameters.prompt as Record<
-                                                            string,
-                                                            unknown
-                                                        >) || {}
-                                                    const hasNested =
-                                                        currentPrompt.llm_config ||
-                                                        currentPrompt.llmConfig
-                                                    if (hasNested) {
-                                                        const llmKey = currentPrompt.llm_config
-                                                            ? "llm_config"
-                                                            : "llmConfig"
-                                                        const currentLLM =
-                                                            (currentPrompt[llmKey] as Record<
-                                                                string,
-                                                                unknown
-                                                            >) || {}
-                                                        const resetLLM = {
-                                                            model: currentLLM.model,
-                                                        }
-                                                        dispatchUpdate(revisionId, {
-                                                            ...parameters,
-                                                            prompt: {
-                                                                ...currentPrompt,
-                                                                [llmKey]: resetLLM,
-                                                            },
-                                                        })
-                                                    }
-                                                }}
+                                    <LLMConfigEditor
+                                        value={
+                                            (promptModelInfo.llmConfigValue ?? {}) as Record<
+                                                string,
+                                                unknown
                                             >
-                                                Reset default
-                                            </Button>
-                                        </div>
-                                        <SelectLLMProviderBase
-                                            showGroup
-                                            options={[
-                                                ...(llmProviderConfig?.extraOptionGroups ?? []),
-                                                ...promptModelInfo.modelOptions,
-                                            ]}
-                                            value={promptModelInfo.currentModel}
-                                            onChange={handleModelChange}
-                                            size="small"
-                                            footerContent={llmProviderConfig?.footerContent}
-                                        />
-                                        {Object.entries(promptModelInfo.llmConfigProps).map(
-                                            ([key, propSchema]) => {
-                                                const resolved = resolveAnyOfSchema(propSchema)
-                                                const schemaType = resolved?.type
-                                                const enumValues = (resolved?.enum ??
-                                                    propSchema?.enum) as string[] | undefined
-
-                                                if (key === "chat_template_kwargs") {
-                                                    const currentValue =
-                                                        promptModelInfo.llmConfigValue?.[key]
-                                                    return (
-                                                        <div
-                                                            key={key}
-                                                            className="flex flex-col gap-1"
-                                                        >
-                                                            <Typography.Text className="font-medium">
-                                                                {formatLabel(key)}
-                                                            </Typography.Text>
-                                                            <Input.TextArea
-                                                                key={JSON.stringify(
-                                                                    currentValue ?? null,
-                                                                )}
-                                                                defaultValue={
-                                                                    currentValue == null
-                                                                        ? ""
-                                                                        : JSON.stringify(
-                                                                              currentValue,
-                                                                              null,
-                                                                              2,
-                                                                          )
-                                                                }
-                                                                onBlur={(event) => {
-                                                                    const raw =
-                                                                        event.target.value.trim()
-                                                                    if (!raw) {
-                                                                        updatePromptLLMConfigKey(
-                                                                            key,
-                                                                            null,
-                                                                        )
-                                                                        return
-                                                                    }
-                                                                    try {
-                                                                        updatePromptLLMConfigKey(
-                                                                            key,
-                                                                            JSON.parse(raw),
-                                                                        )
-                                                                    } catch {
-                                                                        // Keep the last valid value.
-                                                                    }
-                                                                }}
-                                                                disabled={disabled}
-                                                                autoSize={{
-                                                                    minRows: 3,
-                                                                    maxRows: 8,
-                                                                }}
-                                                                placeholder='{"thinking": true}'
-                                                            />
-                                                        </div>
-                                                    )
-                                                }
-
-                                                if (enumValues && enumValues.length > 0) {
-                                                    return (
-                                                        <div
-                                                            key={key}
-                                                            className="flex flex-col gap-1"
-                                                        >
-                                                            <Typography.Text className="font-medium">
-                                                                {formatLabel(key)}
-                                                            </Typography.Text>
-                                                            <Select
-                                                                value={
-                                                                    (promptModelInfo
-                                                                        .llmConfigValue?.[key] as
-                                                                        | string
-                                                                        | null) ?? undefined
-                                                                }
-                                                                onChange={(v) =>
-                                                                    updatePromptLLMConfigKey(
-                                                                        key,
-                                                                        v ?? null,
-                                                                    )
-                                                                }
-                                                                disabled={disabled}
-                                                                size="small"
-                                                                allowClear
-                                                                placeholder="Select one"
-                                                                options={enumValues.map((v) => ({
-                                                                    label: formatLabel(String(v)),
-                                                                    value: v,
-                                                                }))}
-                                                            />
-                                                        </div>
-                                                    )
-                                                }
-
-                                                if (
-                                                    schemaType === "number" ||
-                                                    schemaType === "integer"
-                                                ) {
-                                                    return (
-                                                        <NumberSliderControl
-                                                            key={key}
-                                                            schema={resolved}
-                                                            label={formatLabel(key)}
-                                                            value={
-                                                                (promptModelInfo.llmConfigValue?.[
-                                                                    key
-                                                                ] as number | null) ?? null
-                                                            }
-                                                            onChange={(v) =>
-                                                                handleLLMConfigChange(key, v)
-                                                            }
-                                                            disabled={disabled}
-                                                        />
-                                                    )
-                                                }
-
-                                                return null
-                                            },
-                                        )}
-                                    </div>
+                                        }
+                                        onChange={(key, next) =>
+                                            updatePromptLLMConfigKey(key, next)
+                                        }
+                                        llmConfigProps={promptModelInfo.llmConfigProps}
+                                        modelOptions={[
+                                            ...(llmProviderConfig?.extraOptionGroups ?? []),
+                                            ...promptModelInfo.modelOptions,
+                                        ]}
+                                        footerContent={llmProviderConfig?.footerContent}
+                                        disabled={disabled}
+                                        onReset={() => {
+                                            const currentPrompt =
+                                                (parameters.prompt as Record<string, unknown>) || {}
+                                            const hasNested =
+                                                currentPrompt.llm_config || currentPrompt.llmConfig
+                                            if (hasNested) {
+                                                const llmKey = currentPrompt.llm_config
+                                                    ? "llm_config"
+                                                    : "llmConfig"
+                                                const currentLLM =
+                                                    (currentPrompt[llmKey] as Record<
+                                                        string,
+                                                        unknown
+                                                    >) || {}
+                                                dispatchUpdate(revisionId, {
+                                                    ...parameters,
+                                                    prompt: {
+                                                        ...currentPrompt,
+                                                        [llmKey]: {model: currentLLM.model},
+                                                    },
+                                                })
+                                            }
+                                        }}
+                                    />
                                 }
                             >
                                 <Button size="small" type="default">
@@ -1013,6 +1374,9 @@ function PlaygroundConfigSection({
             handleModelChange,
             handleLLMConfigChange,
             updatePromptLLMConfigKey,
+            hasPromptExtensionFields,
+            retryPolicyPopoverContent,
+            fallbackPolicyPopoverContent,
             onRefinePrompt,
         ],
     )

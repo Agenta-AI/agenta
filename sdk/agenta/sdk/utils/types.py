@@ -686,7 +686,7 @@ class FallbackModelConfig(ModelConfig):
 
 
 class RetryPolicy(BaseModel):
-    max_retries: int = Field(default=0, ge=0)
+    max_retries: int = Field(default=1, ge=0)
     delay_ms: int = Field(default=0, ge=0)
 
 
@@ -783,6 +783,27 @@ class PromptTemplate(AgSchemaMixin):
     fallback_policy: Optional[FallbackPolicy] = Field(
         default=None,
         description="Controls which provider-call errors can move execution to the next fallback config.",
+        json_schema_extra={
+            "x-ag-type": "choice",
+            "enum": ["off", "availability", "capacity", "access", "any"],
+            "x-ag-metadata": {
+                "off": {
+                    "description": "disable fallbacks",
+                },
+                "availability": {
+                    "description": "fall back on provider-side issues (or 5xx)",
+                },
+                "capacity": {
+                    "description": "availability + fall back on rate/quota limits (or 429)",
+                },
+                "access": {
+                    "description": "capacity + fall back on auth errors (or 401/403)",
+                },
+                "any": {
+                    "description": "access + fall back on any provider-call error (or 4xx)",
+                },
+            },
+        },
     )
 
     @model_validator(mode="before")

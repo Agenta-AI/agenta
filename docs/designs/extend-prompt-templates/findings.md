@@ -110,7 +110,7 @@ No open questions.
 - Evidence: The user confirmed these fields must be editable in the web registry or playground like any other `data.parameters` field. `PromptSchemaControl` previously returned only messages, tools, response format, and template format controls.
 - Files:
   - `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/PromptSchemaControl.tsx`
-- Resolution: Fixed by rendering prompt-root controls for `fallback_policy`, `retry_policy`, and `fallback_llm_configs` in `PromptSchemaControl`. `fallback_policy` is edited as a select; `retry_policy` and `fallback_llm_configs` are edited as JSON fields.
+- Resolution: Fixed by rendering prompt-root controls in `PromptSchemaControl` action-bar popovers. `Retry policy` appears to the right of `Prompt Syntax` and edits `max_retries` plus `delay_ms`; `Fallback policy` opens a popover with the fallback policy select and a list of fallback model dropdowns.
 - Sources: `pnpm --filter @agenta/entity-ui build`.
 
 ## Triage Plan

@@ -39,7 +39,10 @@ def test_new_prompt_template_fields_normalize_at_runtime():
     prompt = PromptTemplate()
 
     assert _prompt_llm_configs(prompt) == [prompt.llm_config]
-    assert _normalize_retry_policy(prompt.retry_policy) == RetryPolicy()
+    assert _normalize_retry_policy(prompt.retry_policy) == RetryPolicy(
+        max_retries=1,
+        delay_ms=0,
+    )
     assert _normalize_fallback_policy(prompt.fallback_policy) == FallbackPolicy.OFF
 
 
@@ -95,13 +98,27 @@ def test_fallback_config_requires_model():
 def test_prompt_template_catalog_schema_exposes_fallback_model_ref():
     schema = CATALOG_TYPES["prompt-template"]
     fallback_schema = schema["properties"]["fallback_llm_configs"]
+    retry_schema = schema["properties"]["retry_policy"]
+    fallback_policy_schema = schema["properties"]["fallback_policy"]
     array_schema = next(
         option for option in fallback_schema["anyOf"] if option.get("type") == "array"
+    )
+    retry_object_schema = next(
+        option for option in retry_schema["anyOf"] if option.get("type") == "object"
     )
 
     assert fallback_schema["default"] is None
     assert array_schema["items"]["properties"]["model"]["x-ag-type-ref"] == "model"
     assert "model" in array_schema["items"]["required"]
+    assert fallback_policy_schema["x-ag-type"] == "choice"
+    assert fallback_policy_schema["enum"] == [
+        "off",
+        "availability",
+        "capacity",
+        "access",
+        "any",
+    ]
+    assert set(retry_object_schema["properties"]) == {"max_retries", "delay_ms"}
 
 
 def test_fallback_policy_404_only_allowed_by_any():
