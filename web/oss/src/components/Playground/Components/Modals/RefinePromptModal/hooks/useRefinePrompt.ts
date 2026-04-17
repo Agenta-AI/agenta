@@ -82,6 +82,7 @@ function extractPromptTemplate(promptValue: unknown): PromptTemplate | null {
         .filter(Boolean) as {role: string; content: string}[]
 
     return {
+        ...prompt,
         messages: extracted,
         template_format: typeof prompt.template_format === "string" ? prompt.template_format : "",
     }
@@ -95,7 +96,7 @@ function extractPromptTemplate(promptValue: unknown): PromptTemplate | null {
  */
 function parseRefineResponse(
     response: unknown,
-    originalTemplateFormat: string,
+    originalPrompt: PromptTemplate,
 ): {
     refinedPrompt: PromptTemplate | null
     explanation: string
@@ -108,8 +109,9 @@ function parseRefineResponse(
     if (structured?.messages && Array.isArray(structured.messages)) {
         return {
             refinedPrompt: {
+                ...originalPrompt,
                 messages: structured.messages as {role: string; content: string}[],
-                template_format: originalTemplateFormat,
+                template_format: originalPrompt.template_format || "",
             },
             explanation,
         }
@@ -186,7 +188,7 @@ export function useRefinePrompt({
 
                 const {refinedPrompt, explanation} = parseRefineResponse(
                     response,
-                    promptToRefine.template_format || "",
+                    promptToRefine,
                 )
 
                 if (!refinedPrompt) {

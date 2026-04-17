@@ -223,11 +223,16 @@ export function transformToRequestBody({
             // Preserve input_keys and template_format from original parameters if they exist
             const originalPromptConfig = asRecord(originalParams[name])
             if (Object.keys(originalPromptConfig).length > 0) {
-                if (originalPromptConfig["input_keys"] && !extracted["input_keys"]) {
-                    extracted["input_keys"] = originalPromptConfig["input_keys"]
-                }
-                if (originalPromptConfig["template_format"] && !extracted["template_format"]) {
-                    extracted["template_format"] = originalPromptConfig["template_format"]
+                for (const key of [
+                    "input_keys",
+                    "template_format",
+                    "fallback_llm_configs",
+                    "retry_policy",
+                    "fallback_policy",
+                ]) {
+                    if (key in originalPromptConfig && !(key in extracted)) {
+                        extracted[key] = originalPromptConfig[key]
+                    }
                 }
             }
 

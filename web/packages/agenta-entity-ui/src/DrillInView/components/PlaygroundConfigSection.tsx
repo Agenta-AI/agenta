@@ -34,7 +34,7 @@ import {formatLabel} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CaretDown, CaretRight, MagicWand} from "@phosphor-icons/react"
-import {Button, Popover, Select, Tooltip, Typography} from "antd"
+import {Button, Input, Popover, Select, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import type {Atom, WritableAtom} from "jotai"
 import {atom} from "jotai"
@@ -849,6 +849,60 @@ function PlaygroundConfigSection({
                                                 const schemaType = resolved?.type
                                                 const enumValues = (resolved?.enum ??
                                                     propSchema?.enum) as string[] | undefined
+
+                                                if (key === "chat_template_kwargs") {
+                                                    const currentValue =
+                                                        promptModelInfo.llmConfigValue?.[key]
+                                                    return (
+                                                        <div
+                                                            key={key}
+                                                            className="flex flex-col gap-1"
+                                                        >
+                                                            <Typography.Text className="font-medium">
+                                                                {formatLabel(key)}
+                                                            </Typography.Text>
+                                                            <Input.TextArea
+                                                                key={JSON.stringify(
+                                                                    currentValue ?? null,
+                                                                )}
+                                                                defaultValue={
+                                                                    currentValue == null
+                                                                        ? ""
+                                                                        : JSON.stringify(
+                                                                              currentValue,
+                                                                              null,
+                                                                              2,
+                                                                          )
+                                                                }
+                                                                onBlur={(event) => {
+                                                                    const raw =
+                                                                        event.target.value.trim()
+                                                                    if (!raw) {
+                                                                        updatePromptLLMConfigKey(
+                                                                            key,
+                                                                            null,
+                                                                        )
+                                                                        return
+                                                                    }
+                                                                    try {
+                                                                        updatePromptLLMConfigKey(
+                                                                            key,
+                                                                            JSON.parse(raw),
+                                                                        )
+                                                                    } catch {
+                                                                        // Keep the last valid value.
+                                                                    }
+                                                                }}
+                                                                disabled={disabled}
+                                                                autoSize={{
+                                                                    minRows: 3,
+                                                                    maxRows: 8,
+                                                                }}
+                                                                placeholder='{"thinking": true}'
+                                                            />
+                                                        </div>
+                                                    )
+                                                }
 
                                                 if (enumValues && enumValues.length > 0) {
                                                     return (
