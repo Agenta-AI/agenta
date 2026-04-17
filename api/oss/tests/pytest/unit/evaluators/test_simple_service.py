@@ -172,9 +172,9 @@ async def test_query_passes_evaluator_refs_to_evaluator_service():
     )
 
     assert simple_evaluators == []
-    assert evaluators_service.query_evaluators.await_args.kwargs[
-        "evaluator_refs"
-    ] == [evaluator_ref]
+    assert evaluators_service.query_evaluators.await_args.kwargs["evaluator_refs"] == [
+        evaluator_ref
+    ]
 
 
 @pytest.mark.asyncio
