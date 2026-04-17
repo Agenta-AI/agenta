@@ -1,0 +1,71 @@
+---
+id: list-application-catalog-templates
+title: "List Application Catalog Templates"
+description: "List Application Catalog Templates"
+sidebar_label: "List Application Catalog Templates"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWN9z2zYM/ld8eNruuDjL7UlP8yXpmrVbconbPeR8OYaCbaYUqfKHV9en/30HSrZoW5FTt3vLk88S8AEEPoEAVuD5zEF2D6OyVFJwL412MGFgSrTx31UOGSjp/ANvRR4E91yZ2YPHolTcowMGJbe8QI+WAFegeYGQgdRChRwfuBVzucAcGEgNGXwOaJfAwOLnIC3mkE25csjAiTkWHLIVcL28nkYsvywJ69EYhVxDxTaPdFAKqgkDL72iB1e1vcFoba+itxZdabRDR7hnp6f0k6MTVpZ0HsjgLgiBzk2DGtw2wsBAGO1R++hNe/zhkyOdVeJraSliXtYWhAm1UuOl1B5naKF18zxKMMhxyoPykJ1WDNpoZiuQHgu3D12HtSM4zlupZ72x+Zt0K7Z98uOgLhKIisEnXCbHbfRb6Xe4JCnBPc6MbU7Smt0cddf++gG3li97/TlvoSsGUxVpndrYjqJ0LSGzPX4lbHItkZJkRapWjGAsClMUqPPDSLeJaDdYwrGDbiWi3WC44Cpwb+whqMuNYDeQ07Is0R+CuWvE9kDaPJrHJxQ+UfvH2E9TZf49r+vJm5i3/TwTZ7nnfRkNVh7L5Q9WEmmCVccjKEKYI89j+UtReJ5LyhJXN1sO99nZPtoCrfuOT/Vjo14xcCrMjoW5I10iRN6HwGBqbME9ZBCCzPtLNRXn57lxi1O0qAXWBNgW68N926ShYmCD9rK/YDJAHQq6A8uln8eviQTq8gYMnviCN38mfVZvG1MU5lr82EDX2tX6KuwtZOml+72s27mstnwsHrefpFdxty0Q0oqguP3pTVDqT2f0L9fBl8H/DF3JbO6Al2gdvg12dOGb6HPThpTorsvgX4P7o4J7VYezYmCi9mtkf1Rkr5t49pVUAr9rikrnLftaTv7XcvKCTugWF5Ku6wvqdzpy1AHRjlD3sRFPjCddYtNijZsZY6+7bpXGyVC3aeXuO00ftuM201RVEcJvZ2f7w9dHrmQetQeX1sZG9MjJK0fPpeqZn5QRW2+/hcGT52P23jS9eMWgcLO+YegvdI7PkgQ8LxqDMRjT2/VVFMXTYhoHK/8lgdnLzjnF8ovv5F9KHopN7X4jl3aRmxTVGXo+FBd1Cvro8nY8vtkDrPmxTYz30vl01Bk07BqkHC3Qzw2tKWZx+ii5n0MGw4Q2btgsLIabEXsIDBzaxXpdEbt/UpIx9fXfufely4ZDDCdCmZCf8Blqz0+4rAUnhCGClX4ZQUY3V+9wWfef8ZNJBGLdrTm4LbbJGy8lDcpsvToZBT83Vn5dD3lxb1LPGDG6Uk9NSodRdG4wurkC1g4NcHry68kp7EZ2S5g+Ni58u19oXgPbCcTm/NQ2F/FLA4+8+L19QZ6VxvmC6wTvRYnc2Us0YSHqDkvFpU6mtDrJ92ltIIQmzZDuUhgQj+fGURWD1eqRO/xgVVXR43oNRbnLpeOPKllExZ1G1/6KxmVyLOZ/wa0kvZju9QgYAWv9kRAY54i11l41I5QNhf+4HENV/QfF8sJJ
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Application Catalog Templates"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/applications/catalog/templates/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+List Application Catalog Templates
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"include_archived","in":"query","required":false,"schema":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Include Archived"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"templates":{"items":{"properties":{"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"key":{"type":"string","title":"Key"},"categories":{"anyOf":[{"items":{"type":"string"},"type":"array"},{"type":"null"}],"title":"Categories"},"flags":{"anyOf":[{"properties":{"is_archived":{"type":"boolean","title":"Is Archived","default":false},"is_recommended":{"type":"boolean","title":"Is Recommended","default":false},"is_application":{"type":"boolean","title":"Is Application","default":false},"is_evaluator":{"type":"boolean","title":"Is Evaluator","default":false},"is_snippet":{"type":"boolean","title":"Is Snippet","default":false}},"type":"object","title":"WorkflowCatalogFlags"},{"type":"null"}]},"data":{"anyOf":[{"properties":{"uri":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Uri"},"url":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Url"},"headers":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"properties":{"version":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Version"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"Reference"}]},"type":"object"},{"type":"null"}],"title":"Headers"},"runtime":{"anyOf":[{"type":"string","enum":["python","typescript","javascript"]},{"type":"null"}],"title":"Runtime"},"script":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Script"},"schemas":{"anyOf":[{"properties":{"parameters":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Parameters"},"inputs":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Inputs"},"outputs":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Outputs"}},"type":"object","title":"JsonSchemas"},{"type":"null"}]},"parameters":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Parameters"}},"type":"object","title":"WorkflowRevisionData"},{"type":"null"}]}},"type":"object","required":["key"],"title":"ApplicationCatalogTemplate"},"type":"array","title":"Templates","default":[]}},"type":"object","title":"ApplicationCatalogTemplatesResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

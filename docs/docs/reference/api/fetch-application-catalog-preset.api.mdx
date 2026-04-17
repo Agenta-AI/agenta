@@ -1,0 +1,71 @@
+---
+id: fetch-application-catalog-preset
+title: "Fetch Application Catalog Preset"
+description: "Fetch Application Catalog Preset"
+sidebar_label: "Fetch Application Catalog Preset"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWE1z2zYQ/SuaPSUzqOV6euKpGn80rttaIzvpwaPxwORKggMSDD7UKBr+986CoAhKMuU4bk8+SSR3H4C3DwvsrsHyuYHkDkZlKUXKrVCFgSkDVaL2T5cZJDBDmy7ueWtzn3LLpZrflxoNWmBQcs1ztKgJbg0FzxESsJiXklu8/4wrYCAKSKDkdgEMNH5xQmMGidUOGZh0gTmHZA12VZKvsVoUc2BghZX04jaADa5wBVXFNqPUk3iVMcYeKowwJQRTqsKgIaeT42P6ydCkWpTEAyRw49IUjZk5OZgEY2CQqsJiYck8om34aMhnHU2k1ES1FfUIqXK1U5ifKCzOUUcTPPUWDDKccSctJMcVCwT4wYrV9cxHoAtcMxV/7zJAbIY3hZMSaO3NkH+Rb8W6634Z1FkEUTGgiPUEw0eBQcotzpUOK2mHFRZzs+tfseYF15qveudz2kJXDGbS74anWRTmnut0IZYkqQ3qg1ISeRFN/NIMRo1dFKoZlwYrRjAaU5XnWGSHkSaR6X6wSGEHpxWZ7gfDJZeOW6UPQZ1vDPcDmUKUJdpDMDfBbAekjaN6eMTURm5/K/15JtU/p3UWuvBx240zaZZb3hdRp8VLtfxRCxKN0/LlCJIQFsgznzdjFJ5lgqLE5bgz4b5xuktbojY/sFU/BfeKgZFu/lKYG/IlQWR9CAxmSufcQgLOiawX8TKDPm1McIYaixRrAXTN+nA/hDBUDLQrrOhPmAywcDkdneXKLvxuIoM6vQGDR77k4WHaN+okDEU01+YvJbr2rppTrjeRxaf1j6pu66jqzDF/6L5pMgC92j8WpEKnTnL97sJJ+btRxU/XzpbOvod9wQxnwHO8Dp8GW77wXfIZt5SS3IvS2TdyX4vcy5rOioHy3m/Mvhaz14HPvpRK4Dchqew9Zd/SyX+aTp5xE5rgUtBxfUb3nT0x2gPRFkd3/iIeDR7dEsMVq66Lnol8CGZTJ1UVuf9ycrJbVn3iUmTedXCutb9kvrCmytBy4e9om4KhayBV2vn6Peqcblcb7er/UOGeXTHIzbyv0PkTjeFzbBXytKknY3BLX5tjxpvHidIXTfZrBLMTmlPi8qvdq61YGMRNPf1gF98QNyGqI/Q0FWd1CPq08uH2drwDWOujK4wL6kXEdcwgaGswbnoROdqFor7FPLQm7AISGEaiMcPQwBg2HQozXMfNimpY19RmuG67CxUwMKiXTZPDX/0JV3ht1I8La0uTDIfojlKpXHbE51hYfsRFbTgljNRpYVceZDS+vMJVffmE5G4aG/ikW4u0a7YJLC/FlW97hFbIyNmF0uJbU+H5bkhdYHj6RTFTsV5GfnKD0fgSWFsxwPHRz0fHsE19x5h2I09t21wIn4FtEbFZP92Zc78VwSLPf20/0MxKZWzOiwjvGZHeakkEUkjZw1JyUUQFWq2Cuzh1GPDNBYIkJTZKAAbJVuMqiIG+RM2mKYOFMpZQ1+sHbvCjllVFr7841BTeKYMl14I/ENl3a8iEof9ZqHF3FrBJcfBuEnbh+0F75nQX1kigoBlSMU5PELoq3dYbyfN/HDviyGfIRaPudTAYpSn6Mqlx3UnotA02+/i381uoqn8B6AohhQ==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Application Catalog Preset"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/applications/catalog/templates/{template_key}/presets/{preset_key}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch Application Catalog Preset
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"template_key","in":"path","required":true,"schema":{"type":"string","title":"Template Key"}},{"name":"preset_key","in":"path","required":true,"schema":{"type":"string","title":"Preset Key"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"preset":{"anyOf":[{"properties":{"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"key":{"type":"string","title":"Key"},"categories":{"anyOf":[{"items":{"type":"string"},"type":"array"},{"type":"null"}],"title":"Categories"},"flags":{"anyOf":[{"properties":{"is_archived":{"type":"boolean","title":"Is Archived","default":false},"is_recommended":{"type":"boolean","title":"Is Recommended","default":false},"is_application":{"type":"boolean","title":"Is Application","default":false},"is_evaluator":{"type":"boolean","title":"Is Evaluator","default":false},"is_snippet":{"type":"boolean","title":"Is Snippet","default":false}},"type":"object","title":"WorkflowCatalogFlags"},{"type":"null"}]},"data":{"anyOf":[{"properties":{"uri":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Uri"},"url":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Url"},"headers":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"properties":{"version":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Version"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"Reference"}]},"type":"object"},{"type":"null"}],"title":"Headers"},"runtime":{"anyOf":[{"type":"string","enum":["python","typescript","javascript"]},{"type":"null"}],"title":"Runtime"},"script":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Script"},"schemas":{"anyOf":[{"properties":{"parameters":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Parameters"},"inputs":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Inputs"},"outputs":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Outputs"}},"type":"object","title":"JsonSchemas"},{"type":"null"}]},"parameters":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Parameters"}},"type":"object","title":"WorkflowRevisionData"},{"type":"null"}]}},"type":"object","required":["key"],"title":"ApplicationCatalogPreset"},{"type":"null"}]}},"type":"object","title":"ApplicationCatalogPresetResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

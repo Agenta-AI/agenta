@@ -44,15 +44,18 @@ app = ag.AppManager.create(
   <TabItem value="JavaScript" label="JS/TS">
 
 ```javascript
-const response = await fetch('https://cloud.agenta.ai/api/apps', {
+const response = await fetch('https://cloud.agenta.ai/api/simple/applications/', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': 'Bearer YOUR_API_KEY'
+    'Authorization': 'ApiKey YOUR_API_KEY'
   },
   body: JSON.stringify({
-    app_name: 'my-app-slug',
-    template_key: 'SERVICE:completion'
+    application: {
+      slug: 'my-app-slug',
+      name: 'my-app-slug',
+      flags: { is_chat: false }  // set is_chat: true for multi-turn prompts
+    }
   })
 });
 
@@ -64,14 +67,21 @@ console.log(result);
   <TabItem value="API">
 
 ```bash
-curl -X POST "https://cloud.agenta.ai/api/apps" \
+curl -X POST "https://cloud.agenta.ai/api/simple/applications/" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
-    "app_name": "my-app-slug",
-    "template_key": "SERVICE:completion"
+    "application": {
+      "slug": "my-app-slug",
+      "name": "my-app-slug",
+      "flags": { "is_chat": false }
+    }
   }'
 ```
+
+:::note
+The REST endpoint creates the application artifact. Selecting a prompt template (`SERVICE:completion`, `SERVICE:chat`, `CUSTOM`) is performed through the `flags` object and, for custom workflows, by committing an initial revision. For the full multi-step flow, see [Create and Commit](/prompt-engineering/managing-prompts-programatically/create-and-commit). The Python SDK's `ag.AppManager.create(template_key=...)` handles this in one call.
+:::
   
   </TabItem>
 </Tabs>

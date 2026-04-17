@@ -1,0 +1,71 @@
+---
+id: admin-delete-project
+title: "Delete project by ID"
+description: "Delete project by ID"
+sidebar_label: "Delete project by ID"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWcFu4zYQ/RVhTi1A2GnQk0411gbWyC5iJN72EBgGLY5tbiSRS1LpqoL+vRhSsiU78abooQWsUxJyOJx57w0z0FTg+M5C/AQTkckcVgyURsOdVPlcQAycltcCU3S41kZ9xcQBA80Nz9ChobMV5DxDiKHZX0sBDGROK9ztgYHBb4U0KCB2pkAGNtljxiGuwJWaTlpnZL4DBk66lBYWwVU0F1DXK/JgtcotWjp0e3NDPwTaxEhNsUIMj0WSoLXbIo0eGmNgkKjcYe7InGudysSnNv5q6UzVCUQbStzJcIMw5doUeSfCjVIp8rwT4tSU0UNBKwK3vEgdxFueWqxpgfASIchmr6rZySWF9fhVwPPyfuuBlA4zex6OFJewIowIoW3fV9+8ZoeVvEhTIFBbBw+4hbpm7b7aNCwfaXuiEDonvFqmIctZ7qQrp8t7OLrgxvDy4p1ffPI18yispUDy0qR7rXhE8yMMNQNldjyXf3nFXi0u9z0QagZ/KvNsNU+uVyp/HBEIbwrdebVoLNr8TypmnWG2QWP3Ul8tNt3iiT538OjW0QBUp6ROUWpbmgGjQ0t2ghDXcv2M5dXCMtEyuqP8X7v4zWsk2uYi+yy1Dr3iMeWhURwaxaFRHBrFoVEcGsWhUfwfATU0ikOj+N80iqeOawZojHpnY5gogZcQ/UD7NYMMreW7i6afGxP/ndNxmZ5EwIWQ9I7wdNEJIXz47ad9Ca1p4/pHLPnEjnGfMvboTJG4wqCYEVj/lLNZQPidjLXfnf0tNR369fb2/Ev17zyVIjy13v+/+EztQfL18jrtqUp6u++oFZk73KEJCusBdcz5kwoBesXY3TvVEkzeNvVgREvarWl+oAsPyKHo/ULNIHHfO27OCPlAWH53P1QOYRPCb+w6vB8pCgy9DUXQ6UWFfFwuF2cOgz76wggqipp/JdGmjOZTr223VzSMCWMFP35xe4hh7KczYyszneKYJ4kqcmfHbaM3ro4DmXoMDCyal3ZkU5jUe9DSkx/+3DunbTweYzFKUlWIEd9h7viIy2C4Ih9JYaQrvZPJYn6H5UfkAg3ET6uuwSNpNqiwb3Zgjmt5h4RlMz6aFG6vTNOFtBOkfThVe0VsVVcQEx9cNFnMgQElFlC8Gf0yuoFTbHvGVG488epq7/bbwE6AOOQPDDDztQYOefbbcYMi08q6jOcdf29Q2YvpAATJdaxTLn1B+QiqhuOnMIEj8jzLwKDlGTotPYO4N3wjLe+VdeSgqjbc4heT1jUtfyvQEHsrBi/cSL4hLJ8qENLS76KZYp3Fenii4KeHpop+joC9nkPLcE70vvC0oL+AwTOW/Tmhf2X2rYCqxmCSJKhd5+jZo0hKO9TFdPZptpxBXf8NGrTFkg==
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete project by ID"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/admin/simple/accounts/projects/{project_id}/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete project by ID
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"project_id","in":"path","required":true,"schema":{"type":"string","title":"Project Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"dry_run":{"type":"boolean","title":"Dry Run","default":false},"deleted":{"default":{},"properties":{"users":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Users"},"user_identities":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"User Identities"},"organizations":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Organizations"},"workspaces":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Workspaces"},"projects":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Projects"},"organization_memberships":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Organization Memberships"},"workspace_memberships":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Workspace Memberships"},"project_memberships":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Project Memberships"},"api_keys":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Api Keys"}},"type":"object","title":"AdminDeletedEntitiesDTO"},"skipped":{"anyOf":[{"properties":{"users":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Users"},"user_identities":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"User Identities"},"organizations":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Organizations"},"workspaces":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Workspaces"},"projects":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Projects"},"organization_memberships":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Organization Memberships"},"workspace_memberships":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Workspace Memberships"},"project_memberships":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Project Memberships"},"api_keys":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Api Keys"}},"type":"object","title":"AdminDeletedEntitiesDTO"},{"type":"null"}]},"errors":{"anyOf":[{"items":{"properties":{"code":{"type":"string","title":"Code"},"message":{"type":"string","title":"Message"},"details":{"anyOf":[{"additionalProperties":true,"type":"object"},{"type":"null"}],"title":"Details"}},"type":"object","required":["code","message"],"title":"AdminStructuredErrorDTO"},"type":"array"},{"type":"null"}],"title":"Errors"}},"type":"object","title":"AdminDeleteResponseDTO"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

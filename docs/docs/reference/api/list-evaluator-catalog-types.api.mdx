@@ -1,0 +1,63 @@
+---
+id: list-evaluator-catalog-types
+title: "List Evaluator Catalog Types"
+description: "List Evaluator Catalog Types"
+sidebar_label: "List Evaluator Catalog Types"
+hide_title: true
+hide_table_of_contents: true
+api: eJydVMFu2zAM/ZWApw3Q4mxHnxZ03dZ1WIu1OwVBwMhsok62XIkqlgX+94GyYyde0RXLJYn0+Ei9R3IPjJsA+QLOH9FGZOcDLBW4mjyycdVFATlYE3hFB8BKI6N1mxXvagqgwFOoXRUoQL6Hd7OZfBUUtDe1UEAON1FrCuEu2sn3DgwKtKuYKhY41rU1OmXM7oPE7CHoLZUov2ov9bBpM2gX2yDJDzmYimlDHhSwYSsnZwmhoKA7jJYhnzUK2mrzPRimMvxNW2FJqZRqd3UH+aLnD+xNtYFG9SdVtBaa5ZDwm8Q26vTV/0f14YiiUfCTdkdP7eIH9CXtBCWSrQa9sCiMEKC9PnniC+o5iHlSYrk+PVk7ZwmrdPR0LtDG62jRv/oYrf0SXPXmKnId+TWoA4tb35PmRNJZ8pIo9B53zyo4ioVmnHGACmxy0+rWPIHz9BCNp0IGRJw4VfooZz89Z+1s3ApRMyp6gN92k9M36GL5VPrn2EM/SI18Rr0HX03gSR836QInh8Ql8dbJaG9IEtXIW8gh62c8ZN2QZ2lsMlAQyD+SD6l9orcCx9okJ9q/W+Y65FlGcaqti8UUN1QxTtG0wKVw6OgN7xLJ/PriknafCQvySYEjQPKkbdpTWG871uYyOdLOLcwjb503v9MOAQVGVNi2USKPqe5cCu80nafiJvPrC1AgD2t1m03fTmcwVvMELGsLNQ87o7sGNRKifz8ooBKN3DFh+X64kMpqF7jE6ojvH+aNtkwnCNMvzmqLJu2NVMm+M3YBg7HygJYPDjtRgbTy1gVpRNjv1xjoh7dNI8cPkbz4tVTwiN7gWtRbLBt1EFesTFsK5lpTLe0kyVqPRltdLO5b79P5LTTNH+C+PNc=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Evaluator Catalog Types"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/evaluators/catalog/types/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+List Evaluator Catalog Types
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"types":{"items":{"properties":{"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"key":{"type":"string","title":"Key"},"json_schema":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object","title":"Json Schema"}},"type":"object","required":["key","json_schema"],"title":"EvaluatorCatalogType"},"type":"array","title":"Types","default":[]}},"type":"object","title":"EvaluatorCatalogTypesResponse"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

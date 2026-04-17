@@ -1,0 +1,71 @@
+---
+id: admin-delete-user-identity
+title: "Delete user identity by ID"
+description: "Delete user identity by ID"
+sidebar_label: "Delete user identity by ID"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWUtv4zYQ/ivCnFqAsNKgJ51qrA2skV3ESJz2YBgGLY0tbvTgklS6qqD/XgwpWZKdeFO0aAtYpzjkcB7ffEOMOBUYftAQrGEapSKDDYNcouJG5NkiggA4LW8jTNDgttCotiLCzAhTAgPJFU/RoCINFWQ8RQigkQIGIoMAJDcxMFD4tRAKIwiMKpCBDmNMOQQVmFLSMW2UyA7AwAiT0MKTRuUtIqhrdtTdGv8n9C8aXc7GhlRomWcaNZ26vbmhPxHqUAlJeEAAj0UYotb7IvEeGmFgEOaZwcyQOJcyEaGFz/+i6UzV80QqAtcIZyFS5VYVWc/FXZ4nyLOejzNVeg8FrUS450ViINjzRGNNC5STyDnZ7FU1OzFCybA/eFbe722ahMFUn7sjostgQU0I7Ye6huKUqGYlK5IECNRWwQPuKZPtfr77gqEZ5G1NLvROWEbOXJRzm6nZ6h46FVwpXl60+WSDrxn0iduEe614eIsOhppBrg48E39Yxl4tLvcDEGoGv+fqWUseXi9VfusQcHcK2bxaNJZt/CcVs00x3aHSsZBXi02/eLzPPTz6dTQC1SupU5Sa6hoxOhbaKUJciu0zllcLy1QK747if83wm2YE6saQfhZSul6xC3lsFMdGcWwUx0ZxbBTHRnFsFP9HQI2N4tgo/jeN4qnimgEqlb+zMQzzCC8h+oH2awYpas0PF0U/NyL2ndNwkZx4wKNI0D3Ck2XPBffyOwz7ElqzRvX3smQD6/w+zdijUUVoCoXRnMD6qzmbO4TfmbH23dlaqenQz7e35y/Vv/JERO6qtfr/xjO1BcnWy+tpT/JwsPuOWhGZwQMqx7ABUF3Mn3LnoGWMPryTLU7kbVELhrei3ZoGCLKwgByL3i7UDELzrafmLCEfCMtv5rvMIWyc+41cL+9dilyG3obC8fQiQz6uVsszhY4fQ2I4Fnn0oeO10xRvV3qLmWW4iXMa+7jhgh3xmBgC8O0cyNcilQn6PAzzIjPatx+NftV8NdV+9+XkV71RTe0DA43qpZ0UFSqxSqWwrHD/xsZIHfg+FpMwyYtowg+YGT7hwgluSEdYKJo9kZLpcnGH5UfkESoI1pu+wCOR2dFzKHZMKZfiDgnkZrI0LUycq6Y9aWdLsTtVW6rs8z5TptY5b7pcAAMKzMF7M/lpcgOnoA+EqQ55aGnX2rbbwE6AOMYPDDC1RQgGefpLt0GeyVyblGc9fRdzPPDsCAex2ZcJF7berB9Vk/y1GwJSCm36gUFLAGDNuwGDoDf26z4cGQTDkR0VQJxrQ2qrasc1Pqmkrmn5a4GKMrth8MKV4DvCeV1BJDT9jprR11kEx3sNfnhoSu9HD9jrkbXZzyj1Lzwp6D9g8Ixlb3RJpPwXzfYhsldi3JK6aiSmYYjS9M6e3eDE/mP5zuaf5qs51PWfUw8jHw==
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete user identity by ID"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/admin/simple/accounts/users/{user_id}/identities/{identity_id}/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete user identity by ID
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"user_id","in":"path","required":true,"schema":{"type":"string","title":"User Id"}},{"name":"identity_id","in":"path","required":true,"schema":{"type":"string","title":"Identity Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"dry_run":{"type":"boolean","title":"Dry Run","default":false},"deleted":{"default":{},"properties":{"users":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Users"},"user_identities":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"User Identities"},"organizations":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Organizations"},"workspaces":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Workspaces"},"projects":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Projects"},"organization_memberships":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Organization Memberships"},"workspace_memberships":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Workspace Memberships"},"project_memberships":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Project Memberships"},"api_keys":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Api Keys"}},"type":"object","title":"AdminDeletedEntitiesDTO"},"skipped":{"anyOf":[{"properties":{"users":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Users"},"user_identities":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"User Identities"},"organizations":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Organizations"},"workspaces":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Workspaces"},"projects":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Projects"},"organization_memberships":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Organization Memberships"},"workspace_memberships":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Workspace Memberships"},"project_memberships":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Project Memberships"},"api_keys":{"anyOf":[{"items":{"properties":{"id":{"type":"string","title":"Id"},"ref":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Ref"}},"type":"object","required":["id"],"title":"AdminDeletedEntityDTO"},"type":"array"},{"type":"null"}],"title":"Api Keys"}},"type":"object","title":"AdminDeletedEntitiesDTO"},{"type":"null"}]},"errors":{"anyOf":[{"items":{"properties":{"code":{"type":"string","title":"Code"},"message":{"type":"string","title":"Message"},"details":{"anyOf":[{"additionalProperties":true,"type":"object"},{"type":"null"}],"title":"Details"}},"type":"object","required":["code","message"],"title":"AdminStructuredErrorDTO"},"type":"array"},{"type":"null"}],"title":"Errors"}},"type":"object","title":"AdminDeleteResponseDTO"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      
