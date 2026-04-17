@@ -962,10 +962,6 @@ class PromptTemplate(AgSchemaMixin):
             substituted = self._substitute_variables(rf_dict, kwargs)
             rf_type = type(new_llm_config.response_format)
             new_llm_config.response_format = rf_type(**substituted)
-        if new_llm_config.chat_template_kwargs is not None:
-            new_llm_config.chat_template_kwargs = self._substitute_variables(
-                new_llm_config.chat_template_kwargs, kwargs
-            )
         return new_llm_config
 
     def to_openai_kwargs(self) -> dict:

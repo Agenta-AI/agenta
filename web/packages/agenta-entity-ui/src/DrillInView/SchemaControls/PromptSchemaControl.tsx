@@ -22,7 +22,7 @@ import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Plus} from "@phosphor-icons/react"
-import {Button, Select} from "antd"
+import {Button, Input, Select, Typography} from "antd"
 import {v4 as uuidv4} from "uuid"
 
 import {ResponseFormatControl, type ResponseFormatValue} from "./ResponseFormatControl"
@@ -131,6 +131,10 @@ const TEMPLATE_FORMAT_OPTIONS = [
     {label: "Prompt Syntax: Jinja2", value: "jinja2"},
 ]
 const EMPTY_VARIABLES: string[] = []
+const FALLBACK_POLICY_OPTIONS = ["off", "availability", "capacity", "access", "any"].map(
+    (value) => ({label: value, value}),
+)
+const PROMPT_EXTENSION_KEYS = ["fallback_llm_configs", "retry_policy", "fallback_policy"]
 
 /**
  * Default provider icon renderer using getProviderIcon from @agenta/ui
@@ -385,6 +389,66 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     // Extract tools array from value (respects nested llm_config)
     const tools = useMemo(() => getToolsArray(), [getToolsArray])
 
+    const promptExtensionSchemaProps = useMemo(() => {
+        return ((schema?.properties as Record<string, SchemaProperty> | undefined) ?? {}) as Record<
+            string,
+            SchemaProperty
+        >
+    }, [schema])
+
+    const hasPromptExtensionFields = useMemo(() => {
+        return PROMPT_EXTENSION_KEYS.some(
+            (key) => key in promptExtensionSchemaProps || Boolean(value && key in value),
+        )
+    }, [promptExtensionSchemaProps, value])
+
+    const handlePromptRootFieldChange = useCallback(
+        (key: string, nextValue: unknown) => {
+            onChange({
+                ...value,
+                [key]: nextValue,
+            })
+        },
+        [value, onChange],
+    )
+
+    const renderJsonRootField = useCallback(
+        (key: "fallback_llm_configs" | "retry_policy", label: string, placeholder: string) => {
+            const currentValue = value?.[key]
+            const stringValue =
+                currentValue === null || currentValue === undefined
+                    ? ""
+                    : JSON.stringify(currentValue, null, 2)
+
+            return (
+                <div key={key} className="flex flex-col gap-1">
+                    <Typography.Text className="font-medium">{label}</Typography.Text>
+                    <Input.TextArea
+                        key={`${key}-${JSON.stringify(currentValue ?? null)}`}
+                        defaultValue={stringValue}
+                        onBlur={(event) => {
+                            const raw = event.target.value.trim()
+                            if (!raw) {
+                                handlePromptRootFieldChange(key, null)
+                                return
+                            }
+
+                            try {
+                                handlePromptRootFieldChange(key, JSON.parse(raw))
+                            } catch {
+                                // Keep the last valid value.
+                            }
+                        }}
+                        disabled={disabled}
+                        autoSize={{minRows: 3, maxRows: 8}}
+                        placeholder={placeholder}
+                    />
+                </div>
+            )
+        },
+        [disabled, handlePromptRootFieldChange, value],
+    )
+
     const selectedToolNames = useMemo(() => {
         return new Set(
             tools
@@ -586,6 +650,37 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                         popupMatchSelectWidth={false}
                         style={{height: 24}}
                     />
+                </div>
+            )}
+
+            {hasPromptExtensionFields && (
+                <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-1">
+                        <Typography.Text className="font-medium">Fallback policy</Typography.Text>
+                        <Select
+                            size="small"
+                            allowClear
+                            value={
+                                (value?.fallback_policy as string | null | undefined) ?? undefined
+                            }
+                            onChange={(nextValue) =>
+                                handlePromptRootFieldChange("fallback_policy", nextValue ?? null)
+                            }
+                            disabled={disabled}
+                            options={FALLBACK_POLICY_OPTIONS}
+                            placeholder="Select one"
+                        />
+                    </div>
+                    {renderJsonRootField(
+                        "retry_policy",
+                        "Retry policy",
+                        '{"max_retries": 1, "delay_ms": 250}',
+                    )}
+                    {renderJsonRootField(
+                        "fallback_llm_configs",
+                        "Fallback LLM configs",
+                        '[{"model": "gpt-4o-mini"}]',
+                    )}
                 </div>
             )}
         </div>

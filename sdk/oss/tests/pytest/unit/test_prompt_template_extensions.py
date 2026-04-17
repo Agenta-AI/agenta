@@ -56,6 +56,33 @@ def test_chat_template_kwargs_is_passed_through_when_set():
     }
 
 
+def test_chat_template_kwargs_is_not_template_formatted():
+    prompt = PromptTemplate(
+        messages=[{"role": "user", "content": "Hello {{name}}"}],
+        input_keys=["name"],
+        llm_config=ModelConfig(
+            model="qwen/qwen3",
+            chat_template_kwargs={"literal": "{{provider_flag}}"},
+        ),
+        fallback_llm_configs=[
+            {
+                "model": "fallback",
+                "chat_template_kwargs": {"nested": {"literal": "{{fallback_flag}}"}},
+            }
+        ],
+    )
+
+    formatted = prompt.format(name="Ada")
+
+    assert formatted.messages[0].content == "Hello Ada"
+    assert formatted.llm_config.chat_template_kwargs == {
+        "literal": "{{provider_flag}}"
+    }
+    assert formatted.fallback_llm_configs[0].chat_template_kwargs == {
+        "nested": {"literal": "{{fallback_flag}}"}
+    }
+
+
 def test_null_chat_template_kwargs_is_omitted_from_provider_kwargs():
     prompt = PromptTemplate(llm_config=ModelConfig(model="gpt-4o-mini"))
 
