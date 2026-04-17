@@ -223,6 +223,8 @@ export const evaluatorKeyMapAtom = atom<Map<string, string>>((get) => {
 interface EvaluatorRevisionFlags {
     isFeedback: boolean
     isCustom: boolean
+    isPending: boolean
+    revision: Workflow | null
 }
 
 const evaluatorRevisionFlagsMapAtom = atom<Map<string, EvaluatorRevisionFlags>>((get) => {
@@ -233,11 +235,14 @@ const evaluatorRevisionFlagsMapAtom = atom<Map<string, EvaluatorRevisionFlags>>(
         if (!evaluator.id) continue
 
         const revisionQuery = get(workflowLatestRevisionQueryAtomFamily(evaluator.id))
-        const revisionFlags = revisionQuery.data?.flags
+        const revision = revisionQuery.data ?? null
+        const revisionFlags = revision?.flags
 
         map.set(evaluator.id, {
             isFeedback: Boolean(revisionFlags?.is_feedback),
             isCustom: Boolean(revisionFlags?.is_custom),
+            isPending: revisionQuery.isPending ?? false,
+            revision,
         })
     }
 
@@ -333,6 +338,45 @@ export const evaluatorConfigsListDataAtom = atom<Workflow[]>((get) => {
 })
 
 /**
+ * Latest evaluator revisions for non-human evaluators.
+ *
+ * The evaluator workflow list only carries workflow-level flags. Evaluator family
+ * flags such as `is_custom`, `is_llm`, `is_code`, and `is_hook` live on revisions,
+ * and online evaluations must store revision IDs in evaluator steps.
+ */
+export const evaluatorConfigRevisionsListDataAtom = atom<Workflow[]>((get) => {
+    const query = get(evaluatorsListQueryAtom)
+    const refs = query.data?.refs ?? []
+    const revisionFlagsMap = get(evaluatorRevisionFlagsMapAtom)
+
+    return refs
+        .map((ref) => {
+            if (!ref.id) return null
+
+            const revisionState = revisionFlagsMap.get(ref.id)
+            const revision = revisionState?.revision
+            if (!revision) return null
+            if (revisionState?.isFeedback) return null
+
+            return {
+                ...ref,
+                ...revision,
+                name: revision.name ?? ref.name,
+                slug: revision.slug ?? ref.slug,
+                description: revision.description ?? ref.description,
+                flags: {
+                    ...(ref.flags ?? {}),
+                    ...(revision.flags ?? {}),
+                },
+                deleted_at: revision.deleted_at ?? ref.deleted_at,
+                created_at: revision.created_at ?? ref.created_at,
+                workflow_id: revision.workflow_id ?? ref.id,
+            } as Workflow
+        })
+        .filter((workflow): workflow is Workflow => workflow !== null)
+})
+
+/**
  * Query state for evaluator configs list.
  * Provides isPending/isError/refetch for loading indicators.
  */
@@ -342,6 +386,29 @@ export const evaluatorConfigsQueryStateAtom = atom<ListQueryState<Workflow>>((ge
     return {
         data,
         isPending: query.isPending ?? false,
+        isError: query.isError ?? false,
+        error: query.error ?? null,
+    }
+})
+
+/**
+ * Query state for revision-aware evaluator configs.
+ * Includes pending state from latest-revision lookups so consumers do not show
+ * an empty evaluator selector while revision flags are still loading.
+ */
+export const evaluatorConfigRevisionsQueryStateAtom = atom<ListQueryState<Workflow>>((get) => {
+    const query = get(evaluatorsListQueryAtom)
+    const refs = query.data?.refs ?? []
+    const revisionFlagsMap = get(evaluatorRevisionFlagsMapAtom)
+    const data = get(evaluatorConfigRevisionsListDataAtom)
+    const latestRevisionsPending = refs.some((ref) => {
+        if (!ref.id) return false
+        return revisionFlagsMap.get(ref.id)?.isPending ?? false
+    })
+
+    return {
+        data,
+        isPending: (query.isPending ?? false) || latestRevisionsPending,
         isError: query.isError ?? false,
         error: query.error ?? null,
     }

@@ -2,7 +2,7 @@ import {useMemo} from "react"
 
 import type {EvaluatorCatalogTemplate, Workflow} from "@agenta/entities/workflow"
 import {isOnlineCapableEvaluator, collectEvaluatorCandidates} from "@agenta/entities/workflow"
-import {SelectProps} from "antd"
+import type {SelectProps} from "antd"
 
 import {getEvaluatorParameters, resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 
@@ -17,13 +17,13 @@ interface UseEvaluatorSelectionParams {
 }
 
 interface EvaluatorSelectionResult {
-    evaluatorOptions: SelectProps["options"]
+    evaluatorOptions: NonNullable<SelectProps["options"]>
     selectedEvaluatorConfig?: Workflow
     matchedPreviewEvaluator?: Workflow
     evaluatorTypeLookup: Map<string, {slug: string; label: string}>
 }
 
-const buildEvaluatorOptions = (configs: Workflow[]): SelectProps["options"] =>
+const buildEvaluatorOptions = (configs: Workflow[]): NonNullable<SelectProps["options"]> =>
     (configs || []).map((cfg: any) => {
         const iconSrc = (cfg?.icon_url && (cfg.icon_url.src || cfg.icon_url)) || undefined
         const displayName = cfg?.name || ""

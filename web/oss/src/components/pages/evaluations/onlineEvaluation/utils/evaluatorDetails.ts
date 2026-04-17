@@ -31,7 +31,7 @@ export const capitalize = (value?: string) =>
  * 1. **Catalog lookup** (preferred): match the evaluator key against the
  *    pre-built lookup map derived from catalog template `categories`.
  * 2. **Flag-based inference** (fallback): derive category from workflow flags
- *    (`is_llm` → "ai_llm", `is_code` → "custom", `is_hook` → "custom").
+ *    (`is_llm` → "llm", `is_custom`/`is_code`/`is_hook` → "custom").
  */
 export const extractEvaluatorType = (
     evaluator: Workflow | undefined,
@@ -55,7 +55,8 @@ export const extractEvaluatorType = (
 
     // 2. Flag-based inference from workflow flags
     const flags = evaluator.flags
-    if (flags?.is_llm) return {slug: "ai_llm", label: "AI / LLM"}
+    if (flags?.is_llm) return {slug: "llm", label: "LLM"}
+    if (flags?.is_custom) return {slug: "custom", label: "Custom"}
     if (flags?.is_code) return {slug: "custom", label: "Custom Code"}
     if (flags?.is_hook) return {slug: "custom", label: "Webhook"}
 
@@ -514,7 +515,7 @@ const normalizeMessageContent = (
             }
 
             if (Array.isArray(obj.parts)) {
-                obj.parts.forEach(visit)
+                obj.parts.forEach((part) => visit(part))
             }
 
             pushAttachment(extractImageAttachment(obj))
