@@ -186,10 +186,7 @@ export function useRefinePrompt({
                     throw new Error(errorText)
                 }
 
-                const {refinedPrompt, explanation} = parseRefineResponse(
-                    response,
-                    promptToRefine,
-                )
+                const {refinedPrompt, explanation} = parseRefineResponse(response, promptToRefine)
 
                 if (!refinedPrompt) {
                     throw new Error("No refined prompt in response")

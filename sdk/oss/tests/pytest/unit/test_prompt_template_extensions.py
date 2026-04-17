@@ -75,9 +75,7 @@ def test_chat_template_kwargs_is_not_template_formatted():
     formatted = prompt.format(name="Ada")
 
     assert formatted.messages[0].content == "Hello Ada"
-    assert formatted.llm_config.chat_template_kwargs == {
-        "literal": "{{provider_flag}}"
-    }
+    assert formatted.llm_config.chat_template_kwargs == {"literal": "{{provider_flag}}"}
     assert formatted.fallback_llm_configs[0].chat_template_kwargs == {
         "nested": {"literal": "{{fallback_flag}}"}
     }
