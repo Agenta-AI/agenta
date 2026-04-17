@@ -7,13 +7,18 @@ from oss.src.core.applications.dtos import (
     Application,
     ApplicationArtifactFlags,
     ApplicationArtifactQueryFlags,
+    ApplicationQuery,
     ApplicationRevision,
     ApplicationRevisionFlags,
     ApplicationVariant,
     SimpleApplicationQuery,
     SimpleApplicationQueryFlags,
 )
-from oss.src.core.applications.service import SimpleApplicationsService
+from oss.src.core.applications.service import (
+    ApplicationsService,
+    SimpleApplicationsService,
+)
+from oss.src.core.shared.dtos import Reference
 
 
 @pytest.mark.asyncio
@@ -156,3 +161,49 @@ async def test_query_filters_simple_applications_by_revision_flags():
     ]
     assert isinstance(application_query.flags, ApplicationArtifactQueryFlags)
     assert application_query.flags.is_application is True
+
+
+@pytest.mark.asyncio
+async def test_query_passes_application_refs_to_application_service():
+    applications_service = AsyncMock()
+    service = SimpleApplicationsService(applications_service=applications_service)
+
+    applications_service.query_applications.return_value = []
+
+    application_ref = Reference(slug="target-app")
+
+    simple_applications = await service.query(
+        project_id=uuid4(),
+        application_refs=[application_ref],
+    )
+
+    assert simple_applications == []
+    assert applications_service.query_applications.await_args.kwargs[
+        "application_refs"
+    ] == [application_ref]
+
+
+@pytest.mark.asyncio
+async def test_application_queries_default_to_application_flags():
+    workflows_service = AsyncMock()
+    service = ApplicationsService(workflows_service=workflows_service)
+
+    workflows_service.query_workflows.return_value = []
+
+    await service.query_applications(project_id=uuid4())
+
+    workflow_query = workflows_service.query_workflows.await_args.kwargs[
+        "workflow_query"
+    ]
+    assert workflow_query.flags.is_application is True
+
+    await service.query_applications(
+        project_id=uuid4(),
+        application_query=ApplicationQuery(tags={"marker": "case"}),
+    )
+
+    workflow_query = workflows_service.query_workflows.await_args.kwargs[
+        "workflow_query"
+    ]
+    assert workflow_query.flags.is_application is True
+    assert workflow_query.tags == {"marker": "case"}

@@ -48,6 +48,34 @@ def _create_application_with_variant(authed_api, *, marker: str):
     return application, variant
 
 
+def _create_simple_evaluator(authed_api, *, marker: str):
+    evaluator_slug = f"evaluator-{uuid4().hex[:8]}"
+
+    response = authed_api(
+        "POST",
+        "/simple/evaluators/",
+        json={
+            "evaluator": {
+                "slug": evaluator_slug,
+                "name": evaluator_slug,
+                "tags": {"marker": marker},
+                "data": {
+                    "schemas": {
+                        "outputs": {
+                            "type": "object",
+                            "properties": {
+                                "score": {"type": "number"},
+                            },
+                        },
+                    },
+                },
+            }
+        },
+    )
+    assert response.status_code == 200
+    return response.json()["evaluator"]
+
+
 class TestApplicationVariantsAndRevisions:
     def test_query_application_variants_by_application_slug_ref(self, authed_api):
         marker = uuid4().hex[:8]
@@ -148,3 +176,29 @@ class TestApplicationVariantsAndRevisions:
             query_body["application_revisions"][0]["id"]
             == body["application_revision"]["id"]
         )
+
+    def test_query_applications_excludes_evaluators_by_default(self, authed_api):
+        marker = uuid4().hex[:8]
+        application, _variant = _create_application_with_variant(
+            authed_api,
+            marker=marker,
+        )
+        evaluator = _create_simple_evaluator(authed_api, marker=marker)
+
+        response = authed_api(
+            "POST",
+            "/applications/query",
+            json={
+                "application": {
+                    "tags": {"marker": marker},
+                },
+            },
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["count"] == 1
+
+        application_ids = {application["id"] for application in body["applications"]}
+        assert application["id"] in application_ids
+        assert evaluator["id"] not in application_ids

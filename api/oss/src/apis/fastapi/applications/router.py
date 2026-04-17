@@ -1838,6 +1838,8 @@ class SimpleApplicationsRouter:
             #
             simple_application_query=simple_application_query_request.application,
             #
+            application_refs=simple_application_query_request.application_refs,
+            #
             include_archived=simple_application_query_request.include_archived,
             #
             windowing=simple_application_query_request.windowing,
