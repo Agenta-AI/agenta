@@ -233,14 +233,20 @@ class ApplicationsService:
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Application]:
+        application_query_flags = ApplicationArtifactQueryFlags(
+            **_dump_flags(application_query.flags if application_query else None),
+        )
+
         workflow_query = (
             WorkflowQuery(
                 **application_query.model_dump(
                     mode="json",
+                    exclude={"flags"},
                 ),
+                flags=application_query_flags,
             )
             if application_query
-            else WorkflowQuery()
+            else WorkflowQuery(flags=application_query_flags)
         )
 
         workflows = await self.workflows_service.query_workflows(
@@ -1388,6 +1394,8 @@ class SimpleApplicationsService:
         #
         simple_application_query: Optional[SimpleApplicationQuery] = None,
         #
+        application_refs: Optional[List[Reference]] = None,
+        #
         include_archived: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
@@ -1414,6 +1422,8 @@ class SimpleApplicationsService:
             project_id=project_id,
             #
             application_query=application_query,
+            #
+            application_refs=application_refs,
             #
             include_archived=include_archived,
             #

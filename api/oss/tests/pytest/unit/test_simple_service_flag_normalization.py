@@ -18,6 +18,7 @@ from oss.src.core.environments.dtos import (
     EnvironmentVariant,
 )
 from oss.src.core.environments.service import SimpleEnvironmentsService
+from oss.src.core.shared.dtos import Reference
 from oss.src.core.workflows.dtos import (
     SimpleWorkflowEdit,
     Workflow,
@@ -181,3 +182,23 @@ async def test_simple_environment_query_accepts_dict_backed_flags():
 
     assert len(simple_environments) == 1
     assert simple_environments[0].flags.is_guarded is True
+
+
+@pytest.mark.asyncio
+async def test_simple_workflow_query_passes_workflow_refs():
+    workflows_service = AsyncMock()
+    service = SimpleWorkflowsService(workflows_service=workflows_service)
+
+    workflows_service.query_workflows.return_value = []
+
+    workflow_ref = Reference(slug="target-workflow")
+
+    simple_workflows = await service.query(
+        project_id=uuid4(),
+        workflow_refs=[workflow_ref],
+    )
+
+    assert simple_workflows == []
+    assert workflows_service.query_workflows.await_args.kwargs["workflow_refs"] == [
+        workflow_ref
+    ]

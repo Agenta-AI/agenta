@@ -1880,6 +1880,8 @@ class SimpleWorkflowsRouter:
             #
             simple_workflow_query=simple_workflow_query_request.workflow,
             #
+            workflow_refs=simple_workflow_query_request.workflow_refs,
+            #
             include_archived=simple_workflow_query_request.include_archived,
             #
             windowing=simple_workflow_query_request.windowing,
