@@ -2,9 +2,8 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 import type {ReactNode} from "react"
 
 import {
-    evaluatorConfigsListDataAtom,
-    evaluatorsListDataAtom,
-    evaluatorsListQueryAtom,
+    evaluatorConfigRevisionsListDataAtom,
+    evaluatorConfigRevisionsQueryStateAtom,
     evaluatorTemplatesDataAtom,
     evaluatorTemplatesQueryAtom,
 } from "@agenta/entities/workflow"
@@ -68,12 +67,11 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
     const [filters, setFilters] = useAtom(onlineEvalFiltersAtom)
     const resetFilters = useSetAtom(resetOnlineEvalFiltersAtom)
     // Load evaluators (with IDs) to map config URI key -> evaluator.id
-    const allEvaluatorsList = useAtomValue(evaluatorsListDataAtom)
-    const allEvaluatorsQuery = useAtomValue(evaluatorsListQueryAtom)
-    const evaluators = useAtomValue(evaluatorConfigsListDataAtom)
+    const evaluators = useAtomValue(evaluatorConfigRevisionsListDataAtom)
+    const evaluatorRevisionsQuery = useAtomValue(evaluatorConfigRevisionsQueryStateAtom)
     const previewEvaluators = useMemo(
-        () => (allEvaluatorsList || []).filter((e) => e.flags?.is_feedback !== true),
-        [allEvaluatorsList],
+        () => (evaluators || []).filter((e) => e.flags?.is_feedback !== true),
+        [evaluators],
     )
     const selectedEvaluatorRevisionId = Form.useWatch("evaluator", form)
     const samplingRate = Form.useWatch("sampling_rate", form)
@@ -164,7 +162,8 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
     const hasPrompt = evaluatorDetails.promptSections.length > 0
     const hasOutputs = (evaluatorDetails.outputs?.length ?? 0) > 0
     const isLoadingEvaluators =
-        (allEvaluatorsQuery.isPending ?? false) || (baseEvaluatorTemplatesQuery.isPending ?? false)
+        (evaluatorRevisionsQuery.isPending ?? false) ||
+        (baseEvaluatorTemplatesQuery.isPending ?? false)
     const hasEvaluatorOptions = evaluatorOptions.length > 0
     const workspaceId = useMemo(() => {
         const value = router.query.workspace_id
@@ -221,7 +220,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
     const handleSubmit = async () => {
         if (!hasEvaluatorOptions) {
             message.info(
-                "Add a supported evaluator (LLM-as-a-judge, Code, Regex test, or Webhook test) in the Evaluator Registry before creating a live evaluation.",
+                "Add a supported evaluator (Custom, LLM-as-a-judge, Code, Regex test, or Webhook test) in the Evaluator Registry before creating a live evaluation.",
             )
             return
         }
@@ -644,8 +643,8 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                                         {!isLoadingEvaluators && !hasEvaluatorOptions ? (
                                             <Text type="secondary" className="block mt-2">
                                                 No supported evaluators are available. Add an
-                                                evaluator configured as LLM-as-a-judge, Code, Regex
-                                                test, or Webhook test to continue.
+                                                evaluator configured as Custom, LLM-as-a-judge,
+                                                Code, Regex test, or Webhook test to continue.
                                                 {evaluatorRegistryHref ? (
                                                     <>
                                                         {" "}
@@ -669,7 +668,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                                                 ? finalTypeColor
                                                 : undefined
                                         }
-                                        key={evaluatorDetails?.evaluator?.id}
+                                        key={selectedEvaluatorRevisionId ?? "empty"}
                                         fallbackColors={evaluatorTypeColors}
                                         showType={hasEvaluatorType}
                                     />
