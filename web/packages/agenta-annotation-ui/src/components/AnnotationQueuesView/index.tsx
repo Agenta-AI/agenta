@@ -222,9 +222,15 @@ const QueuesHeaderFilters = () => {
 
 export interface AnnotationQueuesViewProps {
     canExportData?: boolean
+    feedbackOnCreate?: () => void
+    feedbackCreateLabel?: string
 }
 
-const AnnotationQueuesView = ({canExportData = true}: AnnotationQueuesViewProps) => {
+const AnnotationQueuesView = ({
+    canExportData = true,
+    feedbackOnCreate,
+    feedbackCreateLabel,
+}: AnnotationQueuesViewProps) => {
     const navigation = useAnnotationNavigation()
     const searchTerm = useAtomValue(simpleQueueSearchTermAtom)
     const kindFilter = useAtomValue(simpleQueueKindFilterAtom)
@@ -514,7 +520,10 @@ const AnnotationQueuesView = ({canExportData = true}: AnnotationQueuesViewProps)
                 autoHeight
                 store={getDefaultStore()}
             />
-            <CreateQueueDrawer />
+            <CreateQueueDrawer
+                feedbackOnCreate={feedbackOnCreate}
+                feedbackCreateLabel={feedbackCreateLabel}
+            />
         </div>
     )
 }

@@ -5,47 +5,70 @@
  * The left panel shows root items with search + optional create/footer actions.
  * The right panel shows children when a root item is selected.
  *
+ * Supports:
+ * - Adapter-driven tabs for filtering root items by group
+ * - Grouped item display with section headers
+ * - Multi-select mode with checkboxes in child panel
+ * - Selection summary and child panel header
+ *
  * Pattern: Button trigger → Popover → [Root Panel | Child Panel]
  */
 
-import React, {useCallback, useEffect, useMemo, useState} from "react"
+import React, {useCallback, useEffect, useMemo, useState, type CSSProperties} from "react"
 
-import {EntityListItem, SearchInput, SearchablePopoverList} from "@agenta/ui/components/selection"
+import {cn} from "@agenta/ui"
+import {EntityListItem, SearchInput} from "@agenta/ui/components/selection"
 import {CaretDown, Plus} from "@phosphor-icons/react"
-import {Button, Empty, Popover, Spin} from "antd"
+import {Button, Checkbox, Empty, Popover, Spin, Tabs} from "antd"
 
 import {useEntitySelectionCore} from "../../../hooks/useEntitySelectionCore"
 import {useLevelData} from "../../../hooks/utilities"
 import type {EntitySelectionResult, HierarchyLevel, SelectionPathItem} from "../../../types"
 import type {PopoverCascaderVariantProps} from "../types"
 
+const POPOVER_CASCADER_TEST_IDS = {
+    content: "popover-cascader-content",
+    rootPanel: "popover-cascader-root-panel",
+    childPanel: "popover-cascader-child-panel",
+} as const
+
 // ============================================================================
 // CHILD PANEL (internal component)
 // ============================================================================
 
 /**
- * Renders the right-side child panel using SearchablePopoverList.
- * Separate component because useLevelData hook needs a component boundary
- * for the dynamic parentId prop.
+ * Renders the right-side child panel with:
+ * - Header showing parent name + selection count (multi-select)
+ * - List of child items (checkboxes in multi-select, click in single-select)
  */
 function ChildPanelContent({
     parentId,
+    parentLabel,
     childLevelConfig,
     onSelect,
     selectedId,
     maxHeight,
-    panelWidth,
+    panelStyle,
     disabledIds,
     disabledTooltip,
+    // Multi-select props
+    multiSelect = false,
+    selectedChildIds,
+    childItemLabelMode = "full",
 }: {
     parentId: string
+    parentLabel: string
     childLevelConfig: HierarchyLevel<unknown>
     onSelect: (child: unknown) => void
     selectedId?: string | null
     maxHeight: number
-    panelWidth: number
+    panelStyle: CSSProperties
     disabledIds?: Set<string>
     disabledTooltip?: string
+    // Multi-select props
+    multiSelect?: boolean
+    selectedChildIds?: Set<string>
+    childItemLabelMode?: "full" | "simple"
 }) {
     const {items, query} = useLevelData({
         levelConfig: childLevelConfig,
@@ -58,39 +81,161 @@ function ChildPanelContent({
         return items.filter(childLevelConfig.filterItems)
     }, [items, childLevelConfig])
 
-    const getItemId = useCallback(
-        (item: unknown) => childLevelConfig.getId(item),
-        [childLevelConfig],
-    )
-    const getItemLabel = useCallback(
-        (item: unknown) => childLevelConfig.getLabel(item),
-        [childLevelConfig],
-    )
     const getItemLabelNode = useMemo(
         () =>
-            childLevelConfig.getLabelNode
+            childItemLabelMode === "full" && childLevelConfig.getLabelNode
                 ? (item: unknown) => childLevelConfig.getLabelNode!(item)
                 : undefined,
-        [childLevelConfig],
+        [childLevelConfig, childItemLabelMode],
     )
 
+    // Multi-select derived state
+    const enabledChildren = useMemo(
+        () => filteredItems.filter((item) => !disabledIds?.has(childLevelConfig.getId(item))),
+        [filteredItems, disabledIds, childLevelConfig],
+    )
+
+    const selectedCount =
+        multiSelect && selectedChildIds
+            ? enabledChildren.filter((item) => selectedChildIds.has(childLevelConfig.getId(item)))
+                  .length
+            : 0
+
+    if (query.isPending) {
+        return (
+            <div className="flex items-center justify-center py-4 px-6" style={panelStyle}>
+                <Spin size="small" />
+            </div>
+        )
+    }
+
     return (
-        <SearchablePopoverList
-            items={filteredItems}
-            selectedId={selectedId}
-            onSelect={onSelect}
-            getItemId={getItemId}
-            getItemLabel={getItemLabel}
-            getItemLabelNode={getItemLabelNode}
-            isLoading={query.isPending}
-            maxHeight={maxHeight}
-            searchThreshold={Infinity}
-            minWidth={panelWidth}
-            maxWidth={panelWidth}
-            itemClassName="!py-1.5"
-            disabledIds={disabledIds}
-            disabledTooltip={disabledTooltip}
-        />
+        <div data-testid={POPOVER_CASCADER_TEST_IDS.childPanel} style={panelStyle}>
+            {/* Child panel header */}
+            {multiSelect && (
+                <div className="px-3 py-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-[#05172905] h-8 flex items-start justify-between">
+                    <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] font-medium truncate" title={parentLabel}>
+                            {parentLabel}
+                        </span>
+                        {multiSelect && (
+                            <span className="text-zinc-500 text-[10px]">
+                                {selectedCount} of {filteredItems.length} selected
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Child items */}
+            <div className="overflow-y-auto py-1 px-1" style={{maxHeight}}>
+                {filteredItems.length === 0 ? (
+                    <Empty
+                        description="No items"
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        className="my-4"
+                    />
+                ) : multiSelect ? (
+                    // Multi-select: checkboxes
+                    filteredItems.map((item) => {
+                        const itemId = childLevelConfig.getId(item)
+                        const label = childLevelConfig.getLabel(item)
+                        const labelNode = getItemLabelNode?.(item)
+                        const isDisabled = disabledIds?.has(itemId) ?? false
+                        const isChecked = selectedChildIds?.has(itemId) ?? false
+
+                        return (
+                            <div
+                                key={itemId}
+                                className={cn(
+                                    "flex items-center gap-2 px-2 py-1.5 rounded-md",
+                                    isDisabled
+                                        ? "opacity-50 cursor-not-allowed"
+                                        : "cursor-pointer hover:bg-[rgba(5,23,41,0.04)]",
+                                )}
+                                onClick={() => {
+                                    if (!isDisabled) onSelect(item)
+                                }}
+                            >
+                                <Checkbox
+                                    checked={isChecked}
+                                    disabled={isDisabled}
+                                    className="pointer-events-none"
+                                />
+                                <span className="truncate text-sm" title={label}>
+                                    {labelNode ?? label}
+                                </span>
+                            </div>
+                        )
+                    })
+                ) : (
+                    // Single-select: click items
+                    filteredItems.map((item) => {
+                        const itemId = childLevelConfig.getId(item)
+                        const label = childLevelConfig.getLabel(item)
+                        const labelNode = getItemLabelNode?.(item)
+                        const isSelected = itemId === selectedId
+                        const isDisabled = disabledIds?.has(itemId) ?? false
+
+                        return (
+                            <EntityListItem
+                                key={itemId}
+                                label={label}
+                                labelNode={labelNode}
+                                isSelectable={!isDisabled}
+                                isSelected={isSelected}
+                                isDisabled={isDisabled}
+                                onClick={() => !isDisabled && onSelect(item)}
+                                onSelect={() => !isDisabled && onSelect(item)}
+                                className="!py-1.5"
+                            />
+                        )
+                    })
+                )}
+            </div>
+        </div>
+    )
+}
+
+// ============================================================================
+// ROOT ITEM RENDERER (shared between grouped and flat rendering)
+// ============================================================================
+
+function RootItemRenderer({
+    item,
+    rootLevel,
+    totalLevels,
+    selectedParentId,
+    selectedRootId,
+    openChildOnHover,
+    onRootItemClick,
+}: {
+    item: unknown
+    rootLevel: HierarchyLevel<unknown>
+    totalLevels: number
+    selectedParentId?: string | null
+    selectedRootId: string | null
+    openChildOnHover: boolean
+    onRootItemClick: (item: unknown) => void
+}) {
+    const id = rootLevel.getId(item)
+    return (
+        <div
+            onMouseEnter={
+                openChildOnHover && totalLevels > 1 ? () => onRootItemClick(item) : undefined
+            }
+        >
+            <EntityListItem
+                label={rootLevel.getLabel(item)}
+                labelNode={rootLevel.getLabelNode?.(item)}
+                hasChildren={totalLevels > 1}
+                isSelectable={totalLevels <= 1}
+                isSelected={id === selectedParentId}
+                isHovered={id === selectedRootId}
+                onClick={() => onRootItemClick(item)}
+                onSelect={() => onRootItemClick(item)}
+            />
+        </div>
     )
 }
 
@@ -110,6 +255,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     showDropdownIcon = true,
     placement = "bottomLeft",
     panelMinWidth = 220,
+    panelWidth,
     maxHeight = 340,
     popupFooter,
     onCreateNew,
@@ -119,6 +265,11 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     disabledChildIds,
     disabledChildTooltip = "Already connected",
     openChildOnHover = false,
+    // New props
+    multiSelect = false,
+    selectedChildIds,
+    selectionSummary,
+    childItemLabelMode = "full",
 }: PopoverCascaderVariantProps<TSelection>) {
     const {hierarchyLevels, createSelection} = useEntitySelectionCore({
         adapter: adapterProp,
@@ -136,12 +287,18 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     const [selectedRootId, setSelectedRootId] = useState<string | null>(null)
     const [selectedRootEntity, setSelectedRootEntity] = useState<unknown>(null)
 
+    // Active tab state — always starts on "all", reset on close
+    const [activeTabKey, setActiveTabKey] = useState<string>("all")
+
     // Fetch root items
     const {items: rootItems, query: rootQuery} = useLevelData({
         levelConfig: rootLevel,
         parentId: null,
         isEnabled: true,
     })
+
+    // Derive tabs dynamically from loaded items (adapter provides buildTabs function)
+    const tabs = useMemo(() => rootLevel?.buildTabs?.(rootItems) ?? null, [rootItems, rootLevel])
 
     // Filter root items by search
     const filteredRootItems = useMemo(() => {
@@ -150,16 +307,107 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
         return rootItems.filter((item) => rootLevel.getLabel(item).toLowerCase().includes(term))
     }, [rootItems, searchTerm, rootLevel])
 
+    // Filter by active tab
+    const tabFilteredRootItems = useMemo(() => {
+        if (!tabs || activeTabKey === "all") return filteredRootItems
+        if (!rootLevel.getGroupKey) return filteredRootItems
+        return filteredRootItems.filter((item) => rootLevel.getGroupKey!(item) === activeTabKey)
+    }, [filteredRootItems, tabs, activeTabKey, rootLevel])
+
+    // Group items for display (only when "all" tab is active and getGroupKey exists)
+    const groupedItems = useMemo(() => {
+        if (!tabs || activeTabKey !== "all" || !rootLevel.getGroupKey) {
+            return null // No grouping — render flat list
+        }
+        const groups = new Map<string, unknown[]>()
+        const ungrouped: unknown[] = []
+
+        for (const item of tabFilteredRootItems) {
+            const key = rootLevel.getGroupKey(item)
+            if (key) {
+                if (!groups.has(key)) groups.set(key, [])
+                groups.get(key)!.push(item)
+            } else {
+                ungrouped.push(item)
+            }
+        }
+
+        return {groups, ungrouped}
+    }, [tabs, activeTabKey, rootLevel, tabFilteredRootItems])
+
+    const selectionSummaryText = useMemo(() => {
+        if (!selectionSummary) return null
+
+        const selectionCount = selectedChildIds?.size ?? (selectedChildId ? 1 : 0)
+
+        if (selectionCount === 0) return "No selections"
+        if (selectionCount === 1) return "1 selected"
+        return `${selectionCount} selected`
+    }, [selectionSummary, selectedChildIds, selectedChildId])
+
+    const panelStyle = useMemo<CSSProperties>(
+        () => (panelWidth != null ? {width: panelWidth} : {minWidth: panelMinWidth}),
+        [panelWidth, panelMinWidth],
+    )
+
+    const childPanelStyle = useMemo<CSSProperties>(
+        () =>
+            panelWidth != null
+                ? {width: panelWidth}
+                : {minWidth: panelMinWidth, maxWidth: panelMinWidth},
+        [panelWidth, panelMinWidth],
+    )
+
+    // Maintain auto-selection to prevent pixel shifts when searching/filtering
     useEffect(() => {
-        if (!open || selectedRootId || !selectedParentId) return
+        if (!open || totalLevels <= 1) return
 
-        const matchingRoot = rootItems.find((item) => rootLevel.getId(item) === selectedParentId)
-        if (!matchingRoot) return
+        // Wait until rootItems are loaded
+        if (rootQuery.isPending && rootItems.length === 0) return
 
-        setSelectedRootId(selectedParentId)
-        setSelectedRootEntity(matchingRoot)
-        hierarchyLevels[1]?.onBeforeLoad?.(selectedParentId)
-    }, [hierarchyLevels, open, rootItems, rootLevel, selectedParentId, selectedRootId])
+        // On open/mount, if we have a parent ID pre-selected and no root ID is selected locally yet
+        if (!selectedRootId && selectedParentId) {
+            const matchingRoot = rootItems.find(
+                (item) => rootLevel.getId(item) === selectedParentId,
+            )
+            if (matchingRoot) {
+                setSelectedRootId(selectedParentId)
+                setSelectedRootEntity(matchingRoot)
+                hierarchyLevels[1]?.onBeforeLoad?.(selectedParentId)
+                return
+            }
+        }
+
+        // If something is already selected locally, ensure it's still in the filtered view
+        if (selectedRootId) {
+            const stillExists = tabFilteredRootItems.some(
+                (item) => rootLevel.getId(item) === selectedRootId,
+            )
+            if (stillExists) return
+        }
+
+        // Auto-select the first available item in the filtered view (UI ONLY, don't trigger selection)
+        if (tabFilteredRootItems.length > 0) {
+            const firstItem = tabFilteredRootItems[0]
+            const id = rootLevel.getId(firstItem)
+            setSelectedRootId(id)
+            setSelectedRootEntity(firstItem)
+            hierarchyLevels[1]?.onBeforeLoad?.(id)
+        } else {
+            setSelectedRootId(null)
+            setSelectedRootEntity(null)
+        }
+    }, [
+        open,
+        totalLevels,
+        selectedRootId,
+        selectedParentId,
+        tabFilteredRootItems,
+        rootLevel,
+        hierarchyLevels,
+        rootQuery.isPending,
+        rootItems,
+    ])
 
     // Handle root item click
     const handleRootItemClick = useCallback(
@@ -208,11 +456,23 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
 
             const selection = createSelection(path, childEntity)
             onSelect?.(selection)
-            setOpen(false)
-            setSelectedRootId(null)
-            setSelectedRootEntity(null)
+
+            // Only close popover in single-select mode
+            if (!multiSelect) {
+                setOpen(false)
+                setSelectedRootId(null)
+                setSelectedRootEntity(null)
+            }
         },
-        [selectedRootId, selectedRootEntity, rootLevel, hierarchyLevels, createSelection, onSelect],
+        [
+            selectedRootId,
+            selectedRootEntity,
+            rootLevel,
+            hierarchyLevels,
+            createSelection,
+            onSelect,
+            multiSelect,
+        ],
     )
 
     // Reset state when popover closes
@@ -222,6 +482,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
             setSearchTerm("")
             setSelectedRootId(null)
             setSelectedRootEntity(null)
+            setActiveTabKey("all")
         }
     }, [])
 
@@ -230,97 +491,157 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
         setOpen(false)
     }, [onCreateNew])
 
+    // Shared props for RootItemRenderer
+    const rootItemProps = useMemo(
+        () => ({
+            rootLevel,
+            totalLevels,
+            selectedParentId,
+            selectedRootId,
+            openChildOnHover,
+            onRootItemClick: handleRootItemClick,
+        }),
+        [
+            rootLevel,
+            totalLevels,
+            selectedParentId,
+            selectedRootId,
+            openChildOnHover,
+            handleRootItemClick,
+        ],
+    )
+
     // Popover content
     const content = (
-        <div className="flex">
-            {/* ROOT PANEL */}
-            <div className="flex flex-col" style={{minWidth: panelMinWidth}}>
-                {/* Search */}
-                <div className="p-2 pb-1">
+        <div className="flex flex-col" data-testid={POPOVER_CASCADER_TEST_IDS.content}>
+            {/* HEADER ROW: Search + Action Button */}
+            <div className="flex items-center gap-2 p-2 pb-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
+                <div className="flex-1">
                     <SearchInput
                         value={searchTerm}
                         onChange={setSearchTerm}
                         placeholder={`Search ${rootLabel.toLowerCase()}...`}
                     />
                 </div>
-
-                {/* Root items */}
-                <div className="overflow-y-auto flex-1 py-0.5 px-1" style={{maxHeight}}>
-                    {rootQuery.isPending ? (
-                        <div className="flex items-center justify-center py-4">
-                            <Spin size="small" />
-                        </div>
-                    ) : filteredRootItems.length === 0 ? (
-                        <Empty
-                            description="No items found"
-                            image={Empty.PRESENTED_IMAGE_SIMPLE}
-                            className="my-4"
-                        />
-                    ) : (
-                        filteredRootItems.map((item) => {
-                            const id = rootLevel.getId(item)
-                            return (
-                                <div
-                                    key={id}
-                                    onMouseEnter={
-                                        openChildOnHover && totalLevels > 1
-                                            ? () => handleRootItemClick(item)
-                                            : undefined
-                                    }
-                                >
-                                    <EntityListItem
-                                        label={rootLevel.getLabel(item)}
-                                        labelNode={rootLevel.getLabelNode?.(item)}
-                                        hasChildren={totalLevels > 1}
-                                        isSelectable={totalLevels <= 1}
-                                        isSelected={id === selectedParentId}
-                                        isHovered={id === selectedRootId}
-                                        onClick={() => handleRootItemClick(item)}
-                                        onSelect={() => handleRootItemClick(item)}
-                                    />
-                                </div>
-                            )
-                        })
-                    )}
-                </div>
-
-                {/* Create new button */}
                 {onCreateNew && (
-                    <div className="border-t border-solid border-[rgba(5,23,41,0.06)] px-2 py-1.5">
-                        <Button
-                            type="text"
-                            size="small"
-                            className="w-full flex items-center justify-start gap-1"
-                            icon={<Plus size={14} />}
-                            onClick={handleCreateNew}
-                        >
-                            {createNewLabel ?? `New ${rootLabel}`}
-                        </Button>
-                    </div>
+                    <Button type="primary" icon={<Plus size={14} />} onClick={handleCreateNew}>
+                        {createNewLabel ?? `New ${rootLabel}`}
+                    </Button>
                 )}
-
-                {/* Footer (e.g., Disconnect all) */}
-                {popupFooter}
             </div>
 
-            {/* CHILD PANEL */}
-            {selectedRootId && totalLevels > 1 && (
-                <div
-                    className="border-l border-solid border-[rgba(5,23,41,0.06)]"
-                    style={{minWidth: panelMinWidth}}
-                >
-                    <ChildPanelContent
-                        parentId={selectedRootId}
-                        childLevelConfig={hierarchyLevels[1]}
-                        onSelect={handleChildSelect}
-                        selectedId={selectedRootId === selectedParentId ? selectedChildId : null}
-                        maxHeight={maxHeight}
-                        panelWidth={panelMinWidth}
-                        disabledIds={disabledChildIds}
-                        disabledTooltip={disabledChildTooltip}
-                    />
-                </div>
+            {/* TABS (optional, only when adapter provides tabs) */}
+            {tabs && tabs.length > 0 && (
+                <Tabs
+                    activeKey={activeTabKey}
+                    onChange={setActiveTabKey}
+                    items={tabs.map((tab) => ({
+                        key: tab.key,
+                        label: tab.label,
+                    }))}
+                    size="small"
+                    tabBarGutter={16}
+                    className={cn(
+                        "[&_.ant-tabs-nav]:px-3 [&_.ant-tabs-nav]:mb-0 [&_.ant-tabs-nav::before]:border-b-0",
+                        "[&_.ant-tabs-tab]:text-xs [&_.ant-tabs-tab]:py-2",
+                        "[&_.ant-tabs-nav-wrap]:pb-0",
+                        "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                    )}
+                />
             )}
+
+            {/* PANELS: Root + Child side-by-side */}
+            <div className="flex">
+                {/* ROOT PANEL */}
+                <div
+                    data-testid={POPOVER_CASCADER_TEST_IDS.rootPanel}
+                    className="flex flex-col border-0 border-r border-solid border-[rgba(5,23,41,0.06)]"
+                    style={panelStyle}
+                >
+                    {/* Selection summary */}
+                    {selectionSummaryText ? (
+                        <div className="px-3 py-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-[#05172905] h-8 flex items-center">
+                            <span className="text-zinc-500 text-[10px]">
+                                {selectionSummaryText}
+                            </span>
+                        </div>
+                    ) : null}
+
+                    {/* Root items */}
+                    <div className="overflow-y-auto flex-1 py-0.5 px-1" style={{maxHeight}}>
+                        {rootQuery.isPending ? (
+                            <div className="flex items-center justify-center py-4">
+                                <Spin size="small" />
+                            </div>
+                        ) : tabFilteredRootItems.length === 0 ? (
+                            <Empty
+                                description="No items found"
+                                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                                className="my-4"
+                            />
+                        ) : groupedItems ? (
+                            // Grouped rendering (when "All" tab is active with getGroupKey)
+                            <>
+                                {Array.from(groupedItems.groups.entries()).map(
+                                    ([groupKey, items]) => (
+                                        <div key={groupKey}>
+                                            {items.map((item) => (
+                                                <RootItemRenderer
+                                                    key={rootLevel.getId(item)}
+                                                    item={item}
+                                                    {...rootItemProps}
+                                                />
+                                            ))}
+                                        </div>
+                                    ),
+                                )}
+                                {groupedItems.ungrouped.length > 0 &&
+                                    groupedItems.ungrouped.map((item) => (
+                                        <RootItemRenderer
+                                            key={rootLevel.getId(item)}
+                                            item={item}
+                                            {...rootItemProps}
+                                        />
+                                    ))}
+                            </>
+                        ) : (
+                            // Flat rendering (no grouping)
+                            tabFilteredRootItems.map((item) => (
+                                <RootItemRenderer
+                                    key={rootLevel.getId(item)}
+                                    item={item}
+                                    {...rootItemProps}
+                                />
+                            ))
+                        )}
+                    </div>
+
+                    {/* Footer (e.g., Disconnect all) */}
+                    {popupFooter}
+                </div>
+
+                {/* CHILD PANEL */}
+                {selectedRootId && totalLevels > 1 && (
+                    <div className="flex flex-col" style={panelStyle}>
+                        <ChildPanelContent
+                            parentId={selectedRootId}
+                            parentLabel={rootLevel.getLabel(selectedRootEntity!)}
+                            childLevelConfig={hierarchyLevels[1]}
+                            onSelect={handleChildSelect}
+                            selectedId={
+                                selectedRootId === selectedParentId ? selectedChildId : null
+                            }
+                            maxHeight={maxHeight}
+                            panelStyle={childPanelStyle}
+                            disabledIds={disabledChildIds}
+                            disabledTooltip={disabledChildTooltip}
+                            multiSelect={multiSelect}
+                            selectedChildIds={selectedChildIds}
+                            childItemLabelMode={childItemLabelMode}
+                        />
+                    </div>
+                )}
+            </div>
         </div>
     )
 

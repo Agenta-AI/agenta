@@ -24,6 +24,7 @@ import DrawerContent from "./DrawerContent"
 import DrawerHeader from "./DrawerHeader"
 import {
     closeWorkflowRevisionDrawerAtom,
+    workflowRevisionDrawerContextAtom,
     workflowRevisionDrawerEntityIdAtom,
     workflowRevisionDrawerExpandedAtom,
     workflowRevisionDrawerOpenAtom,
@@ -38,8 +39,10 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
     const isOpen = useAtomValue(workflowRevisionDrawerOpenAtom)
     const entityId = useAtomValue(workflowRevisionDrawerEntityIdAtom)
     const isExpanded = useAtomValue(workflowRevisionDrawerExpandedAtom)
+    const context = useAtomValue(workflowRevisionDrawerContextAtom)
     const closeDrawer = useSetAtom(closeWorkflowRevisionDrawerAtom)
     const [shouldRender, setShouldRender] = useState(!!isOpen)
+    const isEvaluatorDrawer = context === "evaluator-view" || context === "evaluator-create"
 
     useEffect(() => {
         if (isOpen) {
@@ -96,7 +99,7 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
         <Drawer
             open={isOpen}
             closable={false}
-            mask={false}
+            mask={isEvaluatorDrawer ? {blur: true} : false}
             destroyOnHidden
             afterOpenChange={handleAfterOpenChange}
             styles={{

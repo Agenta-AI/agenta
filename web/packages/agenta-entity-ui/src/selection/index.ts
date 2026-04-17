@@ -35,6 +35,7 @@ export type {
     EntitySelectorConfig,
     EntitySelectorResolver,
     ListQueryState,
+    TabDefinition,
     // Pagination types
     PaginationParams,
     PaginationInfo,

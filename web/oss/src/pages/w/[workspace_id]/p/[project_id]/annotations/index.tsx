@@ -3,8 +3,10 @@ import {useMemo} from "react"
 import {AnnotationUIProvider, type AnnotationUINavigation} from "@agenta/annotation-ui/context"
 import AnnotationQueuesView from "@agenta/annotation-ui/queue-list"
 import {PageLayout} from "@agenta/ui"
+import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {openHumanEvaluatorDrawerAtom} from "@/oss/components/Evaluators/Drawers/HumanEvaluatorDrawer/store"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import useURL from "@/oss/hooks/useURL"
 
@@ -12,6 +14,7 @@ const AnnotationQueuesPage = () => {
     const router = useRouter()
     const {projectURL} = useURL()
     const {canExportData} = useProjectPermissions()
+    const openHumanEvaluatorDrawer = useSetAtom(openHumanEvaluatorDrawerAtom)
 
     const navigation = useMemo<AnnotationUINavigation>(
         () => ({
@@ -30,7 +33,11 @@ const AnnotationQueuesPage = () => {
                 title={<span className="inline-flex items-center gap-2">Queues</span>}
                 className="h-full min-h-0"
             >
-                <AnnotationQueuesView canExportData={canExportData} />
+                <AnnotationQueuesView
+                    canExportData={canExportData}
+                    feedbackOnCreate={() => openHumanEvaluatorDrawer({mode: "create"})}
+                    feedbackCreateLabel="Create evaluator"
+                />
             </PageLayout>
         </AnnotationUIProvider>
     )
