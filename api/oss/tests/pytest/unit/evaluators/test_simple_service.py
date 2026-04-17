@@ -7,13 +7,18 @@ from oss.src.core.evaluators.dtos import (
     Evaluator,
     EvaluatorArtifactFlags,
     EvaluatorArtifactQueryFlags,
+    EvaluatorQuery,
     EvaluatorRevision,
     EvaluatorRevisionFlags,
     EvaluatorVariant,
     SimpleEvaluatorQuery,
     SimpleEvaluatorQueryFlags,
 )
-from oss.src.core.evaluators.service import SimpleEvaluatorsService
+from oss.src.core.evaluators.service import (
+    EvaluatorsService,
+    SimpleEvaluatorsService,
+)
+from oss.src.core.shared.dtos import Reference
 
 
 @pytest.mark.asyncio
@@ -150,3 +155,49 @@ async def test_query_filters_simple_evaluators_by_revision_flags():
     ]
     assert isinstance(evaluator_query.flags, EvaluatorArtifactQueryFlags)
     assert evaluator_query.flags.is_evaluator is True
+
+
+@pytest.mark.asyncio
+async def test_query_passes_evaluator_refs_to_evaluator_service():
+    evaluators_service = AsyncMock()
+    service = SimpleEvaluatorsService(evaluators_service=evaluators_service)
+
+    evaluators_service.query_evaluators.return_value = []
+
+    evaluator_ref = Reference(slug="target-evaluator")
+
+    simple_evaluators = await service.query(
+        project_id=uuid4(),
+        simple_evaluator_refs=[evaluator_ref],
+    )
+
+    assert simple_evaluators == []
+    assert evaluators_service.query_evaluators.await_args.kwargs[
+        "evaluator_refs"
+    ] == [evaluator_ref]
+
+
+@pytest.mark.asyncio
+async def test_evaluator_queries_default_to_evaluator_flags():
+    workflows_service = AsyncMock()
+    service = EvaluatorsService(workflows_service=workflows_service)
+
+    workflows_service.query_workflows.return_value = []
+
+    await service.query_evaluators(project_id=uuid4())
+
+    workflow_query = workflows_service.query_workflows.await_args.kwargs[
+        "workflow_query"
+    ]
+    assert workflow_query.flags.is_evaluator is True
+
+    await service.query_evaluators(
+        project_id=uuid4(),
+        evaluator_query=EvaluatorQuery(tags={"marker": "case"}),
+    )
+
+    workflow_query = workflows_service.query_workflows.await_args.kwargs[
+        "workflow_query"
+    ]
+    assert workflow_query.flags.is_evaluator is True
+    assert workflow_query.tags == {"marker": "case"}

@@ -2199,6 +2199,8 @@ class SimpleWorkflowsService:
         #
         simple_workflow_query: Optional[SimpleWorkflowQuery] = None,
         #
+        workflow_refs: Optional[List[Reference]] = None,
+        #
         include_archived: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
@@ -2220,6 +2222,8 @@ class SimpleWorkflowsService:
             project_id=project_id,
             #
             workflow_query=workflow_query,
+            #
+            workflow_refs=workflow_refs,
             #
             include_archived=include_archived,
             #
