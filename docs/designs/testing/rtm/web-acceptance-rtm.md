@@ -1,5 +1,11 @@
 # Web Acceptance RTM
 
+> **Source of truth**: This RTM file is the authoritative record for all web acceptance tests.
+> If there is a discrepancy between what is stated here and any `.feature` or `.spec` file,
+> **this RTM takes priority**. Discrepancies must be corrected by updating the `.feature` or
+> `.spec` file to match. If the correct resolution is not obvious, an agent must ask a human
+> before modifying any file.
+
 ## Scope
 
 This RTM covers the **existing OSS and EE web acceptance tests**. It is the left side of the
