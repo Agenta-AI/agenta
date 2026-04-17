@@ -418,6 +418,13 @@ class ApplicationsRouter:
     async def list_application_catalog_types(
         self,
     ) -> ApplicationCatalogTypesResponse:
+        """List shared catalog types.
+
+        Catalog types are reusable JSON-Schema building blocks referenced from
+        template schemas (for example `message`, `prompt-template`). Types are
+        read-only and version with the product.
+        See the [Applications guide](/reference/api-guide/applications#catalog).
+        """
         types = [
             ApplicationCatalogType(**type_data.model_dump())
             for type_data in get_workflow_catalog_types()
@@ -437,6 +444,13 @@ class ApplicationsRouter:
         *,
         include_archived: Optional[bool] = None,
     ) -> ApplicationCatalogTemplatesResponse:
+        """List application templates available in the catalog.
+
+        Templates describe the handler (`uri`) and JSON schemas used to create
+        a new application. Pass `include_archived=true` to include retired
+        templates (useful when editing applications created from an old
+        template). Templates are global and read-only.
+        """
         templates = [
             ApplicationCatalogTemplate(**entry.model_dump())
             for entry in get_filtered_workflow_catalog_templates(is_application=True)
@@ -457,6 +471,13 @@ class ApplicationsRouter:
         *,
         template_key: str,
     ) -> ApplicationCatalogTemplateResponse:
+        """Fetch one application template by key.
+
+        Use this to inspect the exact `uri`, `data`, and JSON Schemas for a
+        template before creating an application from it. `template_key` comes
+        from the `key` field of a template returned by the list endpoint
+        (for example `completion`, `chat`, `hook`).
+        """
         template_data = get_workflow_catalog_template(
             template_key=template_key,
             is_application=True,
@@ -482,6 +503,13 @@ class ApplicationsRouter:
         template_key: str,
         include_archived: Optional[bool] = None,
     ) -> ApplicationCatalogPresetsResponse:
+        """List presets scoped to a template.
+
+        Presets are named parameter sets (for example a curated prompt +
+        model combination) that scaffold the first revision when creating an
+        application from a template. Pass `include_archived=true` to include
+        retired presets.
+        """
         presets = [
             ApplicationCatalogPreset(**preset.model_dump())
             for preset in get_filtered_workflow_catalog_presets(
@@ -506,6 +534,11 @@ class ApplicationsRouter:
         template_key: str,
         preset_key: str,
     ) -> ApplicationCatalogPresetResponse:
+        """Fetch one preset by key within a template.
+
+        Returns the preset's `data` so clients can use it as the payload for a
+        first revision when creating an application from a template.
+        """
         preset_data = get_workflow_catalog_preset(
             template_key=template_key,
             preset_key=preset_key,
@@ -533,6 +566,14 @@ class ApplicationsRouter:
         #
         application_create_request: ApplicationCreateRequest,
     ) -> ApplicationResponse:
+        """Create an application artifact only.
+
+        Returns an empty application without any variants or revisions.
+        Most callers should use `POST /simple/applications/` instead — it
+        creates the artifact, a default variant, and a first committed
+        revision in one request.
+        See the [Applications guide](/reference/api-guide/applications).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -563,6 +604,12 @@ class ApplicationsRouter:
         *,
         application_id: UUID,
     ) -> ApplicationResponse:
+        """Fetch one application artifact by ID.
+
+        Returns artifact-level fields only. To get the current variant,
+        revision, and `data` in a single call, use
+        `GET /simple/applications/{application_id}`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -591,6 +638,13 @@ class ApplicationsRouter:
         #
         application_edit_request: ApplicationEditRequest,
     ) -> ApplicationResponse:
+        """Edit artifact-level fields on an application.
+
+        Editable fields: `description`, `flags`, `tags`, `meta`. Editing `name`
+        is currently disabled and returns `400`. Prompt or model-parameter
+        changes go through `POST /applications/revisions/commit`, not this
+        endpoint.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -645,6 +699,14 @@ class ApplicationsRouter:
         *,
         application_id: UUID,
     ) -> ApplicationResponse:
+        """Soft-delete an application.
+
+        Archiving sets `deleted_at` on the application and hides it from
+        queries that don't set `include_archived: true`. Its variants and
+        revisions become unreachable from listing but their IDs remain
+        resolvable so historical traces stay intact.
+        See [Versioning](/reference/api-guide/versioning#archive-and-unarchive).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -672,6 +734,12 @@ class ApplicationsRouter:
         *,
         application_id: UUID,
     ) -> ApplicationResponse:
+        """Restore a previously archived application.
+
+        Clears `deleted_at` and makes the application visible to standard
+        queries again. Safe to call on an already-active application; it is a
+        no-op in that case.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -700,6 +768,13 @@ class ApplicationsRouter:
         *,
         application_query_request: ApplicationQueryRequest,
     ) -> ApplicationsResponse:
+        """Query application artifacts.
+
+        Returns only artifact-level fields; the variant, revision, and `data`
+        payload are not included. For one row per application with those
+        merged in, use `POST /simple/applications/query`.
+        See [Query Pattern](/reference/api-guide/query-pattern).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -736,6 +811,13 @@ class ApplicationsRouter:
         *,
         application_variant_create_request: ApplicationVariantCreateRequest,
     ) -> ApplicationVariantResponse:
+        """Create a new variant on an existing application.
+
+        A variant is an independent branch of the application's history. The
+        new variant starts empty — call `POST /applications/revisions/commit`
+        to add its first revision. Use `POST /applications/variants/fork` when
+        you want the new variant to inherit an existing revision history.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -765,6 +847,12 @@ class ApplicationsRouter:
         *,
         application_variant_id: UUID,
     ) -> ApplicationVariantResponse:
+        """Fetch one variant by ID.
+
+        Returns variant-level fields. To get the variant's tip revision and
+        its `data`, call `POST /applications/revisions/retrieve` with
+        `application_variant_ref`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -795,6 +883,12 @@ class ApplicationsRouter:
         #
         application_variant_edit_request: ApplicationVariantEditRequest,
     ) -> ApplicationVariantResponse:
+        """Edit a variant's header fields (`name`, `description`, `tags`, `meta`).
+
+        Configuration changes go through a new commit via
+        `POST /applications/revisions/commit`. This endpoint only touches
+        variant-level metadata.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -832,6 +926,12 @@ class ApplicationsRouter:
         *,
         application_variant_id: UUID,
     ) -> ApplicationVariantResponse:
+        """Soft-delete a variant.
+
+        The variant and its revisions are hidden from queries unless
+        `include_archived: true` is sent. Revision IDs remain resolvable so
+        historical traces are preserved.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -863,6 +963,7 @@ class ApplicationsRouter:
         *,
         application_variant_id: UUID,
     ) -> ApplicationVariantResponse:
+        """Restore a previously archived variant."""
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -896,6 +997,14 @@ class ApplicationsRouter:
             parse_application_variant_query_request_from_params
         ),
     ) -> ApplicationVariantsResponse:
+        """Query variants across one or more applications.
+
+        Filters are parsed from both query-string parameters and the request
+        body; body values take precedence. Use `application_refs` to scope to
+        specific applications, `application_variant_refs` to narrow to
+        specific variants.
+        See [Query Pattern](/reference/api-guide/query-pattern).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -952,6 +1061,15 @@ class ApplicationsRouter:
         #
         application_variant_fork_request: ApplicationForkRequest,
     ) -> ApplicationVariantResponse:
+        """Fork an existing variant into a new variant on the same application.
+
+        Use this to experiment without touching the source variant's history.
+        The fork copies the source variant's revisions up to the specified
+        revision (or tip) into the new variant, then commits the supplied
+        `revision` object on top. Both `variant` and `revision` sub-objects
+        in the request must be present; the server returns `count: 0` when
+        either is missing.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -995,6 +1113,14 @@ class ApplicationsRouter:
         *,
         application_deploy_request: ApplicationRevisionDeployRequest,
     ) -> ApplicationRevisionResponse:
+        """Deploy an application revision to an environment.
+
+        Writes a reference from the environment revision to the application
+        revision under `key` (default: `{application_slug}.revision`). Clients
+        that subsequently call `/applications/revisions/retrieve` with the
+        same `environment_ref` and `key` resolve to this revision.
+        See the [Applications guide](/reference/api-guide/applications#deployment).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1154,6 +1280,15 @@ class ApplicationsRouter:
         *,
         application_revision_retrieve_request: ApplicationRevisionRetrieveRequest,
     ) -> ApplicationRevisionResponse:
+        """Retrieve one application revision by reference.
+
+        Accepts application / variant / revision references for direct lookup,
+        or an environment reference (with optional `key`) to resolve the
+        currently-deployed revision in that environment. Returns the revision
+        including its `data` payload (URL, parameters, schemas), which clients
+        use to invoke the application.
+        Set `resolve: true` to inline embedded references inside `data`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1269,6 +1404,12 @@ class ApplicationsRouter:
         *,
         application_revision_create_request: ApplicationRevisionCreateRequest,
     ) -> ApplicationRevisionResponse:
+        """Create a revision row directly, without the commit workflow.
+
+        Advanced use only. For normal development loops prefer
+        `POST /applications/revisions/commit`, which commits the new revision
+        as the variant's tip and assigns a version number.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1297,6 +1438,11 @@ class ApplicationsRouter:
         *,
         application_revision_id: UUID,
     ) -> ApplicationRevisionResponse:
+        """Fetch one revision by its ID.
+
+        Returns the revision including its `data` payload. For lookup by
+        variant slug or environment, use `POST /applications/revisions/retrieve`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1327,6 +1473,13 @@ class ApplicationsRouter:
         #
         application_revision_edit_request: ApplicationRevisionEditRequest,
     ) -> ApplicationRevisionResponse:
+        """Edit a revision's header fields only.
+
+        Revisions are immutable snapshots; `data`, `author`, `date`, and
+        `message` cannot be changed. This endpoint updates header fields such
+        as `description` and `tags`. To change configuration, commit a new
+        revision with `POST /applications/revisions/commit`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1362,6 +1515,12 @@ class ApplicationsRouter:
         *,
         application_revision_id: UUID,
     ) -> ApplicationRevisionResponse:
+        """Soft-delete a revision.
+
+        Archived revisions are hidden from `/query` and `/log` responses
+        unless `include_archived: true` is set. The ID remains resolvable for
+        traces and deployed environment references.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1391,6 +1550,7 @@ class ApplicationsRouter:
         *,
         application_revision_id: UUID,
     ) -> ApplicationRevisionResponse:
+        """Restore a previously archived revision."""
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1421,6 +1581,15 @@ class ApplicationsRouter:
         *,
         application_revision_query_request: ApplicationRevisionQueryRequest,
     ) -> ApplicationRevisionsResponse:
+        """Query revisions across one or more applications or variants.
+
+        Use `application_refs` / `application_variant_refs` to scope the
+        query, or filter on commit metadata (`author`, `date`, `message`) via
+        the `application_revision` object. For the ordered history of a
+        single variant, `POST /applications/revisions/log` is more direct.
+        Set `resolve: true` to inline embedded references in each revision's
+        `data`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1472,6 +1641,13 @@ class ApplicationsRouter:
         *,
         application_revision_commit_request: ApplicationRevisionCommitRequest,
     ) -> ApplicationRevisionResponse:
+        """Commit a new revision on a variant.
+
+        The new revision becomes the variant's tip and is assigned the next
+        `version` number. Revisions are immutable once committed; to change
+        configuration, commit a new revision.
+        See [Versioning](/reference/api-guide/versioning#committing-a-revision).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1499,6 +1675,13 @@ class ApplicationsRouter:
         *,
         application_revisions_log_request: ApplicationRevisionsLogRequest,
     ) -> ApplicationRevisionsResponse:
+        """Return the ordered revision log for a variant.
+
+        Pass `application_variant_id` to list the full history of that
+        variant; optionally pass `application_revision_id` + `depth` to walk
+        back a bounded number of commits from a specific revision. Entries
+        are returned newest-first and include the full revision record.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1529,6 +1712,14 @@ class ApplicationsRouter:
         *,
         application_revision_resolve_request: ApplicationRevisionResolveRequest,
     ) -> ApplicationRevisionResolveResponse:
+        """Fetch a revision with embedded references inlined.
+
+        When a revision's `data` carries references to other entities
+        (snippets, linked revisions), this endpoint resolves them in place and
+        returns the fully-inlined configuration along with `resolution_info`
+        describing what was substituted. Use it when clients need a
+        self-contained configuration for invocation or export.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1649,6 +1840,15 @@ class SimpleApplicationsRouter:
         #
         simple_application_create_request: SimpleApplicationCreateRequest,
     ) -> SimpleApplicationResponse:
+        """Create an application end-to-end.
+
+        Creates the application artifact, a default variant, and a first
+        committed revision whose `data` comes from the request. This is the
+        recommended entry point for "spin up a new application from a
+        template". For more control over variant and revision creation, use
+        the structured endpoints under `/applications/`.
+        See [Simple Endpoints](/reference/api-guide/simple-endpoints).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1681,6 +1881,12 @@ class SimpleApplicationsRouter:
         *,
         application_id: UUID,
     ) -> SimpleApplicationResponse:
+        """Fetch one application with its current variant, revision, and `data` merged.
+
+        The returned `data` includes the invocation `url`, the `parameters`
+        the revision was committed with, and the JSON `schemas` for inputs,
+        outputs, and parameters.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1711,6 +1917,15 @@ class SimpleApplicationsRouter:
         #
         simple_application_edit_request: SimpleApplicationEditRequest,
     ) -> SimpleApplicationResponse:
+        """Edit an application and commit a new revision if configuration changed.
+
+        Fields other than `id` in the request body are treated as changes and
+        produce a new committed revision. Supplying `data` changes the
+        configuration; supplying only header fields (`flags`, `tags`, `meta`)
+        still produces a new revision with the updated header but the
+        existing `data`. Editing the application `name` is currently
+        disabled and returns `400`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1767,6 +1982,12 @@ class SimpleApplicationsRouter:
         *,
         application_id: UUID,
     ) -> SimpleApplicationResponse:
+        """Archive an application through the simple endpoint layer.
+
+        Equivalent to `POST /applications/{application_id}/archive`; returns
+        the archived application in the simple shape (with its last known
+        variant, revision, and `data`).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1796,6 +2017,11 @@ class SimpleApplicationsRouter:
         *,
         application_id: UUID,
     ) -> SimpleApplicationResponse:
+        """Unarchive an application through the simple endpoint layer.
+
+        Equivalent to `POST /applications/{application_id}/unarchive`, with
+        the response shape of `/simple/applications/`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1825,6 +2051,14 @@ class SimpleApplicationsRouter:
         *,
         simple_application_query_request: SimpleApplicationQueryRequest,
     ) -> SimpleApplicationsResponse:
+        """Query applications with variant, revision, and `data` merged per row.
+
+        This is the shape most clients want for dashboards or invocation
+        pickers: each row carries `variant_id`, `revision_id`, and `data`
+        (URL, parameters, schemas) alongside the artifact fields. For the
+        structured query that returns artifacts only, use
+        `POST /applications/query`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,

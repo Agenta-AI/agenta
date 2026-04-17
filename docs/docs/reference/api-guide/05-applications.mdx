@@ -1,0 +1,202 @@
+---
+title: "Applications"
+description: "What an application is, how it's versioned, and how to invoke it."
+sidebar_position: 5
+---
+
+An **application** is a versioned resource that serves inference. It wraps a prompt template, model parameters, and JSON schemas for its inputs, outputs, and parameters. Every deployment in Agenta — a chatbot, a classifier, a structured-extraction endpoint — is an application.
+
+## Versioning
+
+Applications use the standard versioning model; see [Versioning](/reference/api-guide/versioning). In short:
+
+| Layer | What it is |
+|-------|------------|
+| **Application** | Top-level resource, project-scoped, has a slug. |
+| **Variant** | A named branch of the application's history. Fork to experiment. |
+| **Revision** | An immutable commit on a variant. Holds the actual prompt, model parameters, and schemas under `data`. |
+
+You don't edit revisions; you commit new ones. A revision's `data` is what the runtime uses when serving a request.
+
+## The `data` payload
+
+A revision's `data` describes what the application is and how to run it:
+
+| Field | Purpose |
+|-------|---------|
+| `uri` | Identifies the handler: `agenta:builtin:completion:v0`, `agenta:builtin:chat:v0`, a custom `agenta:custom:hook:v0`, etc. Choose a template at create time from the [catalog](#catalog). |
+| `url` | Populated by the server. The HTTP endpoint that serves this application. You POST request bodies to `{url}/invoke`. |
+| `schemas` | JSON Schemas for `parameters`, `inputs`, and `outputs`. Clients can use them to build typed payloads. |
+| `parameters` | The configuration — prompt messages, model, tools, response format, and so on. |
+
+## Invocation
+
+An application is invoked by POSTing to `{data.url}/invoke` with inputs and the revision's `parameters`. Retrieve the current revision first, then invoke against its URL.
+
+```bash
+# 1. Retrieve the revision that a variant currently points to.
+curl -X POST "$AGENTA_HOST/api/applications/revisions/retrieve" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{"application_variant_ref": {"slug": "support-bot.default"}}'
+```
+
+The response contains `application_revision.data.url`, `application_revision.data.parameters`, and `application_revision.data.schemas`. Use the URL and parameters to invoke the application:
+
+```bash
+# 2. Invoke the application at its service URL.
+curl -X POST "https://$AGENTA_HOST/services/completion/v0/invoke" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "data": {
+      "inputs": {"country": "France"},
+      "parameters": {
+        "prompt": {
+          "messages": [
+            {"role": "system", "content": "You are an expert in geography."},
+            {"role": "user", "content": "What is the capital of {{country}}?"}
+          ],
+          "llm_config": {"model": "gpt-4o-mini"}
+        }
+      }
+    }
+  }'
+```
+
+The response returns outputs matching `data.schemas.outputs`, plus a `trace_id` for the invocation's trace.
+
+For inputs that are already stored in Agenta (a specific revision, an environment ref), the SDK can resolve the URL and parameters automatically. The REST pattern shown here is the explicit version.
+
+## Deployment
+
+Applications can be deployed to named environments (for example `development`, `staging`, `production`). Deployment writes a reference from the environment revision to the application revision, tagged under a `key` (by default `{application_slug}.revision`).
+
+```bash
+# Deploy a specific revision to an environment.
+curl -X POST "$AGENTA_HOST/api/applications/revisions/deploy" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "application_variant_ref": {"id": "019d952f-0000-0000-0000-000000000001"},
+    "environment_ref": {"slug": "production"}
+  }'
+```
+
+Once deployed, clients can retrieve the currently deployed revision by environment rather than by variant:
+
+```bash
+curl -X POST "$AGENTA_HOST/api/applications/revisions/retrieve" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "environment_ref": {"slug": "production"},
+    "key": "support-bot.revision"
+  }'
+```
+
+If `key` is omitted and the application reference has a resolvable slug, the server derives it as `{application_slug}.revision`.
+
+## Simple vs structured
+
+Two sets of endpoints operate on applications:
+
+| Layer | Endpoint prefix | When to use |
+|-------|-----------------|-------------|
+| **Structured** | `/applications/` | Manage artifact, variant, and revision independently — commit new revisions, fork variants, query history. |
+| **Simple** | `/simple/applications/` | Get one row per application with the currently resolved variant, revision, and `data` merged. Creates artifact + variant + committed revision in one call. |
+
+`POST /simple/applications/query` returns one row per application with variant/revision merged; `POST /applications/query` returns artifacts only. See [Simple Endpoints](/reference/api-guide/simple-endpoints).
+
+## Catalog
+
+Applications are created from a **template**. Templates describe the handler URI and the JSON schemas an application of that type uses. Built-in templates include `completion`, `chat`, `hook` (custom HTTP), and `code` (custom code).
+
+```bash
+# List available templates.
+curl -X GET "$AGENTA_HOST/api/applications/catalog/templates/" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY"
+
+# Inspect one.
+curl -X GET "$AGENTA_HOST/api/applications/catalog/templates/completion" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY"
+```
+
+Templates may also have **presets** — named configurations that scaffold a variant's first revision. Templates and presets are global, read-only, and version with the product.
+
+## Lifecycle
+
+Applications and their variants are soft-deleted. Archiving hides the resource from queries unless `include_archived: true` is sent in the request body. Revision IDs remain resolvable after archive so historical traces still link to their origin. See [Versioning](/reference/api-guide/versioning#archive-and-unarchive).
+
+## End-to-end example
+
+Create an application, commit a new revision, and invoke it.
+
+```bash
+# 1. Create the application + default variant + first revision.
+curl -X POST "$AGENTA_HOST/api/simple/applications/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "application": {
+      "slug": "geo-qa",
+      "name": "geo-qa",
+      "flags": {"is_application": true},
+      "data": {
+        "uri": "agenta:builtin:completion:v0",
+        "parameters": {
+          "prompt": {
+            "messages": [
+              {"role": "system", "content": "You are an expert in geography."},
+              {"role": "user", "content": "What is the capital of {{country}}?"}
+            ],
+            "llm_config": {"model": "gpt-4o-mini"}
+          }
+        }
+      }
+    }
+  }'
+```
+
+The response includes `id`, `variant_id`, `revision_id`, and `data.url`.
+
+```bash
+# 2. Commit a new revision on the same variant.
+curl -X POST "$AGENTA_HOST/api/applications/revisions/commit" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "application_revision_commit": {
+      "application_variant_id": "019d952f-0000-0000-0000-000000000001",
+      "message": "Tighter system prompt",
+      "data": {
+        "uri": "agenta:builtin:completion:v0",
+        "parameters": {
+          "prompt": {
+            "messages": [
+              {"role": "system", "content": "Answer only geography questions. Refuse everything else."},
+              {"role": "user", "content": "What is the capital of {{country}}?"}
+            ],
+            "llm_config": {"model": "gpt-4o-mini"}
+          }
+        }
+      }
+    }
+  }'
+```
+
+```bash
+# 3. Retrieve the latest revision and get its URL.
+curl -X POST "$AGENTA_HOST/api/applications/revisions/retrieve" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{"application_variant_ref": {"id": "019d952f-0000-0000-0000-000000000001"}}'
+```
+
+```bash
+# 4. Invoke at the URL returned in data.url.
+curl -X POST "https://$AGENTA_HOST/services/completion/v0/invoke" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{"data": {"inputs": {"country": "France"}, "parameters": { /* from step 3 */ }}}'
+```
