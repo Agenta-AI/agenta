@@ -220,7 +220,7 @@ Two documentation pages exist for evaluators:
 |------|------|
 | `api/oss/src/core/evaluations/tasks/legacy.py` | Batch evaluation: assembles WorkflowServiceRequestData |
 | `api/oss/src/core/evaluations/tasks/live.py` | Live evaluation: assembles WorkflowServiceRequestData |
-| `sdk/agenta/sdk/evaluations/preview/evaluate.py` | SDK preview evaluation |
+| `sdk/agenta/sdk/evaluations/evaluate.py` | SDK preview evaluation |
 
 ### Frontend
 | File | What |

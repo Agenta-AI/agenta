@@ -1,17 +1,17 @@
 """
-Acceptance tests for the new TracesRouter endpoints at /preview/traces/.
+Acceptance tests for the new TracesRouter endpoints at /traces/.
 
-These are distinct from the legacy /preview/tracing/ endpoints and from the
+These are distinct from the legacy /tracing/ endpoints and from the
 E2E loadable-strategy tests.  They cover the four route methods of TracesRouter:
 
-  POST /preview/traces/ingest     — async batch ingestion (202)
-  GET  /preview/traces/           — fetch by trace_id query params (200)
-  GET  /preview/traces/{trace_id} — fetch a single trace (200)
-  POST /preview/traces/query      — filter + windowing query (200)
+  POST /traces/ingest     — async batch ingestion (202)
+  GET  /traces/           — fetch by trace_id query params (200)
+  GET  /traces/{trace_id} — fetch a single trace (200)
+  POST /traces/query      — filter + windowing query (200)
 
 Plus the reserved-word guard:
-  GET  /preview/traces/query      — 405  (route collision guard)
-  GET  /preview/traces/ingest     — 405  (route collision guard)
+  GET  /traces/query      — 405  (route collision guard)
+  GET  /traces/ingest     — 405  (route collision guard)
 
 Each class is independently self-contained so that the authed_api class-scope
 fixture creates a fresh authenticated session per test class.
@@ -45,7 +45,7 @@ def _make_trace(tag_key: str, tag_value: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# POST /preview/traces/ingest
+# POST /traces/ingest
 # ---------------------------------------------------------------------------
 
 
@@ -61,7 +61,7 @@ class TestTracesIngest:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/traces/ingest",
+            "/traces/ingest",
             json={"traces": traces},
         )
         # ---------------------------------------------------------------------
@@ -81,7 +81,7 @@ class TestTracesIngest:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/traces/ingest",
+            "/traces/ingest",
             json={"traces": []},
         )
         # ---------------------------------------------------------------------
@@ -98,7 +98,7 @@ class TestTracesIngest:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/traces/ingest",
+            "/traces/ingest",
             json={},
         )
         # ---------------------------------------------------------------------
@@ -109,14 +109,14 @@ class TestTracesIngest:
 
 
 # ---------------------------------------------------------------------------
-# GET /preview/traces/
+# GET /traces/
 # ---------------------------------------------------------------------------
 
 
 class TestFetchTracesByIds:
     def test_fetch_traces_by_comma_separated_ids(self, authed_api):
         """
-        After ingestion, GET /preview/traces/?trace_ids=id1,id2 returns the
+        After ingestion, GET /traces/?trace_ids=id1,id2 returns the
         matching traces.
         """
 
@@ -126,7 +126,7 @@ class TestFetchTracesByIds:
 
         response = authed_api(
             "POST",
-            "/preview/traces/ingest",
+            "/traces/ingest",
             json={"traces": [trace]},
         )
         assert response.status_code == 202, response.text
@@ -135,7 +135,7 @@ class TestFetchTracesByIds:
         response = wait_for_response(
             authed_api,
             "GET",
-            f"/preview/traces/?trace_ids={trace_id}",
+            f"/traces/?trace_ids={trace_id}",
             condition_fn=lambda r: r.json().get("count", 0) >= 1,
         )
         # ---------------------------------------------------------------------
@@ -150,12 +150,12 @@ class TestFetchTracesByIds:
 
     def test_fetch_traces_no_ids_returns_400(self, authed_api):
         """
-        GET /preview/traces/ with no trace_id params returns 400.
+        GET /traces/ with no trace_id params returns 400.
         The endpoint requires at least one trace_id.
         """
 
         # ACT -----------------------------------------------------------------
-        response = authed_api("GET", "/preview/traces/")
+        response = authed_api("GET", "/traces/")
         # ---------------------------------------------------------------------
 
         # ASSERT --------------------------------------------------------------
@@ -164,7 +164,7 @@ class TestFetchTracesByIds:
 
     def test_fetch_traces_repeated_trace_id_param(self, authed_api):
         """
-        GET /preview/traces/?trace_id=id1&trace_id=id2 (repeated params)
+        GET /traces/?trace_id=id1&trace_id=id2 (repeated params)
         is equivalent to a comma-separated list and returns 200.
         After ingestion, both traces should be returned.
         """
@@ -176,7 +176,7 @@ class TestFetchTracesByIds:
 
         response = authed_api(
             "POST",
-            "/preview/traces/ingest",
+            "/traces/ingest",
             json={"traces": traces},
         )
         assert response.status_code == 202, response.text
@@ -185,7 +185,7 @@ class TestFetchTracesByIds:
         response = wait_for_response(
             authed_api,
             "GET",
-            f"/preview/traces/?trace_id={trace_id_a}&trace_id={trace_id_b}",
+            f"/traces/?trace_id={trace_id_a}&trace_id={trace_id_b}",
             condition_fn=lambda r: r.json().get("count", 0) >= 2,
         )
         # -----------------------------------------------------------------------
@@ -198,14 +198,14 @@ class TestFetchTracesByIds:
 
 
 # ---------------------------------------------------------------------------
-# GET /preview/traces/{trace_id}
+# GET /traces/{trace_id}
 # ---------------------------------------------------------------------------
 
 
 class TestFetchSingleTrace:
     def test_fetch_existing_trace(self, authed_api):
         """
-        After ingestion, GET /preview/traces/{trace_id} returns count=1
+        After ingestion, GET /traces/{trace_id} returns count=1
         and the trace object.
         """
 
@@ -215,7 +215,7 @@ class TestFetchSingleTrace:
 
         response = authed_api(
             "POST",
-            "/preview/traces/ingest",
+            "/traces/ingest",
             json={"traces": [trace]},
         )
         assert response.status_code == 202, response.text
@@ -224,7 +224,7 @@ class TestFetchSingleTrace:
         response = wait_for_response(
             authed_api,
             "GET",
-            f"/preview/traces/{trace_id}",
+            f"/traces/{trace_id}",
             condition_fn=lambda r: r.json().get("count", 0) == 1,
         )
         # -----------------------------------------------------------------------
@@ -240,13 +240,13 @@ class TestFetchSingleTrace:
 
     def test_fetch_unknown_trace_returns_count_zero(self, authed_api):
         """
-        GET /preview/traces/{unknown_id} returns 200 with count=0 (not a 404
+        GET /traces/{unknown_id} returns 200 with count=0 (not a 404
         or 500) — consistent with the suppress_exceptions default.
         """
         unknown_id = uuid4().hex.ljust(32, "0")[:32]
 
         # ACT -----------------------------------------------------------------
-        response = authed_api("GET", f"/preview/traces/{unknown_id}")
+        response = authed_api("GET", f"/traces/{unknown_id}")
         # ---------------------------------------------------------------------
 
         # ASSERT --------------------------------------------------------------
@@ -258,12 +258,12 @@ class TestFetchSingleTrace:
 
     def test_fetch_trace_reserved_word_query_returns_405(self, authed_api):
         """
-        GET /preview/traces/query must not shadow POST /preview/traces/query.
+        GET /traces/query must not shadow POST /traces/query.
         The router guards against this and returns 405 Method Not Allowed.
         """
 
         # ACT -----------------------------------------------------------------
-        response = authed_api("GET", "/preview/traces/query")
+        response = authed_api("GET", "/traces/query")
         # ---------------------------------------------------------------------
 
         # ASSERT --------------------------------------------------------------
@@ -272,12 +272,12 @@ class TestFetchSingleTrace:
 
     def test_fetch_trace_reserved_word_ingest_returns_405(self, authed_api):
         """
-        GET /preview/traces/ingest must not shadow POST /preview/traces/ingest.
+        GET /traces/ingest must not shadow POST /traces/ingest.
         The router guards against this and returns 405 Method Not Allowed.
         """
 
         # ACT -----------------------------------------------------------------
-        response = authed_api("GET", "/preview/traces/ingest")
+        response = authed_api("GET", "/traces/ingest")
         # ---------------------------------------------------------------------
 
         # ASSERT --------------------------------------------------------------
@@ -286,14 +286,14 @@ class TestFetchSingleTrace:
 
 
 # ---------------------------------------------------------------------------
-# POST /preview/traces/query  (direct filtering, no revision ref)
+# POST /traces/query  (direct filtering, no revision ref)
 # ---------------------------------------------------------------------------
 
 
 class TestTracesQuery:
     def test_query_with_attribute_filter_returns_matching_traces(self, authed_api):
         """
-        POST /preview/traces/query with a filtering condition on a unique
+        POST /traces/query with a filtering condition on a unique
         attribute key returns only matching traces (not all traces in the
         project).
         """
@@ -304,7 +304,7 @@ class TestTracesQuery:
 
         response = authed_api(
             "POST",
-            "/preview/traces/ingest",
+            "/traces/ingest",
             json={"traces": traces},
         )
         assert response.status_code == 202, response.text
@@ -325,7 +325,7 @@ class TestTracesQuery:
         response = wait_for_response(
             authed_api,
             "POST",
-            "/preview/traces/query",
+            "/traces/query",
             json={"filtering": filtering, "windowing": {"limit": 50}},
             condition_fn=lambda r: r.json().get("count", 0) >= 2,
         )
@@ -340,12 +340,12 @@ class TestTracesQuery:
 
     def test_query_empty_body_returns_200(self, authed_api):
         """
-        POST /preview/traces/query with an empty body is valid; the endpoint
+        POST /traces/query with an empty body is valid; the endpoint
         applies no filter and returns 200 (may return 0 or more traces).
         """
 
         # ACT -----------------------------------------------------------------
-        response = authed_api("POST", "/preview/traces/query", json={})
+        response = authed_api("POST", "/traces/query", json={})
         # ---------------------------------------------------------------------
 
         # ASSERT --------------------------------------------------------------
@@ -356,7 +356,7 @@ class TestTracesQuery:
 
     def test_query_non_matching_filter_returns_empty_result(self, authed_api):
         """
-        POST /preview/traces/query with a filter that matches nothing returns
+        POST /traces/query with a filter that matches nothing returns
         200 with count=0 (not an error).
         """
         ghost_key = f"ghost_{uuid4().hex}"
@@ -375,7 +375,7 @@ class TestTracesQuery:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/traces/query",
+            "/traces/query",
             json={"filtering": filtering},
         )
         # ---------------------------------------------------------------------
@@ -389,7 +389,7 @@ class TestTracesQuery:
 
     def test_query_windowing_limit_respected(self, authed_api):
         """
-        POST /preview/traces/query with windowing.limit=1 returns at most 1
+        POST /traces/query with windowing.limit=1 returns at most 1
         trace — even if more exist.
         """
 
@@ -399,7 +399,7 @@ class TestTracesQuery:
 
         response = authed_api(
             "POST",
-            "/preview/traces/ingest",
+            "/traces/ingest",
             json={"traces": traces},
         )
         assert response.status_code == 202, response.text
@@ -420,7 +420,7 @@ class TestTracesQuery:
         wait_for_response(
             authed_api,
             "POST",
-            "/preview/traces/query",
+            "/traces/query",
             json={"filtering": filtering, "windowing": {"limit": 50}},
             condition_fn=lambda r: r.json().get("count", 0) >= 2,
         )
@@ -428,7 +428,7 @@ class TestTracesQuery:
         # ACT — now query with limit=1 ----------------------------------------
         response = authed_api(
             "POST",
-            "/preview/traces/query",
+            "/traces/query",
             json={"filtering": filtering, "windowing": {"limit": 1}},
         )
         # -----------------------------------------------------------------------
@@ -442,7 +442,7 @@ class TestTracesQuery:
 
     def test_query_invalid_filter_returns_400(self, authed_api):
         """
-        POST /preview/traces/query with a syntactically invalid filtering
+        POST /traces/query with a syntactically invalid filtering
         object returns 400 Bad Request (the FilteringException is caught and
         converted at the router boundary).
         """
@@ -450,7 +450,7 @@ class TestTracesQuery:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/traces/query",
+            "/traces/query",
             json={
                 "filtering": {
                     "operator": "and",
@@ -473,14 +473,14 @@ class TestTracesQuery:
 
 
 # ---------------------------------------------------------------------------
-# POST /preview/traces/query  (via query_revision_ref — B.0/B.2 strategy)
+# POST /traces/query  (via query_revision_ref — B.0/B.2 strategy)
 # ---------------------------------------------------------------------------
 
 
 class TestTracesQueryByRevisionRef:
     def test_query_traces_by_query_revision_ref(self, authed_api):
         """
-        POST /preview/traces/query with query_revision_ref resolves the
+        POST /traces/query with query_revision_ref resolves the
         stored filtering from the query revision and uses it to query traces.
         This exercises the B.0 loadable strategy for trace access.
         """
@@ -491,7 +491,7 @@ class TestTracesQueryByRevisionRef:
 
         ingest_resp = authed_api(
             "POST",
-            "/preview/traces/ingest",
+            "/traces/ingest",
             json={"traces": traces},
         )
         assert ingest_resp.status_code == 202, ingest_resp.text
@@ -510,7 +510,7 @@ class TestTracesQueryByRevisionRef:
         }
         query_resp = authed_api(
             "POST",
-            "/preview/simple/queries/",
+            "/simple/queries/",
             json={
                 "query": {
                     "slug": uuid4().hex,
@@ -527,7 +527,7 @@ class TestTracesQueryByRevisionRef:
 
         query_revision_resp = authed_api(
             "POST",
-            "/preview/queries/revisions/commit",
+            "/queries/revisions/commit",
             json={
                 "query_revision_commit": {
                     "slug": uuid4().hex[-12:],
@@ -548,7 +548,7 @@ class TestTracesQueryByRevisionRef:
         response = wait_for_response(
             authed_api,
             "POST",
-            "/preview/traces/query",
+            "/traces/query",
             json={"query_revision_ref": {"id": query_revision_id}},
             condition_fn=lambda r: r.json().get("count", 0) >= 2,
         )
@@ -562,15 +562,15 @@ class TestTracesQueryByRevisionRef:
 
     def test_query_traces_span_focus_conflict_returns_409(self, authed_api):
         """
-        POST /preview/traces/query with a query_revision_ref whose stored
+        POST /traces/query with a query_revision_ref whose stored
         formatting.focus is 'span' returns 409 Conflict — the caller should
-        use /preview/spans/query instead.
+        use /spans/query instead.
         """
 
         # ARRANGE — create a query revision with focus=span -----------------
         query_resp = authed_api(
             "POST",
-            "/preview/simple/queries/",
+            "/simple/queries/",
             json={
                 "query": {
                     "slug": uuid4().hex,
@@ -587,7 +587,7 @@ class TestTracesQueryByRevisionRef:
 
         query_revision_resp = authed_api(
             "POST",
-            "/preview/queries/revisions/commit",
+            "/queries/revisions/commit",
             json={
                 "query_revision_commit": {
                     "slug": uuid4().hex[-12:],
@@ -607,7 +607,7 @@ class TestTracesQueryByRevisionRef:
         # ACT ---------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/traces/query",
+            "/traces/query",
             json={"query_revision_ref": {"id": query_revision_id}},
         )
         # -------------------------------------------------------------------

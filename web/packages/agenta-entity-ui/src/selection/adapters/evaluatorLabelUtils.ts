@@ -49,9 +49,11 @@ export function renderEvaluatorPickerLabelNode(
 ): React.ReactNode {
     const w = entity as EvaluatorWorkflowLike
     const name = w.name ?? "Unnamed"
+    const evaluatorKey = evaluatorKeyMap.get(w.id)
+    const isHumanEvaluator = Boolean(w.flags?.is_feedback) || evaluatorKey === "feedback"
 
     // Only show colored tags for evaluator-type workflows
-    if (!w.flags?.is_evaluator) {
+    if (!w.flags?.is_evaluator && !isHumanEvaluator) {
         return React.createElement(EntityListItemLabel, {label: name})
     }
 
@@ -59,14 +61,13 @@ export function renderEvaluatorPickerLabelNode(
     let tagLabel: string | null = null
     let colorSource: string | null = null
 
-    if (w.flags?.is_feedback) {
+    if (isHumanEvaluator) {
         tagLabel = "Human"
         colorSource = "human"
     } else if (w.flags?.is_custom) {
         tagLabel = "Custom Code"
         colorSource = "custom"
     } else {
-        const evaluatorKey = evaluatorKeyMap.get(w.id)
         if (evaluatorKey) {
             tagLabel = evaluatorDefsByKey.get(evaluatorKey) ?? null
             colorSource = evaluatorKey

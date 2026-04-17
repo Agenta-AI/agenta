@@ -126,7 +126,7 @@ async def resolve_references(
     """Resolve environment/workflow references by calling the API retrieve endpoint.
 
     When the request has references but no data.revision, calls
-    POST /preview/workflows/revisions/retrieve with resolve=True to hydrate
+    POST /workflows/revisions/retrieve with resolve=True to hydrate
     the revision data (including configuration and URI).
 
     Args:
@@ -229,13 +229,13 @@ async def resolve_references(
             body["key"] = key
 
         if has_application_refs:
-            retrieve_url = f"{api_url}/preview/applications/revisions/retrieve"
+            retrieve_url = f"{api_url}/applications/revisions/retrieve"
             response_key = "application_revision"
         elif has_evaluator_refs:
-            retrieve_url = f"{api_url}/preview/evaluators/revisions/retrieve"
+            retrieve_url = f"{api_url}/evaluators/revisions/retrieve"
             response_key = "evaluator_revision"
         else:
-            retrieve_url = f"{api_url}/preview/workflows/revisions/retrieve"
+            retrieve_url = f"{api_url}/workflows/revisions/retrieve"
             response_key = "workflow_revision"
 
         async with httpx.AsyncClient() as client:
@@ -272,7 +272,7 @@ async def resolve_references(
                     fallback_body["key"] = key
 
                 fallback_response = await client.post(
-                    f"{api_url}/preview/workflows/revisions/retrieve",
+                    f"{api_url}/workflows/revisions/retrieve",
                     headers=headers,
                     json=fallback_body,
                     timeout=30.0,
@@ -302,7 +302,7 @@ async def resolve_references(
                     fallback_body["key"] = key
 
                 fallback_response = await client.post(
-                    f"{api_url}/preview/workflows/revisions/retrieve",
+                    f"{api_url}/workflows/revisions/retrieve",
                     headers=headers,
                     json=fallback_body,
                     timeout=30.0,
@@ -357,7 +357,7 @@ async def resolve_embeds(
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{api_url}/preview/workflows/revisions/resolve",
+                f"{api_url}/workflows/revisions/resolve",
                 headers=headers,
                 json={
                     "workflow_revision": {"data": {"parameters": parameters}},

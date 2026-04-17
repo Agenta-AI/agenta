@@ -37,66 +37,44 @@ print(f"Deployed to {deployment['environment_slug']}")
   <TabItem value="JavaScript" label="JS/TS">
 
 ```javascript
-// Deploy a variant to an environment
-const deployResponse = await fetch('https://cloud.agenta.ai/api/variants/configs/deploy', {
+// Deploy a variant's latest revision to an environment
+const deployResponse = await fetch('https://cloud.agenta.ai/api/applications/revisions/deploy', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': 'Bearer YOUR_API_KEY'
+    'Authorization': 'ApiKey YOUR_API_KEY'
   },
   body: JSON.stringify({
-    variant_ref: {
-      slug: 'my-variant-slug',
-      version: null,
-      id: null
-    },
-    environment_ref: {
-      slug: 'staging',
-      version: null,
-      id: null
-    },
-    application_ref: {
-      slug: 'my-app-slug',
-      version: null,
-      id: null
-    }
+    application_ref: { slug: 'my-app-slug' },
+    application_variant_ref: { slug: 'my-variant-slug' },
+    environment_ref: { slug: 'staging' },
+    message: 'Promote latest variant to staging'
   })
 });
 
-const deployment = await deployResponse.json();
-console.log(`Deployed to ${deployment.environment_slug}`);
+const { application_revision } = await deployResponse.json();
+console.log(`Deployed revision ${application_revision.version}`);
 ```
   </TabItem>
   <TabItem value="API">
 
 ```bash
-# Deploy a variant to an environment
-curl -X POST "https://cloud.agenta.ai/api/variants/configs/deploy" \
+# Deploy a variant's latest revision to an environment
+curl -X POST "https://cloud.agenta.ai/api/applications/revisions/deploy" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
-    "variant_ref": {
-      "slug": "my-variant-slug",
-      "version": null,
-      "id": null
-    },
-    "environment_ref": {
-      "slug": "staging",
-      "version": null,
-      "id": null
-    },
-    "application_ref": {
-      "slug": "my-app-slug",
-      "version": null,
-      "id": null
-    }
+    "application_ref": { "slug": "my-app-slug" },
+    "application_variant_ref": { "slug": "my-variant-slug" },
+    "environment_ref": { "slug": "staging" },
+    "message": "Promote latest variant to staging"
   }'
 ```
   </TabItem>
 </Tabs>
 
 :::warning
-- Deploying a variant without specifying a `variant_version` deploys the latest version.
+- Omitting the revision (SDK `variant_version`, REST `application_revision_ref`) deploys the latest revision of the variant.
 - Only predefined environments with slugs `development`, `staging`, and `production` are currently supported.
 :::
 
@@ -145,59 +123,39 @@ print(f"Rolled back to version {deployment['variant_version']}")
   <TabItem value="JavaScript" label="JS/TS">
 
 ```javascript
-// Deploy a specific version (rollback)
-const deployResponse = await fetch('https://cloud.agenta.ai/api/variants/configs/deploy', {
+// Roll back to a specific revision by version
+const deployResponse = await fetch('https://cloud.agenta.ai/api/applications/revisions/deploy', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': 'Bearer YOUR_API_KEY'
+    'Authorization': 'ApiKey YOUR_API_KEY'
   },
   body: JSON.stringify({
-    variant_ref: {
-      slug: 'my-variant-slug',
-      version: 3,
-      id: null
-    },
-    environment_ref: {
-      slug: 'production',
-      version: null,
-      id: null
-    },
-    application_ref: {
-      slug: 'my-app-slug',
-      version: null,
-      id: null
-    }
+    application_ref: { slug: 'my-app-slug' },
+    application_variant_ref: { slug: 'my-variant-slug' },
+    application_revision_ref: { version: '3' },
+    environment_ref: { slug: 'production' },
+    message: 'Rollback to v3'
   })
 });
 
-const deployment = await deployResponse.json();
-console.log(`Rolled back to version ${deployment.variant_version}`);
+const { application_revision } = await deployResponse.json();
+console.log(`Rolled back to revision ${application_revision.version}`);
 ```
   </TabItem>
   <TabItem value="API">
 
 ```bash
-# Deploy a specific version (rollback)
-curl -X POST "https://cloud.agenta.ai/api/variants/configs/deploy" \
+# Roll back to a specific revision by version
+curl -X POST "https://cloud.agenta.ai/api/applications/revisions/deploy" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
-    "variant_ref": {
-      "slug": "my-variant-slug",
-      "version": 3,
-      "id": null
-    },
-    "environment_ref": {
-      "slug": "production",
-      "version": null,
-      "id": null
-    },
-    "application_ref": {
-      "slug": "my-app-slug",
-      "version": null,
-      "id": null
-    }
+    "application_ref": { "slug": "my-app-slug" },
+    "application_variant_ref": { "slug": "my-variant-slug" },
+    "application_revision_ref": { "version": "3" },
+    "environment_ref": { "slug": "production" },
+    "message": "Rollback to v3"
   }'
 ```
   </TabItem>

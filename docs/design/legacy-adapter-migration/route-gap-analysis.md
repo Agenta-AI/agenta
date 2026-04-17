@@ -1,6 +1,6 @@
 # Route Gap Analysis
 
-This file compares the legacy adapter-backed routes mounted in [api/entrypoints/routers.py](../../../api/entrypoints/routers.py#L827) against the new entity routers mounted under `/preview/*`.
+This file compares the legacy adapter-backed routes mounted in [api/entrypoints/routers.py](../../../api/entrypoints/routers.py#L827) against the new entity routers mounted under `/*`.
 
 ## Mounted Legacy Routers
 
@@ -11,17 +11,17 @@ This file compares the legacy adapter-backed routes mounted in [api/entrypoints/
 
 ## Mounted New Routers
 
-- `/preview/applications` -> [api/oss/src/apis/fastapi/applications/router.py](../../../api/oss/src/apis/fastapi/applications/router.py#L89)
-- `/preview/workflows` -> [api/oss/src/apis/fastapi/workflows/router.py](../../../api/oss/src/apis/fastapi/workflows/router.py#L90)
-- `/preview/evaluators` -> [api/oss/src/apis/fastapi/evaluators/router.py](../../../api/oss/src/apis/fastapi/evaluators/router.py#L104)
-- `/preview/environments` -> [api/oss/src/apis/fastapi/environments/router.py](../../../api/oss/src/apis/fastapi/environments/router.py#L90)
-- `/preview/simple/environments` -> [api/oss/src/apis/fastapi/environments/router.py](../../../api/oss/src/apis/fastapi/environments/router.py#L1164)
+- `/applications` -> [api/oss/src/apis/fastapi/applications/router.py](../../../api/oss/src/apis/fastapi/applications/router.py#L89)
+- `/workflows` -> [api/oss/src/apis/fastapi/workflows/router.py](../../../api/oss/src/apis/fastapi/workflows/router.py#L90)
+- `/evaluators` -> [api/oss/src/apis/fastapi/evaluators/router.py](../../../api/oss/src/apis/fastapi/evaluators/router.py#L104)
+- `/environments` -> [api/oss/src/apis/fastapi/environments/router.py](../../../api/oss/src/apis/fastapi/environments/router.py#L90)
+- `/simple/environments` -> [api/oss/src/apis/fastapi/environments/router.py](../../../api/oss/src/apis/fastapi/environments/router.py#L1164)
 
 ## Covered Legacy Behavior
 
 ### `/apps`
 
-Covered by `/preview/applications`:
+Covered by `/applications`:
 
 - `POST /apps/` -> create application
   - legacy: [app_router.py](../../../api/oss/src/routers/app_router.py#L197)
@@ -44,7 +44,7 @@ Covered by `/preview/applications`:
 
 ### `/variants`
 
-Covered by `/preview/applications` generic variant/revision flows:
+Covered by `/applications` generic variant/revision flows:
 
 - fork/create from base
   - legacy: [variants_router.py](../../../api/oss/src/routers/variants_router.py#L63)
@@ -158,9 +158,9 @@ Reasons:
 
 Recommended:
 
-- `POST /preview/environments/deploy`
-- `POST /preview/environments/retrieve`
-- `POST /preview/environments/revert`
+- `POST /environments/deploy`
+- `POST /environments/retrieve`
+- `POST /environments/revert`
 
 These should wrap the existing environment revision commit/query logic instead of reintroducing legacy router semantics.
 
@@ -168,10 +168,10 @@ These should wrap the existing environment revision commit/query logic instead o
 
 Nice-to-have:
 
-- `POST /preview/workflows/deploy`
-- `POST /preview/workflows/retrieve`
+- `POST /workflows/deploy`
+- `POST /workflows/retrieve`
 
-or the same shape on `/preview/applications`.
+or the same shape on `/applications`.
 
 These are optional. The real state owner is environments.
 

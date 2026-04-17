@@ -148,41 +148,41 @@ const getProjectUrl = (path: string) => {
 export const createSimpleQuery = async (
     payload: SimpleQueryCreateRequest,
 ): Promise<SimpleQueryResponse> => {
-    const {data} = await axios.post(getProjectUrl("/preview/simple/queries/"), payload)
+    const {data} = await axios.post(getProjectUrl("/simple/queries/"), payload)
     return data as SimpleQueryResponse
 }
 
 export const retrieveQueryRevision = async (
     payload: QueryRevisionRetrieveRequest,
 ): Promise<QueryRevisionResponse> => {
-    const {data} = await axios.post(getProjectUrl("/preview/queries/revisions/retrieve"), payload)
+    const {data} = await axios.post(getProjectUrl("/queries/revisions/retrieve"), payload)
     return data as QueryRevisionResponse
 }
 
 export const createSimpleEvaluation = async (
     payload: SimpleEvaluationCreateRequest,
 ): Promise<SimpleEvaluationResponse> => {
-    const {data} = await axios.post(getProjectUrl("/preview/simple/evaluations/"), payload)
+    const {data} = await axios.post(getProjectUrl("/simple/evaluations/"), payload)
     return data as SimpleEvaluationResponse
 }
 
 export const querySimpleEvaluations = async (
     payload?: SimpleEvaluationsQueryRequest,
 ): Promise<SimpleEvaluationsResponse> => {
-    const url = getProjectUrl("/preview/simple/evaluations/query")
+    const url = getProjectUrl("/simple/evaluations/query")
     const body = payload ?? {}
     const {data} = await axios.post(url, body)
     return data as SimpleEvaluationsResponse
 }
 
 export const stopSimpleEvaluation = async (evaluationId: string) => {
-    const url = getProjectUrl(`/preview/simple/evaluations/${evaluationId}/stop`)
+    const url = getProjectUrl(`/simple/evaluations/${evaluationId}/stop`)
     const {data} = await axios.post(url)
     return data
 }
 
 export const startSimpleEvaluation = async (evaluationId: string) => {
-    const url = getProjectUrl(`/preview/simple/evaluations/${evaluationId}/start`)
+    const url = getProjectUrl(`/simple/evaluations/${evaluationId}/start`)
     const {data} = await axios.post(url)
     return data
 }

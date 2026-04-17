@@ -44,30 +44,32 @@ Each annotation can include:
 
 ### Annotation Structure
 
-Here's what an annotation looks like:
+Annotations are stored as traces and created through `POST /api/simple/traces/`. Here's what one looks like:
 
 ```json
 {
-    "data": {
-        "outputs": {
-            "score": 80,
-            "normalized_score": 0.8,
-            "reasoning": "The answer is mainly correct"
+    "trace": {
+        "data": {
+            "outputs": {
+                "score": 80,
+                "normalized_score": 0.8,
+                "reasoning": "The answer is mainly correct"
+            }
+        },
+        "references": {
+            "evaluator": {
+                "slug": "my_evaluator"
+            }
+        },
+        "links": {
+            "invocation": {
+                "trace_id": "47cb4a13b42a47bab2198509543ff14d",
+                "span_id": "1a9130f6ad398e55"
+            }
+        },
+        "meta": {
+            "someattr": "somevalue"
         }
-    },
-    "references": {
-        "evaluator": {
-            "slug": "my_evaluator"
-        }
-    },
-    "links": {
-        "invocation": {
-            "trace_id": "47cb4a13b42a47bab2198509543ff14d",
-            "span_id": "1a9130f6ad398e55"
-        }
-    },
-    "metadata": {
-        "someattr": "somevalue"
     }
 }
 ```
@@ -75,9 +77,9 @@ Here's what an annotation looks like:
 An annotation has four main parts:
 
 1. **Data**: The actual evaluation content (scores, comments)
-2. **References**: Which evaluator to use (will be created automatically if it doesn't exist)
-3. **Links**: Which trace and span you're annotating
-4. **Metadata** (optional): Any extra information you want to include
+2. **References**: Which evaluator the annotation belongs to, identified by slug
+3. **Links**: The `trace_id` and `span_id` of the instrumented span you're annotating
+4. **Meta** (optional): Any extra information you want to include
 
 ### What You Can Include in Annotations
 
@@ -106,17 +108,17 @@ Agenta doesn't check if the trace and span IDs exist. Make sure they're valid be
 
 ### Working with Evaluators
 
-Every annotation must reference an `Evaluator`, which:
+Every annotation references an `Evaluator` by slug. The evaluator:
 - Defines what your annotation should contain
 - Provides context for interpreting the annotation
 
-If you reference an evaluator that doesn't exist yet, Agenta will automatically create one based on your first annotation.
+Annotations accept any slug in `references.evaluator.slug`. The call succeeds even if no evaluator entity with that slug exists yet. To see the evaluator (and its aggregated stats) in the Agenta UI, create the evaluator explicitly through `POST /api/simple/evaluators/` or from the UI. Evaluators are not auto-created from the annotation payload.
 
 You can add multiple annotations from the same evaluator to a single span, which is useful for collecting feedback from different sources.
 
-### Using Metadata
+### Using Meta
 
-The `metadata` field lets you add extra information to your annotation. Use it to store things like user IDs, session information, or other context.
+The `meta` field lets you add extra information to your annotation. Use it to store things like user IDs, session information, or other context.
 
 ## Creating Annotations
 
@@ -132,9 +134,9 @@ headers = {
     "Authorization": "ApiKey YOUR_API_KEY"
 }
 
-# Annotation data
-annotation_data = {
-    "annotation": {
+# Annotation payload
+trace_payload = {
+    "trace": {
         "data": {
             "outputs": {
                 "score": 40,
@@ -158,13 +160,13 @@ annotation_data = {
 
 # Make the API request
 response = requests.post(
-    f"{base_url}/api/preview/annotations/",
+    f"{base_url}/api/simple/traces/",
     headers=headers,
-    json=annotation_data
+    json=trace_payload
 )
 
 # Process the response
-if response.status_code == 200:
+if response.status_code in (200, 202):
     print("Annotation created successfully")
     print(response.json())
 else:
@@ -184,8 +186,8 @@ async function createAnnotation() {
     'Authorization': 'ApiKey YOUR_API_KEY'
   };
 
-  const annotationData = {
-    annotation: {
+  const tracePayload = {
+    trace: {
       data: {
         outputs: {
           score: 40,
@@ -208,10 +210,10 @@ async function createAnnotation() {
   };
 
   try {
-    const response = await fetch(`${baseUrl}/api/preview/annotations/`, {
+    const response = await fetch(`${baseUrl}/api/simple/traces/`, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify(annotationData)
+      body: JSON.stringify(tracePayload)
     });
 
     if (response.ok) {
@@ -234,22 +236,24 @@ createAnnotation();
 </Tabs>
 
 :::info
-If the evaluator doesn't exist yet, Agenta will create it automatically based on your first annotation.
+Annotations accept any evaluator slug. To make the evaluator appear in the UI with aggregated stats, create it explicitly via `POST /api/simple/evaluators/` or from the Agenta UI.
 :::
 
 ## Understanding the Response
 
-When you create an annotation, you'll receive a response that includes the annotation data and its ID:
+When you create an annotation, you receive back the stored trace with its own `trace_id` and `span_id`:
 
 ```json
 {
-  "annotation": {
+  "count": 1,
+  "trace": {
     "created_at": "2025-05-13T16:54:52.245664Z",
     "created_by_id": "019315dc-a332-7ba5-a426-d079c43ab776",
     "span_id": "a1713ea8f59291f6",
     "trace_id": "bb39070937f74f169b60dfc420729ad3",
-    "kind": "custom",
-    "source": "api",
+    "origin": "custom",
+    "kind": "adhoc",
+    "channel": "api",
     "data": {
       "outputs": {
         "score": 0,
@@ -258,7 +262,7 @@ When you create an annotation, you'll receive a response that includes the annot
         "normalized_score": 0
       }
     },
-    "metadata": {
+    "meta": {
       "user_id": "miamia"
     },
     "references": {
@@ -278,7 +282,7 @@ When you create an annotation, you'll receive a response that includes the annot
 ```
 
 :::info
-Annotations themselves are stored as traces with their own `trace_id` and `span_id`, which is different from the invocation they're linked to.
+The annotation's own `trace_id` and `span_id` are different from the invocation it's linked to. Use the annotation's `trace_id` to fetch, update, or delete it later.
 :::
 
 ## Viewing Annotations in the UI
@@ -294,12 +298,12 @@ You can see all annotations for a trace in the Agenta UI. Open any trace and che
 
 ## Querying Annotations
 
+Fetch a single annotation by its own `trace_id` with `GET /api/simple/traces/{trace_id}`. Find all annotations linked to an instrumented span by calling `POST /api/simple/traces/query` with a `links` filter.
+
 <Tabs>
 <TabItem value="python" label="Python">
 
-You can query annotations in several ways:
-
-**1. Query by annotation ID:**
+**1. Fetch a specific annotation by its trace_id:**
 
 ```python
 import requests
@@ -310,18 +314,11 @@ headers = {
     "Authorization": "ApiKey YOUR_API_KEY"
 }
 
-# Query by annotation ID
-query_data = {
-    "annotation": {
-        "trace_id": "bb39070937f74f169b60dfc420729ad3",
-        "span_id": "a1713ea8f59291f6"
-    }
-}
+annotation_trace_id = "bb39070937f74f169b60dfc420729ad3"
 
-response = requests.post(
-    f"{base_url}/api/preview/annotations/query",
-    headers=headers,
-    json=query_data
+response = requests.get(
+    f"{base_url}/api/simple/traces/{annotation_trace_id}",
+    headers=headers
 )
 
 if response.status_code == 200:
@@ -335,20 +332,40 @@ else:
 **2. Query all annotations for an invocation:**
 
 ```python
-# Query all annotations for an invocation
+# Filter by the invocation trace/span the annotations are linked to
 query_data = {
-    "annotation": {
+    "trace": {
         "links": {
             "invocation": {
                 "trace_id": "5d52a529b48135fd58790f8aa3e33fb8",
                 "span_id": "09383e1124b264d0"
             }
         }
-    }
+    },
+    "windowing": {"limit": 50}
 }
 
 response = requests.post(
-    f"{base_url}/api/preview/annotations/query",
+    f"{base_url}/api/simple/traces/query",
+    headers=headers,
+    json=query_data
+)
+```
+
+**3. Query all annotations produced by an evaluator:**
+
+```python
+query_data = {
+    "trace": {
+        "references": {
+            "evaluator": {"slug": "content_quality"}
+        }
+    },
+    "windowing": {"limit": 50}
+}
+
+response = requests.post(
+    f"{base_url}/api/simple/traces/query",
     headers=headers,
     json=query_data
 )
@@ -357,12 +374,10 @@ response = requests.post(
 </TabItem>
 <TabItem value="javascript" label="JS/TS">
 
-You can query annotations in several ways:
-
-**1. Query by annotation ID:**
+**1. Fetch a specific annotation by its trace_id:**
 
 ```javascript
-async function queryAnnotation() {
+async function fetchAnnotation() {
   const baseUrl = 'https://cloud.agenta.ai';
 
   const headers = {
@@ -370,19 +385,12 @@ async function queryAnnotation() {
     'Authorization': 'ApiKey YOUR_API_KEY'
   };
 
-  // Query by annotation ID
-  const queryData = {
-    annotation: {
-      trace_id: "bb39070937f74f169b60dfc420729ad3",
-      span_id: "a1713ea8f59291f6"
-    }
-  };
+  const annotationTraceId = "bb39070937f74f169b60dfc420729ad3";
 
   try {
-    const response = await fetch(`${baseUrl}/api/preview/annotations/query`, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(queryData)
+    const response = await fetch(`${baseUrl}/api/simple/traces/${annotationTraceId}`, {
+      method: 'GET',
+      headers: headers
     });
 
     if (response.ok) {
@@ -398,7 +406,7 @@ async function queryAnnotation() {
   }
 }
 
-queryAnnotation();
+fetchAnnotation();
 ```
 
 **2. Query all annotations for an invocation:**
@@ -412,20 +420,20 @@ async function queryAnnotationsForInvocation() {
     'Authorization': 'ApiKey YOUR_API_KEY'
   };
 
-  // Query all annotations for an invocation
   const queryData = {
-    annotation: {
+    trace: {
       links: {
         invocation: {
           trace_id: "5d52a529b48135fd58790f8aa3e33fb8",
           span_id: "09383e1124b264d0"
         }
       }
-    }
+    },
+    windowing: { limit: 50 }
   };
 
   try {
-    const response = await fetch(`${baseUrl}/api/preview/annotations/query`, {
+    const response = await fetch(`${baseUrl}/api/simple/traces/query`, {
       method: 'POST',
       headers: headers,
       body: JSON.stringify(queryData)
@@ -452,6 +460,8 @@ queryAnnotationsForInvocation();
 
 ## Removing Annotations
 
+Call `DELETE /api/simple/traces/{trace_id}` with the annotation's own `trace_id` (returned when the annotation was created), not the invocation trace.
+
 <Tabs>
 <TabItem value="python" label="Python">
 
@@ -464,18 +474,15 @@ headers = {
     "Authorization": "ApiKey YOUR_API_KEY"
 }
 
-# Define the trace_id and span_id of the annotation to delete
-trace_id = "bb39070937f74f169b60dfc420729ad3"
-span_id = "a1713ea8f59291f6"
+# The annotation's own trace_id (not the invocation it's linked to)
+annotation_trace_id = "bb39070937f74f169b60dfc420729ad3"
 
-# Make the delete request
 response = requests.delete(
-    f"{base_url}/api/preview/annotations/{trace_id}/{span_id}",
+    f"{base_url}/api/simple/traces/{annotation_trace_id}",
     headers=headers
 )
 
-# Process the response
-if response.status_code == 200:
+if response.status_code in (200, 204):
     print("Annotation deleted successfully")
 else:
     print(f"Error: {response.status_code}")
@@ -494,12 +501,11 @@ async function deleteAnnotation() {
     'Authorization': 'ApiKey YOUR_API_KEY'
   };
 
-  // Define the trace_id and span_id of the annotation to delete
-  const traceId = "bb39070937f74f169b60dfc420729ad3";
-  const spanId = "a1713ea8f59291f6";
+  // The annotation's own trace_id (not the invocation it's linked to)
+  const annotationTraceId = "bb39070937f74f169b60dfc420729ad3";
 
   try {
-    const response = await fetch(`${baseUrl}/api/preview/annotations/${traceId}/${spanId}`, {
+    const response = await fetch(`${baseUrl}/api/simple/traces/${annotationTraceId}`, {
       method: 'DELETE',
       headers: headers
     });

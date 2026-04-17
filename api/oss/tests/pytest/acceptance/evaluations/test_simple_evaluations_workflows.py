@@ -5,7 +5,7 @@ def _create_simple_query(authed_api) -> dict:
     slug = uuid4().hex
     response = authed_api(
         "POST",
-        "/preview/simple/queries/",
+        "/simple/queries/",
         json={
             "query": {
                 "slug": f"query-{slug}",
@@ -34,7 +34,7 @@ def _create_simple_evaluator(authed_api) -> dict:
     slug = uuid4().hex
     response = authed_api(
         "POST",
-        "/preview/simple/evaluators/",
+        "/simple/evaluators/",
         json={
             "evaluator": {
                 "slug": f"evaluator-{slug}",
@@ -67,7 +67,7 @@ class TestSimpleEvaluationsWorkflowReferences:
 
         response = authed_api(
             "POST",
-            "/preview/simple/evaluations/",
+            "/simple/evaluations/",
             json={
                 "evaluation": {
                     "name": "live-workflow-backed-evaluation",

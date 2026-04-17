@@ -39,8 +39,8 @@ The two strategies are symmetric across three levels:
 | `include_testcases` / `include_traces` | `True` — full items returned unless explicitly suppressed | `False` — full items returned only when requested |
 
 Consequences:
-- `POST /preview/testsets/revisions/retrieve` with no include flags behaves like [A.2].
-- `POST /preview/queries/revisions/retrieve` with no include flags behaves like [A.0].
+- `POST /testsets/revisions/retrieve` with no include flags behaves like [A.2].
+- `POST /queries/revisions/retrieve` with no include flags behaves like [A.0].
 
 ### Caching behavior
 
@@ -54,8 +54,8 @@ Consequences:
 
 ### Query lane selection from formatting
 
-- `query_revision.data.formatting.focus=trace` uses `/preview/traces/*`.
-- `query_revision.data.formatting.focus=span` uses `/preview/spans/*`.
+- `query_revision.data.formatting.focus=trace` uses `/traces/*`.
+- `query_revision.data.formatting.focus=span` uses `/spans/*`.
 - If `formatting` is missing, default lane is trace (`focus=trace`, `format=agenta`).
 
 ------------------------------------------------------------------------
@@ -75,12 +75,12 @@ The revision endpoint returns only what is structurally stored in the revision, 
 | **Returns** | Revision metadata only; no `testcase_ids`, no `testcases` | Revision metadata + `formatting` + `filtering` + `windowing`; no `trace_ids`, no `traces` |
 
 ```
-POST /api/preview/testsets/revisions/retrieve { refs }
+POST /api/testsets/revisions/retrieve { refs }
 → { testset_revision: { id, slug, version, ... } }
 ```
 
 ```
-POST /api/preview/queries/revisions/retrieve { refs }
+POST /api/queries/revisions/retrieve { refs }
 → { query_revision: { id, slug, version, ..., data: { formatting, filtering, windowing } } }
 ```
 
@@ -100,13 +100,13 @@ The revision endpoint enumerates item IDs. In both cases the caller supplies pag
 | **Determinism** | Fully deterministic | Live — depends on trace store state at query time |
 
 ```
-POST /api/preview/testsets/revisions/retrieve
+POST /api/testsets/revisions/retrieve
 { refs, "include_testcase_ids": true, "windowing": { "limit": 500, "next": "<uuid>" } }
 → { testset_revision: { id, ..., data: { testcase_ids } } }
 ```
 
 ```
-POST /api/preview/queries/revisions/retrieve
+POST /api/queries/revisions/retrieve
 { refs, "include_trace_ids": true, "windowing": { "limit": 500, "next": "<uuid>" } }
 → { query_revision: { id, ..., data: { formatting, filtering, windowing, trace_ids } } }
 ```
@@ -125,13 +125,13 @@ The revision endpoint acts as a proxy to the underlying record store, returning 
 | **Determinism** | Fully deterministic | Live — depends on trace store state at query time |
 
 ```
-POST /api/preview/testsets/revisions/retrieve
+POST /api/testsets/revisions/retrieve
 { refs, "include_testcases": true, "windowing": { "limit": 50, "next": "<uuid>" } }
 → { testset_revision: { id, ..., data: { testcase_ids, testcases } } }
 ```
 
 ```
-POST /api/preview/queries/revisions/retrieve
+POST /api/queries/revisions/retrieve
 { refs, "include_traces": true, "windowing": { "limit": 50, "next": "<uuid>" } }
 → { query_revision: { id, ..., data: { formatting, filtering, windowing, trace_ids, traces } } }
 ```
@@ -144,7 +144,7 @@ POST /api/preview/queries/revisions/retrieve
 
 Strategy B decouples the revision retrieval from the item fetch. The client calls the record endpoint directly. Three sub-options exist, but not all apply to both Loadable types:
 
-- **B.0** — push stored expressions to record query. Applies to **Query Revisions only**: route to `/api/preview/traces/query` or `/api/preview/spans/query` from `data.formatting.focus`, then push stored expressions.
+- **B.0** — push stored expressions to record query. Applies to **Query Revisions only**: route to `/api/traces/query` or `/api/spans/query` from `data.formatting.focus`, then push stored expressions.
 - **B.1** — fetch by IDs obtained from [A.1]. Applies to both types.
 - **B.2** — pass the revision reference to the lane-matching record endpoint and let it dereference internally.
 
@@ -157,7 +157,7 @@ Applies only to Query Revisions. The stored `formatting`, `filtering`, and `wind
 ```
 # Step 1 — get data.formatting + data.filtering + data.windowing from [A.0]
 # Step 2 — push to record query endpoint
-POST /api/preview/{traces|spans}/query
+POST /api/{traces|spans}/query
 { "formatting": { <from query_revision.data.formatting> },
   "filtering": { <from query_revision.data.filtering> },
   "windowing": { <from query_revision.data.windowing, overridable> } }
@@ -183,7 +183,7 @@ The client retrieves IDs via [A.1], then calls the record endpoint directly to f
 # Testcases
 # Step 1 — get data.testcase_ids from [A.1]
 # Step 2 — fetch from record endpoint by IDs
-GET /api/preview/testcases?testcase_ids=<id1>,<id2>,...
+GET /api/testcases?testcase_ids=<id1>,<id2>,...
 → { testcases: [...] }
 ```
 
@@ -191,7 +191,7 @@ GET /api/preview/testcases?testcase_ids=<id1>,<id2>,...
 # Query Revision (current contract)
 # Step 1 — get data.trace_ids from [A.1]
 # Step 2 — fetch from record endpoint by IDs
-GET /api/preview/traces?trace_ids=<id1>,<id2>,...
+GET /api/traces?trace_ids=<id1>,<id2>,...
 → { traces: [...] }
 ```
 
@@ -217,14 +217,14 @@ Windowing rules match [A.1] / [A.2]:
 
 ```
 # Testcases
-POST /api/preview/testcases/query
+POST /api/testcases/query
 { refs, "windowing": { "limit": 50, "next": "<uuid>" } }
 → { testcases: [...] }
 ```
 
 ```
 # Traces
-POST /api/preview/traces/query
+POST /api/traces/query
 { refs, "windowing": { "limit": 50, "next": "<uuid>" } }
 → { traces: [...] }
 ```
@@ -251,6 +251,6 @@ rather than the revision endpoint.
 | **A.0** — by content (revision) | Revision metadata only (no IDs, no items) | Revision metadata + `formatting` + `filtering` + `windowing` (no IDs, no items) |
 | **A.1** — by IDs (revision) | Revision with `data.testcase_ids[]` (stored, paginated) | Revision with `data.trace_ids[]` (computed by filter, paginated) |
 | **A.2** — by reference (revision proxies) | Revision with `data.testcase_ids[]` + `data.testcases[]` (proxied, paginated) | Revision with `data.trace_ids[]` + `data.traces` (proxied, paginated) |
-| **B.0** — by content (record) | N/A — no stored expressions; use [B.1] with IDs or [B.2] with a revision ref | `data.formatting + data.filtering + data.windowing` from [A.0] → lane endpoint (`/api/preview/traces/query` or `/api/preview/spans/query`) |
-| **B.1** — by IDs (record) | IDs from [A.1] → `GET /api/preview/testcases?testcase_ids=...` | IDs from [A.1] → `GET /api/preview/traces?trace_ids=...` (current contract; no `span_ids` yet) |
-| **B.2** — by reference (record dereferences) | `POST /api/preview/testcases/query { refs }` | Lane endpoint by `formatting.focus` (`POST /api/preview/traces/query { refs }` or `POST /api/preview/spans/query { refs }`) |
+| **B.0** — by content (record) | N/A — no stored expressions; use [B.1] with IDs or [B.2] with a revision ref | `data.formatting + data.filtering + data.windowing` from [A.0] → lane endpoint (`/api/traces/query` or `/api/spans/query`) |
+| **B.1** — by IDs (record) | IDs from [A.1] → `GET /api/testcases?testcase_ids=...` | IDs from [A.1] → `GET /api/traces?trace_ids=...` (current contract; no `span_ids` yet) |
+| **B.2** — by reference (record dereferences) | `POST /api/testcases/query { refs }` | Lane endpoint by `formatting.focus` (`POST /api/traces/query { refs }` or `POST /api/spans/query { refs }`) |

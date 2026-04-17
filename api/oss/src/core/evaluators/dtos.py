@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 
 from pydantic import Field
@@ -337,6 +337,9 @@ class SimpleEvaluatorEdit(Identifier, Header, Metadata):
 
 
 class SimpleEvaluatorQuery(Header, Metadata):
+    slug: Optional[str] = None
+    slugs: Optional[List[str]] = None
+
     flags: Optional[SimpleEvaluatorQueryFlags] = None
 
 

@@ -2,7 +2,7 @@
  * Workflow Entity Types
  *
  * TypeScript interfaces for API parameters and internal types.
- * Workflows use the Workflow → Variant → Revision hierarchy at `/preview/workflows/`.
+ * Workflows use the Workflow → Variant → Revision hierarchy at `/workflows/`.
  *
  * Unlike evaluators which hardcode `is_evaluator: true`, workflow queries accept
  * optional flags to filter by any combination of `is_custom`, `is_evaluator`,

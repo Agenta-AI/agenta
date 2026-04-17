@@ -26,6 +26,10 @@ interface EvaluatorTemplateDropdownProps {
     trigger?: React.ReactNode
     /** Additional class name for the trigger wrapper */
     className?: string
+    /** Controlled open state (optional — when provided, component is controlled) */
+    open?: boolean
+    /** Callback when open state changes (required when using controlled `open`) */
+    onOpenChange?: (open: boolean) => void
 }
 
 /**
@@ -36,9 +40,25 @@ const EvaluatorTemplateDropdown = ({
     onSelect,
     trigger,
     className,
+    open: controlledOpen,
+    onOpenChange: controlledOnOpenChange,
 }: EvaluatorTemplateDropdownProps) => {
     const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB_KEY)
-    const [open, setOpen] = useState(false)
+    const [internalOpen, setInternalOpen] = useState(false)
+
+    // Support both controlled and uncontrolled modes
+    const isControlled = controlledOpen !== undefined
+    const open = isControlled ? controlledOpen : internalOpen
+    const setOpen = useCallback(
+        (next: boolean) => {
+            if (isControlled) {
+                controlledOnOpenChange?.(next)
+            } else {
+                setInternalOpen(next)
+            }
+        },
+        [isControlled, controlledOnOpenChange],
+    )
     const nonArchivedEvaluators = useAtomValue(evaluatorTemplatesDataAtom)
     const {isPending: isLoadingEvaluators} = useAtomValue(evaluatorTemplatesQueryAtom)
 

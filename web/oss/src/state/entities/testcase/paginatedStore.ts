@@ -229,7 +229,7 @@ async function fetchTestcasesPage({
         }
 
         const response = await axios.post(
-            `${getAgentaApiUrl()}/preview/testcases/query`,
+            `${getAgentaApiUrl()}/testcases/query`,
             {
                 testset_revision_ref: {id: meta.revisionId},
                 windowing: windowingPayload,

@@ -6,15 +6,15 @@ For each managed workflow in the workflow or evaluator catalog the suite:
   1.  Fetch catalog template
   2.  Pick a template
   3.  Pick a preset
-  4.  Create workflow    — POST /preview/workflows/
-                          POST /preview/workflows/variants/
-                          POST /preview/workflows/revisions/commit
-  5.  Deploy            — GET  /preview/environments/query  (find default env)
-                          POST /preview/workflows/revisions/deploy
+  4.  Create workflow    — POST /workflows/
+                          POST /workflows/variants/
+                          POST /workflows/revisions/commit
+  5.  Deploy            — GET  /environments/query  (find default env)
+                          POST /workflows/revisions/deploy
   6.  Invoke via workflow URL        — POST {services}/{service_path}/invoke
   7.  Invoke via /services/invoke   — POST {services}/services/invoke  (uri in revision)
-  8.  Invoke via workflow refs       — POST {api}/preview/workflows/invoke
-  9.  Invoke via environment refs    — POST {api}/preview/workflows/invoke
+  8.  Invoke via workflow refs       — POST {api}/workflows/invoke
+  9.  Invoke via environment refs    — POST {api}/workflows/invoke
   10. Invoke via revision by value   — POST {services}/services/invoke  (uri + params inline)
 
 Run with:
@@ -50,7 +50,7 @@ MANAGED_WORKFLOW_CASES = [
     pytest.param(
         {
             "template_key": "chat",
-            "catalog_root": "/preview/workflows/catalog/templates",
+            "catalog_root": "/workflows/catalog/templates",
             "uri": "agenta:builtin:chat:v0",
             "flags": {"is_application": True, "is_chat": True},
             "parameters": {
@@ -561,7 +561,7 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
     """
     template_key = case["template_key"]
     uri = case["uri"]
-    catalog_root = case.get("catalog_root", "/preview/evaluators/catalog/templates")
+    catalog_root = case.get("catalog_root", "/evaluators/catalog/templates")
 
     # ------------------------------------------------------------------
     # 1. Fetch catalog template
@@ -599,7 +599,7 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
 
     resp = mod_api(
         "POST",
-        "/preview/simple/workflows/",
+        "/simple/workflows/",
         json={
             "workflow": {
                 "slug": slug,
@@ -620,7 +620,7 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
     # ------------------------------------------------------------------
     # 6. Find default environment (first environment returned)
     # ------------------------------------------------------------------
-    resp = mod_api("POST", "/preview/environments/query", json={})
+    resp = mod_api("POST", "/environments/query", json={})
     assert resp.status_code == 200, f"Query environments failed: {resp.text}"
     environments = resp.json().get("environments", [])
     assert environments, "No environments found — create a default environment first"
@@ -633,7 +633,7 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
     # ------------------------------------------------------------------
     resp = mod_api(
         "POST",
-        "/preview/workflows/revisions/deploy",
+        "/workflows/revisions/deploy",
         json={
             "workflow_revision_ref": {"id": revision_id},
             "environment_ref": {"id": environment_id},

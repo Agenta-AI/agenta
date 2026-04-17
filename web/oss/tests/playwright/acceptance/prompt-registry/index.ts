@@ -66,7 +66,7 @@ const openWorkflowRevisionsPage = async (
 ) => {
     const basePath = getProjectScopedBasePath(page)
     const revisionsResponsePromise = apiHelpers.waitForApiResponse<WorkflowRevisionsResponse>({
-        route: "/api/preview/workflows/revisions/query",
+        route: "/api/workflows/revisions/query",
         method: "POST",
     })
 

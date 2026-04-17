@@ -6,7 +6,7 @@ def _create_evaluator(authed_api) -> str:
     slug = uuid4()
     response = authed_api(
         "POST",
-        "/preview/simple/evaluators/",
+        "/simple/evaluators/",
         json={
             "evaluator": {
                 "slug": f"evaluator-{slug}",
@@ -42,7 +42,7 @@ class TestSimpleQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/queues/",
+            "/simple/queues/",
             json={
                 "queue": {
                     "name": "test-queue-testcases",
@@ -72,7 +72,7 @@ class TestSimpleQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/queues/",
+            "/simple/queues/",
             json={
                 "queue": {
                     "name": "test-queue-traces",
@@ -98,7 +98,7 @@ class TestSimpleQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/queues/",
+            "/simple/queues/",
             json={
                 "queue": {
                     "data": {
@@ -128,7 +128,7 @@ class TestSimpleQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/queues/",
+            "/simple/queues/",
             json={
                 "queue": {
                     "name": "test-queue-assignments",
@@ -158,7 +158,7 @@ class TestSimpleQueuesBasics:
         evaluator_revision_id = _create_evaluator(authed_api)
         create_resp = authed_api(
             "POST",
-            "/preview/simple/queues/",
+            "/simple/queues/",
             json={
                 "queue": {
                     "name": "test-queue-to-fetch",
@@ -176,7 +176,7 @@ class TestSimpleQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/simple/queues/{queue_id}",
+            f"/simple/queues/{queue_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -193,7 +193,7 @@ class TestSimpleQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/simple/queues/{uuid4()}",
+            f"/simple/queues/{uuid4()}",
         )
         # ----------------------------------------------------------------------
 
@@ -213,7 +213,7 @@ class TestSimpleQueuesBasics:
         evaluator_revision_id = _create_evaluator(authed_api)
         authed_api(
             "POST",
-            "/preview/simple/queues/",
+            "/simple/queues/",
             json={
                 "queue": {
                     "data": {
@@ -228,7 +228,7 @@ class TestSimpleQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/queues/query",
+            "/simple/queues/query",
             json={},
         )
         # ----------------------------------------------------------------------
@@ -245,7 +245,7 @@ class TestSimpleQueuesBasics:
         evaluator_revision_id = _create_evaluator(authed_api)
         authed_api(
             "POST",
-            "/preview/simple/queues/",
+            "/simple/queues/",
             json={
                 "queue": {
                     "data": {
@@ -260,7 +260,7 @@ class TestSimpleQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/queues/query",
+            "/simple/queues/query",
             json={"queue": {"kind": "testcases"}},
         )
         # ----------------------------------------------------------------------
@@ -276,7 +276,7 @@ class TestSimpleQueuesBasics:
         evaluator_revision_id = _create_evaluator(authed_api)
         create_resp = authed_api(
             "POST",
-            "/preview/simple/queues/",
+            "/simple/queues/",
             json={
                 "queue": {
                     "name": "test-queue-query-by-run",
@@ -294,7 +294,7 @@ class TestSimpleQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/queues/query",
+            "/simple/queues/query",
             json={"queue": {"run_id": run_id}},
         )
         # ----------------------------------------------------------------------
@@ -314,7 +314,7 @@ class TestSimpleQueuesBasics:
         evaluator_revision_id = _create_evaluator(authed_api)
         create_resp = authed_api(
             "POST",
-            "/preview/simple/queues/",
+            "/simple/queues/",
             json={
                 "queue": {
                     "data": {
@@ -331,7 +331,7 @@ class TestSimpleQueuesBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            f"/preview/simple/queues/{queue_id}/scenarios/query",
+            f"/simple/queues/{queue_id}/scenarios/query",
             json={},
         )
         # ----------------------------------------------------------------------

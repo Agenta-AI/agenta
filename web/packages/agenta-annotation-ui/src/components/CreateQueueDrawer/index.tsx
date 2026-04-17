@@ -50,6 +50,8 @@ interface CreateQueueDrawerContentProps {
     selection: {itemType: "traces" | "testcases"; itemIds: string[]} | null
     onClearSelection: () => void
     onItemsAdded?: () => void
+    feedbackOnCreate?: () => void
+    feedbackCreateLabel?: string
 }
 
 const INITIAL_FORM_VALUES: Pick<FormValues, "kind"> = {
@@ -94,6 +96,8 @@ function CreateQueueDrawerContent({
     selection,
     onClearSelection,
     onItemsAdded,
+    feedbackOnCreate,
+    feedbackCreateLabel,
 }: CreateQueueDrawerContentProps) {
     const projectId = useAtomValue(projectIdAtom)
     const createQueue = useSetAtom(createSimpleQueueAtom)
@@ -346,6 +350,8 @@ function CreateQueueDrawerContent({
                                         <EntityEvaluatorSelector
                                             onSelect={handleEvaluatorSelect}
                                             instanceId="queue-evaluator"
+                                            onCreate={feedbackOnCreate}
+                                            createLabel={feedbackCreateLabel}
                                             disabled={isSubmitting}
                                             disabledRevisionIds={selectedRevisionIds}
                                             selectedEvaluatorId={
@@ -378,9 +384,15 @@ function CreateQueueDrawerContent({
 
 interface CreateQueueDrawerProps {
     onItemsAdded?: () => void
+    feedbackOnCreate?: () => void
+    feedbackCreateLabel?: string
 }
 
-const CreateQueueDrawer = ({onItemsAdded}: CreateQueueDrawerProps) => {
+const CreateQueueDrawer = ({
+    onItemsAdded,
+    feedbackOnCreate,
+    feedbackCreateLabel,
+}: CreateQueueDrawerProps) => {
     const [open, setOpen] = useAtom(createQueueDrawerOpenAtom)
     const defaultKind = useAtomValue(createQueueDrawerDefaultKindAtom)
     const [selection, setSelection] = useAtom(createQueueDrawerSelectionAtom)
@@ -455,6 +467,8 @@ const CreateQueueDrawer = ({onItemsAdded}: CreateQueueDrawerProps) => {
                     selection={selection}
                     onClearSelection={handleClearSelection}
                     onItemsAdded={onItemsAdded}
+                    feedbackOnCreate={feedbackOnCreate}
+                    feedbackCreateLabel={feedbackCreateLabel}
                 />
             ) : null}
         </Drawer>

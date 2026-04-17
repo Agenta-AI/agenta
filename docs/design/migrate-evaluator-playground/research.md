@@ -101,7 +101,7 @@ async def _run_evaluator(evaluator_key: str, evaluator_input: EvaluatorInputInte
 
 For fully native execution, there's also a generic workflow invoke endpoint:
 
-**Endpoint:** `POST /preview/workflows/invoke`
+**Endpoint:** `POST /workflows/invoke`
 
 **Request Structure:**
 ```python
@@ -194,7 +194,7 @@ But the costs are:
 Within this repository, Qdrant appears in examples and cookbook/tutorial code (e.g., `examples/python/*`, `docs/docs/tutorials/*`), but not in the core evaluator/workflow execution path under `api/oss/src`.
 
 Implication for this migration:
-- Migrating the evaluator playground to `/preview/workflows/invoke` does not require any Qdrant-specific frontend changes.
+- Migrating the evaluator playground to `/workflows/invoke` does not require any Qdrant-specific frontend changes.
 - Any Qdrant-related behavior is part of the *application/workflow being evaluated* (e.g., a RAG app calling Qdrant), and would surface only through normal workflow invocation inputs/outputs/traces.
 
 ---

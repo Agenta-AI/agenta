@@ -140,7 +140,7 @@ const variantDeleteAtom = atom(null, async (_get, _set, _ids: string[]): Promise
  *
  * This adapter enables the EntityCommitModal to work with playground variants.
  * Commits are handled via the playground's onSubmit handler which routes through
- * the workflow endpoint (POST /preview/workflows/revisions/commit).
+ * the workflow endpoint (POST /workflows/revisions/commit).
  */
 export const variantModalAdapter: EntityModalAdapter<Workflow> = createAndRegisterEntityAdapter({
     type: "variant",

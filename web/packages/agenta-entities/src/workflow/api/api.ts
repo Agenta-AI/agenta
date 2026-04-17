@@ -9,8 +9,8 @@
  * enabling consumers to filter by any combination of flags.
  *
  * Workflows follow the Workflow → Variant → Revision hierarchy:
- * - List: `POST /preview/workflows/query` (workflow-level, no data)
- * - Detail: `GET /preview/workflows/revisions/{id}` (revision-level, has data)
+ * - List: `POST /workflows/query` (workflow-level, no data)
+ * - Detail: `GET /workflows/revisions/{id}` (revision-level, has data)
  * - Create/Update: workflow + revision commit endpoints
  */
 
@@ -82,7 +82,7 @@ const selectMostRecentWorkflowRevision = (
 /**
  * Query workflows with optional flag filters.
  *
- * Endpoint: `POST /preview/workflows/query`
+ * Endpoint: `POST /workflows/query`
  *
  * @param params - Query parameters (flags is optional — omit for all workflows)
  * @returns Workflows response with count and workflows array
@@ -113,7 +113,7 @@ export async function queryWorkflows({
         : undefined
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/workflows/query`,
+        `${getAgentaApiUrl()}/workflows/query`,
         {
             workflow: workflowQuery,
             include_archived: includeArchived,
@@ -140,7 +140,7 @@ export async function queryWorkflows({
 /**
  * Query workflow variants for a given workflow.
  *
- * Endpoint: `POST /preview/workflows/variants/query`
+ * Endpoint: `POST /workflows/variants/query`
  *
  * @param workflowId - The workflow ID
  * @param projectId - Project ID
@@ -157,7 +157,7 @@ export async function queryWorkflowVariants(
     }
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/workflows/variants/query`,
+        `${getAgentaApiUrl()}/workflows/variants/query`,
         {
             workflow_refs: [{id: workflowId}],
             workflow_variant: flags ? {flags} : undefined,
@@ -193,7 +193,7 @@ export interface WorkflowRevisionWindowing {
  * Query workflow revisions directly by workflow ID.
  * Skips the variant level — used for the 2-level selection hierarchy.
  *
- * Endpoint: `POST /preview/workflows/revisions/query`
+ * Endpoint: `POST /workflows/revisions/query`
  *
  * @param workflowId - The workflow ID
  * @param projectId - Project ID
@@ -215,7 +215,7 @@ export async function queryWorkflowRevisionsByWorkflow(
 /**
  * Query workflow revisions across multiple workflows.
  *
- * Endpoint: `POST /preview/workflows/revisions/query`
+ * Endpoint: `POST /workflows/revisions/query`
  *
  * @param workflowIds - Array of workflow IDs to fetch revisions for
  * @param projectId - Project ID
@@ -244,7 +244,7 @@ export async function queryWorkflowRevisionsByWorkflows(
         : undefined
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/workflows/revisions/query`,
+        `${getAgentaApiUrl()}/workflows/revisions/query`,
         {
             workflow_refs: workflowIds.map((id) => ({id})),
             workflow_revision: workflowRevision,
@@ -268,7 +268,7 @@ export async function queryWorkflowRevisionsByWorkflows(
 /**
  * Query workflow revisions for a given variant.
  *
- * Endpoint: `POST /preview/workflows/revisions/query`
+ * Endpoint: `POST /workflows/revisions/query`
  *
  * @param variantId - The workflow variant ID
  * @param projectId - Project ID
@@ -285,7 +285,7 @@ export async function queryWorkflowRevisions(
     }
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/workflows/revisions/query`,
+        `${getAgentaApiUrl()}/workflows/revisions/query`,
         {
             workflow_variant_refs: [{id: variantId}],
             workflow_revision: flags ? {flags} : undefined,
@@ -311,7 +311,7 @@ export async function queryWorkflowRevisions(
 /**
  * Fetch a single workflow revision by its revision ID.
  *
- * Endpoint: `GET /preview/workflows/revisions/{revision_id}`
+ * Endpoint: `GET /workflows/revisions/{revision_id}`
  *
  * @param revisionId - The workflow revision ID
  * @param projectId - Project ID
@@ -321,10 +321,9 @@ export async function fetchWorkflowRevisionById(
     revisionId: string,
     projectId: string,
 ): Promise<Workflow> {
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/preview/workflows/revisions/${revisionId}`,
-        {params: {project_id: projectId}},
-    )
+    const response = await axios.get(`${getAgentaApiUrl()}/workflows/revisions/${revisionId}`, {
+        params: {project_id: projectId},
+    })
 
     const validated = safeParseWithLogging(
         workflowRevisionResponseSchema,
@@ -445,7 +444,7 @@ export interface InterfaceSchemasResponse {
  * the full schemas, allowing the frontend to dynamically render
  * configuration forms and validate inputs.
  *
- * Endpoint: `POST /preview/workflows/interfaces/schemas`
+ * Endpoint: `POST /workflows/interfaces/schemas`
  *
  * @param uri - The workflow URI (e.g., "agenta:builtin:auto_exact_match:v0")
  * @param projectId - Project ID
@@ -461,7 +460,7 @@ export async function fetchInterfaceSchemas(
 
     try {
         const response = await axios.post(
-            `${getAgentaApiUrl()}/preview/workflows/interfaces/schemas`,
+            `${getAgentaApiUrl()}/workflows/interfaces/schemas`,
             {uri},
             {params: {project_id: projectId}},
         )
@@ -558,14 +557,14 @@ export async function fetchWorkflowAppOpenApiSchema(
  * Uses the revisions query endpoint to get the latest revision which
  * contains `data` (uri, schemas, parameters, etc.).
  *
- * Endpoint: `POST /preview/workflows/revisions/query`
+ * Endpoint: `POST /workflows/revisions/query`
  *
  * @param params - Detail parameters (id = workflow ID, projectId)
  * @returns The workflow entity with revision data
  */
 export async function fetchWorkflow({id, projectId}: WorkflowDetailParams): Promise<Workflow> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/workflows/revisions/query`,
+        `${getAgentaApiUrl()}/workflows/revisions/query`,
         {
             workflow_refs: [{id}],
             windowing: {limit: 1, order: "descending"},
@@ -652,8 +651,8 @@ function inferRevisionFlagsFromUri(
  * Create a new workflow and commit its initial revision.
  *
  * Endpoints:
- * - `POST /preview/workflows/` (create workflow)
- * - `POST /preview/workflows/revisions/commit` (commit revision with data)
+ * - `POST /workflows/` (create workflow)
+ * - `POST /workflows/revisions/commit` (commit revision with data)
  *
  * @param projectId - Project ID
  * @param payload - Workflow creation data (flags are passed through as-is)
@@ -665,7 +664,7 @@ export async function createWorkflow(
 ): Promise<Workflow> {
     // Step 1: Create the workflow
     const workflowResponse = await axios.post(
-        `${getAgentaApiUrl()}/preview/workflows/`,
+        `${getAgentaApiUrl()}/workflows/`,
         {
             workflow: {
                 slug: payload.slug,
@@ -694,7 +693,7 @@ export async function createWorkflow(
     const DEFAULT_VARIANT_NAME = "default"
     const variantSlug = `${payload.slug}.${DEFAULT_VARIANT_NAME}`
     const variantResponse = await axios.post(
-        `${getAgentaApiUrl()}/preview/workflows/variants/`,
+        `${getAgentaApiUrl()}/workflows/variants/`,
         {
             workflow_variant: {
                 workflow_id: workflowId,
@@ -724,7 +723,7 @@ export async function createWorkflow(
     // user-entered workflow/evaluator name.
     if (payload.data) {
         await axios.post(
-            `${getAgentaApiUrl()}/preview/workflows/revisions/commit`,
+            `${getAgentaApiUrl()}/workflows/revisions/commit`,
             {
                 workflow_revision: {
                     workflow_id: workflowId,
@@ -740,7 +739,7 @@ export async function createWorkflow(
         // Step 4: Commit actual data revision (v1) with full parameters
         const revisionFlags = inferRevisionFlagsFromUri(payload.data?.uri)
         const commitResponse = await axios.post(
-            `${getAgentaApiUrl()}/preview/workflows/revisions/commit`,
+            `${getAgentaApiUrl()}/workflows/revisions/commit`,
             {
                 workflow_revision: {
                     workflow_id: workflowId,
@@ -788,7 +787,7 @@ export interface CreateWorkflowVariantPayload {
 /**
  * Create a new workflow variant under an existing workflow.
  *
- * Endpoint: `POST /preview/workflows/variants/`
+ * Endpoint: `POST /workflows/variants/`
  *
  * @param projectId - Project ID
  * @param payload - Variant creation data
@@ -799,7 +798,7 @@ export async function createWorkflowVariantApi(
     payload: CreateWorkflowVariantPayload,
 ): Promise<WorkflowVariant | null> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/workflows/variants/`,
+        `${getAgentaApiUrl()}/workflows/variants/`,
         {
             workflow_variant: {
                 workflow_id: payload.workflowId,
@@ -870,7 +869,7 @@ export async function updateWorkflow(
     const hasMetadataChanges = payload.name || payload.description || payload.flags || payload.tags
     if (hasMetadataChanges) {
         await axios.put(
-            `${getAgentaApiUrl()}/preview/workflows/${payload.id}`,
+            `${getAgentaApiUrl()}/workflows/${payload.id}`,
             {
                 workflow: {
                     id: payload.id,
@@ -889,7 +888,7 @@ export async function updateWorkflow(
     if (payload.data) {
         const revisionFlags = inferRevisionFlagsFromUri(payload.data?.uri)
         const commitResponse = await axios.post(
-            `${getAgentaApiUrl()}/preview/workflows/revisions/commit`,
+            `${getAgentaApiUrl()}/workflows/revisions/commit`,
             {
                 workflow_revision: {
                     workflow_id: payload.id,
@@ -925,11 +924,11 @@ export async function updateWorkflow(
 /**
  * Commit a new workflow revision.
  *
- * Endpoint: `POST /preview/workflows/revisions/commit`
+ * Endpoint: `POST /workflows/revisions/commit`
  *
  * This function ONLY creates a new revision — it does NOT update
  * artifact-level metadata (name, flags, tags). Use `updateWorkflow`
- * (which calls `PUT /preview/workflows/{id}`) for metadata edits.
+ * (which calls `PUT /workflows/{id}`) for metadata edits.
  */
 export interface CommitWorkflowRevisionPayload {
     workflowId: string
@@ -946,7 +945,7 @@ export async function commitWorkflowRevisionApi(
 ): Promise<Workflow> {
     const revisionFlags = inferRevisionFlagsFromUri(payload.data?.uri)
     const commitResponse = await axios.post(
-        `${getAgentaApiUrl()}/preview/workflows/revisions/commit`,
+        `${getAgentaApiUrl()}/workflows/revisions/commit`,
         {
             workflow_revision: {
                 workflow_id: payload.workflowId,
@@ -981,7 +980,7 @@ export async function commitWorkflowRevisionApi(
 /**
  * Archive (soft delete) a workflow.
  *
- * Endpoint: `POST /preview/workflows/{id}/archive`
+ * Endpoint: `POST /workflows/{id}/archive`
  *
  * @param projectId - Project ID
  * @param workflowId - Workflow ID to archive
@@ -992,7 +991,7 @@ export async function archiveWorkflow(
     workflowId: string,
 ): Promise<WorkflowResponse> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/workflows/${workflowId}/archive`,
+        `${getAgentaApiUrl()}/workflows/${workflowId}/archive`,
         {},
         {params: {project_id: projectId}},
     )
@@ -1008,7 +1007,7 @@ export async function archiveWorkflow(
 /**
  * Archive (soft delete) a single workflow revision.
  *
- * Endpoint: `POST /preview/workflows/revisions/{revision_id}/archive`
+ * Endpoint: `POST /workflows/revisions/{revision_id}/archive`
  *
  * Unlike `archiveWorkflow` which archives the entire artifact (all variants
  * and revisions), this function archives only a single revision.
@@ -1018,7 +1017,7 @@ export async function archiveWorkflowRevision(
     revisionId: string,
 ): Promise<WorkflowRevisionResponse> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/workflows/revisions/${revisionId}/archive`,
+        `${getAgentaApiUrl()}/workflows/revisions/${revisionId}/archive`,
         {},
         {params: {project_id: projectId}},
     )
@@ -1034,7 +1033,7 @@ export async function archiveWorkflowRevision(
 /**
  * Archive (soft delete) a single workflow variant.
  *
- * Endpoint: `POST /preview/workflows/variants/{variant_id}/archive`
+ * Endpoint: `POST /workflows/variants/{variant_id}/archive`
  *
  * Used to clean up orphaned variants after their last revision is archived.
  */
@@ -1043,7 +1042,7 @@ export async function archiveWorkflowVariant(
     variantId: string,
 ): Promise<WorkflowVariantResponse> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/workflows/variants/${variantId}/archive`,
+        `${getAgentaApiUrl()}/workflows/variants/${variantId}/archive`,
         {},
         {params: {project_id: projectId}},
     )
@@ -1063,7 +1062,7 @@ export async function archiveWorkflowVariant(
 /**
  * Unarchive (restore) a workflow.
  *
- * Endpoint: `POST /preview/workflows/{id}/unarchive`
+ * Endpoint: `POST /workflows/{id}/unarchive`
  *
  * @param projectId - Project ID
  * @param workflowId - Workflow ID to unarchive
@@ -1074,7 +1073,7 @@ export async function unarchiveWorkflow(
     workflowId: string,
 ): Promise<WorkflowResponse> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/workflows/${workflowId}/unarchive`,
+        `${getAgentaApiUrl()}/workflows/${workflowId}/unarchive`,
         {},
         {params: {project_id: projectId}},
     )
@@ -1096,7 +1095,7 @@ export async function unarchiveWorkflow(
  *
  * Uses the revision query endpoint with workflow_refs to fetch latest revisions.
  *
- * Endpoint: `POST /preview/workflows/revisions/query`
+ * Endpoint: `POST /workflows/revisions/query`
  *
  * @param projectId - Project ID
  * @param workflowIds - Array of workflow IDs to fetch revisions for
@@ -1112,7 +1111,7 @@ export async function fetchWorkflowsBatch(
     if (!projectId || workflowIds.length === 0) return results
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/workflows/revisions/query`,
+        `${getAgentaApiUrl()}/workflows/revisions/query`,
         {
             workflow_refs: workflowIds.map((id) => ({id})),
             // When fetching for a single workflow, limit to 1 (latest) to reduce payload.
@@ -1160,7 +1159,7 @@ export async function fetchWorkflowsBatch(
  * Uses the revision query endpoint with workflow_revision_refs to fetch
  * specific revisions by their IDs in a single request.
  *
- * Endpoint: `POST /preview/workflows/revisions/query`
+ * Endpoint: `POST /workflows/revisions/query`
  *
  * @param projectId - Project ID
  * @param revisionIds - Array of revision IDs to fetch
@@ -1175,7 +1174,7 @@ export async function fetchWorkflowRevisionsByIdsBatch(
     if (!projectId || revisionIds.length === 0) return results
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/workflows/revisions/query`,
+        `${getAgentaApiUrl()}/workflows/revisions/query`,
         {
             workflow_revision_refs: revisionIds.map((id) => ({id})),
         },

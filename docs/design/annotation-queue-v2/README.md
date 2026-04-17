@@ -33,5 +33,5 @@ See [rfc-v2.md](./rfc-v2.md) for the full proposal.
 ## Quick Links
 
 - Current implementation: `api/oss/src/core/evaluations/` (queue-related code)
-- API endpoints: `POST /preview/evaluations/queues/`
+- API endpoints: `POST /evaluations/queues/`
 - Database: `evaluation_queues` table

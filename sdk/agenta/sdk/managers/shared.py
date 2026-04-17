@@ -236,7 +236,7 @@ class SharedManager:
         if app_id:
             response = authed_api()(
                 method="GET",
-                endpoint=f"/preview/simple/applications/{app_id}",
+                endpoint=f"/simple/applications/{app_id}",
             )
             _raise_for_status(response)
             application = response.json().get("application")
@@ -246,7 +246,7 @@ class SharedManager:
 
         response = authed_api()(
             method="POST",
-            endpoint="/preview/simple/applications/query",
+            endpoint="/simple/applications/query",
             json={"application": {"slug": app_slug}},
         )
         _raise_for_status(response)
@@ -265,7 +265,7 @@ class SharedManager:
         if app_id:
             response = await authed_async_api()(
                 method="GET",
-                endpoint=f"/preview/simple/applications/{app_id}",
+                endpoint=f"/simple/applications/{app_id}",
             )
             _raise_for_status(response)
             application = response.json().get("application")
@@ -275,7 +275,7 @@ class SharedManager:
 
         response = await authed_async_api()(
             method="POST",
-            endpoint="/preview/simple/applications/query",
+            endpoint="/simple/applications/query",
             json={"application": {"slug": app_slug}},
         )
         _raise_for_status(response)
@@ -294,7 +294,7 @@ class SharedManager:
     ) -> Dict[str, Any]:
         response = authed_api()(
             method="POST",
-            endpoint="/preview/simple/environments/query",
+            endpoint="/simple/environments/query",
             json={
                 "environment": {
                     "slug": environment_slug,
@@ -331,7 +331,7 @@ class SharedManager:
     ) -> Dict[str, Any]:
         response = await authed_async_api()(
             method="POST",
-            endpoint="/preview/simple/environments/query",
+            endpoint="/simple/environments/query",
             json={
                 "environment": {
                     "slug": environment_slug,
@@ -445,7 +445,7 @@ class SharedManager:
 
         response = authed_api()(
             method="POST",
-            endpoint="/preview/applications/revisions/retrieve",
+            endpoint="/applications/revisions/retrieve",
             json=request,
         )
         _raise_for_status(response)
@@ -469,7 +469,7 @@ class SharedManager:
 
             fallback_response = authed_api()(
                 method="POST",
-                endpoint="/preview/workflows/revisions/retrieve",
+                endpoint="/workflows/revisions/retrieve",
                 json=fallback_request,
             )
             _raise_for_status(fallback_response)
@@ -580,7 +580,7 @@ class SharedManager:
 
         response = await authed_async_api()(
             method="POST",
-            endpoint="/preview/applications/revisions/retrieve",
+            endpoint="/applications/revisions/retrieve",
             json=request,
         )
         _raise_for_status(response)
@@ -604,7 +604,7 @@ class SharedManager:
 
             fallback_response = await authed_async_api()(
                 method="POST",
-                endpoint="/preview/workflows/revisions/retrieve",
+                endpoint="/workflows/revisions/retrieve",
                 json=fallback_request,
             )
             _raise_for_status(fallback_response)
@@ -672,7 +672,7 @@ class SharedManager:
         if variant_id:
             response = authed_api()(
                 method="GET",
-                endpoint=f"/preview/applications/variants/{variant_id}",
+                endpoint=f"/applications/variants/{variant_id}",
             )
             _raise_for_status(response)
             variant = response.json().get("application_variant")
@@ -682,7 +682,7 @@ class SharedManager:
 
         response = authed_api()(
             method="POST",
-            endpoint="/preview/applications/variants/query",
+            endpoint="/applications/variants/query",
             json={
                 "application_refs": [
                     cls._build_application_ref(app_id=app_id, app_slug=app_slug)
@@ -708,7 +708,7 @@ class SharedManager:
         if variant_id:
             response = await authed_async_api()(
                 method="GET",
-                endpoint=f"/preview/applications/variants/{variant_id}",
+                endpoint=f"/applications/variants/{variant_id}",
             )
             _raise_for_status(response)
             variant = response.json().get("application_variant")
@@ -718,7 +718,7 @@ class SharedManager:
 
         response = await authed_async_api()(
             method="POST",
-            endpoint="/preview/applications/variants/query",
+            endpoint="/applications/variants/query",
             json={
                 "application_refs": [
                     cls._build_application_ref(app_id=app_id, app_slug=app_slug)
@@ -756,7 +756,7 @@ class SharedManager:
 
         response = authed_api()(
             method="POST",
-            endpoint="/preview/applications/variants/",
+            endpoint="/applications/variants/",
             json={
                 "application_variant": {
                     "application_id": application.get("id"),
@@ -788,7 +788,7 @@ class SharedManager:
 
         response = await authed_async_api()(
             method="POST",
-            endpoint="/preview/applications/variants/",
+            endpoint="/applications/variants/",
             json={
                 "application_variant": {
                     "application_id": application.get("id"),
@@ -863,7 +863,7 @@ class SharedManager:
     ):
         response = authed_api()(
             method="POST",
-            endpoint="/preview/applications/variants/query",
+            endpoint="/applications/variants/query",
             json={
                 "application_refs": [
                     cls._build_application_ref(app_id=app_id, app_slug=app_slug)
@@ -878,6 +878,7 @@ class SharedManager:
                 app_id=app_id,
                 app_slug=app_slug,
                 variant_id=variant.get("application_variant_id") or variant.get("id"),
+                variant_slug=variant.get("slug"),
             )
             for variant in variants
         ]
@@ -892,7 +893,7 @@ class SharedManager:
     ):
         response = await authed_async_api()(
             method="POST",
-            endpoint="/preview/applications/variants/query",
+            endpoint="/applications/variants/query",
             json={
                 "application_refs": [
                     cls._build_application_ref(app_id=app_id, app_slug=app_slug)
@@ -910,6 +911,7 @@ class SharedManager:
                     app_slug=app_slug,
                     variant_id=variant.get("application_variant_id")
                     or variant.get("id"),
+                    variant_slug=variant.get("slug"),
                 )
             )
         return results
@@ -933,7 +935,7 @@ class SharedManager:
 
         response = authed_api()(
             method="POST",
-            endpoint="/preview/applications/revisions/log",
+            endpoint="/applications/revisions/log",
             json={
                 "application": {
                     "application_id": variant.get("application_id")
@@ -976,7 +978,7 @@ class SharedManager:
 
         response = await authed_async_api()(
             method="POST",
-            endpoint="/preview/applications/revisions/log",
+            endpoint="/applications/revisions/log",
             json={
                 "application": {
                     "application_id": variant.get("application_id")
@@ -1093,7 +1095,7 @@ class SharedManager:
 
         response = authed_api()(
             method="POST",
-            endpoint="/preview/applications/revisions/commit",
+            endpoint="/applications/revisions/commit",
             json={
                 "application_revision_commit": {
                     "application_id": variant.get("application_id")
@@ -1138,7 +1140,7 @@ class SharedManager:
 
         response = await authed_async_api()(
             method="POST",
-            endpoint="/preview/applications/revisions/commit",
+            endpoint="/applications/revisions/commit",
             json={
                 "application_revision_commit": {
                     "application_id": variant.get("application_id")
@@ -1185,7 +1187,7 @@ class SharedManager:
 
         response = authed_api()(
             method="POST",
-            endpoint="/preview/applications/revisions/deploy",
+            endpoint="/applications/revisions/deploy",
             json={
                 "application_ref": cls._build_application_ref(
                     app_id=config.app_id,
@@ -1244,7 +1246,7 @@ class SharedManager:
 
         response = await authed_async_api()(
             method="POST",
-            endpoint="/preview/applications/revisions/deploy",
+            endpoint="/applications/revisions/deploy",
             json={
                 "application_ref": cls._build_application_ref(
                     app_id=config.app_id,
@@ -1304,7 +1306,7 @@ class SharedManager:
         response = authed_api()(
             method="POST",
             endpoint=(
-                f"/preview/applications/variants/"
+                f"/applications/variants/"
                 f"{variant.get('application_variant_id') or variant.get('id')}/archive"
             ),
         )
@@ -1334,7 +1336,7 @@ class SharedManager:
         response = await authed_async_api()(
             method="POST",
             endpoint=(
-                f"/preview/applications/variants/"
+                f"/applications/variants/"
                 f"{variant.get('application_variant_id') or variant.get('id')}/archive"
             ),
         )

@@ -70,7 +70,7 @@ async def _retrieve_application(
 
     response = authed_api()(
         method="POST",
-        endpoint="/preview/applications/revisions/retrieve",
+        endpoint="/applications/revisions/retrieve",
         json=payload,
     )
     response.raise_for_status()
@@ -90,7 +90,7 @@ async def _fetch_simple_application(
 ) -> Optional[SimpleApplication]:
     response = authed_api()(
         method="GET",
-        endpoint=f"/preview/simple/applications/{application_id}",
+        endpoint=f"/simple/applications/{application_id}",
     )
 
     if response.status_code == 404:
@@ -313,7 +313,7 @@ async def aupsert(
 
         response = authed_api()(
             method="PUT",
-            endpoint=f"/preview/simple/applications/{application_id}",
+            endpoint=f"/simple/applications/{application_id}",
             json={
                 "application": application_edit_request.model_dump(
                     mode="json",
@@ -349,7 +349,7 @@ async def aupsert(
 
         response = authed_api()(
             method="POST",
-            endpoint="/preview/simple/applications/",
+            endpoint="/simple/applications/",
             json={
                 "application": application_create_request.model_dump(
                     mode="json",

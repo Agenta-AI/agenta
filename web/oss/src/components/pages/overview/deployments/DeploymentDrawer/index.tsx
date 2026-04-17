@@ -82,6 +82,9 @@ const DeploymentDrawer = ({
             [deployedRevisionId],
         ),
     )
+    const isChat = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.isChat(deployedRevisionId), [deployedRevisionId]),
+    )
 
     const params = useMemo(() => {
         const inputKeys = (inputPorts || []).map((p) => p.key as string)
@@ -97,9 +100,10 @@ const DeploymentDrawer = ({
             selectedEnvironment?.name || "none",
             "add_a_value",
             currentApp,
+            {flags: {is_chat: isChat}},
         )
         return built
-    }, [inputPorts, currentApp, selectedEnvironment?.name])
+    }, [inputPorts, currentApp, selectedEnvironment?.name, isChat])
 
     const invokeLlmUrl = (uri && uri.trim()) || ""
 

@@ -187,7 +187,7 @@ export const invocationUrlAtomFamily = atomFamily((workflowId: string) =>
  *
  * Unlike `invocationUrlAtomFamily` (used for playground execution via the
  * unified invoke endpoint), this returns the user-facing service URL with
- * `/run` suffix that resolves config from deployed environments.
+ * `/v0/invoke` suffix that resolves config from deployed environments.
  *
  * Used by the deployment dashboard to generate code snippets.
  */
@@ -202,7 +202,7 @@ export const deploymentUrlAtomFamily = atomFamily((workflowId: string) =>
 
         const routePath = get(appRoutePathAtomFamily(workflowId))
         const parsed = parseRevisionUri(effectiveAppUrl)
-        if (!parsed) return `${effectiveAppUrl}/run`
+        if (!parsed) return `${effectiveAppUrl}/v0/invoke`
 
         const apiUrl = getAgentaApiUrl()
         const currentOrigin = apiUrl ? apiUrl.replace(/\/api\/?$/, "") : null
@@ -214,9 +214,9 @@ export const deploymentUrlAtomFamily = atomFamily((workflowId: string) =>
             .replace(/\/$/, "")
 
         if (cleanRoutePath) {
-            return `${prefix}/${cleanRoutePath}/run`
+            return `${prefix}/${cleanRoutePath}/v0/invoke`
         }
-        return `${prefix}/run`
+        return `${prefix}/v0/invoke`
     }),
 )
 

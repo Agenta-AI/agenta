@@ -16,7 +16,7 @@ These files indicate the modern path is workflow-first:
 - `web/oss/src/state/url/playground.ts:36` - comment says the playground entity mode is currently always workflow
 - `web/oss/src/state/url/playground.ts:40` - `playgroundEntityModeAtom` is hardcoded to `"workflow"`
 - `web/oss/src/components/Playground/OSSPlaygroundEntityProvider.tsx:30` - provider wires workflow selectors
-- `web/oss/src/components/Playground/OSSPlaygroundEntityProvider.tsx:31` - comment calls workflow the modern `/preview/workflows/` path
+- `web/oss/src/components/Playground/OSSPlaygroundEntityProvider.tsx:31` - comment calls workflow the modern `/workflows/` path
 - `web/oss/src/components/Playground/Components/Menus/SelectVariant/index.tsx:119` - main selector uses workflow revision adapters
 - `web/packages/agenta-entities/src/runnable/bridge.ts:860` - workflow is the first runnable type registered
 

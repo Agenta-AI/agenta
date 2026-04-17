@@ -3,8 +3,10 @@ import {useCallback, useMemo} from "react"
 import {Rocket} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 import clsx from "clsx"
+import {useSetAtom} from "jotai"
 import Link from "next/link"
 
+import {openDeployVariantModalAtom} from "@/oss/components/Playground/Components/Modals/DeployVariantModal/store/deployVariantModalStore"
 import type {RegistryRevisionRow} from "@/oss/components/VariantsComponents/store/registryStore"
 import type {RegistryColumnActions} from "@/oss/components/VariantsComponents/Table/assets/registryColumns"
 import RegistryTable from "@/oss/components/VariantsComponents/Table/RegistryTable"
@@ -18,6 +20,7 @@ const VariantsOverview = () => {
     const [, updateQuery] = useQuery()
     const {appURL} = useURL()
     const {goToPlayground} = usePlaygroundNavigation()
+    const openDeployVariantModal = useSetAtom(openDeployVariantModalAtom)
 
     const handleRowClick = useCallback(
         (record: RegistryRevisionRow) => {
@@ -40,12 +43,25 @@ const VariantsOverview = () => {
         [goToPlayground],
     )
 
+    const handleDeploy = useCallback(
+        (record: RegistryRevisionRow) => {
+            openDeployVariantModal({
+                parentVariantId: null,
+                revisionId: record.revisionId,
+                variantName: record.variantName,
+                revision: record.version ?? 0,
+            })
+        },
+        [openDeployVariantModal],
+    )
+
     const columnActions = useMemo<RegistryColumnActions>(
         () => ({
             handleOpenDetails: handleRowClick,
             handleOpenInPlayground,
+            handleDeploy,
         }),
-        [handleRowClick, handleOpenInPlayground],
+        [handleRowClick, handleOpenInPlayground, handleDeploy],
     )
 
     return (

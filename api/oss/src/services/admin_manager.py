@@ -27,6 +27,9 @@ from oss.src.models.db_models import (
 log = get_module_logger(__name__)
 
 
+REFERENCE_JSON_ENCODERS = {UUID: str}
+
+
 class CreateOrganization(BaseModel):
     name: str
     description: Optional[str] = None
@@ -46,15 +49,12 @@ class Reference(BaseModel):
     id: Optional[UUID] = None
     slug: Optional[str] = None
 
-    class Config:
-        json_encoders = {UUID: str}
-
     def encode(self, data: Any) -> Any:
         if isinstance(data, dict):
             return {k: self.encode(v) for k, v in data.items()}
         elif isinstance(data, list):
             return [self.encode(item) for item in data]
-        for type_, encoder in self.Config.json_encoders.items():
+        for type_, encoder in REFERENCE_JSON_ENCODERS.items():
             if isinstance(data, type_):
                 return encoder(data)
         return data

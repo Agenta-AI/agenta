@@ -599,6 +599,13 @@ export interface PopoverCascaderVariantProps<
     panelMinWidth?: number
 
     /**
+     * Fixed width of each cascading panel (px).
+     * When set, this takes precedence over `panelMinWidth` and prevents
+     * content-driven panel resizing.
+     */
+    panelWidth?: number
+
+    /**
      * Maximum height of item lists (px)
      * @default 340
      */
@@ -639,6 +646,44 @@ export interface PopoverCascaderVariantProps<
      * @default false
      */
     openChildOnHover?: boolean
+
+    // ========================================================================
+    // MULTI-SELECT
+    // ========================================================================
+
+    /**
+     * Enable multi-select mode in the child panel.
+     * When true, children render with checkboxes instead of click-to-select.
+     * The popover stays open after each toggle (user closes manually).
+     * @default false
+     */
+    multiSelect?: boolean
+
+    /**
+     * Controlled set of selected child IDs (for multi-select mode).
+     * The component renders checkboxes as checked for IDs in this set.
+     * In multi-select mode, this takes precedence over `selectedChildId`.
+     */
+    selectedChildIds?: Set<string>
+
+    /**
+     * Controls the rendering mode for child item labels.
+     * - "full": Render using `labelNode` from adapter (if available), which may contain avatars/metadata.
+     * - "simple": Force render using simple string label, ignoring `labelNode`.
+     * @default "full"
+     */
+    childItemLabelMode?: "full" | "simple"
+
+    // ========================================================================
+    // SELECTION SUMMARY
+    // ========================================================================
+
+    /**
+     * Whether to display an internally generated selection summary above the root item list.
+     * The picker derives the summary text from the current selection state.
+     * @default false
+     */
+    selectionSummary?: boolean
 }
 
 // ============================================================================

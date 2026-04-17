@@ -12,8 +12,8 @@ This cleanup covers:
 
 - `api/oss/src/apis/fastapi/tracing/router.py`
   - `TracingRouter` (legacy `/tracing/*`)
-  - `SpansRouter` (new `/preview/spans/*`)
-  - `TracesRouter` (new `/preview/traces/*`)
+  - `SpansRouter` (new `/spans/*`)
+  - `TracesRouter` (new `/traces/*`)
 - `api/oss/src/apis/fastapi/otlp/router.py` (`/otlp/v1/traces`)
 - `api/oss/src/core/tracing/service.py`
 - `api/oss/src/tasks/asyncio/tracing/worker.py`
@@ -88,7 +88,7 @@ Cross-check:
 ## 4) Compatibility Notes
 
 - Legacy `/tracing/*` routes are kept for compatibility.
-- Preview `/preview/spans/*` and `/preview/traces/*` remain canonical for new typed routes.
+- Preview `/spans/*` and `/traces/*` remain canonical for new typed routes.
 - Route contracts and behavior were preserved while moving orchestration into core service methods.
 
 ---

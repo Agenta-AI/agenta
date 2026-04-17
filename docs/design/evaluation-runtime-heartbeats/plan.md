@@ -142,8 +142,8 @@ For the run-level mutation lock:
 
 **Endpoints:**
 
-- `POST /preview/simple/evaluations/{run_id}/heartbeat`
-- `DELETE /preview/simple/evaluations/{run_id}/heartbeat`
+- `POST /simple/evaluations/{run_id}/heartbeat`
+- `DELETE /simple/evaluations/{run_id}/heartbeat`
 
 **Behavior:**
 
@@ -154,7 +154,7 @@ For the run-level mutation lock:
 
 **Files to modify:**
 
-- `sdk/agenta/sdk/evaluations/preview/evaluate.py`
+- `sdk/agenta/sdk/evaluations/evaluate.py`
 - `sdk/agenta/sdk/evaluations/runs.py`
 - add small SDK client helpers for heartbeat endpoints
 

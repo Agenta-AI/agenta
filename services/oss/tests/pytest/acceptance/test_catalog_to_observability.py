@@ -44,10 +44,10 @@ def _uid() -> str:
 def _create_simple_workflow(
     mod_api, *, slug: str, name: str, flags: dict, data: dict
 ) -> dict:
-    """POST /preview/simple/workflows/ and return the workflow dict."""
+    """POST /simple/workflows/ and return the workflow dict."""
     resp = mod_api(
         "POST",
-        "/preview/simple/workflows/",
+        "/simple/workflows/",
         json={"workflow": {"slug": slug, "name": name, "flags": flags, "data": data}},
     )
     assert resp.status_code == 200, f"Create workflow failed: {resp.text}"
@@ -57,10 +57,10 @@ def _create_simple_workflow(
 
 
 def _deploy(mod_api, *, revision_id: str, environment_id: str) -> None:
-    """POST /preview/workflows/revisions/deploy."""
+    """POST /workflows/revisions/deploy."""
     resp = mod_api(
         "POST",
-        "/preview/workflows/revisions/deploy",
+        "/workflows/revisions/deploy",
         json={
             "workflow_revision_ref": {"id": revision_id},
             "environment_ref": {"id": environment_id},
@@ -71,7 +71,7 @@ def _deploy(mod_api, *, revision_id: str, environment_id: str) -> None:
 
 def _query_default_environment(mod_api) -> dict:
     """Return the first environment (default)."""
-    resp = mod_api("POST", "/preview/environments/query", json={})
+    resp = mod_api("POST", "/environments/query", json={})
     assert resp.status_code == 200, f"Query environments failed: {resp.text}"
     envs = resp.json().get("environments", [])
     assert envs, "No environments found — create a default environment first"

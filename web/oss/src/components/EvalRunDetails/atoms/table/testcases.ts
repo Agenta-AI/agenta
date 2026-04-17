@@ -56,7 +56,7 @@ export const evaluationTestcaseBatcherFamily = atomFamily(({runId}: {runId?: str
                     }
 
                     const response = await axios.post(
-                        `/preview/testcases/query`,
+                        `/testcases/query`,
                         {testcase_ids: uniqueIds},
                         {
                             params: {project_id: projectId},

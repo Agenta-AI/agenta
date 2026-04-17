@@ -166,7 +166,7 @@ class TestVercelAIIngestion:
         response = wait_for_response(
             authed_api,
             "POST",
-            "/preview/tracing/spans/query",
+            "/tracing/spans/query",
             json={
                 "focus": "span",
                 "filter": {
@@ -268,7 +268,7 @@ class TestVercelAIIngestion:
         response = wait_for_response(
             authed_api,
             "POST",
-            "/preview/tracing/spans/query",
+            "/tracing/spans/query",
             json={
                 "focus": "span",
                 "filter": {
@@ -355,7 +355,7 @@ class TestVercelAIIngestion:
         response = wait_for_response(
             authed_api,
             "POST",
-            "/preview/tracing/spans/query",
+            "/tracing/spans/query",
             json={
                 "focus": "span",
                 "filter": {

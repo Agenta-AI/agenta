@@ -1,0 +1,120 @@
+---
+title: "Query Pattern"
+description: "How POST /{resource}/query endpoints handle filtering, pagination, and archive state."
+sidebar_position: 2
+---
+
+List endpoints use `POST /{resource}/query` instead of `GET /{resource}`. The request body expresses filters, windowing, and archive state. This page documents the body shape, the response envelope, and pagination.
+
+## Request body
+
+```json
+{
+  "application": { "flags": {"is_chat": true}, "tags": {"env": "prod"} },
+  "application_refs": [
+    { "id": "019d952f-5945-71b1-b8cb-d6d8e675c18d" },
+    { "slug": "support-bot" }
+  ],
+  "include_archived": false,
+  "windowing": { "limit": 50, "order": "descending" }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `<resource>` | Attribute filter. Fields vary per endpoint (typically `flags`, `tags`, `meta`). |
+| `<resource>_refs` | Array of [reference objects](/reference/api-guide/overview#references) that restrict the query to specific items of this resource. Accepts `id` or `slug`. |
+| `include_archived` | Defaults to `false`. Set `true` to include soft-deleted items. |
+| `windowing` | Pagination and time-range controls (see below). |
+
+An empty body is accepted; the request must still send `{}` (not an empty string).
+
+Some query endpoints accept additional reference arrays (for example, `/applications/revisions/query` accepts `application_refs`, `application_variant_refs`, and `application_revision_refs`). See the endpoint reference for exact fields.
+
+:::note
+When a query endpoint exposes filters for a parent resource (for example, `/applications/variants/query` accepts `application_id` and `application_slug` to scope to one application), the `_id` variant is the most reliable. If you only have a slug, resolve it to an `id` first via `/applications/query`, then pass the `id` to the child query endpoint.
+:::
+
+## Response envelope
+
+```json
+{
+  "count": 5,
+  "applications": [
+    { "id": "...", "slug": "my-app", "name": "my-app", "...": "..." }
+  ]
+}
+```
+
+The key for the array is the plural of the resource (`applications`, `application_variants`, `environments`, `traces`).
+
+## Windowing
+
+The `windowing` object controls pagination and time-range filtering.
+
+```json
+{
+  "limit": 50,
+  "order": "descending",
+  "next": "01925f3a-...",
+  "newest": "2026-04-01T00:00:00Z",
+  "oldest": "2026-03-01T00:00:00Z"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `limit` | integer | Page size. |
+| `order` | `"ascending" \| "descending"` | Sort order by creation time. |
+| `next` | uuid | Cursor token returned from the previous page. Copy verbatim. |
+| `newest` | datetime | Upper time bound on `created_at`. |
+| `oldest` | datetime | Lower time bound on `created_at`. |
+
+Pagination is cursor-based, not offset-based. Pass `windowing.next` from the previous response to retrieve the next page.
+
+### Pagination example
+
+```bash
+# Page 1
+curl -X POST "$AGENTA_HOST/api/applications/query" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{"windowing": {"limit": 20}}'
+```
+
+```json
+{
+  "count": 20,
+  "applications": [ /* 20 items */ ],
+  "windowing": { "next": "01925f3a-..." }
+}
+```
+
+```bash
+# Page 2
+curl -X POST "$AGENTA_HOST/api/applications/query" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{"windowing": {"limit": 20, "next": "01925f3a-..."}}'
+```
+
+## Archive and unarchive
+
+Resources that support history are soft-deleted via `/archive` and restored via `/unarchive`:
+
+```bash
+curl -X POST "$AGENTA_HOST/api/applications/$APPLICATION_ID/archive" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY"
+
+curl -X POST "$AGENTA_HOST/api/applications/$APPLICATION_ID/unarchive" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY"
+```
+
+Archiving sets `deleted_at` on the resource. Archived items are excluded from `/query` responses unless `include_archived` is `true`.
+
+## Common pitfalls
+
+- **`version` is a string.** When passing a revision reference, send `"1"`, not `1`.
+- **Empty body.** `POST /applications/query` requires `{}`. Sending an empty request body returns `422`.
+- **Cursor opacity.** `windowing.next` is a UUID. Do not construct it from other fields; copy it from the previous response.
+- **Project scope.** All queries are scoped to the API key's project. There is no `project_id` parameter.

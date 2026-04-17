@@ -246,6 +246,9 @@ class SimpleEnvironmentEdit(Identifier, Header, Metadata):
 
 
 class SimpleEnvironmentQuery(Header, Metadata):
+    slug: Optional[str] = None
+    slugs: Optional[List[str]] = None
+
     flags: Optional[EnvironmentQueryFlags] = None
 
 

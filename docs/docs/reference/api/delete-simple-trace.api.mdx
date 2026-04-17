@@ -1,0 +1,71 @@
+---
+id: delete-simple-trace
+title: "Delete Trace"
+description: "Delete Trace"
+sidebar_label: "Delete Trace"
+hide_title: true
+hide_table_of_contents: true
+api: eJydVk1v2zgQ/SvGnFqAa7vBnnSq0aSo2xQJGu9eDCMYS2OLLUWx/AjqCvrviyFlS7KboNuTbfLNB997HLoBj3sH2RoeZGUUTVYWc3KwEVAbsuhlrZcFZFCQIk+PLqIePaNAgEGLFXmynKIBjRVBBnH3URYgQGrIwKAvQYCl70FaKiDzNpAAl5dUIWQN+IPhOOet1HsQ4KVXvBCbmSwLaNsNxztTa0eOQ67mc/4oyOVWGm4TMngIeU7O7YKafOnAICCvtSftGY7GKJnHU82+Oo5pBm0Yy2f2MlXI65CCuu6k9rQnO2jvXUQIKGiHQXnI5q0AJfW3WEof7naRlXFaZ1AzNyPImIBWnFZ0UAr48MeaDwZ1ZET0NP9hqp5dAei9ldvgU499NiwKyWyhuh+d4jfqHfkatVBtxyvbulaEOi79uhbk0uZBoX31Pij10dX6r7vgTfCvWYmUpd5+pdzHJNJT9ZtRaC0eXmToLDaSflHxueBFT2l7EdjD7lakbtkzl7leCkvXNUrI0Se7ty1H/X11dXk7/kUli+j9yY21tf3zq1GQR6n4W0f3OUDV+Wj3/9hl054p1B/6tk4NshCV2780Oj6Tc7inXrLnoZGMyYp3W55YrDTDu+2l7qTP/Y9BmgtF3jGXP/wvxe5H3zpyk9rvcAPP9BIlhZ6n4jpJ8JJFPqxW9xcJkz/GxriOsz2Nfm6NfFn3Mz+OeV9CBrM0/Wdx8LhZcxxALQhwZJ+Oz0CwitFoZBQ4/Sy9Ny6bzShMc1WHYop70h6nKBNwwznyYKU/xCSL++UnOnwgLMhCtt4MAQ/sy+S0MeykDhr5iZiv7klaBF/WVv5M9unepTJFtVH1XT0UfRGbmyzulyCAD5aYmk/fTOdwzt8IzFcK8+igY+24DeKMiNP5QQBV8T6BJ6ze9hvcmamdr1AP8p3JNerlRABbcWYUynhZYuWm03ENSUfonhAHgp/k7jHZCChr5xnWNFt09I9VbcvL3wNZ1mYj4AmtxC0ztW6gkI6/F5DtUDm66Og0ZODVl+4evJ70Y3jc6VE/zeI9oQr8CwR8o8Pwn0WcEuXRHE23vchzMn4QeDHU2EUnf1/f3N6sbqBt/wPGPhLx
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete Trace"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/simple/traces/{trace_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete Trace
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"trace_id","in":"path","required":true,"schema":{"type":"string","title":"Trace Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"link":{"anyOf":[{"properties":{"span_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Span Id"},"trace_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Trace Id"},"attributes":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Attributes"}},"type":"object","title":"OTelLink"},{"type":"null"}]}},"type":"object","title":"SimpleTraceLinkResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

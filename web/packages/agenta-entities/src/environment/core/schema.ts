@@ -96,7 +96,7 @@ export type EnvironmentFlags = z.infer<typeof environmentFlagsSchema>
  * This is the primary frontend-facing model that abstracts the
  * artifact/variant/revision hierarchy.
  *
- * Endpoint: POST /preview/environments/simple/query
+ * Endpoint: POST /environments/simple/query
  */
 export const environmentSchema = z
     .object({
@@ -128,7 +128,7 @@ export type Environment = z.infer<typeof environmentSchema>
 /**
  * Environment revision schema for revision history.
  *
- * Endpoint: POST /preview/environments/revisions/query
+ * Endpoint: POST /environments/revisions/query
  */
 export const environmentRevisionSchema = z.object({
     id: z.string(),

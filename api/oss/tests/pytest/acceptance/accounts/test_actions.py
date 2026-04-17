@@ -105,9 +105,24 @@ class TestTransferOwnership:
         email_tgt = f"tgt-{uid}@test.agenta.ai"
 
         src = _create_account(admin_api, email=email_src)
-        _create_account(admin_api, email=email_tgt)
+        tgt = _create_account(admin_api, email=email_tgt)
 
         org_id = list(src["organizations"].values())[0]["id"]
+        tgt_user_id = tgt["user"]["id"]
+
+        # EE precondition: target must be a member of the org before transfer.
+        membership_resp = admin_api(
+            "POST",
+            "/admin/simple/accounts/organizations/memberships/",
+            json={
+                "membership": {
+                    "organization_ref": {"id": org_id},
+                    "user_ref": {"id": tgt_user_id},
+                    "role": "member",
+                }
+            },
+        )
+        assert membership_resp.status_code == 200, membership_resp.text
 
         response = admin_api(
             "POST",
@@ -143,9 +158,24 @@ class TestTransferOwnership:
         email_tgt = f"tgt2-{uid}@test.agenta.ai"
 
         src = _create_account(admin_api, email=email_src)
-        _create_account(admin_api, email=email_tgt)
+        tgt = _create_account(admin_api, email=email_tgt)
 
         org_id = list(src["organizations"].values())[0]["id"]
+        tgt_user_id = tgt["user"]["id"]
+
+        # Target must be a member of the org before ownership can be transferred.
+        membership_resp = admin_api(
+            "POST",
+            "/admin/simple/accounts/organizations/memberships/",
+            json={
+                "membership": {
+                    "organization_ref": {"id": org_id},
+                    "user_ref": {"id": tgt_user_id},
+                    "role": "member",
+                }
+            },
+        )
+        assert membership_resp.status_code == 200, membership_resp.text
 
         # Transfer the org from source → target
         transfer_resp = admin_api(

@@ -14,7 +14,7 @@ An `EvaluationQueue` entity that:
 - Is tightly coupled to an `EvaluationRun` via a required `run_id` foreign key
 - Partitions scenarios among assigned users using a modular arithmetic algorithm
 - Supports "repeats" (multiple annotators reviewing the same items)
-- Has full CRUD API at `/preview/evaluations/queues/`
+- Has full CRUD API at `/evaluations/queues/`
 - Has no frontend UI
 
 ### Data Model

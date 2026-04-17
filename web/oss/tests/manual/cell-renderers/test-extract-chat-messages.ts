@@ -14,6 +14,18 @@ const run = () => {
     const choices = {choices: [{message: {role: "assistant", content: "from choices"}}]}
     const single = {role: "assistant", content: "single message"}
     const plainJson = {foo: "bar", count: 3}
+    const stringified = JSON.stringify([
+        {
+            role: "user",
+            content: [
+                {type: "text", text: "what is this picture"},
+                {
+                    type: "image_url",
+                    image_url: {url: "data:image/jpeg;base64,AAAA", detail: "auto"},
+                },
+            ],
+        },
+    ])
 
     assert.deepEqual(extractChatMessages(validPrompt), [{role: "user", content: "hi"}])
     assert.equal(extractChatMessages(nonChatPrompt), null)
@@ -34,6 +46,7 @@ const run = () => {
     assert.deepEqual(extractChatMessages(choices), [{role: "assistant", content: "from choices"}])
     assert.deepEqual(extractChatMessages(single), [{role: "assistant", content: "single message"}])
     assert.equal(extractChatMessages(plainJson), null)
+    assert.deepEqual(extractChatMessages(stringified), JSON.parse(stringified))
 
     console.log("extractChatMessages tests passed")
 }
