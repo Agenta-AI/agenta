@@ -247,6 +247,8 @@ class SimpleWorkflowEditRequest(BaseModel):
 class SimpleWorkflowQueryRequest(BaseModel):
     workflow: Optional[SimpleWorkflowQuery] = None
     #
+    workflow_refs: Optional[List[Reference]] = None
+    #
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None

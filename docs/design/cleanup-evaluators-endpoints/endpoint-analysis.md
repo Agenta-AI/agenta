@@ -60,7 +60,7 @@ const all = await fetchAllEvaluators(true)
 
 ### Status: ACTIVE - Needs Migration
 
-### Proposal: Move to `/preview/simple/evaluators/templates`
+### Proposal: Move to `/simple/evaluators/templates`
 
 See [migration-plan.md](./migration-plan.md) for details.
 
@@ -119,7 +119,7 @@ The function `createEvaluatorRunExecution` is **defined but never imported or us
 
 **Evidence:**
 1. grep search shows only the definition, no imports
-2. PR #3572 (commit `9b9435ae5`) migrated the frontend to use `invokeEvaluator()` via `/preview/workflows/invoke`
+2. PR #3572 (commit `9b9435ae5`) migrated the frontend to use `invokeEvaluator()` via `/workflows/invoke`
 
 **Migration that made it obsolete:**
 ```diff
@@ -210,10 +210,10 @@ $ grep -rn "evaluators/configs" web/ --include="*.ts" --include="*.tsx"
 ```
 
 The frontend does **NOT** use these endpoints. It uses only:
-- `POST /preview/simple/evaluators/query`
-- `POST /preview/simple/evaluators/`
-- `PUT /preview/simple/evaluators/{id}`
-- `POST /preview/simple/evaluators/{id}/archive`
+- `POST /simple/evaluators/query`
+- `POST /simple/evaluators/`
+- `PUT /simple/evaluators/{id}`
+- `POST /simple/evaluators/{id}/archive`
 
 ### SDK Usage
 

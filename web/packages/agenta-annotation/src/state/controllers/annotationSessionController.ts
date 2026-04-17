@@ -1288,7 +1288,7 @@ const scenarioAnnotationsQueryStateAtomFamily = atomFamily((scenarioId: string) 
 
 /**
  * Metrics data for a single scenario, fetched from
- * `POST /preview/evaluations/metrics/query`.
+ * `POST /evaluations/metrics/query`.
  *
  * `raw`  — nested metric data as returned by the API (merged across entries).
  * `flat` — flattened key→value map for easy column lookup.
@@ -1470,7 +1470,7 @@ function flattenMetrics(raw: Record<string, unknown>): {
 }
 
 /**
- * Per-scenario metrics query — fetches from `POST /preview/evaluations/metrics/query`.
+ * Per-scenario metrics query — fetches from `POST /evaluations/metrics/query`.
  *
  * Annotation queues ARE evaluation runs, so each scenario has metrics
  * produced by evaluator steps. This is the same endpoint used by
@@ -1487,7 +1487,7 @@ const scenarioMetricsQueryAtomFamily = atomFamily((scenarioId: string) =>
                 if (!projectId || !runId || !scenarioId) return null
 
                 const response = await axios.post(
-                    `/preview/evaluations/metrics/query`,
+                    `/evaluations/metrics/query`,
                     {
                         metrics: {
                             scenario_ids: [scenarioId],
@@ -1846,7 +1846,7 @@ async function invalidateScenarioAnnotations(scenarioId: string) {
     if (projectId && runId) {
         axios
             .post(
-                `/preview/evaluations/metrics/refresh`,
+                `/evaluations/metrics/refresh`,
                 {metrics: {run_id: runId, scenario_id: scenarioId}},
                 {params: {project_id: projectId}},
             )

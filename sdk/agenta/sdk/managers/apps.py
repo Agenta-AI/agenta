@@ -57,7 +57,7 @@ class AppManager:
     ) -> ReferencesResponse:
         response = authed_api()(
             method="POST",
-            endpoint="/preview/simple/applications/",
+            endpoint="/simple/applications/",
             json=_build_simple_application_payload(
                 app_slug=app_slug,
                 app_type=template_key or app_type,
@@ -78,7 +78,7 @@ class AppManager:
     ) -> ReferencesResponse:
         response = await authed_async_api()(
             method="POST",
-            endpoint="/preview/simple/applications/",
+            endpoint="/simple/applications/",
             json=_build_simple_application_payload(
                 app_slug=app_slug,
                 app_type=template_key or app_type,
@@ -93,7 +93,7 @@ class AppManager:
     def list(cls) -> List[ReferencesResponse]:
         response = authed_api()(
             method="POST",
-            endpoint="/preview/simple/applications/query",
+            endpoint="/simple/applications/query",
             json={},
         )
         response.raise_for_status()
@@ -108,7 +108,7 @@ class AppManager:
     async def alist(cls) -> List[ReferencesResponse]:
         response = await authed_async_api()(
             method="POST",
-            endpoint="/preview/simple/applications/query",
+            endpoint="/simple/applications/query",
             json={},
         )
         response.raise_for_status()
@@ -123,7 +123,7 @@ class AppManager:
     def update(cls, *, app_id: str, app_slug: str) -> ReferencesResponse:
         response = authed_api()(
             method="PUT",
-            endpoint=f"/preview/simple/applications/{app_id}",
+            endpoint=f"/simple/applications/{app_id}",
             json=_build_simple_application_payload(
                 app_slug=app_slug,
                 app_type=None,
@@ -139,7 +139,7 @@ class AppManager:
     async def aupdate(cls, *, app_id: str, app_slug: str) -> ReferencesResponse:
         response = await authed_async_api()(
             method="PUT",
-            endpoint=f"/preview/simple/applications/{app_id}",
+            endpoint=f"/simple/applications/{app_id}",
             json=_build_simple_application_payload(
                 app_slug=app_slug,
                 app_type=None,
@@ -155,7 +155,7 @@ class AppManager:
     def delete(cls, *, app_id: str):
         response = authed_api()(
             method="POST",
-            endpoint=f"/preview/simple/applications/{app_id}/archive",
+            endpoint=f"/simple/applications/{app_id}/archive",
         )
         response.raise_for_status()
         return None
@@ -165,7 +165,7 @@ class AppManager:
     async def adelete(cls, *, app_id: str):
         response = await authed_async_api()(
             method="POST",
-            endpoint=f"/preview/simple/applications/{app_id}/archive",
+            endpoint=f"/simple/applications/{app_id}/archive",
         )
         response.raise_for_status()
         return None

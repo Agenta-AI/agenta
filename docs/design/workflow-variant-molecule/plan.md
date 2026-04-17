@@ -86,7 +86,7 @@ This way the molecule works with zero extra API calls when the list is already l
 
 ## API Considerations
 
-- Check if the backend already supports fetching a single variant by ID (e.g., `GET /preview/workflows/variants/{variant_id}`)
+- Check if the backend already supports fetching a single variant by ID (e.g., `GET /workflows/variants/{variant_id}`)
 - If not, the query can use the list endpoint filtered by workflow ID (requires knowing the workflow ID, which the variant response should include)
 - Alternatively, a batch endpoint similar to `fetchWorkflowRevisionsByIdsBatch` could be added for variants
 

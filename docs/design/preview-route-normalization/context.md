@@ -2,7 +2,7 @@
 
 ## Background
 
-The API currently exposes many domain routers under `/preview/*`. Some domains already have canonical non-preview mounts (for example tracing), while others do not. We want to normalize public API paths so that OpenAPI shows canonical non-preview endpoints, while old preview paths remain available for a transition window.
+The API currently exposes many domain routers under `/*`. Some domains already have canonical non-preview mounts (for example tracing), while others do not. We want to normalize public API paths so that OpenAPI shows canonical non-preview endpoints, while old preview paths remain available for a transition window.
 
 ## Problem statement
 

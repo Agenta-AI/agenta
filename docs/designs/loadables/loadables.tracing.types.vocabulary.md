@@ -34,7 +34,7 @@ Status: draft for alignment
 | Surface | Legacy | New | Gap |
 |---|---|---|---|
 | Naming in docs | `OTelFlatSpan/OTelFlatSpans` used externally | `Span/Spans` are canonical (`OTelFlat*` are compatibility aliases) | Continue replacing legacy names in external docs/examples |
-| API transport | map-based traces appear on legacy routers | list-based traces on `/preview/traces/*` and `/preview/spans/*` | Keep map shape only on legacy `/preview/tracing/*` and `/tracing/*` |
+| API transport | map-based traces appear on legacy routers | list-based traces on `/traces/*` and `/spans/*` | Keep map shape only on legacy `/tracing/*` and `/tracing/*` |
 | Web typings | map-shaped `TracesResponse` in `web/oss/src/services/tracing/types/index.ts` | list-first target | Web types/helpers/schema migration is still pending |
 
 ---
@@ -139,27 +139,27 @@ Legacy spans payload (`OTelFlatSpans`):
 
 ### 3.1 New Endpoints
 
-#### 3.1.1 Traces (`/preview/traces/*`)
+#### 3.1.1 Traces (`/traces/*`)
 
 | Endpoint | Contract |
 |---|---|
-| `POST /preview/traces/ingest` `*` | `TraceIdsResponse` (request: `traces: Traces`) |
-| `POST /preview/traces/` `*` | `TraceIdResponse` (request: `trace: Trace`) |
-| `GET /preview/traces/{trace_id}` | `TraceResponse` (`trace: Trace`) |
-| `GET /preview/traces/?trace_ids=...` | `TracesResponse` (`traces: Traces`) |
-| `POST /preview/traces/query` | `TracesResponse` (`traces: Traces`) |
+| `POST /traces/ingest` `*` | `TraceIdsResponse` (request: `traces: Traces`) |
+| `POST /traces/` `*` | `TraceIdResponse` (request: `trace: Trace`) |
+| `GET /traces/{trace_id}` | `TraceResponse` (`trace: Trace`) |
+| `GET /traces/?trace_ids=...` | `TracesResponse` (`traces: Traces`) |
+| `POST /traces/query` | `TracesResponse` (`traces: Traces`) |
 
 `*` `/` is synchronous, `/ingest` is asynchronous.
 
-#### 3.1.2 Spans (`/preview/spans/*`)
+#### 3.1.2 Spans (`/spans/*`)
 
 | Endpoint | Contract |
 |---|---|
-| `POST /preview/spans/ingest` `*` | `LinksResponse` (request: `spans: Spans`) |
-| `POST /preview/spans/` `*` | `LinkResponse` (request: `span: Span`) |
-| `GET /preview/spans/{trace_id}/{span_id}` | `SpanResponse` (`span: Span`) |
-| `GET /preview/spans/?trace_ids=...&span_ids=...` | `SpansResponse` (`spans: Spans`) |
-| `POST /preview/spans/query` | `SpansResponse` (`spans: Spans`) |
+| `POST /spans/ingest` `*` | `LinksResponse` (request: `spans: Spans`) |
+| `POST /spans/` `*` | `LinkResponse` (request: `span: Span`) |
+| `GET /spans/{trace_id}/{span_id}` | `SpanResponse` (`span: Span`) |
+| `GET /spans/?trace_ids=...&span_ids=...` | `SpansResponse` (`spans: Spans`) |
+| `POST /spans/query` | `SpansResponse` (`spans: Spans`) |
 
 `*` `/` is synchronous, `/ingest` is asynchronous.
 
@@ -184,20 +184,20 @@ Legacy spans payload (`OTelFlatSpans`):
 
 | Endpoint(s) | Legacy/deprecated contract | Notes |
 |---|---|---|
-| `POST /tracing/spans/query` and `/preview/tracing/spans/query` | `OTelTracingResponse` (polymorphic: `spans` or `traces`) | Kept as legacy/deprecated in this vocabulary. |
-| `POST /tracing/spans/ingest` and `/preview/tracing/spans/ingest` | `OTelLinksResponse` | Legacy ingest shape. |
-| `POST /tracing/spans/analytics` and `/preview/tracing/spans/analytics` | `OldAnalyticsResponse` | Legacy analytics shape. |
-| `POST /tracing/traces/` and `/preview/tracing/traces/` | `OTelLinksResponse` | Legacy trace upsert shape. |
-| `GET /tracing/traces/{trace_id}` and `/preview/tracing/traces/{trace_id}` | `OTelTracingResponse.traces` map | Legacy trace map response shape. |
-| `PUT /tracing/traces/{trace_id}` and `/preview/tracing/traces/{trace_id}` | `OTelLinksResponse` | Legacy trace edit shape. |
-| `DELETE /tracing/traces/{trace_id}` and `/preview/tracing/traces/{trace_id}` | `OTelLinksResponse` | Legacy trace delete shape. |
-| `/preview/tracing/*` family | Deprecated alias | Mounted for compatibility and hidden from schema. |
+| `POST /tracing/spans/query` and `/tracing/spans/query` | `OTelTracingResponse` (polymorphic: `spans` or `traces`) | Kept as legacy/deprecated in this vocabulary. |
+| `POST /tracing/spans/ingest` and `/tracing/spans/ingest` | `OTelLinksResponse` | Legacy ingest shape. |
+| `POST /tracing/spans/analytics` and `/tracing/spans/analytics` | `OldAnalyticsResponse` | Legacy analytics shape. |
+| `POST /tracing/traces/` and `/tracing/traces/` | `OTelLinksResponse` | Legacy trace upsert shape. |
+| `GET /tracing/traces/{trace_id}` and `/tracing/traces/{trace_id}` | `OTelTracingResponse.traces` map | Legacy trace map response shape. |
+| `PUT /tracing/traces/{trace_id}` and `/tracing/traces/{trace_id}` | `OTelLinksResponse` | Legacy trace edit shape. |
+| `DELETE /tracing/traces/{trace_id}` and `/tracing/traces/{trace_id}` | `OTelLinksResponse` | Legacy trace delete shape. |
+| `/tracing/*` family | Deprecated alias | Mounted for compatibility and hidden from schema. |
 
 ### 3.3 Gap
 
 | Surface | Legacy | New | Gap |
 |---|---|---|---|
-| Route families | `/tracing/*` mixes non-deprecated subset + legacy/deprecated subset, and `/preview/tracing/*` remains deprecated alias | `/preview/traces/*`, `/preview/spans/*` deterministic semantics | Keep migration boundary explicit in docs and clients |
+| Route families | `/tracing/*` mixes non-deprecated subset + legacy/deprecated subset, and `/tracing/*` remains deprecated alias | `/traces/*`, `/spans/*` deterministic semantics | Keep migration boundary explicit in docs and clients |
 | Internal parser | `parse_spans_into_response` can emit map/list | new routers normalize shape | Still two-shape internals for legacy compatibility |
 
 ---
@@ -261,14 +261,14 @@ Legacy spans payload (`OTelFlatSpans`):
 |---|---|
 | Top-level `spans` naming | `Spans` (alias of `OTelFlatSpans`) |
 | Single span payload | `span: Span` |
-| Span routes | `/preview/spans/*` deterministic span-focused contracts |
+| Span routes | `/spans/*` deterministic span-focused contracts |
 
 ### 6.2 Legacy Contracts
 
 | Surface | Legacy contract |
 |---|---|
 | Top-level `spans` naming | usually documented as `OTelFlatSpans` |
-| Legacy query endpoint | `POST /preview/tracing/spans/query` may return traces or spans |
+| Legacy query endpoint | `POST /tracing/spans/query` may return traces or spans |
 
 ### 6.3 Gap
 
@@ -308,8 +308,8 @@ Legacy spans payload (`OTelFlatSpans`):
 
 ## 8) Migration Sequence
 
-1. Keep `/preview/tracing/*` stable for compatibility.
-2. Move consumers to `/preview/traces/*` and `/preview/spans/*` contracts.
+1. Keep `/tracing/*` stable for compatibility.
+2. Move consumers to `/traces/*` and `/spans/*` contracts.
 3. Migrate web types/helpers from trace map to trace list.
 4. Migrate remaining legacy internal consumers (`evaluations/utils`, legacy tasks).
 5. Treat `OTelTraceTree` as compatibility only; avoid new uses.
@@ -352,33 +352,33 @@ Legacy spans payload (`OTelFlatSpans`):
 | `POST` | `/tracing/sessions/query` | `SessionsQueryRequest` | `SessionIdsResponse` |
 | `POST` | `/tracing/users/query` | `UsersQueryRequest` | `UserIdsResponse` |
 
-### 10.3 Legacy tracing alias (`/preview/tracing/*`)
+### 10.3 Legacy tracing alias (`/tracing/*`)
 
 | Alias family | Status | Notes |
 |---|---|---|
-| `/preview/tracing/*` | Deprecated | Alias of `/tracing/*`, retained for compatibility and hidden from schema. |
+| `/tracing/*` | Deprecated | Alias of `/tracing/*`, retained for compatibility and hidden from schema. |
 
-### 10.4 New traces endpoints (`/preview/traces/*`)
+### 10.4 New traces endpoints (`/traces/*`)
 
 | Method | Path | Request type | Response type |
 |---|---|---|---|
-| `POST` | `/preview/traces/ingest` `*` | `TracesRequest` | `TraceIdsResponse` |
-| `POST` | `/preview/traces/` `*` | `TraceRequest` | `TraceIdResponse` |
-| `GET` | `/preview/traces/{trace_id}` | path `trace_id` | `TraceResponse` |
-| `GET` | `/preview/traces/` | query `trace_id[]` and/or `trace_ids` | `TracesResponse` |
-| `POST` | `/preview/traces/query` | `TracesQueryRequest` | `TracesResponse` |
+| `POST` | `/traces/ingest` `*` | `TracesRequest` | `TraceIdsResponse` |
+| `POST` | `/traces/` `*` | `TraceRequest` | `TraceIdResponse` |
+| `GET` | `/traces/{trace_id}` | path `trace_id` | `TraceResponse` |
+| `GET` | `/traces/` | query `trace_id[]` and/or `trace_ids` | `TracesResponse` |
+| `POST` | `/traces/query` | `TracesQueryRequest` | `TracesResponse` |
 
 `*` `/` is synchronous, `/ingest` is asynchronous.
 
-### 10.5 New spans endpoints (`/preview/spans/*`)
+### 10.5 New spans endpoints (`/spans/*`)
 
 | Method | Path | Request type | Response type |
 |---|---|---|---|
-| `POST` | `/preview/spans/ingest` `*` | `SpansRequest` | `LinksResponse` |
-| `POST` | `/preview/spans/` `*` | `SpanRequest` | `LinkResponse` |
-| `GET` | `/preview/spans/{trace_id}/{span_id}` | path `trace_id`, `span_id` | `SpanResponse` |
-| `GET` | `/preview/spans/` | query `trace_id[]` and/or `trace_ids` and/or `span_id[]` and/or `span_ids` | `SpansResponse` |
-| `POST` | `/preview/spans/query` | `SpansQueryRequest` | `SpansResponse` |
+| `POST` | `/spans/ingest` `*` | `SpansRequest` | `LinksResponse` |
+| `POST` | `/spans/` `*` | `SpanRequest` | `LinkResponse` |
+| `GET` | `/spans/{trace_id}/{span_id}` | path `trace_id`, `span_id` | `SpanResponse` |
+| `GET` | `/spans/` | query `trace_id[]` and/or `trace_ids` and/or `span_id[]` and/or `span_ids` | `SpansResponse` |
+| `POST` | `/spans/query` | `SpansQueryRequest` | `SpansResponse` |
 
 `*` `/` is synchronous, `/ingest` is asynchronous.
 

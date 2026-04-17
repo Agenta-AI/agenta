@@ -62,7 +62,7 @@ const typeIntoLocator = async (locator: Locator, text: string) => {
 const waitForEvaluationRuns = async (page: Page, appId: string) => {
     const response = await page.waitForResponse((response) => {
         if (
-            !response.url().includes("/api/preview/evaluations/runs/query") ||
+            !response.url().includes("/api/evaluations/runs/query") ||
             response.request().method() !== "POST"
         ) {
             return false

@@ -10,7 +10,7 @@ It consolidates the RFC, summary, and examples docs into a single actionable ref
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | **Slug format** | User-centric: `tools.gateway.{provider}.{tool}[.{slug}]` | Users should not care about how Gmail is connected (Composio vs MCP). Gateway kind is resolved from the tool record. |
-| **Route prefix** | `/preview/tools` | Matches convention for new domains (e.g., `/preview/workflows`, `/preview/evaluations`). |
+| **Route prefix** | `/tools` | Matches convention for new domains (e.g., `/workflows`, `/evaluations`). |
 | **Composio SDK** | No SDK — use `httpx` directly | Avoids heavy transitive dependency. We only need ~7 REST endpoints. `httpx` is already in deps. |
 | **Persistence** | Standalone `tools` table | New DB entity with dedicated columns. No coupling to secrets infrastructure. Can migrate to secrets later if needed. |
 | **Catalog source** | Composio API, cached in-memory (TTL) | Catalog items are a provider concern, not an Agenta entity. `cachetools.TTLCache` (already in deps) with 5-min TTL. |
@@ -134,7 +134,7 @@ Key columns:
 
 ## 5. API Endpoints
 
-Base: `/preview/tools`
+Base: `/tools`
 
 All endpoints are on the base path. See [api-reference.md](api-reference.md) for full request/response examples with JSON payloads.
 
@@ -595,7 +595,7 @@ tools = ToolsRouter(tools_service=tools_service)
 # Mount:
 app.include_router(
     router=tools.router,
-    prefix="/preview/tools",
+    prefix="/tools",
     tags=["Tools"],
 )
 ```
@@ -660,12 +660,12 @@ Step 9: Entrypoint wiring               (depends on all above)
 ## 16. Verification
 
 1. **Migration**: `alembic upgrade head` — verify `tools` table created with correct indexes (incl. GIN on `flags`) and constraints
-2. **Catalog**: `GET /preview/tools/catalog` with `COMPOSIO_API_KEY` env var set — verify integrations returned
-3. **Inspect**: `POST /preview/tools/inspect` with tool slugs — verify `ToolServiceRequest` returned with full schemas + connections
-4. **Create (OAuth)**: `POST /preview/tools/` with `provider=gmail, mode=oauth` — verify tool with `flags.is_valid=false` + `redirect_url`
-5. **Poll**: `GET /preview/tools/{tool_id}` — verify flag polling works (`is_valid=false` → `is_valid=true`)
-6. **Query**: `POST /preview/tools/query` with `is_active=true` — verify filtered results
-7. **Invoke**: `POST /preview/tools/invoke` with bound slug — verify tool resolution + Composio execution
+2. **Catalog**: `GET /tools/catalog` with `COMPOSIO_API_KEY` env var set — verify integrations returned
+3. **Inspect**: `POST /tools/inspect` with tool slugs — verify `ToolServiceRequest` returned with full schemas + connections
+4. **Create (OAuth)**: `POST /tools/` with `provider=gmail, mode=oauth` — verify tool with `flags.is_valid=false` + `redirect_url`
+5. **Poll**: `GET /tools/{tool_id}` — verify flag polling works (`is_valid=false` → `is_valid=true`)
+6. **Query**: `POST /tools/query` with `is_active=true` — verify filtered results
+7. **Invoke**: `POST /tools/invoke` with bound slug — verify tool resolution + Composio execution
 8. **Ambiguity**: Create two gmail tools, call `/invoke` with unbound slug — verify `TOOL_AMBIGUOUS` error with available slugs
-9. **Delete**: `DELETE /preview/tools/{tool_id}` — verify Composio revocation + row deleted
+9. **Delete**: `DELETE /tools/{tool_id}` — verify Composio revocation + row deleted
 10. **Lint**: `ruff format api/ && ruff check --fix api/`

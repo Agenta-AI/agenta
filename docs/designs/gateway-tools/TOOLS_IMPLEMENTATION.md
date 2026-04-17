@@ -112,10 +112,10 @@ Comprehensive testing guide including:
 
 ```bash
 # 1. Browse available GitHub actions
-GET /api/preview/tools/catalog/providers/composio/integrations/github/actions?important=true
+GET /api/tools/catalog/providers/composio/integrations/github/actions?important=true
 
 # 2. Create GitHub connection
-POST /api/preview/tools/connections/
+POST /api/tools/connections/
 {
   "connection": {
     "slug": "my-github",
@@ -129,10 +129,10 @@ POST /api/preview/tools/connections/
 # Complete OAuth authorization
 
 # 4. Poll connection status until is_valid=true
-GET /api/preview/tools/connections/{connection_id}
+GET /api/tools/connections/{connection_id}
 
 # 5. Execute a read-only action (safe to test)
-POST /api/preview/tools/call
+POST /api/tools/call
 {
   "id": "test-001",
   "name": "tools.composio.github.LIST_REPOS.my-github",
@@ -142,7 +142,7 @@ POST /api/preview/tools/call
 }
 
 # 6. Execute a write action (creates real data)
-POST /api/preview/tools/call
+POST /api/tools/call
 {
   "id": "test-002",
   "name": "tools.composio.github.CREATE_ISSUE.my-github",
@@ -195,7 +195,7 @@ The adapter is automatically registered in `api/entrypoints/routers.py`:
 ```python
 # Tools router should be mounted
 tools_router = create_tools_router(...)
-app.include_router(tools_router.router, prefix="/api/preview/tools", tags=["tools"])
+app.include_router(tools_router.router, prefix="/api/tools", tags=["tools"])
 ```
 
 ## 🎯 What to Test
@@ -280,7 +280,7 @@ app.include_router(tools_router.router, prefix="/api/preview/tools", tags=["tool
 - Ensure tool slug format: `tools.{provider}.{integration}.{action}.{connection}`
 
 ### OAuth Redirect 404
-- Verify router is mounted at `/api/preview/tools`
+- Verify router is mounted at `/api/tools`
 - Check callback endpoint is registered
 - Use full URL with protocol in callback_url
 

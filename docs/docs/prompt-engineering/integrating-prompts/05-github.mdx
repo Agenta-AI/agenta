@@ -205,7 +205,7 @@ jobs:
         env:
           AGENTA_API_KEY: ${{ secrets.AGENTA_API_KEY }}
         run: |
-          curl -X POST "https://cloud.agenta.ai/api/preview/applications/revisions/retrieve" \
+          curl -X POST "https://cloud.agenta.ai/api/applications/revisions/retrieve" \
             -H "Content-Type: application/json" \
             -H "Authorization: ApiKey ${AGENTA_API_KEY}" \
             -d '{

@@ -251,10 +251,10 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
     await expect(appTypeOption).toBeVisible({timeout: 15000})
     await appTypeOption.click()
 
-    // 1. POST /preview/workflows/ — create the workflow
+    // 1. POST /workflows/ — create the workflow
     const createWorkflowPromise = page.waitForResponse((response) => {
         if (
-            !response.url().includes("/preview/workflows") ||
+            !response.url().includes("/workflows") ||
             response.url().includes("/query") ||
             response.url().includes("/variants") ||
             response.url().includes("/revisions") ||
@@ -266,22 +266,22 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
         return payload.includes(appName)
     })
 
-    // 2. POST /preview/workflows/variants/ — create the default variant
+    // 2. POST /workflows/variants/ — create the default variant
     const createVariantPromise = page.waitForResponse((response) => {
         return (
-            response.url().includes("/preview/workflows/variants") &&
+            response.url().includes("/workflows/variants") &&
             !response.url().includes("/query") &&
             response.request().method() === "POST"
         )
     })
 
-    // 3/4. POST /preview/workflows/revisions/commit — app creation commits twice:
+    // 3/4. POST /workflows/revisions/commit — app creation commits twice:
     // seed revision (v0), then the configured revision (v1). Collect both responses
     // explicitly so the "latest revision" cache never resolves to the first commit.
     const revisionCommitsPromise = waitForMatchingResponses(
         page,
         (response) =>
-            response.url().includes("/preview/workflows/revisions/commit") &&
+            response.url().includes("/workflows/revisions/commit") &&
             response.request().method() === "POST",
         2,
     )
@@ -325,7 +325,7 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
 
 export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
     const appsResponse = waitForApiResponse<{workflows: ListAppsItem[]; count: number}>(page, {
-        route: "/preview/workflows/query",
+        route: "/workflows/query",
         method: "POST",
     })
 
@@ -368,7 +368,7 @@ export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
 
 export const getAppById = async (page: Page, appId: string) => {
     const appsResponse = waitForApiResponse<{workflows: ListAppsItem[]; count: number}>(page, {
-        route: "/preview/workflows/query",
+        route: "/workflows/query",
         method: "POST",
     })
 
@@ -393,7 +393,7 @@ export const getAppById = async (page: Page, appId: string) => {
 
 export const getTestsets = async (page: Page) => {
     const testsetsResponse = waitForApiResponse<{testsets: testset[]}>(page, {
-        route: "/api/preview/testsets/query",
+        route: "/api/testsets/query",
         method: "POST",
     })
 
@@ -417,7 +417,7 @@ export const createTestset = async (
     const slug = `${slugBase || "e2e-testset"}-${Date.now()}`
 
     const response = await page.request.post(
-        `${getApiURL(page)}/preview/simple/testsets/?project_id=${projectId}`,
+        `${getApiURL(page)}/simple/testsets/?project_id=${projectId}`,
         {
             data: {
                 testset: {
@@ -450,7 +450,7 @@ export const createTestset = async (
             order: "descending" as const,
         },
     }
-    const queryUrl = `${getApiURL(page)}/preview/testsets/query?project_id=${projectId}`
+    const queryUrl = `${getApiURL(page)}/testsets/query?project_id=${projectId}`
     const timeoutAt = Date.now() + 15000
     let isVisibleInList = false
 
@@ -492,7 +492,7 @@ export const getVariants = async (page: Page, appId: string) => {
     const variantsResponse = waitForApiResponse<{workflow_variants: ApiVariant[]; count: number}>(
         page,
         {
-            route: `/preview/workflows/variants/query`,
+            route: `/workflows/variants/query`,
             method: "POST",
         },
     )
@@ -521,7 +521,7 @@ export const getEvaluationRuns = async (page: Page) => {
         runs: SnakeToCamelCaseKeys<EvaluationRun>[]
         count: number
     }>(page, {
-        route: `/api/preview/evaluations/runs/query`,
+        route: `/api/evaluations/runs/query`,
         method: "POST",
     })
 

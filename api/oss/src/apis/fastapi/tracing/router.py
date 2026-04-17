@@ -815,7 +815,7 @@ class SpansRouter:
                 conflict_focus=Focus.TRACE,
                 conflict_detail=(
                     "Query revision formatting.focus=trace. "
-                    "Use /preview/traces/query for this query revision."
+                    "Use /traces/query for this query revision."
                 ),
             )
         except QueryFocusConflictError as e:
@@ -1061,7 +1061,7 @@ class TracesRouter:
                 conflict_focus=Focus.SPAN,
                 conflict_detail=(
                     "Query revision formatting.focus=span. "
-                    "Use /preview/spans/query for this query revision."
+                    "Use /spans/query for this query revision."
                 ),
             )
         except QueryFocusConflictError as e:
@@ -1318,7 +1318,7 @@ class TracesRouter:
         if trace_id.lower() in {"query", "ingest"}:
             raise HTTPException(
                 status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-                detail=f"GET /preview/traces/{trace_id} is not supported.",
+                detail=f"GET /traces/{trace_id} is not supported.",
             )
 
         if is_ee():

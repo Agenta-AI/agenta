@@ -10,7 +10,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/evaluations/runs/",
         json={"runs": runs},
     )
 
@@ -25,7 +25,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/scenarios/",
+        "/evaluations/scenarios/",
         json={"scenarios": scenarios},
     )
 
@@ -120,7 +120,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/results/",
+        "/evaluations/results/",
         json={"results": results},
     )
 
@@ -147,7 +147,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/evaluations/results/query",
             json={
                 "result": {
                     "run_id": run_id,
@@ -168,7 +168,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/evaluations/results/query",
             json={
                 "result": {
                     "run_id": run_id,
@@ -191,7 +191,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/evaluations/results/query",
             json={
                 "result": {
                     "run_id": mock_data["runs"][0]["id"],
@@ -210,7 +210,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/evaluations/results/query",
             json={
                 "result": {
                     "run_ids": [mock_data["runs"][0]["id"]],
@@ -229,7 +229,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/evaluations/results/query",
             json={
                 "result": {
                     "scenario_id": mock_data["scenarios"][0]["id"],
@@ -248,7 +248,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/evaluations/results/query",
             json={
                 "result": {
                     "scenario_ids": [s["id"] for s in mock_data["scenarios"]],
@@ -267,7 +267,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/evaluations/results/query",
             json={
                 "result": {
                     "ids": [s["id"] for s in mock_data["results"][:-1]],
@@ -288,7 +288,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/evaluations/results/query",
             json={
                 "result": {
                     "run_id": run_id,
@@ -310,7 +310,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/evaluations/results/query",
             json={
                 "result": {
                     "run_id": run_id,
@@ -332,7 +332,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/evaluations/results/query",
             json={
                 "result": {
                     "run_id": run_id,
@@ -354,7 +354,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/evaluations/results/query",
             json={
                 "result": {
                     "run_id": run_id,
@@ -379,7 +379,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/evaluations/results/query",
             json={
                 "result": {
                     "run_id": run_id,
@@ -401,7 +401,7 @@ class TestEvaluationResultsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/evaluations/results/query",
             json={
                 "result": {
                     "run_id": run_id,

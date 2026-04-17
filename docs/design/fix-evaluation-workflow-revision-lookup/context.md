@@ -5,8 +5,8 @@
 After v0.84.0, clicking **Run Evaluation** on newly created applications succeeds but returns `count: 0` with an empty `runs` array. No evaluation jobs are started and no results are generated.
 
 **Affected endpoints:**
-- `POST /api/evaluations/preview/start` (batch evaluations)
-- `POST /api/preview/simple/evaluations/` (online evaluations)
+- `POST /api/evaluations/start` (batch evaluations)
+- `POST /api/simple/evaluations/` (online evaluations)
 
 **Error from logs:**
 ```

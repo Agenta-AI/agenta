@@ -40,7 +40,7 @@ The API stores and returns the `data` JSON blob **as-is**. No server-side comput
 **Commit flow:**
 - `web/packages/agenta-entities/src/workflow/state/commit.ts` (line 196-207)
 - Reads `entity.data.parameters` and strips metadata
-- Sends to `POST /preview/workflows/revisions/commit`
+- Sends to `POST /workflows/revisions/commit`
 
 **Configuration editing:**
 - Uses DrillIn/SchemaControls to directly edit `entity.data.parameters`

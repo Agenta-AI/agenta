@@ -253,7 +253,7 @@ export const commitWorkflowRevisionAtom = atom(
 
             // 2. Call the revision commit endpoint directly.
             // We do NOT use `updateWorkflow` here — that function also fires a
-            // `PUT /preview/workflows/{id}` for metadata edits, which overwrites
+            // `PUT /workflows/{id}` for metadata edits, which overwrites
             // the artifact's `flags` with null and causes the app to vanish from
             // the apps list.
             const workflowId = entity.workflow_id ?? entity.id
@@ -360,8 +360,8 @@ export type WorkflowCreateVariantOutcome = WorkflowCreateVariantResult | Workflo
  *
  * Flow:
  * 1. Read the source entity data (server + draft)
- * 2. Create a new variant via `POST /preview/workflows/variants/`
- * 3. Commit first revision under the new variant via `POST /preview/workflows/revisions/commit`
+ * 2. Create a new variant via `POST /workflows/variants/`
+ * 3. Commit first revision under the new variant via `POST /workflows/revisions/commit`
  * 4. Invalidate caches
  * 5. Invoke callbacks (reuses commit callbacks for query invalidation and switch)
  */
@@ -606,7 +606,7 @@ export const createWorkflowFromEphemeralAtom = atom(
 /**
  * Archive a single workflow revision.
  *
- * Uses `POST /preview/workflows/revisions/{revision_id}/archive` to archive
+ * Uses `POST /workflows/revisions/{revision_id}/archive` to archive
  * only the specified revision — NOT the entire workflow artifact.
  */
 export const archiveWorkflowRevisionAtom = atom(

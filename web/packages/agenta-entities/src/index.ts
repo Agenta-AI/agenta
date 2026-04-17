@@ -204,7 +204,7 @@ export {evaluatorSelectionConfig, type EvaluatorSelectionConfig} from "./workflo
 
 /**
  * SimpleQueue entity controller.
- * Manages simple annotation queues (traces/testcases) via `/preview/simple/queues/`.
+ * Manages simple annotation queues (traces/testcases) via `/simple/queues/`.
  */
 export {simpleQueueMolecule as simpleQueue} from "./simpleQueue"
 

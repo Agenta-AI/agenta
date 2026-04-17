@@ -413,7 +413,7 @@ class WorkflowServiceHandler:
         # CALL API_URL
         async with ClientSession() as session:
             async with session.post(
-                f"{self.api_url}/preview/workflows/invoke",
+                f"{self.api_url}/workflows/invoke",
                 json={
                     "workflow_service_request": request.model_dump(
                         mode="json",

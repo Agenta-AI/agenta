@@ -33,7 +33,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/",
+        "/workflows/",
         json={"workflow": workflow},
     )
 
@@ -45,7 +45,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"workflow-{workflow_variant_slug}",
@@ -81,7 +81,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"workflow-{workflow_variant_slug}",
@@ -115,14 +115,14 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        f"/preview/workflows/variants/{workflow_variant_1['id']}/archive",
+        f"/workflows/variants/{workflow_variant_1['id']}/archive",
     )
 
     assert response.status_code == 200
 
     response = authed_api(
         "POST",
-        "/preview/workflows/variants/query",
+        "/workflows/variants/query",
         json={
             "include_archived": True,
             "workflow_variant": {"tags": {"_marker": unique_marker}},
@@ -155,7 +155,7 @@ class TestWorkflowVariantsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/query",
+            "/workflows/variants/query",
             json={
                 "workflow_variant": {"tags": {"_marker": mock_data["_marker"]}},
             },
@@ -180,7 +180,7 @@ class TestWorkflowVariantsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/query",
+            "/workflows/variants/query",
             json={
                 "include_archived": True,
                 "workflow_variant": {"tags": {"_marker": mock_data["_marker"]}},
@@ -208,7 +208,7 @@ class TestWorkflowVariantsQueries:
         # ACT — page 1 --------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/query",
+            "/workflows/variants/query",
             json={
                 "include_archived": True,
                 "workflow_variant": {"tags": {"_marker": marker}},
@@ -227,7 +227,7 @@ class TestWorkflowVariantsQueries:
         # ACT — page 2 --------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/query",
+            "/workflows/variants/query",
             json={
                 "include_archived": True,
                 "workflow_variant": {"tags": {"_marker": marker}},
@@ -250,7 +250,7 @@ class TestWorkflowVariantsQueries:
         # ACT — page 3 (empty) ------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/query",
+            "/workflows/variants/query",
             json={
                 "include_archived": True,
                 "workflow_variant": {"tags": {"_marker": marker}},
@@ -278,7 +278,7 @@ class TestWorkflowVariantsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/query",
+            "/workflows/variants/query",
             json={
                 "workflow_variant": {
                     "flags": mock_data["workflow_variants"][0]["flags"],
@@ -301,7 +301,7 @@ class TestWorkflowVariantsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/query",
+            "/workflows/variants/query",
             json={
                 "workflow_variant": {
                     "flags": {"is_snippet": True},
@@ -325,7 +325,7 @@ class TestWorkflowVariantsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/query",
+            "/workflows/variants/query",
             json={
                 "workflow_variant": {
                     "tags": mock_data["workflow_variants"][0]["tags"],
@@ -347,7 +347,7 @@ class TestWorkflowVariantsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/query",
+            "/workflows/variants/query",
             json={
                 "workflow_variant": {
                     "tags": {"tag1": "nonexistent_value"},

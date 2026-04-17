@@ -78,6 +78,17 @@ def _to_jsonable(value: Any) -> Any:
     return value
 
 
+def _dump_flags(flags: Optional[object]) -> Dict[str, Any]:
+    normalized = _to_jsonable(flags)
+
+    if isinstance(normalized, dict):
+        return {
+            str(key): value for key, value in normalized.items() if value is not None
+        }
+
+    return {}
+
+
 def _normalize_environment_references(
     references: Optional[Dict[str, Dict[str, Reference]]],
 ) -> Dict[str, Dict[str, Any]]:
@@ -1335,7 +1346,9 @@ class SimpleEnvironmentsService:
             description=environment.description,
             #
             flags=(
-                EnvironmentFlags(**environment.flags) if environment.flags else None
+                EnvironmentFlags(**_dump_flags(environment.flags))
+                if environment.flags
+                else None
             ),
             tags=environment.tags,
             meta=environment.meta,
@@ -1425,7 +1438,9 @@ class SimpleEnvironmentsService:
             description=environment.description,
             #
             flags=(
-                EnvironmentFlags(**environment.flags) if environment.flags else None
+                EnvironmentFlags(**_dump_flags(environment.flags))
+                if environment.flags
+                else None
             ),
             tags=environment.tags,
             meta=environment.meta,
@@ -1571,7 +1586,9 @@ class SimpleEnvironmentsService:
             description=environment.description,
             #
             flags=(
-                EnvironmentFlags(**environment.flags) if environment.flags else None
+                EnvironmentFlags(**_dump_flags(environment.flags))
+                if environment.flags
+                else None
             ),
             tags=environment.tags,
             meta=environment.meta,
@@ -1684,7 +1701,11 @@ class SimpleEnvironmentsService:
                 description=environment.description,
                 #
                 flags=(
-                    EnvironmentFlags(**environment.flags) if environment.flags else None
+                    environment.flags
+                    if isinstance(environment.flags, EnvironmentFlags)
+                    else EnvironmentFlags(**_dump_flags(environment.flags))
+                    if environment.flags
+                    else None
                 ),
                 tags=environment.tags,
                 meta=environment.meta,

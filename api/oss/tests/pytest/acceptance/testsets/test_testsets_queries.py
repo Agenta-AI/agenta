@@ -31,7 +31,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/simple/testsets/",
+        "/simple/testsets/",
         json={
             "testset": testset,
         },
@@ -59,7 +59,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/simple/testsets/",
+        "/simple/testsets/",
         json={
             "testset": testset,
         },
@@ -71,7 +71,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        f"/preview/simple/testsets/{testset_2['id']}/archive",
+        f"/simple/testsets/{testset_2['id']}/archive",
     )
 
     assert response.status_code == 200
@@ -90,7 +90,7 @@ class TestTestsetsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/query",
+            "/simple/testsets/query",
             json={},
         )
         # ----------------------------------------------------------------------
@@ -107,7 +107,7 @@ class TestTestsetsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/query",
+            "/simple/testsets/query",
             json={},
         )
         # ----------------------------------------------------------------------
@@ -124,7 +124,7 @@ class TestTestsetsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/query",
+            "/simple/testsets/query",
             json={
                 "include_archived": True,
             },
@@ -143,7 +143,7 @@ class TestTestsetsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/query",
+            "/simple/testsets/query",
             json={
                 "testset": {
                     "tags": {
@@ -165,7 +165,7 @@ class TestTestsetsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/query",
+            "/simple/testsets/query",
             json={
                 "testset_refs": [
                     {
@@ -186,7 +186,7 @@ class TestTestsetsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/query",
+            "/simple/testsets/query",
             json={
                 "testset_refs": [
                     {

@@ -268,10 +268,10 @@ This document catalogs gaps found during the initial exploration, organized by c
 - `sdk/agenta/sdk/decorators/running.py:741` — `inspect_evaluator()`
 
 **Mounting structure (for reference):**
-- `/applications/` (+ `/preview/applications/`) — CRUD only
-- `/simple/applications/` (+ `/preview/simple/applications/`) — simplified CRUD
-- `/evaluators/` (+ `/preview/evaluators/`) — CRUD only
-- `/simple/evaluators/` (+ `/preview/simple/evaluators/`) — simplified CRUD
+- `/applications/` (+ `/applications/`) — CRUD only
+- `/simple/applications/` (+ `/simple/applications/`) — simplified CRUD
+- `/evaluators/` (+ `/evaluators/`) — CRUD only
+- `/simple/evaluators/` (+ `/simple/evaluators/`) — simplified CRUD
 
 **Current target:**
 - [ ] Keep application/evaluator API surfaces focused on filtered retrieval, query, revision, and catalog behavior
@@ -282,7 +282,7 @@ This document catalogs gaps found during the initial exploration, organized by c
 
 ## G12a. Catalog Surface Is Partial, Evaluator-Specific, and Not Centered on Workflows
 
-**What:** `GET /preview/simple/evaluators/templates` is a monolithic payload that currently mixes several concerns:
+**What:** `GET /simple/evaluators/templates` is a monolithic payload that currently mixes several concerns:
 - catalog entry metadata (`name`, `key`, `categories`, `description`)
 - preset bundles (`settings_presets`)
 - UI form metadata (`settings_template`)
@@ -298,7 +298,7 @@ It is evaluator-specific today, and there is no equivalent schema-first catalog 
 Without this split, evaluator creation stays ad hoc and the resulting workflow revision data is incomplete.
 
 **Current state:**
-- `GET /preview/simple/evaluators/templates` returns static Python data from `api/oss/src/resources/evaluators/evaluators.py`
+- `GET /simple/evaluators/templates` returns static Python data from `api/oss/src/resources/evaluators/evaluators.py`
 - `EvaluatorTemplate` mixes catalog, preset, UI, and runtime concerns in one DTO
 - `build_evaluator_data()` derives `uri` and mostly only `schemas.outputs`; `schemas.inputs` and `schemas.parameters` are not first-class for builtin evaluators
 - `auto_ai_critique` can effectively define its output contract through `json_schema`, but `auto_custom_code_run` does not have the same first-class schema authoring path

@@ -79,7 +79,7 @@ const testsetTests = () => {
 
                 const testsetsResponsePromise = page.waitForResponse(
                     (response) =>
-                        response.url().includes("/api/preview/testsets/query") &&
+                        response.url().includes("/api/testsets/query") &&
                         response.request().method() === "POST",
                 )
 
@@ -113,16 +113,16 @@ const testsetTests = () => {
 
             const revisionsResponsePromise =
                 apiHelpers.waitForApiResponse<TestsetRevisionsResponse>({
-                    route: "/api/preview/testsets/revisions/query",
+                    route: "/api/testsets/revisions/query",
                     method: "POST",
                 })
             const revisionDetailResponsePromise =
                 apiHelpers.waitForApiResponse<TestsetRevisionDetailResponse>({
-                    route: "/api/preview/testsets/revisions/",
+                    route: "/api/testsets/revisions/",
                     method: "GET",
                 })
             const testcasesResponsePromise = apiHelpers.waitForApiResponse<TestcasesQueryResponse>({
-                route: "/api/preview/testcases/query",
+                route: "/api/testcases/query",
                 method: "POST",
             })
 

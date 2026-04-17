@@ -37,7 +37,7 @@ import type {
  * Fetch a single revision by ID
  */
 export async function fetchRevision({id, projectId}: RevisionDetailParams): Promise<Revision> {
-    const response = await axios.get(`${getAgentaApiUrl()}/preview/testsets/revisions/${id}`, {
+    const response = await axios.get(`${getAgentaApiUrl()}/testsets/revisions/${id}`, {
         params: {project_id: projectId, include_testcases: false},
     })
     const validated = safeParseWithLogging(
@@ -59,7 +59,7 @@ export async function fetchRevisionWithTestcases({
     projectId,
 }: RevisionDetailParams): Promise<Revision | null> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+        `${getAgentaApiUrl()}/testsets/revisions/query`,
         {
             testset_revision_refs: [{id}],
             windowing: {limit: 1},
@@ -81,7 +81,7 @@ export async function fetchRevisionsList({
     testsetId,
 }: RevisionListParams): Promise<RevisionsResponse> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+        `${getAgentaApiUrl()}/testsets/revisions/query`,
         {
             testset_refs: [{id: testsetId}],
             windowing: {limit: 100, order: "descending"},
@@ -108,7 +108,7 @@ export async function fetchLatestRevision({
     testsetId,
 }: RevisionListParams): Promise<Revision | null> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+        `${getAgentaApiUrl()}/testsets/revisions/query`,
         {
             testset_refs: [{id: testsetId}],
             windowing: {limit: 1, order: "descending"},
@@ -143,7 +143,7 @@ export async function fetchLatestRevisionsBatch(
     if (!projectId || testsetIds.length === 0) return results
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+        `${getAgentaApiUrl()}/testsets/revisions/query`,
         {
             // Use per-ref limit to get exactly 1 revision per testset
             testset_refs: testsetIds.map((id) => ({id, limit: 1})),
@@ -189,7 +189,7 @@ export async function fetchRevisionsBatch(
     }
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+        `${getAgentaApiUrl()}/testsets/revisions/query`,
         requestBody,
         {params: {project_id: projectId, include_testcases: false}},
     )
@@ -232,7 +232,7 @@ export async function fetchTestsetsList({
         }
     }
 
-    const response = await axios.post(`${getAgentaApiUrl()}/preview/testsets/query`, queryPayload, {
+    const response = await axios.post(`${getAgentaApiUrl()}/testsets/query`, queryPayload, {
         params: {project_id: projectId},
     })
 
@@ -249,7 +249,7 @@ export async function fetchTestsetsList({
 
 /**
  * Fetch multiple testsets by ID in a single API call (metadata only).
- * Uses POST /preview/testsets/query with testset_refs.
+ * Uses POST /testsets/query with testset_refs.
  */
 export async function fetchTestsetsBatch(
     projectId: string,
@@ -259,7 +259,7 @@ export async function fetchTestsetsBatch(
     if (!projectId || testsetIds.length === 0) return results
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/query`,
+        `${getAgentaApiUrl()}/testsets/query`,
         {
             testset_refs: testsetIds.map((id) => ({id})),
             windowing: {limit: testsetIds.length},
@@ -285,7 +285,7 @@ export async function fetchTestsetsBatch(
  * Fetch a single testset by ID (metadata only)
  */
 export async function fetchTestsetDetail({id, projectId}: TestsetDetailParams): Promise<Testset> {
-    const response = await axios.get(`${getAgentaApiUrl()}/preview/testsets/${id}`, {
+    const response = await axios.get(`${getAgentaApiUrl()}/testsets/${id}`, {
         params: {project_id: projectId},
     })
     const validated = safeParseWithLogging(
@@ -307,7 +307,7 @@ export async function fetchTestsetDetail({id, projectId}: TestsetDetailParams): 
  * Fetch a single variant by ID (contains name and description)
  */
 export async function fetchVariantDetail({id, projectId}: VariantDetailParams): Promise<Variant> {
-    const response = await axios.get(`${getAgentaApiUrl()}/preview/testsets/variants/${id}`, {
+    const response = await axios.get(`${getAgentaApiUrl()}/testsets/variants/${id}`, {
         params: {project_id: projectId},
     })
     const validated = safeParseWithLogging(

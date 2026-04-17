@@ -7,15 +7,15 @@
  * ## Backend Model Hierarchy
  *
  * ```
- * Workflow (Artifact) — listed via POST /preview/workflows/query
+ * Workflow (Artifact) — listed via POST /workflows/query
  *   ├── id, slug, name, description, flags, tags, meta
  *   └── (no data field)
  *
- * WorkflowVariant — listed via POST /preview/workflows/variants/query
+ * WorkflowVariant — listed via POST /workflows/variants/query
  *   ├── id, slug, name, workflow_id, flags
  *   └── (no data field)
  *
- * WorkflowRevision — fetched via GET /preview/workflows/revisions/{id}
+ * WorkflowRevision — fetched via GET /workflows/revisions/{id}
  *   ├── id, slug, name, version, workflow_id, workflow_variant_id, flags
  *   └── data: WorkflowRevisionData (uri, url, schemas, parameters, script)
  * ```
@@ -255,8 +255,8 @@ export function resolveParametersSchema(data: WorkflowDataInput): Record<string,
  * Workflow entity schema.
  *
  * Flexible schema that accommodates both:
- * - Workflow objects from `POST /preview/workflows/query` (list, no data)
- * - WorkflowRevision objects from `GET /preview/workflows/revisions/{id}` (detail, has data)
+ * - Workflow objects from `POST /workflows/query` (list, no data)
+ * - WorkflowRevision objects from `GET /workflows/revisions/{id}` (detail, has data)
  */
 export const workflowSchema = z
     .object({
@@ -612,7 +612,7 @@ export function collectEvaluatorCandidates(...values: (string | undefined | null
  * are not populated (evaluators created before `infer_flags_from_data` was deployed).
  *
  * After the evaluator key consolidation (managed-workflows.md), the legacy keys
- * will be retired. The canonical keys (`code`, `hook`, `prompt`) are included
+ * will be retired. The canonical keys (`code`, `hook`, `llm`) are included
  * proactively for forward compatibility.
  */
 const ONLINE_CAPABLE_KEYS = new Set([
@@ -629,14 +629,14 @@ const ONLINE_CAPABLE_KEYS = new Set([
     // Canonical family keys (post-consolidation)
     "code",
     "hook",
-    "prompt",
+    "llm",
 ])
 
 /**
  * Determine whether an evaluator workflow supports online (real-time) evaluation.
  *
  * Uses a two-tier check:
- * 1. **Flags** (preferred): `is_code`, `is_hook`, or `is_llm` — set by
+ * 1. **Flags** (preferred): `is_custom`, `is_code`, `is_hook`, or `is_llm` — set by
  *    `infer_flags_from_data()` at commit time. These map directly to the
  *    canonical evaluator families that support online execution.
  * 2. **Key fallback** (legacy): For evaluators created before the flags system
@@ -652,7 +652,7 @@ export function isOnlineCapableEvaluator(evaluator: {
     slug?: string | null
 }): boolean {
     const flags = evaluator.flags
-    if (flags?.is_code || flags?.is_hook || flags?.is_llm) {
+    if (flags?.is_custom || flags?.is_code || flags?.is_hook || flags?.is_llm) {
         return true
     }
 

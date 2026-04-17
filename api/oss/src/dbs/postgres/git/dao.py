@@ -2,7 +2,7 @@ from typing import Optional, List, TypeVar, Type
 from uuid import UUID
 from datetime import datetime, timezone
 
-from sqlalchemy import select, func, update
+from sqlalchemy import or_, select, func, update
 
 from oss.src.utils.logging import get_module_logger
 
@@ -334,6 +334,17 @@ class GitDAO(GitDAOInterface):
                     stmt = stmt.filter(
                         self.ArtifactDBE.slug.in_(artifact_slugs)  # type: ignore
                     )
+
+            artifact_query_slugs = []
+            if artifact_query.slug:
+                artifact_query_slugs.append(artifact_query.slug)
+            if artifact_query.slugs:
+                artifact_query_slugs.extend(artifact_query.slugs)
+
+            if artifact_query_slugs:
+                stmt = stmt.filter(
+                    self.ArtifactDBE.slug.in_(artifact_query_slugs)  # type: ignore
+                )
 
             if "folder_id" in artifact_query.model_fields_set:
                 if artifact_query.folder_id is None:
@@ -694,28 +705,60 @@ class GitDAO(GitDAOInterface):
                 artifact_ids = [
                     artifact.id for artifact in artifact_refs if artifact.id
                 ]
+                artifact_slugs = [
+                    artifact.slug for artifact in artifact_refs if artifact.slug
+                ]
+
+                artifact_filters = []
 
                 if artifact_ids:
-                    stmt = stmt.filter(
+                    artifact_filters.append(
                         self.VariantDBE.artifact_id.in_(artifact_ids)  # type: ignore
                     )
 
-            if variant_refs:
-                variant_ids = [variant.id for variant in variant_refs if variant.id]
-
-                if variant_ids:
-                    stmt = stmt.filter(
-                        self.VariantDBE.id.in_(variant_ids)  # type: ignore
+                if artifact_slugs:
+                    artifact_id_subquery = select(self.ArtifactDBE.id).filter(  # type: ignore
+                        self.ArtifactDBE.project_id == project_id,  # type: ignore
+                        self.ArtifactDBE.slug.in_(artifact_slugs),  # type: ignore
+                    )
+                    artifact_filters.append(
+                        self.VariantDBE.artifact_id.in_(artifact_id_subquery)  # type: ignore
                     )
 
+                if artifact_filters:
+                    stmt = stmt.filter(or_(*artifact_filters))
+
+            if variant_refs:
+                variant_ids = [variant.id for variant in variant_refs if variant.id]
                 variant_slugs = [
                     variant.slug for variant in variant_refs if variant.slug
                 ]
 
+                variant_filters = []
+
+                if variant_ids:
+                    variant_filters.append(
+                        self.VariantDBE.id.in_(variant_ids)  # type: ignore
+                    )
+
                 if variant_slugs:
-                    stmt = stmt.filter(
+                    variant_filters.append(
                         self.VariantDBE.slug.in_(variant_slugs)  # type: ignore
                     )
+
+                if variant_filters:
+                    stmt = stmt.filter(or_(*variant_filters))
+
+            variant_query_slugs = []
+            if variant_query.slug:
+                variant_query_slugs.append(variant_query.slug)
+            if variant_query.slugs:
+                variant_query_slugs.extend(variant_query.slugs)
+
+            if variant_query_slugs:
+                stmt = stmt.filter(
+                    self.VariantDBE.slug.in_(variant_query_slugs)  # type: ignore
+                )
 
             if variant_query.flags:
                 stmt = stmt.filter(
@@ -1174,19 +1217,53 @@ class GitDAO(GitDAOInterface):
                 artifact_ids = [
                     artifact.id for artifact in artifact_refs if artifact.id
                 ]
+                artifact_slugs = [
+                    artifact.slug for artifact in artifact_refs if artifact.slug
+                ]
+
+                artifact_filters = []
 
                 if artifact_ids:
-                    stmt = stmt.filter(
+                    artifact_filters.append(
                         self.RevisionDBE.artifact_id.in_(artifact_ids)  # type: ignore
                     )
 
+                if artifact_slugs:
+                    artifact_id_subquery = select(self.ArtifactDBE.id).filter(  # type: ignore
+                        self.ArtifactDBE.project_id == project_id,  # type: ignore
+                        self.ArtifactDBE.slug.in_(artifact_slugs),  # type: ignore
+                    )
+                    artifact_filters.append(
+                        self.RevisionDBE.artifact_id.in_(artifact_id_subquery)  # type: ignore
+                    )
+
+                if artifact_filters:
+                    stmt = stmt.filter(or_(*artifact_filters))
+
             if variant_refs:
                 variant_ids = [variant.id for variant in variant_refs if variant.id]
+                variant_slugs = [
+                    variant.slug for variant in variant_refs if variant.slug
+                ]
+
+                variant_filters = []
 
                 if variant_ids:
-                    stmt = stmt.filter(
+                    variant_filters.append(
                         self.RevisionDBE.variant_id.in_(variant_ids)  # type: ignore
                     )
+
+                if variant_slugs:
+                    variant_id_subquery = select(self.VariantDBE.id).filter(  # type: ignore
+                        self.VariantDBE.project_id == project_id,  # type: ignore
+                        self.VariantDBE.slug.in_(variant_slugs),  # type: ignore
+                    )
+                    variant_filters.append(
+                        self.RevisionDBE.variant_id.in_(variant_id_subquery)  # type: ignore
+                    )
+
+                if variant_filters:
+                    stmt = stmt.filter(or_(*variant_filters))
 
             if revision_refs:
                 revision_ids = [
@@ -1206,6 +1283,17 @@ class GitDAO(GitDAOInterface):
                     stmt = stmt.filter(
                         self.RevisionDBE.slug.in_(revision_slugs)  # type: ignore
                     )
+
+            revision_query_slugs = []
+            if revision_query.slug:
+                revision_query_slugs.append(revision_query.slug)
+            if revision_query.slugs:
+                revision_query_slugs.extend(revision_query.slugs)
+
+            if revision_query_slugs:
+                stmt = stmt.filter(
+                    self.RevisionDBE.slug.in_(revision_query_slugs)  # type: ignore
+                )
 
             if revision_query.flags:
                 stmt = stmt.filter(

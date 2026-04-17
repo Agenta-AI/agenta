@@ -8,7 +8,7 @@ When a user hard-refreshes the browser on the registry page and then tries to co
 {"detail": "Error while trying to update the app variant: badly formed hexadecimal UUID string"}
 ```
 
-The request goes to `PUT /api/variants/{shortId}/parameters` (the legacy endpoint) instead of `POST /api/preview/workflows/revisions/commit` (the workflow endpoint).
+The request goes to `PUT /api/variants/{shortId}/parameters` (the legacy endpoint) instead of `POST /api/workflows/revisions/commit` (the workflow endpoint).
 
 If the user first visits the playground and then navigates to the registry, the commit works because playground state is populated.
 

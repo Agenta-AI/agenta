@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, Union  # noqa: F401
+from typing import Optional, Dict, Any, Union, List  # noqa: F401
 from uuid import UUID, uuid4  # noqa: F401
 
 from pydantic import (
@@ -372,6 +372,9 @@ class SimpleWorkflowEdit(Identifier, Header, Metadata):
 
 
 class SimpleWorkflowQuery(Metadata):
+    slug: Optional[str] = None
+    slugs: Optional[List[str]] = None
+
     flags: Optional[SimpleWorkflowQueryFlags] = None
 
 

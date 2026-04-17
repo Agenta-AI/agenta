@@ -129,6 +129,14 @@ class TestSimpleOrganizations:
         uid = uuid4().hex[:12]
         email = f"org-owner-{uid}@test.agenta.ai"
 
+        # Owner must exist before creating an organization
+        user_resp = admin_api(
+            "POST",
+            "/admin/simple/accounts/users/",
+            json={"user": {"email": email}},
+        )
+        assert user_resp.status_code == 200
+
         create_resp = admin_api(
             "POST",
             "/admin/simple/accounts/organizations/",

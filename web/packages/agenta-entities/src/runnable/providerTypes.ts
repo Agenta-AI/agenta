@@ -214,7 +214,7 @@ export interface EvaluatorSelectors extends EntityRevisionSelectors<EvaluatorRaw
  * playground to work with different entity implementations.
  */
 export interface PlaygroundEntityProviders {
-    /** Workflow entity (modern /preview/workflows/ API, handles both apps and evaluators via flags) */
+    /** Workflow entity (modern /workflows/ API, handles both apps and evaluators via flags) */
     workflow?: {
         selectors: EntityRevisionSelectors<WorkflowRawData>
     }

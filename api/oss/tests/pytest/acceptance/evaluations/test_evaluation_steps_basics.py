@@ -10,7 +10,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/evaluations/runs/",
         json={"runs": runs},
     )
 
@@ -26,7 +26,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/scenarios/",
+        "/evaluations/scenarios/",
         json={"scenarios": scenarios},
     )
 
@@ -65,7 +65,7 @@ class TestEvaluationResultsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/",
+            "/evaluations/results/",
             json={"results": results},
         )
         # ----------------------------------------------------------------------
@@ -109,7 +109,7 @@ class TestEvaluationResultsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/",
+            "/evaluations/results/",
             json={"results": results},
         )
 
@@ -121,7 +121,7 @@ class TestEvaluationResultsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/evaluations/results/query",
             json={
                 "result": {
                     "scenario_id": scenario_id,
@@ -172,7 +172,7 @@ class TestEvaluationResultsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/",
+            "/evaluations/results/",
             json={"results": results},
         )
 
@@ -191,7 +191,7 @@ class TestEvaluationResultsBasics:
 
         response = authed_api(
             "PATCH",
-            "/preview/evaluations/results/",
+            "/evaluations/results/",
             json={"results": results},
         )
         # ----------------------------------------------------------------------
@@ -209,7 +209,7 @@ class TestEvaluationResultsBasics:
     def test_delete_evaluation_results(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
-        authed_api("POST", f"/preview/evaluations/runs/{run_id}/open")
+        authed_api("POST", f"/evaluations/runs/{run_id}/open")
         scenario_id = mock_data["scenarios"][0]["id"]
 
         results = [
@@ -229,7 +229,7 @@ class TestEvaluationResultsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/",
+            "/evaluations/results/",
             json={"results": results},
         )
 
@@ -243,7 +243,7 @@ class TestEvaluationResultsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            "/preview/evaluations/results/",
+            "/evaluations/results/",
             json={"result_ids": result_ids},
         )
         # ----------------------------------------------------------------------
@@ -258,7 +258,7 @@ class TestEvaluationResultsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            "/preview/evaluations/results/",
+            "/evaluations/results/",
             json={"result_ids": result_ids},
         )
         # ----------------------------------------------------------------------
@@ -272,7 +272,7 @@ class TestEvaluationResultsBasics:
     def test_fetch_evaluation_result(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
-        authed_api("POST", f"/preview/evaluations/runs/{run_id}/open")
+        authed_api("POST", f"/evaluations/runs/{run_id}/open")
         scenario_id = mock_data["scenarios"][2]["id"]
 
         results = [
@@ -285,7 +285,7 @@ class TestEvaluationResultsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/",
+            "/evaluations/results/",
             json={"results": results},
         )
 
@@ -299,7 +299,7 @@ class TestEvaluationResultsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/evaluations/results/{result_id}",
+            f"/evaluations/results/{result_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -313,7 +313,7 @@ class TestEvaluationResultsBasics:
     def test_edit_evaluation_result(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
-        authed_api("POST", f"/preview/evaluations/runs/{run_id}/open")
+        authed_api("POST", f"/evaluations/runs/{run_id}/open")
         scenario_id = mock_data["scenarios"][0]["id"]
 
         results = [
@@ -327,7 +327,7 @@ class TestEvaluationResultsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/",
+            "/evaluations/results/",
             json={"results": results},
         )
 
@@ -346,7 +346,7 @@ class TestEvaluationResultsBasics:
 
         response = authed_api(
             "PATCH",
-            f"/preview/evaluations/results/{result_id}",
+            f"/evaluations/results/{result_id}",
             json={"result": result},
         )
         # ----------------------------------------------------------------------
@@ -362,7 +362,7 @@ class TestEvaluationResultsBasics:
     def test_delete_evaluation_result(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
-        authed_api("POST", f"/preview/evaluations/runs/{run_id}/open")
+        authed_api("POST", f"/evaluations/runs/{run_id}/open")
         scenario_id = mock_data["scenarios"][0]["id"]
 
         results = [
@@ -376,7 +376,7 @@ class TestEvaluationResultsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/",
+            "/evaluations/results/",
             json={"results": results},
         )
 
@@ -390,7 +390,7 @@ class TestEvaluationResultsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/evaluations/results/{result_id}",
+            f"/evaluations/results/{result_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -404,7 +404,7 @@ class TestEvaluationResultsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/evaluations/results/{result_id}",
+            f"/evaluations/results/{result_id}",
         )
         # ----------------------------------------------------------------------
 

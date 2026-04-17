@@ -3,7 +3,7 @@
  *
  * Unified API for evaluation run entity state management.
  * Uses batch fetching: individual run queries are automatically merged
- * into a single `POST /preview/evaluations/runs/query` call.
+ * into a single `POST /evaluations/runs/query` call.
  *
  * @example
  * ```typescript
@@ -55,7 +55,7 @@ interface RunBatchKey {
 
 /**
  * Batch fetcher that collects individual run requests and merges them into
- * a single `POST /preview/evaluations/runs/query` call.
+ * a single `POST /evaluations/runs/query` call.
  *
  * Components reading `evaluationRunMolecule.selectors.data(runId)` for different
  * run IDs within the same render cycle will trigger ONE API call.

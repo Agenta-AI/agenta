@@ -62,7 +62,7 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
             await appTypeOption.click()
             const createAppPromise = page.waitForResponse((response) => {
                 if (
-                    !response.url().includes("/preview/workflows") ||
+                    !response.url().includes("/workflows") ||
                     response.request().method() !== "POST"
                 ) {
                     return false

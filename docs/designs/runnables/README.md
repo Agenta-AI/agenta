@@ -237,7 +237,7 @@ Custom handlers are registered as `user:custom:{module}.{name}:latest`.
 
 ### 5.1 Workflow CRUD (`api/oss/src/apis/fastapi/workflows/`)
 
-Standard Git-pattern CRUD. **Dual mounted** under both `/workflows` and `/preview/workflows` (preview hidden from OpenAPI — migration seam):
+Standard Git-pattern CRUD. **Dual mounted** under both `/workflows` and `/workflows` (preview hidden from OpenAPI — migration seam):
 
 **Workflow Management:**
 

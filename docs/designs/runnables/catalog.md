@@ -23,24 +23,24 @@ So the browse model is:
 
 ### Evaluators
 
-- `GET /preview/evaluators/catalog/templates`
-- `GET /preview/evaluators/catalog/templates/{template_key}`
-- `GET /preview/evaluators/catalog/templates/{template_key}/presets`
-- `GET /preview/evaluators/catalog/templates/{template_key}/presets/{preset_key}`
+- `GET /evaluators/catalog/templates`
+- `GET /evaluators/catalog/templates/{template_key}`
+- `GET /evaluators/catalog/templates/{template_key}/presets`
+- `GET /evaluators/catalog/templates/{template_key}/presets/{preset_key}`
 
 ### Applications
 
-- `GET /preview/applications/catalog/templates`
-- `GET /preview/applications/catalog/templates/{template_key}`
-- `GET /preview/applications/catalog/templates/{template_key}/presets`
-- `GET /preview/applications/catalog/templates/{template_key}/presets/{preset_key}`
+- `GET /applications/catalog/templates`
+- `GET /applications/catalog/templates/{template_key}`
+- `GET /applications/catalog/templates/{template_key}/presets`
+- `GET /applications/catalog/templates/{template_key}/presets/{preset_key}`
 
 ### Workflows
 
-- `GET /preview/workflows/catalog/templates`
-- `GET /preview/workflows/catalog/templates/{template_key}`
-- `GET /preview/workflows/catalog/templates/{template_key}/presets`
-- `GET /preview/workflows/catalog/templates/{template_key}/presets/{preset_key}`
+- `GET /workflows/catalog/templates`
+- `GET /workflows/catalog/templates/{template_key}`
+- `GET /workflows/catalog/templates/{template_key}/presets`
+- `GET /workflows/catalog/templates/{template_key}/presets/{preset_key}`
 
 ## Why The Current Evaluator `/templates` Shape Is Wrong
 
@@ -51,7 +51,7 @@ Current evaluator built-ins already contain two different layers:
 
 But the API exposes them as one flat template payload:
 
-- `GET /preview/evaluators/templates`
+- `GET /evaluators/templates`
 
 That is the wrong long-term shape. The correct model is:
 
@@ -477,7 +477,7 @@ Catalog implication:
 
 ## Concrete Evaluator API Shapes
 
-### `GET /preview/evaluators/catalog/templates`
+### `GET /evaluators/catalog/templates`
 
 Response:
 
@@ -506,7 +506,7 @@ Example item:
 }
 ```
 
-### `GET /preview/evaluators/catalog/templates/{template_key}`
+### `GET /evaluators/catalog/templates/{template_key}`
 
 Response:
 
@@ -516,7 +516,7 @@ class EvaluatorCatalogTemplateResponse(BaseModel):
     template: Optional[EvaluatorCatalogTemplate] = None
 ```
 
-### `GET /preview/evaluators/catalog/templates/{template_key}/presets`
+### `GET /evaluators/catalog/templates/{template_key}/presets`
 
 Response:
 
@@ -545,7 +545,7 @@ Example item:
 }
 ```
 
-### `GET /preview/evaluators/catalog/templates/{template_key}/presets/{preset_key}`
+### `GET /evaluators/catalog/templates/{template_key}/presets/{preset_key}`
 
 Response:
 
@@ -592,7 +592,7 @@ They should be normalized into:
 The exact inner schema typing can stay permissive for now, but the top-level
 catalog contract should already use `schemas`.
 
-### 3. Should `/preview/evaluators/templates` stay?
+### 3. Should `/evaluators/templates` stay?
 
 Yes, temporarily.
 

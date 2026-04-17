@@ -74,7 +74,7 @@ The API already exposes workflow CRUD and workflow execution surfaces:
 - `/workflows/catalog/*` is the missing canonical catalog family
 - `/evaluators/*`
 - `/applications/*`
-- `/preview/simple/evaluators/templates`
+- `/simple/evaluators/templates`
 
 ### Target system-level changes
 

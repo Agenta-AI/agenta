@@ -15,7 +15,7 @@ import {getProjectValues} from "@/oss/state/project"
 
 import {queryStepResults} from "../results/api"
 
-const RESULTS_ENDPOINT = "/preview/evaluations/results/"
+const RESULTS_ENDPOINT = "/evaluations/results/"
 
 export interface InvocationReferences {
     application?: {id: string}
@@ -133,7 +133,7 @@ export const updateScenarioStatus = async (
     const {projectId} = getProjectValues()
 
     try {
-        await axios.patch(`/preview/evaluations/scenarios/?project_id=${projectId}`, {
+        await axios.patch(`/evaluations/scenarios/?project_id=${projectId}`, {
             scenarios: [{id: scenarioId, status}],
         })
     } catch (error) {

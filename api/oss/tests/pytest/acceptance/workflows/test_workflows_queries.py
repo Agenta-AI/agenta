@@ -36,7 +36,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/",
+        "/workflows/",
         json={"workflow": workflow},
     )
 
@@ -71,7 +71,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/",
+        "/workflows/",
         json={"workflow": workflow},
     )
 
@@ -81,7 +81,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        f"/preview/workflows/{workflow_1['id']}/archive",
+        f"/workflows/{workflow_1['id']}/archive",
     )
 
     assert response.status_code == 200
@@ -89,7 +89,7 @@ def mock_data(authed_api):
     # Verify with marker-scoped query
     response = authed_api(
         "POST",
-        "/preview/workflows/query",
+        "/workflows/query",
         json={
             "include_archived": True,
             "workflow": {"tags": {"_marker": unique_marker}},
@@ -122,7 +122,7 @@ class TestWorkflowsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/query",
+            "/workflows/query",
             json={
                 "workflow": {"tags": {"_marker": mock_data["_marker"]}},
             },
@@ -144,7 +144,7 @@ class TestWorkflowsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/query",
+            "/workflows/query",
             json={
                 "include_archived": True,
                 "workflow": {"tags": {"_marker": mock_data["_marker"]}},
@@ -172,7 +172,7 @@ class TestWorkflowsQueries:
         # ACT — page 1 --------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/query",
+            "/workflows/query",
             json={
                 "include_archived": True,
                 "workflow": {"tags": {"_marker": marker}},
@@ -191,7 +191,7 @@ class TestWorkflowsQueries:
         # ACT — page 2 --------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/query",
+            "/workflows/query",
             json={
                 "include_archived": True,
                 "workflow": {"tags": {"_marker": marker}},
@@ -214,7 +214,7 @@ class TestWorkflowsQueries:
         # ACT — page 3 (empty) ------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/query",
+            "/workflows/query",
             json={
                 "include_archived": True,
                 "workflow": {"tags": {"_marker": marker}},
@@ -242,7 +242,7 @@ class TestWorkflowsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/query",
+            "/workflows/query",
             json={
                 "workflow": {
                     "flags": mock_data["workflows"][0]["flags"],
@@ -262,7 +262,7 @@ class TestWorkflowsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/query",
+            "/workflows/query",
             json={
                 "workflow": {
                     "flags": {"is_snippet": True},
@@ -286,7 +286,7 @@ class TestWorkflowsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/query",
+            "/workflows/query",
             json={
                 "workflow": {
                     "tags": mock_data["workflows"][0]["tags"],
@@ -305,7 +305,7 @@ class TestWorkflowsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/query",
+            "/workflows/query",
             json={
                 "workflow": {
                     "tags": {"tag1": "nonexistent_value"},

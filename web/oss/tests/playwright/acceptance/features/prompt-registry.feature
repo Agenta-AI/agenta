@@ -4,7 +4,7 @@
 #
 # Implementation notes:
 # - Navigation: open the app workflow revisions page directly via the scoped project path
-# - The registry data comes from POST /api/preview/workflows/revisions/query
+# - The registry data comes from POST /api/workflows/revisions/query
 # - The first published workflow revision is opened via its data-row-key
 # - The drawer action transitions the user into Playground with a revisionId query parameter
 

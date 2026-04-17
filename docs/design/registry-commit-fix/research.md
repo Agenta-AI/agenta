@@ -40,7 +40,7 @@ const nodes = get(playgroundNodesAtom)                           // line 1549
 const node = nodes.find((n) => n.entityId === payload.revisionId) // line 1550
 
 if (node?.entityType === "workflow") {
-    // WORKFLOW PATH: calls commitWorkflowRevisionAtom → POST /preview/workflows/revisions/commit
+    // WORKFLOW PATH: calls commitWorkflowRevisionAtom → POST /workflows/revisions/commit
 } else {
     // LEGACY PATH: calls commitLegacyRevisionAtom → PUT /variants/{variantId}/parameters
 }
@@ -50,7 +50,7 @@ if (node?.entityType === "workflow") {
 
 **File:** `web/packages/agenta-entities/src/workflow/state/commit.ts:167`
 
-Reads merged entity data from `workflowEntityAtomFamily(revisionId)`, calls `commitWorkflowRevisionApi` which hits `POST /preview/workflows/revisions/commit`.
+Reads merged entity data from `workflowEntityAtomFamily(revisionId)`, calls `commitWorkflowRevisionApi` which hits `POST /workflows/revisions/commit`.
 
 ### 5b. Legacy commit (REMOVED)
 
