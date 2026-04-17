@@ -1,0 +1,72 @@
+---
+title: "Versioning"
+description: "How applications, workflows, evaluators, and testsets are versioned with artifacts, variants, and revisions."
+sidebar_position: 4
+---
+
+Applications, workflows, evaluators, and testsets share a single versioning model. Each resource is stored as an **artifact** with one or more **variants**, and each variant accumulates **revisions**. The model is modelled on git: an artifact is a repository, a variant is a branch, a revision is a commit.
+
+This page documents the pattern. The per-resource pages ([applications](/reference/api-guide/applications), [workflows](/reference/api-guide/workflows), [evaluators](/reference/api-guide/evaluators), [testsets](/reference/api-guide/testsets)) describe the payloads that differ per domain.
+
+## The three entities
+
+| Entity | What it is | Identity |
+|--------|------------|----------|
+| **Artifact** | The top-level resource (one application, workflow, evaluator, or testset). Has a slug and a lifecycle. You don't edit an artifact; you edit its variants. | `id`, `slug` |
+| **Variant** | A named branch of the artifact's history. Most resources start with a single variant. Fork a new one to experiment without touching the original. | `id`, `slug`, `artifact_id` |
+| **Revision** | An immutable snapshot committed to a variant. Carries an author, timestamp, and commit message. | `id`, `slug`, `version`, `variant_id` |
+
+IDs are stable across the entire lifecycle. A deployment or trace that references a revision ID continues to resolve to the same snapshot forever.
+
+## Committing a revision
+
+Revisions are created by committing new payload to a variant. The shape is identical across resources; only the wrapper key changes (`application_revision_commit`, `workflow_revision_commit`, and so on).
+
+```bash
+curl -X POST "$AGENTA_HOST/api/applications/revisions/commit" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "application_revision_commit": {
+      "application_variant_id": "019d9530-1a88-7c3a-b8cb-d6d8e675c18d",
+      "message": "Tighten the refusal policy",
+      "data": { "parameters": { "temperature": 0.2 } }
+    }
+  }'
+```
+
+The response contains the new revision with its `id`, `version`, `author`, and `date`. A committed revision cannot be edited. To change the payload, commit a new revision on the same variant.
+
+## Retrieving a revision
+
+```bash
+curl -X POST "$AGENTA_HOST/api/applications/revisions/retrieve" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{"application_variant_ref": {"slug": "production"}}'
+```
+
+The retrieve endpoint accepts any of:
+
+- `application_revision_ref` — a specific revision by `id` or by `slug` + `version`.
+- `application_variant_ref` — the latest revision on that variant.
+- `environment_ref` — the revision currently deployed to that environment.
+
+Only one reference is needed. If several are supplied, the most specific wins.
+
+## Revision log
+
+```bash
+curl -X POST "$AGENTA_HOST/api/applications/revisions/log" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{"application": {"application_variant_id": "019d9530-1a88-7c3a-b8cb-d6d8e675c18d"}}'
+```
+
+Returns the ordered list of revisions committed to a variant. Each entry includes the commit metadata but omits the full payload; fetch a specific revision via `/revisions/retrieve` when you need the data.
+
+## Archive and unarchive
+
+Artifacts and variants are soft-deleted. `POST /{resource}/{id}/archive` sets `deleted_at`; `POST /{resource}/{id}/unarchive` clears it. Archived items are hidden from `/query` responses unless the request body sets `include_archived: true`. See [Query Pattern](/reference/api-guide/query-pattern#archive-and-unarchive).
+
+Archiving an artifact hides its variants and revisions. Revision IDs remain resolvable so historical traces stay intact.
