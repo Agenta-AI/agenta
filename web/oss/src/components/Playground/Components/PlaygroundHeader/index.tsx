@@ -192,7 +192,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false)
 
     // Open the evaluator template dropdown (called from EntityPicker's onCreateNew)
-    const handleOpenTemplateDropdown = useCallback(() => {
+    const _handleOpenTemplateDropdown = useCallback(() => {
         // Small delay to let the EntityPicker popover close first
         setTimeout(() => {
             setTemplateDropdownOpen(true)
@@ -360,8 +360,11 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                 selectionSummary
                                 childItemLabelMode="simple"
                                 panelWidth={280}
-                                onCreateNew={handleOpenTemplateDropdown}
-                                createNewLabel="New evaluator"
+                                // TODO: Implement evaluator template creation in checkpoint to with different playground context
+                                // We can scope using entity revision id
+                                // And have multiple playgrounds
+                                // onCreateNew={handleOpenTemplateDropdown}
+                                // createNewLabel="New evaluator"
                                 popupFooter={
                                     connectedEvaluatorNodes.length > 0 ? (
                                         <div className="border-0 border-t border-solid border-[rgba(5,23,41,0.06)] p-2">
