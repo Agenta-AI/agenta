@@ -104,6 +104,50 @@ For every RTM entry below:
 - License: `oss`
 - Status: active
 
+### WEB-ACC-APP-003 - Delete an app
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/app-management.feature`
+- Test file: `web/oss/tests/playwright/acceptance/app/manage.spec.ts`
+- Playwright title: `App Management > should delete an app`
+
+#### Markers
+
+- Scope: `apps`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-APP-004 - Rename an app
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/app-management.feature`
+- Test file: `web/oss/tests/playwright/acceptance/app/manage.spec.ts`
+- Playwright title: `App Management > should rename an app`
+
+#### Markers
+
+- Scope: `apps`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
 ### WEB-ACC-PLAYGROUND-001 - Run a completion variant in Playground
 
 #### Source
@@ -257,6 +301,116 @@ For every RTM entry below:
 - Plan: environment-defined
 - License: `oss`
 - Status: active with conditional skip when no testsets exist
+
+### WEB-ACC-DATASETS-002 - Create a testset from scratch
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
+- Test file: `web/oss/tests/playwright/acceptance/testsset/manage.spec.ts`
+- Playwright title: `Test Sets > should create a new testset from scratch`
+
+#### Markers
+
+- Scope: `datasets`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-DATASETS-003 - Upload a testset from CSV
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
+- Test file: `web/oss/tests/playwright/acceptance/testsset/manage.spec.ts`
+- Playwright title: `Test Sets > should upload a testset from CSV`
+
+#### Markers
+
+- Scope: `datasets`
+- Coverage: `light`, `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-DATASETS-004 - Edit a testcase inline and verify the change persists
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
+- Test file: `web/oss/tests/playwright/acceptance/testsset/manage.spec.ts`
+- Playwright title: `Test Sets > should edit a testcase inline and persist the change`
+
+#### Markers
+
+- Scope: `datasets`
+- Coverage: `light`, `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-DATASETS-005 - Add and delete rows and columns in a testset
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
+- Test file: `web/oss/tests/playwright/acceptance/testsset/manage.spec.ts`
+- Playwright title: `Test Sets > should add and delete rows and columns`
+
+#### Markers
+
+- Scope: `datasets`
+- Coverage: `light`, `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-DATASETS-006 - Delete a testset
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
+- Test file: `web/oss/tests/playwright/acceptance/testsset/manage.spec.ts`
+- Playwright title: `Test Sets > should delete a testset`
+
+#### Markers
+
+- Scope: `datasets`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
 
 ### WEB-ACC-DEPLOYMENT-001 - Deploy a variant to the Development environment
 
