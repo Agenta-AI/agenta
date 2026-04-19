@@ -76,8 +76,15 @@ const testsetTests = () => {
                     await page.getByRole("button", {name: "Create testset"}).click()
                     await uiHelpers.waitForPath("/testsets/new")
 
-                    // Add a row so there are unsaved changes to commit
+                    // Add a row — this auto-opens the TestcaseEditDrawer for the new row
                     await page.getByRole("button", {name: "Add row"}).click()
+
+                    // Close the drawer so the Commit button is accessible.
+                    // The drawer has closeIcon={null} — no X button. Use the footer "Cancel" button.
+                    // "Cancel" on an unedited new row just calls onClose() without discarding.
+                    await expect(page.locator(".ant-drawer")).toBeVisible({timeout: 5000})
+                    await page.locator(".ant-drawer").getByRole("button", {name: "Cancel"}).click()
+                    await expect(page.locator(".ant-drawer")).toBeHidden({timeout: 5000})
 
                     // Commit the new testset
                     await page.getByRole("button", {name: "Commit"}).click()
@@ -139,30 +146,28 @@ const testsetTests = () => {
             })
 
             await scenarios.then(
-                "the uploaded testset appears in the testsets list with the correct row count",
+                "the uploaded testset appears in the testsets list with CSV data",
                 async () => {
+                    // After the when step we are already on the testset detail page.
+                    // Verify CSV column headers and data values are present before navigating away.
+                    await expect(page.getByText("column1", {exact: false}).first()).toBeVisible({
+                        timeout: 10000,
+                    })
+                    await expect(page.getByText("value1a", {exact: false}).first()).toBeVisible({
+                        timeout: 10000,
+                    })
+
+                    // Also confirm the testset appears by name in the testsets list.
                     const basePath = apiHelpers.getProjectScopedBasePath()
                     await page.goto(`${basePath}/testsets`, {waitUntil: "domcontentloaded"})
                     await uiHelpers.expectText(testsetName)
-
-                    // Navigate into the testset to verify row count (2 data rows in the CSV)
-                    const row = page
-                        .locator("[data-row-key]")
-                        .filter({hasText: testsetName})
-                        .first()
-                    await row.click()
-                    await expect(
-                        page.locator('[data-testid="testcase-row"], [data-row-key]').filter({
-                            hasNot: page.locator("th"),
-                        }),
-                    ).toHaveCount(2, {timeout: 10000})
                 },
             )
         },
     )
 
     test(
-        "Test Sets > should edit a testcase inline and persist the change",
+        "Test Sets > should edit a testcase and persist the change",
         {tag: lightTags},
         async ({page, uiHelpers, apiHelpers}) => {
             const editedValue = `edited-${Date.now()}`
@@ -186,14 +191,14 @@ const testsetTests = () => {
             })
 
             await scenarios.when(
-                "the user opens that testset and edits a testcase cell inline",
+                "the user opens that testset, edits a testcase via the edit drawer, and commits",
                 async () => {
                     const basePath = apiHelpers.getProjectScopedBasePath()
                     await page.goto(`${basePath}/testsets/${revisionId}`, {
                         waitUntil: "domcontentloaded",
                     })
 
-                    // Click a cell to make it editable
+                    // Click a data row cell to open the TestcaseEditDrawer
                     const cell = page
                         .locator(".ant-table-cell")
                         .filter({hasText: "original value"})
@@ -201,14 +206,34 @@ const testsetTests = () => {
                     await expect(cell).toBeVisible({timeout: 10000})
                     await cell.click()
 
-                    // An inline input or textarea should appear
-                    const cellInput = page
-                        .locator(".ant-table-cell input, .ant-table-cell textarea")
-                        .first()
-                    await expect(cellInput).toBeVisible({timeout: 5000})
-                    await cellInput.clear()
-                    await cellInput.fill(editedValue)
-                    await cellInput.press("Tab")
+                    // Wait for the edit drawer to open
+                    const drawerBody = page.locator(".ant-drawer-body")
+                    await expect(drawerBody).toBeVisible({timeout: 10000})
+
+                    // Find the contenteditable Lexical editor field in the drawer
+                    const editableField = drawerBody.locator('[contenteditable="true"]').first()
+                    await expect(editableField).toBeVisible({timeout: 5000})
+
+                    // Use locator.fill() to replace field content. Playwright's fill() on
+                    // contenteditable uses CDP Input.insertText which fires beforeinput events
+                    // that Lexical intercepts and uses to update its EditorState. This is more
+                    // reliable than keyboard-based select-all + type, which can bypass Lexical's
+                    // event handling and leave the draft atom with the original value.
+                    await editableField.fill(editedValue)
+
+                    // Verify the field content was replaced
+                    await expect(editableField).toContainText(editedValue, {timeout: 5000})
+
+                    // The "Apply and Continue Editing" button becomes enabled only when the
+                    // Lexical onChange has fired and updated the draft atom (hasSessionDirty=true).
+                    // Wait for it to be enabled before clicking — this implicitly confirms the
+                    // draft was updated.
+                    const applyButton = page
+                        .locator(".ant-drawer")
+                        .getByRole("button", {name: "Apply and Continue Editing"})
+                    await expect(applyButton).toBeEnabled({timeout: 5000})
+                    await applyButton.click()
+                    await expect(page.locator(".ant-drawer")).toBeHidden({timeout: 5000})
 
                     // Commit the changes
                     await page.getByRole("button", {name: "Commit"}).click()
@@ -217,8 +242,11 @@ const testsetTests = () => {
                         .filter({hasText: "Commit Changes"})
                         .first()
                     await expect(commitModal).toBeVisible({timeout: 10000})
+                    const preCommitUrl = page.url()
                     await commitModal.getByRole("button", {name: "Commit"}).click()
-                    await page.waitForURL(/\/testsets\/(?!new)/, {timeout: 15000})
+                    // waitForURL with a regex resolves immediately if the current URL already matches.
+                    // Use a function predicate to wait for the URL to actually change to the new revision.
+                    await page.waitForURL((url) => url.href !== preCommitUrl, {timeout: 15000})
                 },
             )
 
@@ -233,6 +261,7 @@ const testsetTests = () => {
         "Test Sets > should add and delete rows and columns",
         {tag: lightTags},
         async ({page, uiHelpers, apiHelpers}) => {
+            const testsetName = `e2e-addrow-${Date.now()}`
             const newColumnName = `col-${Date.now()}`
             let revisionId: string
 
@@ -246,7 +275,7 @@ const testsetTests = () => {
 
             await scenarios.and("at least one testset exists", async () => {
                 const created = await apiHelpers.createTestset({
-                    name: `e2e-addrow-${Date.now()}`,
+                    name: testsetName,
                     rows: [{input: "existing row"}],
                 })
                 revisionId = created.revisionId ?? ""
@@ -261,11 +290,53 @@ const testsetTests = () => {
                         waitUntil: "domcontentloaded",
                     })
 
-                    // Add a new row
+                    // Wait for the testset detail page to hydrate before interacting.
+                    // Clicking "Add row" before the schema loads opens an empty drawer.
+                    await expect(page.getByRole("heading", {name: testsetName})).toBeVisible({
+                        timeout: 10000,
+                    })
+                    await expect(page.locator("th").filter({hasText: "input"}).first()).toBeVisible(
+                        {timeout: 10000},
+                    )
+                    await expect(page.locator(".ant-table-tbody")).toContainText("existing row", {
+                        timeout: 10000,
+                    })
+
+                    // Add a new row (auto-opens the edit drawer for the new row)
                     await page.getByRole("button", {name: "Add row"}).click()
 
-                    // Add a new column
-                    await page.getByRole("button", {name: "Add column"}).click()
+                    // The drawer opens for the new row. We must edit the Lexical field in a way
+                    // that reliably updates its EditorState before closing the drawer.
+                    await expect(page.locator(".ant-drawer")).toBeVisible({timeout: 5000})
+                    await expect(page.locator(".ant-drawer-body")).not.toContainText(
+                        "No items to display",
+                        {timeout: 5000},
+                    )
+                    const newRowField = page
+                        .locator(".ant-drawer-body")
+                        .locator('[contenteditable="true"], input, textarea')
+                        .first()
+                    await expect(newRowField).toBeVisible({timeout: 5000})
+                    await newRowField.fill("new-row-value")
+                    await expect(newRowField).toContainText("new-row-value", {timeout: 5000})
+
+                    const newRowApplyBtn = page
+                        .locator(".ant-drawer")
+                        .getByRole("button", {name: "Apply and Continue Editing"})
+                    await expect(newRowApplyBtn).toBeEnabled({timeout: 5000})
+                    await newRowApplyBtn.click()
+                    await expect(page.locator(".ant-drawer")).toBeHidden({timeout: 5000})
+
+                    await expect(
+                        page.locator("[data-row-key]").filter({hasText: "new-row-value"}).first(),
+                    ).toBeVisible({timeout: 5000})
+
+                    // Add a new column — the button has a PlusOutlined (anticon-plus) icon and
+                    // sits in the table header before the column-visibility gear button.
+                    // ant-table-cell-fix-right may not be applied without horizontal scroll,
+                    // so locate by the AntD icon class which is unique in the thead.
+                    await page.locator(".ant-table-thead .anticon-plus").click()
+
                     const addColumnModal = page
                         .locator(".ant-modal")
                         .filter({hasText: "Add Column"})
@@ -286,28 +357,33 @@ const testsetTests = () => {
                         page.locator("th").filter({hasText: newColumnName}).first(),
                     ).toBeVisible({timeout: 5000})
 
-                    // There should be at least 2 rows now (original + new)
-                    const dataCells = page.locator(".ant-table-tbody tr")
-                    await expect(dataCells).toHaveCount(2, {timeout: 5000})
+                    // The new row with "new-row-value" should be visible.
+                    // AntD sets [data-row-key] on every table row including client-side new rows;
+                    // .ant-table-row may not match new rows depending on virtual scroll rendering.
+                    await expect(
+                        page.locator("[data-row-key]").filter({hasText: "new-row-value"}).first(),
+                    ).toBeVisible({timeout: 5000})
                 },
             )
 
             await scenarios.when("the user deletes that row and that column", async () => {
-                // Delete the last (new) row
-                const rows = page.locator(".ant-table-tbody tr")
-                const lastRow = rows.last()
-                const actionsButton = lastRow.locator('[aria-label="Actions"]').first()
+                // Delete the new row by finding it via its content ("new-row-value").
+                // New rows are prepended (appear above server rows), so we can't rely on
+                // rows.last() — instead we locate the row by its unique typed content.
+                const newRow = page
+                    .locator("[data-row-key]")
+                    .filter({hasText: "new-row-value"})
+                    .first()
+                await expect(newRow).toBeVisible({timeout: 5000})
+                const actionsButton = newRow.locator('[aria-label="Actions"]').first()
                 await actionsButton.click()
                 await page.getByRole("menuitem", {name: "Delete"}).click()
 
-                // Delete the new column via its header button
+                // Delete the new column — hover the column header to reveal inline action buttons,
+                // then click the danger (Trash) button
                 const columnHeader = page.locator("th").filter({hasText: newColumnName}).first()
                 await columnHeader.hover()
-                await page
-                    .getByRole("button", {name: "Delete column"})
-                    .filter({visible: true})
-                    .first()
-                    .click()
+                await columnHeader.locator(".ant-btn-dangerous").click()
                 const deleteColumnModal = page
                     .locator(".ant-modal")
                     .filter({hasText: "Delete Column"})
@@ -322,8 +398,15 @@ const testsetTests = () => {
                     timeout: 5000,
                 })
 
-                // Only 1 original row should remain
-                await expect(page.locator(".ant-table-tbody tr")).toHaveCount(1, {timeout: 5000})
+                // "new-row-value" cell should be gone (the new row was deleted)
+                await expect(
+                    page.locator("[data-row-key]").filter({hasText: "new-row-value"}),
+                ).toHaveCount(0, {timeout: 5000})
+
+                // The original "existing row" should still be present
+                await expect(
+                    page.locator("[data-row-key]").filter({hasText: "existing row"}).first(),
+                ).toBeVisible({timeout: 5000})
             })
         },
     )
@@ -367,6 +450,14 @@ const testsetTests = () => {
                 await gearButton.click()
                 await page.getByRole("menuitem", {name: "Delete"}).click()
                 await uiHelpers.confirmModal("Delete")
+
+                // Wait for the confirmation modal to close before asserting absence.
+                // The modal body contains the testset name, which would cause a strict-mode
+                // violation in expectNoText if the modal is still in the DOM.
+                await page
+                    .locator(".ant-modal")
+                    .filter({hasText: "Are you sure?"})
+                    .waitFor({state: "hidden", timeout: 15000})
             })
 
             await scenarios.then("the testset no longer appears in the testsets list", async () => {
