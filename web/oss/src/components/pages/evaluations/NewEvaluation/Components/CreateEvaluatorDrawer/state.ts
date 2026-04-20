@@ -30,7 +30,7 @@ export const drawerExpandedAtom = atomWithReset<boolean>(false)
 export const openDrawerWithEntityAtom = atom(null, (_get, set, entityId: string) => {
     set(drawerEntityIdAtom, entityId)
     set(drawerOpenAtom, true)
-    set(drawerExpandedAtom, false)
+    set(drawerExpandedAtom, true)
     set(playgroundController.actions.setEntityIds, [entityId])
 })
 

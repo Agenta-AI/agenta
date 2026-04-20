@@ -271,20 +271,24 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                         </div>
                     )}
 
-                    <Checkbox
-                        checked={shouldDeploy}
-                        onChange={(e) => setShouldDeploy(e.target.checked)}
-                    >
-                        Deploy after commit
-                    </Checkbox>
+                    {!isEvaluator && (
+                        <>
+                            <Checkbox
+                                checked={shouldDeploy}
+                                onChange={(e) => setShouldDeploy(e.target.checked)}
+                            >
+                                Deploy after commit
+                            </Checkbox>
 
-                    {shouldDeploy && (
-                        <Select
-                            placeholder="Select environment"
-                            value={selectedEnvironment ?? undefined}
-                            onChange={(value) => setSelectedEnvironment(value)}
-                            options={environmentOptions}
-                        />
+                            {shouldDeploy && (
+                                <Select
+                                    placeholder="Select environment"
+                                    value={selectedEnvironment ?? undefined}
+                                    onChange={(value) => setSelectedEnvironment(value)}
+                                    options={environmentOptions}
+                                />
+                            )}
+                        </>
                     )}
                 </div>
             )}

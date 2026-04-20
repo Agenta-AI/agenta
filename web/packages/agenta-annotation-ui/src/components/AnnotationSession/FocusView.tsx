@@ -273,7 +273,7 @@ const FocusView = memo(function FocusView({
         <div className="flex flex-col flex-1 min-h-0">
             {/* Main content area */}
             <div className="flex-1 bg-[#f5f7fa] p-2 overflow-hidden min-h-0 flex flex-col">
-                <div className="flex h-full gap-4 overflow-hidden min-h-0">
+                <div className="flex flex-col md:flex-row h-full gap-4 overflow-hidden min-h-0">
                     {/* Scenario content */}
                     <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
                         <ScenarioContent
@@ -285,7 +285,7 @@ const FocusView = memo(function FocusView({
                     </div>
 
                     {/* Annotation panel */}
-                    <div className="w-[400px] shrink-0 border border-solid border-[rgba(5,23,41,0.06)] rounded-lg overflow-hidden bg-white flex flex-col">
+                    <div className="w-full md:w-[300px] lg:w-[400px] xl:w-[450px] shrink-0 border border-solid border-[rgba(5,23,41,0.06)] rounded-lg overflow-hidden bg-white flex flex-col">
                         <AnnotationPanel scenarioId={currentScenarioId ?? ""} />
                     </div>
                 </div>

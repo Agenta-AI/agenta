@@ -2,7 +2,7 @@ import {memo, useState} from "react"
 
 import {PageLayout} from "@agenta/ui"
 import {MoreOutlined} from "@ant-design/icons"
-import {PencilSimple, Trash} from "@phosphor-icons/react"
+import {Copy, PencilSimple, Trash} from "@phosphor-icons/react"
 // TEMPORARY: Disabling name editing
 // import {PencilLine} from "@phosphor-icons/react"
 import {Button, Dropdown, Space, Typography} from "antd"
@@ -15,6 +15,7 @@ import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/moda
 // import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import DeploymentOverview from "@/oss/components/pages/overview/deployments/DeploymentOverview"
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
+import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {useAppsData} from "@/oss/state/app"
 
 const CustomWorkflowHistory: any = dynamic(
@@ -78,6 +79,12 @@ const AppDetailsSection = memo(() => {
                                       //     onClick: () => openEditAppModal(currentApp!),
                                       // },
                                   ]),
+                            {
+                                key: "copy_id",
+                                label: "Copy ID",
+                                icon: <Copy size={16} />,
+                                onClick: () => copyToClipboard(currentApp!.id),
+                            },
                             {
                                 key: "delete_app",
                                 label: "Delete",
