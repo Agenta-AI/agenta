@@ -236,6 +236,94 @@ For every RTM entry below:
 - License: `oss`
 - Status: active
 
+### WEB-ACC-PLAYGROUND-004 - Save the current changes as a new variant
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
+- Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
+- Playwright title: `Playground: Run Variant > should save the current changes as a new variant`
+
+#### Markers
+
+- Scope: `playground`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-PLAYGROUND-005 - Open compare mode and display two variants side by side
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
+- Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
+- Playwright title: `Playground: Run Variant > should open compare mode and display two variants side by side`
+
+#### Markers
+
+- Scope: `playground`
+- Coverage: `light`, `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-PLAYGROUND-006 - Load the correct variant when opened via a deep link with a revisions param
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
+- Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
+- Playwright title: `Playground: Run Variant > should load the correct variant when opened via a deep link with a revisions param`
+
+#### Markers
+
+- Scope: `playground`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-PLAYGROUND-007 - Configure output type and tools in the playground
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
+- Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
+- Playwright title: `Playground: Run Variant > should configure output type and tools and save the changes`
+
+#### Markers
+
+- Scope: `playground`
+- Coverage: `light`, `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
 ### WEB-ACC-REGISTRY-001 - Open Playground from the workflow revision registry
 
 #### Source
