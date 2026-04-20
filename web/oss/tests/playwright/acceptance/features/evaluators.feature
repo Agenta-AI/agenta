@@ -1,5 +1,5 @@
 # Tests: evaluators/evaluators.spec.ts -> evaluators/index.ts -> evaluators/tests.ts
-# RTM IDs: WEB-ACC-EVALUATORS-001, WEB-ACC-EVALUATORS-002, WEB-ACC-EVALUATORS-003, WEB-ACC-EVALUATORS-004
+# RTM IDs: WEB-ACC-EVALUATORS-001, WEB-ACC-EVALUATORS-002, WEB-ACC-EVALUATORS-003, WEB-ACC-EVALUATORS-004, WEB-ACC-EVALUATORS-005, WEB-ACC-EVALUATORS-006
 # Tags: @scope:evaluations @coverage:smoke @coverage:light @coverage:full @path:happy @case:typical
 
 Feature: Evaluators
@@ -43,3 +43,21 @@ Feature: Evaluators
     Given the user is on the Evaluators page on the Human Evaluators tab
     When the user clicks Create new, fills in the evaluator name, feedback name, and selects Boolean type
     Then the human evaluator is created and appears in the Human Evaluators table
+
+  @light @happy @scope:evaluations @speed:fast
+  Scenario: Edit an existing evaluator and save a new version
+    Given the user is on the Evaluators page
+    And at least one automatic evaluator exists
+    When the user opens the row context menu and clicks Configure
+    Then the evaluator config drawer opens
+    When the user clicks Commit and confirms in the modal
+    Then the new version is saved successfully
+
+  @smoke @happy @scope:evaluations @speed:fast
+  Scenario: Delete an evaluator
+    Given the user is on the Evaluators page
+    And at least one automatic evaluator exists
+    When the user opens the row context menu and clicks Delete
+    Then a confirmation modal appears
+    When the user confirms the deletion
+    Then the evaluator is removed from the table

@@ -46,6 +46,20 @@ const EVALUATOR_NON_COMPLETION_TYPE_LABELS = ["Chat", "Custom"]
 const EVALUATOR_RUN_BUTTON_LABEL = "Run"
 const EVALUATOR_RESULT_CARD_SELECTOR = ".node-result-card"
 
+// Row context menu
+const EVALUATOR_ROW_MENU_TRIGGER_ARIA = "more"
+const EVALUATOR_EDIT_MENU_ITEM = "Configure"
+const EVALUATOR_DELETE_MENU_ITEM = "Delete"
+
+// Edit flow (commit changes)
+const EVALUATOR_COMMIT_CHANGES_BUTTON_LABEL = "Commit"
+const EVALUATOR_COMMIT_MESSAGE_PLACEHOLDER = "Describe your changes..."
+const EVALUATOR_COMMIT_SUCCESS_MESSAGE = "Changes committed successfully"
+
+// Delete flow
+const EVALUATOR_DELETE_MODAL_TITLE = "Delete evaluator"
+const EVALUATOR_DELETE_SUCCESS_MESSAGE = "Evaluator deleted"
+
 // Human evaluator drawer (create)
 const HUMAN_EVALUATOR_DRAWER_TITLE = "Create new evaluator"
 const HUMAN_EVALUATOR_NAME_PLACEHOLDER = "Enter a name"
@@ -388,6 +402,120 @@ const createHumanEvaluatorFromDrawer = async (
     return evaluatorName
 }
 
+/**
+ * Finds an evaluator row and opens its three-dot context menu.
+ * Clicks the button wrapping the MoreOutlined icon (not the icon span itself),
+ * then waits for menu items to appear as role="menuitem".
+ */
+const openEvaluatorRowMenu = async (page: Page, evaluatorName: string) => {
+    const searchInput = page.locator(`input[placeholder="${EVALUATOR_SEARCH_PLACEHOLDER}"]`).first()
+    if (await searchInput.isVisible().catch(() => false)) {
+        await searchInput.fill(evaluatorName)
+    }
+
+    await expect
+        .poll(async () => page.locator("[data-row-key]").filter({hasText: evaluatorName}).count(), {
+            timeout: 15000,
+        })
+        .toBeGreaterThan(0)
+
+    const row = page.locator("[data-row-key]").filter({hasText: evaluatorName}).first()
+    await expect(row).toBeVisible({timeout: 10000})
+
+    // Click the button wrapping the MoreOutlined icon — the icon span itself is not the trigger
+    const moreButton = row
+        .locator("button")
+        .filter({has: page.locator(`[aria-label="${EVALUATOR_ROW_MENU_TRIGGER_ARIA}"]`)})
+        .first()
+    await expect(moreButton).toBeVisible({timeout: 5000})
+    await moreButton.click()
+
+    // AntD v6 renders dropdown items with role="menuitem"
+    await expect(page.getByRole("menuitem").first()).toBeVisible({timeout: 5000})
+}
+
+/**
+ * Opens the row menu for an evaluator, clicks "Edit evaluator", waits for the
+ * WorkflowRevisionDrawer to appear, then clicks Commit and confirms in the modal.
+ * Verifies the "Changes committed successfully" success message.
+ */
+const editEvaluatorAndSaveNewVersion = async (page: Page, evaluatorName: string) => {
+    await openEvaluatorRowMenu(page, evaluatorName)
+    await page.getByRole("menuitem", {name: EVALUATOR_EDIT_MENU_ITEM}).click()
+
+    // WorkflowRevisionDrawer opens — identified by the presence of a Commit button
+    const editDrawer = page
+        .locator(".ant-drawer")
+        .filter({has: page.getByRole("button", {name: EVALUATOR_COMMIT_CHANGES_BUTTON_LABEL})})
+        .first()
+    await expect(editDrawer).toBeVisible({timeout: 15000})
+
+    // Modify a visible editable text field to dirty the form.
+    // The drawer also renders readonly combobox inputs before the actual config field.
+    const firstEditableInput = editDrawer
+        .locator(
+            "input:not([readonly]):not([disabled]):visible, textarea:not([readonly]):not([disabled]):visible",
+        )
+        .first()
+    await expect(firstEditableInput).toBeVisible({timeout: 5000})
+    const originalValue = await firstEditableInput.inputValue()
+    await firstEditableInput.fill(originalValue + "_edited")
+
+    const commitButton = editDrawer
+        .getByRole("button", {name: EVALUATOR_COMMIT_CHANGES_BUTTON_LABEL})
+        .first()
+    await expect(commitButton).toBeEnabled({timeout: 10000})
+    await commitButton.click()
+
+    // EntityCommitModal opens — identified by the commit message textarea
+    const commitModal = page
+        .locator(".ant-modal")
+        .filter({
+            has: page.locator(`textarea[placeholder="${EVALUATOR_COMMIT_MESSAGE_PLACEHOLDER}"]`),
+        })
+        .first()
+    await expect(commitModal).toBeVisible({timeout: 10000})
+
+    // Commit button in the modal footer (no message required)
+    const modalCommitBtn = commitModal
+        .getByRole("button", {name: EVALUATOR_COMMIT_CHANGES_BUTTON_LABEL})
+        .last()
+    await expect(modalCommitBtn).toBeEnabled({timeout: 5000})
+    await modalCommitBtn.click()
+
+    await expect(
+        page.locator(".ant-message").getByText(EVALUATOR_COMMIT_SUCCESS_MESSAGE).first(),
+    ).toBeVisible({timeout: 15000})
+}
+
+/**
+ * Opens the row menu for an evaluator, clicks "Delete", confirms in the
+ * DeleteEvaluatorsModal, and verifies the row disappears.
+ */
+const deleteEvaluator = async (page: Page, evaluatorName: string) => {
+    await openEvaluatorRowMenu(page, evaluatorName)
+    await page.getByRole("menuitem", {name: EVALUATOR_DELETE_MENU_ITEM}).click()
+
+    // DeleteEvaluatorsModal
+    const deleteModal = page
+        .locator(".ant-modal")
+        .filter({hasText: EVALUATOR_DELETE_MODAL_TITLE})
+        .first()
+    await expect(deleteModal).toBeVisible({timeout: 10000})
+    await deleteModal.getByRole("button", {name: EVALUATOR_DELETE_MENU_ITEM}).click()
+
+    await expect(
+        page.locator(".ant-message").getByText(EVALUATOR_DELETE_SUCCESS_MESSAGE).first(),
+    ).toBeVisible({timeout: 10000})
+
+    // Verify the row is gone
+    await expect
+        .poll(async () => page.locator("[data-row-key]").filter({hasText: evaluatorName}).count(), {
+            timeout: 15000,
+        })
+        .toBe(0)
+}
+
 const testWithEvaluatorFixtures = baseTest.extend<EvaluatorFixtures>({
     navigateToEvaluators: async ({page}, use) => {
         await use(async () => {
@@ -442,6 +570,9 @@ export {
     EVALUATOR_RUN_BUTTON_LABEL,
     EVALUATOR_RESULT_CARD_SELECTOR,
     createHumanEvaluatorFromDrawer,
+    openEvaluatorRowMenu,
+    editEvaluatorAndSaveNewVersion,
+    deleteEvaluator,
     HUMAN_EVALUATOR_DRAWER_TITLE,
     HUMAN_EVALUATOR_NAME_PLACEHOLDER,
     HUMAN_EVALUATOR_FEEDBACK_NAME_PLACEHOLDER,
@@ -449,4 +580,12 @@ export {
     HUMAN_EVALUATOR_FEEDBACK_TYPE_BOOL_LABEL,
     HUMAN_EVALUATOR_CREATE_BUTTON_LABEL,
     HUMAN_EVALUATOR_CREATE_SUCCESS_MESSAGE,
+    EVALUATOR_ROW_MENU_TRIGGER_ARIA,
+    EVALUATOR_EDIT_MENU_ITEM,
+    EVALUATOR_DELETE_MENU_ITEM,
+    EVALUATOR_COMMIT_CHANGES_BUTTON_LABEL,
+    EVALUATOR_COMMIT_MESSAGE_PLACEHOLDER,
+    EVALUATOR_COMMIT_SUCCESS_MESSAGE,
+    EVALUATOR_DELETE_MODAL_TITLE,
+    EVALUATOR_DELETE_SUCCESS_MESSAGE,
 }

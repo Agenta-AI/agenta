@@ -720,6 +720,50 @@ For every RTM entry below:
 - License: `oss`
 - Status: active
 
+### WEB-ACC-EVALUATORS-005 - Edit an existing evaluator and save a new version
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature`
+- Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
+- Playwright title: `Evaluators > should edit an existing evaluator and save a new version`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `light`, `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-EVALUATORS-006 - Delete an evaluator
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature`
+- Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
+- Playwright title: `Evaluators > should delete an evaluator`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
 ### WEB-ACC-AUTOEVAL-001 - Run a single auto evaluation
 
 #### Source
