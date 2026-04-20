@@ -205,14 +205,19 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
                 })
             }
 
-            // Restore persisted testset selection — fetches fresh rows, no stale outputs
+            // Restore the exact testcases that were loaded (same path as TestsetDropdown)
             const persistedTestset = store.get(persistedTestsetSelectionAtom)
-            if (persistedTestset) {
-                store.set(playgroundController.actions.restoreLoadableConnection, {
-                    revisionId: persistedTestset.revisionId,
-                    sourceName: persistedTestset.sourceName,
-                    testsetId: persistedTestset.testsetId,
-                })
+            if (persistedTestset?.testcases?.length) {
+                const loadableId = store.get(derivedLoadableIdAtom)
+                if (loadableId) {
+                    store.set(playgroundController.actions.connectToTestset, {
+                        loadableId,
+                        revisionId: persistedTestset.revisionId,
+                        testcases: persistedTestset.testcases,
+                        testsetName: persistedTestset.sourceName ?? undefined,
+                        testsetId: persistedTestset.testsetId ?? undefined,
+                    })
+                }
             }
         }
         return () => {
@@ -272,10 +277,19 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
         if (!loadableId) return
         const loadableState = store.get(loadableStateAtomFamily(loadableId))
         if (!loadableState.connectedSourceId) return
+        const rowIds = store.get(testcaseMolecule.atoms.displayRowIds)
+        const testcases = rowIds
+            .map((id) => {
+                const entity = testcaseMolecule.get.data(id)
+                return entity ? ({...entity, id} as {id: string} & Record<string, unknown>) : null
+            })
+            .filter((t): t is {id: string} & Record<string, unknown> => t !== null)
+
         setPersistedTestset({
             revisionId: loadableState.connectedSourceId,
             testsetId: connectedTestset.id,
             sourceName: connectedTestset.name ?? null,
+            testcases,
         })
     }, [connectedTestset, setPersistedTestset])
 

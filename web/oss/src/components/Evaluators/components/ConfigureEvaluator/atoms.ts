@@ -58,6 +58,7 @@ interface PersistedTestsetSelection {
     revisionId: string
     testsetId: string | null
     sourceName: string | null
+    testcases: ({id: string} & Record<string, unknown>)[]
 }
 
 const persistedTestsetSelectionByProjectAtom = atomWithStorage<
