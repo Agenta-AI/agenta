@@ -588,7 +588,7 @@ class AnnotationsService:
             exclude_unset=True,
         )
 
-        _links = build_otel_links(links)
+        _links = build_otel_links(links if links is not None else {})
 
         _flags = flags.model_dump(mode="json", exclude_none=True)
 
@@ -733,7 +733,7 @@ class AnnotationsService:
             exclude_unset=True,
         )
 
-        _links = build_otel_links(links)
+        _links = build_otel_links(links if links is not None else {})
 
         _flags = flags.model_dump(mode="json", exclude_none=True)
 

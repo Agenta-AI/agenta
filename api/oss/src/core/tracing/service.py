@@ -945,7 +945,7 @@ class SimpleTracesService:
     ) -> SimpleTraceReferences:
         references = trace_create.references.model_copy(deep=True)
 
-        if not references.evaluator or not trace_create.links:
+        if not references.evaluator or trace_create.links is None:
             return references
 
         if not self.evaluators_service or not self.simple_evaluators_service:
@@ -1130,7 +1130,7 @@ class SimpleTracesService:
 
         _flags = self._flags(existing.origin, existing.kind, existing.channel)
         references = trace_edit.references or SimpleTraceReferences()
-        links = trace_edit.links or {}
+        links = trace_edit.links if trace_edit.links is not None else None
 
         _references = references.model_dump(
             mode="json", exclude_none=True, exclude_unset=True
@@ -1181,7 +1181,7 @@ class SimpleTracesService:
             meta=trace_edit.meta,
             data=trace_edit.data,
             references=references,
-            links=links,
+            links=links or {},
         )
 
     async def delete(

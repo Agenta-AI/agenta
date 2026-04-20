@@ -28,7 +28,6 @@ from oss.src.core.applications.dtos import (
 
 
 from oss.src.core.tracing.utils.traces import (
-    build_otel_links,
     build_simple_trace_attributes,
     build_simple_trace_query,
     first_link,
@@ -39,7 +38,6 @@ from oss.src.core.invocations.types import (
     InvocationKind,
     InvocationChannel,
     InvocationReferences,
-    InvocationLinks,
     InvocationFlags,
     InvocationQueryFlags,
     #
@@ -168,7 +166,6 @@ class InvocationsService:
             data=invocation_create.data,
             #
             references=invocation_references,
-            links=invocation_create.links,
         )
 
         if invocation_link is None:
@@ -202,7 +199,7 @@ class InvocationsService:
             data=invocation_create.data,
             #
             references=invocation_references,
-            links=invocation_create.links,
+            links=None,
         )
 
         return invocation
@@ -351,7 +348,6 @@ class InvocationsService:
             data=invocation_edit.data,
             #
             references=invocation_references,
-            links=invocation.links,
         )
 
         if invocation_link is None:
@@ -392,7 +388,7 @@ class InvocationsService:
             data=invocation_edit.data,
             #
             references=invocation_references,
-            links=invocation.links,
+            links=None,
         )
 
         return updated_invocation
@@ -454,8 +450,6 @@ class InvocationsService:
             else None
         )
 
-        _invocation_links = invocation.links if invocation else None
-
         invocations = await self._query_invocation(
             project_id=project_id,
             user_id=user_id,
@@ -465,7 +459,6 @@ class InvocationsService:
             meta=invocation_meta,
             #
             references=invocation_references,
-            links=_invocation_links,
             #
             invocation_links=invocation_links,
             #
@@ -491,7 +484,6 @@ class InvocationsService:
         data: Data,
         #
         references: InvocationReferences,
-        links: Optional[InvocationLinks],
     ) -> Optional[Link]:
         trace_id = uuid4().hex
         span_id = uuid4().hex[16:]
@@ -503,8 +495,6 @@ class InvocationsService:
             exclude_none=True,
             exclude_unset=True,
         )
-
-        _links = build_otel_links(links)
 
         _flags = flags.model_dump(mode="json", exclude_none=True)
 
@@ -527,7 +517,7 @@ class InvocationsService:
                     span_type=span_type,
                     span_name=span_name,
                     attributes=_attributes,
-                    links=_links,
+                    links=None,
                 )
             ],
         )
@@ -559,8 +549,6 @@ class InvocationsService:
         _references = InvocationReferences(
             **parsed_trace.references,
         )
-
-        _links = parsed_trace.links
 
         _origin = InvocationOrigin.CUSTOM
 
@@ -607,7 +595,7 @@ class InvocationsService:
             data=parsed_trace.data,
             #
             references=_references,
-            links=_links,
+            links=None,
         )
 
         return invocation
@@ -628,7 +616,6 @@ class InvocationsService:
         data: Data,
         #
         references: InvocationReferences,
-        links: InvocationLinks,
     ) -> Optional[Link]:
         if not invocation.trace_id or not invocation.span_id:
             return None
@@ -638,8 +625,6 @@ class InvocationsService:
             exclude_none=True,
             exclude_unset=True,
         )
-
-        _links = build_otel_links(links)
 
         _flags = flags.model_dump(mode="json", exclude_none=True)
 
@@ -660,7 +645,7 @@ class InvocationsService:
                     trace_id=invocation.trace_id,
                     span_id=invocation.span_id,
                     attributes=_attributes,
-                    links=_links,
+                    links=None,
                 )
             ],
         )
@@ -698,7 +683,6 @@ class InvocationsService:
         meta: Optional[Meta] = None,
         #
         references: Optional[InvocationReferences] = None,
-        links: Optional[InvocationLinks] = None,
         #
         invocation_links: Optional[List[Link]] = None,
         #
@@ -710,7 +694,7 @@ class InvocationsService:
             tags=tags,
             meta=meta,
             references=references.model_dump(mode="json") if references else None,
-            links=links,
+            links=None,
             trace_links=invocation_links,
             windowing=windowing,
         )
@@ -733,8 +717,6 @@ class InvocationsService:
             _references = InvocationReferences(
                 **parsed_trace.references,
             )
-
-            _links = parsed_trace.links
 
             _origin = InvocationOrigin.CUSTOM
 
@@ -781,7 +763,7 @@ class InvocationsService:
                 data=parsed_trace.data,
                 #
                 references=_references,
-                links=_links,
+                links=None,
             )
 
             invocations.append(invocation)

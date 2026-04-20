@@ -61,7 +61,9 @@ class TestAnnotationsBasics:
         assert response["evaluators"][0]["slug"] == evaluator_slug
         # ----------------------------------------------------------------------
 
-    def test_create_trace_without_links_does_not_create_evaluator(self, authed_api):
+    def test_create_trace_with_empty_links_creates_annotation_evaluator(
+        self, authed_api
+    ):
         evaluator_slug = str(uuid4())
 
         response = authed_api(
@@ -80,7 +82,8 @@ class TestAnnotationsBasics:
         response = response.json()
         assert response["count"] == 1
         assert response["trace"]["references"]["evaluator"]["slug"] == evaluator_slug
-        assert "id" not in response["trace"]["references"]["evaluator"]
+        assert response["trace"]["links"] == {}
+        assert "id" in response["trace"]["references"]["evaluator"]
 
         response = authed_api(
             "POST",
@@ -90,7 +93,8 @@ class TestAnnotationsBasics:
 
         assert response.status_code == 200
         response = response.json()
-        assert response["count"] == 0
+        assert response["count"] == 1
+        assert response["evaluators"][0]["slug"] == evaluator_slug
 
     def test_fetch_annotations(self, authed_api):
         # ARRANGE --------------------------------------------------------------

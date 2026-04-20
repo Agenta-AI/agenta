@@ -278,6 +278,22 @@ def test_infer_and_propagate_trace_type_by_trace_preserves_input_order():
     assert out[1].attributes["ag"]["type"]["trace"] == TraceType.ANNOTATION.value
 
 
+def test_infer_and_propagate_trace_type_by_trace_treats_empty_links_as_annotation():
+    trace_a = "trace-a"
+    trace_b = "trace-b"
+    spans = [
+        _span(span_id="span-a1", span_name="a1", trace_id=trace_a, links=None),
+        _span(span_id="span-b1", span_name="b1", trace_id=trace_b, links=[]),
+    ]
+
+    out = infer_and_propagate_trace_type_by_trace(spans)
+
+    assert out[0].trace_type == TraceType.INVOCATION
+    assert out[1].trace_type == TraceType.ANNOTATION
+    assert out[0].attributes["ag"]["type"]["trace"] == TraceType.INVOCATION.value
+    assert out[1].attributes["ag"]["type"]["trace"] == TraceType.ANNOTATION.value
+
+
 def test_trace_map_to_traces_and_back_and_get_span_helpers():
     root = _otel_span_from_flat(_span(span_id=ROOT_UUID, span_name="root"))
     child = _otel_span_from_flat(

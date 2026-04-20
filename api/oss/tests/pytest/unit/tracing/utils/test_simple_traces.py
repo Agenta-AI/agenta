@@ -62,6 +62,8 @@ def test_build_otel_links_supports_dict_and_list_inputs_and_filters_missing_ids(
     assert len(out_list) == 1
     assert out_list[0].attributes["key"] == "key"
 
+    assert build_otel_links({}) == []
+    assert build_otel_links([]) == []
     assert build_otel_links(None) is None
 
 

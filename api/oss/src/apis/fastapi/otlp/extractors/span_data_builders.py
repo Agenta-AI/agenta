@@ -238,7 +238,7 @@ class OTelFlatSpanBuilder(SpanDataBuilder):
                 status_code=status_code,
                 status_message=status_message,
                 attributes=attributes,
-                links=links,
+                links=links if links else None,
                 events=events,
             )
 
