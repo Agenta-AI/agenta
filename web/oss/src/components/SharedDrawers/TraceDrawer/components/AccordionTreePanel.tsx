@@ -22,10 +22,15 @@ import {
 } from "@phosphor-icons/react"
 import {Button, Collapse, Dropdown, Input, Radio, Space, theme} from "antd"
 import yaml from "js-yaml"
-import JSON5 from "json5"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
+import {BeautifiedJsonView} from "@/oss/components/DrillInView/BeautifiedJsonView"
+import {
+    buildDecodedJsonOutput,
+    normalizeEscapedLineBreaks,
+    parseStructuredJson,
+} from "@/oss/components/DrillInView/decodedJsonHelpers"
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
@@ -48,131 +53,40 @@ type AccordionTreePanelProps = {
     viewModePreset?: "default" | "message"
 } & React.ComponentProps<typeof Collapse>
 
-type PanelViewMode = "json" | "yaml" | "rendered-json" | "text" | "markdown"
+/**
+ * View modes for an accordion panel.
+ *
+ * See `VIEW_MODES.md` under `components/DrillInView/` for the full definition
+ * of each mode — which display target it uses, what cleanup it applies, and
+ * when it is the default. Keep this union in sync with `RawSpanDisplayMode`
+ * in `TraceSpanDrillInView.tsx`.
+ *
+ * Summary:
+ * - `json` / `yaml`: faithful — data as stored, no cleanup.
+ * - `decoded-json`: JSON editor, cleaned (unwrap nested stringified JSON,
+ *   decode escaped newlines). Default for non-message data.
+ * - `beautified-json`: custom component tree (chat bubbles, per-key fields,
+ *   envelope unwrap, noise stripping). Default for `viewModePreset="message"`.
+ * - `text` / `markdown`: prose editor.
+ */
+type PanelViewMode = "json" | "yaml" | "decoded-json" | "beautified-json" | "text" | "markdown"
 
 const PANEL_VIEW_MODE_LABELS: Record<PanelViewMode, string> = {
     json: "JSON",
     yaml: "YAML",
-    "rendered-json": "Rendered JSON",
+    "decoded-json": "Decoded JSON",
+    "beautified-json": "Beautified JSON",
     text: "Text",
     markdown: "Markdown",
 }
 
-const getDefaultPanelViewMode = (availableModes: PanelViewMode[]): PanelViewMode => {
-    if (availableModes.includes("rendered-json")) return "rendered-json"
+const getDefaultPanelViewMode = (
+    availableModes: PanelViewMode[],
+    {preferBeautified = false}: {preferBeautified?: boolean} = {},
+): PanelViewMode => {
+    if (preferBeautified && availableModes.includes("beautified-json")) return "beautified-json"
+    if (availableModes.includes("decoded-json")) return "decoded-json"
     return availableModes[0] ?? "json"
-}
-
-const normalizeEscapedLineBreaks = (value: string): string =>
-    value.replaceAll("\\r\\n", "\n").replaceAll("\\n", "\n")
-
-const parseStructuredJson = (value: string): unknown | null => {
-    const tryParseJson = (input: string): unknown | null => {
-        try {
-            return JSON.parse(input)
-        } catch {
-            return null
-        }
-    }
-
-    const toStructured = (parsed: unknown): unknown | null => {
-        if (parsed && typeof parsed === "object") return parsed
-        if (typeof parsed !== "string") return null
-
-        const nested = tryParseJson(parsed.trim())
-        if (nested && typeof nested === "object") return nested
-        return null
-    }
-
-    let candidate = value.trim()
-    if (!candidate) return null
-
-    const fencedMatch = candidate.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
-    if (fencedMatch?.[1]) {
-        candidate = fencedMatch[1].trim()
-    }
-
-    const strictParsed = toStructured(tryParseJson(candidate))
-    if (strictParsed !== null) return strictParsed
-
-    try {
-        return toStructured(JSON5.parse(candidate))
-    } catch {
-        return null
-    }
-}
-
-const renderStringifiedJson = (value: unknown): {value: unknown; didRender: boolean} => {
-    if (typeof value === "string") {
-        const parsed = parseStructuredJson(value)
-        if (parsed === null) return {value, didRender: false}
-        const nested = renderStringifiedJson(parsed)
-        return {value: nested.value, didRender: true}
-    }
-
-    if (Array.isArray(value)) {
-        let didRender = false
-        const rendered = value.map((item) => {
-            const next = renderStringifiedJson(item)
-            if (next.didRender) didRender = true
-            return next.value
-        })
-        return {value: rendered, didRender}
-    }
-
-    if (value && typeof value === "object") {
-        let didRender = false
-        const rendered = Object.fromEntries(
-            Object.entries(value).map(([key, nestedValue]) => {
-                const next = renderStringifiedJson(nestedValue)
-                if (next.didRender) didRender = true
-                return [key, next.value]
-            }),
-        )
-        return {value: rendered, didRender}
-    }
-
-    return {value, didRender: false}
-}
-
-const decodeEscapedLineBreaks = (value: string): string => {
-    let decoded = value
-
-    // Handle both "\n" and "\\n" style payload encodings.
-    for (let i = 0; i < 2; i += 1) {
-        const next = decoded
-            .replace(/\\\\r\\\\n/g, "\r\n")
-            .replace(/\\\\n/g, "\n")
-            .replace(/\\r\\n/g, "\r\n")
-            .replace(/\\n/g, "\n")
-
-        if (next === decoded) break
-        decoded = next
-    }
-
-    return decoded
-}
-
-const formatRenderedJsonStringsForDisplay = (value: unknown): unknown => {
-    if (typeof value === "string") {
-        // Decode escaped line breaks and preserve multiline rendering in JSON code view.
-        return decodeEscapedLineBreaks(value).replace(/\r\n|\n|\r/g, "\u2028")
-    }
-
-    if (Array.isArray(value)) {
-        return value.map((item) => formatRenderedJsonStringsForDisplay(item))
-    }
-
-    if (value && typeof value === "object") {
-        return Object.fromEntries(
-            Object.entries(value).map(([key, nestedValue]) => [
-                key,
-                formatRenderedJsonStringsForDisplay(nestedValue),
-            ]),
-        )
-    }
-
-    return value
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -244,7 +158,7 @@ const LanguageAwareViewer = ({
     searchProps,
 }: {
     initialValue: string
-    language: "json" | "yaml" | "rendered-json"
+    language: "json" | "yaml" | "decoded-json"
     searchProps?: {
         searchTerm: string
         currentResultIndex: number
@@ -260,7 +174,7 @@ const LanguageAwareViewer = ({
     )
 
     useEffect(() => {
-        if (language === "json" || language === "rendered-json") {
+        if (language === "json" || language === "decoded-json") {
             changeLanguage("json")
         } else {
             changeLanguage("yaml")
@@ -283,7 +197,7 @@ const LanguageAwareViewer = ({
     const editorNode = (
         <EditorWrapper
             initialValue={initialValue}
-            language={language === "rendered-json" ? "json" : language}
+            language={language === "decoded-json" ? "json" : language}
             codeOnly={true}
             showToolbar={false}
             enableTokens={false}
@@ -399,53 +313,47 @@ const AccordionTreePanel = ({
         [isStringValue, sanitizedValue],
     )
 
-    const renderedJsonSource = useMemo(() => {
-        if (isStringValue) {
-            return parsedStructuredString ?? sanitizedValue
-        }
-        return sanitizedValue
-    }, [isStringValue, parsedStructuredString, sanitizedValue])
-
-    const renderedJsonResult = useMemo(() => {
-        return renderStringifiedJson(renderedJsonSource)
-    }, [renderedJsonSource])
+    const hasStructuredValue =
+        (isStringValue && parsedStructuredString !== null) ||
+        (!isStringValue && isObjectOrArrayValue)
 
     const availableViewModes = useMemo<PanelViewMode[]>(() => {
         if (viewModePreset === "message") {
             const modes: PanelViewMode[] = ["text", "markdown"]
-            if (
-                (isStringValue && parsedStructuredString !== null) ||
-                (!isStringValue && isObjectOrArrayValue)
-            ) {
-                modes.push("rendered-json")
+            if (hasStructuredValue) {
+                modes.push("decoded-json", "beautified-json")
             }
             return modes
         }
 
         if (isStringValue) {
             if (parsedStructuredString !== null) {
-                const modes: PanelViewMode[] = ["json", "yaml", "rendered-json"]
-                modes.push("text", "markdown")
-                return modes
+                return ["json", "yaml", "decoded-json", "beautified-json", "text", "markdown"]
             }
             return ["text", "markdown"]
         }
 
-        const modes: PanelViewMode[] = ["json", "yaml", "rendered-json"]
-        return modes
-    }, [viewModePreset, isStringValue, isObjectOrArrayValue, parsedStructuredString])
+        return ["json", "yaml", "decoded-json", "beautified-json"]
+    }, [viewModePreset, isStringValue, hasStructuredValue, parsedStructuredString])
     const [panelViewMode, setPanelViewMode] = useState<PanelViewMode>(() =>
-        getDefaultPanelViewMode(availableViewModes),
+        getDefaultPanelViewMode(availableViewModes, {
+            preferBeautified: viewModePreset === "message",
+        }),
     )
 
     useEffect(() => {
         if (!availableViewModes.includes(panelViewMode)) {
-            setPanelViewMode(getDefaultPanelViewMode(availableViewModes))
+            setPanelViewMode(
+                getDefaultPanelViewMode(availableViewModes, {
+                    preferBeautified: viewModePreset === "message",
+                }),
+            )
         }
-    }, [availableViewModes, panelViewMode])
+    }, [availableViewModes, panelViewMode, viewModePreset])
 
     const isCodeMode =
-        panelViewMode === "json" || panelViewMode === "yaml" || panelViewMode === "rendered-json"
+        panelViewMode === "json" || panelViewMode === "yaml" || panelViewMode === "decoded-json"
+    const isBeautifiedMode = panelViewMode === "beautified-json"
 
     useEffect(() => {
         if (!isCodeMode) {
@@ -491,15 +399,17 @@ const AccordionTreePanel = ({
         }
     }, [panelViewMode, isStringValue, parsedStructuredString, sanitizedValue])
 
-    const renderedJsonOutput = useMemo(() => {
-        if (panelViewMode !== "rendered-json") return ""
-        const next = JSON.stringify(
-            formatRenderedJsonStringsForDisplay(renderedJsonResult.value),
-            null,
-            2,
-        )
-        return next ?? "null"
-    }, [panelViewMode, renderedJsonResult.value])
+    const decodedJsonOutput = useMemo(() => {
+        if (panelViewMode !== "decoded-json") return ""
+        return buildDecodedJsonOutput(sanitizedValue, parsedStructuredString)
+    }, [panelViewMode, sanitizedValue, parsedStructuredString])
+
+    const beautifiedJsonSource = useMemo(() => {
+        if (isStringValue) {
+            return parsedStructuredString ?? sanitizedValue
+        }
+        return sanitizedValue
+    }, [isStringValue, parsedStructuredString, sanitizedValue])
 
     const textOutput = useMemo(() => {
         if (typeof sanitizedValue === "string") {
@@ -523,11 +433,13 @@ const AccordionTreePanel = ({
     const copyText =
         panelViewMode === "yaml"
             ? yamlOutput
-            : panelViewMode === "rendered-json"
-              ? renderedJsonOutput
+            : panelViewMode === "decoded-json"
+              ? decodedJsonOutput
               : panelViewMode === "json"
                 ? jsonOutput
-                : textOutput
+                : panelViewMode === "beautified-json"
+                  ? JSON.stringify(beautifiedJsonSource, null, 2)
+                  : textOutput
 
     const collapse = (
         <div className="relative">
@@ -595,7 +507,7 @@ const AccordionTreePanel = ({
                                         value={{
                                             enabled: false,
                                             decodeEscapedJsonStrings:
-                                                panelViewMode === "rendered-json",
+                                                panelViewMode === "decoded-json",
                                         }}
                                     >
                                         <EditorProvider
@@ -611,8 +523,8 @@ const AccordionTreePanel = ({
                                                 initialValue={
                                                     panelViewMode === "yaml"
                                                         ? yamlOutput
-                                                        : panelViewMode === "rendered-json"
-                                                          ? renderedJsonOutput
+                                                        : panelViewMode === "decoded-json"
+                                                          ? decodedJsonOutput
                                                           : jsonOutput
                                                 }
                                                 language={panelViewMode}
@@ -628,6 +540,11 @@ const AccordionTreePanel = ({
                                             />
                                         </EditorProvider>
                                     </DrillInProvider>
+                                ) : isBeautifiedMode ? (
+                                    <BeautifiedJsonView
+                                        data={beautifiedJsonSource}
+                                        keyPrefix={`accordion-${textViewerId}`}
+                                    />
                                 ) : (
                                     <TextModeViewer
                                         editorId={`accordion-${textViewerId}`}
