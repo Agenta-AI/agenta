@@ -199,10 +199,21 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
     // Handle group column rename - renames all nested columns
     const handleGroupRename = useCallback(
         (groupPath: string, newName: string): boolean => {
+            const trimmedName = newName.trim()
+            if (!trimmedName) return false
+
+            const parentPath = groupPath.includes(".")
+                ? groupPath.substring(0, groupPath.lastIndexOf("."))
+                : ""
+            const targetGroupPath =
+                trimmedName.includes(".") || !parentPath
+                    ? trimmedName
+                    : `${parentPath}.${trimmedName}`
+
             // Get all columns that belong to this group
-            const columnsInGroup = table.columns.filter((col) =>
-                col.key.startsWith(groupPath + "."),
-            )
+            const columnsInGroup = table.columns
+                .filter((col) => col.key.startsWith(groupPath + "."))
+                .sort((left, right) => right.key.split(".").length - left.key.split(".").length)
 
             if (columnsInGroup.length === 0) return false
 
@@ -210,8 +221,8 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             let allSucceeded = true
             columnsInGroup.forEach((col) => {
                 // Replace the group prefix with the new group name
-                const relativePath = col.key.substring(groupPath.length + 1)
-                const newColumnName = `${newName}.${relativePath}`
+                const relativePath = col.key.substring(groupPath.length)
+                const newColumnName = `${targetGroupPath}${relativePath}`
                 const success = table.renameColumn(col.key, newColumnName)
                 if (!success) allSucceeded = false
             })
@@ -243,6 +254,24 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
     const columns = useMemo<ColumnsType<TestcaseTableRow>>(() => {
         const isEditable = mode === "edit"
 
+        const getRenamedColumnKey = (col: Column, newName: string) => {
+            const trimmedName = newName.trim()
+
+            if (!trimmedName) {
+                return trimmedName
+            }
+
+            if (
+                "parentKey" in col &&
+                typeof col.parentKey === "string" &&
+                !trimmedName.includes(".")
+            ) {
+                return `${col.parentKey}.${trimmedName}`
+            }
+
+            return trimmedName
+        }
+
         // Differentiate between loading state and empty state
         const hasNoColumns = table.columns.length === 0
         const isActuallyLoading = table.isLoading
@@ -270,7 +299,9 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                     <EditableColumnHeader
                         columnKey={col.key}
                         columnName={displayName}
-                        onRename={table.renameColumn}
+                        onRename={(_oldName, newName) =>
+                            table.renameColumn(col.key, getRenamedColumnKey(col, newName))
+                        }
                         onDelete={table.deleteColumn}
                     />
                 ) : (

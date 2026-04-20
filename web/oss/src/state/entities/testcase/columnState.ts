@@ -308,21 +308,30 @@ export const currentColumnsAtom = atom((get) => {
     const entityKeys = get(currentColumnKeysAtom)
     const localCols = get(localColumnsAtom)
     const deletedCols = get(deletedColumnsAtom)
+    const pendingRenames = get(pendingColumnRenamesAtom)
 
     // Start with entity keys
     const columnMap = new Map<string, Column>()
 
     // Add columns from entities
     entityKeys.forEach((key) => {
-        if (!deletedCols.has(key)) {
-            columnMap.set(key, {key, name: key})
+        const effectiveKey = pendingRenames.get(key) ?? key
+
+        if (!deletedCols.has(effectiveKey)) {
+            columnMap.set(effectiveKey, {key: effectiveKey, name: effectiveKey})
         }
     })
 
     // Add local columns (explicitly added but no data yet)
     localCols.forEach((col) => {
-        if (!deletedCols.has(col.key) && !columnMap.has(col.key)) {
-            columnMap.set(col.key, col)
+        const effectiveKey = pendingRenames.get(col.key) ?? col.key
+
+        if (!deletedCols.has(effectiveKey) && !columnMap.has(effectiveKey)) {
+            columnMap.set(effectiveKey, {
+                ...col,
+                key: effectiveKey,
+                name: effectiveKey === col.key || col.name !== col.key ? col.name : effectiveKey,
+            })
         }
     })
 
