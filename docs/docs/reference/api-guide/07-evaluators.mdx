@@ -1,0 +1,109 @@
+---
+title: "Evaluators"
+description: "What an evaluator is, how it scores, and how presets work."
+sidebar_position: 7
+---
+
+An **evaluator** is a versioned resource that scores a single tuple of inputs, outputs, and (optionally) ground truth. Evaluations attach one or more evaluators to a set of testcases or traces and run them against application revisions; each score lands in the evaluation's result table.
+
+Evaluators share the artifact / variant / revision model used by applications, workflows, and testsets. See [Versioning](/reference/api-guide/versioning) for commit semantics, `include_archived`, and how revision IDs stay stable. The rest of this page covers only what is specific to evaluators.
+
+## Scoring contract
+
+An evaluator revision commits three things:
+
+| Field | What it describes |
+|-------|------------------|
+| `data.uri` | The handler to invoke — either a built-in (`agenta:builtin:auto_exact_match:v0`) or a custom HTTPS URL for an LLM-as-judge or code-based evaluator. |
+| `data.schemas` | JSON Schemas for `parameters` (configuration), `inputs` (what the evaluator reads), and `outputs` (what it returns). |
+| `data.parameters` | The configured values for the parameters described in the schema. |
+
+When the evaluator runs, the service at `data.url` receives the invocation payload (inputs, optional ground truth, and the pinned `parameters`) and returns an object that matches `schemas.outputs`. Outputs are typically a single numeric score or a boolean correctness flag, but a schema with multiple fields is allowed. The built-in `auto_exact_match` evaluator, for example, returns `{"success": true | false}`.
+
+The returned object is written to an invocation trace and referenced from the evaluation scenario that produced it.
+
+## Presets and the catalog
+
+The catalog ships with built-in **templates** that describe what an evaluator can do (key, JSON schemas, handler URI). A **preset** is a named set of parameter values pre-filled against a template — for example, the "Quality Rating" preset against the `feedback` template.
+
+A preset is not a separate entity. Creating an evaluator "from a preset" creates a new artifact, variant, and first revision whose `data` comes from the preset's template URI and its pinned parameter values. Once created, the evaluator is an ordinary instance that you can fork, commit, and archive like any other.
+
+Endpoints:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /evaluators/catalog/types/` | List the JSON schema types the catalog understands. |
+| `GET /evaluators/catalog/templates/` | List evaluator templates. |
+| `GET /evaluators/catalog/templates/{key}` | Fetch one template by key. |
+| `GET /evaluators/catalog/templates/{key}/presets/` | List presets defined for a template. |
+| `GET /evaluators/catalog/templates/{key}/presets/{preset_key}` | Fetch one preset. |
+
+## Simple vs structured endpoints
+
+The `/simple/evaluators/` surface collapses the artifact, variant, and latest revision into one flat record (including the handler URL and merged schemas). Use it when you want the "current evaluator" without tracking lineage. Use `/evaluators/`, `/evaluators/variants/`, and `/evaluators/revisions/` when you need to commit, fork, or retrieve a specific revision. See [Simple Endpoints](/reference/api-guide/simple-endpoints) for the general pattern.
+
+## Relationship to evaluations
+
+Evaluators are what [evaluations](/reference/api-guide/evaluations) attach to. An evaluation pins one or more `evaluator_revision_id`s at the moment the run is configured; committing a new revision on the variant does not retroactively change the pinned run. Use the deployment endpoint below to swap the "latest" revision for an environment without creating a new run.
+
+## Deployment
+
+`POST /evaluators/revisions/deploy` pins an evaluator revision into an environment revision under a named key. Consumers that dereference the key through the environment see the deployed revision; historical traces remain pinned to their original revision IDs.
+
+## Worked example
+
+Create an evaluator that uses the built-in exact-match handler, commit a new revision, and retrieve it.
+
+```bash
+# 1. Create the evaluator (and its first variant + revision).
+curl -X POST "$AGENTA_HOST/api/simple/evaluators/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "evaluator": {
+      "slug": "exact-match-evaluator",
+      "name": "Exact Match Evaluator",
+      "data": {
+        "uri": "agenta:builtin:auto_exact_match:v0",
+        "parameters": { "correct_answer_key": "correct_answer" }
+      }
+    }
+  }'
+```
+
+The response returns the evaluator with its merged `data` (handler URL, JSON schemas, parameters) and its `id`, `variant_id`, and `revision_id`.
+
+```bash
+# 2. Commit a new revision on the evaluator's variant.
+curl -X POST "$AGENTA_HOST/api/evaluators/revisions/commit" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "evaluator_revision_commit": {
+      "evaluator_variant_id": "019d952f-0000-0000-0000-000000000000",
+      "message": "Match on answer_text instead",
+      "data": {
+        "uri": "agenta:builtin:auto_exact_match:v0",
+        "parameters": { "correct_answer_key": "answer_text" }
+      }
+    }
+  }'
+```
+
+```bash
+# 3. Retrieve the latest revision for the variant.
+curl -X POST "$AGENTA_HOST/api/evaluators/revisions/retrieve" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "evaluator_variant_ref": { "id": "019d952f-0000-0000-0000-000000000000" }
+  }'
+```
+
+## Lifecycle
+
+Evaluators, variants, and revisions are soft-deleted. Use `POST /evaluators/{id}/archive` and `POST /evaluators/{id}/unarchive` to flip `deleted_at`; the same pattern applies at the variant and revision level. Archiving an evaluator hides it from `/query` responses unless the request sets `include_archived: true`. See [Versioning](/reference/api-guide/versioning#archive-and-unarchive).
+
+:::note
+Evaluator artifacts and workflow artifacts share the underlying persistence layer. An evaluator's `id` also serves as its `workflow_id`, which is why revision payloads include both keys. Treat them as the same UUID; the workflow aliases exist for interoperability with the generic workflow endpoints.
+:::
