@@ -1,6 +1,6 @@
 from typing import Optional, List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from oss.src.core.shared.dtos import Link, Windowing
 from oss.src.core.tracing.dtos import (
@@ -12,7 +12,17 @@ from oss.src.core.tracing.dtos import (
 
 
 class SimpleTraceCreateRequest(BaseModel):
-    trace: SimpleTraceCreate
+    """Request body for creating a single-span "simple" trace."""
+
+    trace: SimpleTraceCreate = Field(
+        description=(
+            "The trace to create. Must include `data` (the payload being "
+            "recorded) and typically `origin`, `kind`, and `channel` to "
+            "describe where it came from. Optional `references` link the "
+            "trace to Agenta entities (app, variant, revision, evaluator, "
+            "testset, etc.)."
+        ),
+    )
 
 
 class SimpleTraceEditRequest(BaseModel):
@@ -28,8 +38,19 @@ class SimpleTraceQueryRequest(BaseModel):
 
 
 class SimpleTraceResponse(BaseModel):
-    count: int = 0
-    trace: Optional[SimpleTrace] = None
+    """Response from a single-trace create/fetch/edit."""
+
+    count: int = Field(
+        default=0,
+        description="`1` if the trace was returned, `0` otherwise.",
+    )
+    trace: Optional[SimpleTrace] = Field(
+        default=None,
+        description=(
+            "The created or fetched trace, including server-assigned "
+            "`trace_id` and `span_id`."
+        ),
+    )
 
 
 class SimpleTracesResponse(BaseModel):

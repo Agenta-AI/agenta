@@ -188,6 +188,63 @@ class TracingRouter:
         request: Request,
         spans_request: OTelTracingRequest,
     ) -> OTelLinksResponse:
+        """Ingest spans into the tracing backend.
+
+        Use this endpoint to write full OpenTelemetry-style spans — including
+        multi-span hierarchies (parent → child → grandchild), attributes,
+        references, events and links. For simple single-span annotations or
+        evaluator outputs, prefer `POST /preview/tracing/traces/`
+        (`create_simple_trace`) — it's a higher-level helper on top of this
+        endpoint.
+
+        ## Request body
+
+        Provide exactly one of:
+
+        - `spans`: a flat list of spans. Parent/child relationships are
+          expressed via `parent_id` on each span.
+        - `traces`: a nested tree keyed by `trace_id` then by span name,
+          where each node may contain a `spans` dict of its children. The
+          query endpoint (`POST /tracing/spans/query`) returns this shape.
+
+        Each span requires `trace_id`, `span_id`, `start_time`, `end_time`.
+        `trace_id` must be a 32-char hex UUID, `span_id` a 16-char hex.
+        Attributes follow the Agenta convention under the `ag` namespace
+        (`ag.type`, `ag.data`, `ag.metrics`, `ag.references`) and may be
+        submitted either as a flat dotted map (OTel wire format) or as a
+        nested object — both are accepted.
+
+        ## Response
+
+        Returns the links (`trace_id` + `span_id`) for the spans that were
+        accepted and published to the ingest stream. Note: the body is
+        `202 Accepted` even when validation rejected some spans; check
+        `count` against the number of spans you submitted.
+
+        ## Example
+
+        ```json
+        {
+          "spans": [
+            {
+              "trace_id": "f5a2efb40895881e938e2ebc070beca8",
+              "span_id": "15f3df0731995245",
+              "span_name": "completion_v0",
+              "span_type": "workflow",
+              "span_kind": "SPAN_KIND_SERVER",
+              "start_time": "2026-04-16T18:18:18.491929Z",
+              "end_time": "2026-04-16T18:18:20.415372Z",
+              "attributes": {
+                "ag.type.trace": "invocation",
+                "ag.type.span": "workflow",
+                "ag.data.inputs.country": "France",
+                "ag.data.outputs": "Paris"
+              }
+            }
+          ]
+        }
+        ```
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -243,6 +300,25 @@ class TracingRouter:
         request: Request,
         query: Optional[TracingQuery] = Depends(parse_query_from_params_request),
     ) -> OTelTracingResponse:
+        """Query spans and traces in the tracing backend.
+
+        Use `focus` in the request body to control the response shape:
+
+        - `"trace"` (default): returns a nested `traces` tree keyed by
+          `trace_id` then by span name. Children hang off their parent's
+          `spans` field. Best for rendering a trace waterfall.
+        - `"span"`: returns a flat `spans` list. Best for paginating or
+          filtering across all spans regardless of hierarchy.
+
+        Use `oldest` / `newest` (unix seconds) to window the query and
+        `limit` to cap the number of traces/spans returned.
+
+        The response preserves the Agenta `ag.*` attribute namespace and
+        includes computed metrics (`ag.metrics.duration`, `ag.metrics.tokens`,
+        `ag.metrics.costs`) on each span. The `traces` tree returned here is
+        the same shape that `POST /tracing/spans/ingest` accepts as its
+        `traces` field.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
