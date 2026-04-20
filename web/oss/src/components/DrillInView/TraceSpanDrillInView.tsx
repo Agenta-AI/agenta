@@ -21,12 +21,6 @@ import {
     SearchPlugin,
 } from "@agenta/ui"
 import {
-    extractChatMessages,
-    normalizeChatMessages,
-    ROLE_COLOR_CLASSES,
-    DEFAULT_ROLE_COLOR_CLASS,
-} from "@agenta/ui/cell-renderers"
-import {
     ArrowDownIcon,
     ArrowUpIcon,
     CaretDown,
@@ -40,12 +34,17 @@ import {
 import {Button, Input, Select} from "antd"
 import {useAtomValue} from "jotai"
 import yaml from "js-yaml"
-import JSON5 from "json5"
 import dynamic from "next/dynamic"
 
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 
+import {BeautifiedJsonView} from "./BeautifiedJsonView"
+import {
+    buildDecodedJsonOutput,
+    normalizeEscapedLineBreaks,
+    parseStructuredJson,
+} from "./decodedJsonHelpers"
 import type {DrillInContentProps} from "./DrillInContent"
 import {EntityDrillInView} from "./EntityDrillInView"
 const ImagePreview = dynamic(() => import("@agenta/ui").then((mod) => mod.ImagePreview), {
@@ -104,629 +103,42 @@ export interface TraceSpanDrillInViewProps extends Omit<
 
 type RawSpanViewMode = "json" | "yaml"
 
-type RawSpanDisplayMode = RawSpanViewMode | "rendered-json" | "text" | "markdown"
+/**
+ * View modes for a trace span.
+ *
+ * See `VIEW_MODES.md` in this folder for the full definition of each mode,
+ * including which display target it uses, what cleanup it applies, and when
+ * it is the default.
+ *
+ * Summary:
+ * - `json` / `yaml`: faithful — data as stored, no cleanup.
+ * - `decoded-json`: JSON editor, cleaned (unwrap nested stringified JSON,
+ *   decode escaped newlines). Default for non-message data.
+ * - `beautified-json`: custom component tree (chat bubbles, per-key fields,
+ *   envelope unwrap, noise stripping). Default for `viewModePreset="message"`.
+ * - `text` / `markdown`: prose editor.
+ */
+type RawSpanDisplayMode = RawSpanViewMode | "decoded-json" | "beautified-json" | "text" | "markdown"
 
 const RAW_SPAN_VIEW_MODE_LABELS: Record<RawSpanDisplayMode, string> = {
     json: "JSON",
     yaml: "YAML",
-    "rendered-json": "Rendered JSON",
+    "decoded-json": "Decoded JSON",
+    "beautified-json": "Beautified JSON",
     text: "Text",
     markdown: "Markdown",
 }
 
-const getDefaultRawSpanViewMode = (availableModes: RawSpanDisplayMode[]): RawSpanDisplayMode => {
-    if (availableModes.includes("rendered-json")) return "rendered-json"
+const getDefaultRawSpanViewMode = (
+    availableModes: RawSpanDisplayMode[],
+    {preferBeautified = false}: {preferBeautified?: boolean} = {},
+): RawSpanDisplayMode => {
+    if (preferBeautified && availableModes.includes("beautified-json")) return "beautified-json"
+    if (availableModes.includes("decoded-json")) return "decoded-json"
     return availableModes[0] ?? "json"
 }
 
-const normalizeEscapedLineBreaks = (value: string): string =>
-    value.replaceAll("\\r\\n", "\n").replaceAll("\\n", "\n")
-
-const parseStructuredJson = (value: string): unknown | null => {
-    const tryParseJson = (input: string): unknown | null => {
-        try {
-            return JSON.parse(input)
-        } catch {
-            return null
-        }
-    }
-
-    const toStructured = (parsed: unknown): unknown | null => {
-        if (parsed && typeof parsed === "object") return parsed
-        if (typeof parsed !== "string") return null
-
-        const nested = tryParseJson(parsed.trim())
-        if (nested && typeof nested === "object") return nested
-        return null
-    }
-
-    let candidate = value.trim()
-    if (!candidate) return null
-
-    const fencedMatch = candidate.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
-    if (fencedMatch?.[1]) {
-        candidate = fencedMatch[1].trim()
-    }
-
-    const strictParsed = toStructured(tryParseJson(candidate))
-    if (strictParsed !== null) return strictParsed
-
-    try {
-        return toStructured(JSON5.parse(candidate))
-    } catch {
-        return null
-    }
-}
-
-// ============================================================================
-// VALUE SIMPLIFICATION
-// ============================================================================
-
-/** Keys that are metadata noise — filtered out in rendered JSON mode */
-const METADATA_NOISE_KEYS = new Set([
-    "providerOptions",
-    "experimental_providerMetadata",
-    "rawHeaders",
-    "caller",
-    "messageId",
-    "toolCallId",
-    "rawCall",
-    "rawResponse",
-    "logprobs",
-    "experimental_providerMetadata",
-])
-
-/**
- * Simplify a value by unwrapping known envelope patterns.
- * Returns the simplified value, or the original if no simplification applies.
- */
-const simplifyValue = (value: unknown): unknown => {
-    if (!value || typeof value !== "object") return value
-
-    const rec = value as Record<string, unknown>
-
-    // AI SDK text part: {type: "text", text: "hello"} → "hello"
-    if (rec.type === "text" && typeof rec.text === "string") {
-        return rec.text
-    }
-
-    // AI SDK tool-call: {type: "tool-call", toolName: "fn", input: {...}} → "fn({...})"
-    if (rec.type === "tool-call" && typeof rec.toolName === "string") {
-        const args = rec.input ?? rec.args
-        if (!args || (typeof args === "object" && Object.keys(args as object).length === 0)) {
-            return `${rec.toolName}()`
-        }
-        try {
-            return `${rec.toolName}(${JSON.stringify(args, null, 2)})`
-        } catch {
-            return `${rec.toolName}(...)`
-        }
-    }
-
-    // AI SDK tool-result envelope: {type: "tool-result", output: {type: "json", value: X}} → X
-    if (rec.type === "tool-result" && rec.output !== undefined) {
-        const output = rec.output as Record<string, unknown> | undefined
-        if (output && typeof output === "object" && output.value !== undefined) {
-            return output.value
-        }
-        return rec.output
-    }
-
-    // Single-element array of a simplifiable item: [{type: "text", text: "hello"}] → "hello"
-    if (Array.isArray(value) && value.length === 1) {
-        const simplified = simplifyValue(value[0])
-        if (simplified !== value[0]) return simplified
-    }
-
-    // Multi-element array: simplify each element
-    if (Array.isArray(value) && value.length > 1) {
-        const simplified = value.map(simplifyValue)
-        const changed = simplified.some((s, i) => s !== value[i])
-        if (changed) {
-            // If all simplified to strings, join them
-            if (simplified.every((s) => typeof s === "string")) {
-                return (simplified as string[]).join("\n")
-            }
-            return simplified
-        }
-    }
-
-    // Strip metadata noise keys from objects
-    if (!Array.isArray(value)) {
-        const keys = Object.keys(rec)
-        const noiseKeys = keys.filter((k) => METADATA_NOISE_KEYS.has(k))
-        if (noiseKeys.length > 0 && noiseKeys.length < keys.length) {
-            const cleaned: Record<string, unknown> = {}
-            for (const k of keys) {
-                if (!METADATA_NOISE_KEYS.has(k)) {
-                    cleaned[k] = rec[k]
-                }
-            }
-            // If only one meaningful key remains, unwrap it
-            const cleanedKeys = Object.keys(cleaned)
-            if (cleanedKeys.length === 1) {
-                return cleaned[cleanedKeys[0]]
-            }
-            return cleaned
-        }
-    }
-
-    return value
-}
-
-/** Format a key label: snake_case → Title Case */
-const formatLabel = (key: string): string =>
-    key
-        .replace(/_/g, " ")
-        .replace(/([a-z])([A-Z])/g, "$1 $2")
-        .replace(/\b\w/g, (c) => c.toUpperCase())
-
-/** Check if a value is a short primitive suitable for inline display */
-const isShortLeaf = (value: unknown): boolean => {
-    if (value === null || value === undefined) return true
-    if (typeof value === "boolean" || typeof value === "number") return true
-    if (typeof value === "string" && value.length <= 120 && !value.includes("\n")) return true
-    return false
-}
-
-/** Inline key-value pair for compact leaf rendering */
-const InlineKeyValue = memo(function InlineKeyValue({
-    label,
-    value,
-}: {
-    label: string
-    value: string
-}) {
-    return (
-        <div className="flex items-baseline gap-2 min-h-[20px]">
-            <span className="text-xs text-[var(--ant-color-text-tertiary)] shrink-0">{label}</span>
-            <span className="font-mono text-[var(--ant-color-text)] break-all">{value || "—"}</span>
-        </div>
-    )
-})
-
-const EDITOR_RESET_CLASSES =
-    "!min-h-0 [&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-inner]:!min-h-0 [&_.editor-container]:!bg-transparent [&_.editor-container]:!min-h-0 [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-0 [&_.editor-input]:!py-0 [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.agenta-editor-wrapper]:!min-h-0"
-
-/** Get text content from a chat message, with AI SDK part awareness */
-const getMessageText = (content: unknown): string => {
-    if (content === null || content === undefined) return ""
-    if (typeof content === "string") return content
-
-    // Single AI SDK part object
-    if (content && typeof content === "object" && !Array.isArray(content)) {
-        const rec = content as Record<string, unknown>
-        if (rec.type === "text" && typeof rec.text === "string") return rec.text
-        if (rec.type === "tool-call" && typeof rec.toolName === "string") {
-            const args = rec.args ?? rec.input
-            return args ? `${rec.toolName}(${JSON.stringify(args, null, 2)})` : String(rec.toolName)
-        }
-        if (rec.type === "tool-result") {
-            const output = rec.output as Record<string, unknown> | undefined
-            const value = output?.value ?? output ?? rec.result
-            return typeof value === "string" ? value : JSON.stringify(value, null, 2)
-        }
-    }
-
-    if (Array.isArray(content)) {
-        // Collect text from all parts
-        const parts: string[] = []
-        for (const c of content) {
-            const rec = c as Record<string, unknown> | null
-            if (!rec || typeof rec !== "object") {
-                parts.push(String(c))
-                continue
-            }
-            if (rec.type === "text" && typeof rec.text === "string") {
-                parts.push(rec.text)
-            } else if (rec.type === "tool-call" && typeof rec.toolName === "string") {
-                parts.push(`[tool: ${rec.toolName}]`)
-            } else if (rec.type === "tool-result") {
-                const output = rec.output as Record<string, unknown> | undefined
-                const value = output?.value ?? output ?? rec.result
-                parts.push(typeof value === "string" ? value : JSON.stringify(value, null, 2))
-            } else if (typeof rec.text === "string") {
-                parts.push(rec.text)
-            }
-        }
-        if (parts.length > 0) return parts.join("\n")
-    }
-
-    try {
-        return JSON.stringify(content, null, 2)
-    } catch {
-        return String(content)
-    }
-}
-
-/**
- * Renders chat messages with editor-backed content for markdown support.
- * Each message gets a role label + EditorProvider for its content.
- */
-const RenderedChatMessages = memo(function RenderedChatMessages({
-    messages,
-    keyPrefix,
-}: {
-    messages: unknown[]
-    keyPrefix: string
-}) {
-    const normalized = useMemo(() => normalizeChatMessages(messages), [messages])
-
-    return (
-        <div className="flex flex-col gap-2">
-            {normalized.map((msg, i) => {
-                const roleColor =
-                    ROLE_COLOR_CLASSES[msg.role.toLowerCase()] ?? DEFAULT_ROLE_COLOR_CLASS
-                const text = getMessageText(msg.content)
-                const editorId = `${keyPrefix}-msg-${i}`
-
-                return (
-                    <div key={editorId} className="flex flex-col gap-0.5">
-                        <span className={`text-xs font-medium capitalize ${roleColor}`}>
-                            {msg.role}
-                        </span>
-                        <EditorProvider
-                            id={editorId}
-                            initialValue={text}
-                            showToolbar={false}
-                            enableTokens={false}
-                            readOnly
-                            className={EDITOR_RESET_CLASSES}
-                        >
-                            <MarkdownModeSync isMarkdownView={false} />
-                            <EditorWrapper
-                                initialValue={text}
-                                disabled
-                                showToolbar={false}
-                                noProvider
-                                readOnly
-                                boundHeight={false}
-                            />
-                        </EditorProvider>
-                    </div>
-                )
-            })}
-        </div>
-    )
-})
-
-/** Convert a value to a string for display in the editor */
-const valueToString = (value: unknown): string => {
-    if (value === null || value === undefined) return ""
-    if (typeof value === "string") return value
-    if (typeof value === "number" || typeof value === "boolean") return String(value)
-    try {
-        return JSON.stringify(value, null, 2)
-    } catch {
-        return String(value)
-    }
-}
-
-/**
- * Read-only variable field: renders a labeled value using EditorProvider,
- * matching the playground's variable display with markdown support.
- */
-const ReadOnlyVariableField = memo(function ReadOnlyVariableField({
-    label,
-    value,
-    editorId,
-}: {
-    label: string
-    value: string
-    editorId: string
-}) {
-    return (
-        <EditorProvider
-            id={editorId}
-            initialValue={value}
-            showToolbar={false}
-            enableTokens={false}
-            readOnly
-            className={EDITOR_RESET_CLASSES}
-        >
-            <MarkdownModeSync isMarkdownView={false} />
-            <div className="flex flex-col gap-1">
-                <span className="text-xs font-medium text-[var(--ant-color-text-tertiary)]">
-                    {label}
-                </span>
-                <EditorWrapper
-                    initialValue={value}
-                    disabled
-                    showToolbar={false}
-                    noProvider
-                    readOnly
-                    boundHeight={false}
-                />
-            </div>
-        </EditorProvider>
-    )
-})
-
-/**
- * Renders a value with smart type detection:
- * - Chat messages → RenderedChatMessages (editor-backed)
- * - Plain objects → labeled variable fields (recursive)
- * - Primitives → read-only editor field
- * - Arrays → per-item rendering
- */
-const DEFAULT_MAX_RENDER_DEPTH = 5
-
-const RenderedValueBlock = memo(function RenderedValueBlock({
-    value: rawValue,
-    keyPrefix,
-    depth = 0,
-    maxDepth = DEFAULT_MAX_RENDER_DEPTH,
-}: {
-    value: unknown
-    keyPrefix: string
-    depth?: number
-    maxDepth?: number
-}) {
-    // Simplify envelopes and strip metadata before rendering
-    const value = useMemo(() => simplifyValue(rawValue), [rawValue])
-
-    const chatMessages = useMemo(() => extractChatMessages(value), [value])
-
-    if (chatMessages && chatMessages.length > 0) {
-        return <RenderedChatMessages messages={chatMessages} keyPrefix={keyPrefix} />
-    }
-
-    if (value === null || value === undefined) {
-        return <span className="text-[#758391]">—</span>
-    }
-
-    // After simplification, primitives render as text
-    if (typeof value === "string") {
-        return (
-            <EditorProvider
-                id={keyPrefix}
-                initialValue={value}
-                showToolbar={false}
-                enableTokens={false}
-                readOnly
-                className={EDITOR_RESET_CLASSES}
-            >
-                <MarkdownModeSync isMarkdownView={false} />
-                <EditorWrapper
-                    initialValue={value}
-                    disabled
-                    showToolbar={false}
-                    noProvider
-                    readOnly
-                    boundHeight={false}
-                />
-            </EditorProvider>
-        )
-    }
-
-    if (Array.isArray(value) && value.length === 0) {
-        return <span className="text-[#758391]">—</span>
-    }
-
-    // Non-empty array of objects → render each item recursively
-    if (
-        depth < maxDepth &&
-        Array.isArray(value) &&
-        value.length > 0 &&
-        value.some((item) => item && typeof item === "object")
-    ) {
-        return (
-            <div className="flex flex-col gap-2">
-                {value.map((item, i) => {
-                    const simplified = simplifyValue(item)
-                    if (
-                        typeof simplified === "string" ||
-                        typeof simplified === "number" ||
-                        typeof simplified === "boolean"
-                    ) {
-                        return (
-                            <ReadOnlyVariableField
-                                key={i}
-                                label={`${i + 1}`}
-                                value={String(simplified)}
-                                editorId={`${keyPrefix}-${i}`}
-                            />
-                        )
-                    }
-                    if (simplified && typeof simplified === "object") {
-                        return (
-                            <div key={i} className="flex flex-col gap-1">
-                                <div className="pl-3">
-                                    <RenderedValueBlock
-                                        value={simplified}
-                                        keyPrefix={`${keyPrefix}-${i}`}
-                                        depth={depth + 1}
-                                        maxDepth={maxDepth}
-                                    />
-                                </div>
-                            </div>
-                        )
-                    }
-                    return (
-                        <ReadOnlyVariableField
-                            key={i}
-                            label={`${i + 1}`}
-                            value={valueToString(simplified)}
-                            editorId={`${keyPrefix}-${i}`}
-                        />
-                    )
-                })}
-            </div>
-        )
-    }
-
-    // Plain object → render each key as a variable field, simplifying nested values
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-        const entries = Object.entries(value as Record<string, unknown>)
-        return (
-            <div className="flex flex-col gap-1">
-                {entries.map(([k, v]) => {
-                    const simplified = simplifyValue(v)
-                    const nestedChat = extractChatMessages(simplified)
-                    if (nestedChat && nestedChat.length > 0) {
-                        return (
-                            <div key={k} className="flex flex-col gap-1">
-                                <span className="text-xs font-medium text-[var(--ant-color-text-tertiary)]">
-                                    {formatLabel(k)}
-                                </span>
-                                <RenderedChatMessages
-                                    messages={nestedChat}
-                                    keyPrefix={`${keyPrefix}-${k}`}
-                                />
-                            </div>
-                        )
-                    }
-
-                    // Short leaf values → inline key: value on one line
-                    if (isShortLeaf(simplified)) {
-                        return (
-                            <InlineKeyValue
-                                key={k}
-                                label={formatLabel(k)}
-                                value={
-                                    simplified === null || simplified === undefined
-                                        ? "—"
-                                        : String(simplified)
-                                }
-                            />
-                        )
-                    }
-
-                    // Recurse for nested objects/arrays (up to depth limit)
-                    if (depth < maxDepth && simplified && typeof simplified === "object") {
-                        return (
-                            <div key={k} className="flex flex-col gap-0.5 mt-1">
-                                <span className="text-xs font-medium text-[var(--ant-color-text-tertiary)]">
-                                    {formatLabel(k)}
-                                </span>
-                                <div className="pl-3">
-                                    <RenderedValueBlock
-                                        value={simplified}
-                                        keyPrefix={`${keyPrefix}-${k}`}
-                                        depth={depth + 1}
-                                        maxDepth={maxDepth}
-                                    />
-                                </div>
-                            </div>
-                        )
-                    }
-
-                    // Long strings or depth-limited objects → editor field
-                    return (
-                        <ReadOnlyVariableField
-                            key={k}
-                            label={formatLabel(k)}
-                            value={valueToString(simplified)}
-                            editorId={`${keyPrefix}-${k}`}
-                        />
-                    )
-                })}
-            </div>
-        )
-    }
-
-    // Primitives, arrays, anything else → single editor
-    return (
-        <EditorProvider
-            id={keyPrefix}
-            initialValue={valueToString(value)}
-            showToolbar={false}
-            enableTokens={false}
-            readOnly
-            className={EDITOR_RESET_CLASSES}
-        >
-            <MarkdownModeSync isMarkdownView={false} />
-            <EditorWrapper
-                initialValue={valueToString(value)}
-                disabled
-                showToolbar={false}
-                noProvider
-                readOnly
-                boundHeight={false}
-            />
-        </EditorProvider>
-    )
-})
-
-/**
- * Rendered JSON view for a span field.
- * - If the entire value is chat-like (single message or array), render as chat.
- * - If it's an object, render each top-level key separately,
- *   detecting chat vs non-chat per key.
- * - Otherwise render as formatted text.
- */
-const RenderedJsonView = memo(function RenderedJsonView({
-    data: rawData,
-    keyPrefix,
-}: {
-    data: unknown
-    keyPrefix: string
-}) {
-    // Simplify envelopes (tool-call, tool-result, text parts) before rendering
-    const data = useMemo(() => simplifyValue(rawData), [rawData])
-
-    // Determine if this is a direct chat value:
-    // - Array of messages → render as chat
-    // - Single message object (has "role" key) → render as chat
-    // - Object with multiple keys (some may contain chat) → render per-key
-    const isDirectChat = useMemo(() => {
-        if (typeof data === "string") return false
-        if (Array.isArray(data)) return !!extractChatMessages(data)
-        if (data && typeof data === "object" && "role" in (data as Record<string, unknown>)) {
-            return !!extractChatMessages(data)
-        }
-        return false
-    }, [data])
-    const directChatMessages = useMemo(
-        () => (isDirectChat ? extractChatMessages(data) : null),
-        [isDirectChat, data],
-    )
-
-    // For non-chat objects, render each key separately
-    const entries = useMemo(() => {
-        if (typeof data === "string") return null
-        if (isDirectChat) return null
-        if (!data || typeof data !== "object" || Array.isArray(data)) return null
-        return Object.entries(data as Record<string, unknown>)
-    }, [data, isDirectChat])
-
-    // If simplification produced a string, render as text directly
-    if (typeof data === "string") {
-        return (
-            <div className="p-4">
-                <RenderedValueBlock value={data} keyPrefix={keyPrefix} />
-            </div>
-        )
-    }
-
-    if (isDirectChat && directChatMessages && directChatMessages.length > 0) {
-        return (
-            <div className="p-4">
-                <RenderedChatMessages messages={directChatMessages} keyPrefix={keyPrefix} />
-            </div>
-        )
-    }
-
-    if (entries) {
-        return (
-            <div className="flex flex-col gap-4 p-4">
-                {entries.map(([key, value]) => (
-                    <div key={key} className="flex flex-col gap-1.5">
-                        <span className="text-xs font-semibold text-[#758391]">{key}</span>
-                        <RenderedValueBlock value={value} keyPrefix={`${keyPrefix}-${key}`} />
-                    </div>
-                ))}
-            </div>
-        )
-    }
-
-    // Primitive or array fallback
-    return (
-        <div className="p-4">
-            <RenderedValueBlock value={data} keyPrefix={keyPrefix} />
-        </div>
-    )
-})
+// Value-simplification and beautified rendering live in ./BeautifiedJsonView.
 
 const LanguageAwareViewer = ({
     initialValue,
@@ -942,39 +354,64 @@ export const TraceSpanDrillInView = memo(
             return getStringOrJson(sanitizedSpanData)
         }, [parsedStructuredString, sanitizedSpanData])
 
+        const decodedJsonOutput = useMemo(
+            () => buildDecodedJsonOutput(sanitizedSpanData, parsedStructuredString),
+            [sanitizedSpanData, parsedStructuredString],
+        )
+
+        const beautifiedJsonSource = useMemo(() => {
+            if (isStringValue) return parsedStructuredString ?? sanitizedSpanData
+            return sanitizedSpanData
+        }, [isStringValue, parsedStructuredString, sanitizedSpanData])
+
+        const hasStructuredValue =
+            (isStringValue && parsedStructuredString !== null) ||
+            (!isStringValue && isObjectOrArrayValue)
+
         const availableViewModes = useMemo(() => {
             if (viewModePreset === "message") {
                 const modes: RawSpanDisplayMode[] = ["text", "markdown"]
-                if (
-                    (isStringValue && parsedStructuredString !== null) ||
-                    (!isStringValue && isObjectOrArrayValue)
-                ) {
-                    modes.push("rendered-json")
+                if (hasStructuredValue) {
+                    modes.push("decoded-json", "beautified-json")
                 }
                 return modes
             }
 
             if (isStringValue) {
                 if (parsedStructuredString !== null) {
-                    const modes: RawSpanDisplayMode[] = ["json", "yaml", "rendered-json"]
-                    modes.push("text", "markdown")
-                    return modes
+                    return [
+                        "json",
+                        "yaml",
+                        "decoded-json",
+                        "beautified-json",
+                        "text",
+                        "markdown",
+                    ] as RawSpanDisplayMode[]
                 }
                 return ["text", "markdown"] as RawSpanDisplayMode[]
             }
 
-            const modes: RawSpanDisplayMode[] = ["json", "yaml", "rendered-json"]
-            return modes
-        }, [viewModePreset, isStringValue, isObjectOrArrayValue, parsedStructuredString])
+            return ["json", "yaml", "decoded-json", "beautified-json"] as RawSpanDisplayMode[]
+        }, [viewModePreset, isStringValue, hasStructuredValue, parsedStructuredString])
         const [viewMode, setViewMode] = useState<RawSpanDisplayMode>(() =>
-            getDefaultRawSpanViewMode(availableViewModes),
+            getDefaultRawSpanViewMode(availableViewModes, {
+                preferBeautified: viewModePreset === "message",
+            }),
         )
 
-        const isCodeMode = viewMode === "json" || viewMode === "yaml"
-        const isRenderedJson = viewMode === "rendered-json"
+        const isCodeMode = viewMode === "json" || viewMode === "yaml" || viewMode === "decoded-json"
+        const isBeautifiedJson = viewMode === "beautified-json"
 
         const activeOutput =
-            viewMode === "yaml" ? yamlOutput : viewMode === "json" ? jsonOutput : textOutput
+            viewMode === "yaml"
+                ? yamlOutput
+                : viewMode === "json"
+                  ? jsonOutput
+                  : viewMode === "decoded-json"
+                    ? decodedJsonOutput
+                    : viewMode === "beautified-json"
+                      ? JSON.stringify(beautifiedJsonSource, null, 2)
+                      : textOutput
 
         const closeSearch = useCallback(() => {
             setIsSearchOpen(false)
@@ -1004,9 +441,13 @@ export const TraceSpanDrillInView = memo(
 
         useEffect(() => {
             if (!availableViewModes.includes(viewMode)) {
-                setViewMode(getDefaultRawSpanViewMode(availableViewModes))
+                setViewMode(
+                    getDefaultRawSpanViewMode(availableViewModes, {
+                        preferBeautified: viewModePreset === "message",
+                    }),
+                )
             }
-        }, [availableViewModes, viewMode])
+        }, [availableViewModes, viewMode, viewModePreset])
 
         useEffect(() => {
             closeSearch()
@@ -1114,7 +555,7 @@ export const TraceSpanDrillInView = memo(
                                 <DrillInProvider
                                     value={{
                                         enabled: false,
-                                        decodeEscapedJsonStrings: false,
+                                        decodeEscapedJsonStrings: viewMode === "decoded-json",
                                     }}
                                 >
                                     <EditorProvider
@@ -1140,10 +581,10 @@ export const TraceSpanDrillInView = memo(
                                         />
                                     </EditorProvider>
                                 </DrillInProvider>
-                            ) : isRenderedJson ? (
+                            ) : isBeautifiedJson ? (
                                 <div className="overflow-y-auto">
-                                    <RenderedJsonView
-                                        data={sanitizedSpanData}
+                                    <BeautifiedJsonView
+                                        data={beautifiedJsonSource}
                                         keyPrefix={`trace-span-${textViewerId}`}
                                     />
                                 </div>
