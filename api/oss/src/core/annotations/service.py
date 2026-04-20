@@ -195,7 +195,7 @@ class AnnotationsService:
             project_id=project_id,
             user_id=user_id,
             #
-            name=simple_evaluator.name if simple_evaluator else None,
+            name=simple_evaluator.slug if simple_evaluator else None,
             #
             flags=annotation_flags,
             tags=annotation_create.tags,

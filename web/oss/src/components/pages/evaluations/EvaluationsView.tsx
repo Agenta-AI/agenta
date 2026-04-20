@@ -37,7 +37,7 @@ const PROJECT_TAB_ITEMS: {key: AppTabKey; label: string}[] = [
     {key: "all", label: "All Evals"},
     {key: "auto", label: "Auto Evals"},
     {key: "human", label: "Human Evals"},
-    {key: "online", label: "Online Evals"},
+    {key: "online", label: "Live Evals"},
     {key: "custom", label: "SDK Evals"},
 ]
 
