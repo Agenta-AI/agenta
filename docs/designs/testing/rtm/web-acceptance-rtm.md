@@ -542,7 +542,7 @@ For every RTM entry below:
 - Role: `owner`
 - Plan: environment-defined
 - License: `oss`
-- Status: implemented, currently skipped pending deterministic bootstrap data
+- Status: active
 
 ### WEB-ACC-OBS-001 - Open a trace detail drawer from Observability
 
