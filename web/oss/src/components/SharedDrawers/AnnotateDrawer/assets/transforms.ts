@@ -470,7 +470,6 @@ export const generateNewAnnotationPayloadData = ({
         const references: Record<string, any> = {
             evaluator: {
                 id: evaluator.id,
-                slug: evaluator.slug,
             },
         }
         if (testsetId) references.testset = {id: testsetId}
