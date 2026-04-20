@@ -57,6 +57,7 @@ import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import {
     connectAppToEvaluatorAtom,
     persistedAppSelectionAtom,
+    persistedTestsetSelectionAtom,
     selectedAppLabelAtom,
 } from "@/oss/components/Evaluators/components/ConfigureEvaluator/atoms"
 import EvaluatorPlaygroundHeader from "@/oss/components/Evaluators/components/ConfigureEvaluator/EvaluatorPlaygroundHeader"
@@ -184,13 +185,15 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
     const setSelectedAppLabel = useSetAtom(selectedAppLabelAtom)
     const setConnectedTestset = useSetAtom(connectedTestsetAtom)
     const connectApp = useSetAtom(connectAppToEvaluatorAtom)
+    const setPersistedTestset = useSetAtom(persistedTestsetSelectionAtom)
     useEffect(() => {
         if (entityId) {
             addPrimaryNode({type: "workflow", id: entityId, label: "Evaluator"})
             setInitialized(true)
 
-            // Restore persisted app selection (survives drawer close/reopen and commits)
             const store = getDefaultStore()
+
+            // Restore persisted app selection (survives drawer close/reopen and commits)
             const persisted = store.get(persistedAppSelectionAtom)
             if (persisted) {
                 setSelectedAppLabel(persisted.appLabel)
@@ -199,6 +202,16 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
                     appLabel: persisted.appLabel,
                     evaluatorRevisionId: entityId,
                     evaluatorLabel: "Evaluator",
+                })
+            }
+
+            // Restore persisted testset selection — fetches fresh rows, no stale outputs
+            const persistedTestset = store.get(persistedTestsetSelectionAtom)
+            if (persistedTestset) {
+                store.set(playgroundController.actions.restoreLoadableConnection, {
+                    revisionId: persistedTestset.revisionId,
+                    sourceName: persistedTestset.sourceName,
+                    testsetId: persistedTestset.testsetId,
                 })
             }
         }
@@ -249,6 +262,22 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
         setConnectedTestset,
         connectApp,
     ])
+
+    // Save testset connection to localStorage whenever the user connects a testset
+    const connectedTestset = useAtomValue(connectedTestsetAtom)
+    useEffect(() => {
+        if (!connectedTestset) return
+        const store = getDefaultStore()
+        const loadableId = store.get(derivedLoadableIdAtom)
+        if (!loadableId) return
+        const loadableState = store.get(loadableStateAtomFamily(loadableId))
+        if (!loadableState.connectedSourceId) return
+        setPersistedTestset({
+            revisionId: loadableState.connectedSourceId,
+            testsetId: connectedTestset.id,
+            sourceName: connectedTestset.name ?? null,
+        })
+    }, [connectedTestset, setPersistedTestset])
 
     const selectedAppLabel = useAtomValue(selectedAppLabelAtom)
 

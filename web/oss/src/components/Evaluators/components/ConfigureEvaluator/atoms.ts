@@ -51,6 +51,38 @@ export const persistedAppSelectionAtom = atom(
 )
 
 // ============================================================================
+// PERSISTED TESTSET SELECTION
+// ============================================================================
+
+interface PersistedTestsetSelection {
+    revisionId: string
+    testsetId: string | null
+    sourceName: string | null
+}
+
+const persistedTestsetSelectionByProjectAtom = atomWithStorage<
+    Record<string, PersistedTestsetSelection>
+>("agenta:evaluator:selected-testset", {})
+
+export const persistedTestsetSelectionAtom = atom(
+    (get) => {
+        const projectId = get(projectIdAtom) || "__global__"
+        const all = get(persistedTestsetSelectionByProjectAtom)
+        return all[projectId] ?? null
+    },
+    (get, set, next: PersistedTestsetSelection | null) => {
+        const projectId = get(projectIdAtom) || "__global__"
+        const all = get(persistedTestsetSelectionByProjectAtom)
+        if (next) {
+            set(persistedTestsetSelectionByProjectAtom, {...all, [projectId]: next})
+        } else {
+            const {[projectId]: _, ...rest} = all
+            set(persistedTestsetSelectionByProjectAtom, rest)
+        }
+    },
+)
+
+// ============================================================================
 // DERIVED SELECTORS
 // ============================================================================
 
