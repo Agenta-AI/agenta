@@ -12,7 +12,76 @@
 
 import {playgroundController} from "@agenta/playground"
 import {playgroundNodesAtom} from "@agenta/playground/state"
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
+import {atomWithStorage} from "jotai/utils"
+
+// ============================================================================
+// PERSISTED APP SELECTION
+// ============================================================================
+
+interface PersistedAppSelection {
+    appRevisionId: string
+    appLabel: string
+}
+
+/** Stores the last selected app per project in localStorage. */
+const persistedAppSelectionByProjectAtom = atomWithStorage<Record<string, PersistedAppSelection>>(
+    "agenta:evaluator:selected-app",
+    {},
+)
+
+/** Read/write the persisted app selection for the current project. */
+export const persistedAppSelectionAtom = atom(
+    (get) => {
+        const projectId = get(projectIdAtom) || "__global__"
+        const all = get(persistedAppSelectionByProjectAtom)
+        return all[projectId] ?? null
+    },
+    (get, set, next: PersistedAppSelection | null) => {
+        const projectId = get(projectIdAtom) || "__global__"
+        const all = get(persistedAppSelectionByProjectAtom)
+        if (next) {
+            set(persistedAppSelectionByProjectAtom, {...all, [projectId]: next})
+        } else {
+            const {[projectId]: _, ...rest} = all
+            set(persistedAppSelectionByProjectAtom, rest)
+        }
+    },
+)
+
+// ============================================================================
+// PERSISTED TESTSET SELECTION
+// ============================================================================
+
+interface PersistedTestsetSelection {
+    revisionId: string
+    testsetId: string | null
+    sourceName: string | null
+    testcases: ({id: string} & Record<string, unknown>)[]
+}
+
+const persistedTestsetSelectionByProjectAtom = atomWithStorage<
+    Record<string, PersistedTestsetSelection>
+>("agenta:evaluator:selected-testset", {})
+
+export const persistedTestsetSelectionAtom = atom(
+    (get) => {
+        const projectId = get(projectIdAtom) || "__global__"
+        const all = get(persistedTestsetSelectionByProjectAtom)
+        return all[projectId] ?? null
+    },
+    (get, set, next: PersistedTestsetSelection | null) => {
+        const projectId = get(projectIdAtom) || "__global__"
+        const all = get(persistedTestsetSelectionByProjectAtom)
+        if (next) {
+            set(persistedTestsetSelectionByProjectAtom, {...all, [projectId]: next})
+        } else {
+            const {[projectId]: _, ...rest} = all
+            set(persistedTestsetSelectionByProjectAtom, rest)
+        }
+    },
+)
 
 // ============================================================================
 // DERIVED SELECTORS
@@ -74,8 +143,9 @@ export const connectAppToEvaluatorAtom = atom(
     ) => {
         const {appRevisionId, appLabel, evaluatorRevisionId, evaluatorLabel} = params
 
-        // Track selected app label for display
+        // Track selected app label for display + persist across sessions
         set(selectedAppLabelAtom, appLabel)
+        set(persistedAppSelectionAtom, {appRevisionId, appLabel})
 
         // Replace primary node with app
         const nodeId = set(playgroundController.actions.changePrimaryNode, {

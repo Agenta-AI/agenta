@@ -56,6 +56,8 @@ import OSSdrillInUIProvider from "@/oss/components/DrillInView/OSSdrillInUIProvi
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import {
     connectAppToEvaluatorAtom,
+    persistedAppSelectionAtom,
+    persistedTestsetSelectionAtom,
     selectedAppLabelAtom,
 } from "@/oss/components/Evaluators/components/ConfigureEvaluator/atoms"
 import EvaluatorPlaygroundHeader from "@/oss/components/Evaluators/components/ConfigureEvaluator/EvaluatorPlaygroundHeader"
@@ -182,10 +184,41 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
     const setInitialized = useSetAtom(playgroundInitializedAtom)
     const setSelectedAppLabel = useSetAtom(selectedAppLabelAtom)
     const setConnectedTestset = useSetAtom(connectedTestsetAtom)
+    const connectApp = useSetAtom(connectAppToEvaluatorAtom)
+    const setPersistedTestset = useSetAtom(persistedTestsetSelectionAtom)
     useEffect(() => {
         if (entityId) {
             addPrimaryNode({type: "workflow", id: entityId, label: "Evaluator"})
             setInitialized(true)
+
+            const store = getDefaultStore()
+
+            // Restore persisted app selection (survives drawer close/reopen and commits)
+            const persisted = store.get(persistedAppSelectionAtom)
+            if (persisted) {
+                setSelectedAppLabel(persisted.appLabel)
+                connectApp({
+                    appRevisionId: persisted.appRevisionId,
+                    appLabel: persisted.appLabel,
+                    evaluatorRevisionId: entityId,
+                    evaluatorLabel: "Evaluator",
+                })
+            }
+
+            // Restore the exact testcases that were loaded (same path as TestsetDropdown)
+            const persistedTestset = store.get(persistedTestsetSelectionAtom)
+            if (persistedTestset?.testcases?.length) {
+                const loadableId = store.get(derivedLoadableIdAtom)
+                if (loadableId) {
+                    store.set(playgroundController.actions.connectToTestset, {
+                        loadableId,
+                        revisionId: persistedTestset.revisionId,
+                        testcases: persistedTestset.testcases,
+                        testsetName: persistedTestset.sourceName ?? undefined,
+                        testsetId: persistedTestset.testsetId ?? undefined,
+                    })
+                }
+            }
         }
         return () => {
             const store = getDefaultStore()
@@ -232,11 +265,34 @@ const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
         setInitialized,
         setSelectedAppLabel,
         setConnectedTestset,
+        connectApp,
     ])
 
-    // Evaluator state — derive directly from nodes instead of external atoms
-    // to avoid stale reads across atom boundaries.
-    const connectApp = useSetAtom(connectAppToEvaluatorAtom)
+    // Save testset connection to localStorage whenever the user connects a testset
+    const connectedTestset = useAtomValue(connectedTestsetAtom)
+    useEffect(() => {
+        if (!connectedTestset) return
+        const store = getDefaultStore()
+        const loadableId = store.get(derivedLoadableIdAtom)
+        if (!loadableId) return
+        const loadableState = store.get(loadableStateAtomFamily(loadableId))
+        if (!loadableState.connectedSourceId) return
+        const rowIds = store.get(testcaseMolecule.atoms.displayRowIds)
+        const testcases = rowIds
+            .map((id) => {
+                const entity = testcaseMolecule.get.data(id)
+                return entity ? ({...entity, id} as {id: string} & Record<string, unknown>) : null
+            })
+            .filter((t): t is {id: string} & Record<string, unknown> => t !== null)
+
+        setPersistedTestset({
+            revisionId: loadableState.connectedSourceId,
+            testsetId: connectedTestset.id,
+            sourceName: connectedTestset.name ?? null,
+            testcases,
+        })
+    }, [connectedTestset, setPersistedTestset])
+
     const selectedAppLabel = useAtomValue(selectedAppLabelAtom)
 
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
@@ -370,6 +426,14 @@ const useEvaluatorCommitCallback = () => {
                 if (isEvaluatorCreate) {
                     drawerCallbackRef.current?.(result.newRevisionId)
                     closeDrawerRef.current()
+                } else {
+                    // In evaluator-view mode, the selection change callback
+                    // skips updating the drawer entity ID (because the drawer
+                    // entity intentionally differs from the primary playground
+                    // node after app connection). Update it explicitly here
+                    // so the drawer displays the newly committed revision.
+                    const store = getDefaultStore()
+                    store.set(workflowRevisionDrawerEntityIdAtom, result.newRevisionId)
                 }
 
                 message.success(
