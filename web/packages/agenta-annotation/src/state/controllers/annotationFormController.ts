@@ -1488,7 +1488,6 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                         references: {
                             evaluator: {
                                 id: evalWorkflowId,
-                                slug: evaluator.slug ?? undefined,
                             },
                             ...(stepRefs?.evaluator_revision?.id
                                 ? {evaluator_revision: stepRefs.evaluator_revision}
@@ -1526,7 +1525,6 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                         references: {
                             evaluator: {
                                 id: evalWorkflowId,
-                                slug: evaluator.slug ?? undefined,
                             },
                             ...(stepRefs?.evaluator_revision?.id
                                 ? {evaluator_revision: stepRefs.evaluator_revision}
