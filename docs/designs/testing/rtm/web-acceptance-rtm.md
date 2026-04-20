@@ -148,6 +148,28 @@ For every RTM entry below:
 - License: `oss`
 - Status: active
 
+### WEB-ACC-APP-005 - App overview page renders correctly
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/app-management.feature`
+- Test file: `web/oss/tests/playwright/acceptance/app/app-management.spec.ts`
+- Playwright title: `App Management > should render the app overview page with environment cards and variant list`
+
+#### Markers
+
+- Scope: `apps`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
 ### WEB-ACC-PLAYGROUND-001 - Run a completion variant in Playground
 
 #### Source

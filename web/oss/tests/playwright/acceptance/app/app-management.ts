@@ -10,6 +10,7 @@ import {
     TestLicenseType,
 } from "@agenta/web-tests/playwright/config/testTags"
 import {test as baseTest} from "./test"
+import {expect} from "@agenta/web-tests/utils"
 import {expectAuthenticatedSession} from "../utils/auth"
 import {createScenarios} from "../utils/scenarios"
 import {buildAcceptanceTags} from "../utils/tags"
@@ -19,6 +20,18 @@ const scenarios = createScenarios(baseTest)
 const tags = buildAcceptanceTags({
     scope: [TestScope.APPS],
     coverage: [TestCoverage.SMOKE, TestCoverage.LIGHT],
+    path: TestPath.HAPPY,
+    lens: TestLensType.FUNCTIONAL,
+    cost: TestCostType.Free,
+    license: TestLicenseType.OSS,
+    role: TestRoleType.Owner,
+    caseType: TestcaseType.TYPICAL,
+    speed: TestSpeedType.FAST,
+})
+
+const lightTags = buildAcceptanceTags({
+    scope: [TestScope.APPS],
+    coverage: [TestCoverage.LIGHT],
     path: TestPath.HAPPY,
     lens: TestLensType.FUNCTIONAL,
     cost: TestCostType.Free,
@@ -121,6 +134,52 @@ const tests = () => {
 
             await scenarios.then("the updated app name is visible in the apps list", async () => {
                 await uiHelpers.expectText(newName)
+            })
+        },
+    )
+
+    baseTest(
+        "should render the app overview page with environment cards and variant list",
+        {tag: lightTags},
+        async ({page, uiHelpers, apiHelpers}) => {
+            let appId: string
+
+            await scenarios.given("the user is authenticated", async () => {
+                await expectAuthenticatedSession(page)
+            })
+
+            await scenarios.and("at least one prompt app exists in the project", async () => {
+                const app = await apiHelpers.getApp()
+                appId = app.id
+            })
+
+            await scenarios.and("the user is on the apps list page", async () => {
+                await page.goto(`${apiHelpers.getProjectScopedBasePath()}/apps/${appId}/overview`, {
+                    waitUntil: "domcontentloaded",
+                })
+                await uiHelpers.expectPath(`/apps/${appId}/overview`)
+                await page.waitForLoadState("networkidle")
+            })
+
+            await scenarios.when("the user opens an existing app", async () => {
+                const deploymentHeading = page.getByRole("heading", {name: "Deployment"})
+                await deploymentHeading.scrollIntoViewIfNeeded()
+                await expect(deploymentHeading).toBeVisible({timeout: 10000})
+            })
+
+            await scenarios.then(
+                "the app overview page displays the environment cards",
+                async () => {
+                    for (const envName of ["Development", "Staging", "Production"]) {
+                        await expect(page.getByText(envName, {exact: true}).first()).toBeVisible()
+                    }
+                },
+            )
+
+            await scenarios.and("the variant list is visible", async () => {
+                await expect(page.getByRole("heading", {name: "Recent Prompts"})).toBeVisible({
+                    timeout: 10000,
+                })
             })
         },
     )
