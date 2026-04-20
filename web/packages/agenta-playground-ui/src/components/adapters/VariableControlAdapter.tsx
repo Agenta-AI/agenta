@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useRef} from "react"
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {isJsonString} from "@agenta/shared/utils"
@@ -144,15 +144,22 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     const isJsonType = portType === "object" || portType === "array"
     const jsonDefault = portType === "array" ? "[]" : "{}"
 
-    // Capture whether the initial value looks like JSON at mount time.
-    // This is safe because codeOnly is set once before Lexical initialises.
-    // Switching codeOnly dynamically at runtime crashes Lexical
-    // (MarkdownShortcuts: missing dependency code), so the flag is immutable.
-    const initialValueLooksLikeJson = useRef(
-        typeof value === "string" && !!value && isJsonString(value),
-    ).current
+    // Detect whether the value looks like JSON. Uses state instead of ref so that
+    // async-loaded testcase data (initially "") is detected once it arrives.
+    // Only upgrades false→true (never downgrades) because switching Lexical's
+    // codeOnly from true→false at runtime crashes (MarkdownShortcuts dependency).
+    // The EditorProvider is keyed on this flag so the upgrade triggers a clean remount.
+    const [detectedAsJson, setDetectedAsJson] = useState(
+        () => typeof value === "string" && !!value && isJsonString(value),
+    )
 
-    const isJsonEditor = isJsonType || initialValueLooksLikeJson
+    useEffect(() => {
+        if (!detectedAsJson && typeof value === "string" && !!value && isJsonString(value)) {
+            setDetectedAsJson(true)
+        }
+    }, [value, detectedAsJson])
+
+    const isJsonEditor = isJsonType || detectedAsJson
     const effectiveValue =
         isJsonEditor && isJsonType && (!value || value === "") ? jsonDefault : value
 
@@ -256,6 +263,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     return (
         <div ref={containerRef} className="w-full" style={getCollapseStyle(collapsed)}>
             <EditorProvider
+                key={`${editorId}-${isJsonEditor}`}
                 id={editorId}
                 initialValue={effectiveValue}
                 placeholder={effectivePlaceholder}
