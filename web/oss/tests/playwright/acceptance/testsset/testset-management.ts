@@ -52,7 +52,7 @@ const navigateToTestsets = async (page: any, uiHelpers: any) => {
 
 const testsetTests = () => {
     test(
-        "Test Sets > should create a new testset from scratch",
+        "should create a new testset from scratch",
         {tag: smokeTags},
         async ({page, uiHelpers, apiHelpers}) => {
             const testsetName = `e2e-scratch-${Date.now()}`
@@ -109,7 +109,7 @@ const testsetTests = () => {
     )
 
     test(
-        "Test Sets > should upload a testset from CSV",
+        "should upload a testset from CSV",
         {tag: lightTags},
         async ({page, uiHelpers, apiHelpers}) => {
             const testsetName = `e2e-csv-${Date.now()}`
@@ -167,7 +167,7 @@ const testsetTests = () => {
     )
 
     test(
-        "Test Sets > should edit a testcase and persist the change",
+        "should edit a testcase inline and persist the change",
         {tag: lightTags},
         async ({page, uiHelpers, apiHelpers}) => {
             const editedValue = `edited-${Date.now()}`
@@ -258,7 +258,7 @@ const testsetTests = () => {
     )
 
     test(
-        "Test Sets > should add and delete rows and columns",
+        "should add and delete rows and columns",
         {tag: lightTags},
         async ({page, uiHelpers, apiHelpers}) => {
             const testsetName = `e2e-addrow-${Date.now()}`
@@ -411,60 +411,53 @@ const testsetTests = () => {
         },
     )
 
-    test(
-        "Test Sets > should delete a testset",
-        {tag: smokeTags},
-        async ({page, uiHelpers, apiHelpers}) => {
-            let testsetName: string
+    test("should delete a testset", {tag: smokeTags}, async ({page, uiHelpers, apiHelpers}) => {
+        let testsetName: string
 
-            await scenarios.given("the user is authenticated", async () => {
-                await expectAuthenticatedSession(page)
+        await scenarios.given("the user is authenticated", async () => {
+            await expectAuthenticatedSession(page)
+        })
+
+        await scenarios.and("the user is on the Test Sets page", async () => {
+            await navigateToTestsets(page, uiHelpers)
+        })
+
+        await scenarios.and("at least one testset exists", async () => {
+            const created = await apiHelpers.createTestset({
+                name: `e2e-delete-${Date.now()}`,
+                rows: [{input: "test"}],
             })
-
-            await scenarios.and("the user is on the Test Sets page", async () => {
-                await navigateToTestsets(page, uiHelpers)
+            testsetName = created.name
+            // Refresh the page to see the newly created testset
+            await page.reload({waitUntil: "domcontentloaded"})
+            await expect(page.getByRole("heading", {name: "Testsets"})).toBeVisible({
+                timeout: 10000,
             })
+        })
 
-            await scenarios.and("at least one testset exists", async () => {
-                const created = await apiHelpers.createTestset({
-                    name: `e2e-delete-${Date.now()}`,
-                    rows: [{input: "test"}],
-                })
-                testsetName = created.name
-                // Refresh the page to see the newly created testset
-                await page.reload({waitUntil: "domcontentloaded"})
-                await expect(page.getByRole("heading", {name: "Testsets"})).toBeVisible({
-                    timeout: 10000,
-                })
-            })
+        await scenarios.when("the user deletes that testset", async () => {
+            const testsetRow = page.locator("[data-row-key]").filter({hasText: testsetName}).first()
+            await expect(testsetRow).toBeVisible({timeout: 10000})
 
-            await scenarios.when("the user deletes that testset", async () => {
-                const testsetRow = page
-                    .locator("[data-row-key]")
-                    .filter({hasText: testsetName})
-                    .first()
-                await expect(testsetRow).toBeVisible({timeout: 10000})
+            // Click the gear (actions) button on the testset row
+            const gearButton = testsetRow.getByRole("button").last()
+            await gearButton.click()
+            await page.getByRole("menuitem", {name: "Delete"}).click()
+            await uiHelpers.confirmModal("Delete")
 
-                // Click the gear (actions) button on the testset row
-                const gearButton = testsetRow.getByRole("button").last()
-                await gearButton.click()
-                await page.getByRole("menuitem", {name: "Delete"}).click()
-                await uiHelpers.confirmModal("Delete")
+            // Wait for the confirmation modal to close before asserting absence.
+            // The modal body contains the testset name, which would cause a strict-mode
+            // violation in expectNoText if the modal is still in the DOM.
+            await page
+                .locator(".ant-modal")
+                .filter({hasText: "Are you sure?"})
+                .waitFor({state: "hidden", timeout: 15000})
+        })
 
-                // Wait for the confirmation modal to close before asserting absence.
-                // The modal body contains the testset name, which would cause a strict-mode
-                // violation in expectNoText if the modal is still in the DOM.
-                await page
-                    .locator(".ant-modal")
-                    .filter({hasText: "Are you sure?"})
-                    .waitFor({state: "hidden", timeout: 15000})
-            })
-
-            await scenarios.then("the testset no longer appears in the testsets list", async () => {
-                await uiHelpers.expectNoText(testsetName)
-            })
-        },
-    )
+        await scenarios.then("the testset no longer appears in the testsets list", async () => {
+            await uiHelpers.expectNoText(testsetName)
+        })
+    })
 }
 
 export default testsetTests

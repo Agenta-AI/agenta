@@ -18,21 +18,21 @@ Feature: Playground Variant Execution
     Given the user is authenticated
     And at least one completion app and one chat app exist
 
-  @smoke @happy @scope:playground @scope:observability
+  @smoke @happy @scope:playground @scope:observability @speed:slow
   Scenario: Run single view variant for completion
     Given the active project has a configured test provider
     And the user is on the playground for a completion app
     When the user runs the completion variant with test inputs
     Then the completion variant run succeeds without UI errors
 
-  @smoke @happy @scope:playground
+  @smoke @happy @scope:playground @speed:slow
   Scenario: Run single view variant for chat
     Given the active project has a configured test provider
     And the user is on the playground for a chat app
     When the user runs the chat variant with test inputs
     Then the chat variant run succeeds without UI errors
 
-  @smoke @happy @scope:playground
+  @smoke @happy @scope:playground @speed:slow
   Scenario: Update prompt and save changes
     Given the user is on the playground for a completion app
     When the user adds new prompt messages

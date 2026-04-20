@@ -16,7 +16,7 @@ Feature: Variant Deployment
     Given the user is authenticated
     And at least one completion app with a variant exists
 
-  @smoke @happy
+  @smoke @happy @scope:deployment @speed:slow
   Scenario: Deploy a variant to development environment
     Given the user is on the app overview page
     When the user opens the Development deployment flow

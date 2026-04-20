@@ -15,12 +15,12 @@ Feature: Settings - Model Hub
   Background:
     Given the user is authenticated
 
-  @smoke @happy
+  @smoke @happy @scope:settings @speed:fast
   Scenario: Ensure the mock custom provider exists
     When the project scoped mock test provider is configured
     Then the "Custom providers" table lists "mock"
 
-  @light @happy
+  @light @happy @scope:settings @speed:slow
   Scenario: Create and delete an API key
     Given the user is on the Settings page
     When the user creates a new API key

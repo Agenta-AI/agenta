@@ -1,4 +1,4 @@
-# Tests: app/manage.spec.ts -> app/manage.ts
+# Tests: app/app-management.spec.ts -> app/app-management.ts
 # RTM IDs: WEB-ACC-APP-003, WEB-ACC-APP-004
 # Tags: @scope:apps @coverage:smoke @coverage:light @path:happy @case:typical @speed:fast
 

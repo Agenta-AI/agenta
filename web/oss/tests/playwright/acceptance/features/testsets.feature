@@ -1,5 +1,5 @@
 # Tests: testsset/testset.spec.ts -> testsset/index.ts
-#        testsset/manage.spec.ts -> testsset/manage.ts
+#        testsset/testset-management.spec.ts -> testsset/testset-management.ts
 # RTM IDs: WEB-ACC-DATASETS-001, WEB-ACC-DATASETS-002, WEB-ACC-DATASETS-003,
 #          WEB-ACC-DATASETS-004, WEB-ACC-DATASETS-005, WEB-ACC-DATASETS-006
 # Tags: @scope:datasets @coverage:smoke @coverage:light @coverage:full @path:happy @case:typical @speed:fast

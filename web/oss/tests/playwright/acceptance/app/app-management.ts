@@ -30,7 +30,7 @@ const tags = buildAcceptanceTags({
 
 const tests = () => {
     baseTest(
-        "App Management > should delete an app",
+        "should delete an app",
         {tag: tags},
         async ({page, navigateToApps, uiHelpers, apiHelpers}) => {
             let appName: string
@@ -78,7 +78,7 @@ const tests = () => {
     )
 
     baseTest(
-        "App Management > should rename an app",
+        "should rename an app",
         {tag: tags},
         async ({page, navigateToApps, uiHelpers, apiHelpers}) => {
             // Rename is temporarily disabled in the UI ("TEMPORARY: Disabling name editing").
