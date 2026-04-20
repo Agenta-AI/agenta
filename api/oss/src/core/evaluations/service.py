@@ -156,6 +156,32 @@ def _first_reference_id(
     return None
 
 
+def _is_invocation_query(data: Any) -> bool:
+    """Live evaluations require the query filter to target invocation traces.
+
+    Returns True only when the query's filtering contains a top-level
+    condition with field="trace_type", operator="is", value="invocation".
+    """
+    filtering = getattr(data, "filtering", None)
+    if filtering is None:
+        return False
+
+    for condition in filtering.conditions or []:
+        field = getattr(condition, "field", None)
+        if field != "trace_type":
+            continue
+
+        operator = getattr(condition, "operator", None)
+        if operator != "is":
+            continue
+
+        value = getattr(condition, "value", None)
+        if value == "invocation":
+            return True
+
+    return False
+
+
 class EvaluationsService:
     def __init__(
         self,
@@ -209,6 +235,22 @@ class EvaluationsService:
             user_id = run.created_by_id
 
             try:
+                if not await self._is_live_run_valid(
+                    project_id=project_id,
+                    run=run,
+                ):
+                    log.warning(
+                        "[LIVE] Closing invalid live run (null data or non-invocation trace_type).",
+                        project_id=project_id,
+                        run_id=run.id,
+                    )
+                    await self._close_live_run(
+                        project_id=project_id,
+                        user_id=user_id,
+                        run=run,
+                    )
+                    continue
+
                 log.info(
                     "[LIVE] Dispatching...",
                     project_id=project_id,
@@ -238,6 +280,71 @@ class EvaluationsService:
                 log.error(f"[LIVE] Error refreshing run {run.id}: {e}", exc_info=True)
 
         return True
+
+    async def _is_live_run_valid(
+        self,
+        *,
+        project_id: UUID,
+        run: EvaluationRun,
+    ) -> bool:
+        """Every query step must reference a revision with data targeting invocation traces."""
+        if not run.data or not run.data.steps:
+            return False
+
+        query_revision_ids: List[UUID] = []
+        for step in run.data.steps:
+            query_ref = (step.references or {}).get("query_revision")
+            if isinstance(query_ref, Reference) and query_ref.id:
+                query_revision_ids.append(query_ref.id)
+
+        if not query_revision_ids:
+            return False
+
+        for query_revision_id in query_revision_ids:
+            query_revision = await self.queries_service.fetch_query_revision(
+                project_id=project_id,
+                #
+                query_revision_ref=Reference(id=query_revision_id),
+            )
+
+            if not query_revision or not query_revision.data:
+                return False
+
+            if not _is_invocation_query(query_revision.data):
+                return False
+
+        return True
+
+    async def _close_live_run(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        run: EvaluationRun,
+    ) -> None:
+        flags = run.flags.model_copy() if run.flags else EvaluationRunFlags()
+        flags.is_active = False
+        flags.is_closed = True
+
+        await self.edit_run(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            run=EvaluationRunEdit(
+                id=run.id,
+                #
+                name=run.name,
+                description=run.description,
+                #
+                flags=flags,
+                tags=run.tags,
+                meta=run.meta,
+                #
+                status=run.status,
+                #
+                data=run.data,
+            ),
+        )
 
     async def fetch_live_runs(
         self,
@@ -1706,6 +1813,8 @@ class SimpleEvaluationsService:
                 evaluator_steps=evaluation.data.evaluator_steps,
                 #
                 repeats=evaluation.data.repeats,
+                #
+                is_live=evaluation.flags.is_live,
             )
 
             if not run_data:
@@ -1882,6 +1991,8 @@ class SimpleEvaluationsService:
                 evaluator_steps=evaluation.data.evaluator_steps,
                 #
                 repeats=_evaluation.data.repeats,
+                #
+                is_live=(_evaluation.flags.is_live if _evaluation.flags else None),
             )
 
             run_edit = EvaluationRunEdit(
@@ -2351,6 +2462,8 @@ class SimpleEvaluationsService:
         evaluator_steps: Optional[Target] = None,
         #
         repeats: Optional[int] = None,
+        #
+        is_live: Optional[bool] = None,
     ) -> Optional[EvaluationRunData]:
         # IMPLICIT FLAG: is_multivariate=False
         # IMPLICIT FLAG: all_inputs=True
@@ -2381,6 +2494,20 @@ class SimpleEvaluationsService:
                 if not query_revision or not query_revision.slug:
                     log.warning(
                         "[EVAL] [run] [make] [failure] could not find query revision",
+                        id=query_revision_ref.id,
+                    )
+                    return None
+
+                if is_live and not query_revision.data:
+                    log.warning(
+                        "[EVAL] [run] [make] [failure] live evaluation requires query with data",
+                        id=query_revision_ref.id,
+                    )
+                    return None
+
+                if is_live and not _is_invocation_query(query_revision.data):
+                    log.warning(
+                        "[EVAL] [run] [make] [failure] live evaluation requires trace_type=invocation",
                         id=query_revision_ref.id,
                     )
                     return None
