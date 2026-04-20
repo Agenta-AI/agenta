@@ -1,3 +1,3 @@
-import testsetManageTests from "./acceptance/testsset/manage"
+import testsetManageTests from "./acceptance/testsset/testset-management"
 
 export default testsetManageTests

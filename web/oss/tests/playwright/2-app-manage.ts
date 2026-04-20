@@ -1,4 +1,4 @@
-import manageTests from "./acceptance/app/manage"
+import manageTests from "./acceptance/app/app-management"
 
-export {test} from "./acceptance/app/manage"
+export {test} from "./acceptance/app/app-management"
 export default manageTests

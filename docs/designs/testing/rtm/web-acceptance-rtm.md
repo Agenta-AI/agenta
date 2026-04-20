@@ -109,7 +109,7 @@ For every RTM entry below:
 #### Source
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/app-management.feature`
-- Test file: `web/oss/tests/playwright/acceptance/app/manage.spec.ts`
+- Test file: `web/oss/tests/playwright/acceptance/app/app-management.spec.ts`
 - Playwright title: `App Management > should delete an app`
 
 #### Markers
@@ -131,7 +131,7 @@ For every RTM entry below:
 #### Source
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/app-management.feature`
-- Test file: `web/oss/tests/playwright/acceptance/app/manage.spec.ts`
+- Test file: `web/oss/tests/playwright/acceptance/app/app-management.spec.ts`
 - Playwright title: `App Management > should rename an app`
 
 #### Markers
@@ -307,7 +307,7 @@ For every RTM entry below:
 #### Source
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
-- Test file: `web/oss/tests/playwright/acceptance/testsset/manage.spec.ts`
+- Test file: `web/oss/tests/playwright/acceptance/testsset/testset-management.spec.ts`
 - Playwright title: `Test Sets > should create a new testset from scratch`
 
 #### Markers
@@ -329,7 +329,7 @@ For every RTM entry below:
 #### Source
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
-- Test file: `web/oss/tests/playwright/acceptance/testsset/manage.spec.ts`
+- Test file: `web/oss/tests/playwright/acceptance/testsset/testset-management.spec.ts`
 - Playwright title: `Test Sets > should upload a testset from CSV`
 
 #### Markers
@@ -351,7 +351,7 @@ For every RTM entry below:
 #### Source
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
-- Test file: `web/oss/tests/playwright/acceptance/testsset/manage.spec.ts`
+- Test file: `web/oss/tests/playwright/acceptance/testsset/testset-management.spec.ts`
 - Playwright title: `Test Sets > should edit a testcase inline and persist the change`
 
 #### Markers
@@ -373,7 +373,7 @@ For every RTM entry below:
 #### Source
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
-- Test file: `web/oss/tests/playwright/acceptance/testsset/manage.spec.ts`
+- Test file: `web/oss/tests/playwright/acceptance/testsset/testset-management.spec.ts`
 - Playwright title: `Test Sets > should add and delete rows and columns`
 
 #### Markers
@@ -395,7 +395,7 @@ For every RTM entry below:
 #### Source
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
-- Test file: `web/oss/tests/playwright/acceptance/testsset/manage.spec.ts`
+- Test file: `web/oss/tests/playwright/acceptance/testsset/testset-management.spec.ts`
 - Playwright title: `Test Sets > should delete a testset`
 
 #### Markers
