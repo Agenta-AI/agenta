@@ -77,9 +77,12 @@ export const workflowRevisionDrawerAtom = atom((get) => ({
 
 /** Open the drawer */
 export const openWorkflowRevisionDrawerAtom = atom(null, (get, set, params: OpenDrawerParams) => {
+    const opensExpanded =
+        params.context === "evaluator-view" || params.context === "evaluator-create"
+
     set(workflowRevisionDrawerEntityIdAtom, params.entityId)
     set(workflowRevisionDrawerOpenAtom, true)
-    set(workflowRevisionDrawerExpandedAtom, false)
+    set(workflowRevisionDrawerExpandedAtom, opensExpanded)
     set(workflowRevisionDrawerContextAtom, params.context)
     if (params.navigationIds !== undefined) {
         set(workflowRevisionDrawerNavigationIdsAtom, params.navigationIds)
