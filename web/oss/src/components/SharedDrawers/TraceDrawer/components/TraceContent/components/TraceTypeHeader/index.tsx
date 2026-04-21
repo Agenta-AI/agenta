@@ -27,7 +27,15 @@ const DeleteTraceModal = dynamic(() => import("../../../DeleteTraceModal"), {
 })
 
 /**
- * Check if a workflow span has an app reference (application or application_revision).
+ * Span types that represent a unit of work tied to an application/variant —
+ * i.e. "open this in the playground" makes sense. Low-level operation spans
+ * (`tool`, `embedding`, `query`, `rerank`, `llm`, `completion`) are excluded
+ * because they represent sub-steps, not invocations.
+ */
+const WORKFLOW_LIKE_SPAN_TYPES = new Set(["workflow", "task"])
+
+/**
+ * Check if a span has an app reference (application or application_revision).
  * Checks ag.references (dict format) and top-level references array.
  */
 function hasAppReference(span: TraceSpanNode): boolean {
@@ -67,14 +75,22 @@ const TraceTypeHeader = ({
     const canOpenInPlayground = useMemo(() => {
         if (!activeTrace) return false
         const spanType = activeTrace.span_type
+        if (!spanType) return false
 
-        if (spanType === "chat") {
+        // Workflow-like spans (workflow, task, agent, chain) represent an
+        // invocation tied to a variant — opening them makes sense whenever
+        // they carry an app reference or have extractable ag.data.
+        if (WORKFLOW_LIKE_SPAN_TYPES.has(spanType)) {
+            if (hasAppReference(activeTrace)) return true
             const agData = extractAgData(activeTrace)
-            return Boolean(agData?.inputs)
+            return Boolean(agData?.inputs || agData?.parameters)
         }
 
-        if (spanType === "workflow") {
-            return hasAppReference(activeTrace)
+        // Chat spans (raw LLM chat calls) open as an ephemeral session when
+        // they have extractable inputs or parameters.
+        if (spanType === "chat") {
+            const agData = extractAgData(activeTrace)
+            return Boolean(agData?.inputs || agData?.parameters)
         }
 
         return false
@@ -85,7 +101,7 @@ const TraceTypeHeader = ({
         const result = setOpenInPlayground(activeTrace)
         if (url.projectURL && result?.entityId) {
             if (result.appId) {
-                // Workflow span with app reference → app playground
+                // Span with an app reference → app playground
                 const appPlaygroundBase = `${url.baseAppURL}/${result.appId}/playground`
                 const playgroundUrl =
                     result.type === "revision"
@@ -93,7 +109,7 @@ const TraceTypeHeader = ({
                         : buildPlaygroundUrl([result.entityId], appPlaygroundBase)
                 navigation.push(playgroundUrl)
             } else {
-                // Chat span → project playground
+                // No app reference → project playground as an ephemeral session
                 const playgroundUrl = buildPlaygroundUrl(
                     [result.entityId],
                     `${url.projectURL}/playground`,
