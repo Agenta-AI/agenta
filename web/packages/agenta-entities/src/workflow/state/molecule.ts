@@ -637,6 +637,34 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
 )
 
 /**
+ * Infer a lightweight JSON Schema from a sample value. Used to turn the
+ * observed envelope (e.g. `{country: "Azerbaijan", correct_answer: "..."}`)
+ * into a property list the drill-in renderer can expand. Returns an open-ended
+ * object schema when the sample is missing or not a plain object.
+ */
+function inferEnvelopeSchema(sample: unknown): Record<string, unknown> {
+    if (!sample || typeof sample !== "object" || Array.isArray(sample)) {
+        return {type: "object", additionalProperties: true}
+    }
+    const properties: Record<string, Record<string, unknown>> = {}
+    for (const [key, value] of Object.entries(sample as Record<string, unknown>)) {
+        const valueType = Array.isArray(value)
+            ? "array"
+            : value === null
+              ? "null"
+              : typeof value === "object"
+                ? "object"
+                : typeof value
+        properties[key] = {type: valueType}
+    }
+    return {
+        type: "object",
+        properties,
+        additionalProperties: true,
+    }
+}
+
+/**
  * Input ports selector.
  * Derives ports from schema, prompt template variables, or ephemeral trace metadata.
  */
@@ -647,6 +675,33 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
 
         // Ephemeral workflow: derive from template variables, then trace inputs
         if (entity.flags?.is_base) {
+            // Evaluator ephemerals surface the envelope as drill-in object ports
+            // (`inputs` = graded testset row, `outputs` = graded app output).
+            // The sub-schema is inferred from the observed envelope shape so the
+            // drill-in renderer can expand properties instead of rendering a blob.
+            if (entity.flags.is_evaluator) {
+                const meta = entity.meta as Record<string, unknown> | null | undefined
+                const envelope = meta?.envelope as Record<string, unknown> | undefined
+                const envelopeInputs = envelope?.inputs as Record<string, unknown> | undefined
+                const envelopeOutputs = envelope?.outputs
+                return [
+                    {
+                        key: "inputs",
+                        name: "Inputs",
+                        type: "object",
+                        required: true,
+                        schema: inferEnvelopeSchema(envelopeInputs),
+                    },
+                    {
+                        key: "outputs",
+                        name: "Outputs",
+                        type: "object",
+                        required: true,
+                        schema: inferEnvelopeSchema(envelopeOutputs),
+                    },
+                ]
+            }
+
             const params = resolveParameters(entity.data)
             if (params) {
                 const vars = extractVariablesFromConfig(params as Record<string, unknown>)

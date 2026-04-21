@@ -27,7 +27,11 @@ import {loadableController, snapshotAdapterRegistry} from "@agenta/entities/runn
 import {fetchTestcasesPage} from "@agenta/entities/testcase"
 import type {TraceSpanNode} from "@agenta/entities/trace"
 import {extractAgData, extractInputs, extractOutputs} from "@agenta/entities/trace"
-import {workflowMolecule, createEphemeralWorkflow} from "@agenta/entities/workflow"
+import {
+    workflowMolecule,
+    createEphemeralWorkflow,
+    buildWorkflowUri,
+} from "@agenta/entities/workflow"
 import {
     commitWorkflowRevisionAtom,
     archiveWorkflowRevisionAtom,
@@ -989,6 +993,38 @@ interface TraceReferences {
 }
 
 /**
+ * Extract `ag.flags` from a span's attributes.
+ *
+ * Flags sit at `attributes.ag.flags` (sibling of `ag.data`), so `extractAgData`
+ * does not surface them. This helper reads them independently for identity checks
+ * (e.g. `is_evaluator`).
+ */
+function extractAgFlags(span: TraceSpanNode): Record<string, unknown> {
+    const ag = (span.attributes as Record<string, unknown> | undefined)?.ag as
+        | Record<string, unknown>
+        | undefined
+    const flags = ag?.flags
+    return flags && typeof flags === "object" && !Array.isArray(flags)
+        ? (flags as Record<string, unknown>)
+        : {}
+}
+
+/**
+ * Derive a builtin workflow URI from a span name.
+ *
+ * Builtin handler function names follow `<key>_v<N>` (e.g. `auto_ai_critique_v0`).
+ * The matching URI is `agenta:builtin:<key>:v<N>`. Returns `null` if the span name
+ * doesn't match the expected shape.
+ */
+function deriveBuiltinUriFromSpanName(spanName: string | null | undefined): string | null {
+    if (!spanName) return null
+    const match = /^(.+?)_v(\d+)$/.exec(spanName)
+    if (!match) return null
+    const [, key, version] = match
+    return buildWorkflowUri(key, "agenta", "builtin", `v${version}`)
+}
+
+/**
  * Extract references from ag.references (dict format) or top-level references array
  */
 function extractReferences(span: TraceSpanNode): TraceReferences {
@@ -1082,6 +1118,19 @@ const openFromTraceAtom = atom(
         const evaluatorId = asString(refs.evaluator?.id)
         const evaluatorSlug = asString(refs.evaluator?.slug)
 
+        // Evaluator identity — detected from ag.flags or evaluator refs.
+        // When true, the ephemeral workflow carries is_evaluator + the builtin URI
+        // so downstream selectors (schema nesting, input ports, request payload)
+        // take the evaluator branch instead of treating it as a completion app.
+        const agFlags = extractAgFlags(activeSpan)
+        const isEvaluatorSpan =
+            agFlags.is_evaluator === true ||
+            !!asString(refs.evaluator_revision?.id) ||
+            !!evaluatorId
+        const evaluatorUri = isEvaluatorSpan
+            ? deriveBuiltinUriFromSpanName(asString(activeSpan.span_name))
+            : null
+
         // ── WORKFLOW-LIKE SPANS ─────────────────────────────────────────
         // `workflow`, `task`, `agent`, `chain` — all represent an invocation
         // tied to a variant. With an app_revision reference we open that
@@ -1123,6 +1172,20 @@ const openFromTraceAtom = atom(
                 ...templateInputs,
                 ...(chatMessages ? {messages: chatMessages} : {}),
             }
+
+            // For evaluator spans, preserve the full envelope (trace + inputs + outputs)
+            // so downstream selectors can rebuild the evaluator request. The envelope's
+            // inner `inputs` is the graded testcase row; `outputs` is the linked app's
+            // output; `trace` carries the upstream trace reference.
+            const envelope = isEvaluatorSpan
+                ? ({
+                      ...(isRecord(rawInputs.trace) ? {trace: rawInputs.trace} : {}),
+                      ...(hasNestedInputs
+                          ? {inputs: rawInputs.inputs as Record<string, unknown>}
+                          : {}),
+                      ...(isRecord(rawInputs.outputs) ? {outputs: rawInputs.outputs} : {}),
+                  } as Record<string, unknown>)
+                : undefined
 
             let rawAgParameters = agData?.parameters
             if (typeof rawAgParameters === "string") {
@@ -1198,24 +1261,43 @@ const openFromTraceAtom = atom(
                 }
             }
 
-            // No revision — create ephemeral workflow
+            // No revision — create ephemeral workflow.
+            // Evaluator spans carry is_evaluator + the derived URI so downstream
+            // selectors dispatch correctly (schema, ports, request payload).
+            const sourceRef = isEvaluatorSpan
+                ? evaluatorId
+                    ? {type: "evaluator" as const, id: evaluatorId, slug: evaluatorSlug}
+                    : undefined
+                : applicationId
+                  ? {type: "application" as const, id: applicationId, slug: applicationSlug}
+                  : undefined
             const {id: entityId} = createEphemeralWorkflow({
                 label,
                 inputs: testcaseInputs,
                 outputs,
                 parameters,
-                sourceRef: applicationId
-                    ? {type: "application", id: applicationId, slug: applicationSlug}
-                    : undefined,
+                sourceRef,
+                ...(isEvaluatorSpan ? {isEvaluator: true} : {}),
+                ...(evaluatorUri ? {uri: evaluatorUri} : {}),
+                ...(envelope ? {envelope} : {}),
             })
             set(addPrimaryNodeAtom, {type: "workflow", id: entityId, label})
 
-            if (Object.keys(testcaseInputs).length > 0) {
+            // Evaluator rows carry the envelope shape {inputs, outputs}; app rows
+            // stay flat. `envelope` is only set for evaluator spans above.
+            const rowData: Record<string, unknown> = isEvaluatorSpan
+                ? {
+                      inputs: (envelope?.inputs as Record<string, unknown> | undefined) ?? {},
+                      outputs: envelope?.outputs ?? {},
+                  }
+                : testcaseInputs
+
+            if (Object.keys(rowData).length > 0) {
                 const loadableId = `testset:workflow:${entityId}`
                 set(loadableController.actions.setRows, loadableId, [
-                    {id: "trace-input-0", data: testcaseInputs},
+                    {id: "trace-input-0", data: rowData},
                 ])
-                if (looksLikeChat(testcaseInputs)) {
+                if (!isEvaluatorSpan && looksLikeChat(testcaseInputs)) {
                     set(extractAndLoadChatMessagesAtom, {
                         loadableId,
                         testcaseRows: [testcaseInputs],
