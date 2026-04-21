@@ -141,6 +141,7 @@ export {stripAgentaMetadataDeep, stripEnhancedWrappers} from "./valueExtraction"
 
 // Slug utilities
 export {
+    generateSlugWithExistingSuffix,
     generateSlugWithSuffix,
     getSlugSuffix,
     isValidSlug,

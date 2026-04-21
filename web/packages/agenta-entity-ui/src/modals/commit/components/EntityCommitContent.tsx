@@ -9,6 +9,7 @@ import {useState, useEffect, useRef} from "react"
 
 import {
     formatCount,
+    generateSlugWithExistingSuffix,
     generateSlugWithSuffix,
     getSlugSuffix,
     isValidSlug,
@@ -115,7 +116,10 @@ export function EntityCommitContent({
             return
         }
         if (entityName.trim()) {
-            const generatedSlug = generateSlugWithSuffix(entityName)
+            const generatedSlug = generateSlugWithExistingSuffix(
+                entityName,
+                generatedSlugSuffixRef.current,
+            )
             generatedSlugSuffixRef.current = getSlugSuffix(generatedSlug)
             setEntitySlug(generatedSlug)
             slugInitializedRef.current = true

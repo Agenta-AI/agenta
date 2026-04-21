@@ -1,12 +1,19 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {Typography, Input, Card, Radio, Flex, Button, notification} from "antd"
+import {
+    generateSlugWithExistingSuffix,
+    generateSlugWithSuffix,
+    getSlugSuffix,
+    isValidSlug,
+    regenerateSlugSuffix,
+} from "@agenta/shared/utils"
+import {ArrowClockwise, WarningCircle} from "@phosphor-icons/react"
+import {Button, Card, Flex, Input, notification, Radio, Tag, Typography} from "antd"
 import clsx from "clsx"
 
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
 import {GenericObject} from "@/oss/lib/Types"
-import {useAppsData} from "@/oss/state/app"
-import {useTemplates} from "@/oss/state/app"
+import {useAppsData, useTemplates} from "@/oss/state/app"
 
 import {getTemplateKey} from "../../../assets/helpers"
 import {useStyles} from "../assets/styles"
@@ -14,7 +21,11 @@ import {useStyles} from "../assets/styles"
 const {Text} = Typography
 
 interface AddAppFromTemplateModalContentProps {
-    handleTemplateCardClick: (templateId: string, appName: string) => Promise<void>
+    handleTemplateCardClick: (
+        templateId: string,
+        appName: string,
+        appSlug?: string,
+    ) => Promise<void>
 }
 
 const AddAppFromTemplateModalContent = ({
@@ -23,7 +34,10 @@ const AddAppFromTemplateModalContent = ({
     const classes = useStyles()
 
     const [newApp, setNewApp] = useState("")
+    const [newAppSlug, setNewAppSlug] = useState<string | null>(null)
+    const [slugEditing, setSlugEditing] = useState(false)
     const [templateKey, setTemplateKey] = useState<string | undefined>(undefined)
+    const generatedSlugSuffixRef = useRef<string | null>(null)
 
     const {apps} = useAppsData()
     const [{data: allTemplates = [], isLoading: fetchingTemplate}, noTemplateMessage] =
@@ -49,6 +63,70 @@ const AddAppFromTemplateModalContent = ({
     )
 
     const isError = appNameExist || (newApp.length > 0 && !isAppNameInputValid(newApp))
+    const slugValidationError =
+        newAppSlug && !isValidSlug(newAppSlug)
+            ? "Slug may only contain a-z, 0-9, hyphens, underscores, and periods."
+            : null
+
+    useEffect(() => {
+        if (!newApp.trim()) {
+            setNewAppSlug(null)
+            setSlugEditing(false)
+            generatedSlugSuffixRef.current = null
+            return
+        }
+
+        if (slugEditing) return
+
+        const generatedSlug = generateSlugWithExistingSuffix(newApp, generatedSlugSuffixRef.current)
+        generatedSlugSuffixRef.current = getSlugSuffix(generatedSlug)
+        setNewAppSlug(generatedSlug)
+    }, [newApp, slugEditing])
+
+    const handleAppNameChange = useCallback(
+        (value: string) => {
+            setNewApp(value)
+
+            if (!value.trim()) {
+                setNewAppSlug(null)
+                setSlugEditing(false)
+                generatedSlugSuffixRef.current = null
+                return
+            }
+
+            if (slugEditing && !newAppSlug?.trim() && value.trim()) {
+                const generatedSlug = generateSlugWithExistingSuffix(
+                    value,
+                    generatedSlugSuffixRef.current,
+                )
+                generatedSlugSuffixRef.current = getSlugSuffix(generatedSlug)
+                setNewAppSlug(generatedSlug)
+            }
+        },
+        [newAppSlug, slugEditing],
+    )
+
+    const handleSlugInputChange = useCallback((value: string) => {
+        setNewAppSlug(value)
+    }, [])
+
+    const handleRegenerateSlug = useCallback(() => {
+        const generatedSlug = regenerateSlugSuffix(
+            newAppSlug || newApp,
+            generatedSlugSuffixRef.current,
+        )
+        generatedSlugSuffixRef.current = getSlugSuffix(generatedSlug)
+        setNewAppSlug(generatedSlug)
+    }, [newApp, newAppSlug])
+
+    const handleEditSlug = useCallback(() => {
+        if (!newAppSlug && newApp.trim()) {
+            const generatedSlug = generateSlugWithSuffix(newApp)
+            generatedSlugSuffixRef.current = getSlugSuffix(generatedSlug)
+            setNewAppSlug(generatedSlug)
+        }
+        setSlugEditing(true)
+    }, [newApp, newAppSlug])
 
     const handleCreateApp = useCallback(() => {
         if (appNameExist) {
@@ -63,8 +141,14 @@ const AddAppFromTemplateModalContent = ({
                 description: "The template image is currently being fetched. Please wait...",
                 duration: 3,
             })
-        } else if (!fetchingTemplate && newApp.length > 0 && isAppNameInputValid(newApp)) {
-            handleTemplateCardClick(templateKey as string, newApp)
+        } else if (
+            !fetchingTemplate &&
+            newApp.length > 0 &&
+            isAppNameInputValid(newApp) &&
+            newAppSlug &&
+            !slugValidationError
+        ) {
+            handleTemplateCardClick(templateKey as string, newApp, newAppSlug)
         } else {
             notification.warning({
                 message: "Template Selection",
@@ -72,7 +156,15 @@ const AddAppFromTemplateModalContent = ({
                 duration: 3,
             })
         }
-    }, [appNameExist, fetchingTemplate, handleTemplateCardClick, newApp, templateKey])
+    }, [
+        appNameExist,
+        fetchingTemplate,
+        handleTemplateCardClick,
+        newApp,
+        newAppSlug,
+        slugValidationError,
+        templateKey,
+    ])
 
     const handleEnterKeyPress = useCallback(
         (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -101,7 +193,7 @@ const AddAppFromTemplateModalContent = ({
                 <Input
                     placeholder="Enter a name"
                     value={newApp}
-                    onChange={(e) => setNewApp(e.target.value)}
+                    onChange={(e) => handleAppNameChange(e.target.value)}
                     onKeyDown={handleEnterKeyPress}
                     className={`${isError && classes.inputName}`}
                     allowClear
@@ -118,6 +210,54 @@ const AddAppFromTemplateModalContent = ({
                         spaces.
                     </Typography.Text>
                 )}
+
+                <div className="flex flex-col gap-1">
+                    {slugEditing ? (
+                        <>
+                            <Text className="font-medium">Slug</Text>
+                            <Input
+                                value={newAppSlug ?? ""}
+                                onChange={(e) => handleSlugInputChange(e.target.value)}
+                                status={slugValidationError ? "error" : undefined}
+                                suffix={
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        icon={<ArrowClockwise size={14} />}
+                                        onClick={handleRegenerateSlug}
+                                        title="Regenerate random suffix"
+                                    />
+                                }
+                            />
+                            {slugValidationError && (
+                                <div className="mt-0.5 flex items-start gap-1 text-[#ff4d4f]">
+                                    <WarningCircle size={16} className="mt-0.5 shrink-0" />
+                                    <span>{slugValidationError}</span>
+                                </div>
+                            )}
+                            {!slugValidationError && (
+                                <Typography.Text type="secondary">
+                                    Edit freely - use the regenerate button to add a random suffix
+                                    back.
+                                </Typography.Text>
+                            )}
+                        </>
+                    ) : (
+                        <div className="flex h-7 items-center gap-2">
+                            {newAppSlug && (
+                                <>
+                                    <Typography.Text className="font-medium">Slug:</Typography.Text>
+                                    <Tag className="bg-gray-100 font-mono text-gray-500 text-[10px]">
+                                        {newAppSlug}
+                                    </Tag>
+                                    <Button type="link" size="small" onClick={handleEditSlug}>
+                                        Edit
+                                    </Button>
+                                </>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
 
             <div className="space-y-2">
@@ -146,7 +286,9 @@ const AddAppFromTemplateModalContent = ({
             <div className="flex justify-end">
                 <Button
                     type="primary"
-                    disabled={!newApp || isError || !templateKey}
+                    disabled={
+                        !newApp || isError || !templateKey || !newAppSlug || !!slugValidationError
+                    }
                     onClick={handleCreateApp}
                 >
                     Create New Prompt

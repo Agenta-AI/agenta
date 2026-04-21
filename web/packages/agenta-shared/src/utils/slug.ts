@@ -1,9 +1,19 @@
-const SLUG_DIGIT_SET = "0123456789"
+const SLUG_SUFFIX_CHAR_SET = "0123456789abcdefghijklmnopqrstuvwxyz"
 
-function randomDigits(length: number): string {
+function randomSuffix(length: number): string {
+    if (globalThis.crypto?.getRandomValues) {
+        const randomValues = new Uint32Array(length)
+        globalThis.crypto.getRandomValues(randomValues)
+
+        return Array.from(
+            randomValues,
+            (value) => SLUG_SUFFIX_CHAR_SET[value % SLUG_SUFFIX_CHAR_SET.length],
+        ).join("")
+    }
+
     return Array.from(
         {length},
-        () => SLUG_DIGIT_SET[Math.floor(Math.random() * SLUG_DIGIT_SET.length)],
+        () => SLUG_SUFFIX_CHAR_SET[Math.floor(Math.random() * SLUG_SUFFIX_CHAR_SET.length)],
     ).join("")
 }
 
@@ -22,20 +32,28 @@ export function slugifyName(name: string): string {
 }
 
 /**
- * Generates a slug with a random 4-digit suffix to reduce collision probability.
+ * Generates a slug with a random 4-character suffix to reduce collision probability.
  */
 export function generateSlugWithSuffix(name: string): string {
     const base = slugifyName(name) || "resource"
-    return `${base}-${randomDigits(4)}`
+    return `${base}-${randomSuffix(4)}`
+}
+
+/**
+ * Updates the slug base from a display name while preserving an existing suffix.
+ */
+export function generateSlugWithExistingSuffix(name: string, suffix?: string | null): string {
+    const base = slugifyName(name) || "resource"
+    return suffix ? `${base}-${suffix}` : generateSlugWithSuffix(name)
 }
 
 function getRandomSuffix(slug: string): string | null {
-    const match = slug.match(/-(\d{4})$/)
+    const match = slug.match(/-([a-z0-9]{4})$/)
     return match ? match[1] : null
 }
 
 /**
- * Replaces a known generated suffix with a new random 4-digit suffix.
+ * Replaces a known generated suffix with a new random 4-character suffix.
  * If the current slug no longer ends with that known suffix, append a new one.
  */
 export function regenerateSlugSuffix(slug: string, suffixToReplace?: string | null): string {
@@ -47,11 +65,11 @@ export function regenerateSlugSuffix(slug: string, suffixToReplace?: string | nu
             ? normalizedSlug.slice(0, -suffixMarker.length) || "resource"
             : normalizedSlug
 
-    return `${base}-${randomDigits(4)}`
+    return `${base}-${randomSuffix(4)}`
 }
 
 /**
- * Strips the last hyphen-separated segment if it looks like a 4-digit suffix.
+ * Strips the last hyphen-separated segment if it looks like a 4-character suffix.
  */
 export function stripSlugSuffix(slug: string): string {
     const suffix = getRandomSuffix(slug)
@@ -59,7 +77,7 @@ export function stripSlugSuffix(slug: string): string {
 }
 
 /**
- * Returns the last generated-looking 4-digit suffix, if present.
+ * Returns the last generated-looking 4-character suffix, if present.
  */
 export function getSlugSuffix(slug: string): string | null {
     return getRandomSuffix(slug)
