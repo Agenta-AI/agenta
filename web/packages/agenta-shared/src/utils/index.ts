@@ -139,6 +139,16 @@ export {dataUriToObjectUrl, isBase64, isUrl} from "./dataUri"
 // Value extraction utilities (strip enhanced wrappers / metadata)
 export {stripAgentaMetadataDeep, stripEnhancedWrappers} from "./valueExtraction"
 
+// Slug utilities
+export {
+    generateSlugWithSuffix,
+    getSlugSuffix,
+    isValidSlug,
+    regenerateSlugSuffix,
+    slugifyName,
+    stripSlugSuffix,
+} from "./slug"
+
 // Status inference utilities
 export {
     getStatusColor,

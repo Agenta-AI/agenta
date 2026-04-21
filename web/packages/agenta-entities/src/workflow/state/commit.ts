@@ -53,6 +53,17 @@ import {
 // HELPERS
 // ============================================================================
 
+type ErrorWithResponseStatus = Error & {response?: {status?: number}}
+
+function preserveResponseStatus(error: unknown, message: string): ErrorWithResponseStatus {
+    const err = new Error(message) as ErrorWithResponseStatus
+    const status = (error as {response?: {status?: number}})?.response?.status
+    if (status !== undefined) {
+        err.response = {status}
+    }
+    return err
+}
+
 /**
  * Prepare parameters for the commit API.
  * For evaluator workflows, flattens nested params (prompt.messages → prompt_template)
@@ -332,6 +343,8 @@ export interface WorkflowCreateVariantParams {
     baseRevisionId: string
     /** Name for the new variant */
     newVariantName: string
+    /** Slug suffix for the new variant. The workflow slug prefix is preserved internally. */
+    slug?: string
     /** Commit message for the first revision */
     commitMessage?: string
 }
@@ -372,7 +385,7 @@ export const createWorkflowVariantAtom = atom(
         set,
         params: WorkflowCreateVariantParams,
     ): Promise<WorkflowCreateVariantOutcome> => {
-        const {baseRevisionId, newVariantName, commitMessage} = params
+        const {baseRevisionId, newVariantName, slug: explicitSlug, commitMessage} = params
 
         try {
             const projectId = get(projectIdAtom)
@@ -399,9 +412,11 @@ export const createWorkflowVariantAtom = atom(
             const allWorkflows = get(workflowsListDataAtom)
             const workflowArtifact = allWorkflows.find((w) => w.id === workflowId)
             const variantSlugSuffix = generateSlug(newVariantName)
-            const slug = workflowArtifact?.slug
-                ? `${workflowArtifact.slug}.${variantSlugSuffix}`
-                : variantSlugSuffix
+            const requestedSlug = explicitSlug || variantSlugSuffix
+            const slug =
+                workflowArtifact?.slug && !requestedSlug.startsWith(`${workflowArtifact.slug}.`)
+                    ? `${workflowArtifact.slug}.${requestedSlug}`
+                    : requestedSlug
             const newVariant = await createWorkflowVariantApi(projectId, {
                 workflowId,
                 slug,
@@ -475,7 +490,7 @@ export const createWorkflowVariantAtom = atom(
                 newVariantId: newVariant.id,
             }
         } catch (error) {
-            const err = new Error(extractApiErrorMessage(error))
+            const err = preserveResponseStatus(error, extractApiErrorMessage(error))
             return {
                 success: false,
                 error: err,
@@ -498,6 +513,8 @@ export interface WorkflowCreateFromEphemeralParams {
     commitMessage?: string
     /** Display name for the new workflow (overrides entity name) */
     name?: string
+    /** Slug for the new workflow. When provided, overrides auto-generation. */
+    slug?: string
 }
 
 /**
@@ -518,7 +535,7 @@ export interface WorkflowCreateFromEphemeralParams {
 export const createWorkflowFromEphemeralAtom = atom(
     null,
     async (get, set, params: WorkflowCreateFromEphemeralParams): Promise<WorkflowCommitOutcome> => {
-        const {revisionId, commitMessage, name} = params
+        const {revisionId, commitMessage, name, slug} = params
 
         try {
             const projectId = get(projectIdAtom)
@@ -538,7 +555,7 @@ export const createWorkflowFromEphemeralAtom = atom(
 
             // 2. Generate a unique slug (never use the template key)
             const workflowName = name || entity.name || "Workflow"
-            const workflowSlug = generateSlug(workflowName)
+            const workflowSlug = slug || generateSlug(workflowName)
 
             // 3. Create workflow via API
             const newWorkflow = await createWorkflowApi(projectId, {
@@ -585,7 +602,7 @@ export const createWorkflowFromEphemeralAtom = atom(
 
             return result
         } catch (error) {
-            const err = new Error(extractApiErrorMessage(error))
+            const err = preserveResponseStatus(error, extractApiErrorMessage(error))
 
             if (_commitCallbacks.onError) {
                 _commitCallbacks.onError(err, {revisionId, commitMessage})

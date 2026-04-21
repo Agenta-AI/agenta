@@ -1173,7 +1173,10 @@ const saveAsNewTestsetAtom = atom(
         get,
         set,
         loadableId: string,
-        _commitMessage?: string,
+        options?: {
+            commitMessage?: string
+            slug?: string
+        },
     ): Promise<SaveAsNewTestsetResult> => {
         const state = get(loadableStateAtomFamily(loadableId))
         const projectId = get(projectIdAtom)
@@ -1208,6 +1211,8 @@ const saveAsNewTestsetAtom = atom(
             const result = await set(saveNewTestsetAtom, {
                 projectId,
                 testsetName: name.trim(),
+                slug: options?.slug,
+                commitMessage: options?.commitMessage,
                 explicitTestcaseData: allTestcaseData,
             })
 
