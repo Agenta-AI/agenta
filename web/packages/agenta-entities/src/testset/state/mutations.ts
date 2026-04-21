@@ -6,6 +6,7 @@
  */
 
 import {projectIdAtom} from "@agenta/shared/state"
+import {preserveResponseStatus} from "@agenta/shared/utils"
 import {atom} from "jotai"
 
 import {isRecord} from "../../shared"
@@ -61,19 +62,6 @@ const DATA_INTERNAL_FIELDS = new Set([
 interface Column {
     key: string
     name: string
-}
-
-type ErrorWithResponseStatus = Error & {response?: {status?: number}}
-
-function preserveResponseStatus(error: unknown): ErrorWithResponseStatus {
-    const err = (
-        error instanceof Error ? error : new Error(String(error))
-    ) as ErrorWithResponseStatus
-    const status = (error as {response?: {status?: number}})?.response?.status
-    if (status !== undefined) {
-        err.response = {status}
-    }
-    return err
 }
 
 // Derive current columns from testcase entities + revision-level pending ops

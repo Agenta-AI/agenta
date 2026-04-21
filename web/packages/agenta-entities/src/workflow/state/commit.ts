@@ -23,7 +23,11 @@
  */
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {extractApiErrorMessage, stripAgentaMetadataDeep} from "@agenta/shared/utils"
+import {
+    extractApiErrorMessage,
+    preserveResponseStatus,
+    stripAgentaMetadataDeep,
+} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
 
 import {flattenEvaluatorConfiguration} from "../../runnable/evaluatorTransforms"
@@ -52,17 +56,6 @@ import {
 // ============================================================================
 // HELPERS
 // ============================================================================
-
-type ErrorWithResponseStatus = Error & {response?: {status?: number}}
-
-function preserveResponseStatus(error: unknown, message: string): ErrorWithResponseStatus {
-    const err = new Error(message) as ErrorWithResponseStatus
-    const status = (error as {response?: {status?: number}})?.response?.status
-    if (status !== undefined) {
-        err.response = {status}
-    }
-    return err
-}
 
 /**
  * Prepare parameters for the commit API.

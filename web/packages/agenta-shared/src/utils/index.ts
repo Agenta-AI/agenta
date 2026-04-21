@@ -102,7 +102,8 @@ export {
 export {dereferenceSchema, type DereferencedSchemaResult} from "./openapi"
 
 // API error utilities
-export {extractApiErrorMessage} from "./extractApiErrorMessage"
+export {extractApiErrorMessage, preserveResponseStatus} from "./extractApiErrorMessage"
+export type {ErrorWithResponseStatus} from "./extractApiErrorMessage"
 
 // Formatting utilities
 export {

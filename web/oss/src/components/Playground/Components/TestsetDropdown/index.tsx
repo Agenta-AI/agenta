@@ -9,7 +9,12 @@ import {useCallback, useMemo, useRef, useState} from "react"
 
 import {loadableController, traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
-import type {CommitModeOption, CommitSubmitParams, CommitSubmitResult} from "@agenta/entity-ui"
+import type {
+    CommitCreateFieldsConfig,
+    CommitModeOption,
+    CommitSubmitParams,
+    CommitSubmitResult,
+} from "@agenta/entity-ui"
 import {EntityCommitModal} from "@agenta/entity-ui"
 import {playgroundController} from "@agenta/playground"
 import {
@@ -63,6 +68,12 @@ const COMMIT_MODES: CommitModeOption[] = [
     {id: "commit", label: "Commit changes"},
     {id: "save-new", label: "Save as new test set"},
 ]
+
+const TESTSET_SAVE_NEW_FIELDS: CommitCreateFieldsConfig = {
+    modes: ["save-new"],
+    nameLabel: "Test set name",
+    defaultName: ({entity}) => entity?.name ?? "",
+}
 
 // ============================================================================
 // TESTSET DROPDOWN COMPONENT
@@ -567,11 +578,7 @@ export function TestsetDropdown() {
                 defaultCommitMode="commit"
                 onModeChange={handleModeChange}
                 canSubmit={canSyncSubmit}
-                createEntityFields={{
-                    modes: ["save-new"],
-                    nameLabel: "Test set name",
-                    defaultName: ({entity}) => entity?.name ?? "",
-                }}
+                createEntityFields={TESTSET_SAVE_NEW_FIELDS}
                 submitLabel={syncSubmitLabel}
                 successMessage="Test set updated successfully"
             />

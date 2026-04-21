@@ -47,11 +47,6 @@ export function generateSlugWithExistingSuffix(name: string, suffix?: string | n
     return suffix ? `${base}-${suffix}` : generateSlugWithSuffix(name)
 }
 
-function getRandomSuffix(slug: string): string | null {
-    const match = slug.match(/-([a-z0-9]{4})$/)
-    return match ? match[1] : null
-}
-
 /**
  * Replaces a known generated suffix with a new random 4-character suffix.
  * If the current slug no longer ends with that known suffix, append a new one.
@@ -69,18 +64,19 @@ export function regenerateSlugSuffix(slug: string, suffixToReplace?: string | nu
 }
 
 /**
- * Strips the last hyphen-separated segment if it looks like a 4-character suffix.
- */
-export function stripSlugSuffix(slug: string): string {
-    const suffix = getRandomSuffix(slug)
-    return suffix ? slug.slice(0, -(suffix.length + 1)) : slug
-}
-
-/**
  * Returns the last generated-looking 4-character suffix, if present.
  */
 export function getSlugSuffix(slug: string): string | null {
-    return getRandomSuffix(slug)
+    const match = slug.match(/-([a-z0-9]{4})$/)
+    return match ? match[1] : null
+}
+
+/**
+ * Strips the last hyphen-separated segment if it looks like a 4-character suffix.
+ */
+export function stripSlugSuffix(slug: string): string {
+    const suffix = getSlugSuffix(slug)
+    return suffix ? slug.slice(0, -(suffix.length + 1)) : slug
 }
 
 /**
