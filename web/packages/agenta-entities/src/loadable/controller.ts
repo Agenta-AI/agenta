@@ -786,6 +786,59 @@ const clearRowsAtom = atom(null, (get, set, loadableId: string) => {
     })
 })
 
+/**
+ * Reset rows for the playground Clear action.
+ *
+ * Local mode returns to a single empty testcase. Connected mode keeps server
+ * testcases in the playground, removes locally-added rows, and discards edits.
+ */
+const resetRowsForPlaygroundClearAtom = atom(null, (get, set, loadableId: string) => {
+    const state = get(loadableStateAtomFamily(loadableId))
+
+    if (state.connectedSourceId) {
+        const newIds = get(newEntityIdsAtom)
+        const newIdSet = new Set(newIds)
+        for (const id of newIds) {
+            set(testcaseMolecule.actions.delete, id)
+        }
+
+        set(clearDeletedIdsAtom)
+        set(testcaseMolecule.actions.discardAll)
+
+        const hiddenTestcaseIds = new Set(
+            [...state.hiddenTestcaseIds].filter((id) => !newIdSet.has(id)),
+        )
+        const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+        const visibleRowIds = displayRowIds.filter((id) => !hiddenTestcaseIds.has(id))
+
+        set(loadableStateAtomFamily(loadableId), {
+            ...state,
+            activeRowId: visibleRowIds[0] ?? null,
+            executionResults: {},
+            hiddenTestcaseIds,
+        })
+        return
+    }
+
+    const existingIds = get(testcaseMolecule.atoms.displayRowIds)
+    for (const id of existingIds) {
+        set(testcaseMolecule.actions.delete, id)
+    }
+
+    set(resetTestcaseIdsAtom)
+    set(clearNewEntityIdsAtom)
+    set(clearDeletedIdsAtom)
+
+    const result = set(testcaseMolecule.actions.add, {data: {}})
+
+    set(loadableStateAtomFamily(loadableId), {
+        ...state,
+        activeRowId: result?.id ?? null,
+        executionResults: {},
+        hiddenTestcaseIds: new Set<string>(),
+    })
+})
+
 // ============================================================================
 // COLUMN ACTIONS
 // ============================================================================
@@ -2422,6 +2475,9 @@ export const testsetLoadable = {
         /** Clear all rows */
         clearRows: clearRowsAtom,
 
+        /** Reset rows for the playground Clear action */
+        resetRowsForPlaygroundClear: resetRowsForPlaygroundClearAtom,
+
         /** Set columns */
         setColumns: setColumnsAtom,
 
@@ -2624,6 +2680,7 @@ const unifiedActions = {
     setRows: testsetLoadable.actions.setRows,
     importRows: testsetLoadable.actions.importRows,
     clearRows: testsetLoadable.actions.clearRows,
+    resetRowsForPlaygroundClear: testsetLoadable.actions.resetRowsForPlaygroundClear,
 
     // Column actions
     setColumns: testsetLoadable.actions.setColumns,

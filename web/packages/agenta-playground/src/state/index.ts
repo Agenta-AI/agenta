@@ -182,6 +182,7 @@ export {isAnyRunningForRowAtomFamily} from "./execution"
 export {
     cancelTestsMutationAtom,
     canRunAllChatComparisonAtom,
+    clearAllExecutionItemsMutationAtom,
     clearAllRunsMutationAtom,
     generationHeaderDataAtomFamily,
     generationVariableRowIdsAtom,
