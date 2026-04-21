@@ -81,6 +81,7 @@ export interface AppRevisionCreateVariantPayload {
     baseRevisionId?: string
     baseVariantName?: string
     newVariantName: string
+    slug?: string
     note?: string
     callback?: (newRevision: {id: string}, state: {selected: string[]}) => void
 }
@@ -98,6 +99,7 @@ export interface AppRevisionCrudResult {
     newRevisionId?: string
     message?: string
     error?: string
+    errorStatus?: number
 }
 
 /**

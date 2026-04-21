@@ -5,7 +5,7 @@
  * Adapts based on whether the playground is connected to a local or API-backed testset.
  */
 
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useMemo, useRef, useState} from "react"
 
 import {loadableController, traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
@@ -34,7 +34,7 @@ import {
     XCircleIcon,
 } from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
-import {Button, Dropdown, Input, Typography} from "antd"
+import {Button, Dropdown} from "antd"
 import {atom, useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -63,41 +63,6 @@ const COMMIT_MODES: CommitModeOption[] = [
     {id: "commit", label: "Commit changes"},
     {id: "save-new", label: "Save as new test set"},
 ]
-
-// ============================================================================
-// SYNC MODE CONTENT
-// Helper component that syncs the current commit mode to parent state via useEffect.
-// This avoids calling setState during render (renderModeContent is called during render).
-// ============================================================================
-
-interface SyncModeContentProps {
-    mode: string | undefined
-    onModeChange: (mode: string) => void
-    newTestsetName: string
-    onNameChange: (name: string) => void
-}
-
-function SyncModeContent({mode, onModeChange, newTestsetName, onNameChange}: SyncModeContentProps) {
-    useEffect(() => {
-        if (mode) onModeChange(mode)
-    }, [mode, onModeChange])
-
-    if (mode !== "save-new") return null
-
-    return (
-        <div className="flex flex-col gap-1 pt-1">
-            <Typography.Text className="text-xs text-[var(--ant-color-text-secondary)]">
-                Test set name
-            </Typography.Text>
-            <Input
-                placeholder="Enter test set name"
-                value={newTestsetName}
-                onChange={(e) => onNameChange(e.target.value)}
-                autoFocus
-            />
-        </div>
-    )
-}
 
 // ============================================================================
 // TESTSET DROPDOWN COMPONENT
@@ -402,12 +367,11 @@ export function TestsetDropdown() {
 
     // ── Sync changes (EntityCommitModal) ───────────────────────────────────
     const [syncOpen, setSyncOpen] = useAtom(testsetSyncCommitModalOpenAtom)
-    const [newTestsetName, setNewTestsetName] = useState("")
     const [currentSyncMode, setCurrentSyncMode] = useState("commit")
     const syncModeRef = useRef("commit")
 
-    const handleModeChange = useCallback((m: string) => {
-        if (syncModeRef.current !== m) {
+    const handleModeChange = useCallback((m: string | undefined) => {
+        if (m && syncModeRef.current !== m) {
             syncModeRef.current = m
             setCurrentSyncMode(m)
         }
@@ -416,26 +380,39 @@ export function TestsetDropdown() {
     const syncSubmitLabel = currentSyncMode === "save-new" ? "Save" : "Commit"
 
     const handleSyncOpen = useCallback(() => {
-        setNewTestsetName("")
         setCurrentSyncMode("commit")
         syncModeRef.current = "commit"
         setSyncOpen(true)
     }, [])
 
     const handleSyncSubmit = useCallback(
-        async ({message, mode: submitMode}: CommitSubmitParams): Promise<CommitSubmitResult> => {
+        async ({
+            message,
+            mode: submitMode,
+            entityName,
+            entitySlug,
+        }: CommitSubmitParams): Promise<CommitSubmitResult> => {
             if (!loadableId) return {success: false, error: "No loadable ID"}
 
             if (submitMode === "save-new") {
-                const trimmedName = newTestsetName.trim()
+                const trimmedName = entityName?.trim()
                 if (!trimmedName) {
                     return {success: false, error: "Test set name is required"}
                 }
                 setLoadableName(loadableId, trimmedName)
-                const result = await saveAsNewTestset(loadableId)
+                const result = await saveAsNewTestset(loadableId, {
+                    commitMessage: message,
+                    slug: entitySlug,
+                })
+                const errorStatus = (result.error as {response?: {status?: number}} | undefined)
+                    ?.response?.status
                 return result.success
                     ? {success: true}
-                    : {success: false, error: result.error?.message ?? "Failed to save"}
+                    : {
+                          success: false,
+                          error: result.error?.message ?? "Failed to save",
+                          errorStatus,
+                      }
             }
 
             try {
@@ -445,27 +422,15 @@ export function TestsetDropdown() {
                 return {success: false, error: err instanceof Error ? err.message : String(err)}
             }
         },
-        [loadableId, newTestsetName, commitChanges, saveAsNewTestset, setLoadableName],
+        [loadableId, commitChanges, saveAsNewTestset, setLoadableName],
     )
 
     const canSyncSubmit = useCallback(
-        ({mode: m}: {mode?: string}) => {
-            if (m === "save-new") return newTestsetName.trim().length > 0
+        ({mode: m, entityName}: {mode?: string; entityName?: string}) => {
+            if (m === "save-new") return Boolean(entityName?.trim())
             return true
         },
-        [newTestsetName],
-    )
-
-    const renderSyncModeContent = useCallback(
-        ({mode: m}: {mode?: string}) => (
-            <SyncModeContent
-                mode={m}
-                onModeChange={handleModeChange}
-                newTestsetName={newTestsetName}
-                onNameChange={setNewTestsetName}
-            />
-        ),
-        [handleModeChange, newTestsetName],
+        [],
     )
 
     // ── Dropdown menu ──────────────────────────────────────────────────────
@@ -600,8 +565,13 @@ export function TestsetDropdown() {
                 onSubmit={handleSyncSubmit}
                 commitModes={COMMIT_MODES}
                 defaultCommitMode="commit"
-                renderModeContent={renderSyncModeContent}
+                onModeChange={handleModeChange}
                 canSubmit={canSyncSubmit}
+                createEntityFields={{
+                    modes: ["save-new"],
+                    nameLabel: "Test set name",
+                    defaultName: ({entity}) => entity?.name ?? "",
+                }}
                 submitLabel={syncSubmitLabel}
                 successMessage="Test set updated successfully"
             />

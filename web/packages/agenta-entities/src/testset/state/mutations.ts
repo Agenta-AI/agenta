@@ -63,6 +63,19 @@ interface Column {
     name: string
 }
 
+type ErrorWithResponseStatus = Error & {response?: {status?: number}}
+
+function preserveResponseStatus(error: unknown): ErrorWithResponseStatus {
+    const err = (
+        error instanceof Error ? error : new Error(String(error))
+    ) as ErrorWithResponseStatus
+    const status = (error as {response?: {status?: number}})?.response?.status
+    if (status !== undefined) {
+        err.response = {status}
+    }
+    return err
+}
+
 // Derive current columns from testcase entities + revision-level pending ops
 const currentColumnsAtom = atom<Column[]>((get) => {
     const revisionId = get(currentRevisionIdAtom)
@@ -418,6 +431,10 @@ export const saveTestsetAtom = atom(
 export interface SaveNewTestsetParams {
     projectId: string
     testsetName: string
+    /** Slug for the new testset. When provided, overrides API fallback generation. */
+    slug?: string
+    /** Optional initial commit message for the created revision. */
+    commitMessage?: string
     /**
      * Optional explicit testcase data. When provided, this data is used directly
      * instead of reading from newEntityIdsAtom. Used by the loadable controller
@@ -444,7 +461,7 @@ export interface SaveNewTestsetResult {
 export const saveNewTestsetAtom = atom(
     null,
     async (get, set, params: SaveNewTestsetParams): Promise<SaveNewTestsetResult> => {
-        const {projectId, testsetName, explicitTestcaseData} = params
+        const {projectId, testsetName, slug, commitMessage, explicitTestcaseData} = params
 
         if (!projectId || !testsetName.trim()) {
             return {success: false, error: new Error("Missing projectId or testsetName")}
@@ -484,7 +501,9 @@ export const saveNewTestsetAtom = atom(
             const response = await createTestset({
                 projectId,
                 name: testsetName,
+                slug,
                 testcases: testcaseData,
+                commitMessage,
             })
 
             if (response?.revisionId) {
@@ -513,7 +532,7 @@ export const saveNewTestsetAtom = atom(
 
             return {success: false, error: new Error("No revision ID returned from API")}
         } catch (error) {
-            return {success: false, error: error as Error}
+            return {success: false, error: preserveResponseStatus(error)}
         }
     },
 )
