@@ -1,6 +1,6 @@
 import {memo} from "react"
 
-import {BranchesOutlined} from "@ant-design/icons"
+import {BranchesOutlined, StopOutlined} from "@ant-design/icons"
 import {Typography} from "antd"
 import {useSetAtom} from "jotai"
 
@@ -11,13 +11,40 @@ import {setOnboardingWidgetActivationAtom} from "@/oss/lib/onboarding"
 
 interface EmptyObservabilityProps {
     showOnboarding?: boolean
+    rateLimited?: boolean
+    rateLimitMessage?: string
 }
 
-const EmptyObservability = ({showOnboarding = true}: EmptyObservabilityProps) => {
+const EmptyObservability = ({
+    showOnboarding = true,
+    rateLimited = false,
+    rateLimitMessage,
+}: EmptyObservabilityProps) => {
     const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
 
     const handleSetupTracing = () => {
         setOnboardingWidgetActivation("tracing-snippet")
+    }
+
+    if (rateLimited) {
+        return (
+            <div className="py-16">
+                <EmptyComponent
+                    image={<StopOutlined style={{fontSize: 32, color: "#ff4d4f"}} />}
+                    description={
+                        <div className="flex flex-col gap-2">
+                            <Typography.Text className="text-lg font-medium">
+                                Rate limit reached
+                            </Typography.Text>
+                            <Typography.Text type="secondary">
+                                {rateLimitMessage ||
+                                    "You have reached your monthly quota limit. Please try again later or upgrade your plan."}
+                            </Typography.Text>
+                        </div>
+                    }
+                />
+            </div>
+        )
     }
 
     if (!showOnboarding) {
