@@ -1,4 +1,3 @@
-# NOTE: Canonical test location moved to web/oss/tests/playwright/acceptance/auto-evaluation/
 # Tests: auto-evaluation/run-auto-evaluation.spec.ts -> auto-evaluation/index.ts -> auto-evaluation/tests.ts
 # RTM IDs: WEB-ACC-AUTOEVAL-001, WEB-ACC-AUTOEVAL-002, WEB-ACC-AUTOEVAL-003, WEB-ACC-AUTOEVAL-004, WEB-ACC-AUTOEVAL-005, WEB-ACC-AUTOEVAL-006
 # Tags: @scope:evaluations @coverage:smoke @coverage:light @coverage:full @path:happy @case:typical @license:oss

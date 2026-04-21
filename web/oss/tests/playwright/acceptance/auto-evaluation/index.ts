@@ -92,7 +92,6 @@ const testAutoEval = () => {
             ],
         },
         async ({page, apiHelpers, runAutoEvaluation, navigateToEvaluation}) => {
-            // 1. Fetch apps, variants from API
             const app = await apiHelpers.getApp("chat")
             const appId = app.id
 
@@ -100,7 +99,6 @@ const testAutoEval = () => {
             const variantName = getRequiredVariantName(variants[0]?.name)
             const mismatchedColumnName = `unexpected_input_${Date.now()}`
 
-            // 2. Navigate to evaluation
             await navigateToEvaluation(appId)
             const mismatchedTestset = await apiHelpers.createTestset({
                 name: `e2e auto eval mismatched ${Date.now()}`,

@@ -768,8 +768,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/ee/tests/playwright/acceptance/auto-evaluation/auto-evaluation.feature`
-- Test file: `web/ee/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
 - Playwright title: `Auto Evaluation: Run evaluation > should run a single evaluation`
 
 #### Markers
@@ -783,15 +783,15 @@ For every RTM entry below:
 - Cost: `free`
 - Role: `owner`
 - Plan: environment-defined
-- License: `ee`
+- License: `oss`
 - Status: active
 
 ### WEB-ACC-AUTOEVAL-002 - Show error when creating auto evaluation with mismatched testset
 
 #### Source
 
-- Feature file: `web/ee/tests/playwright/acceptance/auto-evaluation/auto-evaluation.feature`
-- Test file: `web/ee/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
 - Playwright title: `Auto Evaluation: Run evaluation > should show an error when attempting to create an evaluation with a mismatched testset`
 
 #### Markers
@@ -805,7 +805,7 @@ For every RTM entry below:
 - Cost: `free`
 - Role: `owner`
 - Plan: environment-defined
-- License: `ee`
+- License: `oss`
 - Status: active
 
 ### WEB-ACC-HUMAN-001 - Human evaluation entry point on the human tab
@@ -873,6 +873,94 @@ For every RTM entry below:
 - Plan: environment-defined
 - License: `ee`
 - Status: active
+
+### WEB-ACC-AUTOEVAL-003 - View auto evaluation results — Scenarios tab
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Playwright title: `Auto Evaluation: Run evaluation > should view results detail on the Scenarios tab`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-AUTOEVAL-004 - View auto evaluation results — Configuration tab
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Playwright title: `Auto Evaluation: Run evaluation > should view results detail on the Configuration tab`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-AUTOEVAL-005 - Delete an auto evaluation run
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Playwright title: `Auto Evaluation: Run evaluation > should delete an evaluation run`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-AUTOEVAL-006 - Re-run an existing auto evaluation
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Playwright title: `Auto Evaluation: Run evaluation > should re-run an existing evaluation`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: skipped — re-run feature not yet implemented in the UI
 
 ### WEB-ACC-HUMAN-004 - Create evaluator inline and annotate a scenario from the Annotate tab
 
