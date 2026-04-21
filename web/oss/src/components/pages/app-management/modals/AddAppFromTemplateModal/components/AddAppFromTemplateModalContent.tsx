@@ -38,6 +38,7 @@ const AddAppFromTemplateModalContent = ({
     const [slugEditing, setSlugEditing] = useState(false)
     const [templateKey, setTemplateKey] = useState<string | undefined>(undefined)
     const generatedSlugSuffixRef = useRef<string | null>(null)
+    const slugManuallyEditedRef = useRef(false)
 
     const {apps} = useAppsData()
     const [{data: allTemplates = [], isLoading: fetchingTemplate}, noTemplateMessage] =
@@ -73,15 +74,16 @@ const AddAppFromTemplateModalContent = ({
             setNewAppSlug(null)
             setSlugEditing(false)
             generatedSlugSuffixRef.current = null
+            slugManuallyEditedRef.current = false
             return
         }
 
-        if (slugEditing) return
+        if (slugManuallyEditedRef.current) return
 
         const generatedSlug = generateSlugWithExistingSuffix(newApp, generatedSlugSuffixRef.current)
         generatedSlugSuffixRef.current = getSlugSuffix(generatedSlug)
         setNewAppSlug(generatedSlug)
-    }, [newApp, slugEditing])
+    }, [newApp])
 
     const handleAppNameChange = useCallback(
         (value: string) => {
@@ -91,10 +93,11 @@ const AddAppFromTemplateModalContent = ({
                 setNewAppSlug(null)
                 setSlugEditing(false)
                 generatedSlugSuffixRef.current = null
+                slugManuallyEditedRef.current = false
                 return
             }
 
-            if (slugEditing && !newAppSlug?.trim() && value.trim()) {
+            if (!slugManuallyEditedRef.current && !newAppSlug?.trim() && value.trim()) {
                 const generatedSlug = generateSlugWithExistingSuffix(
                     value,
                     generatedSlugSuffixRef.current,
@@ -107,6 +110,7 @@ const AddAppFromTemplateModalContent = ({
     )
 
     const handleSlugInputChange = useCallback((value: string) => {
+        slugManuallyEditedRef.current = true
         setNewAppSlug(value)
     }, [])
 
@@ -243,14 +247,24 @@ const AddAppFromTemplateModalContent = ({
                             )}
                         </>
                     ) : (
-                        <div className="flex h-7 items-center gap-2">
+                        <div className="flex h-7 min-w-0 items-center gap-2">
                             {newAppSlug && (
                                 <>
-                                    <Typography.Text className="font-medium">Slug:</Typography.Text>
-                                    <Tag className="bg-gray-100 font-mono text-gray-500 text-[10px]">
+                                    <Typography.Text className="shrink-0 font-medium">
+                                        Slug:
+                                    </Typography.Text>
+                                    <Tag
+                                        className="min-w-0 max-w-[min(360px,calc(100%-88px))] truncate bg-gray-100 font-mono text-gray-500 text-[10px]"
+                                        title={newAppSlug}
+                                    >
                                         {newAppSlug}
                                     </Tag>
-                                    <Button type="link" size="small" onClick={handleEditSlug}>
+                                    <Button
+                                        type="link"
+                                        size="small"
+                                        className="shrink-0"
+                                        onClick={handleEditSlug}
+                                    >
                                         Edit
                                     </Button>
                                 </>

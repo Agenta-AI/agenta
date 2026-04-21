@@ -103,37 +103,58 @@ export function EntityCommitContent({
     const setSlugFieldError = useSetAtom(setCommitSlugFieldErrorAtom)
     const slugInitializedRef = useRef(false)
     const generatedSlugSuffixRef = useRef<string | null>(null)
+    const slugManuallyEditedRef = useRef(false)
 
     useEffect(() => {
         if (!entityNameEditable) {
             slugInitializedRef.current = false
             generatedSlugSuffixRef.current = null
+            slugManuallyEditedRef.current = false
+            setSlugEditing(false)
             return
         }
-        if (entitySlug !== null) {
-            generatedSlugSuffixRef.current = getSlugSuffix(entitySlug)
+
+        if (!entityName.trim()) {
+            generatedSlugSuffixRef.current = null
+            slugInitializedRef.current = false
+            slugManuallyEditedRef.current = false
+            setSlugEditing(false)
+            if (entitySlug !== null) {
+                setEntitySlug(null)
+            }
+            return
+        }
+
+        if (slugManuallyEditedRef.current) {
+            generatedSlugSuffixRef.current = entitySlug ? getSlugSuffix(entitySlug) : null
             slugInitializedRef.current = true
             return
         }
-        if (entityName.trim()) {
-            const generatedSlug = generateSlugWithExistingSuffix(
-                entityName,
-                generatedSlugSuffixRef.current,
-            )
-            generatedSlugSuffixRef.current = getSlugSuffix(generatedSlug)
+
+        const generatedSlug = generateSlugWithExistingSuffix(
+            entityName,
+            generatedSlugSuffixRef.current,
+        )
+        generatedSlugSuffixRef.current = getSlugSuffix(generatedSlug)
+
+        if (entitySlug !== generatedSlug) {
             setEntitySlug(generatedSlug)
-            slugInitializedRef.current = true
         }
-    }, [entityNameEditable, entityName, entitySlug, setEntitySlug])
+
+        slugInitializedRef.current = true
+    }, [entityNameEditable, entityName, entitySlug, setEntitySlug, setSlugEditing])
 
     useEffect(() => {
         if (!entityName && !entitySlug) {
             slugInitializedRef.current = false
             generatedSlugSuffixRef.current = null
+            slugManuallyEditedRef.current = false
+            setSlugEditing(false)
         }
-    }, [entityName, entitySlug])
+    }, [entityName, entitySlug, setSlugEditing])
 
     const handleSlugInputChange = (value: string) => {
+        slugManuallyEditedRef.current = true
         setEntitySlug(value)
         setSlugFieldError(null)
     }
@@ -347,12 +368,20 @@ export function EntityCommitContent({
                                         )}
                                     </>
                                 ) : (
-                                    <div className="flex items-center gap-2">
-                                        <Text className="font-medium">Slug:</Text>
-                                        <Tag className="bg-gray-100 font-mono text-gray-500">
+                                    <div className="flex min-w-0 items-center gap-2">
+                                        <Text className="shrink-0 font-medium">Slug:</Text>
+                                        <Tag
+                                            className="min-w-0 max-w-[min(220px,calc(100%-88px))] truncate bg-gray-100 font-mono text-gray-500"
+                                            title={entitySlug}
+                                        >
                                             {entitySlug}
                                         </Tag>
-                                        <Button type="link" size="small" onClick={handleEditClick}>
+                                        <Button
+                                            type="link"
+                                            size="small"
+                                            className="shrink-0"
+                                            onClick={handleEditClick}
+                                        >
                                             Edit
                                         </Button>
                                     </div>
