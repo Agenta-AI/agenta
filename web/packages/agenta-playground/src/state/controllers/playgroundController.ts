@@ -1261,6 +1261,42 @@ const openFromTraceAtom = atom(
                 }
             }
 
+            // Evaluator spans with a resolvable evaluator_revision.id open the
+            // existing revision directly — mirrors the application_revision
+            // branch above. This lets users edit the actual llm-as-a-judge
+            // revision (producing a local draft → "Commit" button) instead of
+            // forking a disconnected ephemeral ("Create" button on an orphan).
+            // We still ingest the envelope-shaped test row so running replays
+            // the trace's graded payload.
+            const evaluatorRevisionId = isEvaluatorSpan
+                ? asString(refs.evaluator_revision?.id)
+                : undefined
+            if (evaluatorRevisionId) {
+                set(addPrimaryNodeAtom, {
+                    type: "workflow",
+                    id: evaluatorRevisionId,
+                    label,
+                })
+
+                const evaluatorRowData: Record<string, unknown> = {
+                    inputs: (envelope?.inputs as Record<string, unknown> | undefined) ?? {},
+                    outputs: envelope?.outputs ?? {},
+                }
+                if (Object.keys(evaluatorRowData).length > 0) {
+                    const loadableId = `testset:workflow:${evaluatorRevisionId}`
+                    set(loadableController.actions.setRows, loadableId, [
+                        {id: "trace-input-0", data: evaluatorRowData},
+                    ])
+                }
+
+                return {
+                    type: "revision",
+                    entityId: evaluatorRevisionId,
+                    label,
+                    inputs: testcaseInputs,
+                }
+            }
+
             // No revision — create ephemeral workflow.
             // Evaluator spans carry is_evaluator + the derived URI so downstream
             // selectors dispatch correctly (schema, ports, request payload).
