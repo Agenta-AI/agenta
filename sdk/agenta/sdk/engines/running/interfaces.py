@@ -598,6 +598,15 @@ auto_regex_test_v0_interface = WorkflowRevisionData(
                 "regex_should_match": ag_field(
                     base=scalar(jtype="boolean", default=True), x_ag_type="bool"
                 ),
+                "case_sensitive": ag_field(
+                    base=scalar(
+                        jtype="boolean",
+                        default=True,
+                        description="When false, the regex is compiled with IGNORECASE.",
+                    ),
+                    x_ag_type="bool",
+                    x_ag_ui_advanced=True,
+                ),
             },
             required=["regex_pattern"],
             additional_properties=False,
@@ -735,6 +744,46 @@ auto_ai_critique_v0_interface = WorkflowRevisionData(
                         additional_properties=False,
                     ),
                     x_ag_type="llm_response_schema",
+                ),
+                "correct_answer_key": ag_field(
+                    base=scalar(
+                        jtype="string",
+                        default="correct_answer",
+                        description=(
+                            "Column name in the testset that holds the ground-truth answer. "
+                            "When set, the value is exposed to the prompt template as "
+                            "{{correct_answer}}, {{ground_truth}}, and {{reference}}."
+                        ),
+                    ),
+                    x_ag_type="text",
+                    x_ag_ui_advanced=True,
+                ),
+                "template_format": ag_field(
+                    base=scalar(
+                        jtype="string",
+                        default="curly",
+                        enum=["curly", "fstring"],
+                        description=(
+                            "Placeholder syntax in prompt_template. "
+                            "'curly' for {{var}} (default), 'fstring' for {var}."
+                        ),
+                    ),
+                    x_ag_type="text",
+                    x_ag_ui_advanced=True,
+                ),
+                "threshold": ag_field(
+                    base=scalar(
+                        jtype="number",
+                        default=0.5,
+                        minimum=0,
+                        maximum=1,
+                        description=(
+                            "When the grading LLM returns a numeric score, "
+                            "the run is marked successful if score >= threshold."
+                        ),
+                    ),
+                    x_ag_type="float",
+                    x_ag_ui_advanced=True,
                 ),
                 "version": ag_field(
                     base=scalar(jtype="string", default="4"),
@@ -879,6 +928,17 @@ auto_json_diff_v0_interface = WorkflowRevisionData(
                     x_ag_type="text",
                     x_ag_ui_advanced=True,
                 ),
+                "threshold": ag_field(
+                    base=scalar(
+                        jtype="number",
+                        default=0.5,
+                        minimum=0,
+                        maximum=1,
+                        description="Success threshold on the JSON diff score.",
+                    ),
+                    x_ag_type="float",
+                    x_ag_ui_advanced=True,
+                ),
             },
             additional_properties=False,
         ),
@@ -895,6 +955,15 @@ auto_levenshtein_distance_v0_interface = WorkflowRevisionData(
                 "correct_answer_key": ag_field(
                     base=scalar(jtype="string", default="correct_answer"),
                     x_ag_type="text",
+                    x_ag_ui_advanced=True,
+                ),
+                "case_sensitive": ag_field(
+                    base=scalar(
+                        jtype="boolean",
+                        default=True,
+                        description="When false, both strings are lowercased before computing distance.",
+                    ),
+                    x_ag_type="bool",
                     x_ag_ui_advanced=True,
                 ),
             },
@@ -918,6 +987,15 @@ auto_similarity_match_v0_interface = WorkflowRevisionData(
                     x_ag_type="text",
                     x_ag_ui_advanced=True,
                 ),
+                "case_sensitive": ag_field(
+                    base=scalar(
+                        jtype="boolean",
+                        default=True,
+                        description="When false, both strings are lowercased before Jaccard similarity is computed.",
+                    ),
+                    x_ag_type="bool",
+                    x_ag_ui_advanced=True,
+                ),
             },
             required=["similarity_threshold"],
             additional_properties=False,
@@ -934,6 +1012,26 @@ auto_semantic_similarity_v0_interface = WorkflowRevisionData(
                 "correct_answer_key": ag_field(
                     base=scalar(jtype="string", default="correct_answer"),
                     x_ag_type="text",
+                    x_ag_ui_advanced=True,
+                ),
+                "embedding_model": ag_field(
+                    base=scalar(
+                        jtype="string",
+                        default="text-embedding-3-small",
+                        description="OpenAI embedding model used to compute sentence embeddings.",
+                    ),
+                    x_ag_type="text",
+                    x_ag_ui_advanced=True,
+                ),
+                "threshold": ag_field(
+                    base=scalar(
+                        jtype="number",
+                        default=0.5,
+                        minimum=0,
+                        maximum=1,
+                        description="Success threshold on the cosine similarity score.",
+                    ),
+                    x_ag_type="float",
                     x_ag_ui_advanced=True,
                 ),
             },
