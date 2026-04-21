@@ -358,13 +358,9 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
     const onSaveEditedTrace = useCallback(
         (valueToSave?: string) => {
             const dataToSave = valueToSave || updatedTraceData
-            console.log("[onSaveEditedTrace] Called", {
-                dataToSave: dataToSave?.slice(0, 100),
-            })
             // Always call updateEditedTrace - it handles comparison against original data internally
             // Don't compare against formatDataPreview here because it reflects current (possibly edited) data
             if (dataToSave) {
-                console.log("[onSaveEditedTrace] Calling updateEditedTrace")
                 const result = updateEditedTrace({
                     updatedData: dataToSave,
                     format: editorFormat,
@@ -372,7 +368,6 @@ export function useTestsetDrawer(): UseTestsetDrawerResult {
                     formatData: getYamlOrJson,
                     getValueAtPath, // Pass getValueAtPath to update local entities
                 })
-                console.log("[onSaveEditedTrace] Result:", result)
 
                 if (!result.success && result.error && result.error !== "No changes detected") {
                     message.error(result.error)
