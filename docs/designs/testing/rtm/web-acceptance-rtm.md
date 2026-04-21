@@ -812,8 +812,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/ee/tests/playwright/acceptance/human-annotation/human-annotation.feature`
-- Test file: `web/ee/tests/playwright/acceptance/human-annotation/index.ts`
+- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
 - Playwright title: `Human Annotation > should show the human evaluation entry point on the human tab`
 
 #### Markers
@@ -827,15 +827,15 @@ For every RTM entry below:
 - Cost: `free`
 - Role: `owner`
 - Plan: environment-defined
-- License: `ee`
+- License: `oss`
 - Status: active
 
 ### WEB-ACC-HUMAN-002 - Mismatched testset when configuring a human evaluation
 
 #### Source
 
-- Feature file: `web/ee/tests/playwright/acceptance/human-annotation/human-annotation.feature`
-- Test file: `web/ee/tests/playwright/acceptance/human-annotation/index.ts`
+- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
 - Playwright title: `Human Annotation > should use a deliberately mismatched testset when configuring a human evaluation`
 
 #### Markers
@@ -849,15 +849,15 @@ For every RTM entry below:
 - Cost: `free`
 - Role: `owner`
 - Plan: environment-defined
-- License: `ee`
+- License: `oss`
 - Status: active
 
 ### WEB-ACC-HUMAN-003 - Create a human evaluation and land on the results page
 
 #### Source
 
-- Feature file: `web/ee/tests/playwright/acceptance/human-annotation/human-annotation.feature`
-- Test file: `web/ee/tests/playwright/acceptance/human-annotation/index.ts`
+- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
 - Playwright title: `Human Annotation > should create a human evaluation and land on the results page`
 
 #### Markers
@@ -871,7 +871,7 @@ For every RTM entry below:
 - Cost: `free`
 - Role: `owner`
 - Plan: environment-defined
-- License: `ee`
+- License: `oss`
 - Status: active
 
 ### WEB-ACC-AUTOEVAL-003 - View auto evaluation results — Scenarios tab
@@ -966,8 +966,8 @@ For every RTM entry below:
 
 #### Source
 
-- Feature file: `web/ee/tests/playwright/acceptance/human-annotation/human-annotation.feature`
-- Test file: `web/ee/tests/playwright/acceptance/human-annotation/index.ts`
+- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
 - Playwright title: `Human Annotation > should create a new evaluator inline and annotate a scenario from the annotate tab`
 
 #### Markers
@@ -981,6 +981,72 @@ For every RTM entry below:
 - Cost: `free`
 - Role: `owner`
 - Plan: environment-defined
-- License: `ee`
+- License: `oss`
+- Status: active
+
+### WEB-ACC-HUMAN-005 - Annotate multiple scenarios and see progress in the Scenarios tab
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
+- Playwright title: `Human Annotation > should annotate multiple scenarios and see progress in the Scenarios tab`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-HUMAN-006 - Submit a partial annotation and resume later
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
+- Playwright title: `Human Annotation > should submit a partial annotation and resume later`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: skipped — session persistence across page reloads not reliably testable in CI
+
+### WEB-ACC-HUMAN-007 - View the Overview tab on a human evaluation results page
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
+- Playwright title: `Human Annotation > should view the Overview tab on a human evaluation results page`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
 - Status: active
 
