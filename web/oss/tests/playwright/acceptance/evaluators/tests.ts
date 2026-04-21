@@ -192,17 +192,23 @@ const openEvaluatorViewDrawer = async (page: Page, evaluatorName: string) => {
 }
 
 /**
- * Expands the evaluator drawer into playground mode by clicking "Test Evaluator".
- * Waits for the "Select app" button to appear to confirm expansion.
+ * Ensures the evaluator drawer is in expanded (playground) mode.
+ * Evaluator drawers now open expanded by default, so clicking "Test Evaluator"
+ * when already expanded would collapse the drawer. Only click if not yet expanded.
  */
 const expandEvaluatorToPlayground = async (drawer: Locator) => {
-    const testButton = drawer.getByRole("button", {name: EVALUATOR_TEST_BUTTON_LABEL}).first()
-    await expect(testButton).toBeVisible()
-    await testButton.click()
-
     const selectAppButton = drawer
         .getByRole("button", {name: new RegExp(EVALUATOR_SELECT_APP_PLACEHOLDER)})
         .first()
+
+    const isAlreadyExpanded = await selectAppButton.isVisible().catch(() => false)
+
+    if (!isAlreadyExpanded) {
+        const testButton = drawer.getByRole("button", {name: EVALUATOR_TEST_BUTTON_LABEL}).first()
+        await expect(testButton).toBeVisible()
+        await testButton.click()
+    }
+
     await expect(selectAppButton).toBeVisible({timeout: 10000})
 }
 

@@ -260,7 +260,7 @@ const testAutoEval = () => {
                 createTagString("license", "oss"),
             ],
         },
-        async (_fixtures, testInfo) => {
+        async ({}, testInfo) => {
             testInfo.skip("Re-run feature not yet implemented in the UI")
         },
     )

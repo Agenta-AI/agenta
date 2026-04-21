@@ -76,30 +76,30 @@ const deploymentTests = () => {
         })
 
         await scenarios.and("the user selects a variant to deploy to Development", async () => {
-            // SelectDeployVariantModal opens — title contains "Deploy Development"
-            const modal = page
-                .locator(".ant-modal")
-                .filter({hasText: /Development/i})
-                .first()
+            const modal = page.getByRole("dialog", {name: /Deploy Development/i}).last()
             await expect(modal).toBeVisible({timeout: 10000})
-            // AntD hides the real radio input — force-click it to trigger selection
-            await modal.locator(".ant-radio-input").first().click({force: true})
+
+            // Virtualized tables render more reliably with [data-row-key] than .ant-table-row.
+            const firstRow = modal.locator("[data-row-key]").first()
+            await expect(firstRow).toBeVisible({timeout: 10000})
+            const radioControl = firstRow
+                .locator('.ant-radio-wrapper, .ant-radio, [role="radio"], input[type="radio"]')
+                .first()
+            await expect(radioControl).toBeVisible({timeout: 10000})
+            await radioControl.click({force: true})
         })
 
         await scenarios.and("the user confirms the deployment", async () => {
-            // Wait for the Deploy button to become enabled after row selection
-            const modal = page
-                .locator(".ant-modal")
-                .filter({hasText: /Development/i})
-                .first()
+            const modal = page.getByRole("dialog", {name: /Deploy Development/i}).last()
             const deployBtn = modal.getByRole("button", {name: "Deploy"})
-            await expect(deployBtn).toBeEnabled({timeout: 5000})
+            await expect(deployBtn).toBeEnabled({timeout: 10000})
             await deployBtn.click()
         })
 
         await scenarios.then("the deployment to Development succeeds", async () => {
-            // Modal closes when deployment is successful
-            await expect(page.locator(".ant-modal")).not.toBeVisible({timeout: 30000})
+            await expect(page.getByRole("dialog", {name: /Deploy Development/i})).toHaveCount(0, {
+                timeout: 30000,
+            })
         })
     })
 }

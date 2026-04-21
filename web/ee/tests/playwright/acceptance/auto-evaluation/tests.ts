@@ -9,7 +9,7 @@ import {EvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
 const AUTO_EVALUATION_TAB_LABEL = "Auto Evals"
 const AUTO_EVALUATION_EMPTY_STATE_TITLE = "Get Started with Evaluations"
 const AUTO_EVALUATION_EMPTY_STATE_BUTTON_LABEL = /Run Evaluation/i
-const AUTO_EVALUATION_LIST_BUTTON_LABEL = /Start evaluation/i
+const AUTO_EVALUATION_LIST_BUTTON_LABEL = /New evaluation/i
 const AUTO_EVALUATION_MODAL_TITLE = "New Auto Evaluation"
 const AUTO_EVALUATION_SUBMIT_BUTTON_LABEL = "Start Evaluation"
 const AUTO_RESULTS_TAB_LABELS = ["Overview", "Scenarios", "Configuration"] as const

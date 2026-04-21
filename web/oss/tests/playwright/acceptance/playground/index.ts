@@ -344,9 +344,9 @@ const playgroundTests = () => {
             })
 
             await scenarios.then(
-                "the web_search_preview tool block appears in the prompt section",
+                "the web_search tool block appears in the prompt section",
                 async () => {
-                    await expect(page.getByText("web_search_preview").first()).toBeVisible({
+                    await expect(page.getByText("web_search").first()).toBeVisible({
                         timeout: 10000,
                     })
                 },
