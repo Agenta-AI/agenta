@@ -129,7 +129,9 @@ const EmptyEnvs: AppEnvironmentDeployment[] = []
 function sortByCanonicalEnvOrder(envs: AppEnvironmentDeployment[]): AppEnvironmentDeployment[] {
     if (envs.length <= 1) return envs
     return [...envs].sort(
-        (a, b) => (ENV_ORDER[a.name.toLowerCase()] ?? 99) - (ENV_ORDER[b.name.toLowerCase()] ?? 99),
+        (a, b) =>
+            (ENV_ORDER[a.name.toLowerCase()] ?? 99) -
+            (ENV_ORDER[b.name.toLowerCase()] ?? 99),
     )
 }
 
