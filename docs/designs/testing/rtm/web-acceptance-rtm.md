@@ -176,7 +176,7 @@ For every RTM entry below:
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
 - Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
-- Playwright title: `Should run single view variant for completion`
+- Playwright title: `Playground: Run Variant > Should run single view variant for completion`
 
 #### Markers
 
@@ -198,7 +198,7 @@ For every RTM entry below:
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
 - Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
-- Playwright title: `Should run single view variant for chat`
+- Playwright title: `Playground: Run Variant > Should run single view variant for chat`
 
 #### Markers
 
@@ -220,7 +220,7 @@ For every RTM entry below:
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
 - Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
-- Playwright title: `Should update the prompt and save the changes`
+- Playwright title: `Playground: Run Variant > Should update the prompt and save the changes`
 
 #### Markers
 
@@ -330,7 +330,7 @@ For every RTM entry below:
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/prompt-registry.feature`
 - Test file: `web/oss/tests/playwright/acceptance/prompt-registry/index.ts`
-- Playwright title: `should open prompt details from prompt registry`
+- Playwright title: `Prompt Registry: workflow revisions > should open prompt details from prompt registry`
 
 #### Markers
 
@@ -352,7 +352,7 @@ For every RTM entry below:
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/settings.feature`
 - Test file: `web/oss/tests/playwright/acceptance/settings/model-hub.ts`
-- Playwright title: `should allow full add provider`
+- Playwright title: `Settings: Model Hub > should allow full add provider`
 
 #### Markers
 
@@ -374,7 +374,7 @@ For every RTM entry below:
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/settings.feature`
 - Test file: `web/oss/tests/playwright/acceptance/settings/api-keys.ts`
-- Playwright title: `should allow full API key flow`
+- Playwright title: `Settings: API Keys Management > should allow full API key flow`
 
 #### Markers
 
@@ -440,7 +440,7 @@ For every RTM entry below:
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
 - Test file: `web/oss/tests/playwright/acceptance/testsset/index.ts`
-- Playwright title: `should view the default testset`
+- Playwright title: `Testsets: view default testset > should view the default testset`
 
 #### Markers
 
@@ -572,7 +572,7 @@ For every RTM entry below:
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/deployment.feature`
 - Test file: `web/oss/tests/playwright/acceptance/deployment/index.ts`
-- Playwright title: `deploy a variant`
+- Playwright title: `Deployment: deploy variant > deploy a variant`
 
 #### Markers
 
@@ -594,7 +594,7 @@ For every RTM entry below:
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/observability.feature`
 - Test file: `web/oss/tests/playwright/acceptance/observability/index.ts`
-- Playwright title: `view traces`
+- Playwright title: `Observability: view traces > view traces`
 
 #### Markers
 
