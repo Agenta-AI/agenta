@@ -2,6 +2,8 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
+from oss.src.utils.exceptions import Support
+
 from oss.src.core.shared.dtos import (
     Link,
     Windowing,
@@ -33,21 +35,21 @@ class AnnotationQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class AnnotationResponse(BaseModel):
+class AnnotationResponse(Support):
     count: int = 0
     annotation: Optional[Annotation] = None
 
 
-class AnnotationsResponse(BaseModel):
+class AnnotationsResponse(Support):
     count: int = 0
     annotations: List[Annotation] = []
 
 
-class AnnotationLinkResponse(BaseModel):
+class AnnotationLinkResponse(Support):
     count: int = 0
     annotation_link: Optional[Link] = None
 
 
-class AnnotationLinksResponse(BaseModel):
+class AnnotationLinksResponse(Support):
     count: int = 0
     annotation_links: List[Link] = []
