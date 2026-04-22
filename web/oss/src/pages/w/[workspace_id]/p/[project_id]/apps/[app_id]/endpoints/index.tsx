@@ -210,7 +210,7 @@ export default function VariantEndpoint() {
         [inputSchema, selectedEnvironment?.name, isChat, currentApp?.name, currentApp?.slug],
     )
 
-    const appSlug = currentApp?.name ?? currentApp?.slug ?? ""
+    const appSlug = currentApp?.slug ?? currentApp?.name ?? ""
 
     const invokeLlmAppCodeSnippet = useMemo<Record<string, string>>(
         () => ({

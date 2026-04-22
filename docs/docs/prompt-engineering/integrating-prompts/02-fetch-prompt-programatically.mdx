@@ -8,6 +8,7 @@ description: "Learn how to fetch prompt configurations using the Agenta SDK or A
 import GoogleColabButton from "@site/src/components/GoogleColabButton";
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
+import FindSlugsInUI from "@site/docs/_partials/find-slugs-in-ui.mdx";
 
 This guide shows you how to fetch prompt configurations from variants or environments using the Agenta SDK.
 
@@ -18,6 +19,8 @@ This guide shows you how to fetch prompt configurations from variants or environ
 ## Fetching a Prompt Configuration
 
 You can fetch the configurations from a variant reference (`app_slug`, `variant_slug`, `variant_version`) or an environment reference (`app_slug`, `environment_slug`). The default behavior when fetching is to fetch the latest configuration from the `production` environment. If you don't provide a `variant_version` parameter but only a `variant_slug` or an `environment_slug`, the SDK will fetch the latest version of the variant from the specified **environment/variant**.
+
+<FindSlugsInUI />
 
 :::tip
 Check the [reference](/reference/sdk/configuration-management#prompt-configuration-schema) section for more details on the data format used for prompts.
