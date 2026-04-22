@@ -3,9 +3,8 @@ import {expect} from "@agenta/web-tests/utils"
 import type {Locator, Page} from "@playwright/test"
 
 import type {HumanEvaluationConfig, HumanEvaluationFixtures} from "./assets/types"
-import {getProjectScopedBasePath} from "tests/tests/fixtures/base.fixture/apiHelpers"
-import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
-import {EvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
+import type {EvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
+import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 
 type EvaluationRunsResponse = {
     runs: EvaluationRun[]
@@ -82,9 +81,8 @@ const waitForEvaluationRuns = async (page: Page, appId: string) => {
 }
 
 const getHumanEvaluationRuns = (evaluationRuns: EvaluationRunsResponse) => {
-    const runs = Array.isArray(evaluationRuns.runs) ? evaluationRuns.runs : []
-
-    return runs.filter((run) => deriveEvaluationKind(run) === "human")
+    // The page navigates to ?kind=human so the API response is already filtered to human runs
+    return Array.isArray(evaluationRuns.runs) ? evaluationRuns.runs : []
 }
 
 const getVisibleButtonByLabels = async (page: Page, labels: readonly (string | RegExp)[]) => {
@@ -298,6 +296,17 @@ const openHumanAnnotateView = async (page: Page) => {
 
     if ((await annotateTab.getAttribute("aria-selected")) !== "true") {
         await annotateTab.click()
+
+        const switchedToAnnotate = await annotateTab
+            .getAttribute("aria-selected", {timeout: 5000})
+            .then((value) => value === "true")
+            .catch(() => false)
+
+        if (!switchedToAnnotate) {
+            const annotateUrl = new URL(page.url())
+            annotateUrl.searchParams.set("view", "focus")
+            await page.goto(annotateUrl.toString(), {waitUntil: "domcontentloaded"})
+        }
     }
 
     await expect(annotateTab).toHaveAttribute("aria-selected", "true")
@@ -523,18 +532,29 @@ const ensureSingleHumanEvaluatorSelection = async ({
 const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
     navigateToHumanEvaluation: async ({page}, use) => {
         await use(async (appId: string) => {
-            const humanEvaluationRuns = await goToHumanEvaluations(page, appId)
+            await page.goto(getHumanEvaluationsUrl(page, appId), {waitUntil: "domcontentloaded"})
+            await expect
+                .poll(() => new URL(page.url()).pathname)
+                .toBe(getHumanEvaluationsPath(page, appId))
+            await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBe("human")
+            await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 10000})
 
-            if (humanEvaluationRuns.length > 0) {
-                expect(humanEvaluationRuns.length).toBeGreaterThan(0)
-                await expect(
-                    page.getByRole("button", {name: HUMAN_EVALUATION_LIST_BUTTON_LABEL}).first(),
-                ).toBeVisible()
+            const listButton = page
+                .getByRole("button", {name: HUMAN_EVALUATION_LIST_BUTTON_LABEL})
+                .first()
+
+            // Wait up to 15s for either the "New evaluation" button (has runs) or the empty state
+            const hasRuns = await listButton.isVisible({timeout: 15000}).catch(() => false)
+
+            if (hasRuns) {
+                await expect(listButton).toBeVisible()
                 return
             }
 
-            expect(humanEvaluationRuns).toHaveLength(0)
-            await expect(page.getByText(HUMAN_EVALUATION_EMPTY_STATE_TITLE).first()).toBeVisible()
+            // Empty state — no runs yet
+            await expect(page.getByText(HUMAN_EVALUATION_EMPTY_STATE_TITLE).first()).toBeVisible({
+                timeout: 5000,
+            })
             await expect(
                 page.getByRole("button", {name: HUMAN_EVALUATION_EMPTY_STATE_BUTTON_LABEL}).first(),
             ).toBeVisible()

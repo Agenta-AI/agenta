@@ -390,6 +390,50 @@ For every RTM entry below:
 - License: `oss`
 - Status: implemented, currently wrapped by a skipped spec
 
+### WEB-ACC-SETTINGS-003 - Add a standard provider key via UI and verify it is listed
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/settings.feature`
+- Test file: `web/oss/tests/playwright/acceptance/settings/model-hub.ts`
+- Playwright title: `Settings: Model Hub > should configure a standard provider key and verify it is listed`
+
+#### Markers
+
+- Scope: `settings`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active with conditional skip when all standard providers are already configured
+
+### WEB-ACC-SETTINGS-004 - Add a custom provider via UI, verify it appears, then delete it
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/settings.feature`
+- Test file: `web/oss/tests/playwright/acceptance/settings/model-hub.ts`
+- Playwright title: `Settings: Model Hub > should add and delete a custom provider via the UI`
+
+#### Markers
+
+- Scope: `settings`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
 ### WEB-ACC-DATASETS-001 - View the default testset and its details
 
 #### Source
