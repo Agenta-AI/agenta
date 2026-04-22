@@ -39,6 +39,10 @@ const MetadataSidebar = memo(({revisionId, context, isCompact}: MetadataSidebarP
     const workflowData = useAtomValue(
         useMemo(() => workflowMolecule.selectors.data(revisionId), [revisionId]),
     )
+    const workflowId = workflowData?.workflow_id ?? ""
+    const workflowSlug = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.slug(workflowId), [workflowId]),
+    )
     const deployedIn = useAtomValue(environmentMolecule.atoms.revisionDeployment(revisionId))
     const {
         renderEnvironmentLabel,
@@ -50,6 +54,7 @@ const MetadataSidebar = memo(({revisionId, context, isCompact}: MetadataSidebarP
     if (!workflowData) return null
 
     const isEvaluator = context === "evaluator-view" || context === "evaluator-create"
+    const evaluatorSlug = workflowSlug ?? workflowData.slug ?? null
 
     return (
         <div
@@ -83,6 +88,14 @@ const MetadataSidebar = memo(({revisionId, context, isCompact}: MetadataSidebarP
                 {isEvaluator && renderEvaluatorTypeLabel && (
                     <MetadataField label="Type">
                         {renderEvaluatorTypeLabel(revisionId)}
+                    </MetadataField>
+                )}
+
+                {isEvaluator && evaluatorSlug && (
+                    <MetadataField label="Slug">
+                        <Text className={cn("break-all leading-relaxed", textColors.primary)}>
+                            {evaluatorSlug}
+                        </Text>
                     </MetadataField>
                 )}
 

@@ -30,9 +30,10 @@ export enum AppServiceType {
 
 export interface CreateAppFromTemplateParams {
     projectId: string
-    organizationId?: string
-    workspaceId?: string
+    organizationId?: string | null
+    workspaceId?: string | null
     appName: string
+    slug?: string
     templateKey: string
     serviceUrl?: string
     folderId?: string | null
@@ -152,6 +153,7 @@ function normalizeCatalogKey(templateKey: string): string {
 export async function createAppFromTemplate({
     projectId,
     appName,
+    slug: explicitSlug,
     templateKey,
     serviceUrl,
     folderId,
@@ -194,7 +196,7 @@ export async function createAppFromTemplate({
     onConfiguring?.()
 
     // Step 2: Create workflow with template data
-    const slug = generateSlug(appName)
+    const slug = explicitSlug ?? generateSlug(appName)
 
     const workflow = await createWorkflow(projectId, {
         slug,

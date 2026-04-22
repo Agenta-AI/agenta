@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Any, Optional, List
 from uuid import uuid4
 from functools import wraps
@@ -5,12 +6,40 @@ from traceback import format_exc
 from contextlib import AbstractContextManager
 
 from fastapi import Request, HTTPException
+from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.shared.exceptions import EntityCreationConflict
 
 
 log = get_module_logger(__name__)
+
+
+class Support(BaseModel):
+    support_id: Optional[str] = None
+    support_ts: Optional[datetime] = None
+
+
+def build_support() -> Support:
+    return Support(
+        support_id=str(uuid4()),
+        support_ts=datetime.now(timezone.utc),
+    )
+
+
+def attach_support(payload: Any, support: Support) -> Any:
+    if (
+        isinstance(payload, BaseModel)
+        and "support_id" in payload.__class__.model_fields
+    ):
+        return payload.model_copy(
+            update={
+                "support_id": support.support_id,
+                "support_ts": support.support_ts,
+            }
+        )
+
+    return payload
 
 
 def build_entity_creation_conflict_message(
@@ -49,7 +78,7 @@ class suppress(AbstractContextManager):  # pylint: disable=invalid-name
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         if exc_type is not None:
-            support_id = str(uuid4())
+            support = build_support()
 
             if self.verbose is True:
                 if any(isinstance(exc_value, excl) for excl in self.exclude):
@@ -57,7 +86,8 @@ class suppress(AbstractContextManager):  # pylint: disable=invalid-name
 
                 log.warn(
                     f"[SUPPRESSED] {self.message}\n{format_exc()}",
-                    support_id=support_id,
+                    support_id=support.support_id,
+                    support_ts=support.support_ts,
                 )
 
         return True
@@ -79,17 +109,18 @@ def suppress_exceptions(
                 if any(isinstance(exc, excl) for excl in exclude or []):
                     raise
 
-                support_id = str(uuid4())
+                support = build_support()
                 operation_id = func.__name__ if hasattr(func, "__name__") else None
 
                 if verbose is True:
                     log.warn(
                         f"[SUPPRESSED] {message}\n{format_exc()}",
-                        support_id=support_id,
+                        support_id=support.support_id,
+                        support_ts=support.support_ts,
                         operation_id=operation_id,
                     )
 
-                return default
+                return attach_support(default, support)
 
         return wrapper
 
@@ -112,15 +143,18 @@ def intercept_exceptions(
                 if isinstance(e, EntityCreationConflict):
                     e: EntityCreationConflict
 
+                    support = build_support()
                     raise ConflictException(
                         message=build_entity_creation_conflict_message(
                             conflict=e.conflict,
                             default_message=e.message,
                         ),
                         conflict=e.conflict,
+                        support_id=support.support_id,
+                        support_ts=support.support_ts,
                     ) from e
 
-                support_id = str(uuid4())
+                support = build_support()
                 operation_id = func.__name__ if hasattr(func, "__name__") else None
 
                 user_id = None
@@ -153,14 +187,16 @@ def intercept_exceptions(
                 status_code = 500
                 detail = {
                     "message": message,
-                    "support_id": support_id,
+                    "support_id": support.support_id,
+                    "support_ts": support.support_ts,
                     "operation_id": operation_id,
                 }
 
                 if verbose is True:
                     log.error(
                         f"[INTERCEPTED]\n{format_exc()}",
-                        support_id=support_id,
+                        support_id=support.support_id,
+                        support_ts=support.support_ts,
                         operation_id=operation_id,
                         user_id=user_id,
                         organization_id=organization_id,
