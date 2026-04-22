@@ -1177,13 +1177,23 @@ const openFromTraceAtom = atom(
             // so downstream selectors can rebuild the evaluator request. The envelope's
             // inner `inputs` is the graded testcase row; `outputs` is the linked app's
             // output; `trace` carries the upstream trace reference.
+            // `rawInputs.outputs` is often a JSON-encoded string on the wire
+            // (e.g. `"{\"capital\":\"Baku\"}"`), so parse before storing.
+            let envelopeOutputs: unknown = rawInputs.outputs
+            if (typeof envelopeOutputs === "string") {
+                try {
+                    envelopeOutputs = JSON.parse(envelopeOutputs)
+                } catch {
+                    /* keep as string */
+                }
+            }
             const envelope = isEvaluatorSpan
                 ? ({
                       ...(isRecord(rawInputs.trace) ? {trace: rawInputs.trace} : {}),
                       ...(hasNestedInputs
                           ? {inputs: rawInputs.inputs as Record<string, unknown>}
                           : {}),
-                      ...(isRecord(rawInputs.outputs) ? {outputs: rawInputs.outputs} : {}),
+                      ...(envelopeOutputs !== undefined ? {outputs: envelopeOutputs} : {}),
                   } as Record<string, unknown>)
                 : undefined
 
@@ -1272,22 +1282,27 @@ const openFromTraceAtom = atom(
                 ? asString(refs.evaluator_revision?.id)
                 : undefined
             if (evaluatorRevisionId) {
-                set(addPrimaryNodeAtom, {
-                    type: "workflow",
-                    id: evaluatorRevisionId,
-                    label,
-                })
+                // `skipInitialRow` prevents linkToRunnable from seeding an empty
+                // row — we write the envelope-shaped row ourselves right after
+                // so there's no transient empty row that React might observe.
+                set(
+                    addPrimaryNodeAtom,
+                    {
+                        type: "workflow",
+                        id: evaluatorRevisionId,
+                        label,
+                    },
+                    {skipInitialRow: true},
+                )
 
                 const evaluatorRowData: Record<string, unknown> = {
                     inputs: (envelope?.inputs as Record<string, unknown> | undefined) ?? {},
                     outputs: envelope?.outputs ?? {},
                 }
-                if (Object.keys(evaluatorRowData).length > 0) {
-                    const loadableId = `testset:workflow:${evaluatorRevisionId}`
-                    set(loadableController.actions.setRows, loadableId, [
-                        {id: "trace-input-0", data: evaluatorRowData},
-                    ])
-                }
+                const loadableId = `testset:workflow:${evaluatorRevisionId}`
+                set(loadableController.actions.setRows, loadableId, [
+                    {id: "trace-input-0", data: evaluatorRowData},
+                ])
 
                 return {
                     type: "revision",

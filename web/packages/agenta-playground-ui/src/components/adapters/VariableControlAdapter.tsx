@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import React, {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {isJsonString} from "@agenta/shared/utils"
@@ -53,6 +53,24 @@ const MarkdownToggleRegistrar: React.FC<{
         }
     }, [editor])
 
+    return null
+}
+
+/**
+ * Focuses the Lexical editor on mount when `armedRef.current` is true, then
+ * disarms. Used so that a mode-flip-triggered remount (paste or Cmd+A+Delete)
+ * returns focus to the newly-mounted editor — preserving the user's editing
+ * context across the swap.
+ */
+const FocusOnMountWhenArmed: React.FC<{
+    armedRef: React.MutableRefObject<boolean>
+}> = ({armedRef}) => {
+    const [editor] = useLexicalComposerContext()
+    useEffect(() => {
+        if (!armedRef.current) return
+        armedRef.current = false
+        editor.focus()
+    }, [editor, armedRef])
     return null
 }
 
@@ -144,20 +162,14 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     const isJsonType = portType === "object" || portType === "array"
     const jsonDefault = portType === "array" ? "[]" : "{}"
 
-    // Detect whether the value looks like JSON. Uses state instead of ref so that
-    // async-loaded testcase data (initially "") is detected once it arrives.
-    // Only upgrades false→true (never downgrades) because switching Lexical's
-    // codeOnly from true→false at runtime crashes (MarkdownShortcuts dependency).
-    // The EditorProvider is keyed on this flag so the upgrade triggers a clean remount.
-    const [detectedAsJson, setDetectedAsJson] = useState(
-        () => typeof value === "string" && !!value && isJsonString(value),
-    )
-
-    useEffect(() => {
-        if (!detectedAsJson && typeof value === "string" && !!value && isJsonString(value)) {
-            setDetectedAsJson(true)
-        }
-    }, [value, detectedAsJson])
+    // Detect whether the value looks like JSON. Derived directly from `value`
+    // (no intermediate useState + useEffect) so the mode is correct on the very
+    // first render after a paste/edit — avoids a flicker where the content
+    // briefly appears in the wrong editor before the effect-driven sync kicks
+    // in. The EditorProvider downstream is keyed on this flag, so every flip
+    // triggers a clean Lexical remount (avoiding the MarkdownShortcuts
+    // dependency crash that earlier blocked downgrades on the same instance).
+    const detectedAsJson = typeof value === "string" && !!value && isJsonString(value)
 
     const isJsonEditor = isJsonType || detectedAsJson
     const effectiveValue =
@@ -176,6 +188,68 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
             setCellValue({testcaseId: rowId, column: variableKey, value: nextVal})
         },
         [setCellValue, rowId, variableKey],
+    )
+
+    // Intercept Cmd/Ctrl+A followed by Delete/Backspace — the most common
+    // "nuke everything and retype" flow — so the mode flip happens without
+    // the old editor briefly painting its cleared state. We track a ref that
+    // arms on select-all keydown and fires on the next delete/backspace.
+    // Any other key resets the arm. This doesn't cover backspace-until-empty
+    // (each keystroke individually can't reliably predict the final empty
+    // state without reading editor internals), so that flow still flashes
+    // for 1 frame — acceptable tradeoff for the uncommon path.
+    const selectAllArmedRef = useRef(false)
+    const handleKeyDownCapture = useCallback(
+        (e: React.KeyboardEvent<HTMLDivElement>) => {
+            const key = e.key.toLowerCase()
+            if ((e.metaKey || e.ctrlKey) && key === "a") {
+                selectAllArmedRef.current = true
+                return
+            }
+            if (selectAllArmedRef.current && (key === "delete" || key === "backspace")) {
+                selectAllArmedRef.current = false
+                // Only preempt if the clear would actually flip the mode —
+                // for plain-text cells already in text mode, let the editor
+                // handle the delete normally (no flash to avoid).
+                if (isJsonEditor) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    shouldFocusAfterMountRef.current = true
+                    handleChange("")
+                }
+                return
+            }
+            selectAllArmedRef.current = false
+        },
+        [handleChange, isJsonEditor],
+    )
+
+    // Armed when we take over an input action that causes a mode flip, so the
+    // newly-mounted editor can steal focus back from the unmounted one. Without
+    // this, any interception (paste, Cmd+A+Delete) that flips the mode would
+    // leave the user without a focused editor — frustrating mid-edit.
+    const shouldFocusAfterMountRef = useRef(false)
+
+    // Intercept paste at the container (capture phase, before Lexical sees it)
+    // when the pasted content would cause a mode flip (text ↔ JSON). The old
+    // editor then never receives the paste event and never shows the pasted
+    // content in the wrong mode — we route it straight to the cell, and the
+    // EditorProvider remounts in the correct mode with the pasted value as
+    // the initial content. For same-mode pastes we let the editor handle the
+    // event normally so cursor/selection/IME behavior is preserved.
+    const handlePasteCapture = useCallback(
+        (e: React.ClipboardEvent<HTMLDivElement>) => {
+            const pasted = e.clipboardData?.getData("text")
+            if (!pasted) return
+            const pastedLooksLikeJson = isJsonString(pasted)
+            if (pastedLooksLikeJson === detectedAsJson) return
+            // Cross-mode paste — bypass the editor.
+            e.preventDefault()
+            e.stopPropagation()
+            shouldFocusAfterMountRef.current = true
+            handleChange(pasted)
+        },
+        [detectedAsJson, handleChange],
     )
 
     const {isComparisonView} = useAtomValue(
@@ -261,7 +335,13 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
         : {enableResize: false, boundWidth: true, ...editorProps}
 
     return (
-        <div ref={containerRef} className="w-full" style={getCollapseStyle(collapsed)}>
+        <div
+            ref={containerRef}
+            className="w-full"
+            style={getCollapseStyle(collapsed)}
+            onPasteCapture={handlePasteCapture}
+            onKeyDownCapture={handleKeyDownCapture}
+        >
             <EditorProvider
                 key={`${editorId}-${isJsonEditor}`}
                 id={editorId}
@@ -273,6 +353,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 enableTokens={!isJsonEditor && !editorProps?.codeOnly}
                 disabled={isEffectivelyDisabled}
             >
+                <FocusOnMountWhenArmed armedRef={shouldFocusAfterMountRef} />
                 <MarkdownToggleRegistrar onMarkdownToggleReady={onMarkdownToggleReady} />
                 <SharedEditor
                     id={editorId}
