@@ -126,6 +126,16 @@ const ENV_ORDER: Record<string, number> = {
 
 const EmptyEnvs: AppEnvironmentDeployment[] = []
 
+function sortByCanonicalEnvOrder(
+    envs: AppEnvironmentDeployment[],
+): AppEnvironmentDeployment[] {
+    if (envs.length <= 1) return envs
+    return [...envs].sort(
+        (a, b) =>
+            (ENV_ORDER[a.name.toLowerCase()] ?? 99) - (ENV_ORDER[b.name.toLowerCase()] ?? 99),
+    )
+}
+
 // ============================================================================
 // PARAMETERIZED ATOM FAMILIES
 // ============================================================================
@@ -164,12 +174,7 @@ export const appEnvironmentsAtomFamily = atomFamily((appId: string) =>
         appEnvironmentsQueryAtomFamily(appId),
         (res) => {
             const envs: AppEnvironmentDeployment[] = res?.data ?? EmptyEnvs
-            if (envs.length <= 1) return envs
-            return [...envs].sort(
-                (a, b) =>
-                    (ENV_ORDER[a.name.toLowerCase()] ?? 99) -
-                    (ENV_ORDER[b.name.toLowerCase()] ?? 99),
-            )
+            return sortByCanonicalEnvOrder(envs)
         },
         deepEqual,
     ),
@@ -177,7 +182,14 @@ export const appEnvironmentsAtomFamily = atomFamily((appId: string) =>
 
 /**
  * Loadable query state for a given appId (exposes isPending, isError, refetch).
+ * `data` is sorted the same as {@link appEnvironmentsAtomFamily} (development → staging → production).
  */
 export const appEnvironmentsLoadableAtomFamily = atomFamily((appId: string) =>
-    atom((get) => get(appEnvironmentsQueryAtomFamily(appId))),
+    atom((get) => {
+        const res = get(appEnvironmentsQueryAtomFamily(appId))
+        return {
+            ...res,
+            data: sortByCanonicalEnvOrder(res.data ?? EmptyEnvs),
+        }
+    }),
 )
