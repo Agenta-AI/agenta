@@ -1,4 +1,4 @@
-import {expect, Page, Response} from "@playwright/test"
+import {expect, Locator, Page, Response} from "@playwright/test"
 import {existsSync, readFileSync} from "fs"
 
 import {getProjectMetadataPath} from "../../../../playwright/config/runtime.ts"
@@ -200,6 +200,37 @@ const waitForMatchingResponses = async (
     })
 }
 
+const selectCreatePromptType = async (dialog: Locator, appTypeLabel: string) => {
+    await expect(dialog.getByText("Choose the prompt type", {exact: true})).toBeVisible({
+        timeout: 15000,
+    })
+
+    const appTypeCards = dialog.locator(".ant-card")
+    await expect(appTypeCards.first()).toBeVisible({timeout: 15000})
+
+    const matchingCards = appTypeCards.filter({hasText: new RegExp(appTypeLabel, "i")})
+    await expect.poll(async () => await matchingCards.count(), {timeout: 15000}).toBeGreaterThan(0)
+
+    const appTypeCard = matchingCards.first()
+    await expect(appTypeCard).toBeVisible({timeout: 15000})
+
+    const appTypeRadio = appTypeCard.locator('input[type="radio"]').first()
+    const isSelected = async () => {
+        if ((await appTypeRadio.count().catch(() => 0)) > 0) {
+            return await appTypeRadio.isChecked().catch(() => false)
+        }
+
+        const checkedRadio = appTypeCard.locator(".ant-radio-checked").first()
+        return await checkedRadio.isVisible().catch(() => false)
+    }
+
+    if (!(await isSelected())) {
+        await appTypeCard.click()
+    }
+
+    await expect.poll(isSelected, {timeout: 15000}).toBe(true)
+}
+
 async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
     const appName = `e2e-${type}-${Date.now()}`
     const dialog = page.getByRole("dialog").last()
@@ -247,9 +278,7 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
         throw new Error(`App creation is not implemented for app type '${type}'.`)
     }
 
-    const appTypeOption = dialog.getByText(appTypeLabel).first()
-    await expect(appTypeOption).toBeVisible({timeout: 15000})
-    await appTypeOption.click()
+    await selectCreatePromptType(dialog, appTypeLabel)
 
     // 1. POST /workflows/ — create the workflow
     const createWorkflowPromise = page.waitForResponse((response) => {
