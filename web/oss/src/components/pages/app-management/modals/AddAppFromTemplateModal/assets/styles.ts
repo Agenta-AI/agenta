@@ -16,7 +16,7 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
     modal: {
         display: "flex",
         flexDirection: "column",
-        gap: 24,
+        gap: 16,
     },
     modalError: {
         color: theme.colorError,

@@ -1486,6 +1486,7 @@ const controllerCreateVariantAtom = atom(
         const result = await set(createWorkflowVariantAtom, {
             baseRevisionId,
             newVariantName: payload.newVariantName,
+            slug: payload.slug,
             commitMessage: payload.note,
         })
 
@@ -1493,6 +1494,7 @@ const controllerCreateVariantAtom = atom(
             return {
                 success: false,
                 error: result.error.message,
+                errorStatus: (result.error as {response?: {status?: number}}).response?.status,
             }
         }
 
