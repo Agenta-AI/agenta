@@ -1,10 +1,10 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {expect} from "@agenta/web-tests/utils"
 import {EvaluationFixtures, RunAutoEvalFixtureType} from "./assets/types"
-import {getProjectScopedBasePath} from "tests/tests/fixtures/base.fixture/apiHelpers"
 import type {Locator, Page} from "@playwright/test"
 import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 import {EvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
+import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 
 const AUTO_EVALUATION_TAB_LABEL = "Auto Evals"
 const AUTO_EVALUATION_EMPTY_STATE_TITLE = "Get Started with Evaluations"

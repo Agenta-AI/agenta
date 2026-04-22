@@ -1,3 +1,4 @@
+import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 import {
     expect,
     goToAutoEvaluationStep,
@@ -16,7 +17,6 @@ import {
     TestPath,
     TestScope,
 } from "@agenta/web-tests/playwright/config/testTags"
-import {getProjectScopedBasePath} from "tests/tests/fixtures/base.fixture/apiHelpers"
 
 const getRequiredVariantName = (name: string | null | undefined) => {
     expect(name).toBeTruthy()
