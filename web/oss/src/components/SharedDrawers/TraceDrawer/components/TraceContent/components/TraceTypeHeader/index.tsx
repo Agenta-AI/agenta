@@ -111,9 +111,15 @@ const TraceTypeHeader = ({
                 reason: `"${spanType}" spans need an application reference to be opened in the playground.`,
             }
         }
+        if (!hasExtractableData) {
+            return {
+                enabled: false,
+                reason: "This span has an application reference but no captured parameters or inputs to open.",
+            }
+        }
         return {
             enabled: false,
-            reason: "This span has an application reference but no captured parameters or inputs to open.",
+            reason: `"${spanType}" spans can't be replayed in the playground — open the parent workflow, task, agent, or chain span instead.`,
         }
     }, [activeTrace])
 
