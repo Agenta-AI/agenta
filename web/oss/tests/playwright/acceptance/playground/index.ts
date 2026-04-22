@@ -288,14 +288,26 @@ const playgroundTests = () => {
             await scenarios.when(
                 "the user opens the playground via a deep link with a revisions param",
                 async () => {
-                    // The playground writes ?revisions= to the URL after initialising.
-                    await page.waitForURL(/[?&]revisions=/, {timeout: 15000})
+                    // The playground syncs ?revisions= via history.replaceState, not a full
+                    // navigation, so poll the current URL instead of waiting for a load event.
+                    await expect
+                        .poll(() => new URL(page.url()).searchParams.get("revisions"), {
+                            timeout: 15000,
+                        })
+                        .toBeTruthy()
                     const deepLinkUrl = page.url()
+                    const revisionsParam = new URL(deepLinkUrl).searchParams.get("revisions")
+                    expect(revisionsParam).toBeTruthy()
                     // Navigate away, then return via the captured deep-link URL.
                     await page.goto(`${apiHelpers.getProjectScopedBasePath()}/apps`, {
                         waitUntil: "domcontentloaded",
                     })
                     await page.goto(deepLinkUrl, {waitUntil: "domcontentloaded"})
+                    await expect
+                        .poll(() => new URL(page.url()).searchParams.get("revisions"), {
+                            timeout: 15000,
+                        })
+                        .toBe(revisionsParam)
                 },
             )
 
