@@ -4,6 +4,8 @@ from uuid import UUID
 from pydantic import BaseModel
 from fastapi import HTTPException
 
+from oss.src.utils.exceptions import Support
+
 from oss.src.core.folders.types import (
     Folder,
     FolderCreate,
@@ -24,17 +26,17 @@ class FolderQueryRequest(BaseModel):
     folder: FolderQuery
 
 
-class FolderResponse(BaseModel):
+class FolderResponse(Support):
     count: int = 0
     folder: Optional[Folder] = None
 
 
-class FoldersResponse(BaseModel):
+class FoldersResponse(Support):
     count: int = 0
     folders: List[Folder] = []
 
 
-class FolderIdResponse(BaseModel):
+class FolderIdResponse(Support):
     count: int = 0
     id: Optional[UUID] = None
 

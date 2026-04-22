@@ -192,6 +192,33 @@ def test_parse_spans_from_request_returns_empty_list_on_unexpected_errors():
     assert parsed == []
 
 
+def test_parse_spans_from_request_drops_only_failed_spans_when_collecting_dropped():
+    valid = OTelSpan(
+        trace_id=TRACE_HEX,
+        span_id=SPAN_HEX,
+        span_name="valid",
+        start_time=1_700_000_000,
+        end_time=1_700_000_001,
+        attributes={},
+    )
+    invalid = OTelSpan(
+        trace_id=TRACE_HEX,
+        span_id="not-a-span-id",
+        span_name="invalid",
+        start_time=1_700_000_000,
+        end_time=1_700_000_001,
+        attributes={},
+    )
+    dropped = []
+
+    parsed = parse_spans_from_request({"batch": [valid, invalid]}, dropped=dropped)
+
+    assert [span.span_name for span in parsed] == ["valid"]
+    assert len(dropped) == 1
+    assert dropped[0].trace_id == TRACE_HEX
+    assert dropped[0].span_id == "not-a-span-id"
+
+
 def test_parse_spans_into_response_returns_trace_map_for_trace_focus():
     parsed = _build_request_spans()
 

@@ -287,6 +287,7 @@ export {
     triggerExecutionsAtom,
     // Mutations
     cancelTestsMutationAtom,
+    clearAllExecutionItemsMutationAtom,
     clearAllRunsMutationAtom,
     // Chat comparison
     canRunAllChatComparisonAtom,

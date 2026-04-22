@@ -14,6 +14,7 @@ import {
 import {newEntityIdsAtom} from "@/oss/state/entities/testcase/testcaseEntity"
 import {currentRevisionIdAtom} from "@/oss/state/entities/testset"
 
+import {PREVIEW_ROW_HARD_LIMIT, PREVIEW_ROW_LIMIT} from "../assets/constants"
 import type {TestsetTraceData} from "../assets/types"
 
 import {localColumnsAtom, selectedRevisionIdAtom as drawerRevisionIdAtom} from "./drawerState"
@@ -74,13 +75,18 @@ export const createLocalEntitiesAtom = atom(
             mappings,
             getValueAtPath,
             isNewTestset = false,
+            previewLimit = PREVIEW_ROW_LIMIT,
         }: {
             traceData: TestsetTraceData[]
             mappings: {data: string; column: string; newColumn?: string}[]
             getValueAtPath: (obj: any, path: string) => any
             isNewTestset?: boolean
+            previewLimit?: number
         },
     ) => {
+        const effectivePreviewLimit = Math.min(previewLimit, PREVIEW_ROW_HARD_LIMIT)
+        const previewTraceData = traceData.slice(0, effectivePreviewLimit)
+
         // Set revision context first
         const revisionId = get(drawerRevisionIdAtom)
         const alreadyCreatedFor = get(localEntitiesCreatedForRevisionAtom)
@@ -146,7 +152,7 @@ export const createLocalEntitiesAtom = atom(
         }
 
         // Build rows array from trace data and mappings
-        const rows: Record<string, unknown>[] = traceData.map((trace) => {
+        const rows: Record<string, unknown>[] = previewTraceData.map((trace) => {
             const mappedData: Record<string, unknown> = {}
             for (const mapping of mappings) {
                 const targetColumn =
@@ -174,7 +180,7 @@ export const createLocalEntitiesAtom = atom(
 
         // Map trace keys to created entity IDs (in same order as input)
         const newMap = new Map<string, string>()
-        traceData.forEach((trace, index) => {
+        previewTraceData.forEach((trace, index) => {
             if (index < result.ids.length) {
                 newMap.set(trace.key, result.ids[index])
             }
@@ -241,15 +247,7 @@ export const updateAllLocalEntitiesAtom = atom(
         const entityMap = get(localEntityMapAtom)
         const revisionId = get(drawerRevisionIdAtom)
 
-        console.log("[updateAllLocalEntitiesAtom] Called", {
-            traceDataLength: traceData.length,
-            mappingsCount: mappings.length,
-            entityMapSize: entityMap.size,
-            revisionId,
-        })
-
         if (entityMap.size === 0) {
-            console.log("[updateAllLocalEntitiesAtom] No entities in map, returning early")
             return
         }
 
@@ -307,11 +305,13 @@ export const updateAllLocalEntitiesAtom = atom(
             }
         }
 
-        // Update each local entity based on its trace data and mappings
-        traceData.forEach((trace) => {
-            const entityId = entityMap.get(trace.key)
-            if (!entityId) {
-                return
+        const traceByKey = new Map(traceData.map((trace) => [trace.key, trace]))
+
+        // Update only preview entities. Full selected trace data is preserved for save.
+        for (const [traceKey, entityId] of entityMap.entries()) {
+            const trace = traceByKey.get(traceKey)
+            if (!trace) {
+                continue
             }
 
             // Get current entity to find columns to remove
@@ -340,27 +340,14 @@ export const updateAllLocalEntitiesAtom = atom(
                 if (!targetColumn) continue
 
                 const value = getValueAtPath(trace, mapping.data)
-                console.log("[updateAllLocalEntitiesAtom] Mapping extraction", {
-                    mappingPath: mapping.data,
-                    targetColumn,
-                    traceDataKeys: Object.keys(trace.data || {}),
-                    traceDataPreview: JSON.stringify(trace.data).slice(0, 200),
-                    extractedValue: value,
-                    valueType: typeof value,
-                })
                 // Preserve objects/arrays as-is, only convert null/undefined to empty string
                 updates[targetColumn] = value === undefined || value === null ? "" : value
             }
 
             if (Object.keys(updates).length > 0) {
-                console.log("[updateAllLocalEntitiesAtom] Updating entity", {
-                    entityId,
-                    traceKey: trace.key,
-                    updates,
-                })
                 set(testcase.actions.update, entityId, updates)
             }
-        })
+        }
     },
 )
 
@@ -417,9 +404,17 @@ export const selectRevisionAtom = atom(
             mappings: {data: string; column: string; newColumn?: string}[]
             getValueAtPath: (obj: any, path: string) => any
             isNewTestset?: boolean
+            previewLimit?: number
         },
     ) => {
-        const {revisionId, traceData, mappings, getValueAtPath, isNewTestset = false} = params
+        const {
+            revisionId,
+            traceData,
+            mappings,
+            getValueAtPath,
+            isNewTestset = false,
+            previewLimit = PREVIEW_ROW_LIMIT,
+        } = params
 
         // Validate inputs - allow "draft" for new testsets
         if (!revisionId) {
@@ -517,7 +512,9 @@ export const selectRevisionAtom = atom(
 
         // === STEP 5: Create local entities via controller ===
         // Build rows array from trace data and mappings
-        const rows: Record<string, unknown>[] = traceData.map((trace) => {
+        const effectivePreviewLimit = Math.min(previewLimit, PREVIEW_ROW_HARD_LIMIT)
+        const previewTraceData = traceData.slice(0, effectivePreviewLimit)
+        const rows: Record<string, unknown>[] = previewTraceData.map((trace) => {
             const mappedData: Record<string, unknown> = {}
             for (const mapping of mappings) {
                 const targetColumn =
@@ -528,14 +525,6 @@ export const selectRevisionAtom = atom(
                 if (!targetColumn) continue
 
                 const value = getValueAtPath(trace, mapping.data)
-                console.log("[selectRevisionAtom] Mapping extraction", {
-                    mappingPath: mapping.data,
-                    targetColumn,
-                    traceDataKeys: Object.keys(trace.data || {}),
-                    traceDataPreview: JSON.stringify(trace.data).slice(0, 200),
-                    extractedValue: value,
-                    valueType: typeof value,
-                })
                 // Preserve objects/arrays as-is, only convert null/undefined to empty string
                 mappedData[targetColumn] = value === undefined || value === null ? "" : value
             }
@@ -553,7 +542,7 @@ export const selectRevisionAtom = atom(
 
         // Map trace keys to created entity IDs (in same order as input)
         const newMap = new Map<string, string>()
-        traceData.forEach((trace, index) => {
+        previewTraceData.forEach((trace, index) => {
             if (index < result.ids.length) {
                 newMap.set(trace.key, result.ids[index])
             }

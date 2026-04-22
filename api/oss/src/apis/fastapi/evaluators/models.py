@@ -2,6 +2,8 @@ from typing import Optional, List, Dict, Any
 
 from pydantic import BaseModel
 
+from oss.src.utils.exceptions import Support
+
 from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
@@ -66,12 +68,12 @@ class EvaluatorForkRequest(BaseModel):
     evaluator: EvaluatorFork
 
 
-class EvaluatorResponse(BaseModel):
+class EvaluatorResponse(Support):
     count: int = 0
     evaluator: Optional[Evaluator] = None
 
 
-class EvaluatorsResponse(BaseModel):
+class EvaluatorsResponse(Support):
     count: int = 0
     evaluators: List[Evaluator] = []
 
@@ -110,12 +112,12 @@ class EvaluatorRevisionsLogRequest(BaseModel):
     evaluator: EvaluatorRevisionsLog
 
 
-class EvaluatorVariantResponse(BaseModel):
+class EvaluatorVariantResponse(Support):
     count: int = 0
     evaluator_variant: Optional[EvaluatorVariant] = None
 
 
-class EvaluatorVariantsResponse(BaseModel):
+class EvaluatorVariantsResponse(Support):
     count: int = 0
     evaluator_variants: List[EvaluatorVariant] = []
 
@@ -170,13 +172,13 @@ class EvaluatorRevisionDeployRequest(BaseModel):
     message: Optional[str] = None
 
 
-class EvaluatorRevisionResponse(BaseModel):
+class EvaluatorRevisionResponse(Support):
     count: int = 0
     evaluator_revision: Optional[EvaluatorRevision] = None
     resolution_info: Optional[ResolutionInfo] = None  # Included when resolve=True
 
 
-class EvaluatorRevisionsResponse(BaseModel):
+class EvaluatorRevisionsResponse(Support):
     count: int = 0
     evaluator_revisions: List[EvaluatorRevision] = []
 
@@ -202,12 +204,12 @@ class SimpleEvaluatorQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class SimpleEvaluatorResponse(BaseModel):
+class SimpleEvaluatorResponse(Support):
     count: int = 0
     evaluator: Optional[SimpleEvaluator] = None
 
 
-class SimpleEvaluatorsResponse(BaseModel):
+class SimpleEvaluatorsResponse(Support):
     count: int = 0
     evaluators: List[SimpleEvaluator] = []
 
@@ -225,7 +227,7 @@ class EvaluatorRevisionResolveRequest(BaseModel):
     error_policy: Optional[ErrorPolicy] = ErrorPolicy.EXCEPTION
 
 
-class EvaluatorRevisionResolveResponse(BaseModel):
+class EvaluatorRevisionResolveResponse(Support):
     count: int = 0
     evaluator_revision: Optional[EvaluatorRevision] = None
     resolution_info: Optional[ResolutionInfo] = None
@@ -250,7 +252,7 @@ class EvaluatorTemplate(BaseModel):
     archived: Optional[bool] = False
 
 
-class EvaluatorTemplatesResponse(BaseModel):
+class EvaluatorTemplatesResponse(Support):
     count: int = 0
     templates: List[EvaluatorTemplate] = []
 
@@ -258,31 +260,31 @@ class EvaluatorTemplatesResponse(BaseModel):
 # EVALUATORS CATALOG -----------------------------------------------------------
 
 
-class EvaluatorCatalogTypeResponse(BaseModel):
+class EvaluatorCatalogTypeResponse(Support):
     count: int = 0
     type: Optional[EvaluatorCatalogType] = None
 
 
-class EvaluatorCatalogTypesResponse(BaseModel):
+class EvaluatorCatalogTypesResponse(Support):
     count: int = 0
     types: List[EvaluatorCatalogType] = []
 
 
-class EvaluatorCatalogTemplateResponse(BaseModel):
+class EvaluatorCatalogTemplateResponse(Support):
     count: int = 0
     template: Optional[EvaluatorCatalogTemplate] = None
 
 
-class EvaluatorCatalogTemplatesResponse(BaseModel):
+class EvaluatorCatalogTemplatesResponse(Support):
     count: int = 0
     templates: List[EvaluatorCatalogTemplate] = []
 
 
-class EvaluatorCatalogPresetResponse(BaseModel):
+class EvaluatorCatalogPresetResponse(Support):
     count: int = 0
     preset: Optional[EvaluatorCatalogPreset] = None
 
 
-class EvaluatorCatalogPresetsResponse(BaseModel):
+class EvaluatorCatalogPresetsResponse(Support):
     count: int = 0
     presets: List[EvaluatorCatalogPreset] = []

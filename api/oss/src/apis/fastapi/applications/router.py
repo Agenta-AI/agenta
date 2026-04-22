@@ -8,6 +8,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import invalidate_cache
 
+from oss.src.core.git.types import VariantForkError
 from oss.src.core.shared.dtos import (
     Reference,
 )
@@ -972,12 +973,20 @@ class ApplicationsRouter:
             if not fork_request.application_variant_id:
                 fork_request.application_variant_id = application_variant_id
 
-        application_variant = await self.applications_service.fork_application_variant(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            application_fork=fork_request,
-        )
+        try:
+            application_variant = (
+                await self.applications_service.fork_application_variant(
+                    project_id=UUID(request.state.project_id),
+                    user_id=UUID(request.state.user_id),
+                    #
+                    application_fork=fork_request,
+                )
+            )
+        except VariantForkError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=e.message,
+            ) from e
 
         application_variant_response = ApplicationVariantResponse(
             count=1 if application_variant else 0,

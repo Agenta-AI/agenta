@@ -295,6 +295,22 @@ export const clearAllRunsMutationAtom = atom(null, (get, set) => {
     }
 })
 
+/**
+ * Clear playground results plus completion-mode testcase inputs.
+ */
+export const clearAllExecutionItemsMutationAtom = atom(null, (get, set) => {
+    const isChat = get(isChatModeAtom)
+
+    set(clearAllRunsMutationAtom)
+
+    if (isChat) return
+
+    const loadableId = get(derivedLoadableIdAtom)
+    if (!loadableId) return
+
+    set(loadableController.actions.resetRowsForPlaygroundClear, loadableId)
+})
+
 // ============================================================================
 // CAN RUN ALL CHAT COMPARISON
 // ============================================================================
