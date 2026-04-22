@@ -2,6 +2,8 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
+from oss.src.utils.exceptions import Support
+
 from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
@@ -52,12 +54,12 @@ class TestsetQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class TestsetResponse(BaseModel):
+class TestsetResponse(Support):
     count: int = 0
     testset: Optional[Testset] = None
 
 
-class TestsetsResponse(BaseModel):
+class TestsetsResponse(Support):
     count: int = 0
     testsets: List[Testset] = []
     windowing: Optional[Windowing] = None
@@ -85,12 +87,12 @@ class TestsetVariantQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class TestsetVariantResponse(BaseModel):
+class TestsetVariantResponse(Support):
     count: int = 0
     testset_variant: Optional[TestsetVariant] = None
 
 
-class TestsetVariantsResponse(BaseModel):
+class TestsetVariantsResponse(Support):
     count: int = 0
     testset_variants: List[TestsetVariant] = []
 
@@ -142,12 +144,12 @@ class TestsetRevisionsLogRequest(BaseModel):
     include_testcases: Optional[bool] = None
 
 
-class TestsetRevisionResponse(BaseModel):
+class TestsetRevisionResponse(Support):
     count: int = 0
     testset_revision: Optional[TestsetRevision] = None
 
 
-class TestsetRevisionsResponse(BaseModel):
+class TestsetRevisionsResponse(Support):
     count: int = 0
     testset_revisions: List[TestsetRevision] = []
 
@@ -173,11 +175,11 @@ class SimpleTestsetQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class SimpleTestsetResponse(BaseModel):
+class SimpleTestsetResponse(Support):
     count: int = 0
     testset: Optional[SimpleTestset] = None
 
 
-class SimpleTestsetsResponse(BaseModel):
+class SimpleTestsetsResponse(Support):
     count: int = 0
     testsets: List[SimpleTestset] = []

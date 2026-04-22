@@ -1240,8 +1240,20 @@ class TestsetsRouter:
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             ) from e
 
+        base_revision = await self.testsets_service.fetch_testset_revision(
+            project_id=UUID(request.state.project_id),
+            testset_revision_ref=Reference(id=testset_revision_id),
+        )
+        if not base_revision:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Testset revision {testset_revision_id} not found.",
+            )
+
         testset_revision_commit_request = TestsetRevisionCommitRequest(
             testset_revision_commit=TestsetRevisionCommit(
+                testset_id=base_revision.testset_id,
+                testset_variant_id=base_revision.testset_variant_id,
                 testset_revision_id=testset_revision_id,
                 data=testset_revision_data,
             ),

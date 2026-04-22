@@ -7,7 +7,7 @@ import {
     isValidSlug,
     regenerateSlugSuffix,
 } from "@agenta/shared/utils"
-import {ArrowClockwise, WarningCircle} from "@phosphor-icons/react"
+import {ArrowClockwise} from "@phosphor-icons/react"
 import {Button, Card, Flex, Input, notification, Radio, Tag, Typography} from "antd"
 import clsx from "clsx"
 
@@ -63,11 +63,23 @@ const AddAppFromTemplateModalContent = ({
         [apps, newApp],
     )
 
+    const appSlugExist = useMemo(() => {
+        const slug = newAppSlug?.trim().toLowerCase()
+        if (!slug) return false
+
+        return apps.some((app: GenericObject) => {
+            const appSlug = typeof app?.slug === "string" ? app.slug.trim().toLowerCase() : ""
+            return appSlug === slug
+        })
+    }, [apps, newAppSlug])
+
     const isError = appNameExist || (newApp.length > 0 && !isAppNameInputValid(newApp))
     const slugValidationError =
         newAppSlug && !isValidSlug(newAppSlug)
             ? "Slug may only contain a-z, 0-9, hyphens, underscores, and periods."
-            : null
+            : appSlugExist
+              ? "App slug already exists"
+              : null
 
     useEffect(() => {
         if (!newApp.trim()) {
@@ -137,6 +149,12 @@ const AddAppFromTemplateModalContent = ({
             notification.warning({
                 message: "Template Selection",
                 description: "App name already exists. Please choose a different name.",
+                duration: 3,
+            })
+        } else if (slugValidationError) {
+            notification.warning({
+                message: "Template Selection",
+                description: slugValidationError,
                 duration: 3,
             })
         } else if (fetchingTemplate && newApp.length > 0 && isAppNameInputValid(newApp)) {
@@ -234,10 +252,9 @@ const AddAppFromTemplateModalContent = ({
                                 }
                             />
                             {slugValidationError && (
-                                <div className="mt-0.5 flex items-start gap-1 text-[#ff4d4f]">
-                                    <WarningCircle size={16} className="mt-0.5 shrink-0" />
-                                    <span>{slugValidationError}</span>
-                                </div>
+                                <Typography.Text className={classes.modalError}>
+                                    {slugValidationError}
+                                </Typography.Text>
                             )}
                             {!slugValidationError && (
                                 <Typography.Text type="secondary">
@@ -270,6 +287,11 @@ const AddAppFromTemplateModalContent = ({
                                 </>
                             )}
                         </div>
+                    )}
+                    {!slugEditing && slugValidationError && (
+                        <Typography.Text className={classes.modalError}>
+                            {slugValidationError}
+                        </Typography.Text>
                     )}
                 </div>
             </div>
