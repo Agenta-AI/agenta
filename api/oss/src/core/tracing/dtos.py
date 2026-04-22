@@ -24,6 +24,8 @@ from agenta.sdk.models.tracing import (  # noqa: F401
     TraceType,
     SpanType,
     AgMetricEntryAttributes,
+    AgVectorMetricEntryAttributes,
+    AgScalarMetricEntryAttributes,
     AgMetricsAttributes,
     AgTypeAttributes,
     AgDataAttributes,
