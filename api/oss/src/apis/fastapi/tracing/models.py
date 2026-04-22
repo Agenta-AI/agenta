@@ -52,6 +52,7 @@ class SpanRequest(BaseModel):
 class OTelLinksResponse(BaseModel):
     count: int = 0
     links: Optional[OTelLinks] = None
+    dropped: Optional[OTelLinks] = None
 
 
 class LinkResponse(BaseModel):

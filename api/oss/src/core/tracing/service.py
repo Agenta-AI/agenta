@@ -173,6 +173,7 @@ class TracingService:
         user_id: UUID,
         spans: Optional[OTelFlatSpans] = None,
         traces: Optional[OTelTraceTree] = None,
+        dropped: Optional[OTelLinks] = None,
     ) -> OTelLinks:
         _spans: Dict[str, Union[OTelSpan, OTelFlatSpans]] = dict()
 
@@ -202,7 +203,7 @@ class TracingService:
                                 )
                             )
 
-        span_dtos = parse_spans_from_request(_spans)
+        span_dtos = parse_spans_from_request(_spans, dropped=dropped)
 
         return await self.ingest_span_dtos(
             organization_id=organization_id,

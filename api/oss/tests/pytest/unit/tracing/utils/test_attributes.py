@@ -1,3 +1,4 @@
+from oss.src.core.tracing.dtos import AgAttributes
 from oss.src.core.tracing.utils.attributes import (
     ensure_nested_dict,
     initialize_ag_attributes,
@@ -61,10 +62,50 @@ def test_initialize_ag_attributes_cleans_known_fields_and_tracks_unsupported():
 
     assert ag["unsupported"]["type"] == {"legacy": "x"}
     assert ag["unsupported"]["data"] == {"extra": "ignored"}
+    assert ag["metrics"]["duration"]["incremental"] == 1
     assert ag["unsupported"]["metrics"]["duration"] == {"legacy": "x"}
     assert ag["unsupported"]["metrics"]["legacy_metric"] == {"foo": "bar"}
     assert ag["unsupported"]["random"] == "value"
     assert "refs" not in ag["unsupported"]
+
+
+def test_ag_metrics_accept_scalar_duration_errors_and_vector_tokens_costs():
+    attrs = AgAttributes.model_validate(
+        {
+            "metrics": {
+                "duration": {"cumulative": 123.4},
+                "errors": {"incremental": 1},
+                "tokens": {"incremental": {"prompt": 2, "completion": 3, "total": 5}},
+                "costs": {"cumulative": {"prompt": 0.1, "completion": 0.2}},
+            }
+        }
+    )
+
+    metrics = attrs.model_dump(mode="json", exclude_none=True)["metrics"]
+
+    assert metrics["duration"]["cumulative"] == 123.4
+    assert metrics["errors"]["incremental"] == 1
+    assert metrics["tokens"]["incremental"]["total"] == 5
+    assert metrics["costs"]["cumulative"]["prompt"] == 0.1
+
+
+def test_initialize_ag_attributes_normalizes_legacy_dict_duration_errors_to_scalars():
+    cleaned = initialize_ag_attributes(
+        {
+            "ag": {
+                "metrics": {
+                    "duration": {"cumulative": {"total": 123.4}},
+                    "errors": {"incremental": {"total": 2}},
+                }
+            }
+        }
+    )
+
+    metrics = cleaned["ag"]["metrics"]
+
+    assert metrics["duration"]["cumulative"] == 123.4
+    assert metrics["errors"]["incremental"] == 2
+    assert "unsupported" not in cleaned["ag"]
 
 
 def test_marshall_and_unmarshall_round_trip_nested_dict_and_lists():

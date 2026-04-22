@@ -218,6 +218,8 @@ class TestAnnotationsBasics:
                     },
                     "tags": {"tag3": "value3"},
                     "meta": {"meta3": "value3"},
+                    "references": {"evaluator": {"slug": evaluator_slug}},
+                    "links": annotation_links,
                 }
             },
         )

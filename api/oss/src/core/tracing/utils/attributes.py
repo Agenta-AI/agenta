@@ -11,8 +11,9 @@ from oss.src.core.shared.dtos import Data, Flags, Meta, Tags
 from oss.src.core.tracing.dtos import (
     AgAttributes,
     AgDataAttributes,
-    AgMetricEntryAttributes,
     AgMetricsAttributes,
+    AgScalarMetricEntryAttributes,
+    AgVectorMetricEntryAttributes,
     AgTypeAttributes,
     Attributes,
     OTelAttributes,
@@ -69,6 +70,24 @@ def ensure_nested_dict(d: dict, *keys: str) -> dict:
             d[key] = {}
         d = d[key]
     return d
+
+
+def _coerce_scalar_metric_value(value):
+    if isinstance(value, bool):
+        return None
+
+    if isinstance(value, (int, float)):
+        return value
+
+    if isinstance(value, dict):
+        for key in ("total", "count", "value"):
+            nested = value.get(key)
+            if isinstance(nested, bool):
+                return None
+            if isinstance(nested, (int, float)):
+                return nested
+
+    return None
 
 
 def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
@@ -151,13 +170,36 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
     cleaned_metrics = {}
     for metric_key in AgMetricsAttributes.model_fields:
         raw_entry = ensure_nested_dict(metrics_dict, metric_key)
-        cleaned_entry = {
-            subkey: raw_entry.get(subkey, None)
-            for subkey in AgMetricEntryAttributes.model_fields
-        }
+        entry_fields = (
+            AgScalarMetricEntryAttributes.model_fields
+            if metric_key in {"duration", "errors"}
+            else AgVectorMetricEntryAttributes.model_fields
+        )
+        cleaned_entry = {subkey: raw_entry.get(subkey, None) for subkey in entry_fields}
+
+        for subkey in list(cleaned_entry.keys()):
+            value = cleaned_entry.get(subkey)
+            if value is None:
+                continue
+
+            if metric_key in {"duration", "errors"}:
+                coerced_value = _coerce_scalar_metric_value(value)
+                if coerced_value is None:
+                    unsupported.setdefault("metrics", {}).setdefault(metric_key, {})[
+                        subkey
+                    ] = value
+                    cleaned_entry[subkey] = None
+                else:
+                    cleaned_entry[subkey] = coerced_value
+            elif not isinstance(value, dict):
+                unsupported.setdefault("metrics", {}).setdefault(metric_key, {})[
+                    subkey
+                ] = value
+                cleaned_entry[subkey] = None
+
         cleaned_metrics[metric_key] = cleaned_entry
         for subkey in list(raw_entry.keys()):
-            if subkey not in AgMetricEntryAttributes.model_fields:
+            if subkey not in entry_fields:
                 unsupported.setdefault("metrics", {}).setdefault(metric_key, {})[
                     subkey
                 ] = raw_entry[subkey]
