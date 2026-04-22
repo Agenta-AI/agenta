@@ -9,6 +9,7 @@ import Image from "@theme/IdealImage";
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import CustomDocCard from '@site/src/components/CustomDocCard';
+import FindSlugsInUI from "@site/docs/_partials/find-slugs-in-ui.mdx";
 ```
 
 In this tutorial, we'll walk through three simple steps to get started with Agenta:
@@ -101,6 +102,8 @@ ag.init()
 ```
 
 Fetch your prompt configuration from the registry:
+
+<FindSlugsInUI />
 
 ```python
 config = ag.ConfigManager.get_from_registry(
