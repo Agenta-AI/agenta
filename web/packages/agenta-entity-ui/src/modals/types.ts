@@ -276,6 +276,10 @@ export interface CommitSubmitResult {
     success: boolean
     newRevisionId?: string
     error?: string
+    /** HTTP status from a failed submit, when available. */
+    errorStatus?: number
+    /** True when failure is known to be a slug collision. */
+    slugConflict?: boolean
 }
 
 export interface CommitSubmitParams {
@@ -284,6 +288,17 @@ export interface CommitSubmitParams {
     mode?: string
     /** The entity name (may have been edited by the user in the modal) */
     entityName?: string
+    /** The entity slug (user-edited or auto-generated, only present in create flows) */
+    entitySlug?: string
+}
+
+export interface CommitCreateFieldsConfig {
+    /** Modes where create fields should be shown. Omit to show them for the whole modal. */
+    modes?: string[]
+    /** Label for the editable entity name field. Defaults to "Name". */
+    nameLabel?: string | ((params: {entity: EntityReference | null; mode?: string}) => string)
+    /** Initial editable name. Defaults to current name, or "current name copy" for mode-based creates. */
+    defaultName?: string | ((params: {entity: EntityReference | null; mode?: string}) => string)
 }
 
 /**
@@ -312,10 +327,24 @@ export interface EntityCommitModalProps {
     defaultCommitMode?: string
     /** Optional extra content rendered between mode selector and commit message */
     renderModeContent?: (params: {mode?: string}) => ReactNode
+    /** Called whenever the selected commit mode changes */
+    onModeChange?: (mode: string | undefined) => void
     /** Additional submit guard from caller (e.g. requires variant name or environment) */
-    canSubmit?: (params: {mode?: string}) => boolean
+    canSubmit?: (params: {mode?: string; entityName?: string; entitySlug?: string}) => boolean
+    /**
+     * Enables the reusable create-name + slug fields.
+     *
+     * Usage:
+     * - `createEntityFields` for create flows without modes.
+     * - `createEntityFields={{modes: ["variant"], nameLabel: "Variant name"}}` for mode-based creates.
+     */
+    createEntityFields?: boolean | CommitCreateFieldsConfig
     /** Label for the target in the version display when a non-default mode is selected (e.g. new variant name) */
     modeLabel?: string
+    /** Modes where the modal should show editable name + slug fields. */
+    entityNameEditableModes?: string[]
+    /** Label for the editable entity name field. Defaults to "Name". */
+    entityNameLabel?: string
 }
 
 // ============================================================================
