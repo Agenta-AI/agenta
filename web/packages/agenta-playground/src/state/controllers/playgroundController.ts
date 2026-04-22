@@ -1082,11 +1082,19 @@ const openFromTraceAtom = atom(
         const evaluatorId = asString(refs.evaluator?.id)
         const evaluatorSlug = asString(refs.evaluator?.slug)
 
-        // ── WORKFLOW-LIKE SPANS ─────────────────────────────────────────
-        // `workflow`, `task`, `agent`, `chain` — all represent an invocation
-        // tied to a variant. With an app_revision reference we open that
-        // revision in the app playground; otherwise we fall back to an
-        // ephemeral workflow seeded from the span's ag.data.
+        // ── INVOCATION SPANS ────────────────────────────────────────────
+        // Span types whose inputs match the app's root input schema. This
+        // set matches `INVOCATION_SPAN_TYPES` in TraceTypeHeader — see the
+        // comment there for rationale, in particular why `task` is included
+        // even though the SDK's `parse_span_kind`
+        // (`sdk/agenta/sdk/engines/tracing/conventions.py:31`) classifies
+        // it as INTERNAL rather than SERVER.
+        //
+        // Sub-step span types (`tool`, `llm`, `embedding`, `query`,
+        // `completion`, `rerank`) are deliberately excluded — their inputs
+        // belong to the sub-step, not the parent workflow. The header
+        // disables "Open in playground" for those and steers users to the
+        // parent span.
         if (
             spanType === "workflow" ||
             spanType === "task" ||

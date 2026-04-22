@@ -27,12 +27,53 @@ const DeleteTraceModal = dynamic(() => import("../../../DeleteTraceModal"), {
 })
 
 /**
- * Span types that represent a unit of work tied to an application/variant —
- * i.e. "open this in the playground" makes sense. Low-level operation spans
- * (`tool`, `embedding`, `query`, `rerank`, `llm`, `completion`) are excluded
- * because they represent sub-steps, not invocations.
+ * Span-type classification for the "Open in playground" button.
+ *
+ * Authoritative groupings live in the SDK — `parse_span_kind` at
+ * `sdk/agenta/sdk/engines/tracing/conventions.py:31-49` maps span types to
+ * OpenTelemetry `SpanKind`:
+ *   - SERVER (entry point):   agent, chain, workflow
+ *   - CLIENT (outgoing call): tool, embedding, query, completion, chat, rerank
+ *   - INTERNAL (everything else, including `task` and `llm`)
+ *
+ * The sets below start from that classification with three conscious
+ * deviations, documented per-set.
+ *
+ * Enum source: `sdk/agenta/sdk/models/tracing.py:29` (re-exported by
+ * `api/oss/src/core/tracing/dtos.py:25`, persisted as a Postgres enum).
  */
-const WORKFLOW_LIKE_SPAN_TYPES = new Set(["workflow", "task"])
+
+/**
+ * Span types whose inputs match the app's root input schema — the unit the
+ * playground can replay.
+ *
+ * SDK classifies these as SERVER: `agent`, `chain`, `workflow`.
+ *
+ * Deviation: we also include `task`, which the SDK classifies as INTERNAL.
+ * Rationale: `task` is the default `type` for `@ag.instrument()` (see
+ * `sdk/agenta/sdk/decorators/tracing.py:47`), so every custom workflow
+ * decorated without an explicit `type=` produces a `task`-typed root span.
+ * Excluding it would disable the button on the exact span users want to open.
+ */
+const INVOCATION_SPAN_TYPES = new Set(["workflow", "task", "agent", "chain"])
+
+/**
+ * Sub-operation spans — disabled with a tooltip pointing users at the parent.
+ * Their captured inputs belong to the sub-step, not to the app's root input
+ * schema, so seeding a testcase from them would run the parent app with the
+ * wrong shape.
+ *
+ * SDK classifies `tool`, `embedding`, `query`, `completion`, `rerank` as CLIENT.
+ *
+ * Deviations:
+ * - `llm` is INTERNAL in the SDK (not in CLIENT), but is clearly a leaf LLM
+ *   call by name — grouping it with the other sub-step leaves matches intent.
+ * - `chat` is CLIENT in the SDK but is handled separately (see chat branch
+ *   below), because its `inputs.prompt` is a self-contained message array
+ *   that the ephemeral chat path can actually replay standalone. The other
+ *   CLIENT types don't have that property.
+ */
+const SUB_STEP_SPAN_TYPES = new Set(["tool", "llm", "completion", "embedding", "query", "rerank"])
 
 /**
  * Check if a span has an app reference (application or application_revision).
@@ -72,29 +113,58 @@ const TraceTypeHeader = ({
         return [activeTrace.span_id]
     }, [activeTrace?.span_id])
 
-    const canOpenInPlayground = useMemo(() => {
-        if (!activeTrace) return false
+    const openInPlaygroundState = useMemo<{enabled: boolean; reason?: string}>(() => {
+        if (!activeTrace) {
+            return {enabled: false, reason: "No trace span is selected."}
+        }
         const spanType = activeTrace.span_type
-        if (!spanType) return false
-
-        // Workflow-like spans (workflow, task, agent, chain) represent an
-        // invocation tied to a variant — opening them makes sense whenever
-        // they carry an app reference or have extractable ag.data.
-        if (WORKFLOW_LIKE_SPAN_TYPES.has(spanType)) {
-            if (hasAppReference(activeTrace)) return true
-            const agData = extractAgData(activeTrace)
-            return Boolean(agData?.inputs || agData?.parameters)
+        if (!spanType) {
+            return {enabled: false, reason: "This span has no type information."}
         }
 
-        // Chat spans (raw LLM chat calls) open as an ephemeral session when
-        // they have extractable inputs or parameters.
-        if (spanType === "chat") {
-            const agData = extractAgData(activeTrace)
-            return Boolean(agData?.inputs || agData?.parameters)
+        const agData = extractAgData(activeTrace)
+        const hasExtractableData = Boolean(agData?.inputs || agData?.parameters)
+        const hasApp = hasAppReference(activeTrace)
+        const isInvocation = INVOCATION_SPAN_TYPES.has(spanType)
+
+        // Invocation spans (workflow, task, agent, chain) represent the unit
+        // that matches the app's root input schema — open them whenever we
+        // have an app reference or any captured data to seed the testcase.
+        if (isInvocation && (hasApp || hasExtractableData)) return {enabled: true}
+
+        // Chat spans open ephemerally when we can reconstruct the prompt.
+        if (spanType === "chat" && hasExtractableData) return {enabled: true}
+
+        // Sub-step spans (tool/llm/embedding/…) inherit `application.id` from
+        // their parent, but their captured inputs belong to the sub-step —
+        // not to the app's root input schema. Opening them would seed a
+        // testcase with the wrong shape. Steer users to the parent span.
+        if (SUB_STEP_SPAN_TYPES.has(spanType)) {
+            return {
+                enabled: false,
+                reason: `"${spanType}" spans are sub-steps of a workflow. Open the parent workflow or task span to replay it in the playground.`,
+            }
         }
 
-        return false
+        if (!hasApp && !hasExtractableData) {
+            return {
+                enabled: false,
+                reason: "This span has no application reference or captured inputs to replay in the playground.",
+            }
+        }
+        if (!hasApp) {
+            return {
+                enabled: false,
+                reason: `"${spanType}" spans need an application reference to be opened in the playground.`,
+            }
+        }
+        return {
+            enabled: false,
+            reason: "This span has an application reference but no captured parameters or inputs to open.",
+        }
     }, [activeTrace])
+
+    const canOpenInPlayground = openInPlaygroundState.enabled
 
     const handleOpenInPlayground = useCallback(() => {
         if (!activeTrace) return
@@ -145,15 +215,20 @@ const TraceTypeHeader = ({
                         # {activeTrace?.span_id || "-"}
                     </Tag>
                 </TooltipWithCopyAction>
-                <Button
-                    type="default"
-                    size="small"
-                    icon={<Play size={14} />}
-                    disabled={!canOpenInPlayground}
-                    onClick={handleOpenInPlayground}
+                <Tooltip
+                    title={!canOpenInPlayground ? openInPlaygroundState.reason : undefined}
+                    placement="bottom"
                 >
-                    Playground
-                </Button>
+                    <Button
+                        type="default"
+                        size="small"
+                        icon={<Play size={14} />}
+                        disabled={!canOpenInPlayground}
+                        onClick={handleOpenInPlayground}
+                    >
+                        Playground
+                    </Button>
+                </Tooltip>
                 <AddToTestsetButton
                     label="Add to testset"
                     size="small"
