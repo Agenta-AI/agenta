@@ -1131,11 +1131,10 @@ const openFromTraceAtom = atom(
             ? deriveBuiltinUriFromSpanName(asString(activeSpan.span_name))
             : null
 
-        // ── WORKFLOW-LIKE SPANS ─────────────────────────────────────────
-        // `workflow`, `task`, `agent`, `chain` — all represent an invocation
-        // tied to a variant. With an app_revision reference we open that
-        // revision in the app playground; otherwise we fall back to an
-        // ephemeral workflow seeded from the span's ag.data.
+        // ── INVOCATION SPANS ────────────────────────────────────────────
+        // Span types whose inputs match the app's root input schema. Matches
+        // `INVOCATION_SPAN_TYPES` in TraceTypeHeader; `task` is included
+        // because it's the `@ag.instrument()` default type.
         if (
             spanType === "workflow" ||
             spanType === "task" ||
@@ -1670,6 +1669,7 @@ const controllerCreateVariantAtom = atom(
         const result = await set(createWorkflowVariantAtom, {
             baseRevisionId,
             newVariantName: payload.newVariantName,
+            slug: payload.slug,
             commitMessage: payload.note,
         })
 
@@ -1677,6 +1677,7 @@ const controllerCreateVariantAtom = atom(
             return {
                 success: false,
                 error: result.error.message,
+                errorStatus: (result.error as {response?: {status?: number}}).response?.status,
             }
         }
 

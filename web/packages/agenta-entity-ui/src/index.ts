@@ -289,6 +289,7 @@ export {
     type CommitSubmitParams,
     type CommitSubmitResult,
     type CommitModeOption,
+    type CommitCreateFieldsConfig,
     // Commit modal state atoms
     commitModalOpenAtom,
     commitModalEntityAtom,

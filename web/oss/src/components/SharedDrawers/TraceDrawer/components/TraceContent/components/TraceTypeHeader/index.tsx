@@ -27,12 +27,17 @@ const DeleteTraceModal = dynamic(() => import("../../../DeleteTraceModal"), {
 })
 
 /**
- * Span types that represent a unit of work tied to an application/variant —
- * i.e. "open this in the playground" makes sense. Low-level operation spans
- * (`tool`, `embedding`, `query`, `rerank`, `llm`, `completion`) are excluded
- * because they represent sub-steps, not invocations.
+ * Span types whose inputs match the app's root input schema — the unit the
+ * playground can replay. Covers the three SDK-`SERVER` types (`agent`,
+ * `chain`, `workflow`; see `parse_span_kind` at
+ * `sdk/agenta/sdk/engines/tracing/conventions.py:31`) plus `task`, which is
+ * the default `type` for `@ag.instrument()` and therefore the root span of
+ * every workflow decorated without an explicit `type=`.
+ *
+ * Span-type enum source: `sdk/agenta/sdk/models/tracing.py:29`
+ * (re-exported by `api/oss/src/core/tracing/dtos.py:25`).
  */
-const WORKFLOW_LIKE_SPAN_TYPES = new Set(["workflow", "task"])
+const INVOCATION_SPAN_TYPES = new Set(["workflow", "task", "agent", "chain"])
 
 /**
  * Check if a span has an app reference (application or application_revision).
@@ -72,29 +77,47 @@ const TraceTypeHeader = ({
         return [activeTrace.span_id]
     }, [activeTrace?.span_id])
 
-    const canOpenInPlayground = useMemo(() => {
-        if (!activeTrace) return false
+    const openInPlaygroundState = useMemo<{enabled: boolean; reason?: string}>(() => {
+        if (!activeTrace) {
+            return {enabled: false, reason: "No trace span is selected."}
+        }
         const spanType = activeTrace.span_type
-        if (!spanType) return false
-
-        // Workflow-like spans (workflow, task, agent, chain) represent an
-        // invocation tied to a variant — opening them makes sense whenever
-        // they carry an app reference or have extractable ag.data.
-        if (WORKFLOW_LIKE_SPAN_TYPES.has(spanType)) {
-            if (hasAppReference(activeTrace)) return true
-            const agData = extractAgData(activeTrace)
-            return Boolean(agData?.inputs || agData?.parameters)
+        if (!spanType) {
+            return {enabled: false, reason: "This span has no type information."}
         }
 
-        // Chat spans (raw LLM chat calls) open as an ephemeral session when
-        // they have extractable inputs or parameters.
-        if (spanType === "chat") {
-            const agData = extractAgData(activeTrace)
-            return Boolean(agData?.inputs || agData?.parameters)
-        }
+        const agData = extractAgData(activeTrace)
+        const hasExtractableData = Boolean(agData?.inputs || agData?.parameters)
+        const hasApp = hasAppReference(activeTrace)
+        const isInvocation = INVOCATION_SPAN_TYPES.has(spanType)
 
-        return false
+        // Invocation spans (workflow, task, agent, chain) represent the unit
+        // that matches the app's root input schema — open them whenever we
+        // have an app reference or any captured data to seed the testcase.
+        if (isInvocation && (hasApp || hasExtractableData)) return {enabled: true}
+
+        // Chat spans open ephemerally when we can reconstruct the prompt.
+        if (spanType === "chat" && hasExtractableData) return {enabled: true}
+
+        if (!hasApp && !hasExtractableData) {
+            return {
+                enabled: false,
+                reason: "This span has no application reference or captured inputs to replay in the playground.",
+            }
+        }
+        if (!hasApp) {
+            return {
+                enabled: false,
+                reason: `"${spanType}" spans need an application reference to be opened in the playground.`,
+            }
+        }
+        return {
+            enabled: false,
+            reason: "This span has an application reference but no captured parameters or inputs to open.",
+        }
     }, [activeTrace])
+
+    const canOpenInPlayground = openInPlaygroundState.enabled
 
     const handleOpenInPlayground = useCallback(() => {
         if (!activeTrace) return
@@ -145,15 +168,20 @@ const TraceTypeHeader = ({
                         # {activeTrace?.span_id || "-"}
                     </Tag>
                 </TooltipWithCopyAction>
-                <Button
-                    type="default"
-                    size="small"
-                    icon={<Play size={14} />}
-                    disabled={!canOpenInPlayground}
-                    onClick={handleOpenInPlayground}
+                <Tooltip
+                    title={!canOpenInPlayground ? openInPlaygroundState.reason : undefined}
+                    placement="bottom"
                 >
-                    Playground
-                </Button>
+                    <Button
+                        type="default"
+                        size="small"
+                        icon={<Play size={14} />}
+                        disabled={!canOpenInPlayground}
+                        onClick={handleOpenInPlayground}
+                    >
+                        Playground
+                    </Button>
+                </Tooltip>
                 <AddToTestsetButton
                     label="Add to testset"
                     size="small"

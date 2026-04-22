@@ -58,6 +58,8 @@ export interface TestcasesTableShellProps {
     scopeIdPrefix?: string
     /** Maximum number of rows to display (for preview mode) */
     maxRows?: number
+    /** Optional row refs override for capped previews */
+    dataSource?: TestcaseTableRow[]
     /** Callback when add column button is clicked (shown in actions column header) */
     onAddColumn?: () => void
 }
@@ -98,6 +100,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         showRowIndex = false,
         scopeIdPrefix = "testcases",
         maxRows,
+        dataSource,
         onAddColumn,
     } = props
 
@@ -585,6 +588,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             rowSelection={rowSelection}
             useSettingsDropdown={!hideControls}
             settingsDropdownMenuItems={hideControls ? undefined : rowHeight.menuItems}
+            dataSource={dataSource}
             store={globalStore}
         />
     )

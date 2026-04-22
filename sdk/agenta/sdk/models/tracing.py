@@ -41,18 +41,28 @@ class SpanType(Enum):
     UNKNOWN = "unknown"
 
 
-class AgMetricEntryAttributes(BaseModel):
+class AgVectorMetricEntryAttributes(BaseModel):
     cumulative: Optional[Metrics] = None
     incremental: Optional[Metrics] = None
 
     model_config = {"ser_json_exclude_none": True}
 
 
+class AgScalarMetricEntryAttributes(BaseModel):
+    cumulative: Optional[Union[int, float]] = None
+    incremental: Optional[Union[int, float]] = None
+
+    model_config = {"ser_json_exclude_none": True}
+
+
+AgMetricEntryAttributes = AgVectorMetricEntryAttributes
+
+
 class AgMetricsAttributes(BaseModel):
-    duration: Optional[AgMetricEntryAttributes] = None
-    errors: Optional[AgMetricEntryAttributes] = None
-    tokens: Optional[AgMetricEntryAttributes] = None
-    costs: Optional[AgMetricEntryAttributes] = None
+    duration: Optional[AgScalarMetricEntryAttributes] = None
+    errors: Optional[AgScalarMetricEntryAttributes] = None
+    tokens: Optional[AgVectorMetricEntryAttributes] = None
+    costs: Optional[AgVectorMetricEntryAttributes] = None
 
     model_config = {"ser_json_exclude_none": True}
 

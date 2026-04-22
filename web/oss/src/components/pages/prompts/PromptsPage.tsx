@@ -103,6 +103,7 @@ const PromptsPage = () => {
     const [moveSelection, setMoveSelection] = useState<string | null>(null)
     const [templateKey, setTemplateKey] = useState<string | undefined>(undefined)
     const [appName, setAppName] = useState("")
+    const [appSlug, setAppSlug] = useState<string | undefined>(undefined)
     const [fetchingCustomWorkflow, setFetchingCustomWorkflow] = useState(false)
     const [moveEntity, setMoveEntity] = useState<{
         type: "folder" | "app"
@@ -374,8 +375,13 @@ const PromptsPage = () => {
         }
     }
 
-    const handleTemplateCardClick = async (templateId: string, submittedAppName: string) => {
+    const handleTemplateCardClick = async (
+        templateId: string,
+        submittedAppName: string,
+        submittedAppSlug?: string,
+    ) => {
         setAppName(submittedAppName)
+        setAppSlug(submittedAppSlug)
         setTemplateKey(templateId)
         setIsAddAppFromTemplatedModal(false)
         setStatusModalOpen(true)
@@ -385,6 +391,7 @@ const PromptsPage = () => {
 
         await createAppWithTemplate({
             appName: submittedAppName,
+            slug: submittedAppSlug,
             templateKey: templateId,
             folderId: currentFolderId ?? null,
             providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
@@ -415,7 +422,7 @@ const PromptsPage = () => {
             refetchWorkflows()
         }
         if (templateKey) {
-            await handleTemplateCardClick(templateKey, appName)
+            await handleTemplateCardClick(templateKey, appName, appSlug)
         }
     }
 

@@ -887,6 +887,9 @@ class TestsetsService:
 
             testset_revision_commit.data.testcases = None
 
+        if not testset_revision_commit.slug:
+            testset_revision_commit.slug = uuid4().hex[-12:]
+
         revision_commit_payload = self._sanitize_testset_revision_payload(
             testset_revision_commit.model_dump(
                 mode="json",
