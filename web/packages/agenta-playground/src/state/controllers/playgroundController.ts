@@ -1083,18 +1083,9 @@ const openFromTraceAtom = atom(
         const evaluatorSlug = asString(refs.evaluator?.slug)
 
         // ── INVOCATION SPANS ────────────────────────────────────────────
-        // Span types whose inputs match the app's root input schema. This
-        // set matches `INVOCATION_SPAN_TYPES` in TraceTypeHeader — see the
-        // comment there for rationale, in particular why `task` is included
-        // even though the SDK's `parse_span_kind`
-        // (`sdk/agenta/sdk/engines/tracing/conventions.py:31`) classifies
-        // it as INTERNAL rather than SERVER.
-        //
-        // Sub-step span types (`tool`, `llm`, `embedding`, `query`,
-        // `completion`, `rerank`) are deliberately excluded — their inputs
-        // belong to the sub-step, not the parent workflow. The header
-        // disables "Open in playground" for those and steers users to the
-        // parent span.
+        // Span types whose inputs match the app's root input schema. Matches
+        // `INVOCATION_SPAN_TYPES` in TraceTypeHeader; `task` is included
+        // because it's the `@ag.instrument()` default type.
         if (
             spanType === "workflow" ||
             spanType === "task" ||
