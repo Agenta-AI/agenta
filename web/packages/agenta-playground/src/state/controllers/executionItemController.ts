@@ -61,6 +61,7 @@ import {
     triggerExecutionsAtom,
     cancelTestsMutationAtom,
     clearAllRunsMutationAtom,
+    clearAllExecutionItemsMutationAtom,
     clearResponseByRowEntityWithContextAtom,
     setRepetitionCountAtom,
     setRepetitionIndexAtom,
@@ -274,6 +275,9 @@ export const executionItemController = {
 
         /** Clear all run results */
         clearAllRuns: clearAllRunsMutationAtom,
+
+        /** Clear run results and completion-mode testcase inputs */
+        clearAll: clearAllExecutionItemsMutationAtom,
 
         /** Run all tests (handles chat/completion × single/comparison) */
         runAll: runAllWithContextAtom,

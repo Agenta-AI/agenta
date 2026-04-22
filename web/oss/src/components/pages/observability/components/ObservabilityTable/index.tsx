@@ -75,6 +75,8 @@ const ObservabilityTable = () => {
         isFetchingMore,
         autoRefresh,
         fetchAnnotations,
+        isRateLimited,
+        rateLimitMessage,
     } = useObservability()
     const setTraceDrawerActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
     const isNewUser = useAtomValue(isNewUserAtom)
@@ -186,7 +188,7 @@ const ObservabilityTable = () => {
     }
 
     const showTableLoading = isLoading && traces.length === 0
-    const isEmptyState = traces.length === 0 && !isLoading
+    const isEmptyState = traces.length === 0 && !isLoading && !isRateLimited
     const showOnboarding = isNewUser && !hasReceivedTraces
 
     useEffect(() => {
@@ -226,7 +228,9 @@ const ObservabilityTable = () => {
                 refreshTrigger={refreshTrigger}
             />
 
-            {isEmptyState ? (
+            {isRateLimited ? (
+                <EmptyObservability rateLimited rateLimitMessage={rateLimitMessage} />
+            ) : isEmptyState ? (
                 <EmptyObservability showOnboarding={showOnboarding} />
             ) : (
                 <div className="flex flex-col gap-2">

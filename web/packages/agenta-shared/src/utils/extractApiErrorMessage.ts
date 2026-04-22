@@ -27,6 +27,28 @@ function extractMessageFromPayload(payload: unknown): string | null {
     return null
 }
 
+export type ErrorWithResponseStatus = Error & {response?: {status?: number}}
+
+/**
+ * Wraps an error value while preserving the HTTP response status, if present.
+ * Pass an explicit `message` to override the message (e.g. when using extractApiErrorMessage).
+ * Omit `message` to preserve the original error message.
+ */
+export function preserveResponseStatus(error: unknown, message?: string): ErrorWithResponseStatus {
+    const err = (
+        message !== undefined
+            ? new Error(message)
+            : error instanceof Error
+              ? error
+              : new Error(String(error))
+    ) as ErrorWithResponseStatus
+    const status = (error as {response?: {status?: number}})?.response?.status
+    if (status !== undefined) {
+        err.response = {status}
+    }
+    return err
+}
+
 /**
  * Extract a human-readable API error message from thrown values, including
  * Axios/Fetch-style payloads like `{detail: {message: "..."}}`.

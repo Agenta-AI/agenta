@@ -9,6 +9,8 @@ from oss.src.core.tracing.dtos import (
     OTelAttributes,
     OTelFlatSpans,
     OTelHash,
+    OTelLink,
+    OTelLinks,
     OTelReference,
     OTelSpan,
     OTelSpanKind,
@@ -258,7 +260,23 @@ def parse_timestamp_to_datetime(
 # PAYLOAD PARSING
 
 
-def _parse_span_from_request(raw_span: OTelSpan) -> Optional[OTelFlatSpans]:
+def _span_link(raw_span) -> Optional[OTelLink]:
+    trace_id = getattr(raw_span, "trace_id", None)
+    span_id = getattr(raw_span, "span_id", None)
+    if trace_id is None and span_id is None:
+        return None
+
+    return OTelLink(
+        trace_id=str(trace_id) if trace_id is not None else None,
+        span_id=str(span_id) if span_id is not None else None,
+    )
+
+
+def _parse_span_from_request(
+    raw_span: OTelSpan,
+    *,
+    dropped: Optional[OTelLinks] = None,
+) -> Optional[OTelFlatSpans]:
     raw_span_dtos: OTelFlatSpans = []
 
     raw_span.trace_id = parse_trace_id_to_uuid(raw_span.trace_id)
@@ -278,6 +296,10 @@ def _parse_span_from_request(raw_span: OTelSpan) -> Optional[OTelFlatSpans]:
     raw_span.attributes = unmarshall_attributes(raw_span.attributes or {})
     raw_span.attributes = initialize_ag_attributes(raw_span.attributes)
     ag = raw_span.attributes["ag"]
+    metrics = ag.setdefault("metrics", {})
+    if not isinstance(metrics, dict):
+        metrics = {}
+        ag["metrics"] = metrics
 
     type_attrs = AgTypeAttributes.model_validate(ag.get("type", {}))
     raw_span.span_type = type_attrs.span or raw_span.span_type
@@ -287,18 +309,27 @@ def _parse_span_from_request(raw_span: OTelSpan) -> Optional[OTelFlatSpans]:
         duration_ms = round(duration_s * 1_000, 3)
         duration_ms = duration_ms if duration_ms > 0 else None
         if duration_ms is not None:
-            ag["metrics"]["duration"] = {"cumulative": duration_ms}
+            duration = metrics.setdefault("duration", {})
+            if not isinstance(duration, dict):
+                duration = {}
+                metrics["duration"] = duration
+            duration["cumulative"] = duration_ms
 
     if raw_span.events:
-        errors = ag["metrics"]["errors"] = {"incremental": 0}
+        errors = metrics.setdefault("errors", {})
+        if not isinstance(errors, dict):
+            errors = {}
+            metrics["errors"] = errors
+        errors["incremental"] = 0
         for event in raw_span.events:
             event.timestamp = parse_timestamp_to_datetime(event.timestamp)
             if event.name == "exception":
                 errors["incremental"] = (errors.get("incremental") or 0) + 1
+                event_attributes = event.attributes or {}
                 raw_span.exception = {
-                    "message": event.attributes.get("message"),
-                    "type": event.attributes.get("type"),
-                    "stacktrace": event.attributes.get("stacktrace"),
+                    "message": event_attributes.get("message"),
+                    "type": event_attributes.get("type"),
+                    "stacktrace": event_attributes.get("stacktrace"),
                 }
 
     ag_references = ag.get("references")
@@ -335,7 +366,7 @@ def _parse_span_from_request(raw_span: OTelSpan) -> Optional[OTelFlatSpans]:
                 raw_span.hashes = [OTelHash(id=hash_id, attributes={"key": "indirect"})]
 
     if isinstance(raw_span, OTelSpan) and raw_span.spans is not None:
-        raw_span_dtos.extend(parse_spans_from_request(raw_span.spans))
+        raw_span_dtos.extend(parse_spans_from_request(raw_span.spans, dropped=dropped))
         raw_span.spans = None
 
     raw_span_dtos.append(raw_span)
@@ -344,6 +375,8 @@ def _parse_span_from_request(raw_span: OTelSpan) -> Optional[OTelFlatSpans]:
 
 def parse_spans_from_request(
     spans: Dict[str, Union[OTelSpan, OTelFlatSpans]],
+    *,
+    dropped: Optional[OTelLinks] = None,
 ) -> Optional[OTelFlatSpans]:
     raw_span_dtos: OTelFlatSpans = []
     span_dtos: OTelFlatSpans = []
@@ -354,12 +387,20 @@ def parse_spans_from_request(
                 raw_span_dtos.extend(span_group)
             else:
                 raw_span_dtos.append(span_group)
-
-        for span in raw_span_dtos:
-            span_dtos.extend(_parse_span_from_request(span))
     except Exception:
         log.error(f"Error processing spans:\n {format_exc()}")
-        span_dtos = []
+        return []
+
+    for span in raw_span_dtos:
+        link = _span_link(span)
+        try:
+            parsed_span_dtos = _parse_span_from_request(span, dropped=dropped)
+            if parsed_span_dtos:
+                span_dtos.extend(parsed_span_dtos)
+        except Exception:
+            log.error(f"Error processing span:\n {format_exc()}")
+            if dropped is not None and link is not None:
+                dropped.append(link)
 
     return span_dtos
 
