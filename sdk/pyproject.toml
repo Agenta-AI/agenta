@@ -23,7 +23,7 @@ exclude = [
 ]
 
 [tool.poetry.dependencies]
-python = "<=3.14,>=3.11"
+python = "^3.11"
 
 # Core dependencies (always loaded)
 pydantic = "^2"
