@@ -85,6 +85,16 @@ const AppDetailsSection = memo(() => {
                                 icon: <Copy size={16} />,
                                 onClick: () => copyToClipboard(currentApp!.id),
                             },
+                            ...(currentApp?.slug
+                                ? [
+                                      {
+                                          key: "copy_slug",
+                                          label: "Copy Slug",
+                                          icon: <Copy size={16} />,
+                                          onClick: () => copyToClipboard(currentApp!.slug!),
+                                      },
+                                  ]
+                                : []),
                             {
                                 key: "delete_app",
                                 label: "Delete",

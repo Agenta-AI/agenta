@@ -99,6 +99,10 @@ export interface ActionsColumnDef<T> {
     showCopyId?: boolean
     /** Custom ID extractor for copy action */
     getRecordId?: (record: T) => string
+    /** Show copy slug action (default: false — requires getSlug to yield a value) */
+    showCopySlug?: boolean
+    /** Slug extractor for copy-slug action */
+    getSlug?: (record: T) => string | null | undefined
     /** Export row callback */
     onExportRow?: (record: T) => void
     /** Whether export is currently in progress */
@@ -215,6 +219,8 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
         maxWidth,
         showCopyId = true,
         getRecordId,
+        showCopySlug = false,
+        getSlug,
         onExportRow,
         isExporting,
     } = def
@@ -314,6 +320,22 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                         onClick: (e: MenuInfo) => {
                             e.domEvent.stopPropagation()
                             copyToClipboard(recordId)
+                        },
+                    })
+                }
+            }
+
+            // Add copy slug if enabled
+            if (showCopySlug && getSlug) {
+                const slug = getSlug(record)
+                if (slug) {
+                    menuItems.push({
+                        key: "copy-slug",
+                        label: "Copy Slug",
+                        icon: <Copy size={16} />,
+                        onClick: (e: MenuInfo) => {
+                            e.domEvent.stopPropagation()
+                            copyToClipboard(slug)
                         },
                     })
                 }

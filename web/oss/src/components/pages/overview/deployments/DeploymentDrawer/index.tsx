@@ -115,17 +115,17 @@ const DeploymentDrawer = ({
 
     const fetchConfigCodeSnippet: Record<string, string> = {
         python: fetchConfigpythonCode(
-            (currentApp?.name ?? currentApp?.slug)!,
+            currentApp?.slug ?? currentApp?.name ?? "",
             selectedEnvironment?.name!,
             "",
         ),
         bash: fetchConfigcURLCode(
-            (currentApp?.name ?? currentApp?.slug)!,
+            currentApp?.slug ?? currentApp?.name ?? "",
             selectedEnvironment?.name!,
             "",
         ),
         typescript: fetchConfigtsCode(
-            (currentApp?.name ?? currentApp?.slug)!,
+            currentApp?.slug ?? currentApp?.name ?? "",
             selectedEnvironment?.name!,
             "",
         ),
