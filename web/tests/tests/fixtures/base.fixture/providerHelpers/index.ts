@@ -292,15 +292,10 @@ async function chooseCustomProvider(drawer: Locator, page: Page): Promise<void> 
         )
     }
 
-    const providerInput = providerSelect.locator("input.ant-select-input").first()
-    await expect(providerInput).toBeVisible({timeout: 15000})
-    await providerInput.focus()
-
-    for (let index = 0; index < customProviderIndex; index += 1) {
-        await providerInput.press("ArrowDown")
-    }
-
-    await providerInput.press("Enter")
+    // Click the target option directly — keyboard ArrowDown navigation is unreliable with AntD v5 selects
+    const targetOption = options.nth(customProviderIndex)
+    await expect(targetOption).toBeVisible({timeout: 15000})
+    await targetOption.click()
 
     await expect(drawer.getByPlaceholder("Enter unique name")).toBeVisible({timeout: 15000})
 }
