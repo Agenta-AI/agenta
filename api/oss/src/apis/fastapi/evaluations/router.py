@@ -6,7 +6,11 @@ from fastapi import APIRouter, Request, Query, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
+from oss.src.utils.exceptions import (
+    BadRequestException,
+    intercept_exceptions,
+    suppress_exceptions,
+)
 
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 
@@ -2340,6 +2344,18 @@ class SimpleQueuesRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        queue = await self.simple_queues_service.fetch(
+            project_id=UUID(request.state.project_id),
+            queue_id=queue_id,
+        )
+        if queue and queue.data and (queue.data.queries or queue.data.testsets):
+            raise BadRequestException(
+                message=(
+                    "Cannot add traces directly to a source-backed queue. "
+                    "Create a direct traces queue instead."
+                )
+            )
+
         queue_id = await self.simple_queues_service.add_traces(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -2370,6 +2386,18 @@ class SimpleQueuesRouter:
                 permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue = await self.simple_queues_service.fetch(
+            project_id=UUID(request.state.project_id),
+            queue_id=queue_id,
+        )
+        if queue and queue.data and (queue.data.queries or queue.data.testsets):
+            raise BadRequestException(
+                message=(
+                    "Cannot add testcases directly to a source-backed queue. "
+                    "Create a direct testcases queue instead."
+                )
+            )
 
         queue_id = await self.simple_queues_service.add_testcases(
             project_id=UUID(request.state.project_id),
