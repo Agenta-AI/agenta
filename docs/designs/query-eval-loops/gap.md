@@ -15,7 +15,7 @@ Missing from current state:
 - queues cannot be created from query revisions directly
 - queues cannot be created from testset revisions directly
 - queue APIs only accept trace IDs or testcase IDs
-- there is no source-aware queue request model
+- there is no source-aware queue request model on `SimpleQueueData`
 - there is no source resolver layer that turns a query or testset source into execution items
 - there is no queue run shape that preserves the query/testset revision in the step definitions for a source-aware queue
 
@@ -36,7 +36,7 @@ Not in scope for this effort:
 
 Missing from current state:
 
-- request schemas for source-based queue creation
+- request schemas for source-based queue creation using `queries` or `testsets`
 - request schemas for query-backed manual annotation setup
 - server-side validation that distinguishes source kind from execution item kind
 - response payloads that explain the resolved execution items back to the client

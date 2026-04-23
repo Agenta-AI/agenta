@@ -68,10 +68,15 @@ This proposal does not require collapsing queues, query runs, and testset runs i
 
 Add source-aware request models that can express:
 
-- `source_kind`
-- `source_ids` or source refs
+- `queries` or `testsets` on simple queue creation
 - evaluator set
 - repeat/assignment settings
+
+Validation rules:
+
+- allow `queries` or `testsets`, but not both
+- do not mix source-backed queue creation with direct `kind`-based queue creation in the same request
+- keep direct `trace_ids` / `testcase_ids` queue addition as the low-level path for direct queues only
 
 The existing trace/testcase queue endpoints remain the low-level direct path.
 The new source-aware path is additive and should resolve to the same execution layer, not replace it.
