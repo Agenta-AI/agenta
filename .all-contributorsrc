@@ -568,6 +568,15 @@
         "infra",
         "doc"
       ]
+    },
+    {
+      "login": "anshk8",
+      "name": "Ansh Kakkar",
+      "avatar_url": "https://avatars.githubusercontent.com/u/141085661?v=4",
+      "profile": "https://github.com/anshk8",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "contributorsPerLine": 7,
