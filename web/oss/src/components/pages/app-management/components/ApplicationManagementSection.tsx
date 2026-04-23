@@ -1,4 +1,4 @@
-import {type SetStateAction, useCallback, useMemo} from "react"
+import {type SetStateAction, useCallback, useEffect, useMemo} from "react"
 
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
 import {PlusOutlined} from "@ant-design/icons"
@@ -15,6 +15,8 @@ import {
     appWorkflowSearchTermAtom,
     appWorkflowCountAtom,
     appWorkflowTotalCountAtom,
+    workflowInvokableOnlyAtom,
+    workflowTypeFilterAtom,
 } from "../store"
 import type {AppWorkflowRow} from "../store"
 
@@ -38,8 +40,17 @@ const ApplicationManagementSection = ({
     const {baseAppURL} = useURL()
     const {goToPlayground} = usePlaygroundNavigation()
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
+    const setWorkflowTypeFilter = useSetAtom(workflowTypeFilterAtom)
+    const setWorkflowInvokableOnly = useSetAtom(workflowInvokableOnlyAtom)
     const filteredAppCount = useAtomValue(appWorkflowCountAtom)
     const totalAppCount = useAtomValue(appWorkflowTotalCountAtom)
+
+    // Pin the shared workflow store to apps-only while this page is mounted.
+    // Other consumers (evaluation modal) may leave filters on "all" / invokable-only.
+    useEffect(() => {
+        setWorkflowTypeFilter("app")
+        setWorkflowInvokableOnly(false)
+    }, [setWorkflowTypeFilter, setWorkflowInvokableOnly])
 
     const handleRowClick = useCallback(
         (record: AppWorkflowRow) => {
