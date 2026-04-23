@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {type ReactNode, useCallback, useMemo} from "react"
 
 import {extractAgData} from "@agenta/entities/trace"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
@@ -77,13 +77,28 @@ const TraceTypeHeader = ({
         return [activeTrace.span_id]
     }, [activeTrace?.span_id])
 
-    const openInPlaygroundState = useMemo<{enabled: boolean; reason?: string}>(() => {
+    const openInPlaygroundState = useMemo<{enabled: boolean; reason?: ReactNode}>(() => {
         if (!activeTrace) {
             return {enabled: false, reason: "No trace span is selected."}
         }
         const spanType = activeTrace.span_type
         if (!spanType) {
-            return {enabled: false, reason: "This span has no type information."}
+            return {
+                enabled: false,
+                reason: (
+                    <>
+                        The type of this span (<code>ag.type</code> namespace) is not set.{" "}
+                        <a
+                            href="https://agenta.ai/docs/observability/trace-with-opentelemetry/semantic-conventions#agtype"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            Learn more
+                        </a>
+                        .
+                    </>
+                ),
+            }
         }
 
         const agData = extractAgData(activeTrace)
