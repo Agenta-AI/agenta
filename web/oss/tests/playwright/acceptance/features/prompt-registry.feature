@@ -17,7 +17,7 @@ Feature: Prompt Registry Workflow Revisions
     Given the user is authenticated
     And at least one completion app exists
 
-  @smoke @happy
+  @smoke @happy @scope:playground @speed:fast
   Scenario: Open Playground from the first published workflow revision
     Given the user is on the workflow revisions page for that app
     When the user opens the first published workflow revision
