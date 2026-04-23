@@ -1,15 +1,18 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
+import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 import {expect} from "@agenta/web-tests/utils"
-import {EvaluationFixtures, RunAutoEvalFixtureType} from "./assets/types"
-import {getProjectScopedBasePath} from "tests/tests/fixtures/base.fixture/apiHelpers"
+import {
+    deriveEvaluationKind,
+    type EvaluationRunForKindDetection,
+} from "@agenta/web-tests/utils/evaluationKind"
 import type {Locator, Page} from "@playwright/test"
-import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
-import {EvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
+
+import {EvaluationFixtures, RunAutoEvalFixtureType} from "./assets/types"
 
 const AUTO_EVALUATION_TAB_LABEL = "Auto Evals"
 const AUTO_EVALUATION_EMPTY_STATE_TITLE = "Get Started with Evaluations"
 const AUTO_EVALUATION_EMPTY_STATE_BUTTON_LABEL = /Run Evaluation/i
-const AUTO_EVALUATION_LIST_BUTTON_LABEL = /Start evaluation/i
+const AUTO_EVALUATION_LIST_BUTTON_LABEL = /New evaluation/i
 const AUTO_EVALUATION_MODAL_TITLE = "New Auto Evaluation"
 const AUTO_EVALUATION_SUBMIT_BUTTON_LABEL = "Start Evaluation"
 const AUTO_RESULTS_TAB_LABELS = ["Overview", "Scenarios", "Configuration"] as const
@@ -20,8 +23,8 @@ const AUTO_EVALUATION_CREATE_BUTTON_LABELS = [
     /New Evaluation/i,
 ] as const
 
-type EvaluationRunsResponse = {
-    runs: EvaluationRun[]
+interface EvaluationRunsResponse {
+    runs: EvaluationRunForKindDetection[]
     count: number
 }
 
@@ -409,6 +412,94 @@ const testWithEvaluationFixtures = baseTest.extend<EvaluationFixtures>({
     },
 })
 
+// ── Helpers for AUTOEVAL-003 / 004 / 005 ────────────────────────────────────
+
+const AUTO_EVAL_DELETE_MENU_LABEL = "Delete"
+const AUTO_EVAL_DELETE_CONFIRM_TEXT = "Are you sure you want to delete?"
+const AUTO_EVAL_DELETE_OK_BUTTON = "Delete"
+const AUTO_EVAL_DELETE_SUCCESS = "Deleted successfully"
+
+/** Navigates directly to the results page for a specific run and waits for tabs. */
+const navigateToRunResults = async (page: Page, appId: string, runId: string) => {
+    const url = `${getAutoResultsPathPrefix(page, appId)}${runId}?type=auto`
+    await page.goto(url, {waitUntil: "domcontentloaded"})
+    await waitForAutoResultsPage(page, appId)
+}
+
+/** Clicks a named tab in the evaluation results header and waits for it to become active. */
+const switchResultsPageTab = async (page: Page, tabLabel: string) => {
+    const tab = page.getByRole("tab", {name: tabLabel}).first()
+    await expect(tab).toBeVisible({timeout: 5000})
+    await tab.click()
+    await expect(tab).toHaveAttribute("aria-selected", "true")
+}
+
+/**
+ * Polls until the Delete context-menu item for a run is enabled (run exited
+ * PENDING/RUNNING state), then clicks Delete, confirms the modal, and verifies
+ * the success message.
+ */
+const waitAndClickDeleteForRun = async (
+    page: Page,
+    evaluationName: string,
+    runId?: string | null,
+) => {
+    const getRow = (): Locator =>
+        runId
+            ? page.locator(`[data-row-key="preview::${runId}"]`).first()
+            : page.locator("tr[data-row-key]").filter({hasText: evaluationName}).first()
+
+    await expect
+        .poll(
+            async () => {
+                try {
+                    const row = getRow()
+                    if (!(await row.isVisible().catch(() => false))) return false
+                    await row.hover()
+                    const moreButton = row
+                        .locator("button")
+                        .filter({has: page.locator('[aria-label="more"]')})
+                        .first()
+                    if (!(await moreButton.isVisible().catch(() => false))) return false
+                    await moreButton.click()
+                    await page.waitForTimeout(300)
+                    const deleteItem = page
+                        .getByRole("menuitem", {name: AUTO_EVAL_DELETE_MENU_LABEL})
+                        .first()
+                    if (!(await deleteItem.isVisible().catch(() => false))) {
+                        await page.keyboard.press("Escape")
+                        return false
+                    }
+                    const disabled = await deleteItem
+                        .getAttribute("aria-disabled")
+                        .catch(() => null)
+                    if (disabled === "true") {
+                        await page.keyboard.press("Escape")
+                        return false
+                    }
+                    return true
+                } catch {
+                    return false
+                }
+            },
+            {timeout: 30000, intervals: [2000, 3000, 5000, 5000, 5000]},
+        )
+        .toBe(true)
+
+    await page.getByRole("menuitem", {name: AUTO_EVAL_DELETE_MENU_LABEL}).click()
+
+    const deleteModal = page
+        .locator(".ant-modal")
+        .filter({hasText: AUTO_EVAL_DELETE_CONFIRM_TEXT})
+        .first()
+    await expect(deleteModal).toBeVisible({timeout: 10000})
+    await deleteModal.getByRole("button", {name: AUTO_EVAL_DELETE_OK_BUTTON}).click()
+
+    await expect(
+        page.locator(".ant-message").getByText(AUTO_EVAL_DELETE_SUCCESS).first(),
+    ).toBeVisible({timeout: 15000})
+}
+
 export {
     testWithEvaluationFixtures as test,
     expect,
@@ -416,4 +507,8 @@ export {
     goToAutoEvaluationStep,
     selectAutoEvaluationModalTableInput,
     openAutoEvaluationRunFromList,
+    goToAutoEvaluations,
+    navigateToRunResults,
+    switchResultsPageTab,
+    waitAndClickDeleteForRun,
 }

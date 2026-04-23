@@ -10,7 +10,7 @@ Feature: Authentication and Basic Navigation
   Background:
     Given the user has valid credentials for the OSS deployment
 
-  @smoke
+  @smoke @happy @scope:auth @speed:fast
   Scenario: Authenticate and navigate to apps
     When the user logs in with their credentials
     Then the user should be redirected to the workspace-scoped apps page

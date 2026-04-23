@@ -291,26 +291,45 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 if (!isCommitButtonDisabled) {
                     await commitButton.click()
 
+                    const commitModal = page.getByRole("dialog").last()
+                    await expect(commitModal).toBeVisible({timeout: 15000})
+
                     // 2. Select the type
-                    await uiHelpers.selectOption({
-                        label: type === "variant" ? "As a new variant" : "As a new version",
-                    })
+                    const saveModeRadio = commitModal
+                        .getByRole("radio", {
+                            name: type === "variant" ? "As a new variant" : "As a new version",
+                        })
+                        .first()
+                    await expect(saveModeRadio).toBeVisible({timeout: 15000})
+                    await saveModeRadio.check()
 
                     if (type === "variant") {
                         // If variant, enter the variant name
-                        const variantInput = page.getByRole("textbox", {
-                            name: "A unique variant name",
+                        const variantInputByLabel = commitModal.getByRole("textbox", {
+                            name: /Variant name/i,
                         })
+                        const variantInputById = commitModal.locator("#entity-name")
+                        const variantInputByPlaceholder =
+                            commitModal.getByPlaceholder("Enter a name...")
+                        const variantInput = (await variantInputByLabel
+                            .isVisible()
+                            .catch(() => false))
+                            ? variantInputByLabel
+                            : (await variantInputById.isVisible().catch(() => false))
+                              ? variantInputById
+                              : variantInputByPlaceholder
+                        await expect(variantInput).toBeVisible({timeout: 15000})
                         await variantInput.click()
+                        await variantInput.fill("")
                         await variantInput.pressSequentially(variantName || "", {delay: 50})
                     }
 
                     // 3. Enter the note if provided
                     if (note) {
-                        const noteInput = page.getByRole("textbox", {
-                            name: "Describe why you are deploying",
-                        })
+                        const noteInput = commitModal.getByPlaceholder("Describe your changes...")
+                        await expect(noteInput).toBeVisible({timeout: 15000})
                         await noteInput.click()
+                        await noteInput.fill("")
                         await noteInput.pressSequentially(note || "", {delay: 50})
                     }
 
@@ -318,7 +337,7 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                     await uiHelpers.confirmModal("Commit")
 
                     // 5. Wait for the commit modal to close (indicates success)
-                    await expect(page.locator(".ant-modal")).not.toBeVisible({timeout: 30000})
+                    await expect(commitModal).not.toBeVisible({timeout: 30000})
                 }
             },
         )
