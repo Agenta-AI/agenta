@@ -1205,7 +1205,9 @@ const openFromTraceAtom = atom(
                 parameters,
                 sourceRef: applicationId
                     ? {type: "application", id: applicationId, slug: applicationSlug}
-                    : undefined,
+                    : evaluatorId
+                      ? {type: "evaluator", id: evaluatorId, slug: evaluatorSlug}
+                      : undefined,
             })
             set(addPrimaryNodeAtom, {type: "workflow", id: entityId, label})
 

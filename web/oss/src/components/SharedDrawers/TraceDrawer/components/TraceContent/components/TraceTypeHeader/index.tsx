@@ -81,6 +81,12 @@ const TraceTypeHeader = ({
         if (!activeTrace) {
             return {enabled: false, reason: "No trace span is selected."}
         }
+        if (activeTrace.trace_type === "annotation") {
+            return {
+                enabled: false,
+                reason: "Annotation spans can't be replayed in the playground.",
+            }
+        }
         const spanType = activeTrace.span_type
         if (!spanType) {
             return {
