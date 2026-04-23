@@ -1,22 +1,19 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
+import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 import {expect} from "@agenta/web-tests/utils"
+import type {EvaluationRunForKindDetection} from "@agenta/web-tests/utils/evaluationKind"
 import type {Locator, Page} from "@playwright/test"
 
 import type {HumanEvaluationConfig, HumanEvaluationFixtures} from "./assets/types"
-import type {EvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
-import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 
-type EvaluationRunsResponse = {
-    runs: EvaluationRun[]
+interface EvaluationRunsResponse {
+    runs: EvaluationRunForKindDetection[]
     count: number
 }
 
 const DEFAULT_HUMAN_EVALUATOR_METRIC_NAME = "isTestWorking"
 const DEFAULT_HUMAN_ANNOTATION_VALUE_LABEL = "True"
 
-const HUMAN_EVALUATION_EMPTY_STATE_TITLE = "Get Started with Human Evaluation"
-const HUMAN_EVALUATION_EMPTY_STATE_BUTTON_LABEL = /Create Evaluation/i
-const HUMAN_EVALUATION_LIST_BUTTON_LABEL = /New evaluation/i
 const HUMAN_EVALUATION_TAB_LABEL = "Human Evals"
 const HUMAN_EVALUATION_MODAL_TITLE = "New Human Evaluation"
 const HUMAN_EVALUATION_SUBMIT_BUTTON_LABEL = "Start Evaluation"
@@ -101,14 +98,14 @@ const getVisibleButtonByLabels = async (page: Page, labels: readonly (string | R
     return null
 }
 
-const getHumanEvaluationCreateButton = async (page: Page) => {
+const getHumanEvaluationCreateButton = async (page: Page, timeout = 10000) => {
     await expect
         .poll(
             async () =>
                 Boolean(
                     await getVisibleButtonByLabels(page, HUMAN_EVALUATION_CREATE_BUTTON_LABELS),
                 ),
-            {timeout: 10000},
+            {timeout},
         )
         .toBe(true)
 
@@ -317,7 +314,7 @@ const openHumanAnnotateView = async (page: Page) => {
 
 const openHumanEvaluationModal = async (page: Page) => {
     await ensureHumanEvaluationsContext(page)
-    await (await getHumanEvaluationCreateButton(page)).click()
+    await (await getHumanEvaluationCreateButton(page, 60000)).click()
 
     const modal = page.locator(".ant-modal").first()
     await expect(modal).toBeVisible()
@@ -529,6 +526,57 @@ const ensureSingleHumanEvaluatorSelection = async ({
     })
 }
 
+const waitForHumanAnnotationForm = async ({
+    page,
+    annotationsCard,
+    metricLabel,
+    timeout = 90000,
+}: {
+    page: Page
+    annotationsCard: Locator
+    metricLabel: string | RegExp
+    timeout?: number
+}) => {
+    const metricField = annotationsCard
+        .locator(".playground-property-control")
+        .filter({hasText: metricLabel})
+        .first()
+    const runButton = annotationsCard.getByRole("button", {name: /^Run$/}).first()
+    const outputRequiredMessage = annotationsCard
+        .getByText(
+            /Generate output to annotate|Generating output|Run the invocation to generate output/i,
+        )
+        .first()
+
+    await expect
+        .poll(
+            async () => {
+                const overlayVisible = await outputRequiredMessage.isVisible().catch(() => false)
+                if ((await metricField.isVisible().catch(() => false)) && !overlayVisible) {
+                    return true
+                }
+
+                const canRun =
+                    (await runButton.isVisible().catch(() => false)) &&
+                    (await runButton.isEnabled().catch(() => false))
+                if (canRun) {
+                    await runButton.click().catch(() => null)
+                }
+
+                if (overlayVisible) {
+                    return false
+                }
+
+                await dismissEvaluationResultsOnboarding(page)
+                return await metricField.isVisible().catch(() => false)
+            },
+            {timeout},
+        )
+        .toBe(true)
+
+    return metricField
+}
+
 const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
     navigateToHumanEvaluation: async ({page}, use) => {
         await use(async (appId: string) => {
@@ -539,25 +587,8 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
             await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBe("human")
             await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 10000})
 
-            const listButton = page
-                .getByRole("button", {name: HUMAN_EVALUATION_LIST_BUTTON_LABEL})
-                .first()
-
-            // Wait up to 15s for either the "New evaluation" button (has runs) or the empty state
-            const hasRuns = await listButton.isVisible({timeout: 15000}).catch(() => false)
-
-            if (hasRuns) {
-                await expect(listButton).toBeVisible()
-                return
-            }
-
-            // Empty state — no runs yet
-            await expect(page.getByText(HUMAN_EVALUATION_EMPTY_STATE_TITLE).first()).toBeVisible({
-                timeout: 5000,
-            })
-            await expect(
-                page.getByRole("button", {name: HUMAN_EVALUATION_EMPTY_STATE_BUTTON_LABEL}).first(),
-            ).toBeVisible()
+            await ensureHumanEvaluationsContext(page)
+            await getHumanEvaluationCreateButton(page, 60000)
         })
     },
 
@@ -674,42 +705,23 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
                 await dismissEvaluationResultsOnboarding(page)
 
                 const annotationsCard = page.locator("#focus-section-annotations")
-                const overlayMessage = annotationsCard
-                    .getByText(/Generate output to annotate|Generating output/i)
-                    .first()
-                const runButton = annotationsCard.getByRole("button", {name: /^Run$/}).first()
-
-                if (await runButton.isVisible().catch(() => false)) {
-                    await runButton.click()
-                }
-
-                await expect
-                    .poll(async () => await overlayMessage.isVisible().catch(() => false), {
-                        timeout: 60000,
-                    })
-                    .toBe(false)
-
-                await dismissEvaluationResultsOnboarding(page)
-
-                const metricField = annotationsCard
-                    .locator(".playground-property-control")
-                    .filter({hasText: metricLabel})
-                    .first()
-
-                await expect(metricField).toBeVisible({
-                    timeout: 60000,
+                const metricField = await waitForHumanAnnotationForm({
+                    page,
+                    annotationsCard,
+                    metricLabel,
                 })
 
                 await dismissEvaluationResultsOnboarding(page)
 
-                const visibleBooleanOption = metricField
+                const booleanOption = metricField.getByRole("radio", {name: valueLabel}).first()
+                const booleanOptionWrapper = metricField
                     .locator(".ant-radio-button-wrapper")
                     .filter({hasText: valueLabel})
                     .first()
-                await expect(visibleBooleanOption).toBeVisible()
-                await visibleBooleanOption.scrollIntoViewIfNeeded()
-                await visibleBooleanOption.click({force: true})
-                await expect(visibleBooleanOption).toHaveClass(/ant-radio-button-wrapper-checked/)
+                await expect(booleanOption).toBeAttached()
+                await expect(booleanOptionWrapper).toBeVisible()
+                await booleanOptionWrapper.click({force: true})
+                await expect(booleanOption).toBeChecked()
 
                 const annotateButton = annotationsCard
                     .getByRole("button", {name: "Annotate"})

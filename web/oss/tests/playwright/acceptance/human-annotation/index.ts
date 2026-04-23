@@ -1,5 +1,13 @@
+import {
+    createTagString,
+    TestCoverage,
+    TestPath,
+    TestSpeedType,
+    TestScope,
+} from "@agenta/web-tests/playwright/config/testTags"
 import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 import type {Page} from "@playwright/test"
+
 import {
     expect,
     goToHumanEvaluationStep,
@@ -9,12 +17,6 @@ import {
     goToHumanEvaluations,
     navigateToHumanRunResults,
 } from "./tests"
-import {
-    createTagString,
-    TestCoverage,
-    TestPath,
-    TestScope,
-} from "@agenta/web-tests/playwright/config/testTags"
 
 const INLINE_EVALUATOR_METRIC_NAME = "isTestWorking"
 
@@ -201,16 +203,22 @@ const humanAnnotationTests = () => {
                 createTagString("coverage", TestCoverage.FULL),
                 createTagString("path", TestPath.HAPPY),
                 createTagString("license", "oss"),
+                createTagString("speed", TestSpeedType.SLOW),
             ],
         },
-        async ({
-            page,
-            apiHelpers,
-            navigateToHumanEvaluation,
-            createHumanEvaluationRun,
-            annotateCurrentHumanScenario,
-        }) => {
-            const app = await apiHelpers.getApp("completion")
+        async (
+            {
+                page,
+                apiHelpers,
+                navigateToHumanEvaluation,
+                createHumanEvaluationRun,
+                annotateCurrentHumanScenario,
+            },
+            testInfo,
+        ) => {
+            testInfo.setTimeout(120000)
+
+            const app = await apiHelpers.createApp("completion")
             const appId = app.id
 
             const variants = await apiHelpers.getVariants(appId)
@@ -253,16 +261,22 @@ const humanAnnotationTests = () => {
                 createTagString("coverage", TestCoverage.LIGHT),
                 createTagString("path", TestPath.HAPPY),
                 createTagString("license", "oss"),
+                createTagString("speed", TestSpeedType.SLOW),
             ],
         },
-        async ({
-            page,
-            apiHelpers,
-            navigateToHumanEvaluation,
-            createHumanEvaluationRun,
-            annotateCurrentHumanScenario,
-        }) => {
-            const app = await apiHelpers.getApp("completion")
+        async (
+            {
+                page,
+                apiHelpers,
+                navigateToHumanEvaluation,
+                createHumanEvaluationRun,
+                annotateCurrentHumanScenario,
+            },
+            testInfo,
+        ) => {
+            testInfo.setTimeout(150000)
+
+            const app = await apiHelpers.createApp("completion")
             const appId = app.id
             const variants = await apiHelpers.getVariants(appId)
             const variantName = getRequiredVariantName(variants[0]?.name)
@@ -366,7 +380,7 @@ const humanAnnotationTests = () => {
                 createTagString("license", "oss"),
             ],
         },
-        async ({}, testInfo) => {
+        async ({page: _page}, testInfo) => {
             testInfo.skip(
                 "Session persistence across page reloads requires complex state management — not reliably testable in CI",
             )

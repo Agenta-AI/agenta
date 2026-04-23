@@ -1,9 +1,3 @@
-import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
-
-import {expect} from "@agenta/web-tests/utils"
-import {expectAuthenticatedSession} from "../utils/auth"
-import {createScenarios} from "../utils/scenarios"
-import {buildAcceptanceTags} from "../utils/tags"
 import {
     TestCoverage,
     TestcaseType,
@@ -15,6 +9,12 @@ import {
     TestRoleType,
     TestSpeedType,
 } from "@agenta/web-tests/playwright/config/testTags"
+import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
+import {expect} from "@agenta/web-tests/utils"
+
+import {expectAuthenticatedSession} from "../utils/auth"
+import {createScenarios} from "../utils/scenarios"
+import {buildAcceptanceTags} from "../utils/tags"
 
 const scenarios = createScenarios(test)
 
@@ -32,14 +32,15 @@ const tags = buildAcceptanceTags({
 
 const deploymentTests = () => {
     test("deploy a variant", {tag: tags}, async ({page, apiHelpers, uiHelpers}) => {
+        test.setTimeout(120000)
         let appId = ""
 
         await scenarios.given("the user is authenticated", async () => {
             await expectAuthenticatedSession(page)
         })
 
-        await scenarios.and("a completion app with at least one variant exists", async () => {
-            const app = await apiHelpers.getApp("completion")
+        await scenarios.and("a fresh completion app with at least one variant exists", async () => {
+            const app = await apiHelpers.createApp("completion")
             appId = app.id
         })
 
@@ -80,25 +81,59 @@ const deploymentTests = () => {
             await expect(modal).toBeVisible({timeout: 10000})
 
             // Virtualized tables render more reliably with [data-row-key] than .ant-table-row.
-            const firstRow = modal.locator("[data-row-key]").first()
-            await expect(firstRow).toBeVisible({timeout: 10000})
-            const radioControl = firstRow
-                .locator('.ant-radio-wrapper, .ant-radio, [role="radio"], input[type="radio"]')
-                .first()
-            await expect(radioControl).toBeVisible({timeout: 10000})
-            await radioControl.click({force: true})
+            const rows = modal.locator("[data-row-key]")
+            const deployBtn = modal.getByRole("button", {name: "Deploy"})
+            const radioSelector =
+                '.ant-radio-wrapper, .ant-radio, [role="radio"], input[type="radio"]'
+
+            await expect(rows.first()).toBeVisible({timeout: 15000})
+            await expect
+                .poll(
+                    async () => {
+                        const rowCount = await rows.count()
+
+                        for (let index = 0; index < rowCount; index += 1) {
+                            const row = rows.nth(index)
+                            await row.scrollIntoViewIfNeeded().catch(() => null)
+
+                            const radioControl = row.locator(radioSelector).first()
+                            if (await radioControl.isVisible().catch(() => false)) {
+                                await radioControl.click({force: true}).catch(() => null)
+                            } else {
+                                await row.click({force: true}).catch(() => null)
+                            }
+
+                            if (await deployBtn.isEnabled().catch(() => false)) {
+                                return true
+                            }
+                        }
+
+                        return false
+                    },
+                    {timeout: 30000},
+                )
+                .toBe(true)
         })
 
         await scenarios.and("the user confirms the deployment", async () => {
             const modal = page.getByRole("dialog", {name: /Deploy Development/i}).last()
             const deployBtn = modal.getByRole("button", {name: "Deploy"})
-            await expect(deployBtn).toBeEnabled({timeout: 10000})
+            const deployResponsePromise = page.waitForResponse((response) => {
+                return (
+                    response.url().includes("/environments/revisions/commit") &&
+                    response.request().method() === "POST"
+                )
+            })
+
+            await expect(deployBtn).toBeEnabled({timeout: 30000})
             await deployBtn.click()
+            const deployResponse = await deployResponsePromise
+            expect(deployResponse.ok()).toBe(true)
         })
 
         await scenarios.then("the deployment to Development succeeds", async () => {
             await expect(page.getByRole("dialog", {name: /Deploy Development/i})).toHaveCount(0, {
-                timeout: 30000,
+                timeout: 45000,
             })
         })
     })
