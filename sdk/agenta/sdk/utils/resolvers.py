@@ -26,11 +26,16 @@ def detect_scheme(expr: str) -> str:
 
 
 # ========= Resolvers =========
+#
+# Exception convention (consistent across all three resolvers):
+#   - Absence (key / path / pointer does not resolve) -> KeyError
+#   - Malformed expression                            -> ValueError
+#   - Missing optional dependency                     -> ImportError
 
 
 def resolve_dot_notation(expr: str, data: dict) -> object:
     if "[" in expr or "]" in expr:
-        raise KeyError(f"Bracket syntax is not supported in dot-notation: {expr!r}")
+        raise ValueError(f"Bracket syntax is not supported in dot-notation: {expr!r}")
 
     # First, check if the expression exists as a literal key (e.g., "topic.story" as a single key)
     # This allows users to use dots in their variable names without nested access
@@ -41,7 +46,10 @@ def resolve_dot_notation(expr: str, data: dict) -> object:
     cur = data
     for token in (p for p in expr.split(".") if p):
         if isinstance(cur, list) and token.isdigit():
-            cur = cur[int(token)]
+            idx = int(token)
+            if idx >= len(cur):
+                raise KeyError(f"Index {idx} out of range while resolving {expr!r}")
+            cur = cur[idx]
         else:
             if not isinstance(cur, dict):
                 raise KeyError(
@@ -64,17 +72,23 @@ def resolve_json_path(expr: str, data: dict) -> object:
             "Must start with '$', '$.' or '$[' (no implicit normalization)."
         )
 
-    # Use package-level API
-    results = json_path.findall(expr, data)  # always returns a list
+    results = json_path.findall(expr, data)
+    if not results:
+        raise KeyError(f"JSONPath {expr!r} matched no values")
     return results[0] if len(results) == 1 else results
 
 
 def resolve_json_pointer(expr: str, data: Dict[str, Any]) -> Any:
-    """Resolve a JSON Pointer; returns a single value."""
+    """Resolve a JSON Pointer; raises KeyError if the pointer does not resolve."""
     _, json_pointer = _load_jsonpath()
     if json_pointer is None:
         raise ImportError("python-jsonpath is required for json-pointer (/...)")
-    return json_pointer(expr).resolve(data)
+    try:
+        return json_pointer(expr).resolve(data)
+    except Exception as e:
+        # python-jsonpath raises its own JSONPointerResolutionError family on
+        # absence; normalize to KeyError so callers can rely on one contract.
+        raise KeyError(f"JSON Pointer {expr!r} did not resolve: {e}") from e
 
 
 def resolve_any(expr: str, data: Dict[str, Any]) -> Any:
