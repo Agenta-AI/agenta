@@ -3,12 +3,45 @@ import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fi
 import {expect} from "@agenta/web-tests/utils"
 import type {EvaluationRunForKindDetection} from "@agenta/web-tests/utils/evaluationKind"
 import type {Locator, Page} from "@playwright/test"
+import {randomUUID} from "crypto"
 
 import type {HumanEvaluationConfig, HumanEvaluationFixtures} from "./assets/types"
 
 interface EvaluationRunsResponse {
     runs: EvaluationRunForKindDetection[]
     count: number
+}
+
+interface EvaluationRunStep {
+    key?: string
+    step_key?: string
+    type?: string
+    kind?: string
+    references?: Record<string, unknown>
+}
+
+interface EvaluationRunPayload {
+    id?: string
+    data?: {
+        steps?: EvaluationRunStep[]
+    }
+}
+
+interface EvaluationRunResponse {
+    runs?: (EvaluationRunPayload & {run?: EvaluationRunPayload})[]
+}
+
+interface EvaluationResultsResponse {
+    results?: {
+        id?: string
+        step_key?: string
+        stepKey?: string
+    }[]
+    steps?: {
+        id?: string
+        step_key?: string
+        stepKey?: string
+    }[]
 }
 
 const DEFAULT_HUMAN_EVALUATOR_METRIC_NAME = "isTestWorking"
@@ -41,6 +74,135 @@ const getHumanEvaluationsUrl = (page: Page, appId: string) =>
 
 const getHumanResultsPathPrefix = (page: Page, appId: string) =>
     `${getHumanEvaluationsPath(page, appId)}/results/`
+
+const getApiURL = (page: Page): string => {
+    if (process.env.AGENTA_API_URL) {
+        return process.env.AGENTA_API_URL
+    }
+
+    const currentUrl = page.url() || process.env.AGENTA_WEB_URL || "http://localhost:3000"
+    const parsed = new URL(currentUrl)
+    return `${parsed.origin}/api`
+}
+
+const getProjectId = (page: Page): string => {
+    const currentUrl = page.url()
+    const configuredUrl = process.env.AGENTA_WEB_URL
+
+    for (const url of [currentUrl, configuredUrl].filter(Boolean) as string[]) {
+        const match = new URL(url).pathname.match(/\/p\/([^/]+)/)
+        if (match?.[1]) {
+            return match[1]
+        }
+    }
+
+    throw new Error(`Could not derive project ID from current URL: ${page.url()}`)
+}
+
+const getHumanResultsContext = (page: Page) => {
+    const url = new URL(page.url())
+    const runId = url.pathname.match(/\/evaluations\/results\/([^/]+)/)?.[1]
+    const scenarioId = url.searchParams.get("scenarioId")
+
+    if (!runId || !scenarioId) {
+        throw new Error(`Could not derive human results context from URL: ${url.toString()}`)
+    }
+
+    return {runId, scenarioId}
+}
+
+const getStepKey = (step: EvaluationRunStep) => step.key ?? step.step_key ?? ""
+
+const seedHumanInvocationResult = async (page: Page) => {
+    const {runId, scenarioId} = getHumanResultsContext(page)
+    const projectId = getProjectId(page)
+    const apiURL = getApiURL(page)
+
+    const runResponse = await page.request.post(
+        `${apiURL}/evaluations/runs/query?project_id=${projectId}`,
+        {
+            data: {
+                run: {
+                    ids: [runId],
+                },
+            },
+        },
+    )
+    expect(runResponse.ok()).toBe(true)
+
+    const runData = (await runResponse.json()) as EvaluationRunResponse
+    const runEntry = runData.runs?.[0]
+    const run = runEntry?.run ?? runEntry
+    const invocationStep = run?.data?.steps?.find((step) => {
+        const stepType = (step.type ?? step.kind ?? "").toLowerCase()
+        return stepType === "invocation"
+    })
+    const stepKey = invocationStep ? getStepKey(invocationStep) : ""
+
+    if (!stepKey) {
+        throw new Error(`Could not find invocation step for human evaluation run ${runId}`)
+    }
+
+    const resultsQueryResponse = await page.request.post(
+        `${apiURL}/evaluations/results/query?project_id=${projectId}`,
+        {
+            data: {
+                result: {
+                    run_id: runId,
+                    run_ids: [runId],
+                    scenario_ids: [scenarioId],
+                },
+                windowing: {},
+            },
+        },
+    )
+    expect(resultsQueryResponse.ok()).toBe(true)
+
+    const resultsData = (await resultsQueryResponse.json()) as EvaluationResultsResponse
+    const existingResults = resultsData.results ?? resultsData.steps ?? []
+    const existingResult = existingResults.find(
+        (result) => (result.step_key ?? result.stepKey) === stepKey,
+    )
+    const seededResult = {
+        status: "success",
+        trace_id: randomUUID(),
+    }
+
+    if (existingResult?.id) {
+        const updateResponse = await page.request.patch(
+            `${apiURL}/evaluations/results/?project_id=${projectId}`,
+            {
+                data: {
+                    results: [
+                        {
+                            id: existingResult.id,
+                            ...seededResult,
+                        },
+                    ],
+                },
+            },
+        )
+        expect(updateResponse.ok()).toBe(true)
+        return
+    }
+
+    const createResponse = await page.request.post(
+        `${apiURL}/evaluations/results/?project_id=${projectId}`,
+        {
+            data: {
+                results: [
+                    {
+                        run_id: runId,
+                        scenario_id: scenarioId,
+                        step_key: stepKey,
+                        ...seededResult,
+                    },
+                ],
+            },
+        },
+    )
+    expect(createResponse.ok()).toBe(true)
+}
 
 const getHumanAppIdFromEvaluationsPage = (page: Page) => {
     const match = new URL(page.url()).pathname.match(/\/apps\/([^/]+)\/evaluations\/?$/)
@@ -547,6 +709,7 @@ const waitForHumanAnnotationForm = async ({
             /Generate output to annotate|Generating output|Run the invocation to generate output/i,
         )
         .first()
+    let seededInvocationOutput = false
 
     await expect
         .poll(
@@ -559,8 +722,12 @@ const waitForHumanAnnotationForm = async ({
                 const canRun =
                     (await runButton.isVisible().catch(() => false)) &&
                     (await runButton.isEnabled().catch(() => false))
-                if (canRun) {
-                    await runButton.click().catch(() => null)
+                if ((overlayVisible || canRun) && !seededInvocationOutput) {
+                    seededInvocationOutput = true
+                    await seedHumanInvocationResult(page)
+                    await page.reload({waitUntil: "domcontentloaded"})
+                    await dismissEvaluationResultsOnboarding(page)
+                    return false
                 }
 
                 if (overlayVisible) {
