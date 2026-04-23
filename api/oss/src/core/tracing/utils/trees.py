@@ -29,7 +29,7 @@ def calculate_and_propagate_metrics(
     span_dtos: List[OTelFlatSpan],
 ) -> List[OTelFlatSpan]:
     """
-    Calculate and propagate costs/tokens for a list of span DTOs.
+    Calculate and propagate costs/tokens/errors for a list of span DTOs.
 
     This must be called BEFORE batching to ensure complete trace trees.
     If called after batching, partial traces will fail to propagate correctly.
@@ -38,7 +38,7 @@ def calculate_and_propagate_metrics(
         span_dtos: List of span DTOs (should be from a complete trace)
 
     Returns:
-        List of span DTOs with calculated and propagated costs/tokens
+        List of span DTOs with calculated and propagated costs/tokens/errors
     """
     if not span_dtos:
         return span_dtos
@@ -55,6 +55,9 @@ def calculate_and_propagate_metrics(
 
     # Propagate tokens up the tree (children to parents)
     cumulate_tokens(span_id_tree, span_idx)
+
+    # Propagate errors up the tree (children to parents)
+    cumulate_errors(span_id_tree, span_idx)
 
     # Return updated span DTOs
     return list(span_idx.values())
@@ -424,6 +427,72 @@ def cumulate_tokens(
                 span.attributes["ag"]["metrics"]["tokens"] = {}
 
             span.attributes["ag"]["metrics"]["tokens"]["cumulative"] = tokens
+
+    _cumulate_tree_dfs(
+        spans_id_tree,
+        spans_idx,
+        _get_incremental,
+        _get_cumulative,
+        _accumulate,
+        _set_cumulative,
+    )
+
+
+def cumulate_errors(
+    spans_id_tree: OrderedDict,
+    spans_idx: Dict[str, OTelFlatSpan],
+) -> None:
+    def _get_incremental(span: OTelFlatSpan):
+        if span.attributes is None:
+            return 0
+
+        value = (
+            span.attributes.get("ag", {})
+            .get("metrics", {})
+            .get("errors", {})
+            .get("incremental", 0)
+        )
+        return value if isinstance(value, (int, float)) else 0
+
+    def _get_cumulative(span: OTelFlatSpan):
+        if span.attributes is None:
+            return 0
+
+        value = (
+            span.attributes.get("ag", {})
+            .get("metrics", {})
+            .get("errors", {})
+            .get("cumulative", 0)
+        )
+        return value if isinstance(value, (int, float)) else 0
+
+    def _accumulate(a, b):
+        return a + b
+
+    def _set_cumulative(span: OTelFlatSpan, errors):
+        if span.attributes is None:
+            span.attributes = {}
+
+        if errors != 0:
+            if "ag" not in span.attributes or not isinstance(
+                span.attributes["ag"],
+                dict,
+            ):
+                span.attributes["ag"] = {}
+
+            if "metrics" not in span.attributes["ag"] or not isinstance(
+                span.attributes["ag"]["metrics"],
+                dict,
+            ):
+                span.attributes["ag"]["metrics"] = {}
+
+            if "errors" not in span.attributes["ag"]["metrics"] or not isinstance(
+                span.attributes["ag"]["metrics"]["errors"],
+                dict,
+            ):
+                span.attributes["ag"]["metrics"]["errors"] = {}
+
+            span.attributes["ag"]["metrics"]["errors"]["cumulative"] = errors
 
     _cumulate_tree_dfs(
         spans_id_tree,

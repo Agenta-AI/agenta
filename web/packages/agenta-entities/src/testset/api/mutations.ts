@@ -6,7 +6,7 @@
  */
 
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
-import {validateUUID} from "@agenta/shared/utils"
+import {slugifyName, validateUUID} from "@agenta/shared/utils"
 
 import type {TestsetRevisionDelta} from "../core"
 
@@ -21,19 +21,16 @@ import type {TestsetRevisionDelta} from "../core"
 export async function createTestset(params: {
     projectId: string
     name: string
+    slug?: string
     testcases?: Record<string, unknown>[]
     commitMessage?: string
 }) {
-    const {projectId, name, testcases = [], commitMessage} = params
+    const {projectId, name, slug: explicitSlug, testcases = [], commitMessage} = params
 
     // Transform testcases to the format expected by the API
     const formattedTestcases = testcases.map((row) => ({data: row}))
 
-    // Create URL-safe slug
-    const slug = name
-        .toLowerCase()
-        .replace(/\s+/g, "_")
-        .replace(/[^a-z0-9_-]/g, "")
+    const slug = explicitSlug || slugifyName(name) || "testset"
 
     const response = await axios.post(
         `${getAgentaApiUrl()}/simple/testsets/`,

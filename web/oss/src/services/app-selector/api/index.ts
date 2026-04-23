@@ -110,6 +110,7 @@ export type AppCreationStatusType =
  */
 export const createAppWithTemplate = async ({
     appName,
+    slug,
     providerKey: _providerKey,
     templateKey,
     serviceUrl,
@@ -118,6 +119,7 @@ export const createAppWithTemplate = async ({
     onStatusChange,
 }: {
     appName: string
+    slug?: string
     templateKey: string
     serviceUrl?: string
     providerKey: LlmProvider[]
@@ -132,6 +134,10 @@ export const createAppWithTemplate = async ({
         const {projectId} = getProjectValues()
         const {selectedOrg} = getOrgValues()
 
+        if (!projectId) {
+            throw new Error("Project ID is required to create an app")
+        }
+
         onStatusChange?.("creating_app")
 
         result = await createAppFromTemplate({
@@ -139,6 +145,7 @@ export const createAppWithTemplate = async ({
             organizationId: selectedOrg?.id,
             workspaceId: selectedOrg?.default_workspace.id,
             appName,
+            slug,
             templateKey,
             serviceUrl,
             folderId,

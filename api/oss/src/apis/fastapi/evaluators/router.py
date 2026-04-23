@@ -8,6 +8,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import invalidate_cache
 
+from oss.src.core.git.types import VariantForkError
 from oss.src.core.shared.dtos import (
     Reference,
 )
@@ -974,12 +975,18 @@ class EvaluatorsRouter:
             if not fork_request.evaluator_variant_id:
                 fork_request.evaluator_variant_id = evaluator_variant_id
 
-        evaluator_variant = await self.evaluators_service.fork_evaluator_variant(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            evaluator_fork=fork_request,
-        )
+        try:
+            evaluator_variant = await self.evaluators_service.fork_evaluator_variant(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                evaluator_fork=fork_request,
+            )
+        except VariantForkError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=e.message,
+            ) from e
 
         evaluator_variant_response = EvaluatorVariantResponse(
             count=1 if evaluator_variant else 0,
