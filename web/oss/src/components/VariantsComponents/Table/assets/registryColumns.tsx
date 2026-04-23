@@ -241,6 +241,8 @@ export function createRegistryColumns(
                 },
             ],
             getRecordId: (record) => record.revisionId,
+            showCopySlug: true,
+            getSlug: (record) => record.variantSlug ?? undefined,
         },
     ])
 }

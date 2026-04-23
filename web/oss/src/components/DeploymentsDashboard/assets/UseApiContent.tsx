@@ -93,17 +93,17 @@ const UseApiContent = ({
     const fetchConfigCodeSnippet = useMemo(
         () => ({
             python: fetchConfigpythonCode(
-                (currentApp?.name ?? currentApp?.slug)!,
+                currentApp?.slug ?? currentApp?.name ?? "",
                 envName!,
                 apiKeyValue || "x.xxxxxxxx",
             ),
             bash: fetchConfigcURLCode(
-                (currentApp?.name ?? currentApp?.slug)!,
+                currentApp?.slug ?? currentApp?.name ?? "",
                 envName!,
                 apiKeyValue || "x.xxxxxxxx",
             ),
             typescript: fetchConfigtsCode(
-                (currentApp?.name ?? currentApp?.slug)!,
+                currentApp?.slug ?? currentApp?.name ?? "",
                 envName!,
                 apiKeyValue || "x.xxxxxxxx",
             ),
