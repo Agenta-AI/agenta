@@ -16,7 +16,6 @@ import AnnotationTabItem from "./components/AnnotationTabItem"
 import LinkedSpansTabItem from "./components/LinkedSpansTabItem"
 import OverviewTabItem from "./components/OverviewTabItem"
 import TraceTypeHeader from "./components/TraceTypeHeader"
-import {stripNestedSpans} from "./utils"
 
 const loadingContent = (
     <div className="px-4 py-6">
@@ -36,7 +35,6 @@ const TraceContent = ({
     const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useAtom(traceSidePanelOpenAtom)
     const activeTrace = active
     const spanEntityId = activeTrace?.span_id || activeTrace?.invocationIds?.span_id || activeId
-    const sanitizedActiveTrace = useMemo(() => stripNestedSpans(activeTrace), [activeTrace])
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
 
@@ -54,9 +52,8 @@ const TraceContent = ({
         // When activeTrace is missing (e.g., failed generation), show just Raw Data/Error
         if (!activeTrace) {
             const errorPayload = error
-            const rawPayload = stripNestedSpans(
-                traceResponse?.response || (errorPayload ? {error: errorPayload} : {}),
-            )
+            const rawPayload =
+                traceResponse?.response || (errorPayload ? {error: errorPayload} : {})
             return [
                 {
                     key: "raw_data",
@@ -88,7 +85,7 @@ const TraceContent = ({
                         {spanEntityId ? (
                             <TraceSpanDrillInView
                                 spanId={spanEntityId}
-                                spanDataOverride={sanitizedActiveTrace}
+                                spanDataOverride={activeTrace}
                                 title="Raw Data"
                                 editable={false}
                                 rootScope="span"
@@ -97,7 +94,7 @@ const TraceContent = ({
                         ) : (
                             <AccordionTreePanel
                                 label={"Raw Data"}
-                                value={sanitizedActiveTrace || {}}
+                                value={activeTrace || {}}
                                 enableFormatSwitcher
                                 fullEditorHeight
                                 enableSearch
@@ -117,7 +114,7 @@ const TraceContent = ({
                 children: <AnnotationTabItem annotations={activeTrace?.annotations || []} />,
             },
         ]
-    }, [activeTrace, isLoading, traceResponse, error, tab, spanEntityId, sanitizedActiveTrace])
+    }, [activeTrace, isLoading, traceResponse, error, tab, spanEntityId])
 
     // Ensure active tab exists in items; if not, switch to first tab
     const itemKeys = useMemo(() => (items || []).map((it) => String(it?.key)), [items])
