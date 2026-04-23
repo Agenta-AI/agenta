@@ -8,6 +8,8 @@ import types
 
 import pytest
 
+sys.modules.setdefault("genson", types.SimpleNamespace(SchemaBuilder=object))
+
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.evaluations.types import (
     EvaluationQueue,
@@ -23,9 +25,6 @@ from oss.src.core.evaluations.types import (
 )
 from oss.src.core.evaluations.service import SimpleQueuesService
 from oss.src.core.evaluations.tasks import live as live_module
-
-
-sys.modules.setdefault("genson", types.SimpleNamespace(SchemaBuilder=object))
 
 
 @pytest.mark.asyncio

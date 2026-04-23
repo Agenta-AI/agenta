@@ -100,6 +100,7 @@ from oss.src.core.evaluations.utils import (
 )
 
 from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
+from oss.src.utils.exceptions import BadRequestException
 
 
 log = get_module_logger(__name__)
@@ -3351,7 +3352,11 @@ class SimpleQueuesService:
 
         source_kind = self._get_source_kind(queue_data=queue.data)
         if queue.data.kind is not None and source_kind is not None:
-            return None
+            raise BadRequestException(
+                message=(
+                    "simple queue source must not include kind alongside queries or testsets"
+                )
+            )
         kind = queue.data.kind or source_kind
         if kind is None:
             return None
@@ -3634,7 +3639,12 @@ class SimpleQueuesService:
             return None
 
         if self._is_source_backed(run):
-            return None
+            raise BadRequestException(
+                message=(
+                    "Cannot add traces directly to a source-backed queue. "
+                    "Create a direct traces queue instead."
+                )
+            )
 
         ok = await self.simple_evaluations_service.evaluate_batch_traces(
             project_id=project_id,
@@ -3677,7 +3687,12 @@ class SimpleQueuesService:
             return None
 
         if self._is_source_backed(run):
-            return None
+            raise BadRequestException(
+                message=(
+                    "Cannot add testcases directly to a source-backed queue. "
+                    "Create a direct testcases queue instead."
+                )
+            )
 
         ok = await self.simple_evaluations_service.evaluate_batch_testcases(
             project_id=project_id,

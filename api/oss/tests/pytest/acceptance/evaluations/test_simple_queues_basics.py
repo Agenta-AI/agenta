@@ -246,10 +246,12 @@ class TestSimpleQueuesBasics:
             json={"trace_ids": ["trace-1"]},
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 400
         data = response.json()
-        assert data["count"] == 0
-        assert data.get("queue_id") is None
+        assert (
+            data["detail"]["message"]
+            == "Cannot add traces directly to a source-backed queue. Create a direct traces queue instead."
+        )
 
     def test_add_testcases_rejects_testset_backed_source_queue(self, authed_api):
         evaluator_revision_id = _create_evaluator(authed_api)
@@ -275,10 +277,36 @@ class TestSimpleQueuesBasics:
             json={"testcase_ids": [str(uuid4())]},
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 400
         data = response.json()
-        assert data["count"] == 0
-        assert data.get("queue_id") is None
+        assert (
+            data["detail"]["message"]
+            == "Cannot add testcases directly to a source-backed queue. Create a direct testcases queue instead."
+        )
+
+    def test_create_simple_queue_rejects_kind_with_queries(self, authed_api):
+        evaluator_revision_id = _create_evaluator(authed_api)
+        query_revision_id = _create_query(authed_api)
+
+        response = authed_api(
+            "POST",
+            "/simple/queues/",
+            json={
+                "queue": {
+                    "data": {
+                        "kind": "traces",
+                        "queries": [query_revision_id],
+                        "evaluators": [evaluator_revision_id],
+                    },
+                }
+            },
+        )
+
+        assert response.status_code == 422
+        assert (
+            "simple queue source must not include kind alongside queries or testsets"
+            in response.text
+        )
 
     def test_create_simple_queue_with_assignments(self, authed_api):
         # ARRANGE --------------------------------------------------------------
