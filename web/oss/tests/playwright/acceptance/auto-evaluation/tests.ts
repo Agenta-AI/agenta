@@ -1,10 +1,13 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
-import {expect} from "@agenta/web-tests/utils"
-import {EvaluationFixtures, RunAutoEvalFixtureType} from "./assets/types"
-import type {Locator, Page} from "@playwright/test"
-import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
-import {EvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
 import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
+import {expect} from "@agenta/web-tests/utils"
+import {
+    deriveEvaluationKind,
+    type EvaluationRunForKindDetection,
+} from "@agenta/web-tests/utils/evaluationKind"
+import type {Locator, Page} from "@playwright/test"
+
+import {EvaluationFixtures, RunAutoEvalFixtureType} from "./assets/types"
 
 const AUTO_EVALUATION_TAB_LABEL = "Auto Evals"
 const AUTO_EVALUATION_EMPTY_STATE_TITLE = "Get Started with Evaluations"
@@ -20,8 +23,8 @@ const AUTO_EVALUATION_CREATE_BUTTON_LABELS = [
     /New Evaluation/i,
 ] as const
 
-type EvaluationRunsResponse = {
-    runs: EvaluationRun[]
+interface EvaluationRunsResponse {
+    runs: EvaluationRunForKindDetection[]
     count: number
 }
 
