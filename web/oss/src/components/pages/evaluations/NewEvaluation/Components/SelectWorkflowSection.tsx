@@ -1,25 +1,14 @@
-import {
-    memo,
-    useCallback,
-    useEffect,
-    useMemo,
-    useState,
-    type CSSProperties,
-    type ReactNode,
-} from "react"
+import {memo, useCallback, useEffect, useMemo, useState, type CSSProperties} from "react"
 
+import {WorkflowKindTag, WorkflowTypeTag} from "@agenta/entity-ui/workflow"
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
 import {createStandardColumns} from "@agenta/ui/table"
-import {GaugeIcon, RocketIcon} from "@phosphor-icons/react"
-import {Input, Tabs, Tag} from "antd"
+import {Input, Tabs} from "antd"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {
-    AppNameCell,
-    AppTypeCell,
-} from "@/oss/components/pages/app-management/components/appWorkflowColumns"
+import {AppNameCell} from "@/oss/components/pages/app-management/components/appWorkflowColumns"
 import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
 import {
     appWorkflowSearchTermAtom,
@@ -49,10 +38,6 @@ interface SelectWorkflowSectionProps {
     className?: string
 }
 
-const KindCell = ({isEvaluator}: {isEvaluator: boolean}) => (
-    <Tag color={isEvaluator ? "purple" : "blue"}>{isEvaluator ? "Evaluator" : "App"}</Tag>
-)
-
 const createSelectWorkflowColumns = () =>
     createStandardColumns<AppWorkflowRow>([
         {
@@ -69,7 +54,7 @@ const createSelectWorkflowColumns = () =>
             title: "Kind",
             render: (_, record) => (
                 <div className="h-full flex items-center">
-                    <KindCell isEvaluator={record.isEvaluator} />
+                    <WorkflowKindTag isEvaluator={record.isEvaluator} />
                 </div>
             ),
         },
@@ -79,7 +64,11 @@ const createSelectWorkflowColumns = () =>
             title: "Type",
             render: (_, record) => (
                 <div className="h-full flex items-center">
-                    <AppTypeCell workflowId={record.workflowId} />
+                    <WorkflowTypeTag
+                        isEvaluator={record.isEvaluator}
+                        workflowKey={record.workflowKey}
+                        workflowType={record.workflowType}
+                    />
                 </div>
             ),
         },
@@ -90,18 +79,30 @@ const createSelectWorkflowColumns = () =>
         },
     ])
 
-// Match the icon/color vocabulary used by the header tabs in EvaluationsView
-// so the two surfaces feel like the same family.
-const TAB_ITEMS: {key: WorkflowTypeFilter; label: string; icon: ReactNode}[] = [
-    {key: "all", label: "All", icon: null},
-    {key: "app", label: "Apps", icon: <RocketIcon />},
-    {key: "evaluator", label: "Evaluators", icon: <GaugeIcon />},
+// Unified subcategory tabs for both applications (chat/completion/custom)
+// and evaluators (LLM-as-judge, matchers, custom code, webhooks).
+// Mirrors the subcategory groupings shown on the dedicated app and evaluator
+// creation surfaces, so users see one consistent taxonomy here.
+const TAB_ITEMS: {key: WorkflowTypeFilter; label: string}[] = [
+    {key: "all", label: "All"},
+    {key: "chat", label: "Chat"},
+    {key: "completion", label: "Completion"},
+    {key: "custom", label: "Custom"},
+    {key: "llm", label: "LLM as Judge"},
+    {key: "match", label: "Matchers"},
+    {key: "code", label: "Custom Code"},
+    {key: "hook", label: "Webhooks"},
 ]
 
-const TAB_COLOR_MAP: Record<WorkflowTypeFilter, string> = {
+const TAB_COLOR_MAP: Partial<Record<WorkflowTypeFilter, string>> = {
     all: "#e0f2fe",
-    app: "#dbeafe",
-    evaluator: "#ede9fe",
+    chat: "#dbeafe",
+    completion: "#dbeafe",
+    custom: "#dbeafe",
+    llm: "#ede9fe",
+    match: "#ede9fe",
+    code: "#ede9fe",
+    hook: "#ede9fe",
 }
 
 const SelectWorkflowSection = ({
@@ -185,16 +186,11 @@ const SelectWorkflowSection = ({
         [selectedWorkflowId, onSelectRow, disabled],
     )
 
-    const tabItemsWithIcons = useMemo(
+    const tabItems = useMemo(
         () =>
             TAB_ITEMS.map((item) => ({
                 key: item.key,
-                label: (
-                    <span className="inline-flex items-center gap-2">
-                        {item.icon}
-                        {item.label}
-                    </span>
-                ),
+                label: item.label,
             })),
         [],
     )
@@ -203,11 +199,7 @@ const SelectWorkflowSection = ({
 
     const emptyDescription = disabled
         ? "Application selection is locked in app scope"
-        : activeTab === "evaluator"
-          ? "No evaluators available"
-          : activeTab === "app"
-            ? "No applications available"
-            : "No workflows available"
+        : "No applications available"
 
     return (
         <div className={clsx(className)}>
@@ -221,13 +213,18 @@ const SelectWorkflowSection = ({
                         // .ant-tabs-tab-active:borderRight/bg, .ant-tabs-tab:hover:bg)
                         // that cascade into nested tabs. These !important overrides
                         // restore a standard horizontal, ink-bar-under style.
+                        //
+                        // `min-w-0` on this flex item is critical: without it, the
+                        // nested Tabs width forces overflow to the left, clipping
+                        // the first tab when the tab row is wider than available space.
                         className={clsx(
+                            "min-w-0 flex-1",
                             "[&_.ant-tabs]:!block",
-                            "[&_.ant-tabs]:!w-auto",
+                            "[&_.ant-tabs]:!w-full",
                             "[&_.ant-tabs]:!min-h-0",
                             "[&_.ant-tabs]:!grow-0",
                             "[&_.ant-tabs-nav]:!mb-0",
-                            "[&_.ant-tabs-nav]:!w-auto",
+                            "[&_.ant-tabs-nav]:!w-full",
                             "[&_.ant-tabs-ink-bar]:!block",
                             "[&_.ant-tabs-ink-bar]:!bg-[var(--tab-indicator-color)]",
                             "[&_.ant-tabs-content]:!hidden",
@@ -243,7 +240,6 @@ const SelectWorkflowSection = ({
                             "[&_.ant-tabs-tab-btn]:!leading-[1.5714285714]",
                             "[&_.ant-tabs-tab-btn]:!inline-flex",
                             "[&_.ant-tabs-tab-btn]:!items-center",
-                            "[&_.ant-tabs-tab-btn]:!gap-2",
                         )}
                         style={
                             {
@@ -254,14 +250,14 @@ const SelectWorkflowSection = ({
                         <Tabs
                             activeKey={activeTab}
                             onChange={handleTabChange}
-                            items={tabItemsWithIcons}
+                            items={tabItems}
                             destroyOnHidden
                         />
                     </div>
                 )}
                 <Input.Search
                     placeholder="Search"
-                    className="w-[300px] [&_input]:!py-[3.1px]"
+                    className="w-[300px] shrink-0 [&_input]:!py-[3.1px]"
                     value={searchTerm}
                     onChange={(e) => handleSearch(e.target.value)}
                 />

@@ -404,7 +404,7 @@ const NewEvaluationModalInner = ({
             return false
         }
         if (selectedVariantRevisionIds.length === 0) {
-            message.error("Please select a workflow variant")
+            message.error("Please select a revision")
             return false
         }
 
@@ -421,7 +421,7 @@ const NewEvaluationModalInner = ({
 
         if (hasUnresolvableLocalDraft) {
             message.error(
-                "Please commit selected local draft variants before starting an evaluation.",
+                "Please commit selected local draft revisions before starting an evaluation.",
             )
             return false
         }
@@ -467,7 +467,7 @@ const NewEvaluationModalInner = ({
 
             const targetAppId = selectedAppId || appId
             if (!targetAppId) {
-                message.error("Please select a workflow")
+                message.error("Please select an application")
                 onSubmitStateChange?.(false)
                 return
             }
@@ -523,10 +523,10 @@ const NewEvaluationModalInner = ({
                     (evaluationType === "human" && !evaluationName)
                 ) {
                     message.error(
-                        `Please select a testset, workflow variant, ${
+                        `Please select a testset, revision, ${
                             evaluationType === "human" ? "evaluation name, and" : " and"
                         } evaluator configuration. Missing: ${
-                            !selectionData.revisions?.length ? "workflow revision" : ""
+                            !selectionData.revisions?.length ? "revision" : ""
                         } ${!selectionData.testset ? "testset" : ""} ${
                             !selectionData.evaluators?.length
                                 ? "evaluators"

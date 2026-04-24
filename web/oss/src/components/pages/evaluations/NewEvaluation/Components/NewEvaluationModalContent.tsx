@@ -121,7 +121,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     const items = useMemo(() => {
         const requireAppMessage = (
             <Typography.Text type="secondary">
-                Select a workflow first to load this section.
+                Select an application first to load this section.
             </Typography.Text>
         )
 
@@ -129,7 +129,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
             {
                 key: "appPanel",
                 label: (
-                    <TabLabel tabTitle="Workflow" completed={appSelectionComplete}>
+                    <TabLabel tabTitle="Applications" completed={appSelectionComplete}>
                         {appSelectionComplete && (
                             <Tag
                                 closeIcon={<CloseCircleOutlined />}
@@ -153,7 +153,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         />
                         {!appSelectionComplete && !appSelectionDisabled ? (
                             <Typography.Text type="secondary">
-                                Please select a workflow to continue configuring the evaluation.
+                                Please select an application to continue configuring the evaluation.
                             </Typography.Text>
                         ) : null}
                     </div>
@@ -162,7 +162,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
             {
                 key: "variantPanel",
                 label: (
-                    <TabLabel tabTitle="Variant" completed={selectedVariants.length > 0}>
+                    <TabLabel tabTitle="Revision" completed={selectedVariants.length > 0}>
                         {selectedVariants.map((v) => (
                             <Tag
                                 key={v.id}

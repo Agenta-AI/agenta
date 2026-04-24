@@ -9,9 +9,60 @@
 
 import {getAgentaApiUrl} from "@agenta/shared/api"
 
-import type {Workflow} from "../core"
+import {collectEvaluatorCandidates, type Workflow} from "../core"
 
 import type {WorkflowType} from "./molecule"
+
+/**
+ * Legacy evaluator keys → workflow type. Used for evaluators committed before
+ * `infer_flags_from_data` populated `is_llm`/`is_match`/`is_code`/`is_hook` on
+ * revisions. Keys are matched against the normalized candidate set returned by
+ * `collectEvaluatorCandidates` (lowercased, `auto_` stripped, first hyphen
+ * segment extracted).
+ */
+const LEGACY_EVALUATOR_KEY_TO_TYPE: Record<string, WorkflowType> = {
+    // LLM-as-judge family
+    ai_critique: "llm",
+    critique: "llm",
+    llm: "llm",
+    // Webhook family
+    webhook_test: "hook",
+    webhook: "hook",
+    hook: "hook",
+    // Custom code family
+    custom_code_run: "code",
+    custom_code: "code",
+    code_run: "code",
+    code: "code",
+    // Human feedback
+    feedback: "human",
+}
+
+/**
+ * Resolve an evaluator's workflow type from its revision data, falling back
+ * through: flags → legacy key map → slug key map → default ("match").
+ *
+ * Evaluators default to "match" because the catalog skews heavily toward
+ * pattern/classifier/similarity matchers, and callers that need to
+ * distinguish classifier vs. similarity vs. custom-match can read tags or
+ * template metadata separately.
+ */
+function resolveEvaluatorWorkflowType(revision: Workflow): WorkflowType {
+    const flags = revision.flags
+    if (flags?.is_feedback) return "human"
+    if (flags?.is_llm) return "llm"
+    if (flags?.is_match) return "match"
+    if (flags?.is_code) return "code"
+    if (flags?.is_hook) return "hook"
+
+    const candidates = collectEvaluatorCandidates(revision.data?.uri?.split(":")[2], revision.slug)
+    for (const candidate of candidates) {
+        const mapped = LEGACY_EVALUATOR_KEY_TO_TYPE[candidate]
+        if (mapped) return mapped
+    }
+
+    return "match"
+}
 
 /**
  * Extract service type from a URI like "agenta:builtin:completion:v0".
@@ -123,35 +174,74 @@ export function resolveBuiltinAppServiceUrl(entity: Workflow): string | null {
 /**
  * Derive the app type from a workflow revision.
  *
- * Checks the URI first (reliable — backend always stores it correctly),
- * then falls back to flags. This works around the backend bug where
- * `is_chat` is not inferred from the URI at commit time.
+ * For evaluators, the evaluator-kind flags (`is_llm`/`is_match`/`is_code`/
+ * `is_hook`/`is_feedback`) are the source of truth — the URI often points at
+ * the underlying invocation target (e.g. an LLM-as-judge evaluator invokes
+ * `agenta:builtin:completion:v0`), so trusting the URI first would
+ * misclassify every evaluator as `completion`.
+ *
+ * For apps, the URI remains the source of truth (reliable — backend always
+ * stores it correctly), with flags as a fallback for cases like `is_chat`
+ * which isn't inferred from the URI at commit time.
  */
 export function deriveWorkflowTypeFromRevision(
     revision: Workflow | null | undefined,
+    /**
+     * Optional override. Pass the artifact's `is_evaluator` flag when
+     * available — revisions returned by `fetchWorkflowsBatch` do not always
+     * propagate the role flag, so relying on `revision.flags.is_evaluator`
+     * alone misclassifies every legacy evaluator as "completion".
+     */
+    options?: {isEvaluator?: boolean},
 ): WorkflowType {
     if (!revision) return "completion"
 
-    // URI is the source of truth: provider:kind:key:version
+    const flags = revision.flags
     const uri = revision.data?.uri
-    if (uri) {
-        const key = uri.split(":")[2]
-        if (key === "chat") return "chat"
-        if (key === "completion") return "completion"
-        if (key === "llm") return "llm"
-        if (key === "code") return "code"
-        if (key === "hook") return "hook"
-        if (key === "match") return "match"
-        if (key === "feedback") return "human"
+    const uriKey = uri ? uri.split(":")[2] : null
+
+    // Detect evaluators from any available signal:
+    //  1. Caller-provided override (usually the artifact flag).
+    //  2. `is_evaluator` on the revision itself.
+    //  3. Any evaluator-kind flag (`is_feedback`/`is_llm`/`is_match`/`is_code`/`is_hook`).
+    //  4. A known legacy evaluator key in the URI or slug — catches the
+    //     common case of revisions with no flags and a template-derived URI
+    //     like `agenta:builtin:auto_ai_critique:v0`.
+    const uriCandidates = collectEvaluatorCandidates(uriKey, revision.slug)
+    const hasEvaluatorKindFlag = !!(
+        flags?.is_feedback ||
+        flags?.is_llm ||
+        flags?.is_match ||
+        flags?.is_code ||
+        flags?.is_hook
+    )
+    const hasLegacyEvaluatorKey = uriCandidates.some(
+        (candidate) => candidate in LEGACY_EVALUATOR_KEY_TO_TYPE,
+    )
+    const isEvaluator =
+        options?.isEvaluator === true ||
+        flags?.is_evaluator === true ||
+        hasEvaluatorKindFlag ||
+        hasLegacyEvaluatorKey
+
+    // Evaluators: evaluator URIs describe the invocation target (e.g.
+    // `agenta:builtin:auto_exact_match:v0` → key `auto_exact_match`), not a
+    // `chat`/`completion`/etc. workflow type. Route through the evaluator
+    // resolver instead of the generic URI branch below.
+    if (isEvaluator) {
+        return resolveEvaluatorWorkflowType(revision)
     }
 
-    // Fallback to flags
-    const flags = revision.flags
-    if (flags?.is_feedback) return "human"
-    if (flags?.is_llm) return "llm"
-    if (flags?.is_code) return "code"
-    if (flags?.is_hook) return "hook"
-    if (flags?.is_match) return "match"
+    // Apps: URI is the source of truth. Format: provider:kind:key:version.
+    if (uriKey === "chat") return "chat"
+    if (uriKey === "completion") return "completion"
+    if (uriKey === "llm") return "llm"
+    if (uriKey === "code") return "code"
+    if (uriKey === "hook") return "hook"
+    if (uriKey === "match") return "match"
+    if (uriKey === "feedback") return "human"
+
+    // Fallback to flags for apps without a matching URI kind.
     if (flags?.is_custom) return "custom"
     if (flags?.is_chat) return "chat"
 
