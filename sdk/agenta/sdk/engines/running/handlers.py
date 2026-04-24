@@ -1066,8 +1066,6 @@ async def auto_ai_critique_v0(
         )
         
         
-    log.debug(f"context after parameters update ${context}")
-
     if correct_answer is not None:
         context.update(
             **{
@@ -1077,8 +1075,6 @@ async def auto_ai_critique_v0(
             }
         )
 
-    log.debug(f"context after correct_answer update ${context}")
-
     if inputs is not None:
         context.update(**inputs)
         context.update(
@@ -1086,9 +1082,7 @@ async def auto_ai_critique_v0(
                 "inputs": inputs,
             }
         )
-
-    log.debug(f"context after inputs update ${context}")
-    
+ 
     if outputs is not None:
         context.update(
             **{
@@ -1096,20 +1090,15 @@ async def auto_ai_critique_v0(
                 "outputs": outputs,
             }
         )
-        
-    log.debug(f"context after outputs update ${context}")
-    
+     
     if trace is not None:
         context.update(
             **{
                 "trace": trace,
             }
         )
-        
-    log.debug(f"context after trace update ${context}")
 
     try:
-        log.debug(f"context: {context}")
         formatted_prompt_template = [
             {
                 "role": message["role"],
@@ -1128,8 +1117,6 @@ async def auto_ai_critique_v0(
         ) from e
 
     try:
-        
-        log.debug(f"formatted_prompt_template: {formatted_prompt_template}")
         response = await litellm.acompletion(
             model=model,
             messages=formatted_prompt_template,
