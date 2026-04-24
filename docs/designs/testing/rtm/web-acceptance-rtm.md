@@ -588,6 +588,50 @@ For every RTM entry below:
 - License: `oss`
 - Status: active
 
+### WEB-ACC-DEPLOYMENT-002 - Deploy a variant to Staging and Production environments
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/deployment.feature`
+- Test file: `web/oss/tests/playwright/acceptance/deployment/index.ts`
+- Playwright title: `Deployment: deploy variant > should deploy a variant to staging and production environments`
+
+#### Markers
+
+- Scope: `deployment`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-DEPLOYMENT-003 - Verify deployed variant badge updates after deploy
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/deployment.feature`
+- Test file: `web/oss/tests/playwright/acceptance/deployment/index.ts`
+- Playwright title: `Deployment: deploy variant > should show version badge after deploying to Development`
+
+#### Markers
+
+- Scope: `deployment`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
 ### WEB-ACC-OBS-001 - Open a trace detail drawer from Observability
 
 #### Source
