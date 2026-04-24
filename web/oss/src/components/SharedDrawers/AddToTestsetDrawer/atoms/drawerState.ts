@@ -1,7 +1,6 @@
 import {
     collectKeyPaths,
     extractAgData,
-    filterDataPaths,
     matchColumnsWithSuggestions,
     traceSpanMolecule,
     type TraceSpan,
@@ -65,93 +64,6 @@ function deepNormalizeForComparison(data: unknown): unknown {
     }
 
     return data
-}
-
-/**
- * Detect whether a span is an evaluator annotation span.
- *
- * Evaluator annotation spans nest the subject's data one level deeper than
- * regular invocation spans — the evaluator receives the subject span as its
- * input, so `ag.data.inputs` contains `{inputs, outputs, parameters, trace}`
- * (the subject's fields) rather than being the subject itself.
- *
- * Detection: `trace_type === "annotation"` AND one of
- *   - `ag.flags.is_evaluator === true`, or
- *   - an `evaluator` / `evaluator_revision` reference on `ag.references`.
- */
-function isEvaluatorAnnotationSpan(entity: TraceSpan | null | undefined): boolean {
-    if (!entity || (entity as Record<string, unknown>).trace_type !== "annotation") {
-        return false
-    }
-    const attrs = (entity as Record<string, unknown>).attributes as
-        | Record<string, unknown>
-        | undefined
-    const ag = attrs?.ag as Record<string, unknown> | undefined
-    const flags = ag?.flags as Record<string, unknown> | undefined
-    if (flags?.is_evaluator === true) return true
-
-    const refs = ag?.references as Record<string, unknown> | undefined
-    if (refs?.evaluator || refs?.evaluator_revision) return true
-
-    return false
-}
-
-/**
- * Keys inside `ag.data.inputs.inputs` that are internal bookkeeping rather
- * than user-facing testcase fields — stripped from the transformed view so
- * they don't leak into auto-mapped testset columns.
- */
-const INTERNAL_TESTCASE_KEYS = new Set(["testcase_dedup_id"])
-
-/**
- * Normalize an evaluator annotation span's `ag.data` into a testset-friendly
- * shape by unwrapping the extra nesting and dropping evaluator-config /
- * bookkeeping fields:
- *
- *   { inputs: subject-inputs, outputs: subject-outputs, score: evaluator-verdict }
- *
- * Regular invocation spans are returned as-is.
- *
- * If the span claims to be an evaluator annotation but doesn't follow the
- * expected nested shape (e.g. a non-standard SDK path), we fall back to the
- * raw `agData` so the drawer still shows something useful instead of an
- * empty transform.
- */
-function transformAgDataForTestset(
-    entity: TraceSpan | null | undefined,
-    agData: Record<string, unknown> | null | undefined,
-): Record<string, unknown> {
-    if (!agData) return {}
-    if (!isEvaluatorAnnotationSpan(entity)) return agData
-
-    const inputs = agData.inputs
-    const nestedInputs =
-        inputs && typeof inputs === "object" && !Array.isArray(inputs)
-            ? (inputs as Record<string, unknown>)
-            : null
-    if (!nestedInputs) return agData
-
-    const subjectInputs = nestedInputs.inputs
-    const subjectOutputs = nestedInputs.outputs
-
-    // If the expected nested shape isn't there, don't hide data — keep raw.
-    if (subjectInputs === undefined && subjectOutputs === undefined) return agData
-
-    // Strip internal-only keys from the testcase inputs.
-    const cleanedInputs =
-        subjectInputs && typeof subjectInputs === "object" && !Array.isArray(subjectInputs)
-            ? Object.fromEntries(
-                  Object.entries(subjectInputs as Record<string, unknown>).filter(
-                      ([key]) => !INTERNAL_TESTCASE_KEYS.has(key),
-                  ),
-              )
-            : subjectInputs
-
-    const transformed: Record<string, unknown> = {}
-    if (cleanedInputs !== undefined) transformed.inputs = cleanedInputs
-    if (subjectOutputs !== undefined) transformed.outputs = subjectOutputs
-    if (agData.outputs !== undefined) transformed.score = agData.outputs
-    return transformed
 }
 
 // ============================================================================
@@ -218,22 +130,20 @@ export const traceDataFromEntitiesAtom = atom((get): TestsetTraceData[] => {
             }
         }
 
-        // Extract ag.data from entity attributes, then reshape it for testset
-        // creation — evaluator annotation spans get their nested subject
-        // data unwrapped (see `transformAgDataForTestset`). Regular invocation
-        // spans pass through unchanged.
-        const rawAgData = extractAgData(entity)
-        const agData = transformAgDataForTestset(entity, rawAgData)
+        // Testcase mirrors the source workflow's envelope: `inputs` and `outputs`
+        // columns hold ag.data.inputs and ag.data.outputs verbatim. For evaluator
+        // annotation spans that means `inputs` naturally contains the nested
+        // subject data — that's the evaluator workflow's actual input shape,
+        // and preserving it keeps replay honest.
+        const agData = extractAgData(entity)
 
-        // Get original data for comparison/revert if dirty. Apply the same
-        // transform so dirty-state comparison operates on matching shapes.
+        // Get original data for comparison/revert if dirty.
         let originalData: Record<string, any> | null = null
         if (isDirty) {
             const queryState = get(traceSpanMolecule.selectors.query(spanId))
             const serverData = queryState.data
             if (serverData) {
-                const rawOriginal = extractAgData(serverData)
-                originalData = transformAgDataForTestset(serverData, rawOriginal)
+                originalData = extractAgData(serverData)
             }
         }
 
@@ -732,31 +642,30 @@ export const allTracePathsSelectOptionsAtom = atom((get) => {
 })
 
 /**
- * Derived: Leaf-only paths from trace data (no intermediate object paths)
- * Used for auto-mapping logic to avoid duplicate column mappings
- * Uses entity-derived trace data for reactive updates
+ * Derived: Canonical auto-mapping paths — `data.inputs` and `data.outputs`
+ * if present in any sampled trace.
+ *
+ * A testcase is a snapshot of one workflow invocation's envelope, so the
+ * default mapping is exactly the envelope's two top-level slots. Users can
+ * still manually select deeper paths via the AutoComplete dropdown
+ * (`allTracePathsAtom`), but we never auto-suggest leaf expansions — that
+ * shreds the envelope and breaks replay.
  */
-export const leafTracePathsAtom = atom((get) => {
+export const canonicalTracePathsAtom = atom((get) => {
     const traceData = get(traceDataFromEntitiesAtom)
     const sampledTraceData = traceData.slice(0, MAX_TRACE_ANALYSIS_SAMPLE_SIZE)
 
-    const uniquePaths = new Set<string>()
-    sampledTraceData.forEach((traceItem) => {
-        // Don't include object paths (false) for auto-mapping
-        const traceKeys = collectKeyPaths(traceItem?.data, "data", false)
-        traceKeys.forEach((key) => uniquePaths.add(key))
-    })
+    const hasInputs = sampledTraceData.some(
+        (item) => item?.data && (item.data as Record<string, unknown>).inputs !== undefined,
+    )
+    const hasOutputs = sampledTraceData.some(
+        (item) => item?.data && (item.data as Record<string, unknown>).outputs !== undefined,
+    )
 
-    return Array.from(uniquePaths)
-})
-
-/**
- * Derived: Filtered data paths from trace data (inputs/outputs/internals only)
- * Used for auto-mapping logic - uses leaf paths only to avoid duplicates
- */
-export const traceDataPathsAtom = atom((get) => {
-    const leafPaths = get(leafTracePathsAtom)
-    return filterDataPaths(leafPaths)
+    const paths: string[] = []
+    if (hasInputs) paths.push("data.inputs")
+    if (hasOutputs) paths.push("data.outputs")
+    return paths
 })
 
 /**
@@ -783,7 +692,7 @@ export const availableColumnsAtom = atom((get) => {
  * Returns suggested mappings that match data paths to existing or new columns
  */
 export const autoMappingSuggestionsAtom = atom((get) => {
-    const dataPaths = get(traceDataPathsAtom)
+    const dataPaths = get(canonicalTracePathsAtom)
     const availableColumns = get(availableColumnsAtom)
     const testsetInfo = get(selectedTestsetInfoAtom)
 
@@ -813,7 +722,7 @@ export const autoMappedTestsetIdAtom = atom<string | null>(null)
  * This is a pure derivation - no side effects
  */
 export const computedMappingSuggestionsAtom = atom((get) => {
-    const dataPaths = get(traceDataPathsAtom)
+    const dataPaths = get(canonicalTracePathsAtom)
     const testsetInfo = get(selectedTestsetInfoAtom)
     const isNewTestset = get(isNewTestsetAtom)
     const entityColumns = get(currentColumnsAtom)
@@ -881,7 +790,7 @@ export const applyAutoMappingAtom = atom(
             return null
         }
 
-        const dataPaths = get(traceDataPathsAtom)
+        const dataPaths = get(canonicalTracePathsAtom)
         const isNewTestset = get(isNewTestsetAtom)
         const currentMappings = get(mappingDataAtom)
 
