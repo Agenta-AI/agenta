@@ -51,4 +51,3 @@ async def test_intercept_exceptions_includes_support_metadata():
     assert detail["support_id"]
     assert isinstance(detail["support_ts"], str)
     assert datetime.fromisoformat(detail["support_ts"]).tzinfo == timezone.utc
-
