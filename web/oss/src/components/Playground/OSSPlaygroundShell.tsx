@@ -18,6 +18,8 @@ import {EntitySelectorProvider} from "@agenta/playground-ui/components"
 
 import {OSSdrillInUIProvider} from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 
+import {PlaygroundTokenPathProvider} from "./PlaygroundTokenPath"
+
 interface OSSPlaygroundShellProps {
     providers: PlaygroundUIProviders
     children: ReactNode
@@ -27,7 +29,9 @@ export function OSSPlaygroundShell({providers, children}: OSSPlaygroundShellProp
     return (
         <PlaygroundUIProvider providers={providers}>
             <EntitySelectorProvider>
-                <OSSdrillInUIProvider>{children}</OSSdrillInUIProvider>
+                <OSSdrillInUIProvider>
+                    <PlaygroundTokenPathProvider>{children}</PlaygroundTokenPathProvider>
+                </OSSdrillInUIProvider>
             </EntitySelectorProvider>
         </PlaygroundUIProvider>
     )

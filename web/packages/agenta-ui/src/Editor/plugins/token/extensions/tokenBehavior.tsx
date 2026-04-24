@@ -7,6 +7,7 @@ import {configExtension, defineExtension} from "lexical"
 
 import {AutoCloseTokenBracesPlugin} from "../AutoCloseTokenBracesPlugin"
 import {TokenPlugin} from "../TokenPlugin"
+import {TokenTooltipPlugin} from "../TokenTooltipPlugin"
 import {TokenMenuPlugin} from "../TokenTypeaheadPlugin"
 
 type TemplateFormat = "curly" | "fstring" | "jinja2"
@@ -33,6 +34,7 @@ function TokenBehaviorOverlay() {
             <TokenPlugin templateFormat={config.templateFormat} />
             <AutoCloseTokenBracesPlugin />
             <TokenMenuPlugin tokens={config.tokens} />
+            <TokenTooltipPlugin />
         </>
     )
 }
