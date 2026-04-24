@@ -1064,8 +1064,7 @@ async def auto_ai_critique_v0(
                 "parameters": parameters,
             }
         )
-        
-        
+
     if correct_answer is not None:
         context.update(
             **{
@@ -1082,7 +1081,7 @@ async def auto_ai_critique_v0(
                 "inputs": inputs,
             }
         )
- 
+
     if outputs is not None:
         context.update(
             **{
@@ -1090,7 +1089,7 @@ async def auto_ai_critique_v0(
                 "outputs": outputs,
             }
         )
-     
+
     if trace is not None:
         context.update(
             **{
@@ -1950,7 +1949,21 @@ async def completion_v0(
                 got=sorted(provided_keys),
             )
 
+        # We've already validated required vs provided above. Clear
+        # `input_keys` so `PromptTemplate.format()` doesn't re-validate
+        # and reject the envelope meta-key we inject below as "extra".
+        config.prompt = config.prompt.model_copy(
+            update={"input_keys": None},
+            deep=True,
+        )
+
+    # Dual-access envelope: expose inputs BOTH flattened at the root (so
+    # `{{country}}` resolves via dot-notation) AND nested under `inputs`
+    # (so `{{$.inputs.country}}` resolves via JSONPath). Mirrors the
+    # pattern in `auto_ai_critique_v0` so completion and evaluator prompts
+    # have a consistent resolver context.
     if inputs is not None:
+        _variables["inputs"] = dict(inputs)
         formatted_prompt = config.prompt.format(**_variables)
     else:
         formatted_prompt = config.prompt
@@ -2034,12 +2047,22 @@ async def chat_v0(
                 got=sorted(provided_keys),
             )
 
+        # We've already validated required vs provided above. Clear
+        # `input_keys` so `PromptTemplate.format()` doesn't re-validate
+        # and reject the envelope meta-key we inject below as "extra".
         config.prompt = config.prompt.model_copy(
-            update={"input_keys": sorted(required_keys)},
+            update={"input_keys": None},
             deep=True,
         )
 
+    # Dual-access envelope: expose inputs BOTH flattened at the root (so
+    # `{{country}}` resolves via dot-notation) AND nested under `inputs`
+    # (so `{{$.inputs.country}}` resolves via JSONPath). Mirrors the
+    # pattern in `auto_ai_critique_v0` so completion and chat prompts
+    # have a consistent resolver context. `messages` is intentionally
+    # excluded from the nested view since it is handled separately below.
     if inputs is not None:
+        _variables["inputs"] = {k: v for k, v in inputs.items() if k != "messages"}
         formatted_prompt = config.prompt.format(**_variables)
     else:
         formatted_prompt = config.prompt
