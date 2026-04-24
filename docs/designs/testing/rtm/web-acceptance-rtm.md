@@ -608,7 +608,7 @@ For every RTM entry below:
 - Role: `owner`
 - Plan: environment-defined
 - License: `oss`
-- Status: implemented, currently skipped pending deterministic trace generation
+- Status: active — runs playground prompt to seed trace before asserting; 3 min timeout for first-trace indexing delay
 
 ### WEB-ACC-PROMPTS-001 - Navigate to the Prompts page
 
@@ -1093,4 +1093,114 @@ For every RTM entry below:
 - Plan: environment-defined
 - License: `oss`
 - Status: active
+
+### WEB-ACC-OBS-002 - Filter traces by date range and by app
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/observability.feature`
+- Test file: `web/oss/tests/playwright/acceptance/observability/index.ts`
+- Playwright title: `Observability: view traces > should filter traces by date range and by app`
+
+#### Markers
+
+- Scope: `observability`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active — runs playground prompt to seed trace before asserting
+
+### WEB-ACC-OBS-003 - Filter traces by span name or attribute
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/observability.feature`
+- Test file: `web/oss/tests/playwright/acceptance/observability/index.ts`
+- Playwright title: `Observability: view traces > should filter traces by span name or attribute`
+
+#### Markers
+
+- Scope: `observability`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active — runs playground prompt to seed trace before asserting
+
+### WEB-ACC-OBS-004 - Open a span and drill into attributes
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/observability.feature`
+- Test file: `web/oss/tests/playwright/acceptance/observability/index.ts`
+- Playwright title: `Observability: view traces > should open a span and drill into its attributes`
+
+#### Markers
+
+- Scope: `observability`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active — runs playground prompt to seed trace before asserting
+
+### WEB-ACC-OBS-005 - Verify trace tabs switch correctly
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/observability.feature`
+- Test file: `web/oss/tests/playwright/acceptance/observability/index.ts`
+- Playwright title: `Observability: view traces > should switch between trace tabs and see filtered rows`
+
+#### Markers
+
+- Scope: `observability`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active — runs playground prompt to seed trace before asserting
+
+### WEB-ACC-OBS-006 - Verify a trace is created after a Playground run
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/observability.feature`
+- Test file: `web/oss/tests/playwright/acceptance/observability/index.ts`
+- Playwright title: `Observability: view traces > should create a trace after a Playground run`
+
+#### Markers
+
+- Scope: `observability`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active — runs playground prompt to seed trace, uses Refresh button for async indexing delay
 
