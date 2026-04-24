@@ -49,6 +49,8 @@ export interface EvaluatorTableRow {
     version: number | null
     /** Revision's own created_at — used for child row date sort */
     revisionCreatedAt: string | null
+    deletedAt?: string | null
+    deletedById?: string | null
     [k: string]: unknown
 }
 
@@ -61,6 +63,8 @@ interface EvaluatorQueryMeta {
     category: EvaluatorCategory
     searchTerm?: string
 }
+
+export type EvaluatorsTableMode = "active" | "archived"
 
 // ============================================================================
 // META ATOM
@@ -78,6 +82,8 @@ const skeletonDefaults: Partial<EvaluatorTableRow> = {
     variantId: "",
     version: null,
     revisionCreatedAt: null,
+    deletedAt: null,
+    deletedById: null,
     key: "",
 }
 
@@ -176,6 +182,66 @@ export function invalidateEvaluatorsPaginatedStore() {
     evaluatorsPaginatedStore.invalidate()
 }
 
+async function queryArchivedEvaluatorRows(meta: EvaluatorQueryMeta): Promise<EvaluatorTableRow[]> {
+    if (!meta.projectId) return []
+
+    const response = await queryWorkflows({
+        projectId: meta.projectId,
+        flags: {is_evaluator: true as const},
+        name: meta.searchTerm || undefined,
+        includeArchived: true,
+    })
+
+    const archivedWorkflows = (response.workflows ?? []).filter((workflow) =>
+        Boolean(workflow.deleted_at),
+    )
+
+    for (const workflow of archivedWorkflows) {
+        workflowMolecule.set.seedEntity(workflow.id, workflow)
+    }
+
+    const latestRevisions =
+        archivedWorkflows.length > 0
+            ? await fetchWorkflowsBatch(
+                  meta.projectId,
+                  archivedWorkflows.map((workflow) => workflow.id),
+              )
+            : new Map<string, Workflow>()
+
+    const rows = archivedWorkflows.flatMap((workflow) => {
+        const revision = latestRevisions.get(workflow.id)
+        if (!revision) return [] as EvaluatorTableRow[]
+
+        workflowMolecule.set.seedEntity(revision.id, revision)
+
+        const isHuman = isHumanEvaluator(revision)
+        if (meta.category === "human" ? !isHuman : isHuman) {
+            return [] as EvaluatorTableRow[]
+        }
+
+        return [
+            {
+                key: workflow.id,
+                revisionId: revision.id,
+                workflowId: workflow.id,
+                variantId: revision.workflow_variant_id ?? revision.variant_id ?? "",
+                version: revision.version ?? null,
+                revisionCreatedAt: revision.created_at ?? null,
+                deletedAt: workflow.deleted_at ?? null,
+                deletedById: workflow.deleted_by_id ?? null,
+            },
+        ]
+    })
+
+    rows.sort((a, b) => {
+        const aTime = a.deletedAt ? Date.parse(a.deletedAt) : 0
+        const bTime = b.deletedAt ? Date.parse(b.deletedAt) : 0
+        return bTime - aTime
+    })
+
+    return rows
+}
+
 // ============================================================================
 // PAGINATED STORE
 // ============================================================================
@@ -255,8 +321,91 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
     },
 })
 
+const archivedEvaluatorCategoryAtom = atom<EvaluatorCategory>("automatic")
+const archivedEvaluatorSearchTermAtom = atom("")
+
+const archivedEvaluatorPaginatedMetaAtom = atom<EvaluatorQueryMeta>((get) => ({
+    projectId: get(projectIdAtom),
+    category: get(archivedEvaluatorCategoryAtom),
+    searchTerm: get(archivedEvaluatorSearchTermAtom) || undefined,
+}))
+
+const archivedEvaluatorsPaginatedStore = createPaginatedEntityStore<
+    EvaluatorTableRow,
+    EvaluatorTableRow,
+    EvaluatorQueryMeta
+>({
+    entityName: "archived-evaluator",
+    metaAtom: archivedEvaluatorPaginatedMetaAtom,
+    fetchPage: async ({
+        meta,
+        limit,
+        cursor,
+    }): Promise<InfiniteTableFetchResult<EvaluatorTableRow>> => {
+        if (!meta.projectId) {
+            return {
+                rows: [],
+                totalCount: null,
+                hasMore: false,
+                nextCursor: null,
+                nextOffset: null,
+                nextWindowing: null,
+            }
+        }
+
+        const archivedRows = await queryArchivedEvaluatorRows(meta)
+        const offset = cursor ? Number.parseInt(cursor, 10) || 0 : 0
+        const rows = archivedRows.slice(offset, offset + limit)
+        const nextOffset = offset + rows.length
+
+        return {
+            rows,
+            totalCount: archivedRows.length,
+            hasMore: nextOffset < archivedRows.length,
+            nextCursor: nextOffset < archivedRows.length ? String(nextOffset) : null,
+            nextOffset: null,
+            nextWindowing: null,
+        }
+    },
+    rowConfig: {
+        getRowId: (row) => row.revisionId || row.workflowId,
+        skeletonDefaults,
+    },
+    transformRow: (row) => row,
+    isEnabled: (meta) => Boolean(meta?.projectId),
+    listCountsConfig: {
+        totalCountMode: "unknown",
+    },
+})
+
+export function invalidateEvaluatorManagementQueries() {
+    clearEvaluatorWorkflowCache()
+    evaluatorsPaginatedStore.invalidate()
+    archivedEvaluatorsPaginatedStore.invalidate()
+}
+
+export function getEvaluatorsTableState(mode: EvaluatorsTableMode = "active") {
+    if (mode === "archived") {
+        return {
+            mode,
+            categoryAtom: archivedEvaluatorCategoryAtom,
+            searchTermAtom: archivedEvaluatorSearchTermAtom,
+            paginatedStore: archivedEvaluatorsPaginatedStore,
+            invalidate: archivedEvaluatorsPaginatedStore.invalidate,
+        }
+    }
+
+    return {
+        mode,
+        categoryAtom: evaluatorCategoryAtom,
+        searchTermAtom: evaluatorSearchTermAtom,
+        paginatedStore: evaluatorsPaginatedStore,
+        invalidate: invalidateEvaluatorsPaginatedStore,
+    }
+}
+
 // Auto-refresh when evaluators are created/updated/deleted.
 // The entity package fires this after any evaluator mutation.
 onEvaluatorMutation(() => {
-    invalidateEvaluatorsPaginatedStore()
+    invalidateEvaluatorManagementQueries()
 })
