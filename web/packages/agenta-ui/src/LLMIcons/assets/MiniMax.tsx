@@ -1,6 +1,6 @@
-import { IconProps } from "./types"
+import {IconProps} from "./types"
 
-const MiniMax = ({ ...props }: IconProps) => {
+const MiniMax = ({...props}: IconProps) => {
     return (
         <svg
             width="100%"
