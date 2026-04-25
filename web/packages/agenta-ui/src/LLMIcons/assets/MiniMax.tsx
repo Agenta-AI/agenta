@@ -1,6 +1,6 @@
-import { IconProps } from "./types"
+import {IconProps} from "./types"
 
-const MiniMax = ({ ...props }: IconProps) => {
+const MiniMax = ({...props}: IconProps) => {
     return (
         <svg
             width="100%"
@@ -11,7 +11,13 @@ const MiniMax = ({ ...props }: IconProps) => {
             {...props}
         >
             <defs>
-                <linearGradient id="minimax-gradient" x1="0%" x2="100.182%" y1="50.057%" y2="50.057%">
+                <linearGradient
+                    id="minimax-gradient"
+                    x1="0%"
+                    x2="100.182%"
+                    y1="50.057%"
+                    y2="50.057%"
+                >
                     <stop offset="0%" stopColor="#E2167E" />
                     <stop offset="100%" stopColor="#FE603C" />
                 </linearGradient>
