@@ -47,7 +47,10 @@ from oss.src.core.evaluations.types import (
 
 from oss.src.dbs.postgres.shared.utils import apply_windowing
 from oss.src.dbs.postgres.shared.exceptions import check_entity_creation_conflict
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import (
+    TransactionsEngine,
+    get_transactions_engine,
+)
 from oss.src.dbs.postgres.evaluations.utils import (
     create_run_references,
     edit_run_references,
@@ -74,8 +77,10 @@ log = get_module_logger(__name__)
 
 
 class EvaluationsDAO(EvaluationsDAOInterface):
-    def __init__(self):
-        pass
+    def __init__(self, engine: TransactionsEngine = None):
+        if engine is None:
+            engine = get_transactions_engine()
+        self.engine = engine
 
     # - EVALUATION RUN ---------------------------------------------------------
 
@@ -113,7 +118,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             run_dbe.data = _run.data.model_dump(mode="json")  # type: ignore
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add(run_dbe)
 
                 await session.commit()
@@ -172,7 +177,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             run_dbes.append(run_dbe)
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add_all(run_dbes)
 
                 await session.commit()
@@ -200,7 +205,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run_id: UUID,
     ) -> Optional[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
             )
@@ -233,7 +238,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run_ids: List[UUID],
     ) -> List[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
             )
@@ -267,7 +272,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run: EvaluationRunEdit,
     ) -> Optional[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
             )
@@ -332,7 +337,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
     ) -> List[EvaluationRun]:
         run_ids = [run.id for run in runs]
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
             )
@@ -406,7 +411,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run_id: UUID,
     ) -> Optional[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
             )
@@ -438,7 +443,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run_ids: List[UUID],
     ) -> List[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
             )
@@ -478,7 +483,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         status: Optional[EvaluationStatus] = None,
     ) -> Optional[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
                 EvaluationRunDBE.id == run_id,
@@ -526,7 +531,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run_ids: List[UUID],
     ) -> List[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
                 EvaluationRunDBE.id.in_(run_ids),
@@ -576,7 +581,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run_id: UUID,
     ) -> Optional[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
                 EvaluationRunDBE.id == run_id,
@@ -620,7 +625,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run_ids: List[UUID],
     ) -> List[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
                 EvaluationRunDBE.id.in_(run_ids),
@@ -671,7 +676,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
             )
@@ -759,7 +764,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         *,
         windowing: Optional[Windowing] = None,
     ) -> List[Tuple[UUID, EvaluationRun]]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE)
 
             stmt = stmt.filter(
@@ -841,7 +846,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         )
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add(scenario_dbe)
 
                 await session.commit()
@@ -900,7 +905,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         ]
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add_all(scenario_dbes)
 
                 await session.commit()
@@ -928,7 +933,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         scenario_id: UUID,
     ) -> Optional[EvaluationScenario]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
             )
@@ -961,7 +966,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         scenario_ids: List[UUID],
     ) -> List[EvaluationScenario]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
             )
@@ -995,7 +1000,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         scenario: EvaluationScenarioEdit,
     ) -> Optional[EvaluationScenario]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
             )
@@ -1052,7 +1057,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
     ) -> List[EvaluationScenario]:
         scenario_ids = [scenario.id for scenario in scenarios]
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
             )
@@ -1116,7 +1121,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         scenario_id: UUID,
     ) -> Optional[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
             )
@@ -1160,7 +1165,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         scenario_ids: List[UUID],
     ) -> List[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
             )
@@ -1207,7 +1212,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         scenario: Optional[EvaluationScenarioQuery] = None,
     ) -> List[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationScenarioDBE.id).filter(
                 EvaluationScenarioDBE.project_id == project_id,
             )
@@ -1254,7 +1259,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationScenario]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
             )
@@ -1381,7 +1386,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         )
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add(result_dbe)
 
                 await session.commit()
@@ -1418,7 +1423,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     run_id=result.run_id,
                 )
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             _results = [
                 EvaluationResult(
                     **result.model_dump(
@@ -1462,7 +1467,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         result_id: UUID,
     ) -> Optional[EvaluationResult]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationResultDBE).filter(
                 EvaluationResultDBE.project_id == project_id,
             )
@@ -1495,7 +1500,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         result_ids: List[UUID],
     ) -> List[EvaluationResult]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationResultDBE).filter(
                 EvaluationResultDBE.project_id == project_id,
             )
@@ -1529,7 +1534,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         result: EvaluationResultEdit,
     ) -> Optional[EvaluationResult]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationResultDBE).filter(
                 EvaluationResultDBE.project_id == project_id,
             )
@@ -1587,7 +1592,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
     ) -> List[EvaluationResult]:
         result_ids = [result.id for result in results]
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationResultDBE).filter(
                 EvaluationResultDBE.project_id == project_id,
             )
@@ -1652,7 +1657,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         result_id: UUID,
     ) -> Optional[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationResultDBE).filter(
                 EvaluationResultDBE.project_id == project_id,
             )
@@ -1697,7 +1702,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         result_ids: List[UUID],
     ) -> List[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationResultDBE).filter(
                 EvaluationResultDBE.project_id == project_id,
             )
@@ -1745,7 +1750,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationResult]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationResultDBE).filter(
                 EvaluationResultDBE.project_id == project_id,
             )
@@ -1926,7 +1931,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         ]
 
         # Classify metrics into 3 groups based on NULL pattern, then batch upsert
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             returned_metric_dbes = []
             # Convert DBE instances to dicts using SQLAlchemy's inspection
             mapper = inspect(EvaluationMetricsDBE)
@@ -2059,7 +2064,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         metrics_ids: List[UUID],
     ) -> List[EvaluationMetrics]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationMetricsDBE).filter(
                 EvaluationMetricsDBE.project_id == project_id,
             )
@@ -2095,7 +2100,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
     ) -> List[EvaluationMetrics]:
         metrics_ids = [metric.id for metric in metrics]
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationMetricsDBE).filter(
                 EvaluationMetricsDBE.project_id == project_id,
             )
@@ -2160,7 +2165,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         metrics_ids: Optional[List[UUID]] = None,
     ) -> List[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             if metrics_ids is None:
                 return []
 
@@ -2211,7 +2216,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationMetrics]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationMetricsDBE).filter(
                 EvaluationMetricsDBE.project_id == project_id,
             )
@@ -2366,7 +2371,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add(queue_dbe)
 
                 await session.commit()
@@ -2422,7 +2427,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add_all(queue_dbes)
 
                 await session.commit()
@@ -2450,7 +2455,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         queue_id: UUID,
     ) -> Optional[EvaluationQueue]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationQueueDBE).filter(
                 EvaluationQueueDBE.project_id == project_id,
             )
@@ -2483,7 +2488,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         queue_ids: List[UUID],
     ) -> List[EvaluationQueue]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationQueueDBE).filter(
                 EvaluationQueueDBE.project_id == project_id,
             )
@@ -2517,7 +2522,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         queue: EvaluationQueueEdit,
     ) -> Optional[EvaluationQueue]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationQueueDBE).filter(
                 EvaluationQueueDBE.project_id == project_id,
             )
@@ -2579,7 +2584,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
     ) -> List[EvaluationQueue]:
         queue_ids = [queue.id for queue in queues]
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationQueueDBE).filter(
                 EvaluationQueueDBE.project_id == project_id,
             )
@@ -2649,7 +2654,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         queue_id: UUID,
     ) -> Optional[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationQueueDBE).filter(
                 EvaluationQueueDBE.project_id == project_id,
             )
@@ -2681,7 +2686,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         queue_ids: List[UUID],
     ) -> List[UUID]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationQueueDBE).filter(
                 EvaluationQueueDBE.project_id == project_id,
             )
@@ -2716,7 +2721,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationQueue]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(EvaluationQueueDBE).filter(
                 EvaluationQueueDBE.project_id == project_id,
             )
@@ -2812,7 +2817,8 @@ async def _get_run_flags(
     session: Optional[AsyncSession] = None,
 ) -> dict:
     if session is None:
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+        async with engine.session() as session:
             return await _get_run_flags(
                 project_id=project_id,
                 run_id=run_id,

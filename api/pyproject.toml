@@ -71,6 +71,7 @@ opentelemetry-proto = "^1"
 
 [tool.poetry.group.dev.dependencies]
 watchdog = { extras = ["watchmedo"], version = "^3" }
+watchfiles = "^0.21"
 click = "^8"
 pytest = "^8"
 pytest-asyncio = "^0.21"

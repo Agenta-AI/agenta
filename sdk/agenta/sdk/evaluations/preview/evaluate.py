@@ -10,17 +10,12 @@ from agenta.sdk.models.evaluations import (
     Target,
     SimpleEvaluationData,
 )
-from agenta.sdk.models.shared import Link, Reference
+from agenta.sdk.models.shared import Reference
 from agenta.sdk.models.workflows import (
     ApplicationRevision,
     EvaluatorRevision,
-    WorkflowServiceRequestData,
-    ApplicationServiceRequest,
-    EvaluatorServiceRequest,
 )
 from agenta.sdk.models.testsets import TestsetRevision
-
-from agenta.sdk.evaluations.preview.utils import fetch_trace_data
 
 from agenta.sdk.managers.testsets import (
     acreate as acreate_testset,
@@ -42,18 +37,19 @@ from agenta.sdk.evaluations.runs import (
 from agenta.sdk.evaluations.scenarios import (
     acreate as aadd_scenario,
 )
-from agenta.sdk.evaluations.results import (
-    acreate as alog_result,
-)
 from agenta.sdk.evaluations.metrics import (
     arefresh as acompute_metrics,
 )
-
-
-from agenta.sdk.decorators.running import (
-    invoke_application,
-    invoke_evaluator,
+from agenta.sdk.evaluations.runtime.models import EvaluationStep, ResolvedSourceItem
+from agenta.sdk.evaluations.runtime.source_slice import process_evaluation_source_slice
+from agenta.sdk.evaluations.runtime.adapters import (
+    SdkLocalApplicationRunner,
+    SdkLocalEvaluatorRunner,
+    SdkResultLogger,
+    SdkTraceLoader,
 )
+
+
 from agenta.sdk.utils.logging import get_module_logger
 
 
@@ -456,14 +452,25 @@ async def aevaluate(
     )
 
     scenarios = list()
-
     metrics = dict()
+
+    async def create_scenario(run_id: UUID):
+        return await aadd_scenario(run_id=run_id)
+
+    async def refresh_metrics(run_id: UUID, scenario_id: Optional[UUID]):
+        if scenario_id:
+            return await acompute_metrics(run_id=run_id, scenario_id=scenario_id)
+        return await acompute_metrics(run_id=run_id)
+
+    result_logger = SdkResultLogger()
+    trace_loader = SdkTraceLoader(max_retries=30, delay=1.0)
 
     for testset_revision in testset_revisions.values():
         if not testset_revision.data or not testset_revision.data.testcases:
             continue
 
         testcases = testset_revision.data.testcases
+        input_step_key = "testset-" + testset_revision.slug  # type: ignore
 
         print(
             f"{UNICODE['next']}"
@@ -474,351 +481,143 @@ async def aevaluate(
             f" testset_id={str(testset_revision.testset_id)}",
         )
 
-        for testcase_idx, testcase in enumerate(testcases):
-            print(
-                f"{UNICODE['pipe']}"
-                f"{UNICODE['pipe']}"
-                f"{UNICODE['skip']}"
-                f"{UNICODE['skip']}"
-                f"{UNICODE['skip']}"
-                "-----------------------"
-                "--------------------------------------"
-            )
-
-            print(
-                f"{UNICODE['pipe']}"
-                f"{UNICODE['next' if testcase_idx < len(testcases) - 1 else 'last']}"
-                f"{UNICODE['here']}"
-                f"{UNICODE['skip']}"
-                f"{UNICODE['skip']}"
-                f"testcase_id={str(testcase.id)}",
-            )
-
-            scenario = await aadd_scenario(
-                run_id=run.id,
-            )
-
-            print(
-                f"{UNICODE['pipe']}"
-                f"{UNICODE['pipe' if testcase_idx < len(testcases) - 1 else 'skip']}"
-                f"{UNICODE['next']}"
-                f"{UNICODE['here']}"
-                f"{UNICODE['skip']}"
-                f"scenario_id={str(scenario.id)}",
-            )
-
-            results = dict()
-
-            result = await alog_result(
-                run_id=run.id,
-                scenario_id=scenario.id,
-                step_key="testset-" + testset_revision.slug,  # type: ignore
-                testcase_id=testcase.id,
-            )
-
-            print(
-                f"{UNICODE['pipe']}"
-                f"{UNICODE['pipe' if testcase_idx < len(testcases) - 1 else 'skip']}"
-                f"{UNICODE['pipe']}"
-                f"{UNICODE['next']}"
-                f"{UNICODE['here']}"
-                f"  result_id={str(result.id)} (testcase)",
-            )
-
-            results[testset_revision.slug] = result
-
-            _testcase = testcase.model_dump(
-                mode="json",
-                exclude_none=True,
-            )  # type: ignore
-            inputs = testcase.data
-            if isinstance(inputs, dict):
-                if "testcase_dedup_id" in inputs:
-                    del inputs["testcase_dedup_id"]
-
-            for application_revision in application_revisions.values():
-                if not application_revision or not application_revision.data:
-                    print("Missing or invalid application revision")
-                    if application_revision:
-                        print(application_revision.model_dump(exclude_none=True))
-                    continue
-
-                # print(f"  Application   {application_revision.model_dump(exclude_none=True)}")  # type: ignore
-
-                references = dict(
-                    testset=Reference(
-                        id=testset_revision.testset_id,
+        steps = [
+            EvaluationStep(
+                key=input_step_key,
+                type="input",
+                origin="custom",
+                references={
+                    "testset": Reference(id=testset_revision.testset_id),
+                    "testset_variant": Reference(
+                        id=testset_revision.testset_variant_id
                     ),
-                    testset_variant=Reference(
-                        id=testset_revision.testset_variant_id,
-                    ),
-                    testset_revision=Reference(
+                    "testset_revision": Reference(
                         id=testset_revision.id,
                         slug=testset_revision.slug,
                         version=testset_revision.version,
                     ),
-                    application=Reference(
-                        id=application_revision.application_id,
-                    ),
-                    application_variant=Reference(
-                        id=application_revision.application_variant_id,
-                    ),
-                    application_revision=Reference(
-                        id=application_revision.id,
-                        slug=application_revision.slug,
-                        version=application_revision.version,
-                    ),
-                )
-                links = None
+                },
+            )
+        ]
+        runners: Dict[str, Any] = {}
+        revisions: Dict[str, Any] = {}
 
-                _revision = application_revision.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                )
-                parameters = (
-                    application_revision.data.parameters
-                    if application_revision.data
-                    else None
-                )
+        for application_revision in application_revisions.values():
+            if not application_revision or not application_revision.data:
+                print("Missing or invalid application revision")
+                if application_revision:
+                    print(application_revision.model_dump(exclude_none=True))
+                continue
 
-                _trace = None
-                outputs = None
-
-                workflow_service_request_data = WorkflowServiceRequestData(
-                    revision=_revision,
-                    parameters=parameters,
-                    #
-                    testcase=_testcase,
-                    inputs=inputs,
-                    #
-                    trace=_trace,
-                    outputs=outputs,
-                )
-
-                application_request = ApplicationServiceRequest(
-                    data=workflow_service_request_data,
-                    #
-                    references=references,  # type: ignore
-                    links=links,  # type: ignore
-                )
-
-                application_response = await invoke_application(
-                    request=application_request,
-                )
-
-                if (
-                    not application_response
-                    or not application_response.data
-                    or not application_response.trace_id
-                ):
-                    print("Missing or invalid application response")
-                    if application_response:
-                        print(application_response.model_dump(exclude_none=True))
-                    continue
-
-                trace_id = application_response.trace_id
-
-                if not application_revision.slug:
-                    print("Missing application revision slug")
-                    continue
-
-                application_slug = application_revision.slug
-
-                trace = fetch_trace_data(trace_id, max_retries=30, delay=1.0)
-
-                result = await alog_result(
-                    run_id=run.id,
-                    scenario_id=scenario.id,
-                    step_key="application-" + application_slug,  # type: ignore
-                    trace_id=trace_id,
-                )
-
-                print(
-                    f"{UNICODE['pipe']}"
-                    f"{UNICODE['pipe' if testcase_idx < len(testcases) - 1 else 'skip']}"
-                    f"{UNICODE['pipe']}"
-                    f"{UNICODE['next']}"
-                    f"{UNICODE['here']}"
-                    f"  result_id={str(result.id)} (invocation)",
-                )
-
-                results[application_slug] = result
-
-                trace = await trace
-
-                if not trace:
-                    print("Failed to fetch trace data for application")
-                    continue
-
-                root_span = list(trace.get("spans", {}).values())[0]
-                trace_attributes: dict = root_span.get("attributes", {})
-                trace_attributes_ag: dict = trace_attributes.get("ag", {})
-                trace_attributes_ag_data: dict = trace_attributes_ag.get("data", {})
-                outputs = trace_attributes_ag_data.get("outputs")
-                inputs = inputs or trace_attributes_ag_data.get("inputs")
-
-                for i, evaluator_revision in enumerate(evaluator_revisions.values()):
-                    if not evaluator_revision or not evaluator_revision.data:
-                        print("Missing or invalid evaluator revision")
-                        if evaluator_revision:
-                            print(evaluator_revision.model_dump(exclude_none=True))
-                        continue
-
-                    references = dict(
-                        testset=Reference(
-                            id=testset_revision.testset_id,
+            application_step_key = "application-" + application_revision.slug  # type: ignore
+            steps.append(
+                EvaluationStep(
+                    key=application_step_key,
+                    type="invocation",
+                    origin="auto",
+                    references={
+                        "application": Reference(
+                            id=application_revision.application_id
                         ),
-                        testset_variant=Reference(
-                            id=testset_revision.testset_variant_id,
+                        "application_variant": Reference(
+                            id=application_revision.application_variant_id,
                         ),
-                        testset_revision=Reference(
-                            id=testset_revision.id,
-                            slug=testset_revision.slug,
-                            version=testset_revision.version,
+                        "application_revision": Reference(
+                            id=application_revision.id,
+                            slug=application_revision.slug,
+                            version=application_revision.version,
                         ),
-                        evaluator=Reference(
-                            id=evaluator_revision.evaluator_id,
-                        ),
-                        evaluator_variant=Reference(
+                    },
+                )
+            )
+            runners[application_step_key] = SdkLocalApplicationRunner()
+            revisions[application_step_key] = application_revision
+
+        for (
+            evaluator_revision_id,
+            origin,
+        ) in simple_evaluation_data.evaluator_steps.items():
+            evaluator_revision = evaluator_revisions.get(
+                evaluator_revision_id
+            ) or evaluator_revisions.get(UUID(str(evaluator_revision_id)))
+            if not evaluator_revision or not evaluator_revision.data:
+                print("Missing or invalid evaluator revision")
+                if evaluator_revision:
+                    print(evaluator_revision.model_dump(exclude_none=True))
+                continue
+
+            evaluator_step_key = "evaluator-" + evaluator_revision.slug  # type: ignore
+            steps.append(
+                EvaluationStep(
+                    key=evaluator_step_key,
+                    type="annotation",
+                    origin=origin,
+                    references={
+                        "evaluator": Reference(id=evaluator_revision.evaluator_id),
+                        "evaluator_variant": Reference(
                             id=evaluator_revision.evaluator_variant_id,
                         ),
-                        evaluator_revision=Reference(
+                        "evaluator_revision": Reference(
                             id=evaluator_revision.id,
                             slug=evaluator_revision.slug,
                             version=evaluator_revision.version,
                         ),
-                    )
-                    links = (
-                        dict(
-                            invocation=Link(
-                                trace_id=application_response.trace_id,
-                                span_id=application_response.span_id,
-                            )
-                        )
-                        if application_response.trace_id
-                        and application_response.span_id
-                        else None
-                    )
+                    },
+                )
+            )
+            if origin == "auto":
+                runners[evaluator_step_key] = SdkLocalEvaluatorRunner()
+                revisions[evaluator_step_key] = evaluator_revision
 
-                    _revision = evaluator_revision.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                    )
-                    parameters = (
-                        evaluator_revision.data.parameters
-                        if evaluator_revision.data
-                        else None
-                    )
-
-                    workflow_service_request_data = WorkflowServiceRequestData(
-                        revision=_revision,
-                        parameters=parameters,
-                        #
-                        testcase=_testcase,
-                        inputs=inputs,
-                        #
-                        trace=trace,
-                        outputs=outputs,
-                    )
-
-                    evaluator_request = EvaluatorServiceRequest(
-                        version="2025.07.14",
-                        #
-                        data=workflow_service_request_data,
-                        #
-                        references=references,  # type: ignore
-                        links=links,  # type: ignore
-                    )
-
-                    evaluator_response = await invoke_evaluator(
-                        request=evaluator_request,
-                    )
-
-                    if (
-                        not evaluator_response
-                        or not evaluator_response.data
-                        or not evaluator_response.trace_id
-                    ):
-                        print("Missing or invalid evaluator response")
-                        if evaluator_response:
-                            print(evaluator_response.model_dump(exclude_none=True))
-                        continue
-
-                    trace_id = evaluator_response.trace_id
-
-                    trace = fetch_trace_data(trace_id, max_retries=30, delay=1.0)
-
-                    result = await alog_result(
-                        run_id=run.id,
-                        scenario_id=scenario.id,
-                        step_key="evaluator-" + evaluator_revision.slug,  # type: ignore
-                        trace_id=trace_id,
-                    )
-
-                    print(
-                        f"{UNICODE['pipe']}"
-                        f"{UNICODE['pipe' if testcase_idx < len(testcases) - 1 else 'skip']}"
-                        f"{UNICODE['pipe']}"
-                        f"{UNICODE['last' if (i == len(evaluator_revisions) - 1) else 'next']}"
-                        f"{UNICODE['here']}"
-                        f"  result_id={str(result.id)} (annotation)",
-                    )
-
-                    results[evaluator_revision.slug] = result
-
-                    trace = await trace
-
-                    if not trace:
-                        print("Failed to fetch trace data for evaluator")
-                        continue
-
-            metrics = await acompute_metrics(
-                run_id=run.id,
-                scenario_id=scenario.id,
+        source_items = []
+        for testcase in testcases:
+            inputs = dict(testcase.data or {})
+            inputs.pop("testcase_dedup_id", None)
+            source_items.append(
+                ResolvedSourceItem(
+                    kind="testcase",
+                    step_key=input_step_key,
+                    references={
+                        "testcase": Reference(id=testcase.id),
+                        "testset": Reference(id=testset_revision.testset_id),
+                        "testset_variant": Reference(
+                            id=testset_revision.testset_variant_id,
+                        ),
+                        "testset_revision": Reference(
+                            id=testset_revision.id,
+                            slug=testset_revision.slug,
+                            version=testset_revision.version,
+                        ),
+                    },
+                    testcase_id=testcase.id,
+                    testcase=testcase.model_dump(mode="json", exclude_none=True),
+                    inputs=inputs,
+                )
             )
 
-            print(
-                f"{UNICODE['pipe']}"
-                f"{UNICODE['pipe' if testcase_idx < len(testcases) - 1 else 'skip']}"
-                f"{UNICODE['last']}"
-                f"{UNICODE['here']}"
-                f"{UNICODE['skip']}"
-                f" metrics_id={str(metrics.id)}",
-            )
-
-            scenarios.append(
-                {
-                    "scenario": scenario,
-                    "results": results,
-                    "metrics": metrics,
-                },
-            )
-
-        print(
-            f"{UNICODE['pipe']}"
-            f"{UNICODE['skip']}"
-            f"{UNICODE['skip']}"
-            f"{UNICODE['skip']}"
-            f"{UNICODE['skip']}"
-            "-----------------------"
-            "--------------------------------------"
+        processed = await process_evaluation_source_slice(
+            run_id=run.id,
+            source_items=source_items,
+            steps=steps,
+            repeats=simple_evaluation_data.repeats,
+            create_scenario=create_scenario,
+            result_logger=result_logger,
+            refresh_metrics=refresh_metrics,
+            runners=runners,
+            revisions=revisions,
+            trace_loader=trace_loader,
         )
-
-    metrics = dict()
+        scenarios.extend(
+            {
+                "scenario": item.scenario,
+                "results": item.results,
+                "metrics": item.metrics,
+            }
+            for item in processed
+        )
 
     if len(scenarios) > 0:
-        metrics = await acompute_metrics(
-            run_id=run.id,
-        )
-
-        print(
-            f"{UNICODE['last']}"
-            f"{UNICODE['here']}"
-            f"{UNICODE['skip']}"
-            f"{UNICODE['skip']}"
-            f"{UNICODE['skip']}"
-            f" metrics_id={str(metrics.id)}",
-        )
+        metrics = await acompute_metrics(run_id=run.id)
 
     run = await aclose_run(
         run_id=run.id,

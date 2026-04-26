@@ -92,21 +92,36 @@ Current loops encode planning inline. This makes it difficult to support new com
 
 ## Execution Gaps
 
-Current execution loops are specialized:
+Current execution was specialized:
 
-- SDK preview evaluation has its own nested loop
-- backend legacy batch testset has another loop
-- backend live query has another loop
-- queue batch evaluation has another loop
+- SDK preview evaluation had its own nested loop
+- backend legacy batch testset had another loop
+- backend live query had another loop
+- queue batch evaluation had another loop
+
+Current backend implementation direction:
+
+- live query, batch query, direct trace queues, direct testcase queues, batch inference, and testset -> application -> evaluator resolve source items and call one backend source-slice processor
+- batch inference is the application-only testset application graph shape
+- API-internal task handlers have been collapsed to run and slice processors
+- trace/testcase batch task helpers are no longer needed because the slice processor can call the source-slice processor directly
+- specialized helper names may remain as wrappers while web/API compatibility is preserved
+
+Current SDK implementation direction:
+
+- SDK preview/local evaluation now routes through SDK-owned `process_evaluation_source_slice`
+- SDK runner, result logging, trace loading, and metrics work are adapters around the shared SDK runtime contract
+- backend execution now delegates to the SDK processor through backend-specific scenario, result, cache, status, trace, and workflow adapters
 
 Still missing:
 
-- unified `process(run, slice)` role exposed as an API or service operation
+- unified `process(run, slice)` role exposed as a public API or service operation
 - topological execution over planned cells
 - idempotent probe-before-write behavior
 - consistent error-as-result behavior
 - shared metrics refresh policy after processing
 - clear separation between execution and persistence adapters
+- public API/service operation shape for invoking the SDK-owned source-slice processor by tensor slice
 
 ## Runnable Execution Gaps
 
@@ -285,16 +300,19 @@ Existing APIs should remain as compatibility wrappers while the canonical surfac
 
 ## SDK Gaps
 
-The SDK preview loop currently owns orchestration directly.
+The SDK should own the shared runtime contract. The preview loop can keep its
+public setup API, but orchestration should move behind SDK runtime planning and
+SDK-specific execution/persistence adapters. Backend workers should consume the
+same SDK runtime models through backend-specific adapters.
 
 Missing:
 
 - remote API persistence adapter
-- shared planner usage
 - slice-aware processing
 - probe-before-write
-- cache/repeat parity with backend
+- cache parity with backend
 - stable step key strategy aligned with backend graph steps
+- removal of duplicate backend planner/topology logic once migration coverage is sufficient
 
 The desired state is not "SDK calls backend worker for everything." It is "SDK and backend share the same loop contract with different persistence/execution adapters."
 

@@ -14,7 +14,9 @@ from sqlalchemy.exc import IntegrityError
 
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import (
+    get_transactions_engine,
+)
 from oss.src.services import db_manager
 from ee.src.core.workspaces.types import (
     UserRole,
@@ -76,7 +78,9 @@ async def get_organization(organization_id: str) -> OrganizationDB:
         OrganizationDB: The fetched organization.
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(OrganizationDB).filter_by(id=uuid.UUID(organization_id))
         )
@@ -95,7 +99,9 @@ async def get_organizations_by_list_ids(organization_ids: List) -> List[Organiza
         List: A list of dictionaries representing the retrieved organizations.
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         organization_uuids = [
             uuid.UUID(organization_id) for organization_id in organization_ids
         ]
@@ -115,7 +121,9 @@ async def count_organizations_by_owner(owner_id: str) -> int:
     Returns:
         int: The count of organizations owned by the user.
     """
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(func.count(OrganizationDB.id)).where(
                 OrganizationDB.owner_id == uuid.UUID(owner_id)
@@ -135,7 +143,9 @@ async def get_default_workspace_id(user_id: str) -> str:
         str: The default workspace ID.
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(WorkspaceMemberDB)
             .filter_by(user_id=uuid.UUID(user_id))
@@ -180,7 +190,9 @@ async def get_organization_workspaces(organization_id: str):
         organization_id (str): The ID of the organization
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(WorkspaceDB)
             .filter_by(organization_id=uuid.UUID(organization_id))
@@ -198,7 +210,9 @@ async def get_workspace_members(workspace_id: str) -> List[WorkspaceMemberDB]:
 
     Used by RBAC / admin helpers to derive roles and permissions.
     """
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(WorkspaceMemberDB).where(
                 WorkspaceMemberDB.workspace_id == workspace_id
@@ -384,7 +398,8 @@ async def sync_workspace_members_to_project(
         await _sync(session)
         return
 
-    async with engine.core_session() as new_session:
+    engine = get_transactions_engine()
+    async with engine.session() as new_session:
         await _sync(new_session)
 
 
@@ -401,7 +416,9 @@ async def get_default_workspace_id_from_organization(
         str: The default (first) workspace ID.
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         workspace_query = await session.execute(
             select(WorkspaceDB)
             .where(
@@ -432,7 +449,9 @@ async def get_project_by_workspace(
     """
 
     assert workspace_id is not None, "Workspace ID is required to retrieve project"
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         stmt = select(ProjectDB).where(
             ProjectDB.workspace_id == uuid.UUID(workspace_id),
         )
@@ -493,7 +512,9 @@ async def create_project_member(
 async def fetch_project_memberships_by_user_id(
     user_id: str,
 ) -> List[ProjectMemberDB]:
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(ProjectMemberDB)
             .filter_by(user_id=uuid.UUID(user_id))
@@ -621,7 +642,9 @@ async def create_workspace(
         user = await db_manager.get_user(user_uid)
         organization = await get_organization(organization_id)
 
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             user_result = await session.execute(select(UserDB).filter_by(uid=user_uid))
             user = user_result.scalars().first()
 
@@ -651,7 +674,9 @@ async def update_workspace(
         payload (UpdateWorkspace): The data to update the workspace with.
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(select(WorkspaceDB).filter_by(id=workspace.id))
         workspace = result.scalars().first()
 
@@ -680,7 +705,9 @@ async def check_user_in_workspace_with_email(email: str, workspace_id: str) -> b
         Exception: If there is an error checking if the user belongs to the workspace.
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(WorkspaceMemberDB)
             .join(UserDB, UserDB.id == WorkspaceMemberDB.user_id)
@@ -720,7 +747,9 @@ async def update_user_roles(
             f"No projects found for the provided workspace_id {workspace_id}"
         )
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         workspace_member_result = await session.execute(
             select(WorkspaceMemberDB).filter_by(
                 workspace_id=uuid.UUID(workspace_id), user_id=user.id
@@ -803,7 +832,9 @@ async def add_user_to_workspace_and_org(
     if project and str(project.workspace_id) != str(workspace.id):
         raise ValueError("Project does not belong to the provided workspace")
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         # create joined organization for user
         user_organization = OrganizationMemberDB(
             user_id=user.id, organization_id=organization.id
@@ -912,7 +943,9 @@ async def remove_user_from_workspace(
         )
     project_ids = [project.id for project in projects]
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         if not user:  # User is an invited user who has not yet created an account and therefore does not have a user object
             pass
         else:
@@ -1041,7 +1074,9 @@ async def create_organization(
         Exception: If there is an error creating the organization.
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         create_org_data = payload.model_dump(exclude_unset=True)
 
         is_demo = create_org_data.pop("is_demo", False)
@@ -1130,7 +1165,9 @@ async def update_organization(
         Exception: If there is an error updating the organization.
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(OrganizationDB).filter_by(id=uuid.UUID(organization_id))
         )
@@ -1292,7 +1329,9 @@ async def delete_organization(organization_id: str) -> bool:
     Raises:
         NoResultFound: If organization not found.
     """
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(OrganizationDB).filter_by(id=uuid.UUID(organization_id))
         )
@@ -1317,7 +1356,9 @@ async def delete_invitation(invitation_id: str) -> bool:
         bool: True if the invitation was successfully deleted, False otherwise.
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(InvitationDB).filter_by(id=uuid.UUID(invitation_id))
         )
@@ -1379,7 +1420,9 @@ async def mark_invitation_as_used(
         HTTPException: If there is an error marking the invitation as used.
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(InvitationDB).filter_by(
                 project_id=uuid.UUID(project_id), token=invitation.token
@@ -1470,7 +1513,9 @@ async def get_project_invitations(project_id: str, **kwargs):
         project_id (str): The ID of the project
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         stmt = select(InvitationDB).filter(
             InvitationDB.project_id == uuid.UUID(project_id)
         )
@@ -1490,7 +1535,9 @@ async def get_all_pending_invitations(email: str):
         email (str): The email address of the user.
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(InvitationDB).filter(
                 InvitationDB.email == email,
@@ -1515,7 +1562,9 @@ async def get_project_invitation(
         InvitationDB: invitation object
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(InvitationDB).filter_by(
                 project_id=uuid.UUID(project_id), token=token, email=email
@@ -1532,7 +1581,9 @@ async def get_project_members(project_id: str):
         project_id (str): The ID of the project
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         members_query = await session.execute(
             select(ProjectMemberDB)
             .filter(ProjectMemberDB.project_id == uuid.UUID(project_id))
@@ -1560,7 +1611,9 @@ async def project_member_exists(
         True if the user belongs to the project, False otherwise.
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         stmt = select(
             select(ProjectMemberDB.id)
             .filter(
@@ -1591,7 +1644,9 @@ async def workspace_member_exists(
         True if the user belongs to the workspace, False otherwise.
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         stmt = select(
             select(WorkspaceMemberDB.id)
             .filter(
@@ -1638,7 +1693,9 @@ async def create_org_workspace_invitation(
     if not project:
         raise Exception(f"No project found with ID {project_id}")
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         invitation = InvitationDB(
             token=token,
             email=email,
@@ -1681,7 +1738,9 @@ async def add_user_to_organization(
     role: str = "member",
     # is_demo: bool = False,
 ) -> None:
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         organization_member = OrganizationMemberDB(
             user_id=user_id,
             organization_id=organization_id,
@@ -1707,7 +1766,9 @@ async def add_user_to_workspace(
     role: str,
     # is_demo: bool = False,
 ) -> None:
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         # fetch workspace by workspace_id (SQL)
         stmt = select(WorkspaceDB).filter_by(id=workspace_id)
         workspace = await session.execute(stmt)
@@ -1748,7 +1809,9 @@ async def add_user_to_project(
     if not project:
         raise Exception(f"No project found with ID {project_id}")
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         project_member = ProjectMemberDB(
             user_id=user_id,
             project_id=project_id,
@@ -1788,7 +1851,9 @@ async def transfer_organization_ownership(
     Raises:
         ValueError: If new owner is not a member of the organization
     """
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         # Verify organization exists
         org_result = await session.execute(
             select(OrganizationDB).filter_by(id=uuid.UUID(organization_id))
@@ -1920,7 +1985,9 @@ async def transfer_organization_ownership(
 
 async def admin_delete_org_membership(membership_id: uuid.UUID) -> bool:
     """Delete an org membership by ID. Returns False if not found."""
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(OrganizationMemberDB).filter_by(id=membership_id)
         )
@@ -1934,7 +2001,9 @@ async def admin_delete_org_membership(membership_id: uuid.UUID) -> bool:
 
 async def admin_delete_workspace_membership(membership_id: uuid.UUID) -> bool:
     """Delete a workspace membership by ID. Returns False if not found."""
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(WorkspaceMemberDB).filter_by(id=membership_id)
         )
@@ -1948,7 +2017,9 @@ async def admin_delete_workspace_membership(membership_id: uuid.UUID) -> bool:
 
 async def admin_delete_project_membership(membership_id: uuid.UUID) -> bool:
     """Delete a project membership by ID. Returns False if not found."""
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(ProjectMemberDB).filter_by(id=membership_id)
         )
@@ -1965,7 +2036,9 @@ async def admin_get_member_org_ids(
     org_ids: List[uuid.UUID],
 ) -> Set[uuid.UUID]:
     """Return the subset of org_ids where the user has a membership row."""
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         rows = (
             (
                 await session.execute(
@@ -1992,7 +2065,9 @@ async def admin_swap_org_memberships(
     a membership row.  For each qualifying org, target gets source's role and
     source gets target's prior role.
     """
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         source_rows = (
             (
                 await session.execute(
@@ -2054,7 +2129,9 @@ async def admin_swap_workspace_memberships(
     have a membership row.  For each qualifying workspace, target gets source's
     role and source gets target's prior role.
     """
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         source_rows = (
             (
                 await session.execute(
@@ -2116,7 +2193,9 @@ async def admin_swap_project_memberships(
     have a membership row.  For each qualifying project, target gets source's
     role and source gets target's prior role.
     """
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         source_rows = (
             (
                 await session.execute(
@@ -2172,7 +2251,9 @@ async def admin_delete_user_memberships(user_id: uuid.UUID) -> None:
 
     Called before hard-deleting a user so FK constraints are not violated.
     """
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         await session.execute(
             delete(OrganizationMemberDB).where(OrganizationMemberDB.user_id == user_id)
         )

@@ -3,6 +3,11 @@ from fastapi import FastAPI
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
+from oss.src.dbs.postgres.shared.engine import (
+    get_transactions_engine,
+    get_analytics_engine,
+)
+
 from ee.src.routers import (
     workspace_router,
     organization_router as _organization_router,
@@ -11,6 +16,7 @@ from ee.src.routers import (
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.dbs.postgres.tracing.dao import TracingDAO
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
+from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
 
 from ee.src.core.meters.service import MetersService
 from ee.src.core.tracing.service import TracingService
@@ -24,11 +30,20 @@ from oss.src.apis.fastapi.auth.router import auth_router
 
 # DBS --------------------------------------------------------------------------
 
-meters_dao = MetersDAO()
+# Get engines from shared initialization (instantiated in routers.py)
+_transactions_engine = get_transactions_engine()
+_analytics_engine = get_analytics_engine()
 
-tracing_dao = TracingDAO()
+meters_dao = MetersDAO(engine=_transactions_engine)
 
-subscriptions_dao = SubscriptionsDAO()
+tracing_dao = TracingDAO(
+    transactions_engine=_transactions_engine,
+    analytics_engine=_analytics_engine,
+)
+
+subscriptions_dao = SubscriptionsDAO(engine=_transactions_engine)
+
+organization_domains_dao = OrganizationDomainsDAO(engine=_transactions_engine)
 
 # CORE -------------------------------------------------------------------------
 

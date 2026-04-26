@@ -11,7 +11,7 @@ from oss.src.utils.caching import invalidate_cache
 from oss.src.models.db_models import InvitationDB, ProjectDB, OrganizationDB
 from oss.src.services import db_manager
 
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
 
 if is_ee():
@@ -130,7 +130,9 @@ class AuthService:
             # 2. Organizations with pending project invitations
             if email:
                 try:
-                    async with engine.core_session() as session:
+                    engine = get_transactions_engine()
+
+                    async with engine.session() as session:
                         # Query project_invitations for this email, join with projects to get organization_id
                         stmt = (
                             select(ProjectDB.organization_id)
@@ -480,7 +482,9 @@ class AuthService:
                             "Auto-join requires organization, user, and at least one workspace"
                         )
 
-                    async with engine.core_session() as session:
+                    engine = get_transactions_engine()
+
+                    async with engine.session() as session:
                         existing_org_member = await session.execute(
                             select(OrganizationMemberDB).filter_by(
                                 user_id=user.id, organization_id=organization.id
@@ -791,7 +795,9 @@ class AuthService:
         if not is_ee():
             return None
 
-        async with db_manager.engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             stmt = select(OrganizationDB.flags).where(
                 OrganizationDB.id == organization_id
             )
@@ -803,7 +809,9 @@ class AuthService:
         if not is_ee():
             return None
 
-        async with db_manager.engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             stmt = select(OrganizationDB.slug).where(
                 OrganizationDB.id == organization_id
             )
@@ -820,7 +828,9 @@ class AuthService:
         if not is_ee():
             return False
 
-        async with db_manager.engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             stmt = select(OrganizationMemberDB).where(
                 OrganizationMemberDB.user_id == user_id,
                 OrganizationMemberDB.organization_id == organization_id,
@@ -837,7 +847,9 @@ class AuthService:
         if not is_ee():
             return False
 
-        async with db_manager.engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             stmt = select(OrganizationMemberDB.role).where(
                 OrganizationMemberDB.user_id == user_id,
                 OrganizationMemberDB.organization_id == organization_id,

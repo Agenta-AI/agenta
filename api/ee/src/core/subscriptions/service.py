@@ -2,12 +2,10 @@ from typing import Optional
 from uuid import getnode
 from datetime import datetime, timezone, timedelta
 
-
-import stripe
-
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
 from oss.src.utils.caching import invalidate_cache
+from oss.src.utils.lazy import _load_stripe
 
 from ee.src.core.subscriptions.types import (
     SubscriptionDTO,
@@ -23,13 +21,6 @@ from ee.src.core.entitlements.service import EntitlementsService
 from ee.src.core.meters.service import MetersService
 
 log = get_module_logger(__name__)
-
-# Initialize Stripe only if enabled
-if env.stripe.enabled:
-    stripe.api_key = env.stripe.api_key
-    log.info("✓ Stripe enabled:", target=env.stripe.webhook_target)
-else:
-    log.info("✗ Stripe disabled")
 
 MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
 
@@ -82,6 +73,10 @@ class SubscriptionsService:
     ) -> Optional[SubscriptionDTO]:
         if not env.stripe.enabled:
             raise EventException("Reverse trial requires Stripe to be enabled")
+
+        stripe = _load_stripe()
+        if stripe is None:
+            raise EventException("Failed to load Stripe module")
 
         now = datetime.now(tz=timezone.utc)
         anchor = now + timedelta(days=REVERSE_TRIAL_DAYS)
@@ -261,6 +256,11 @@ class SubscriptionsService:
             if not env.stripe.enabled:
                 log.warn("✗ Stripe disabled")
                 return None
+
+            stripe = _load_stripe()
+            if stripe is None:
+                log.error("Failed to load Stripe module")
+                raise EventException("Stripe is not available for plan switching")
 
             if subscription.plan == plan:
                 log.warn("Subscription already on the plan: %s", plan)

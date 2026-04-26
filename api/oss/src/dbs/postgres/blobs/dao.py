@@ -15,7 +15,10 @@ from oss.src.core.blobs.utils import compute_blob_id
 
 from oss.src.dbs.postgres.shared.utils import apply_windowing
 from oss.src.dbs.postgres.shared.exceptions import check_entity_creation_conflict
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import (
+    TransactionsEngine,
+    get_transactions_engine,
+)
 from oss.src.dbs.postgres.blobs.mappings import map_dbe_to_dto, map_dto_to_dbe
 
 
@@ -30,8 +33,12 @@ class BlobsDAO(BlobsDAOInterface):
         self,
         *,
         BlobDBE: Type[T],
+        engine: TransactionsEngine = None,
     ):
         self.BlobDBE = BlobDBE  # pylint: disable=invalid-name
+        if engine is None:
+            engine = get_transactions_engine()
+        self.engine = engine
 
     # ─ blobs ──────────────────────────────────────────────────────────────────
 
@@ -63,7 +70,7 @@ class BlobsDAO(BlobsDAOInterface):
         )
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 stmt = select(self.BlobDBE).filter(
                     self.BlobDBE.project_id == project_id,  # type: ignore
                 )
@@ -106,7 +113,7 @@ class BlobsDAO(BlobsDAOInterface):
         #
         blob_id: UUID,
     ) -> Optional[Blob]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.BlobDBE).filter(
                 self.BlobDBE.project_id == project_id,  # type: ignore
             )
@@ -138,7 +145,7 @@ class BlobsDAO(BlobsDAOInterface):
         #
         blob_edit: BlobEdit,
     ) -> Optional[Blob]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.BlobDBE).filter(
                 self.BlobDBE.project_id == project_id,  # type: ignore
             )
@@ -179,7 +186,7 @@ class BlobsDAO(BlobsDAOInterface):
         #
         blob_id: UUID,
     ) -> Optional[Blob]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.BlobDBE).filter(
                 self.BlobDBE.project_id == project_id,  # type: ignore
             )
@@ -239,7 +246,7 @@ class BlobsDAO(BlobsDAOInterface):
         blob_ids = [blob.id for blob in blobs]
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 stmt = select(self.BlobDBE).filter(
                     self.BlobDBE.project_id == project_id,  # type: ignore
                 )
@@ -295,7 +302,7 @@ class BlobsDAO(BlobsDAOInterface):
         #
         blob_ids: List[UUID],
     ) -> List[Blob]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.BlobDBE).filter(
                 self.BlobDBE.project_id == project_id,  # type: ignore
             )
@@ -331,7 +338,7 @@ class BlobsDAO(BlobsDAOInterface):
         #
         blob_edits: List[BlobEdit],
     ) -> List[Blob]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.BlobDBE).filter(
                 self.BlobDBE.project_id == project_id,  # type: ignore
             )
@@ -381,7 +388,7 @@ class BlobsDAO(BlobsDAOInterface):
         #
         blob_ids: List[UUID],
     ) -> List[Blob]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.BlobDBE).filter(
                 self.BlobDBE.project_id == project_id,  # type: ignore
             )
@@ -422,7 +429,7 @@ class BlobsDAO(BlobsDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Blob]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.BlobDBE).filter(
                 self.BlobDBE.project_id == project_id,  # type: ignore
             )

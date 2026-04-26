@@ -10,7 +10,12 @@ from oss.src.utils.logging import get_module_logger
 
 from oss.src.models.db_models import ProjectDB
 
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import (
+    TransactionsEngine,
+    AnalyticsEngine,
+    get_transactions_engine,
+    get_analytics_engine,
+)
 from oss.src.dbs.postgres.tracing.dbes import SpanDBE
 
 from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
@@ -70,6 +75,18 @@ TRACING_DELETE_SQL = text(
 
 
 class TracingDAO:
+    def __init__(
+        self,
+        transactions_engine: TransactionsEngine = None,
+        analytics_engine: AnalyticsEngine = None,
+    ):
+        if transactions_engine is None:
+            transactions_engine = get_transactions_engine()
+        if analytics_engine is None:
+            analytics_engine = get_analytics_engine()
+        self.transactions_engine = transactions_engine
+        self.analytics_engine = analytics_engine
+
     # ---------------- #
     # Raw-SQL versions
     # ---------------- #
@@ -81,7 +98,7 @@ class TracingDAO:
         project_id: Optional[UUID],
         max_projects: int,
     ) -> List[UUID]:
-        async with engine.core_session() as session:
+        async with self.transactions_engine.session() as session:
             result = await session.execute(
                 CORE_PROJECTS_PAGE_SQL,
                 {
@@ -105,7 +122,7 @@ class TracingDAO:
         if not project_ids:
             return (0, 0)
 
-        async with engine.tracing_session() as session:
+        async with self.analytics_engine.session() as session:
             result = await session.execute(
                 TRACING_DELETE_SQL,
                 {
@@ -135,7 +152,7 @@ class TracingDAO:
         project_id: Optional[UUID],
         max_projects: int,
     ) -> List[UUID]:
-        async with engine.core_session() as session:
+        async with self.transactions_engine.session() as session:
             stmt = (
                 select(ProjectDB.id)
                 .select_from(
@@ -167,7 +184,7 @@ class TracingDAO:
         if not project_ids:
             return (0, 0)
 
-        async with engine.tracing_session() as session:
+        async with self.analytics_engine.session() as session:
             project_ids_param = bindparam(
                 "project_ids",
                 value=project_ids,

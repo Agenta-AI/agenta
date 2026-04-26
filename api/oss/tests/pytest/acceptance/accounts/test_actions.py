@@ -8,6 +8,8 @@ user can be deleted without destroying the target user's organization.
 """
 
 from uuid import uuid4
+import os
+import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -54,6 +56,10 @@ def _delete_account_by_email(admin_api, *, email):
 
 
 class TestResetPassword:
+    @pytest.mark.skipif(
+        not os.getenv("POSTHOG_API_KEY"),
+        reason="PostHog API key not configured",
+    )
     def test_reset_password_for_existing_identity(self, admin_api):
         uid = uuid4().hex[:12]
         email = f"reset-{uid}@test.agenta.ai"
@@ -99,6 +105,10 @@ class TestResetPassword:
 
 
 class TestTransferOwnership:
+    @pytest.mark.skipif(
+        not os.getenv("POSTHOG_API_KEY"),
+        reason="PostHog API key not configured",
+    )
     def test_transfer_ownership_succeeds(self, admin_api):
         uid = uuid4().hex[:12]
         email_src = f"src-{uid}@test.agenta.ai"
@@ -144,6 +154,10 @@ class TestTransferOwnership:
         _delete_account_by_email(admin_api, email=email_src)
         _delete_account_by_email(admin_api, email=email_tgt)
 
+    @pytest.mark.skipif(
+        not os.getenv("POSTHOG_API_KEY"),
+        reason="PostHog API key not configured",
+    )
     def test_transfer_then_delete_source_preserves_target_org(self, admin_api):
         """
         Regression for Bug 2: after ownership is transferred, deleting the
@@ -207,6 +221,10 @@ class TestTransferOwnership:
 
         _delete_account_by_email(admin_api, email=email_tgt)
 
+    @pytest.mark.skipif(
+        not os.getenv("POSTHOG_API_KEY"),
+        reason="PostHog API key not configured",
+    )
     def test_transfer_from_nonexistent_source_returns_error(self, admin_api):
         uid = uuid4().hex[:12]
         email_tgt = f"tgt3-{uid}@test.agenta.ai"

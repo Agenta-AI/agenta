@@ -7,7 +7,7 @@ from sqlalchemy.orm import load_only
 from oss.src.services import db_manager
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from ee.src.core.organizations.types import Organization
 
 from oss.src.models.db_models import (
@@ -39,7 +39,9 @@ async def get_user_org_and_workspace_id(user_uid) -> Dict[str, Union[str, List[s
         { "id": "123", "uid": "user123", "organization_ids": [], "workspace_ids": []}
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         user = await db_manager.get_user_with_id(user_id=user_uid)
         if not user:
             raise NoResultFound(f"User with uid {user_uid} not found")
@@ -94,7 +96,9 @@ async def get_org_default_workspace(organization: Organization) -> WorkspaceDB:
         WorkspaceDB: Instance of WorkspaceDB
     """
 
-    async with engine.core_session() as session:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
         result = await session.execute(
             select(WorkspaceDB).filter_by(
                 organization_id=organization.id,

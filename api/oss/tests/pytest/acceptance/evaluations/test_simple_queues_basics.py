@@ -198,6 +198,39 @@ class TestSimpleQueuesBasics:
         assert queue["data"]["kind"] == "testcases"
         assert queue["data"]["testsets"] == [testset_revision_id]
 
+    def test_create_source_backed_queue_preserves_repeats_and_assignments(
+        self, authed_api
+    ):
+        evaluator_revision_id = _create_evaluator(authed_api)
+        testset_revision_id = _create_testset(authed_api)
+        user_id_1 = str(uuid4())
+        user_id_2 = str(uuid4())
+
+        response = authed_api(
+            "POST",
+            "/simple/queues/",
+            json={
+                "queue": {
+                    "name": "testset-backed-queue-with-repeats",
+                    "data": {
+                        "testsets": [testset_revision_id],
+                        "evaluators": {evaluator_revision_id: "human"},
+                        "repeats": 2,
+                        "assignments": [[user_id_1], [user_id_2]],
+                    },
+                }
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        queue = data["queue"]
+        assert queue["data"]["kind"] == "testcases"
+        assert queue["data"]["testsets"] == [testset_revision_id]
+        assert queue["data"]["repeats"] == 2
+        assert queue["data"]["assignments"] == [[user_id_1], [user_id_2]]
+
     def test_create_simple_queue_without_evaluators_returns_empty(self, authed_api):
         # ACT ------------------------------------------------------------------
         response = authed_api(
@@ -307,6 +340,30 @@ class TestSimpleQueuesBasics:
             "simple queue source must not include kind alongside queries or testsets"
             in response.text
         )
+
+    def test_create_simple_queue_rejects_mixed_query_and_testset_sources(
+        self, authed_api
+    ):
+        evaluator_revision_id = _create_evaluator(authed_api)
+        query_revision_id = _create_query(authed_api)
+        testset_revision_id = _create_testset(authed_api)
+
+        response = authed_api(
+            "POST",
+            "/simple/queues/",
+            json={
+                "queue": {
+                    "data": {
+                        "queries": [query_revision_id],
+                        "testsets": [testset_revision_id],
+                        "evaluators": [evaluator_revision_id],
+                    },
+                }
+            },
+        )
+
+        assert response.status_code == 422
+        assert "simple queue source must be either queries or testsets" in response.text
 
     def test_create_simple_queue_with_assignments(self, authed_api):
         # ARRANGE --------------------------------------------------------------

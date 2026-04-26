@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
+import time
 
+import agenta as ag
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from supertokens_python import get_all_cors_headers as get_all_supertokens_cors_headers
@@ -12,6 +14,16 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
 
 from oss.src.open_api import open_api_tags_metadata
+
+# Engines
+from oss.src.dbs.postgres.shared.engine import (
+    get_transactions_engine,
+    get_analytics_engine,
+)
+from oss.src.dbs.redis.shared.engine import (
+    get_cache_engine,
+    get_streams_engine,
+)
 
 from oss.databases.postgres.migrations.core.utils import (
     check_for_new_migrations as check_for_new_core_migrations,
@@ -139,24 +151,40 @@ from oss.src.routers import (
 
 from oss.src.utils.env import env
 from entrypoints.worker_evaluations import evaluations_worker
-import oss.src.core.evaluations.tasks.live  # noqa: F401
-import oss.src.core.evaluations.tasks.legacy  # noqa: F401
-import oss.src.core.evaluations.tasks.batch  # noqa: F401
+import oss.src.core.evaluations.tasks.query  # noqa: F401
+import oss.src.core.evaluations.tasks.run  # noqa: F401
+import oss.src.core.evaluations.tasks.source_slice  # noqa: F401
 
-import agenta as ag
+print("[STARTUP] About to import agenta SDK")
+_t_ag_import = time.perf_counter()
+# ag already imported at top
+print(f"[STARTUP] agenta SDK imported (+{time.perf_counter() - _t_ag_import:.3f}s)")
 
+_startup_t0 = time.perf_counter()
+print("[STARTUP] imports completed, beginning initialization")
+
+print("[STARTUP] ag.init() starting")
+_t_ag_init = time.perf_counter()
 ag.init(
     api_url=env.agenta.api_url,
 )
+print(f"[STARTUP] ag.init() completed (+{time.perf_counter() - _t_ag_init:.3f}s)")
 
 ee = None
+_t_before_ee = time.perf_counter()
 if is_ee():
+    print("[STARTUP] EE module import starting (Stripe init happens here)")
     import ee.src.main as ee  # type: ignore
+
+    _ee_elapsed = time.perf_counter() - _t_before_ee
+    print(f"[STARTUP] EE module import completed (+{_ee_elapsed:.3f}s)")
 
 
 log = get_module_logger(__name__)
 
 init_supertokens()
+_st_elapsed = time.perf_counter() - _startup_t0
+print(f"[STARTUP] init_supertokens completed (+{_st_elapsed:.3f}s)")
 
 
 @asynccontextmanager
@@ -179,6 +207,10 @@ async def lifespan(*args, **kwargs):
 
     for adapter in _composio_adapters.values():
         await adapter.close()
+
+    await _transactions_engine.close()
+    await _analytics_engine.close()
+    await _streams_engine.close()
 
 
 app = FastAPI(
@@ -222,46 +254,64 @@ if ee and is_ee():
 
 # DAOS -------------------------------------------------------------------------
 
-secrets_dao = SecretsDAO()
-webhooks_dao = WebhooksDAO()
+_t_daos = time.perf_counter()
+print("[STARTUP] DAO initialization starting")
 
-tracing_dao = TracingDAO()
-events_dao = EventsDAO()
+# Instantiate engines at startup (lazy — they don't connect until first use)
+_transactions_engine = get_transactions_engine()
+_analytics_engine = get_analytics_engine()
+_streams_engine = get_streams_engine()
+_cache_engine = get_cache_engine()
+
+secrets_dao = SecretsDAO(engine=_transactions_engine)
+webhooks_dao = WebhooksDAO(engine=_transactions_engine)
+
+tracing_dao = TracingDAO(engine=_analytics_engine)
+events_dao = EventsDAO(engine=_analytics_engine)
 
 testcases_dao = BlobsDAO(
+    engine=_transactions_engine,
     BlobDBE=TestcaseBlobDBE,
 )
 
 testsets_dao = GitDAO(
+    engine=_transactions_engine,
     ArtifactDBE=TestsetArtifactDBE,
     VariantDBE=TestsetVariantDBE,
     RevisionDBE=TestsetRevisionDBE,
 )
 
 queries_dao = GitDAO(
+    engine=_transactions_engine,
     ArtifactDBE=QueryArtifactDBE,
     VariantDBE=QueryVariantDBE,
     RevisionDBE=QueryRevisionDBE,
 )
 
 workflows_dao = GitDAO(
+    engine=_transactions_engine,
     ArtifactDBE=WorkflowArtifactDBE,
     VariantDBE=WorkflowVariantDBE,
     RevisionDBE=WorkflowRevisionDBE,
 )
 
 environments_dao = GitDAO(
+    engine=_transactions_engine,
     ArtifactDBE=EnvironmentArtifactDBE,
     VariantDBE=EnvironmentVariantDBE,
     RevisionDBE=EnvironmentRevisionDBE,
 )
 
-evaluations_dao = EvaluationsDAO()
-folders_dao = FoldersDAO()
+evaluations_dao = EvaluationsDAO(engine=_transactions_engine)
+folders_dao = FoldersDAO(engine=_transactions_engine)
 
-tools_dao = ToolsDAO()
+tools_dao = ToolsDAO(engine=_transactions_engine)
 
 # SERVICES ---------------------------------------------------------------------
+
+_t_daos_done = time.perf_counter() - _t_daos
+print(f"[STARTUP] DAO initialization completed (+{_t_daos_done:.3f}s)")
+_t_services = time.perf_counter()
 
 vault_service = VaultService(
     secrets_dao=secrets_dao,
@@ -404,6 +454,10 @@ tools_service = ToolsService(
     adapter_registry=tools_adapter_registry,
 )
 
+_t_services_done = time.perf_counter() - _t_services
+print(f"[STARTUP] Service initialization completed (+{_t_services_done:.3f}s)")
+_t_routers = time.perf_counter()
+
 # ROUTERS ----------------------------------------------------------------------
 
 secrets = VaultRouter(
@@ -537,6 +591,8 @@ platform_admin_accounts = PlatformAdminAccountsRouter(
 )
 
 # MOUNTING ROUTERS TO APP ROUTES -----------------------------------------------
+
+_t_mount_routers = time.perf_counter()
 
 app.include_router(
     router=secrets.router,
@@ -920,5 +976,14 @@ app.include_router(
 )
 
 # ------------------------------------------------------------------------------
+_t_routers_done = time.perf_counter() - _t_routers
+print(f"[STARTUP] Router initialization completed (+{_t_routers_done:.3f}s)")
+
+_t_mount_routers_done = time.perf_counter() - _t_mount_routers
+print(f"[STARTUP] Router mounting completed (+{_t_mount_routers_done:.3f}s)")
+
 if ee and is_ee():
     app = ee.extend_app_schema(app)
+
+_total_startup = time.perf_counter() - _startup_t0
+print(f"[STARTUP] module initialization completed in {_total_startup:.3f}s")

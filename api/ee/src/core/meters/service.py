@@ -1,10 +1,9 @@
 from typing import Awaitable, Tuple, Callable, List, Optional
 from uuid import uuid4
 
-import stripe
-
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
+from oss.src.utils.lazy import _load_stripe
 
 from ee.src.core.entitlements.types import Quota
 from ee.src.core.entitlements.types import Counter, Gauge, REPORTS
@@ -12,13 +11,6 @@ from ee.src.core.meters.types import MeterDTO
 from ee.src.core.meters.interfaces import MetersDAOInterface
 
 log = get_module_logger(__name__)
-
-# Initialize Stripe only if enabled
-if env.stripe.enabled:
-    stripe.api_key = env.stripe.api_key
-    log.info("✓ Stripe enabled:", target=env.stripe.webhook_target)
-else:
-    log.info("✗ Stripe disabled")
 
 
 class MetersService:
@@ -80,6 +72,11 @@ class MetersService:
     ):
         if not env.stripe.enabled:
             log.warn("✗ Stripe disabled")
+            return
+
+        stripe = _load_stripe()
+        if stripe is None:
+            log.error("[report] Failed to load Stripe module")
             return
 
         log.info("[report] ============================================")

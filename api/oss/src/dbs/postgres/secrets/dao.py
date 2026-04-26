@@ -3,8 +3,10 @@ from uuid import UUID
 from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
 from oss.src.core.secrets.interfaces import SecretsDAOInterface
 
-
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import (
+    TransactionsEngine,
+    get_transactions_engine,
+)
 
 from oss.src.core.secrets.dtos import CreateSecretDTO, UpdateSecretDTO
 from oss.src.dbs.postgres.secrets.mappings import (
@@ -17,8 +19,10 @@ from sqlalchemy import select
 
 
 class SecretsDAO(SecretsDAOInterface):
-    def __init__(self):
-        pass
+    def __init__(self, engine: TransactionsEngine = None):
+        if engine is None:
+            engine = get_transactions_engine()
+        self.engine = engine
 
     @staticmethod
     def _validate_scope(project_id: UUID | None, organization_id: UUID | None) -> None:
@@ -48,7 +52,7 @@ class SecretsDAO(SecretsDAOInterface):
             organization_id=organization_id,
             secret_dto=create_secret_dto,
         )
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             session.add(secrets_dbe)
             await session.commit()
 
@@ -61,7 +65,7 @@ class SecretsDAO(SecretsDAOInterface):
         project_id: UUID | None,
         organization_id: UUID | None,
     ):
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             scope_filter = self._scope_filter(project_id, organization_id)
             stmt = select(SecretsDBE).filter_by(
                 id=secret_id,
@@ -77,7 +81,7 @@ class SecretsDAO(SecretsDAOInterface):
             return secrets_dto
 
     async def list(self, project_id: UUID | None, organization_id: UUID | None):
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             scope_filter = self._scope_filter(project_id, organization_id)
             stmt = select(SecretsDBE).filter_by(**scope_filter)
 
@@ -96,7 +100,7 @@ class SecretsDAO(SecretsDAOInterface):
         project_id: UUID | None,
         organization_id: UUID | None,
     ):
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             scope_filter = self._scope_filter(project_id, organization_id)
             stmt = select(SecretsDBE).filter_by(
                 id=secret_id,
@@ -124,7 +128,7 @@ class SecretsDAO(SecretsDAOInterface):
         project_id: UUID | None,
         organization_id: UUID | None,
     ):
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             scope_filter = self._scope_filter(project_id, organization_id)
             stmt = select(SecretsDBE).filter_by(
                 id=secret_id,

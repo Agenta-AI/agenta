@@ -177,10 +177,33 @@ The same executor can run in different contexts with different adapters:
 
 | Context | Adapter |
 |---|---|
-| backend worker | DAO/service adapter |
-| SDK/local | remote API adapter |
+| backend worker | API source/DAO/workflow-service adapters |
+| SDK/local | local decorator or remote service adapters |
 | tests | in-memory adapter |
 | frontend human annotation | direct `populate` adapter for submitted cells |
+
+The planner, topology classifier, and result-cell models should be SDK-owned so
+SDK-local evaluation and backend workers use the same runtime contract. API code
+should not fork the runtime; it should translate backend DTOs into SDK runtime
+models and keep only backend-specific adapters beside the worker/service code.
+
+The backend implementation should have one scenario execution loop. Source
+wrappers may still differ because live queries, query snapshots, direct queue
+items, and testset rows resolve differently, but after resolution they should
+all call one source-slice processor. That processor owns input cell creation,
+application invocation, evaluator invocation, pending manual/custom cells,
+cache resolution, metrics refresh, and run/scenario status updates. Batch
+inference is therefore just the application-only graph shape, not a separate
+loop. Task-level trace/testcase batch helpers are unnecessary once the slice
+worker calls the source-slice processor directly; service/API wrapper methods
+can remain for compatibility.
+
+The SDK should own the generic source-slice contract. SDK preview/local
+execution can run through SDK-owned `process_evaluation_source_slice` now using
+local decorator runners, SDK result logging, and SDK trace loading. The backend
+processor should use that same contract with backend adapters for scenario
+creation, result persistence, cache reuse, status updates, trace loading, and
+workflow service execution.
 
 ## Runnable Step Executor
 
@@ -191,24 +214,18 @@ Current application execution is still routed through legacy helper paths such a
 Proposed contract:
 
 ```python
-class RunnableStepExecutor:
+class WorkflowRunner:
     async def execute(
         self,
-        *,
-        run: EvaluationRun,
-        scenario: ScenarioBinding,
-        step: EvaluationStep,
-        repeat_idx: int,
-        upstream: dict,
-        cache_policy: CachePolicy,
-    ) -> StepExecutionResult:
+        request: WorkflowExecutionRequest,
+    ) -> WorkflowExecutionResult:
         ...
 ```
 
-`StepExecutionResult` should be independent of whether the runnable was an application or evaluator:
+`WorkflowExecutionResult` should be independent of whether the runnable was an application or evaluator:
 
 ```python
-class StepExecutionResult:
+class WorkflowExecutionResult:
     status: EvaluationStatus
     trace_id: str | None
     span_id: str | None
@@ -226,7 +243,12 @@ Responsibilities:
 - normalize failures into result payloads
 - return enough context for downstream steps
 
-The first implementation can wrap existing application and workflow services. The design should make those wrappers replaceable so the legacy batch helpers can be deprecated without changing the planner, tensor operations, or queue APIs.
+The first implementation can wrap existing application and workflow services.
+The SDK should expose the runner protocol and shared models. The API should
+provide backend workflow-service and legacy batch-invocation adapters. The SDK
+should provide local decorator and remote service adapters. This makes those
+wrappers replaceable so the legacy batch helpers can be deprecated without
+changing the planner, tensor operations, or queue APIs.
 
 ## Origin Semantics
 
@@ -375,7 +397,12 @@ Recommended order:
 7. Move pending human/custom planning into the shared planner.
 8. Move batch testset after repeat, cache, and runnable-executor parity are proven.
 9. Move live query once windowed source resolution and idempotency are stable.
-10. Retire specialized setup/execution branches after parity tests pass.
+10. Collapse API-internal worker handlers to run/slice processors.
+11. Share one backend source-slice processor across live query, batch query, queue slices, batch inference, and testset application evaluation.
+12. Route SDK preview/local evaluation through SDK-owned source-slice processing with SDK-specific adapters.
+13. Move backend execution onto the SDK source-slice contract through backend adapters that preserve current cache/result/status behavior.
+14. Treat batch inference as the application-only shape of the testset application graph.
+15. Retire specialized setup/execution branches after parity tests pass, leaving compatibility wrappers around the canonical processor.
 
 ## Success Criteria
 

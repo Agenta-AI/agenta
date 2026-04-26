@@ -254,8 +254,10 @@ async def _transfer_application(
             return v
 
     from oss.src.dbs.postgres.git.mappings import map_dto_to_dbe
-    from oss.src.dbs.postgres.shared.engine import engine as db_engine
+    from oss.src.dbs.postgres.shared.engine import get_transactions_engine
     from datetime import datetime, timezone
+
+    db_engine = get_transactions_engine()
 
     workflow_create = WorkflowCreate(
         **application_create.model_dump(mode="json"),
@@ -267,7 +269,7 @@ async def _transfer_application(
 
     # Avoid slug collision with existing workflow artifacts (e.g. evaluators)
     artifact_slug = git_artifact_create.slug
-    async with db_engine.core_session() as session:
+    async with db_engine.session() as session:
         existing = (
             await session.execute(
                 select(WorkflowArtifactDBE).filter(
@@ -298,7 +300,7 @@ async def _transfer_application(
         dto=artifact_dto,
     )
 
-    async with db_engine.core_session() as session:
+    async with db_engine.session() as session:
         session.add(artifact_dbe)
         await session.commit()
 
@@ -364,7 +366,7 @@ async def _transfer_application(
             dto=variant_dto,
         )
 
-        async with db_engine.core_session() as session:
+        async with db_engine.session() as session:
             session.add(variant_dbe)
             await session.commit()
 
@@ -415,7 +417,7 @@ async def _transfer_application(
                 dto=revision_dto,
             )
 
-            async with db_engine.core_session() as session:
+            async with db_engine.session() as session:
                 session.add(revision_dbe)
                 await session.commit()
 

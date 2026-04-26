@@ -12,7 +12,7 @@ from fastapi import HTTPException
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     UpdateSecretDTO,
@@ -280,7 +280,9 @@ class OrganizationDomainsService:
 
         Token expires after 48 hours and can be refreshed.
         """
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationDomainsDAO(session)
 
             # Block if a verified domain already exists anywhere
@@ -337,7 +339,9 @@ class OrganizationDomainsService:
         self, organization_id: str, domain_id: str, user_id: str
     ) -> OrganizationDomain:
         """Verify a domain via DNS check."""
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationDomainsDAO(session)
 
             domain = await dao.get_by_id(
@@ -403,7 +407,9 @@ class OrganizationDomainsService:
         Tokens are returned for unverified domains (within expiry period).
         Verified domains have token=None (cleared after verification).
         """
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationDomainsDAO(session)
             domains = await dao.list_by_organization(organization_id=organization_id)
 
@@ -430,7 +436,9 @@ class OrganizationDomainsService:
         Generates a new token and resets the 48-hour expiry window.
         For verified domains, this marks them as unverified for re-verification.
         """
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationDomainsDAO(session)
 
             domain = await dao.get_by_id(
@@ -470,7 +478,9 @@ class OrganizationDomainsService:
 
         Generates a new token and marks the domain as unverified.
         """
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationDomainsDAO(session)
 
             domain = await dao.get_by_id(
@@ -506,7 +516,9 @@ class OrganizationDomainsService:
         self, organization_id: str, domain_id: str, user_id: str
     ) -> bool:
         """Delete a domain."""
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationDomainsDAO(session)
 
             domain = await dao.get_by_id(
@@ -573,7 +585,9 @@ class OrganizationProvidersService:
         user_id: str,
     ) -> OrganizationProvider:
         """Create a new SSO provider."""
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationProvidersDAO(session)
 
             # Use the slug from payload (already validated to be lowercase letters and hyphens)
@@ -648,7 +662,9 @@ class OrganizationProvidersService:
         user_id: str,
     ) -> OrganizationProvider:
         """Update an SSO provider."""
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationProvidersDAO(session)
 
             provider = await dao.get_by_id(
@@ -735,7 +751,9 @@ class OrganizationProvidersService:
 
     async def list_providers(self, organization_id: str) -> List[OrganizationProvider]:
         """List all SSO providers for an organization."""
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationProvidersDAO(session)
             providers = await dao.list_by_organization(organization_id=organization_id)
 
@@ -748,7 +766,9 @@ class OrganizationProvidersService:
         self, organization_id: str, provider_id: str
     ) -> OrganizationProvider:
         """Get a single SSO provider by ID."""
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationProvidersDAO(session)
             provider = await dao.get_by_id(
                 provider_id=provider_id, organization_id=organization_id
@@ -761,7 +781,9 @@ class OrganizationProvidersService:
         self, organization_id: str, provider_id: str, user_id: str
     ) -> OrganizationProvider:
         """Test SSO provider connection and mark as valid if successful."""
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationProvidersDAO(session)
 
             provider = await dao.get_by_id(
@@ -806,7 +828,9 @@ class OrganizationProvidersService:
         self, organization_id: str, provider_id: str, user_id: str
     ) -> bool:
         """Delete an SSO provider."""
-        async with engine.core_session() as session:
+        engine = get_transactions_engine()
+
+        async with engine.session() as session:
             dao = OrganizationProvidersDAO(session)
 
             provider = await dao.get_by_id(

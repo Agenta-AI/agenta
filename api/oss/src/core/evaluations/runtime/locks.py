@@ -121,7 +121,7 @@ async def _write_meta(
     payload: LockPayload,
     ttl: int,
 ) -> None:
-    await caching.r_lock.set(
+    await caching._cache_engine.get_r_lock().set(
         _actual_meta_name(lock_key),
         orjson.dumps(payload.model_dump(mode="json")),
         ex=ttl,
@@ -134,7 +134,8 @@ async def _touch_meta(
     ttl: int,
 ) -> None:
     meta_key = _actual_meta_name(lock_key)
-    raw = await caching.r_lock.get(meta_key)
+    r_lock = caching._cache_engine.get_r_lock()
+    raw = await r_lock.get(meta_key)
     if not raw:
         return
 
@@ -145,7 +146,7 @@ async def _touch_meta(
         return
 
     payload.updated_at = _now_iso()
-    await caching.r_lock.set(
+    await r_lock.set(
         meta_key,
         orjson.dumps(payload.model_dump(mode="json")),
         ex=ttl,
@@ -157,11 +158,12 @@ async def _read_meta_if_lock_exists(
     lock_key: str,
 ) -> Optional[LockPayload]:
     actual_lock_key = _actual_lock_name(lock_key)
-    if not await caching.r_lock.exists(actual_lock_key):
-        await caching.r_lock.delete(_actual_meta_name(lock_key))
+    r_lock = caching._cache_engine.get_r_lock()
+    if not await r_lock.exists(actual_lock_key):
+        await r_lock.delete(_actual_meta_name(lock_key))
         return None
 
-    raw = await caching.r_lock.get(_actual_meta_name(lock_key))
+    raw = await r_lock.get(_actual_meta_name(lock_key))
     if not raw:
         return None
 
@@ -367,7 +369,8 @@ async def list_active_job_locks(
     Wildcard discovery must use SCAN, never KEYS.
     """
     payloads: list[LockPayload] = []
-    async for raw_lock_key in caching.r_lock.scan_iter(
+    r_lock = caching._cache_engine.get_r_lock()
+    async for raw_lock_key in r_lock.scan_iter(
         match=_actual_lock_name(job_lock_pattern(run_id))
     ):
         meta_key = (
@@ -375,7 +378,7 @@ async def list_active_job_locks(
             if isinstance(raw_lock_key, bytes)
             else f"{raw_lock_key}:meta"
         )
-        raw_payload = await caching.r_lock.get(meta_key)
+        raw_payload = await r_lock.get(meta_key)
         if not raw_payload:
             continue
 
@@ -403,7 +406,8 @@ async def is_run_executing(
     *,
     run_id: str,
 ) -> bool:
-    async for _ in caching.r_lock.scan_iter(
+    r_lock = caching._cache_engine.get_r_lock()
+    async for _ in r_lock.scan_iter(
         match=_actual_lock_name(job_lock_pattern(run_id))
     ):
         return True
@@ -414,7 +418,8 @@ async def has_mutation_lock(
     *,
     run_id: str,
 ) -> bool:
-    return bool(await caching.r_lock.exists(_actual_lock_name(run_lock_key(run_id))))
+    r_lock = caching._cache_engine.get_r_lock()
+    return bool(await r_lock.exists(_actual_lock_name(run_lock_key(run_id))))
 
 
 async def refresh_worker_heartbeat(
@@ -424,7 +429,8 @@ async def refresh_worker_heartbeat(
 ) -> WorkerHeartbeatPayload:
     now = _now_iso()
     hb_key = _actual_lock_name(worker_heartbeat_key(worker_id))
-    raw = await caching.r_lock.get(hb_key)
+    r_lock = caching._cache_engine.get_r_lock()
+    raw = await r_lock.get(hb_key)
     created_at = now
 
     if raw:
@@ -442,7 +448,7 @@ async def refresh_worker_heartbeat(
         created_at=created_at,
         updated_at=now,
     )
-    await caching.r_lock.set(
+    await r_lock.set(
         hb_key,
         orjson.dumps(payload.model_dump(mode="json")),
         ex=ttl,

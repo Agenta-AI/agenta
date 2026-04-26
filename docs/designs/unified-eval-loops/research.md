@@ -12,15 +12,15 @@ current implementation state from:
 - `application/api/oss/src/core/evaluations/types.py`
 - `application/api/oss/src/core/evaluations/utils.py`
 - `application/api/oss/src/core/evaluations/service.py`
-- `application/api/oss/src/core/evaluations/tasks/legacy.py`
-- `application/api/oss/src/core/evaluations/tasks/live.py`
+- `application/api/oss/src/core/evaluations/tasks/source_slice.py`
+- `application/api/oss/src/core/evaluations/tasks/query.py`
 - `application/api/oss/tests/pytest/unit/evaluations/*`
 
 The goal is to identify the common execution model behind the current loop families and the places where setup and execution still diverge.
 
 ## Current Loop Families
 
-The runtime currently has several explicit evaluation loop families:
+The runtime historically had several explicit evaluation loop families:
 
 | Loop family | Source unit | Input steps | Application steps | Evaluator steps | Scenario represents |
 |---|---|---:|---:|---:|---|
@@ -221,13 +221,18 @@ Current setup is not one universal flow. It is split across:
 
 These setup paths build similar run-data concepts through `_make_evaluation_run_data()` in several paths, but they still apply different validation and dispatch rules. That is why new combinations still tend to require setup and execution changes in multiple places.
 
-## Execution Fragmentation
+## Execution Consolidation
 
-The SDK, backend batch workers, backend live workers, and queue workers each encode their own nested loops. Recent backend work has brought the loops closer together, but they still share concepts by convention rather than through one planner/executor abstraction:
+The SDK and backend now route concrete source items through the SDK-owned
+source-slice processor. Backend task modules are source/dispatch shells:
 
-- source resolution
-- scenario creation
-- input result creation
+- `run.py` classifies a run and dispatches to the right source resolver
+- `query.py` resolves live/batch query source traces
+- `source_slice.py` resolves direct/testset source items and builds backend adapters
+
+The remaining backend-specific work lives behind adapters for scenario creation,
+result persistence, metrics refresh, trace loading, cache reuse, and workflow
+execution.
 - application invocation
 - evaluator invocation
 - human/custom pending behavior

@@ -3,7 +3,10 @@ from typing import Optional, List
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import (
+    TransactionsEngine,
+    get_transactions_engine,
+)
 from oss.src.dbs.postgres.users.dbes import UserIdentityDBE
 from oss.src.dbs.postgres.users.mappings import (
     map_identity_dbe_to_dto,
@@ -13,10 +16,15 @@ from oss.src.core.users.types import UserIdentity, UserIdentityCreate
 
 
 class IdentitiesDAO:
+    def __init__(self, engine: Optional[TransactionsEngine] = None):
+        if engine is None:
+            engine = get_transactions_engine()
+        self.engine = engine
+
     async def create(self, dto: UserIdentityCreate) -> UserIdentity:
         identity_dbe = map_create_dto_to_dbe(dto)
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             try:
                 session.add(identity_dbe)
                 await session.commit()
@@ -37,7 +45,7 @@ class IdentitiesDAO:
     async def get_by_method_subject(
         self, method: str, subject: str
     ) -> Optional[UserIdentity]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(UserIdentityDBE).filter_by(
                 method=method,
                 subject=subject,
@@ -51,7 +59,7 @@ class IdentitiesDAO:
             return map_identity_dbe_to_dto(identity_dbe)
 
     async def list_by_user(self, user_id: UUID) -> List[UserIdentity]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(UserIdentityDBE).filter_by(user_id=user_id)
             result = await session.execute(stmt)
             identity_dbes = result.scalars().all()
@@ -59,7 +67,7 @@ class IdentitiesDAO:
             return [map_identity_dbe_to_dto(dbe) for dbe in identity_dbes]
 
     async def list_by_domain(self, domain: str) -> List[UserIdentity]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(UserIdentityDBE).filter_by(domain=domain)
             result = await session.execute(stmt)
             identity_dbes = result.scalars().all()

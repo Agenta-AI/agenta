@@ -12,7 +12,7 @@ async def acreate(
     run_id: UUID,
     scenario_id: UUID,
     step_key: str,
-    # repeat_idx: str,
+    repeat_idx: Optional[int] = 0,
     # timestamp: datetime,
     # interval: float,
     #
@@ -37,7 +37,7 @@ async def acreate(
                 #
                 # interval=interval,
                 # timestamp=timestamp,
-                # repeat_idx=repeat_idx,
+                repeat_idx=repeat_idx,
                 step_key=step_key,
                 run_id=str(run_id),
                 scenario_id=str(scenario_id),

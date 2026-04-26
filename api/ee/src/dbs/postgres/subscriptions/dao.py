@@ -5,7 +5,10 @@ from sqlalchemy.future import select
 from ee.src.core.subscriptions.types import SubscriptionDTO
 from ee.src.core.subscriptions.interfaces import SubscriptionsDAOInterface
 
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import (
+    TransactionsEngine,
+    get_transactions_engine,
+)
 from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
 from ee.src.dbs.postgres.subscriptions.mappings import (
     map_dbe_to_dto,
@@ -14,15 +17,17 @@ from ee.src.dbs.postgres.subscriptions.mappings import (
 
 
 class SubscriptionsDAO(SubscriptionsDAOInterface):
-    def __init__(self):
-        pass
+    def __init__(self, engine: TransactionsEngine = None):
+        if engine is None:
+            engine = get_transactions_engine()
+        self.engine = engine
 
     async def create(
         self,
         *,
         subscription: SubscriptionDTO,
     ) -> SubscriptionDTO:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             subscription_dbe = map_dto_to_dbe(subscription)
 
             session.add(subscription_dbe)
@@ -38,7 +43,7 @@ class SubscriptionsDAO(SubscriptionsDAOInterface):
         *,
         organization_id: str,
     ) -> Optional[SubscriptionDTO]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             result = await session.execute(
                 select(SubscriptionDBE).where(
                     SubscriptionDBE.organization_id == organization_id,
@@ -59,7 +64,7 @@ class SubscriptionsDAO(SubscriptionsDAOInterface):
         *,
         subscription: SubscriptionDTO,
     ) -> Optional[SubscriptionDTO]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             result = await session.execute(
                 select(SubscriptionDBE).where(
                     SubscriptionDBE.organization_id == subscription.organization_id,

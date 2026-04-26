@@ -67,20 +67,18 @@ services:
         # === IMAGE ================================================ #
         image: agenta-oss-dev-api:latest
         # === EXECUTION ============================================ #
-        command:
-            [
-                "uvicorn",
-                "entrypoints.routers:app",
-                "--host",
-                "0.0.0.0",
-                "--port",
-                "8000",
-                "--reload",
-                "--reload-dir",
-                "/sdk",
-                "--root-path",
-                "/api",
-            ]
+        command: >
+            bash -c "echo '[STARTUP] Python process started' &&
+            /usr/local/bin/python -m uvicorn
+            entrypoints.routers:app
+            --host 0.0.0.0
+            --port 8000
+            --reload
+            --reload-dir /sdk
+            --reload-dir /app/oss
+            --reload-dir /app/entrypoints
+            --reload-exclude '**/tests/**'
+            --root-path /api"
         # === STORAGE ============================================== #
         volumes:
             #
@@ -126,7 +124,7 @@ services:
         image: agenta-oss-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --ignore-patterns=*/tests/* --
             python -m entrypoints.worker_evaluations
         # === STORAGE ============================================== #
         volumes:
@@ -162,7 +160,7 @@ services:
         image: agenta-oss-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --ignore-patterns=*/tests/* --
             python -m entrypoints.worker_tracing
         # === STORAGE ============================================== #
         volumes:
@@ -198,7 +196,7 @@ services:
         image: agenta-oss-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --ignore-patterns=*/tests/* --
             python -m entrypoints.worker_webhooks
         # === STORAGE ============================================== #
         volumes:
@@ -240,7 +238,7 @@ services:
         image: agenta-oss-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --ignore-patterns=*/tests/* --
             python -m entrypoints.worker_events
         # === STORAGE ============================================== #
         volumes:
@@ -343,6 +341,10 @@ services:
                 "--reload",
                 "--reload-dir",
                 "/sdk",
+                "--reload-dir",
+                "/app/oss",
+                "--reload-exclude",
+                "**/tests/**",
                 "--root-path",
                 "/services",
             ]

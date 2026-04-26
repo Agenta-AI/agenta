@@ -64,7 +64,11 @@ Introduce shared internal models without changing external behavior:
 7. `ExecutionPlan`
 8. `ProcessSummary`
 
-The first implementation can live inside backend evaluation core. SDK parity can follow once the contract is stable.
+The common runtime contract should live in the SDK so SDK-local evaluations and
+API workers share the same planner/topology/result-cell model. Backend code
+should keep API-specific source, DAO, workflow-service, and worker-dispatch
+adapters in backend modules. SDK code should keep local decorator, remote API,
+trace loading, and result persistence adapters in SDK modules.
 
 ## Phase 3. Implement Source Resolvers
 
@@ -162,8 +166,10 @@ Add a runnable execution boundary that can execute any auto step whose type maps
 
 Initial adapters:
 
-1. application step adapter wrapping the current application invocation path
-2. evaluator step adapter wrapping the current workflow invocation path
+1. SDK workflow-runner protocols for application/evaluator execution
+2. SDK/local adapters wrapping decorator/service endpoint execution
+3. API adapters wrapping the current backend workflow invocation path
+4. API application adapter wrapping the current legacy batch invocation path
 
 The interface should own:
 
@@ -180,6 +186,7 @@ Acceptance criteria:
 - existing evaluator invocation behavior is preserved under the adapter
 - planner code does not call legacy helper functions directly
 - legacy helper usage is isolated behind adapters and can be deprecated later
+- SDK and backend import the same planner/topology contracts rather than reimplementing them separately
 
 ## Phase 8. Move Evaluator-Only Topologies
 
@@ -209,6 +216,10 @@ Route application-bearing testset loops through the planner/executor:
 
 1. testset -> application, also called batch inference / batch invocation
 2. testset -> application -> evaluator
+
+These should be one active application-bearing loop. Batch inference is the
+application-only configuration of the same testset application loop, not a
+separate implementation loop.
 
 Preserve current `is_split` behavior when moving testset loops into the planner:
 
@@ -287,10 +298,12 @@ Acceptance criteria:
 
 SDK:
 
-1. Extract remote API persistence adapter.
-2. Use shared slice/process semantics.
-3. Add probe-before-write.
-4. Align step keys and flags with backend.
+1. Move shared planner/topology/result-cell contracts into the SDK package.
+2. Keep SDK execution adapters separate from API worker adapters.
+3. Extract remote API persistence adapter.
+4. Use shared slice/process semantics.
+5. Add probe-before-write.
+6. Align step keys and flags with backend.
 
 Frontend:
 
@@ -305,10 +318,19 @@ Frontend:
 After parity coverage exists:
 
 1. Remove duplicate nested-loop implementations.
-2. Keep thin dispatch wrappers for scheduler/task routing.
-3. Delete compatibility flag bridges only after all callers use canonical names.
-4. Deprecate or delete legacy application/evaluator helper paths that are fully covered by runnable-step executors.
-5. Update docs to make the unified planner and runnable-step executor the primary design reference.
+2. Keep existing API endpoints as wrappers where web/API clients need compatibility.
+3. Do not preserve topology-specific worker task names; worker tasks are API-internal.
+4. Collapse scheduler/task routing to `evaluations.run.process` and `evaluations.slice.process`.
+5. Keep backend execution on one source-slice processor, `process_evaluation_source_slice`.
+6. Make live query, batch query, queue slices, batch inference, and testset -> application -> evaluator resolve source items only, then call the source-slice processor.
+7. Keep batch inference as the application-only configuration of testset application processing, not a separate execution loop.
+8. Remove task-level pass-through helpers such as trace/testcase batch helper functions once the run/slice processors call the source-slice processor directly.
+9. Keep setup endpoints and web-facing API shapes as compatibility wrappers until product/API migration is complete.
+10. Route SDK preview/local execution through SDK-owned `process_evaluation_source_slice` with SDK local runner/result/trace adapters.
+11. Route backend execution through the same SDK source-slice contract with backend scenario/result/cache/status/workflow adapters.
+12. Delete compatibility flag bridges only after all callers use canonical names.
+13. Deprecate or delete legacy application/evaluator helper paths that are fully covered by runnable-step executors.
+14. Update docs to make the unified planner and runnable-step executor the primary design reference.
 
 ## Test Plan
 

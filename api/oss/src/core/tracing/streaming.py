@@ -1,29 +1,20 @@
 import zlib
-from typing import List, Optional
+from typing import List
 from uuid import UUID
 
 from orjson import dumps, loads
 from pydantic import BaseModel
-from redis.asyncio import Redis
 
-from oss.src.utils.env import env
+from oss.src.dbs.redis.shared.engine import get_streams_engine
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.tracing.dtos import OTelFlatSpan
 
 log = get_module_logger(__name__)
-_redis: Optional[Redis] = None
 
 
-def _get_redis() -> Redis:
-    global _redis
-
-    if _redis is None:
-        if not env.redis.uri_durable:
-            raise RuntimeError("REDIS_URI_DURABLE is required for tracing streams.")
-        _redis = Redis.from_url(env.redis.uri_durable, decode_responses=False)
-
-    return _redis
+def _get_redis():
+    return get_streams_engine().get_redis()
 
 
 class SpanMessage(BaseModel):

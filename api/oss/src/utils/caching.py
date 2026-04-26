@@ -5,12 +5,11 @@ from uuid import uuid4
 
 import orjson
 
-# from cachetools import TTLCache
-from redis.asyncio import Redis
 from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
+from oss.src.dbs.redis.shared.engine import get_cache_engine
 
 log = get_module_logger(__name__)
 
@@ -38,20 +37,8 @@ CACHE_DEBUG_VALUE = False
 # Original L1 cache:
 # local_cache: TTLCache = TTLCache(maxsize=4096, ttl=AGENTA_CACHE_LOCAL_TTL)
 
-# Use volatile Redis instance for caching (prefix-based separation)
-# decode_responses=False: orjson operates on bytes for 3x performance vs json
-r = Redis.from_url(
-    url=env.redis.uri_volatile,
-    decode_responses=False,
-    socket_timeout=0.5,  # read/write timeout
-)
+_cache_engine = get_cache_engine()
 
-# Dedicated Redis client for distributed locks with a longer timeout.
-r_lock = Redis.from_url(
-    url=env.redis.uri_volatile,
-    decode_responses=False,
-    socket_timeout=AGENTA_LOCK_SOCKET_TIMEOUT,
-)
 
 # Ownership-safe lock scripts. Owner token must match to renew/release.
 _LOCK_RENEW_IF_OWNER_SCRIPT = """
@@ -129,7 +116,7 @@ async def _scan(pattern: str) -> list[str]:
         keys: list[str] = []
 
         while True:  # TODO: Really ?
-            cursor, batch = await r.scan(
+            cursor, batch = await _cache_engine.get_r().scan(
                 cursor=cursor,
                 match=pattern,
                 count=AGENTA_CACHE_SCAN_BATCH_SIZE,
@@ -219,7 +206,7 @@ async def _try_get_and_maybe_renew(
     #     return _deserialize(raw, model=model, is_list=is_list)
 
     # Layer 2: Check Redis (distributed, 5min TTL, ~1ms latency)
-    raw = await r.get(cache_name)
+    raw = await _cache_engine.get_r().get(cache_name)
 
     if raw is not None:
         if CACHE_DEBUG:
@@ -240,7 +227,7 @@ async def _try_get_and_maybe_renew(
                     name=cache_name,
                 )
 
-            await r.expire(cache_name, ttl)
+            await _cache_engine.get_r().expire(cache_name, ttl)
     else:
         if CACHE_DEBUG:
             log.debug(
@@ -306,7 +293,7 @@ async def _maybe_retry_get(
         lock_name = f"lock::{cache_name}"
         lock_ex = int(lock_ttl * 1000)  # convert seconds to milliseconds
 
-        got_lock = await r.set(lock_name, "1", nx=True, ex=lock_ex)
+        got_lock = await _cache_engine.get_r().set(lock_name, "1", nx=True, ex=lock_ex)
 
         if got_lock:
             if CACHE_DEBUG:
@@ -379,7 +366,7 @@ async def set_cache(
         #
         # Original L1 write path:
         # local_cache[cache_name] = cache_value
-        await r.set(cache_name, cache_value, px=cache_px)
+        await _cache_engine.get_r().set(cache_name, cache_value, px=cache_px)
 
         if CACHE_DEBUG:
             log.debug(
@@ -392,7 +379,7 @@ async def set_cache(
 
         lock_name = f"lock::{cache_name}"
 
-        check = await r.delete(lock_name)
+        check = await _cache_engine.get_r().delete(lock_name)
 
         if check:
             if CACHE_DEBUG:
@@ -513,7 +500,7 @@ async def invalidate_cache(
             #
             # Original L1 invalidation path:
             # local_cache.pop(cache_name, None)
-            await r.delete(cache_name)
+            await _cache_engine.get_r().delete(cache_name)
 
         else:
             cache_name = _pack(
@@ -560,7 +547,7 @@ async def invalidate_cache(
             redis_keys_deleted = 0
             for i in range(0, len(keys), AGENTA_CACHE_DELETE_BATCH_SIZE):
                 batch = keys[i : i + AGENTA_CACHE_DELETE_BATCH_SIZE]
-                deleted_count = await r.delete(*batch)
+                deleted_count = await _cache_engine.get_r().delete(*batch)
                 redis_keys_deleted += deleted_count
 
                 if CACHE_DEBUG:
@@ -642,7 +629,9 @@ async def acquire_lock(
         lock_owner = uuid4().hex
 
         # Atomic SET NX: Returns True if lock acquired, False if already held
-        acquired = await r_lock.set(lock_key, lock_owner, nx=True, ex=ttl)
+        acquired = await _cache_engine.get_r_lock().set(
+            lock_key, lock_owner, nx=True, ex=ttl
+        )
 
         if acquired:
             if CACHE_DEBUG:
@@ -704,7 +693,7 @@ async def renew_lock(
         )
 
         if owner:
-            renewed = await r_lock.eval(
+            renewed = await _cache_engine.get_r_lock().eval(
                 _LOCK_RENEW_IF_OWNER_SCRIPT,
                 1,
                 lock_key,
@@ -712,7 +701,7 @@ async def renew_lock(
                 str(ttl),
             )
         else:
-            renewed = await r_lock.expire(lock_key, ttl)
+            renewed = await _cache_engine.get_r_lock().expire(lock_key, ttl)
 
         if renewed:
             if CACHE_DEBUG:
@@ -774,14 +763,14 @@ async def release_lock(
         )
 
         if owner:
-            deleted = await r_lock.eval(
+            deleted = await _cache_engine.get_r_lock().eval(
                 _LOCK_RELEASE_IF_OWNER_SCRIPT,
                 1,
                 lock_key,
                 owner,
             )
         else:
-            deleted = await r_lock.delete(lock_key)
+            deleted = await _cache_engine.get_r_lock().delete(lock_key)
 
         if deleted:
             if CACHE_DEBUG:

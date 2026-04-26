@@ -24,7 +24,7 @@ from oss.src.core.evaluations.types import (
     SimpleQueueData,
 )
 from oss.src.core.evaluations.service import SimpleQueuesService
-from oss.src.core.evaluations.tasks import live as live_module
+from oss.src.core.evaluations.tasks import query as query_module
 
 
 @pytest.mark.asyncio
@@ -92,8 +92,8 @@ async def test_simple_queue_create_dispatches_each_query_source_with_step_key():
             )
         ),
         testsets_service=SimpleNamespace(fetch_testset_revision=AsyncMock()),
-        evaluate_batch_traces=AsyncMock(return_value=True),
-        evaluate_batch_testcases=AsyncMock(return_value=True),
+        dispatch_trace_slice=AsyncMock(return_value=True),
+        dispatch_testcase_slice=AsyncMock(return_value=True),
     )
 
     service = SimpleQueuesService(
@@ -118,7 +118,7 @@ async def test_simple_queue_create_dispatches_each_query_source_with_step_key():
     assert created_queue.data is not None
     assert created_queue.data.kind == "traces"
     assert created_queue.data.queries == [query_revision_id_1, query_revision_id_2]
-    assert simple_evaluations_service.evaluate_batch_traces.await_args_list == [
+    assert simple_evaluations_service.dispatch_trace_slice.await_args_list == [
         call(
             project_id=project_id,
             user_id=user_id,
@@ -137,7 +137,7 @@ async def test_simple_queue_create_dispatches_each_query_source_with_step_key():
 
 
 @pytest.mark.asyncio
-async def test_evaluate_live_query_marks_human_steps_pending(monkeypatch):
+async def test_process_query_source_run_marks_human_steps_pending(monkeypatch):
     project_id = uuid4()
     user_id = uuid4()
     run_id = uuid4()
@@ -200,7 +200,7 @@ async def test_evaluate_live_query_marks_human_steps_pending(monkeypatch):
     refresh_metrics = AsyncMock()
 
     monkeypatch.setattr(
-        live_module,
+        query_module,
         "evaluations_service",
         SimpleNamespace(
             fetch_run=fetch_run,
@@ -211,7 +211,7 @@ async def test_evaluate_live_query_marks_human_steps_pending(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        live_module,
+        query_module,
         "queries_service",
         SimpleNamespace(
             fetch_query_revision=AsyncMock(
@@ -224,7 +224,7 @@ async def test_evaluate_live_query_marks_human_steps_pending(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        live_module,
+        query_module,
         "evaluators_service",
         SimpleNamespace(
             fetch_evaluator_revision=AsyncMock(
@@ -237,22 +237,16 @@ async def test_evaluate_live_query_marks_human_steps_pending(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        live_module,
+        query_module,
         "tracing_service",
         SimpleNamespace(query_traces=AsyncMock(return_value=[trace])),
     )
     monkeypatch.setattr(
-        live_module,
+        query_module,
         "workflows_service",
         SimpleNamespace(invoke_workflow=AsyncMock()),
     )
-    monkeypatch.setattr(
-        live_module,
-        "fetch_traces_by_hash",
-        AsyncMock(return_value=[]),
-    )
-
-    await live_module.evaluate_live_query(
+    await query_module.process_query_source_run(
         project_id=project_id,
         user_id=user_id,
         run_id=run_id,
@@ -268,3 +262,59 @@ async def test_evaluate_live_query_marks_human_steps_pending(monkeypatch):
     assert isinstance(scenario_edit, EvaluationScenarioEdit)
     assert scenario_edit.status == EvaluationStatus.PENDING
     refresh_metrics.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_process_query_source_run_skips_empty_query_results(monkeypatch):
+    project_id = uuid4()
+    user_id = uuid4()
+    run_id = uuid4()
+    query_revision_id = uuid4()
+    evaluator_revision_id = uuid4()
+    run = EvaluationRun(
+        id=run_id,
+        flags=EvaluationRunFlags(has_queries=True, has_evaluators=True),
+        status=EvaluationStatus.RUNNING,
+        data=EvaluationRunData(
+            steps=[
+                EvaluationRunDataStep(
+                    key="query-main",
+                    type="input",
+                    origin="custom",
+                    references={"query_revision": Reference(id=query_revision_id)},
+                ),
+                EvaluationRunDataStep(
+                    key="evaluator-auto",
+                    type="annotation",
+                    origin="auto",
+                    references={
+                        "evaluator_revision": Reference(id=evaluator_revision_id)
+                    },
+                ),
+            ]
+        ),
+    )
+    process_source_slice = AsyncMock()
+    monkeypatch.setattr(
+        query_module,
+        "evaluations_service",
+        SimpleNamespace(fetch_run=AsyncMock(return_value=run)),
+    )
+    monkeypatch.setattr(
+        query_module,
+        "resolve_query_source_items",
+        AsyncMock(return_value={"query-main": []}),
+    )
+    monkeypatch.setattr(
+        query_module,
+        "process_evaluation_source_slice",
+        process_source_slice,
+    )
+
+    await query_module.process_query_source_run(
+        project_id=project_id,
+        user_id=user_id,
+        run_id=run_id,
+    )
+
+    process_source_slice.assert_not_awaited()

@@ -100,6 +100,9 @@ from oss.src.core.evaluations.utils import (
 )
 
 from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
+from oss.src.core.evaluations.runtime.topology import classify_run_topology
+from oss.src.core.evaluations.runtime.sources import resolve_queue_source_batches
+from oss.src.core.evaluations.runtime.task_runner import TaskiqEvaluationTaskRunner
 
 
 log = get_module_logger(__name__)
@@ -199,6 +202,11 @@ class EvaluationsService:
         self.testsets_service = testsets_service
         self.evaluators_service = evaluators_service
         self.evaluations_worker = evaluations_worker
+        self.evaluations_task_runner = (
+            TaskiqEvaluationTaskRunner(worker=evaluations_worker)
+            if evaluations_worker is not None
+            else None
+        )
 
     ### CRUD
 
@@ -225,7 +233,7 @@ class EvaluationsService:
             log.error(e, exc_info=True)
             return False
 
-        if self.evaluations_worker is None:
+        if self.evaluations_task_runner is None:
             log.warning(
                 "[LIVE] Taskiq client is not configured; skipping live run dispatch"
             )
@@ -266,12 +274,10 @@ class EvaluationsService:
                     run=run,
                 )
 
-                await self.evaluations_worker.evaluate_live_query.kiq(
+                await self.evaluations_task_runner.process_run(
                     project_id=project_id,
                     user_id=user_id,
-                    #
                     run_id=run.id,
-                    #
                     newest=newest,
                     oldest=oldest,
                 )
@@ -1800,6 +1806,11 @@ class SimpleEvaluationsService:
         self.evaluators_service = evaluators_service
         self.evaluations_service = evaluations_service
         self.evaluations_worker = evaluations_worker
+        self.evaluations_task_runner = (
+            TaskiqEvaluationTaskRunner(worker=evaluations_worker)
+            if evaluations_worker is not None
+            else None
+        )
 
     async def create(
         self,
@@ -2232,50 +2243,26 @@ class SimpleEvaluationsService:
                     _evaluation = await self._parse_evaluation_run(run=run)
                     return _evaluation
 
-                if self.evaluations_worker is None:
+                if self.evaluations_task_runner is None:
                     log.warning(
                         "[EVAL] Taskiq client missing; cannot dispatch evaluation run",
                     )
                     return _evaluation
 
-                has_query_steps = bool(_evaluation.data.query_steps)
-                has_testset_steps = bool(_evaluation.data.testset_steps)
-                has_application_steps = bool(_evaluation.data.application_steps)
-                has_evaluator_steps = bool(_evaluation.data.evaluator_steps)
+                # Worker task names are API-internal, so dispatch through the
+                # unified run processor rather than topology-specific handlers.
+                topology = classify_run_topology(run)
 
-                if has_query_steps and has_evaluator_steps:
-                    await self._ensure_human_annotation_queue(
+                if topology.dispatch:
+                    if topology.dispatch == "batch_query":
+                        await self._ensure_human_annotation_queue(
+                            project_id=project_id,
+                            user_id=user_id,
+                            run=run,
+                        )
+                    await self.evaluations_task_runner.process_run(
                         project_id=project_id,
                         user_id=user_id,
-                        run=run,
-                    )
-                    await self.evaluations_worker.evaluate_batch_query.kiq(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        run_id=run.id,
-                    )
-
-                elif (
-                    has_testset_steps and has_application_steps and has_evaluator_steps
-                ):
-                    await self.evaluations_worker.evaluate_batch_testset.kiq(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        run_id=run.id,
-                    )
-
-                elif (
-                    has_testset_steps
-                    and has_application_steps
-                    and not has_evaluator_steps
-                    and not has_query_steps
-                ):
-                    await self.evaluations_worker.evaluate_batch_invocation.kiq(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
                         run_id=run.id,
                     )
 
@@ -2283,10 +2270,9 @@ class SimpleEvaluationsService:
                     log.warning(
                         "[EVAL] [start] [skip] unsupported non-live run topology",
                         run_id=run.id,
-                        has_query_steps=has_query_steps,
-                        has_testset_steps=has_testset_steps,
-                        has_application_steps=has_application_steps,
-                        has_evaluator_steps=has_evaluator_steps,
+                        topology=topology.label,
+                        topology_status=topology.status,
+                        reason=topology.reason,
                     )
 
                 return _evaluation
@@ -2335,7 +2321,7 @@ class SimpleEvaluationsService:
             run=run,
         )
 
-    async def evaluate_batch_traces(
+    async def dispatch_trace_slice(
         self,
         *,
         project_id: UUID,
@@ -2347,7 +2333,7 @@ class SimpleEvaluationsService:
     ) -> bool:
         if not trace_ids:
             return False
-        if self.evaluations_worker is None:
+        if self.evaluations_task_runner is None:
             log.warning(
                 "[EVAL] Taskiq client missing; cannot dispatch trace batch",
                 run_id=run_id,
@@ -2371,17 +2357,17 @@ class SimpleEvaluationsService:
             run=run,
         )
 
-        await self.evaluations_worker.evaluate_batch_traces.kiq(
+        await self.evaluations_task_runner.process_slice(
             project_id=project_id,
             user_id=user_id,
-            #
             run_id=run_id,
+            source_kind="traces",
             trace_ids=trace_ids,
             input_step_key=input_step_key,
         )
         return True
 
-    async def evaluate_batch_testcases(
+    async def dispatch_testcase_slice(
         self,
         *,
         project_id: UUID,
@@ -2393,7 +2379,7 @@ class SimpleEvaluationsService:
     ) -> bool:
         if not testcase_ids:
             return False
-        if self.evaluations_worker is None:
+        if self.evaluations_task_runner is None:
             log.warning(
                 "[EVAL] Taskiq client missing; cannot dispatch testcase batch",
                 run_id=run_id,
@@ -2417,11 +2403,11 @@ class SimpleEvaluationsService:
             run=run,
         )
 
-        await self.evaluations_worker.evaluate_batch_testcases.kiq(
+        await self.evaluations_task_runner.process_slice(
             project_id=project_id,
             user_id=user_id,
-            #
             run_id=run_id,
+            source_kind="testcases",
             testcase_ids=testcase_ids,
             input_step_key=input_step_key,
         )
@@ -3631,7 +3617,7 @@ class SimpleQueuesService:
         if self._get_kind(run) != SimpleQueueKind.TRACES:
             return None
 
-        ok = await self.simple_evaluations_service.evaluate_batch_traces(
+        ok = await self.simple_evaluations_service.dispatch_trace_slice(
             project_id=project_id,
             user_id=user_id,
             #
@@ -3671,7 +3657,7 @@ class SimpleQueuesService:
         if self._get_kind(run) != SimpleQueueKind.TESTCASES:
             return None
 
-        ok = await self.simple_evaluations_service.evaluate_batch_testcases(
+        ok = await self.simple_evaluations_service.dispatch_testcase_slice(
             project_id=project_id,
             user_id=user_id,
             #
@@ -3799,63 +3785,33 @@ class SimpleQueuesService:
         if not run.id or not run.data or not run.data.steps:
             return False
 
+        batches = await resolve_queue_source_batches(
+            project_id=project_id,
+            run=run,
+            queries_service=self.simple_evaluations_service.queries_service,
+            testsets_service=self.simple_evaluations_service.testsets_service,
+        )
+
         dispatched = False
-        for step in run.data.steps:
-            if step.type != "input" or not step.key:
-                continue
-
-            refs = step.references or {}
-            query_revision_ref = refs.get("query_revision")
-            testset_revision_ref = refs.get("testset_revision")
-
-            if query_revision_ref and query_revision_ref.id:
-                query_revision = await self.simple_evaluations_service.queries_service.fetch_query_revision(
-                    project_id=project_id,
-                    query_revision_ref=query_revision_ref,
-                    include_trace_ids=True,
-                )
-                trace_ids = (
-                    query_revision.data.trace_ids
-                    if query_revision
-                    and query_revision.data
-                    and query_revision.data.trace_ids
-                    else []
-                )
-                if not trace_ids:
-                    continue
-
-                ok = await self.simple_evaluations_service.evaluate_batch_traces(
+        for batch in batches:
+            if batch.kind == "traces" and batch.trace_ids:
+                ok = await self.simple_evaluations_service.dispatch_trace_slice(
                     project_id=project_id,
                     user_id=user_id,
                     run_id=run.id,
-                    trace_ids=trace_ids,
-                    input_step_key=step.key,
+                    trace_ids=batch.trace_ids,
+                    input_step_key=batch.step_key,
                 )
                 dispatched = dispatched or ok
                 continue
 
-            if testset_revision_ref and testset_revision_ref.id:
-                testset_revision = await self.simple_evaluations_service.testsets_service.fetch_testset_revision(
-                    project_id=project_id,
-                    testset_revision_ref=testset_revision_ref,
-                    include_testcase_ids=True,
-                )
-                testcase_ids = (
-                    testset_revision.data.testcase_ids
-                    if testset_revision
-                    and testset_revision.data
-                    and testset_revision.data.testcase_ids
-                    else []
-                )
-                if not testcase_ids:
-                    continue
-
-                ok = await self.simple_evaluations_service.evaluate_batch_testcases(
+            if batch.kind == "testcases" and batch.testcase_ids:
+                ok = await self.simple_evaluations_service.dispatch_testcase_slice(
                     project_id=project_id,
                     user_id=user_id,
                     run_id=run.id,
-                    testcase_ids=testcase_ids,
-                    input_step_key=step.key,
+                    testcase_ids=batch.testcase_ids,
+                    input_step_key=batch.step_key,
                 )
                 dispatched = dispatched or ok
 

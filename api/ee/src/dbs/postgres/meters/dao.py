@@ -8,7 +8,10 @@ from sqlalchemy import func, literal
 
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import (
+    TransactionsEngine,
+    get_transactions_engine,
+)
 
 from ee.src.core.entitlements.types import Quota
 from ee.src.core.meters.types import MeterDTO
@@ -22,8 +25,10 @@ log = get_module_logger(__name__)
 
 
 class MetersDAO(MetersDAOInterface):
-    def __init__(self):
-        pass
+    def __init__(self, engine: TransactionsEngine = None):
+        if engine is None:
+            engine = get_transactions_engine()
+        self.engine = engine
 
     async def dump(
         self,
@@ -31,7 +36,7 @@ class MetersDAO(MetersDAOInterface):
     ) -> list[MeterDTO]:
         log.info(f"[report] [dump] Starting (limit={limit or 'none'})")
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             try:
                 stmt = (
                     select(MeterDBE)
@@ -203,7 +208,7 @@ class MetersDAO(MetersDAOInterface):
         missing_count = 0
         missing_samples: list[str] = []
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             for meter in meters:
                 stmt = (
                     update(MeterDBE)
@@ -249,7 +254,7 @@ class MetersDAO(MetersDAOInterface):
         year: Optional[int] = None,
         month: Optional[int] = None,
     ) -> list[MeterDTO]:
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(MeterDBE).filter_by(
                 organization_id=organization_id,
             )  # NO RISK OF DEADLOCK
@@ -288,7 +293,7 @@ class MetersDAO(MetersDAOInterface):
             year, month = compute_billing_period(anchor=anchor)
             meter.year, meter.month = year, month
 
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(MeterDBE).filter_by(
                 organization_id=meter.organization_id,
                 key=meter.key,
@@ -376,7 +381,7 @@ class MetersDAO(MetersDAOInterface):
                 where = where | where_clause
 
         # 4. Build SQL statement (atomic upsert with RETURNING)
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = (
                 insert(MeterDBE)
                 .values(

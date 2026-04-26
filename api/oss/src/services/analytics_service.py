@@ -3,12 +3,12 @@ import traceback
 from datetime import datetime
 from typing import Callable, Optional
 
-import posthog
 from fastapi import Request
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.common import is_oss
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.lazy import _load_posthog
 
 log = get_module_logger(__name__)
 
@@ -44,15 +44,6 @@ ACTIVATION_EVENTS = {
 }
 
 
-# Initialize PostHog only if enabled
-if env.posthog.enabled:
-    posthog.api_key = env.posthog.api_key
-    posthog.host = env.posthog.api_url
-    log.info("✓ PostHog enabled")
-else:
-    log.warn("✗ PostHog disabled")
-
-
 async def _set_activation_property(
     distinct_id: str,
     property_name: str,
@@ -64,6 +55,10 @@ async def _set_activation_property(
     Uses PostHog's $set_once to ensure idempotency.
     """
     if not distinct_id or not env.posthog.enabled:
+        return
+
+    posthog = _load_posthog()
+    if posthog is None:
         return
 
     project_id = getattr(request.state, "project_id", None)
@@ -121,6 +116,10 @@ def capture_oss_deployment_created(user_email: str, organization_id: str):
     """
 
     if is_oss() and env.posthog.enabled:
+        posthog = _load_posthog()
+        if posthog is None:
+            return
+
         try:
             posthog.capture(
                 distinct_id=user_email,
@@ -247,28 +246,32 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 pass
 
             if distinct_id and env.posthog.api_key:
-                properties["$set"] = {"email": distinct_id}
+                posthog = _load_posthog()
+                if posthog is not None:
+                    properties["$set"] = {"email": distinct_id}
 
-                posthog.capture(
-                    distinct_id=distinct_id,
-                    event=event_name,
-                    properties=properties or {},
-                )
+                    posthog.capture(
+                        distinct_id=distinct_id,
+                        event=event_name,
+                        properties=properties or {},
+                    )
 
-                # Check if this is an activation event
-                if event_name in ACTIVATION_EVENTS:
-                    property_name, allowed_auth_methods = ACTIVATION_EVENTS[event_name]
+                    # Check if this is an activation event
+                    if event_name in ACTIVATION_EVENTS:
+                        property_name, allowed_auth_methods = ACTIVATION_EVENTS[
+                            event_name
+                        ]
 
-                    # Check if auth method is allowed for this activation
-                    if (
-                        allowed_auth_methods is None
-                        or auth_method in allowed_auth_methods
-                    ):
-                        await _set_activation_property(
-                            distinct_id=distinct_id,
-                            property_name=property_name,
-                            request=request,
-                        )
+                        # Check if auth method is allowed for this activation
+                        if (
+                            allowed_auth_methods is None
+                            or auth_method in allowed_auth_methods
+                        ):
+                            await _set_activation_property(
+                                distinct_id=distinct_id,
+                                property_name=property_name,
+                                request=request,
+                            )
 
         except Exception as e:
             log.error(f"❌ Error capturing event in PostHog: {e}")

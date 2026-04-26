@@ -16,7 +16,10 @@ from oss.src.core.tools.dtos import (
     ToolConnectionCreate,
 )
 
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.shared.engine import (
+    TransactionsEngine,
+    get_transactions_engine,
+)
 from oss.src.dbs.postgres.tools.dbes import ToolConnectionDBE
 from oss.src.dbs.postgres.tools.mappings import (
     map_connection_create_to_dbe,
@@ -28,8 +31,16 @@ log = get_module_logger(__name__)
 
 
 class ToolsDAO(ToolsDAOInterface):
-    def __init__(self, *, ToolConnectionDBE: type = ToolConnectionDBE):
+    def __init__(
+        self,
+        *,
+        ToolConnectionDBE: type = ToolConnectionDBE,
+        engine: TransactionsEngine = None,
+    ):
         self.ToolConnectionDBE = ToolConnectionDBE
+        if engine is None:
+            engine = get_transactions_engine()
+        self.engine = engine
 
     @suppress_exceptions(exclude=[EntityCreationConflict])
     async def create_connection(
@@ -49,7 +60,7 @@ class ToolsDAO(ToolsDAOInterface):
         )
 
         try:
-            async with engine.core_session() as session:
+            async with self.engine.session() as session:
                 session.add(dbe)
                 await session.commit()
                 await session.refresh(dbe)
@@ -80,7 +91,7 @@ class ToolsDAO(ToolsDAOInterface):
         connection_id: UUID,
     ) -> Optional[ToolConnection]:
         """Fetch a connection by ID scoped to project_id. Returns None if not found."""
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = (
                 select(self.ToolConnectionDBE)
                 .filter(self.ToolConnectionDBE.project_id == project_id)
@@ -109,7 +120,7 @@ class ToolsDAO(ToolsDAOInterface):
         data_update: Optional[dict] = None,
     ) -> Optional[ToolConnection]:
         """Partially update flags and/or data for a connection. Returns updated DTO or None."""
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = (
                 select(self.ToolConnectionDBE)
                 .filter(self.ToolConnectionDBE.project_id == project_id)
@@ -158,7 +169,7 @@ class ToolsDAO(ToolsDAOInterface):
         connection_id: UUID,
     ) -> bool:
         """Hard-delete a connection row. Returns True if a row was deleted."""
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = (
                 delete(self.ToolConnectionDBE)
                 .where(self.ToolConnectionDBE.project_id == project_id)
@@ -181,7 +192,7 @@ class ToolsDAO(ToolsDAOInterface):
         is_active: Optional[bool] = True,
     ) -> List[ToolConnection]:
         """List connections with optional filters. Defaults to active-only (is_active=True)."""
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.ToolConnectionDBE).filter(
                 self.ToolConnectionDBE.project_id == project_id,
             )
@@ -215,7 +226,7 @@ class ToolsDAO(ToolsDAOInterface):
         project_id: Optional[UUID] = None,
     ) -> Optional[ToolConnection]:
         """Set is_valid=True and is_active=True for the connection matching the provider ID."""
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = select(self.ToolConnectionDBE).filter(
                 self.ToolConnectionDBE.data["connected_account_id"].astext
                 == provider_connection_id
@@ -252,7 +263,7 @@ class ToolsDAO(ToolsDAOInterface):
         provider_connection_id: str,
     ) -> Optional[ToolConnection]:
         """Lookup any connection by provider-side connected_account_id (no project scope)."""
-        async with engine.core_session() as session:
+        async with self.engine.session() as session:
             stmt = (
                 select(self.ToolConnectionDBE)
                 .filter(
