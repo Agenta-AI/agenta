@@ -148,4 +148,5 @@ if __name__ == "__main__":
         port=8080,
         reload=True,
         reload_dirs=[".", "/sdk"],
+        reload_excludes=["**/tests/**", "/sdk/tests"],
     )

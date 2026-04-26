@@ -52,7 +52,9 @@ async def test_create_queue_serializes_queue_data_without_uuid_warnings(monkeypa
         AsyncMock(return_value={}),
     )
     # Mock get_transactions_engine to return an engine with session method
-    mock_engine = type('MockEngine', (), {'session': lambda self: _DummySessionContext(session)})()
+    mock_engine = type(
+        "MockEngine", (), {"session": lambda self: _DummySessionContext(session)}
+    )()
     monkeypatch.setattr(
         dao_module,
         "get_transactions_engine",

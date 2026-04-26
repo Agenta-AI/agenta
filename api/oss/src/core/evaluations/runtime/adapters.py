@@ -27,6 +27,18 @@ def _status(status: Any) -> EvaluationStatus:
     return EvaluationStatus(value)
 
 
+def _read_field(source: Any, field: str) -> Any:
+    if isinstance(source, dict):
+        return source.get(field)
+    return getattr(source, field, None)
+
+
+def _dump_model(source: Any, **kwargs: Any) -> Any:
+    if hasattr(source, "model_dump"):
+        return source.model_dump(**kwargs)
+    return source
+
+
 class BackendWorkflowServiceRunner:
     """API adapter from SDK runtime requests to the backend workflow service."""
 
@@ -300,10 +312,9 @@ class BackendEvaluatorRunner:
         request: WorkflowExecutionRequest,
     ) -> WorkflowExecutionResult:
         revision = request.revision
-        data = getattr(revision, "data", None)
+        data = _read_field(revision, "data")
         if isinstance(revision, dict):
             revision_dump = revision
-            data = revision.get("data")
         elif hasattr(revision, "model_dump"):
             revision_dump = revision.model_dump(mode="json", exclude_none=True)
         else:
@@ -311,29 +322,31 @@ class BackendEvaluatorRunner:
 
         interface = (
             {
-                "uri": getattr(data, "uri", None),
-                "url": getattr(data, "url", None),
-                "headers": getattr(data, "headers", None),
-                "schemas": getattr(data, "schemas", None),
+                "uri": _read_field(data, "uri"),
+                "url": _read_field(data, "url"),
+                "headers": _read_field(data, "headers"),
+                "schemas": _read_field(data, "schemas"),
             }
             if data
             else {}
         )
         configuration = (
             {
-                "script": getattr(data, "script", None),
-                "parameters": getattr(data, "parameters", None),
+                "script": _read_field(data, "script"),
+                "parameters": _read_field(data, "parameters"),
             }
             if data
             else {}
         )
+        flags = _read_field(revision, "flags")
         flags = (
-            revision.flags.model_dump(
+            _dump_model(
+                flags,
                 mode="json",
                 exclude_none=True,
                 exclude_unset=True,
             )
-            if hasattr(revision, "flags") and revision.flags
+            if flags
             else None
         )
         response = await self.workflows_service.invoke_workflow(

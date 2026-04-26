@@ -407,9 +407,7 @@ async def is_run_executing(
     run_id: str,
 ) -> bool:
     r_lock = caching._cache_engine.get_r_lock()
-    async for _ in r_lock.scan_iter(
-        match=_actual_lock_name(job_lock_pattern(run_id))
-    ):
+    async for _ in r_lock.scan_iter(match=_actual_lock_name(job_lock_pattern(run_id))):
         return True
     return False
 

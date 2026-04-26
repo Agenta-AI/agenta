@@ -16,6 +16,7 @@ from agenta.sdk.evaluations.runtime.models import (
     WorkflowExecutionRequest,
 )
 from agenta.sdk.evaluations.runtime.planner import EvaluationPlanner
+from agenta.sdk.models.evaluations import EvaluationStatus
 
 
 class ProcessedScenario(BaseModel):
@@ -184,6 +185,22 @@ async def process_evaluation_source_slice(
                         outputs=execution.outputs,
                     )
 
+            if len(executions) != len(batch_cells):
+                scenario_has_errors = True
+                message = (
+                    f"Runner for {cell.step_key} returned {len(executions)} "
+                    f"execution(s) for {len(batch_cells)} planned cell(s)."
+                )
+                for batch_cell in batch_cells[len(executions) :]:
+                    results[batch_cell.step_key] = await result_logger.log(
+                        ResultLogRequest(
+                            cell=_failed_cell(batch_cell, message=message),
+                            testcase_id=source_item.testcase_id,
+                            error={"message": message},
+                        )
+                    )
+                    scenario_auto_results_created = True
+
             idx += len(batch_cells)
 
         metrics = None
@@ -290,6 +307,7 @@ def _build_execution_request(
 def _failed_cell(cell: PlannedCell, *, message: str) -> PlannedCell:
     return cell.model_copy(
         update={
+            "status": EvaluationStatus.FAILURE,
             "error": {"message": message},
         }
     )

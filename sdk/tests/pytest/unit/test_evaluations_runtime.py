@@ -253,6 +253,67 @@ async def test_sdk_source_slice_batches_runnable_cells():
 
 
 @pytest.mark.asyncio
+async def test_sdk_source_slice_marks_short_runner_batch_as_error():
+    run_id = uuid4()
+    scenario_id = uuid4()
+    logged = []
+
+    class ShortRunner:
+        async def execute_batch(self, requests):
+            return [
+                WorkflowExecutionResult(
+                    status=EvaluationStatus.SUCCESS,
+                    trace_id="trace-0",
+                    span_id="span-0",
+                )
+            ]
+
+    class Logger:
+        async def log(self, request):
+            logged.append(request)
+            return SimpleNamespace(id=uuid4())
+
+    async def create_scenario(run_id):
+        return SimpleNamespace(id=scenario_id)
+
+    async def refresh_metrics(run_id, scenario_id):
+        return SimpleNamespace(id=uuid4())
+
+    processed = await process_evaluation_source_slice(
+        run_id=run_id,
+        source_items=[
+            ResolvedSourceItem(
+                kind="testcase",
+                step_key="testset-main",
+                testcase_id=uuid4(),
+                inputs={"prompt": "hello"},
+            )
+        ],
+        steps=[
+            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
+        ],
+        repeats=2,
+        create_scenario=create_scenario,
+        result_logger=Logger(),
+        refresh_metrics=refresh_metrics,
+        runners={"evaluator-auto": ShortRunner()},
+        revisions={"evaluator-auto": {"id": "revision"}},
+    )
+
+    assert processed[0].has_errors is True
+    failed_log = logged[-1]
+    assert failed_log.cell.step_key == "evaluator-auto"
+    assert failed_log.cell.repeat_idx == 1
+    assert failed_log.cell.status == EvaluationStatus.FAILURE
+    assert failed_log.error == {
+        "message": (
+            "Runner for evaluator-auto returned 1 execution(s) for 2 planned cell(s)."
+        )
+    }
+
+
+@pytest.mark.asyncio
 async def test_sdk_source_slice_marks_missing_runner_as_error():
     run_id = uuid4()
     scenario_id = uuid4()

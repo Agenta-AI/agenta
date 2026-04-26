@@ -640,6 +640,56 @@ async def test_direct_source_resolver_preserves_order_and_missing_testcases():
 
 
 @pytest.mark.asyncio
+async def test_direct_source_resolver_loads_trace_context():
+    project_id = uuid4()
+    trace_id = "trace-1"
+    span_id = "span-1"
+    trace_payload = {
+        "trace_id": trace_id,
+        "spans": {
+            span_id: {
+                "trace_id": trace_id,
+                "span_id": span_id,
+                "attributes": {
+                    "ag": {
+                        "data": {
+                            "inputs": {"prompt": "hello"},
+                            "outputs": {"answer": "world"},
+                        }
+                    }
+                },
+            }
+        },
+    }
+    trace = SimpleNamespace(
+        trace_id=trace_id,
+        spans={
+            span_id: SimpleNamespace(
+                trace_id=trace_id,
+                span_id=span_id,
+                attributes=trace_payload["spans"][span_id]["attributes"],
+            )
+        },
+        model_dump=lambda **_: trace_payload,
+    )
+    tracing_service = SimpleNamespace(fetch_trace=AsyncMock(return_value=trace))
+
+    source_items = await resolve_direct_source_items(
+        project_id=project_id,
+        trace_ids=[trace_id],
+        tracing_service=tracing_service,
+    )
+
+    assert len(source_items) == 1
+    assert source_items[0].kind == "trace"
+    assert source_items[0].trace_id == trace_id
+    assert source_items[0].span_id == span_id
+    assert source_items[0].trace is not None
+    assert source_items[0].inputs == {"prompt": "hello"}
+    assert source_items[0].outputs == {"answer": "world"}
+
+
+@pytest.mark.asyncio
 async def test_live_query_trace_resolver_applies_default_windowing():
     project_id = uuid4()
     traces = [SimpleNamespace(trace_id="trace-1")]
@@ -1125,6 +1175,75 @@ async def test_backend_evaluator_runner_sends_normalized_workflow_request():
     assert workflow_request.data.outputs == {"answer": "world"}
     assert workflow_request.links["invocation"].trace_id == "app-trace"
     assert workflow_request.links["invocation"].span_id == "app-span"
+
+
+@pytest.mark.asyncio
+async def test_backend_evaluator_runner_preserves_dict_revision_data():
+    project_id = uuid4()
+    user_id = uuid4()
+    workflow_revision_id = uuid4()
+    workflows_service = SimpleNamespace(
+        invoke_workflow=AsyncMock(
+            return_value=SimpleNamespace(
+                status=SimpleNamespace(code=200),
+                trace_id="eval-trace",
+                span_id="eval-span",
+                outputs={"score": 1},
+            )
+        )
+    )
+    runner = BackendEvaluatorRunner(
+        project_id=project_id,
+        user_id=user_id,
+        workflows_service=workflows_service,
+    )
+    revision = {
+        "id": str(workflow_revision_id),
+        "data": {
+            "uri": "http://evaluator",
+            "url": None,
+            "headers": {"authorization": "secret"},
+            "schemas": {"outputs": {"type": "object"}},
+            "script": "return score",
+            "parameters": {"threshold": 0.5},
+        },
+        "flags": {"is_custom": True},
+    }
+    request = WorkflowExecutionRequest(
+        step=SdkEvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
+        cell=SdkPlannedCell(
+            run_id=uuid4(),
+            scenario_id=uuid4(),
+            step_key="evaluator-auto",
+            step_type="annotation",
+            origin="auto",
+            repeat_idx=0,
+            status=SdkEvaluationStatus.QUEUED,
+        ),
+        source=SdkResolvedSourceItem(
+            kind="testcase",
+            step_key="testset-main",
+            inputs={"input": "hello"},
+        ),
+        revision=revision,
+    )
+
+    result = await runner.execute(request)
+
+    assert result.status == SdkEvaluationStatus.SUCCESS
+    workflows_service.invoke_workflow.assert_awaited_once()
+    workflow_request = workflows_service.invoke_workflow.await_args.kwargs["request"]
+    assert workflow_request.flags == {"is_custom": True}
+    assert workflow_request.data.revision["data"]["uri"] == "http://evaluator"
+    assert workflow_request.data.revision["data"]["headers"] == {
+        "authorization": "secret"
+    }
+    assert workflow_request.data.revision["data"]["schemas"] == {
+        "outputs": {"type": "object"}
+    }
+    assert workflow_request.data.revision["data"]["script"] == "return score"
+    assert workflow_request.data.revision["data"]["parameters"] == {"threshold": 0.5}
+    assert workflow_request.data.parameters == {"threshold": 0.5}
 
 
 @pytest.mark.asyncio
@@ -1652,6 +1771,84 @@ async def test_source_slice_processor_maps_scenario_and_run_statuses(monkeypatch
     assert evaluations_service.edit_run.await_args.kwargs["run"].status == (
         EvaluationStatus.ERRORS
     )
+
+
+@pytest.mark.asyncio
+async def test_source_slice_processor_hydrates_direct_trace_batches(monkeypatch):
+    project_id = uuid4()
+    user_id = uuid4()
+    run_id = uuid4()
+    trace_id = "trace-1"
+    span_id = "span-1"
+    scenario = SimpleNamespace(id=uuid4(), tags=None, meta=None)
+    run = _run(
+        flags=EvaluationRunFlags(is_queue=True),
+        steps=[
+            _step(
+                "query-main",
+                "input",
+                references={"query_revision": Reference(id=uuid4())},
+            ),
+            _step("evaluator-human", "annotation", origin="human"),
+        ],
+    )
+    run.id = run_id
+    trace_payload = {
+        "trace_id": trace_id,
+        "spans": {
+            span_id: {
+                "trace_id": trace_id,
+                "span_id": span_id,
+                "attributes": {
+                    "ag": {
+                        "data": {
+                            "inputs": {"prompt": "hello"},
+                            "outputs": {"answer": "world"},
+                        }
+                    }
+                },
+            }
+        },
+    }
+    trace = SimpleNamespace(
+        trace_id=trace_id,
+        spans={
+            span_id: SimpleNamespace(
+                trace_id=trace_id,
+                span_id=span_id,
+                attributes=trace_payload["spans"][span_id]["attributes"],
+            )
+        },
+        model_dump=lambda **_: trace_payload,
+    )
+    evaluations_service = SimpleNamespace(
+        fetch_run=AsyncMock(side_effect=[run, run]),
+        edit_scenario=AsyncMock(),
+        edit_run=AsyncMock(),
+    )
+    sdk_process = AsyncMock(return_value=[SdkProcessedScenario(scenario=scenario)])
+    monkeypatch.setattr(
+        source_slice_tasks,
+        "sdk_process_evaluation_source_slice",
+        sdk_process,
+    )
+
+    await source_slice_tasks.process_evaluation_source_slice(
+        project_id=project_id,
+        user_id=user_id,
+        run_id=run_id,
+        trace_ids=[trace_id],
+        tracing_service=SimpleNamespace(fetch_trace=AsyncMock(return_value=trace)),
+        workflows_service=SimpleNamespace(),
+        evaluations_service=evaluations_service,
+    )
+
+    sdk_source_item = sdk_process.await_args.kwargs["source_items"][0]
+    assert sdk_source_item.trace_id == trace_id
+    assert sdk_source_item.span_id == span_id
+    assert sdk_source_item.trace is not None
+    assert sdk_source_item.inputs == {"prompt": "hello"}
+    assert sdk_source_item.outputs == {"answer": "world"}
 
 
 @pytest.mark.asyncio

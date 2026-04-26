@@ -224,6 +224,7 @@ async def process_evaluation_source_slice(
                 testcase_ids=testcase_ids,
                 trace_ids=trace_ids,
                 testcases_service=testcases_service,
+                tracing_service=tracing_service,
             )
         effective_input_step_key = (
             input_step_key

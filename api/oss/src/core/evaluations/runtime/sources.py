@@ -8,6 +8,7 @@ from oss.src.core.evaluations.runtime.models import (
     ResolvedTestsetInputSpec,
 )
 from oss.src.core.evaluations.types import EvaluationRun, EvaluationRunDataStep
+from oss.src.core.evaluations.utils import fetch_trace
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.tracing.dtos import (
     Filtering,
@@ -18,6 +19,51 @@ from oss.src.core.tracing.dtos import (
     TracingQuery,
     LogicalOperator,
 )
+
+
+def _extract_root_span(trace: Any) -> Optional[Any]:
+    spans = (
+        trace.get("spans") if isinstance(trace, dict) else getattr(trace, "spans", None)
+    )
+    if not isinstance(spans, dict) or not spans:
+        return None
+
+    for span in spans.values():
+        if isinstance(span, list):
+            continue
+        if _extract_span_id(span):
+            return span
+
+    return None
+
+
+def _extract_span_id(span: Any) -> Optional[str]:
+    span_id = (
+        span.get("span_id")
+        if isinstance(span, dict)
+        else getattr(span, "span_id", None)
+    )
+    return str(span_id) if span_id else None
+
+
+def _extract_ag_data(trace: Any) -> Dict[str, Any]:
+    root_span = _extract_root_span(trace)
+    if root_span is None:
+        return {}
+
+    attributes = (
+        root_span.get("attributes", {})
+        if isinstance(root_span, dict)
+        else getattr(root_span, "attributes", {})
+    )
+    if hasattr(attributes, "model_dump"):
+        attributes = attributes.model_dump(mode="json", exclude_none=True)
+    if not isinstance(attributes, dict):
+        return {}
+
+    ag = attributes.get("ag") or {}
+    data = ag.get("data") if isinstance(ag, dict) else {}
+    return data if isinstance(data, dict) else {}
 
 
 class SourceResolver:
@@ -219,6 +265,7 @@ async def resolve_direct_source_items(
     trace_ids: Optional[List[str]] = None,
     testcase_ids: Optional[List[UUID]] = None,
     testcases_service: Any = None,
+    tracing_service: Any = None,
 ) -> List[ResolvedSourceItem]:
     source_items: List[ResolvedSourceItem] = []
     testcase_ids = testcase_ids or []
@@ -235,6 +282,19 @@ async def resolve_direct_source_items(
     testcases_by_id = {
         testcase.id: testcase for testcase in testcases if getattr(testcase, "id", None)
     }
+    traces_by_id: Dict[str, Any] = {}
+
+    if trace_ids and tracing_service is not None:
+        for trace_id in trace_ids:
+            trace = await fetch_trace(
+                tracing_service=tracing_service,
+                project_id=project_id,
+                trace_id=trace_id,
+                max_retries=1,
+                delay=0,
+            )
+            if trace is not None:
+                traces_by_id[trace_id] = trace
 
     source_items.extend(
         ResolvedSourceItem(
@@ -245,14 +305,21 @@ async def resolve_direct_source_items(
         )
         for testcase_id in testcase_ids
     )
-    source_items.extend(
-        ResolvedSourceItem(
-            kind="trace",
-            step_key="",
-            trace_id=trace_id,
+    for trace_id in trace_ids:
+        trace = traces_by_id.get(trace_id)
+        ag_data = _extract_ag_data(trace) if trace is not None else {}
+        root_span = _extract_root_span(trace) if trace is not None else None
+        source_items.append(
+            ResolvedSourceItem(
+                kind="trace",
+                step_key="",
+                trace_id=trace_id,
+                span_id=_extract_span_id(root_span),
+                trace=trace,
+                inputs=ag_data.get("inputs"),
+                outputs=ag_data.get("outputs"),
+            )
         )
-        for trace_id in trace_ids
-    )
 
     return source_items
 

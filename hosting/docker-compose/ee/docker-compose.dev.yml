@@ -79,6 +79,9 @@ services:
             --reload-dir /app/ee
             --reload-dir /app/entrypoints
             --reload-exclude '**/tests/**'
+            --reload-exclude /sdk/tests
+            --reload-exclude /app/oss/tests
+            --reload-exclude /app/ee/tests
             --root-path /api"
         # === STORAGE ============================================== #
         volumes:
@@ -349,6 +352,12 @@ services:
                 "/app/oss",
                 "--reload-exclude",
                 "**/tests/**",
+                "--reload-exclude",
+                "/sdk/tests",
+                "--reload-exclude",
+                "/app/oss/tests",
+                "--reload-exclude",
+                "/app/ee/tests",
                 "--root-path",
                 "/services",
             ]
