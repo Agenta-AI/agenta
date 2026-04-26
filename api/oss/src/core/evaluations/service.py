@@ -260,6 +260,12 @@ class EvaluationsService:
                     oldest=oldest,
                 )
 
+                await self._ensure_human_annotation_queue(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run=run,
+                )
+
                 await self.evaluations_worker.evaluate_live_query.kiq(
                     project_id=project_id,
                     user_id=user_id,
@@ -343,6 +349,43 @@ class EvaluationsService:
                 status=run.status,
                 #
                 data=run.data,
+            ),
+        )
+
+    async def _ensure_human_annotation_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        run: EvaluationRun,
+    ) -> None:
+        """Create an EvaluationQueue for human annotation steps if none exists for this run."""
+        if not run.id or not run.data or not run.data.steps:
+            return
+
+        human_step_keys = [
+            step.key
+            for step in run.data.steps
+            if step.type == "annotation" and step.origin == "human" and step.key
+        ]
+
+        if not human_step_keys:
+            return
+
+        existing_queues = await self.query_queues(
+            project_id=project_id,
+            queue=EvaluationQueueQuery(run_id=run.id),
+        )
+        if any(q.run_id == run.id for q in existing_queues):
+            return
+
+        await self.create_queue(
+            project_id=project_id,
+            user_id=user_id,
+            queue=EvaluationQueueCreate(
+                run_id=run.id,
+                status=EvaluationStatus.RUNNING,
+                data=EvaluationQueueData(step_keys=human_step_keys),
             ),
         )
 
@@ -2201,6 +2244,11 @@ class SimpleEvaluationsService:
                 has_evaluator_steps = bool(_evaluation.data.evaluator_steps)
 
                 if has_query_steps and has_evaluator_steps:
+                    await self._ensure_human_annotation_queue(
+                        project_id=project_id,
+                        user_id=user_id,
+                        run=run,
+                    )
                     await self.evaluations_worker.evaluate_batch_query.kiq(
                         project_id=project_id,
                         user_id=user_id,
@@ -2281,39 +2329,10 @@ class SimpleEvaluationsService:
         user_id: UUID,
         run: EvaluationRun,
     ) -> None:
-        """Create an EvaluationQueue for human annotation steps if none exists for this run.
-
-        Queue creation is the service's responsibility — tasks must not create structural
-        objects. This is called before dispatching batch evaluation tasks so that any
-        human annotation steps are immediately queryable as a queue.
-        """
-        if not run.id or not run.data or not run.data.steps:
-            return
-
-        human_step_keys = [
-            step.key
-            for step in run.data.steps
-            if step.type == "annotation" and step.origin == "human" and step.key
-        ]
-
-        if not human_step_keys:
-            return
-
-        existing_queues = await self.evaluations_service.query_queues(
-            project_id=project_id,
-            queue=EvaluationQueueQuery(run_id=run.id),
-        )
-        if any(q.run_id == run.id for q in existing_queues):
-            return
-
-        await self.evaluations_service.create_queue(
+        await self.evaluations_service._ensure_human_annotation_queue(
             project_id=project_id,
             user_id=user_id,
-            queue=EvaluationQueueCreate(
-                run_id=run.id,
-                status=EvaluationStatus.RUNNING,
-                data=EvaluationQueueData(step_keys=human_step_keys),
-            ),
+            run=run,
         )
 
     async def evaluate_batch_traces(
@@ -2324,6 +2343,7 @@ class SimpleEvaluationsService:
         #
         run_id: UUID,
         trace_ids: List[str],
+        input_step_key: Optional[str] = None,
     ) -> bool:
         if not trace_ids:
             return False
@@ -2357,6 +2377,7 @@ class SimpleEvaluationsService:
             #
             run_id=run_id,
             trace_ids=trace_ids,
+            input_step_key=input_step_key,
         )
         return True
 
@@ -2368,6 +2389,7 @@ class SimpleEvaluationsService:
         #
         run_id: UUID,
         testcase_ids: List[UUID],
+        input_step_key: Optional[str] = None,
     ) -> bool:
         if not testcase_ids:
             return False
@@ -2401,6 +2423,7 @@ class SimpleEvaluationsService:
             #
             run_id=run_id,
             testcase_ids=testcase_ids,
+            input_step_key=input_step_key,
         )
         return True
 
@@ -3326,7 +3349,11 @@ class SimpleQueuesService:
         if not queue.data.evaluators:
             return None
 
-        kind = queue.data.kind
+        source_kind = self._get_source_kind(queue_data=queue.data)
+        kind = queue.data.kind or source_kind
+        if kind is None:
+            return None
+
         queue_user_ids = self._normalize_assignments(
             assignments=queue.data.assignments,
         )
@@ -3337,19 +3364,38 @@ class SimpleQueuesService:
             else min_repeats
         )
 
-        run_data_and_keys = await self._make_run_data(
-            project_id=project_id,
-            #
-            kind=kind,
-            #
-            evaluator_steps=queue.data.evaluators,
-            repeats=repeats,
-        )
+        if source_kind is None:
+            run_data_and_keys = await self._make_run_data(
+                project_id=project_id,
+                #
+                kind=kind,
+                #
+                evaluator_steps=queue.data.evaluators,
+                repeats=repeats,
+            )
 
-        if not run_data_and_keys:
-            return None
+            if not run_data_and_keys:
+                return None
 
-        run_data, annotation_step_keys = run_data_and_keys
+            run_data, annotation_step_keys = run_data_and_keys
+        else:
+            run_data = await self.simple_evaluations_service._make_evaluation_run_data(
+                project_id=project_id,
+                user_id=user_id,
+                query_steps=queue.data.queries,
+                testset_steps=queue.data.testsets,
+                evaluator_steps=queue.data.evaluators,
+                repeats=repeats,
+                is_live=False,
+            )
+            if not run_data or not run_data.steps:
+                return None
+
+            annotation_step_keys = [
+                step.key
+                for step in run_data.steps
+                if step.type == "annotation" and step.key
+            ]
 
         run = await self.evaluations_service.create_run(
             project_id=project_id,
@@ -3419,10 +3465,30 @@ class SimpleQueuesService:
             )
             return None
 
-        return self._parse_queue(
+        parsed_queue = self._parse_queue(
             queue=created_queue,
             run=run,
         )
+
+        if not parsed_queue:
+            return None
+
+        if source_kind is not None:
+            dispatched = await self._dispatch_source_batches(
+                project_id=project_id,
+                user_id=user_id,
+                run=run,
+            )
+            if not dispatched:
+                log.warning(
+                    "[EVAL] [queue] [create] source-backed queue created without initial batch dispatch",
+                    project_id=project_id,
+                    queue_id=created_queue.id,
+                    run_id=run.id,
+                    source_kind=source_kind.value,
+                )
+
+        return parsed_queue
 
     async def fetch(
         self,
@@ -3723,6 +3789,78 @@ class SimpleQueuesService:
 
         return scenarios, next_windowing
 
+    async def _dispatch_source_batches(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        run: EvaluationRun,
+    ) -> bool:
+        if not run.id or not run.data or not run.data.steps:
+            return False
+
+        dispatched = False
+        for step in run.data.steps:
+            if step.type != "input" or not step.key:
+                continue
+
+            refs = step.references or {}
+            query_revision_ref = refs.get("query_revision")
+            testset_revision_ref = refs.get("testset_revision")
+
+            if query_revision_ref and query_revision_ref.id:
+                query_revision = await self.simple_evaluations_service.queries_service.fetch_query_revision(
+                    project_id=project_id,
+                    query_revision_ref=query_revision_ref,
+                    include_trace_ids=True,
+                )
+                trace_ids = (
+                    query_revision.data.trace_ids
+                    if query_revision
+                    and query_revision.data
+                    and query_revision.data.trace_ids
+                    else []
+                )
+                if not trace_ids:
+                    continue
+
+                ok = await self.simple_evaluations_service.evaluate_batch_traces(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run_id=run.id,
+                    trace_ids=trace_ids,
+                    input_step_key=step.key,
+                )
+                dispatched = dispatched or ok
+                continue
+
+            if testset_revision_ref and testset_revision_ref.id:
+                testset_revision = await self.simple_evaluations_service.testsets_service.fetch_testset_revision(
+                    project_id=project_id,
+                    testset_revision_ref=testset_revision_ref,
+                    include_testcase_ids=True,
+                )
+                testcase_ids = (
+                    testset_revision.data.testcase_ids
+                    if testset_revision
+                    and testset_revision.data
+                    and testset_revision.data.testcase_ids
+                    else []
+                )
+                if not testcase_ids:
+                    continue
+
+                ok = await self.simple_evaluations_service.evaluate_batch_testcases(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run_id=run.id,
+                    testcase_ids=testcase_ids,
+                    input_step_key=step.key,
+                )
+                dispatched = dispatched or ok
+
+        return dispatched
+
     async def _make_run_data(
         self,
         *,
@@ -3873,6 +4011,30 @@ class SimpleQueuesService:
 
         return None
 
+    @staticmethod
+    def _get_source_kind(*, queue_data: SimpleQueueData) -> Optional[SimpleQueueKind]:
+        if queue_data.queries:
+            return SimpleQueueKind.TRACES
+
+        if queue_data.testsets:
+            return SimpleQueueKind.TESTCASES
+
+        return None
+
+    @staticmethod
+    def _is_source_backed(run: EvaluationRun) -> bool:
+        if not run.data or not run.data.steps:
+            return False
+
+        return any(
+            step.type == "input"
+            and bool(
+                (step.references or {}).get("query_revision")
+                or (step.references or {}).get("testset_revision")
+            )
+            for step in run.data.steps
+        )
+
     def _parse_queue(
         self,
         *,
@@ -3906,6 +4068,24 @@ class SimpleQueuesService:
         elif assignment_lanes > 1:
             repeats = assignment_lanes
 
+        queries: Optional[List[UUID]] = None
+        testsets: Optional[List[UUID]] = None
+        if run.data and run.data.steps:
+            query_ids = []
+            testset_ids = []
+            for step in run.data.steps:
+                if step.type != "input":
+                    continue
+                refs = step.references or {}
+                query_ref = refs.get("query_revision")
+                testset_ref = refs.get("testset_revision")
+                if query_ref and query_ref.id:
+                    query_ids.append(query_ref.id)
+                if testset_ref and testset_ref.id:
+                    testset_ids.append(testset_ref.id)
+            queries = list(dict.fromkeys(query_ids)) or None
+            testsets = list(dict.fromkeys(testset_ids)) or None
+
         return SimpleQueue(
             id=queue.id,
             #
@@ -3932,6 +4112,8 @@ class SimpleQueuesService:
             #
             data=SimpleQueueData(
                 kind=kind,
+                queries=queries,
+                testsets=testsets,
                 assignments=assignments,
                 repeats=repeats,
                 settings=SimpleQueueSettings(

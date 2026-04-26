@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID
 from re import match
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, field_serializer
 
 BoolJson = TypeAliasType(  # type: ignore
     "BoolJson",
@@ -130,6 +130,20 @@ class Metadata(BaseModel):
     flags: Optional[Flags] = None
     tags: Optional[Tags] = None
     meta: Optional[Meta] = None
+
+    @field_serializer("flags", when_used="json")
+    def serialize_flags(self, flags):
+        if isinstance(flags, BaseModel):
+            return flags.model_dump(mode="json", exclude_none=True)
+
+        return flags
+
+    @field_serializer("tags", when_used="json")
+    def serialize_tags(self, tags):
+        if isinstance(tags, BaseModel):
+            return tags.model_dump(mode="json", exclude_none=True)
+
+        return tags
 
 
 class Commit(BaseModel):
