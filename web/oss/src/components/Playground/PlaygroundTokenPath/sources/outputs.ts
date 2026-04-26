@@ -1,16 +1,21 @@
 /**
- * Outputs source — `{{$.outputs.*}}` suggestions.
+ * Outputs source — `{{$.outputs.*}}` suggestions scoped to a specific
+ * upstream entity.
  *
- * Reads the playground's output port schema map, which is populated
- * either from a workflow's declared `schemas.outputs` or inferred from
- * trace metadata for ephemeral workflows. Either way the source stays
- * purely schema-driven — runtime inference already happens upstream.
+ * `$.outputs` in a prompt resolves to whatever the node *immediately
+ * upstream* of this editor's node produced. The scoping is delegated to
+ * the provider: when the caller passes an `upstreamEntityId`, we read
+ * that entity's output ports directly from its workflow molecule. When
+ * no upstream exists (depth-0 node, or editor mounted outside any node),
+ * the source contributes nothing.
  */
 
 import {useMemo} from "react"
 
-import {executionItemController} from "@agenta/playground"
+import type {RunnablePort} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import type {TokenPathSuggestion} from "@agenta/ui/editor"
+import {atom} from "jotai"
 import {useAtomValue} from "jotai"
 
 import type {EnvelopeSource} from "../types"
@@ -24,18 +29,37 @@ interface PortInfo {
 }
 
 const SLOT = "outputs"
+const EMPTY_PORTS_ATOM = atom<RunnablePort[]>([])
 
-export function useOutputsSource(): EnvelopeSource {
-    const schemaMap = useAtomValue(executionItemController.selectors.outputPortSchemaMap) as Record<
-        string,
-        PortInfo
-    >
+export function useOutputsSource(upstreamEntityId: string | null): EnvelopeSource {
+    // Conditional atom subscription: when no upstream is resolved (e.g.
+    // this editor sits on a depth-0 node), we subscribe to a frozen empty
+    // atom so the hook shape stays stable across renders.
+    const portsAtom = useMemo(
+        () =>
+            upstreamEntityId
+                ? workflowMolecule.selectors.outputPorts(upstreamEntityId)
+                : EMPTY_PORTS_ATOM,
+        [upstreamEntityId],
+    )
+    const ports = useAtomValue(portsAtom) as RunnablePort[]
+
+    const schemaMap = useMemo<Record<string, PortInfo>>(() => {
+        const map: Record<string, PortInfo> = {}
+        for (const port of ports) {
+            if (port.key && !(port.key in map)) {
+                map[port.key] = {type: port.type, name: port.name, schema: port.schema}
+            }
+        }
+        return map
+    }, [ports])
 
     return useMemo<EnvelopeSource>(
         () => ({
             slot: SLOT,
             getSuggestions(afterSlot, query) {
-                // Depth 1: `{{$.outputs.<here>}}` — top-level output fields.
+                // Depth 1: `{{$.outputs.<here>}}` — top-level output fields
+                // of the upstream node.
                 if (afterSlot.length === 0) {
                     const out: TokenPathSuggestion[] = []
                     for (const key of Object.keys(schemaMap)) {

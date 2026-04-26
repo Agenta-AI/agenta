@@ -8,16 +8,20 @@
  *   - Observed sub-keys inside testcase cells (inferred from user fills
  *     for object-typed variables).
  *
- * Under the envelope/key refactor, port keys ARE the clean field names
- * under `$.inputs.*`, so no path surgery is needed here — we read keys
- * directly from the schema map.
+ * When called with `scopedEntityId`, reads that entity's input ports
+ * directly — so a prompt inside an evaluator only sees the evaluator's
+ * own declared inputs, not every input across the playground. When
+ * called without a scope, falls back to the global aggregated port map
+ * (used by editors mounted outside any specific node).
  */
 
 import {useMemo} from "react"
 
+import type {RunnablePort} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {executionItemController} from "@agenta/playground"
 import type {TokenPathSuggestion} from "@agenta/ui/editor"
-import {useAtomValue} from "jotai"
+import {atom, useAtomValue} from "jotai"
 
 import {observedTestcasesAtom} from "../atoms"
 import type {EnvelopeSource} from "../types"
@@ -31,12 +35,36 @@ interface PortInfo {
 }
 
 const SLOT = "inputs"
+const EMPTY_PORTS_ATOM = atom<RunnablePort[]>([])
 
-export function useInputsSource(): EnvelopeSource {
-    const schemaMap = useAtomValue(executionItemController.selectors.inputPortSchemaMap) as Record<
-        string,
-        PortInfo
-    >
+export function useInputsSource(scopedEntityId: string | null = null): EnvelopeSource {
+    const globalSchemaMap = useAtomValue(
+        executionItemController.selectors.inputPortSchemaMap,
+    ) as Record<string, PortInfo>
+
+    // Read the scoped entity's input ports when an entity id is given;
+    // subscribe to a frozen empty atom otherwise so the hook shape stays
+    // stable across renders.
+    const scopedPortsAtom = useMemo(
+        () =>
+            scopedEntityId
+                ? workflowMolecule.selectors.inputPorts(scopedEntityId)
+                : EMPTY_PORTS_ATOM,
+        [scopedEntityId],
+    )
+    const scopedPorts = useAtomValue(scopedPortsAtom) as RunnablePort[]
+
+    const schemaMap = useMemo<Record<string, PortInfo>>(() => {
+        if (!scopedEntityId) return globalSchemaMap
+        const map: Record<string, PortInfo> = {}
+        for (const port of scopedPorts) {
+            if (port.key && !(port.key in map)) {
+                map[port.key] = {type: port.type, name: port.name, schema: port.schema}
+            }
+        }
+        return map
+    }, [scopedEntityId, scopedPorts, globalSchemaMap])
+
     const observedTestcases = useAtomValue(observedTestcasesAtom)
 
     return useMemo<EnvelopeSource>(
