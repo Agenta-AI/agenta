@@ -8,13 +8,13 @@ import {
     LoadingOutlined,
 } from "@ant-design/icons"
 import {
+    ArchiveIcon,
     CaretDown,
     Copy,
     DownloadSimple,
     Eye,
     Note,
     PencilSimple,
-    Trash,
 } from "@phosphor-icons/react"
 import {Button, Dropdown, Space, Tag} from "antd"
 import clsx from "clsx"
@@ -278,7 +278,7 @@ const TestsetsTable = ({
             const validRevisions = cachedChildren?.filter((r) => (r as any).__version !== 0) || []
 
             if (validRevisions.length <= 1) {
-                message.warning("Cannot delete the only revision. Delete the testset instead.")
+                message.warning("Cannot archive the only revision. Archive the testset instead.")
                 return
             }
 
@@ -367,7 +367,7 @@ const TestsetsTable = ({
             setSelectedTestsetToDelete(records)
             setIsDeleteTestsetModalOpen(true)
         },
-        deleteDisabledTooltip: "Select testsets to delete",
+        deleteDisabledTooltip: "Select testsets to archive",
     })
 
     // Build rows with children for tree data (supports nested children)
@@ -607,8 +607,8 @@ const TestsetsTable = ({
                         },
                         {
                             key: "delete",
-                            label: "Delete",
-                            icon: <Trash size={16} />,
+                            label: "Archive",
+                            icon: <ArchiveIcon size={14} />,
                             danger: true,
                             onClick: actions.handleDelete,
                             hidden: (record) => isSelectMode || (record as any).__isRevision,
@@ -627,8 +627,8 @@ const TestsetsTable = ({
                         },
                         {
                             key: "delete-revision",
-                            label: "Delete revision",
-                            icon: <Trash size={16} />,
+                            label: "Archive revision",
+                            icon: <ArchiveIcon size={14} />,
                             danger: true,
                             onClick: handleDeleteRevision,
                             hidden: (record) => isSelectMode || !(record as any).__isRevision,
@@ -791,8 +791,8 @@ const TestsetsTable = ({
                 setIsDeleteTestsetModalOpen(true)
             },
             disabled: !selectedRecords.length,
-            disabledTooltip: "Select testsets or revisions to delete",
-            label: "Delete",
+            disabledTooltip: "Select testsets or revisions to archive",
+            label: "Archive",
         }
     }, [getSelectedRecords])
 

@@ -247,12 +247,12 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
 
             message.success(
                 deleteTargetIds.length === 1
-                    ? "Evaluator deleted"
-                    : `${deleteTargetIds.length} evaluators deleted`,
+                    ? "Evaluator archived"
+                    : `${deleteTargetIds.length} evaluators archived`,
             )
         } catch (error) {
             console.error(error)
-            message.error("Failed to delete evaluators")
+            message.error("Failed to archive evaluators")
         } finally {
             setIsDeleting(false)
             setIsDeleteModalOpen(false)
@@ -349,8 +349,9 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
         return (
             <Space>
                 <Button
-                    icon={<Tray size={16} />}
+                    icon={<Tray size={14} />}
                     onClick={() => router.push(`${projectURL}/evaluators/archived`)}
+                    type="text"
                 >
                     Archived
                 </Button>

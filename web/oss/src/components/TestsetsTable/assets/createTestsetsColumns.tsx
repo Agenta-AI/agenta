@@ -1,12 +1,12 @@
 import {LoadingOutlined, MinusCircleOutlined, PlusCircleOutlined} from "@ant-design/icons"
 import {
     ArrowCounterClockwise,
+    ArchiveIcon,
     Copy,
     DownloadSimple,
     Eye,
     Note,
     PencilSimple,
-    Trash,
 } from "@phosphor-icons/react"
 import {Tag} from "antd"
 import type {ColumnsType} from "antd/es/table"
@@ -229,8 +229,8 @@ export function createTestsetsColumns(
                       },
                       {
                           key: "delete",
-                          label: "Delete",
-                          icon: <Trash size={16} />,
+                          label: "Archive",
+                          icon: <ArchiveIcon size={14} />,
                           danger: true,
                           onClick: actions.onDelete,
                           hidden: (record: TestsetTableRow) =>
@@ -250,8 +250,8 @@ export function createTestsetsColumns(
                       },
                       {
                           key: "delete-revision",
-                          label: "Delete revision",
-                          icon: <Trash size={16} />,
+                          label: "Archive revision",
+                          icon: <ArchiveIcon size={14} />,
                           danger: true,
                           onClick: actions.onDeleteRevision,
                           hidden: (record: TestsetTableRow) =>

@@ -106,8 +106,9 @@ const ApplicationManagementSection = ({
             isArchived ? null : (
                 <Space>
                     <Button
-                        icon={<Tray size={16} />}
+                        icon={<Tray size={14} />}
                         onClick={() => router.push(`${baseAppURL}/archived`)}
+                        type="text"
                     >
                         Archived
                     </Button>

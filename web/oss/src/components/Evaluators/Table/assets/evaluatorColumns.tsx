@@ -16,12 +16,12 @@ import {
 } from "@agenta/ui/table"
 import {
     ArrowCounterClockwise,
+    ArchiveIcon,
     Eye,
     GearSix,
     MinusCircle,
     PencilSimple,
     PlusCircle,
-    Trash,
 } from "@phosphor-icons/react"
 import {Tag, Typography} from "antd"
 import {atom} from "jotai"
@@ -578,8 +578,8 @@ export function createEvaluatorColumns(
                         {type: "divider" as const},
                         {
                             key: "delete",
-                            label: "Delete",
-                            icon: <Trash size={16} />,
+                            label: "Archive",
+                            icon: <ArchiveIcon size={14} />,
                             danger: true,
                             onClick: (record: EvaluatorTableRow) => actions.handleDelete?.(record),
                         },
@@ -602,8 +602,8 @@ export function createEvaluatorColumns(
                         {type: "divider" as const},
                         {
                             key: "delete",
-                            label: "Delete",
-                            icon: <Trash size={16} />,
+                            label: "Archive",
+                            icon: <ArchiveIcon size={14} />,
                             danger: true,
                             onClick: (record: EvaluatorTableRow) => actions.handleDelete?.(record),
                         },
