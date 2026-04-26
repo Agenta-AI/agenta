@@ -12,7 +12,6 @@ import dynamic from "next/dynamic"
 import AddToTestsetButton from "@/oss/components/SharedDrawers/AddToTestsetDrawer/components/AddToTestsetButton"
 import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
 import {openTraceInPlaygroundAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/openInPlayground"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useAppNavigation} from "@/oss/state/appState"
 import {urlAtom} from "@/oss/state/url"
 import {buildPlaygroundUrl} from "@/oss/state/url/playground"
@@ -25,27 +24,6 @@ import {TraceTypeHeaderProps} from "./types"
 const DeleteTraceModal = dynamic(() => import("../../../DeleteTraceModal"), {
     ssr: false,
 })
-
-/**
- * Check if a workflow span has an app reference (application or application_revision).
- * Checks ag.references (dict format) and top-level references array.
- */
-function hasAppReference(span: TraceSpanNode): boolean {
-    const attrs = span.attributes as Record<string, unknown> | undefined
-    const ag = attrs?.ag as Record<string, unknown> | undefined
-    const agRefs = ag?.references as Record<string, unknown> | undefined
-    if (agRefs?.application || agRefs?.application_revision) return true
-
-    const topRefs = span.references as {attributes?: {key?: string}}[] | undefined
-    if (Array.isArray(topRefs)) {
-        return topRefs.some(
-            (ref) =>
-                ref.attributes?.key === "application" ||
-                ref.attributes?.key === "application_revision",
-        )
-    }
-    return false
-}
 
 const TraceTypeHeader = ({
     activeTrace,
@@ -73,8 +51,11 @@ const TraceTypeHeader = ({
             return Boolean(agData?.inputs)
         }
 
+        // Workflow spans can always be opened: if an app_revision reference exists,
+        // that revision is opened directly; otherwise an ephemeral workflow is created
+        // from the trace data, even when variant fields are missing or null.
         if (spanType === "workflow") {
-            return hasAppReference(activeTrace)
+            return true
         }
 
         return false
