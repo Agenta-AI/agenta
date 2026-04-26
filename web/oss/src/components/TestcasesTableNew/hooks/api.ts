@@ -10,9 +10,17 @@ export const PAGE_SIZE = 50
 /**
  * Fetch revision metadata from API (no testcases - just metadata)
  */
-export async function fetchRevision(projectId: string, revisionId: string) {
+export async function fetchRevision(
+    projectId: string,
+    revisionId: string,
+    options?: {includeArchived?: boolean},
+) {
     const response = await axios.get(`${getAgentaApiUrl()}/testsets/revisions/${revisionId}`, {
-        params: {project_id: projectId, include_testcases: true},
+        params: {
+            project_id: projectId,
+            include_testcases: true,
+            include_archived: options?.includeArchived ?? false,
+        },
     })
     return response.data?.testset_revision
 }
@@ -55,11 +63,16 @@ export async function fetchTestcasesPage(
 /**
  * Fetch testset metadata (name) from API
  */
-export async function fetchTestsetName(projectId: string, testsetId: string): Promise<string> {
+export async function fetchTestsetName(
+    projectId: string,
+    testsetId: string,
+    options?: {includeArchived?: boolean},
+): Promise<string> {
     const response = await axios.post(
         `${getAgentaApiUrl()}/testsets/query`,
         {
             testset_refs: [{id: testsetId}],
+            include_archived: options?.includeArchived ?? false,
             windowing: {limit: 1},
         },
         {params: {project_id: projectId}},
@@ -74,11 +87,13 @@ export async function fetchTestsetName(projectId: string, testsetId: string): Pr
 export async function fetchRevisionsByTestsetId(
     projectId: string,
     testsetId: string,
+    options?: {includeArchived?: boolean},
 ): Promise<{id: string; version: number; created_at: string}[]> {
     const response = await axios.post(
         `${getAgentaApiUrl()}/testsets/revisions/query`,
         {
             testset_refs: [{id: testsetId}],
+            include_archived: options?.includeArchived ?? false,
             windowing: {limit: 100},
         },
         {params: {project_id: projectId}},

@@ -21,7 +21,7 @@
  * ```
  */
 
-import {atom} from "jotai"
+import {atom, getDefaultStore} from "jotai"
 import {atomWithStorage} from "jotai/vanilla/utils"
 
 import type {BaseTableMeta} from "@/oss/components/InfiniteVirtualTable/helpers/createSimpleTableStore"
@@ -52,6 +52,8 @@ export interface TestsetApiRow {
     updated_at: string
     created_by_id?: string
     updated_by_id?: string
+    deleted_at?: string | null
+    deleted_by_id?: string | null
     tags?: string[]
     meta?: Record<string, unknown>
 }
@@ -59,7 +61,10 @@ export interface TestsetApiRow {
 /**
  * Table row with key and skeleton flag
  */
-export interface TestsetTableRow extends TestsetApiRow, InfiniteTableRowBase {}
+export interface TestsetTableRow extends TestsetApiRow, InfiniteTableRowBase {
+    deletedAt?: string | null
+    deletedById?: string | null
+}
 
 /**
  * Date range filter for testsets
@@ -77,6 +82,8 @@ export interface TestsetPaginatedMeta extends BaseTableMeta {
     dateCreatedFilter: TestsetDateRange | null
     dateModifiedFilter: TestsetDateRange | null
 }
+
+export type TestsetTableMode = "active" | "archived"
 
 // ============================================================================
 // FILTER ATOMS
@@ -104,6 +111,9 @@ export const testsetsDateCreatedFilterAtom = atom<TestsetDateRange | null>(null)
  * Date modified filter
  */
 export const testsetsDateModifiedFilterAtom = atom<TestsetDateRange | null>(null)
+const archivedTestsetsSearchTermAtom = atom("")
+const archivedTestsetsDateCreatedFilterAtom = atom<TestsetDateRange | null>(null)
+const archivedTestsetsDateModifiedFilterAtom = atom<TestsetDateRange | null>(null)
 
 // ============================================================================
 // META ATOM
@@ -117,6 +127,20 @@ export const testsetsPaginatedMetaAtom = atom<TestsetPaginatedMeta>((get) => {
     const searchTerm = get(testsetsSearchTermAtom)
     const dateCreatedFilter = get(testsetsDateCreatedFilterAtom)
     const dateModifiedFilter = get(testsetsDateModifiedFilterAtom)
+
+    return {
+        projectId,
+        searchTerm,
+        dateCreatedFilter,
+        dateModifiedFilter,
+    }
+})
+
+const archivedTestsetsPaginatedMetaAtom = atom<TestsetPaginatedMeta>((get) => {
+    const projectId = get(projectIdAtom)
+    const searchTerm = get(archivedTestsetsSearchTermAtom)
+    const dateCreatedFilter = get(archivedTestsetsDateCreatedFilterAtom)
+    const dateModifiedFilter = get(archivedTestsetsDateModifiedFilterAtom)
 
     return {
         projectId,
@@ -145,11 +169,13 @@ async function fetchTestsetsPage({
     meta,
     limit,
     cursor,
+    includeArchived = false,
 }: {
     meta: TestsetPaginatedMeta
     limit: number
     offset: number
     cursor: string | null
+    includeArchived?: boolean
 }): Promise<InfiniteTableFetchResult<TestsetApiRow>> {
     if (!meta.projectId) {
         return {
@@ -185,6 +211,7 @@ async function fetchTestsetsPage({
     // Build query payload
     const queryPayload: Record<string, unknown> = {
         windowing: windowingPayload,
+        include_archived: includeArchived,
     }
 
     // Add search query if provided
@@ -214,6 +241,8 @@ async function fetchTestsetsPage({
             updated_at: testset.updated_at,
             created_by_id: testset.created_by_id,
             updated_by_id: testset.updated_by_id,
+            deleted_at: testset.deleted_at,
+            deleted_by_id: testset.deleted_by_id,
             tags: testset.tags,
             meta: testset.meta,
         }))
@@ -240,6 +269,32 @@ async function fetchTestsetsPage({
             nextWindowing: null,
         }
     }
+}
+
+async function fetchArchivedTestsets(meta: TestsetPaginatedMeta): Promise<TestsetApiRow[]> {
+    const rows: TestsetApiRow[] = []
+    let cursor: string | null = null
+
+    do {
+        const page = await fetchTestsetsPage({
+            meta,
+            limit: 100,
+            offset: 0,
+            cursor,
+            includeArchived: true,
+        })
+
+        rows.push(...page.rows.filter((row) => Boolean(row.deleted_at)))
+        cursor = page.nextCursor
+    } while (cursor)
+
+    rows.sort((a, b) => {
+        const aTime = a.deleted_at ? Date.parse(a.deleted_at) : 0
+        const bTime = b.deleted_at ? Date.parse(b.deleted_at) : 0
+        return bTime - aTime
+    })
+
+    return rows
 }
 
 // ============================================================================
@@ -273,3 +328,72 @@ export const testsetPaginatedStore = createPaginatedEntityStore<
     },
     isEnabled: (meta) => Boolean(meta?.projectId),
 })
+
+const archivedTestsetPaginatedStore = createPaginatedEntityStore<
+    TestsetTableRow,
+    TestsetApiRow,
+    TestsetPaginatedMeta
+>({
+    entityName: "archived-testset",
+    metaAtom: archivedTestsetsPaginatedMetaAtom,
+    fetchPage: async ({meta, limit, cursor}) => {
+        const archivedRows = await fetchArchivedTestsets(meta)
+        const offset = cursor ? Number.parseInt(cursor, 10) || 0 : 0
+        const rows = archivedRows.slice(offset, offset + limit)
+        const nextOffset = offset + rows.length
+
+        return {
+            rows,
+            totalCount: archivedRows.length,
+            hasMore: nextOffset < archivedRows.length,
+            nextOffset: null,
+            nextCursor: nextOffset < archivedRows.length ? String(nextOffset) : null,
+            nextWindowing: null,
+        }
+    },
+    rowConfig: {
+        getRowId: (row) => row.id,
+        skeletonDefaults: {
+            id: "",
+            name: "",
+            created_at: "",
+            updated_at: "",
+            deletedAt: null,
+            deletedById: null,
+        },
+    },
+    transformRow: (row) => ({
+        key: row.id,
+        __isSkeleton: false,
+        ...row,
+        deletedAt: row.deleted_at ?? null,
+        deletedById: row.deleted_by_id ?? null,
+    }),
+    isEnabled: (meta) => Boolean(meta?.projectId),
+})
+
+export function invalidateTestsetManagementQueries() {
+    const store = getDefaultStore()
+    store.set(testsetPaginatedStore.refreshAtom)
+    store.set(archivedTestsetPaginatedStore.refreshAtom)
+}
+
+export function getTestsetTableState(mode: TestsetTableMode = "active") {
+    if (mode === "archived") {
+        return {
+            mode,
+            searchTermAtom: archivedTestsetsSearchTermAtom,
+            dateCreatedFilterAtom: archivedTestsetsDateCreatedFilterAtom,
+            dateModifiedFilterAtom: archivedTestsetsDateModifiedFilterAtom,
+            paginatedStore: archivedTestsetPaginatedStore,
+        }
+    }
+
+    return {
+        mode,
+        searchTermAtom: testsetsSearchTermAtom,
+        dateCreatedFilterAtom: testsetsDateCreatedFilterAtom,
+        dateModifiedFilterAtom: testsetsDateModifiedFilterAtom,
+        paginatedStore: testsetPaginatedStore,
+    }
+}

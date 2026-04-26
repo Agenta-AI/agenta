@@ -41,6 +41,7 @@ export const isNewTestsetId = (id: string | null | undefined): boolean => {
 export interface RevisionListParams {
     projectId: string
     testsetId: string
+    includeArchived?: boolean
 }
 
 /**
@@ -84,7 +85,7 @@ export interface VariantDetailParams {
  */
 export async function fetchRevision({id, projectId}: RevisionDetailParams): Promise<Revision> {
     const response = await axios.get(`${getAgentaApiUrl()}/testsets/revisions/${id}`, {
-        params: {project_id: projectId, include_testcases: false},
+        params: {project_id: projectId, include_testcases: false, include_archived: true},
     })
     return revisionSchema.parse(response.data?.testset_revision ?? response.data)
 }
@@ -95,6 +96,7 @@ export async function fetchRevision({id, projectId}: RevisionDetailParams): Prom
 export async function fetchRevisionsList({
     projectId,
     testsetId,
+    includeArchived = false,
 }: RevisionListParams): Promise<RevisionsResponse> {
     const response = await axios.post(
         `${getAgentaApiUrl()}/testsets/revisions/query`,
@@ -102,6 +104,7 @@ export async function fetchRevisionsList({
             testset_refs: [{id: testsetId}],
             windowing: {limit: 100, order: "descending"},
             include_testcases: false,
+            include_archived: includeArchived,
         },
         {params: {project_id: projectId}},
     )
