@@ -1,3 +1,4 @@
+import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {LoadingOutlined, MinusCircleOutlined, PlusCircleOutlined} from "@ant-design/icons"
 import {
     ArrowCounterClockwise,
@@ -156,9 +157,19 @@ export function createTestsetsColumns(
                       title: "Archived at",
                   },
                   {
-                      type: "user" as const,
+                      type: "text" as const,
                       key: "deletedById",
                       title: "Archived by",
+                      render: (_value, record: TestsetTableRow) => (
+                          <div className="h-full flex items-center">
+                              <UserAuthorLabel
+                                  userId={record.deletedById}
+                                  showPrefix={false}
+                                  showAvatar
+                                  showYouLabel
+                              />
+                          </div>
+                      ),
                   },
               ]
             : []),

@@ -14,7 +14,7 @@ export default function ArchivedEntityLayout({
     const handleBack = onBack ?? (() => router.back())
 
     return (
-        <div className="flex h-full min-h-0 flex-col gap-4">
+        <div className="flex h-full min-h-0 flex-col gap-4 p-4">
             <div className="flex flex-col gap-2">
                 <Button
                     type="text"
@@ -24,10 +24,14 @@ export default function ArchivedEntityLayout({
                 >
                     Back
                 </Button>
-                <Typography.Title level={2} className="!my-0">
-                    {title}
-                </Typography.Title>
-                {subtitle ? <Typography.Text type="secondary">{subtitle}</Typography.Text> : null}
+                <div className="flex flex-col gap-1">
+                    <Typography.Text className="!my-0 text-lg font-semibold">
+                        {title}
+                    </Typography.Text>
+                    {subtitle ? (
+                        <Typography.Text type="secondary">{subtitle}</Typography.Text>
+                    ) : null}
+                </div>
             </div>
 
             <div className="min-h-0 flex-1">{children}</div>

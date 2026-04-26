@@ -1,3 +1,4 @@
+import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {workflowAppTypeAtomFamily} from "@agenta/entities/workflow"
 import {createStandardColumns} from "@agenta/ui/table"
 import {ArrowCounterClockwise, Note, Rocket, Trash} from "@phosphor-icons/react"
@@ -89,9 +90,19 @@ export function createAppWorkflowColumns(
                       title: "Archived At",
                   },
                   {
-                      type: "user",
+                      type: "text",
                       key: "deletedById",
                       title: "Archived By",
+                      render: (_, record) => (
+                          <div className="h-full flex items-center">
+                              <UserAuthorLabel
+                                  userId={record.deletedById}
+                                  showPrefix={false}
+                                  showAvatar
+                                  showYouLabel
+                              />
+                          </div>
+                      ),
                   },
               ] as const)
             : []),
