@@ -1248,3 +1248,47 @@ For every RTM entry below:
 - License: `oss`
 - Status: active — runs playground prompt to seed trace, uses Refresh button for async indexing delay
 
+### WEB-ACC-MEMBERS-001 - Invite a member and receive the invite link
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/members.feature`
+- Test file: `web/oss/tests/playwright/acceptance/members/index.ts`
+- Playwright title: `Members: invite flow > should invite a member and show the invite link modal`
+
+#### Markers
+
+- Scope: `members`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-MEMBERS-002 - Invite a member and verify pending state in the members list
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/members.feature`
+- Test file: `web/ee/tests/playwright/acceptance/members/index.ts`
+- Playwright title: `Members: invite flow > should invite a member and verify pending state`
+
+#### Markers
+
+- Scope: `members`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `ee`
+- Status: active
+
