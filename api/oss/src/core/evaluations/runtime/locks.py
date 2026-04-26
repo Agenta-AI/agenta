@@ -265,7 +265,7 @@ async def _release_lock(
         return False
 
     try:
-        await caching.r_lock.delete(_actual_meta_name(lock_key))
+        await caching._cache_engine.get_r_lock().delete(_actual_meta_name(lock_key))
     except Exception:
         log.warning(
             "[LOCK] Released lock but failed to delete metadata",

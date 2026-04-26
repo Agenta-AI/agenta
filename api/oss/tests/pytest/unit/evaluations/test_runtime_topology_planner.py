@@ -5,9 +5,9 @@ from uuid import uuid4
 import pytest
 
 from oss.src.core.evaluations.runtime.adapters import (
-    BackendApplicationRunner,
     BackendCachedRunner,
     BackendEvaluatorRunner,
+    BackendWorkflowRunner,
     BackendWorkflowServiceRunner,
 )
 from oss.src.core.evaluations.runtime.cache import RunnableCacheResolver
@@ -609,7 +609,9 @@ async def test_testset_payload_source_resolver_preserves_testcase_payloads():
     assert len(specs) == 1
     assert specs[0].step_key == "testset-main"
     assert specs[0].testcases == [testcase]
-    assert specs[0].testcases_data == [{"prompt": "hello", "id": str(testcase_id)}]
+    assert specs[0].testcases_data == [
+        {"prompt": "hello", "testcase_id": str(testcase_id)}
+    ]
 
 
 @pytest.mark.asyncio
@@ -1026,79 +1028,87 @@ async def test_taskiq_evaluation_task_runner_omits_empty_optional_kwargs():
 
 
 @pytest.mark.asyncio
-async def test_backend_application_runner_batches_requests_and_normalizes_errors():
+async def test_backend_workflow_runner_invokes_application_through_workflow_service():
     project_id = uuid4()
     user_id = uuid4()
-    application_id = uuid4()
-    batch_invoke = AsyncMock(
-        return_value=[
-            SimpleNamespace(
-                trace_id="app-trace-0",
-                span_id="app-span-0",
-                result=SimpleNamespace(error=None),
-            ),
-            SimpleNamespace(
-                trace_id="app-trace-1",
-                span_id="app-span-1",
-                result=SimpleNamespace(
-                    error=SimpleNamespace(
-                        model_dump=lambda **kwargs: {"message": "failed"}
-                    )
-                ),
-            ),
-        ]
+    application_revision_id = uuid4()
+    workflows_service = SimpleNamespace(
+        invoke_workflow=AsyncMock(
+            return_value=SimpleNamespace(
+                status=SimpleNamespace(code=200),
+                trace_id="app-trace",
+                span_id="app-span",
+                outputs={"answer": "world"},
+            )
+        )
     )
-    runner = BackendApplicationRunner(
+    runner = BackendWorkflowRunner(
         project_id=project_id,
         user_id=user_id,
-        application=SimpleNamespace(id=application_id),
-        application_revision=SimpleNamespace(id=uuid4()),
-        application_uri="http://application",
-        batch_invoke=batch_invoke,
+        workflows_service=workflows_service,
     )
-    requests = [
-        WorkflowExecutionRequest(
-            step=SdkEvaluationStep(key="application-main", type="invocation"),
-            cell=SdkPlannedCell(
-                run_id=uuid4(),
-                scenario_id=uuid4(),
-                step_key="application-main",
-                step_type="invocation",
-                origin="custom",
-                repeat_idx=idx,
-                status=SdkEvaluationStatus.QUEUED,
-            ),
-            source=SdkResolvedSourceItem(
-                kind="testcase",
-                step_key="testset-main",
-                inputs={"input": idx},
-            ),
-            revision={"id": "application-revision"},
-            references={"application_revision": {"id": "application-revision"}},
-        )
-        for idx in range(2)
-    ]
-
-    results = await runner.execute_batch(requests)
-
-    assert [result.status for result in results] == [
-        SdkEvaluationStatus.SUCCESS,
-        SdkEvaluationStatus.FAILURE,
-    ]
-    assert results[1].error == {"message": "failed"}
-    batch_invoke.assert_awaited_once()
-    kwargs = batch_invoke.await_args.kwargs
-    assert kwargs["project_id"] == str(project_id)
-    assert kwargs["user_id"] == str(user_id)
-    assert kwargs["testset_data"] == [{"input": 0}, {"input": 1}]
-    assert kwargs["uri"] == "http://application"
-    assert kwargs["application_id"] == str(application_id)
-    assert kwargs["references"] == {
-        "application_revision": {"id": "application-revision"}
+    revision = {
+        "id": str(application_revision_id),
+        "data": {
+            "uri": "http://application",
+            "schemas": {
+                "inputs": {
+                    "type": "object",
+                    "properties": {"input": {"type": "string"}},
+                }
+            },
+            "parameters": {"temperature": 0.1},
+        },
+        "flags": {"is_chat": True},
     }
-    assert kwargs["scenarios"] == [
-        {"id": str(request.cell.scenario_id)} for request in requests
-    ]
+    request = WorkflowExecutionRequest(
+        step=SdkEvaluationStep(key="application-main", type="invocation"),
+        cell=SdkPlannedCell(
+            run_id=uuid4(),
+            scenario_id=uuid4(),
+            step_key="application-main",
+            step_type="invocation",
+            origin="custom",
+            repeat_idx=0,
+            status=SdkEvaluationStatus.QUEUED,
+        ),
+        source=SdkResolvedSourceItem(
+            kind="testcase",
+            step_key="testset-main",
+            inputs={
+                "input": "hello",
+                "correct_answer": "world",
+                "testcase_id": "testcase-id",
+                "testcase_dedup_id": "dedup-id",
+            },
+        ),
+        revision=revision,
+        references={"application_revision": {"id": str(application_revision_id)}},
+    )
+
+    result = await runner.execute(request)
+
+    assert result.status == SdkEvaluationStatus.SUCCESS
+    assert result.trace_id == "app-trace"
+    workflows_service.invoke_workflow.assert_awaited_once()
+    kwargs = workflows_service.invoke_workflow.await_args.kwargs
+    assert kwargs["project_id"] == project_id
+    assert kwargs["user_id"] == user_id
+    assert "annotate" not in kwargs
+    workflow_request = kwargs["request"]
+    assert workflow_request.flags == {"is_chat": True}
+    assert workflow_request.data.interface["uri"] == "http://application"
+    assert workflow_request.data.interface["schemas"] == {
+        "inputs": {
+            "type": "object",
+            "properties": {"input": {"type": "string"}},
+        }
+    }
+    assert workflow_request.data.configuration["parameters"] == {"temperature": 0.1}
+    assert workflow_request.data.revision == revision
+    assert workflow_request.data.parameters == {"temperature": 0.1}
+    assert workflow_request.data.inputs == {"input": "hello"}
+    assert workflow_request.references["application_revision"].id == application_revision_id
 
 
 @pytest.mark.asyncio
@@ -1166,7 +1176,7 @@ async def test_backend_evaluator_runner_sends_normalized_workflow_request():
     kwargs = workflows_service.invoke_workflow.await_args.kwargs
     assert kwargs["project_id"] == project_id
     assert kwargs["user_id"] == user_id
-    assert kwargs["annotate"] is True
+    assert "annotate" not in kwargs
     workflow_request = kwargs["request"]
     assert workflow_request.flags == {"is_custom": True}
     assert workflow_request.data.revision == {"id": str(workflow_revision_id)}

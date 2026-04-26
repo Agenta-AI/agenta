@@ -11,7 +11,6 @@ from agenta.sdk.evaluations.runtime.source_slice import (
 )
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.services import llm_apps_service
 
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import TestsetsService
@@ -29,19 +28,16 @@ from oss.src.core.evaluations.types import (
     EvaluationScenarioEdit,
 )
 
-from oss.src.core.shared.dtos import Reference
-
 from oss.src.core.evaluations.utils import (
     effective_is_split,
 )
 from oss.src.core.evaluations.runtime.adapters import (
-    BackendApplicationRunner,
     BackendCachedRunner,
-    BackendEvaluatorRunner,
     BackendMetricsRefresher,
     BackendResultLogger,
     BackendScenarioFactory,
     BackendTraceLoader,
+    BackendWorkflowRunner,
 )
 from oss.src.core.evaluations.runtime.models import ResolvedSourceItem
 from oss.src.core.evaluations.runtime.sources import (
@@ -51,16 +47,6 @@ from oss.src.core.evaluations.runtime.sources import (
 
 
 log = get_module_logger(__name__)
-
-
-def _resolve_runtime_uri(
-    *,
-    revision_data: Optional[Any],
-) -> Optional[str]:
-    if revision_data is None:
-        return None
-
-    return WorkflowsService._get_service_url(revision_data=revision_data)
 
 
 async def _resolve_testset_input_specs(
@@ -271,6 +257,8 @@ async def process_evaluation_source_slice(
                 raise ValueError(
                     "applications_service is required for invocation steps"
                 )
+            if workflows_service is None:
+                raise ValueError("workflows_service is required for invocation steps")
             invocation_step = invocation_steps[0]
             application_revision_ref = invocation_step.references.get(
                 "application_revision"
@@ -291,39 +279,11 @@ async def process_evaluation_source_slice(
                 raise ValueError(
                     f"App revision with id {application_revision_ref.id} not found!"
                 )
-            application_variant = await applications_service.fetch_application_variant(
-                project_id=project_id,
-                application_variant_ref=Reference(
-                    id=application_revision.application_variant_id
-                ),
-            )
-            if application_variant is None:
-                raise ValueError(
-                    f"Application variant with id {application_revision.application_variant_id} not found!"
-                )
-            application = await applications_service.fetch_application(
-                project_id=project_id,
-                application_ref=Reference(id=application_variant.application_id),
-            )
-            if application is None:
-                raise ValueError(
-                    f"Application with id {application_variant.application_id} not found!"
-                )
-            application_uri = _resolve_runtime_uri(
-                revision_data=application_revision.data
-            )
-            if not application_uri:
-                raise ValueError(
-                    f"No deployment URI found for revision {application_revision_ref.id}!"
-                )
             runners[invocation_step.key] = BackendCachedRunner(
-                runner=BackendApplicationRunner(
+                runner=BackendWorkflowRunner(
                     project_id=project_id,
                     user_id=user_id,
-                    application=application,
-                    application_revision=application_revision,
-                    application_uri=application_uri,
-                    batch_invoke=llm_apps_service.batch_invoke,
+                    workflows_service=workflows_service,
                 ),
                 tracing_service=tracing_service,
                 project_id=project_id,
@@ -351,7 +311,7 @@ async def process_evaluation_source_slice(
             if evaluator_revision is None:
                 continue
             runners[annotation_step.key] = BackendCachedRunner(
-                runner=BackendEvaluatorRunner(
+                runner=BackendWorkflowRunner(
                     project_id=project_id,
                     user_id=user_id,
                     workflows_service=workflows_service,

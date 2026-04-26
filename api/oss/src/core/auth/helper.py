@@ -1,12 +1,11 @@
 from dataclasses import dataclass
 from typing import Any, Optional, Set
 
-import posthog
-
 from oss.src.services.exceptions import UnauthorizedException
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
+from oss.src.utils.lazy import _load_posthog
 from oss.src.utils.logging import get_module_logger
 
 
@@ -61,10 +60,27 @@ async def _get_posthog_string_entries(feature_flag: str) -> Set[str]:
     if cached_entries is not None:
         return _normalize_string_set(cached_entries)
 
-    flag_entries = posthog.get_feature_flag_payload(
-        feature_flag,
-        "user distinct id",
-    )
+    posthog = _load_posthog()
+    if posthog is None:
+        log.warning(
+            "[AUTH] PostHog feature flag lookup skipped",
+            feature_flag=feature_flag,
+            reason="unavailable",
+        )
+        return set()
+
+    try:
+        flag_entries = posthog.get_feature_flag_payload(
+            feature_flag,
+            "user distinct id",
+        )
+    except Exception as exc:
+        log.warning(
+            "[AUTH] PostHog feature flag lookup skipped",
+            feature_flag=feature_flag,
+            reason=str(exc),
+        )
+        return set()
 
     normalized_entries = _normalize_string_set(flag_entries)
 

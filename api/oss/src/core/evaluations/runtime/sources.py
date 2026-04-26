@@ -206,7 +206,8 @@ class TestsetRevisionPayloadResolver:
             testset_revision=testset_revision,
             testcases=testcases,
             testcases_data=[
-                {**testcase.data, "id": str(testcase.id)} for testcase in testcases
+                {**testcase.data, "testcase_id": str(testcase.id)}
+                for testcase in testcases
             ],
         )
 

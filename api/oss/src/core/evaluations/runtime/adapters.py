@@ -39,6 +39,17 @@ def _dump_model(source: Any, **kwargs: Any) -> Any:
     return source
 
 
+def _dump_json(source: Any) -> Any:
+    if hasattr(source, "model_dump"):
+        return source.model_dump(mode="json", exclude_none=True)
+    if isinstance(source, dict):
+        return {key: _dump_json(value) for key, value in source.items()}
+    if isinstance(source, list):
+        return [_dump_json(value) for value in source]
+    return source
+
+
+
 class BackendWorkflowServiceRunner:
     """API adapter from SDK runtime requests to the backend workflow service."""
 
@@ -220,70 +231,7 @@ class BackendTraceLoader:
         )
 
 
-class BackendApplicationRunner:
-    def __init__(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        application: Any,
-        application_revision: Any,
-        application_uri: str,
-        batch_invoke: Any,
-    ):
-        self.project_id = project_id
-        self.user_id = user_id
-        self.application = application
-        self.application_revision = application_revision
-        self.application_uri = application_uri
-        self.batch_invoke = batch_invoke
-
-    async def execute(
-        self,
-        request: WorkflowExecutionRequest,
-    ) -> WorkflowExecutionResult:
-        return (await self.execute_batch([request]))[0]
-
-    async def execute_batch(
-        self,
-        requests: List[WorkflowExecutionRequest],
-    ) -> List[WorkflowExecutionResult]:
-        invocations = await self.batch_invoke(
-            project_id=str(self.project_id),
-            user_id=str(self.user_id),
-            testset_data=[request.source.inputs for request in requests],
-            revision=self.application_revision,
-            uri=self.application_uri,
-            rate_limit_config={
-                "batch_size": 10,
-                "max_retries": 3,
-                "retry_delay": 3,
-                "delay_between_batches": 5,
-            },
-            application_id=str(self.application.id),
-            references=requests[0].references if requests else {},
-            scenarios=[{"id": str(request.cell.scenario_id)} for request in requests],
-        )
-        return [
-            WorkflowExecutionResult(
-                status=(
-                    SdkEvaluationStatus.FAILURE
-                    if getattr(getattr(invocation, "result", None), "error", None)
-                    else SdkEvaluationStatus.SUCCESS
-                ),
-                trace_id=getattr(invocation, "trace_id", None),
-                span_id=getattr(invocation, "span_id", None),
-                error=(
-                    invocation.result.error.model_dump(mode="json")
-                    if getattr(getattr(invocation, "result", None), "error", None)
-                    else None
-                ),
-            )
-            for invocation in invocations
-        ]
-
-
-class BackendEvaluatorRunner:
+class BackendWorkflowRunner:
     def __init__(
         self,
         *,
@@ -379,10 +327,9 @@ class BackendEvaluatorRunner:
                     ),
                     outputs=request.upstream_outputs or request.source.outputs,
                 ),
-                references=request.references,
+                references=_dump_json(request.references),
                 links=request.links or {},
             ),
-            annotate=True,
         )
         status = getattr(response, "status", None)
         status_code = getattr(status, "code", None)
@@ -403,6 +350,21 @@ class BackendEvaluatorRunner:
                 else None
             ),
             outputs=getattr(response, "outputs", None),
+        )
+
+
+class BackendEvaluatorRunner(BackendWorkflowRunner):
+    def __init__(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        workflows_service: Any,
+    ):
+        super().__init__(
+            project_id=project_id,
+            user_id=user_id,
+            workflows_service=workflows_service,
         )
 
 

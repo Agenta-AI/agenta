@@ -1,9 +1,8 @@
 from typing import Dict, Any, List, Optional, Union
 from urllib.parse import urlparse
 
-import posthog
-
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.lazy import _load_posthog
 
 from supertokens_python.recipe.thirdparty.provider import (
     ProviderInput,
@@ -248,6 +247,9 @@ async def _create_account(email: str, uid: str) -> bool:
 
     if env.posthog.enabled and env.posthog.api_key:
         try:
+            posthog = _load_posthog()
+            if posthog is None:
+                return True
             posthog.capture(
                 distinct_id=auth_info.email,
                 event="user_signed_up_v1",
@@ -259,8 +261,11 @@ async def _create_account(email: str, uid: str) -> bool:
                     "$set": {"email": auth_info.email},
                 },
             )
-        except Exception:
-            log.error("[AUTH] Failed to capture PostHog signup event", exc_info=True)
+        except Exception as exc:
+            log.warning(
+                "[AUTH] PostHog signup event capture skipped",
+                reason=str(exc),
+            )
     log.info("[AUTH] _create_account done", email=auth_info.email, uid=uid)
     return True
 
