@@ -24,7 +24,7 @@ import {
 } from "@agenta/entities/workflow"
 import {queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
-import {atom} from "jotai"
+import {atom, type Atom} from "jotai"
 
 import type {EvaluatorCategory} from "../assets/types"
 
@@ -67,14 +67,19 @@ interface EvaluatorQueryMeta {
 export type EvaluatorsTableMode = "active" | "archived"
 
 // ============================================================================
-// META ATOM
+// SHARED HELPERS
 // ============================================================================
 
-const evaluatorPaginatedMetaAtom = atom<EvaluatorQueryMeta>((get) => ({
-    projectId: get(projectIdAtom),
-    category: get(evaluatorCategoryAtom),
-    searchTerm: get(evaluatorSearchTermAtom) || undefined,
-}))
+const emptyFetchResult = <TRow>(
+    totalCount: number | null = null,
+): InfiniteTableFetchResult<TRow> => ({
+    rows: [],
+    totalCount,
+    hasMore: false,
+    nextCursor: null,
+    nextOffset: null,
+    nextWindowing: null,
+})
 
 const skeletonDefaults: Partial<EvaluatorTableRow> = {
     revisionId: "",
@@ -86,6 +91,58 @@ const skeletonDefaults: Partial<EvaluatorTableRow> = {
     deletedById: null,
     key: "",
 }
+
+const getCursorOffset = (cursor: string | null | undefined) =>
+    cursor ? Number.parseInt(cursor, 10) || 0 : 0
+
+const compareDeletedAtDesc = (a: EvaluatorTableRow, b: EvaluatorTableRow) => {
+    const aTime = a.deletedAt ? Date.parse(a.deletedAt) : 0
+    const bTime = b.deletedAt ? Date.parse(b.deletedAt) : 0
+    return bTime - aTime
+}
+
+const createEvaluatorMetaAtom = (
+    categoryAtom: Atom<EvaluatorCategory>,
+    searchTermAtom: Atom<string>,
+) =>
+    atom<EvaluatorQueryMeta>((get) => ({
+        projectId: get(projectIdAtom),
+        category: get(categoryAtom),
+        searchTerm: get(searchTermAtom) || undefined,
+    }))
+
+const toRevisionEvaluatorRow = (revision: Workflow): EvaluatorTableRow => {
+    const workflowId = revision.workflow_id ?? ""
+
+    return {
+        key: revision.id,
+        revisionId: revision.id,
+        workflowId,
+        variantId: revision.workflow_variant_id ?? revision.variant_id ?? "",
+        version: revision.version ?? null,
+        revisionCreatedAt: revision.created_at ?? null,
+    }
+}
+
+const toArchivedEvaluatorRow = (workflow: Workflow, revision: Workflow): EvaluatorTableRow => ({
+    key: workflow.id,
+    revisionId: revision.id,
+    workflowId: workflow.id,
+    variantId: revision.workflow_variant_id ?? revision.variant_id ?? "",
+    version: revision.version ?? null,
+    revisionCreatedAt: revision.created_at ?? null,
+    deletedAt: workflow.deleted_at ?? null,
+    deletedById: workflow.deleted_by_id ?? null,
+})
+
+// ============================================================================
+// META ATOM
+// ============================================================================
+
+const evaluatorPaginatedMetaAtom = createEvaluatorMetaAtom(
+    evaluatorCategoryAtom,
+    evaluatorSearchTermAtom,
+)
 
 // ============================================================================
 // EVALUATOR WORKFLOW CACHE
@@ -225,31 +282,14 @@ async function buildArchivedEvaluatorRows(meta: EvaluatorQueryMeta): Promise<Eva
         mode: "archived",
     })
 
-    const rows = cache.entries.flatMap(({workflow, latestRevision}) => {
-        const revision = latestRevision
-        if (!revision) return [] as EvaluatorTableRow[]
+    return cache.entries
+        .flatMap(({workflow, latestRevision}) => {
+            const revision = latestRevision
+            if (!revision) return [] as EvaluatorTableRow[]
 
-        return [
-            {
-                key: workflow.id,
-                revisionId: revision.id,
-                workflowId: workflow.id,
-                variantId: revision.workflow_variant_id ?? revision.variant_id ?? "",
-                version: revision.version ?? null,
-                revisionCreatedAt: revision.created_at ?? null,
-                deletedAt: workflow.deleted_at ?? null,
-                deletedById: workflow.deleted_by_id ?? null,
-            },
-        ]
-    })
-
-    rows.sort((a, b) => {
-        const aTime = a.deletedAt ? Date.parse(a.deletedAt) : 0
-        const bTime = b.deletedAt ? Date.parse(b.deletedAt) : 0
-        return bTime - aTime
-    })
-
-    return rows
+            return [toArchivedEvaluatorRow(workflow, revision)]
+        })
+        .sort(compareDeletedAtDesc)
 }
 
 // ============================================================================
@@ -265,14 +305,7 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
     metaAtom: evaluatorPaginatedMetaAtom,
     fetchPage: async ({meta, limit, cursor}): Promise<InfiniteTableFetchResult<Workflow>> => {
         if (!meta.projectId) {
-            return {
-                rows: [],
-                totalCount: null,
-                hasMore: false,
-                nextCursor: null,
-                nextOffset: null,
-                nextWindowing: null,
-            }
+            return emptyFetchResult<Workflow>()
         }
 
         const cache = await ensureEvaluatorWorkflowCache({
@@ -283,14 +316,7 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
         })
 
         if (cache.workflowIds.length === 0) {
-            return {
-                rows: [],
-                totalCount: 0,
-                hasMore: false,
-                nextCursor: null,
-                nextOffset: null,
-                nextWindowing: null,
-            }
+            return emptyFetchResult<Workflow>(0)
         }
 
         const response = await queryWorkflowRevisionsByWorkflows(
@@ -319,17 +345,7 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
         getRowId: (row) => row.id,
         skeletonDefaults,
     },
-    transformRow: (apiRow): EvaluatorTableRow => {
-        const workflowId = apiRow.workflow_id ?? ""
-        return {
-            key: apiRow.id,
-            revisionId: apiRow.id,
-            workflowId,
-            variantId: apiRow.workflow_variant_id ?? apiRow.variant_id ?? "",
-            version: apiRow.version ?? null,
-            revisionCreatedAt: apiRow.created_at ?? null,
-        }
-    },
+    transformRow: toRevisionEvaluatorRow,
     isEnabled: (meta) => Boolean(meta?.projectId),
     listCountsConfig: {
         totalCountMode: "unknown",
@@ -339,11 +355,10 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
 const archivedEvaluatorCategoryAtom = atom<EvaluatorCategory>("automatic")
 const archivedEvaluatorSearchTermAtom = atom("")
 
-const archivedEvaluatorPaginatedMetaAtom = atom<EvaluatorQueryMeta>((get) => ({
-    projectId: get(projectIdAtom),
-    category: get(archivedEvaluatorCategoryAtom),
-    searchTerm: get(archivedEvaluatorSearchTermAtom) || undefined,
-}))
+const archivedEvaluatorPaginatedMetaAtom = createEvaluatorMetaAtom(
+    archivedEvaluatorCategoryAtom,
+    archivedEvaluatorSearchTermAtom,
+)
 
 const archivedEvaluatorsPaginatedStore = createPaginatedEntityStore<
     EvaluatorTableRow,
@@ -358,18 +373,11 @@ const archivedEvaluatorsPaginatedStore = createPaginatedEntityStore<
         cursor,
     }): Promise<InfiniteTableFetchResult<EvaluatorTableRow>> => {
         if (!meta.projectId) {
-            return {
-                rows: [],
-                totalCount: null,
-                hasMore: false,
-                nextCursor: null,
-                nextOffset: null,
-                nextWindowing: null,
-            }
+            return emptyFetchResult<EvaluatorTableRow>()
         }
 
         const archivedRows = await buildArchivedEvaluatorRows(meta)
-        const offset = cursor ? Number.parseInt(cursor, 10) || 0 : 0
+        const offset = getCursorOffset(cursor)
         const rows = archivedRows.slice(offset, offset + limit)
         const nextOffset = offset + rows.length
 

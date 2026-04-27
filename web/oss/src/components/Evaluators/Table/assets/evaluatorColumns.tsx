@@ -463,15 +463,19 @@ export function createEvaluatorColumns(
                 return <AutomaticTagsCell revisionId={record.revisionId} />
             },
         },
-        {
-            type: "text",
-            key: "createdAt",
-            title: "Date Created",
-            render: (_value: unknown, record: EvaluatorTableRow) => {
-                if (record.__isSkeleton) return <SkeletonLine width="50%" />
-                return <DateCell date={record.revisionCreatedAt as string | null} />
-            },
-        },
+        ...(isArchived
+            ? []
+            : [
+                  {
+                      type: "text" as const,
+                      key: "createdAt",
+                      title: "Date Created",
+                      render: (_value: unknown, record: EvaluatorTableRow) => {
+                          if (record.__isSkeleton) return <SkeletonLine width="50%" />
+                          return <DateCell date={record.revisionCreatedAt as string | null} />
+                      },
+                  },
+              ]),
         ...(isArchived
             ? [
                   {
@@ -510,29 +514,33 @@ export function createEvaluatorColumns(
                   },
               ]
             : []),
-        {
-            type: "text",
-            key: "updatedAt",
-            title: "Last modified",
-            render: (_value: unknown, record: EvaluatorTableRow) => {
-                if (record.__isSkeleton) return <SkeletonLine width="50%" />
-                if (record.__isGroupChild)
-                    return <UpdatedAtRevisionCell revisionId={record.revisionId} />
-                return <UpdatedAtCell workflowId={record.workflowId} />
-            },
-        },
-        {
-            type: "text",
-            key: "modifiedBy",
-            title: "Modified by",
-            width: 200,
-            render: (_value, record) => {
-                if (record.__isSkeleton) return <SkeletonLine width="50%" />
-                if (record.__isGroupChild)
-                    return <ModifiedByRevisionCell revisionId={record.revisionId} />
-                return <ModifiedByCell workflowId={record.workflowId} />
-            },
-        },
+        ...(isArchived
+            ? []
+            : [
+                  {
+                      type: "text" as const,
+                      key: "updatedAt",
+                      title: "Last modified",
+                      render: (_value: unknown, record: EvaluatorTableRow) => {
+                          if (record.__isSkeleton) return <SkeletonLine width="50%" />
+                          if (record.__isGroupChild)
+                              return <UpdatedAtRevisionCell revisionId={record.revisionId} />
+                          return <UpdatedAtCell workflowId={record.workflowId} />
+                      },
+                  },
+                  {
+                      type: "text" as const,
+                      key: "modifiedBy",
+                      title: "Modified by",
+                      width: 200,
+                      render: (_value: unknown, record: EvaluatorTableRow) => {
+                          if (record.__isSkeleton) return <SkeletonLine width="50%" />
+                          if (record.__isGroupChild)
+                              return <ModifiedByRevisionCell revisionId={record.revisionId} />
+                          return <ModifiedByCell workflowId={record.workflowId} />
+                      },
+                  },
+              ]),
         ...(category !== "human"
             ? [
                   {
