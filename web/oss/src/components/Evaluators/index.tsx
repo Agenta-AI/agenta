@@ -90,7 +90,7 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
     useEffect(() => {
         if (isArchived) return
 
-        if (isValidEvaluatorTab(tabState)) {
+        if (tabState && isValidEvaluatorTab(tabState)) {
             if (tabState !== activeTab) {
                 setActiveTab(tabState)
             }
@@ -107,6 +107,16 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
             setTabState(fallbackTab)
         }
     }, [activeTab, isArchived, setActiveTab, setTabState, tabState])
+
+    useEffect(() => {
+        if (!isArchived) return
+
+        const archivedTab =
+            tabState && isValidEvaluatorTab(tabState) ? tabState : DEFAULT_EVALUATOR_TAB
+        if (activeTab !== archivedTab) {
+            setActiveTab(archivedTab)
+        }
+    }, [activeTab, isArchived, setActiveTab, tabState])
 
     useEffect(() => {
         if (isArchived || onboardingWidgetActivation !== "create-evaluator") return
@@ -217,6 +227,8 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
     const handleRestore = useCallback(async (record: EvaluatorTableRow) => {
         try {
             const {projectId} = getProjectValues()
+            if (!projectId || !record.workflowId) return
+
             await unarchiveWorkflow(projectId, record.workflowId)
             invalidateWorkflowsListCache()
             invalidateEvaluatorsListCache()
@@ -232,6 +244,7 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
         try {
             setIsDeleting(true)
             const {projectId} = getProjectValues()
+            if (!projectId) return
 
             if (activeTab !== "human") {
                 const canDelete = await checkIfResourceValidForDeletion({
@@ -350,7 +363,9 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
             <Space>
                 <Button
                     icon={<Tray size={14} />}
-                    onClick={() => router.push(`${projectURL}/evaluators/archived`)}
+                    onClick={() =>
+                        router.push(`${projectURL}/evaluators/archived?tab=${activeTab}`)
+                    }
                     type="text"
                 >
                     Archived
@@ -374,7 +389,11 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
     }, [activeTab, handleOpenHumanDrawer, handleSelectTemplate, isArchived, projectURL, router])
 
     return (
-        <PageLayout title="Evaluators" headerTabsProps={headerTabsProps} className="grow min-h-0">
+        <PageLayout
+            title={isArchived ? undefined : "Evaluators"}
+            headerTabsProps={isArchived ? undefined : headerTabsProps}
+            className={isArchived ? "grow min-h-0 !pl-0" : "grow min-h-0"}
+        >
             <EvaluatorsTable
                 mode={isArchived ? "archived" : "active"}
                 category={activeTab}
