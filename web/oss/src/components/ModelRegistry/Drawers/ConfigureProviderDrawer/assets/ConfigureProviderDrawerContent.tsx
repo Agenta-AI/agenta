@@ -153,7 +153,6 @@ const ConfigureProviderDrawerContent = ({
 
     useEffect(() => {
         if (selectedProvider) {
-
             const rawProvider = selectedProvider.provider ?? ""
             form.setFieldsValue({
                 ...selectedProvider,
@@ -165,7 +164,7 @@ const ConfigureProviderDrawerContent = ({
         } else {
             form.resetFields()
         }
-    }, [selectedProvider])
+    }, [selectedProvider, form])
 
     const onSubmit = async (values: LlmProvider) => {
         try {
