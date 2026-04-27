@@ -365,6 +365,9 @@ async def process_evaluation_source_slice(
             ),
             log_pending=False,
             refresh_metrics_without_auto_results=refresh_metrics_without_auto_results,
+            batch_size=run.data.concurrency.batch_size if run.data.concurrency else None,
+            max_retries=run.data.concurrency.max_retries if run.data.concurrency else None,
+            retry_delay=run.data.concurrency.retry_delay if run.data.concurrency else None,
         )
 
         for item in processed:

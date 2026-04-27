@@ -689,3 +689,399 @@ async def test_sdk_preview_evaluate_logs_repeat_aware_results(monkeypatch):
         for logged_result in logged_results
         if logged_result["step_key"] == "evaluator-eval"
     ] == ["eval-trace-0", "eval-trace-1"]
+
+
+# ---------------------------------------------------------------------------
+# Concurrency and retry
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_sdk_source_slice_runs_scenarios_concurrently_up_to_batch_size():
+    """batch_size=2 with 4 scenarios: at most 2 invoke_workflow calls in flight at once."""
+    import asyncio
+
+    run_id = uuid4()
+    in_flight = 0
+    peak = 0
+
+    class ConcurrentRunner:
+        async def execute_batch(self, requests, semaphore=None):
+            results = []
+            for request in requests:
+                async def _one(req):
+                    nonlocal in_flight, peak
+                    in_flight += 1
+                    peak = max(peak, in_flight)
+                    await asyncio.sleep(0)
+                    in_flight -= 1
+                    return WorkflowExecutionResult(
+                        status=EvaluationStatus.SUCCESS,
+                        trace_id=f"trace-{req.cell.repeat_idx}",
+                    )
+
+                if semaphore is not None:
+                    async with semaphore:
+                        results.append(await _one(request))
+                else:
+                    results.append(await _one(request))
+            return results
+
+    class Logger:
+        async def log(self, request):
+            return SimpleNamespace(id=uuid4())
+
+    scenarios_created = []
+
+    async def create_scenario(run_id):
+        sid = uuid4()
+        scenarios_created.append(sid)
+        return SimpleNamespace(id=sid)
+
+    async def refresh_metrics(run_id, scenario_id):
+        return None
+
+    source_items = [
+        ResolvedSourceItem(
+            kind="testcase",
+            step_key="testset-main",
+            testcase_id=uuid4(),
+            inputs={"x": str(i)},
+        )
+        for i in range(4)
+    ]
+
+    await process_evaluation_source_slice(
+        run_id=run_id,
+        source_items=source_items,
+        steps=[
+            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
+        ],
+        repeats=1,
+        create_scenario=create_scenario,
+        result_logger=Logger(),
+        refresh_metrics=refresh_metrics,
+        runners={"evaluator-auto": ConcurrentRunner()},
+        revisions={"evaluator-auto": {"id": "rev"}},
+        batch_size=2,
+    )
+
+    assert len(scenarios_created) == 4
+    assert peak <= 2
+
+
+@pytest.mark.asyncio
+async def test_sdk_source_slice_semaphore_shared_across_repeats():
+    """batch_size=2 with 1 scenario and 4 repeats: peak concurrency stays ≤ 2."""
+    import asyncio
+
+    run_id = uuid4()
+    scenario_id = uuid4()
+    in_flight = 0
+    peak = 0
+
+    class ConcurrentRunner:
+        async def execute_batch(self, requests, semaphore=None):
+            async def _one(req):
+                nonlocal in_flight, peak
+                in_flight += 1
+                peak = max(peak, in_flight)
+                await asyncio.sleep(0)
+                in_flight -= 1
+                return WorkflowExecutionResult(
+                    status=EvaluationStatus.SUCCESS,
+                    trace_id=f"trace-{req.cell.repeat_idx}",
+                )
+
+            if semaphore is not None:
+                results = []
+                for req in requests:
+                    async with semaphore:
+                        results.append(await _one(req))
+                return results
+            return [await _one(req) for req in requests]
+
+    class Logger:
+        async def log(self, request):
+            return SimpleNamespace(id=uuid4())
+
+    async def create_scenario(run_id):
+        return SimpleNamespace(id=scenario_id)
+
+    async def refresh_metrics(run_id, scenario_id):
+        return None
+
+    await process_evaluation_source_slice(
+        run_id=run_id,
+        source_items=[
+            ResolvedSourceItem(
+                kind="testcase",
+                step_key="testset-main",
+                testcase_id=uuid4(),
+                inputs={"x": "0"},
+            )
+        ],
+        steps=[
+            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
+        ],
+        repeats=4,
+        create_scenario=create_scenario,
+        result_logger=Logger(),
+        refresh_metrics=refresh_metrics,
+        runners={"evaluator-auto": ConcurrentRunner()},
+        revisions={"evaluator-auto": {"id": "rev"}},
+        batch_size=2,
+    )
+
+    assert peak <= 2
+
+
+@pytest.mark.asyncio
+async def test_sdk_source_slice_no_batch_size_runs_all_concurrently():
+    """When batch_size=None the semaphore is absent and all scenarios run freely."""
+    run_id = uuid4()
+    scenarios_created = []
+
+    class Runner:
+        async def execute_batch(self, requests, semaphore=None):
+            return [
+                WorkflowExecutionResult(
+                    status=EvaluationStatus.SUCCESS,
+                    trace_id="t",
+                )
+                for _ in requests
+            ]
+
+    class Logger:
+        async def log(self, request):
+            return SimpleNamespace(id=uuid4())
+
+    async def create_scenario(run_id):
+        sid = uuid4()
+        scenarios_created.append(sid)
+        return SimpleNamespace(id=sid)
+
+    async def refresh_metrics(run_id, scenario_id):
+        return None
+
+    source_items = [
+        ResolvedSourceItem(
+            kind="testcase",
+            step_key="testset-main",
+            testcase_id=uuid4(),
+        )
+        for _ in range(5)
+    ]
+
+    processed = await process_evaluation_source_slice(
+        run_id=run_id,
+        source_items=source_items,
+        steps=[
+            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
+        ],
+        repeats=1,
+        create_scenario=create_scenario,
+        result_logger=Logger(),
+        refresh_metrics=refresh_metrics,
+        runners={"evaluator-auto": Runner()},
+        revisions={"evaluator-auto": {"id": "rev"}},
+        batch_size=None,
+    )
+
+    assert len(processed) == 5
+
+
+@pytest.mark.asyncio
+async def test_sdk_source_slice_retries_failed_cells_and_succeeds():
+    """max_retries=1: first attempt fails, retry succeeds; result is success."""
+    run_id = uuid4()
+    scenario_id = uuid4()
+    call_count = 0
+
+    class FlakyRunner:
+        async def execute_batch(self, requests, semaphore=None):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return [
+                    WorkflowExecutionResult(
+                        status=EvaluationStatus.FAILURE,
+                        error={"message": "transient"},
+                    )
+                    for _ in requests
+                ]
+            return [
+                WorkflowExecutionResult(
+                    status=EvaluationStatus.SUCCESS,
+                    trace_id="recovered",
+                )
+                for _ in requests
+            ]
+
+    logged = []
+
+    class Logger:
+        async def log(self, request):
+            logged.append((request.cell.step_key, request.trace_id, request.error))
+            return SimpleNamespace(id=uuid4())
+
+    async def create_scenario(run_id):
+        return SimpleNamespace(id=scenario_id)
+
+    async def refresh_metrics(run_id, scenario_id):
+        return None
+
+    processed = await process_evaluation_source_slice(
+        run_id=run_id,
+        source_items=[
+            ResolvedSourceItem(
+                kind="testcase",
+                step_key="testset-main",
+                testcase_id=uuid4(),
+                inputs={"x": "1"},
+            )
+        ],
+        steps=[
+            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
+        ],
+        repeats=1,
+        create_scenario=create_scenario,
+        result_logger=Logger(),
+        refresh_metrics=refresh_metrics,
+        runners={"evaluator-auto": FlakyRunner()},
+        revisions={"evaluator-auto": {"id": "rev"}},
+        max_retries=1,
+    )
+
+    assert call_count == 2
+    assert processed[0].has_errors is False
+    eval_log = next(entry for entry in logged if entry[0] == "evaluator-auto")
+    assert eval_log[1] == "recovered"
+    assert eval_log[2] is None
+
+
+@pytest.mark.asyncio
+async def test_sdk_source_slice_exhausts_retries_and_marks_error():
+    """max_retries=1 with persistent failure: result is still an error."""
+    run_id = uuid4()
+    scenario_id = uuid4()
+    call_count = 0
+
+    class AlwaysFailRunner:
+        async def execute_batch(self, requests, semaphore=None):
+            nonlocal call_count
+            call_count += 1
+            return [
+                WorkflowExecutionResult(
+                    status=EvaluationStatus.FAILURE,
+                    error={"message": "always fails"},
+                )
+                for _ in requests
+            ]
+
+    class Logger:
+        async def log(self, request):
+            return SimpleNamespace(id=uuid4())
+
+    async def create_scenario(run_id):
+        return SimpleNamespace(id=scenario_id)
+
+    async def refresh_metrics(run_id, scenario_id):
+        return None
+
+    processed = await process_evaluation_source_slice(
+        run_id=run_id,
+        source_items=[
+            ResolvedSourceItem(
+                kind="testcase",
+                step_key="testset-main",
+                testcase_id=uuid4(),
+                inputs={"x": "1"},
+            )
+        ],
+        steps=[
+            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
+        ],
+        repeats=1,
+        create_scenario=create_scenario,
+        result_logger=Logger(),
+        refresh_metrics=refresh_metrics,
+        runners={"evaluator-auto": AlwaysFailRunner()},
+        revisions={"evaluator-auto": {"id": "rev"}},
+        max_retries=1,
+    )
+
+    assert call_count == 2
+    assert processed[0].has_errors is True
+
+
+@pytest.mark.asyncio
+async def test_sdk_source_slice_retries_only_failed_cells_in_batch():
+    """With repeats=2, only the failing repeat is retried, not the successful one."""
+    run_id = uuid4()
+    scenario_id = uuid4()
+    attempt_by_repeat: dict = {}
+
+    class SelectiveFlakyRunner:
+        async def execute_batch(self, requests, semaphore=None):
+            results = []
+            for req in requests:
+                idx = req.cell.repeat_idx
+                attempt_by_repeat[idx] = attempt_by_repeat.get(idx, 0) + 1
+                if idx == 1 and attempt_by_repeat[idx] == 1:
+                    results.append(
+                        WorkflowExecutionResult(
+                            status=EvaluationStatus.FAILURE,
+                            error={"message": "fail repeat 1 first time"},
+                        )
+                    )
+                else:
+                    results.append(
+                        WorkflowExecutionResult(
+                            status=EvaluationStatus.SUCCESS,
+                            trace_id=f"trace-{idx}",
+                        )
+                    )
+            return results
+
+    class Logger:
+        async def log(self, request):
+            return SimpleNamespace(id=uuid4())
+
+    async def create_scenario(run_id):
+        return SimpleNamespace(id=scenario_id)
+
+    async def refresh_metrics(run_id, scenario_id):
+        return None
+
+    processed = await process_evaluation_source_slice(
+        run_id=run_id,
+        source_items=[
+            ResolvedSourceItem(
+                kind="testcase",
+                step_key="testset-main",
+                testcase_id=uuid4(),
+                inputs={"x": "1"},
+            )
+        ],
+        steps=[
+            EvaluationStep(key="testset-main", type="input"),
+            EvaluationStep(key="evaluator-auto", type="annotation", origin="auto"),
+        ],
+        repeats=2,
+        create_scenario=create_scenario,
+        result_logger=Logger(),
+        refresh_metrics=refresh_metrics,
+        runners={"evaluator-auto": SelectiveFlakyRunner()},
+        revisions={"evaluator-auto": {"id": "rev"}},
+        max_retries=1,
+    )
+
+    assert processed[0].has_errors is False
+    assert attempt_by_repeat[0] == 1
+    assert attempt_by_repeat[1] == 2

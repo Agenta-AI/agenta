@@ -1,5 +1,6 @@
-from asyncio import gather
+from asyncio import Semaphore, gather
 from datetime import datetime
+from inspect import signature
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Protocol
 from uuid import UUID
 
@@ -38,12 +39,29 @@ async def execute_workflow_batch(
     *,
     runner: WorkflowRunner,
     requests: List[WorkflowExecutionRequest],
+    semaphore: Optional[Semaphore] = None,
 ) -> List[WorkflowExecutionResult]:
     execute_batch = getattr(runner, "execute_batch", None)
+
+    async def _guarded(request: WorkflowExecutionRequest) -> WorkflowExecutionResult:
+        if semaphore is not None:
+            async with semaphore:
+                return await runner.execute(request)
+        return await runner.execute(request)
+
     if execute_batch is not None:
+        try:
+            params = signature(execute_batch).parameters
+            accepts_semaphore = "semaphore" in params or any(
+                p.kind == p.VAR_KEYWORD for p in params.values()
+            )
+        except (ValueError, TypeError):
+            accepts_semaphore = False
+        if accepts_semaphore:
+            return await execute_batch(requests, semaphore=semaphore)
         return await execute_batch(requests)
 
-    return list(await gather(*(runner.execute(request) for request in requests)))
+    return list(await gather(*(_guarded(request) for request in requests)))
 
 
 class EvaluationTaskRunner(Protocol):

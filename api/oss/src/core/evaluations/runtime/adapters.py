@@ -1,3 +1,4 @@
+from asyncio import Semaphore, gather
 from typing import Any, Callable, Dict, List, Optional
 from uuid import UUID
 
@@ -252,8 +253,15 @@ class BackendWorkflowRunner:
     async def execute_batch(
         self,
         requests: List[WorkflowExecutionRequest],
+        semaphore: Optional[Semaphore] = None,
     ) -> List[WorkflowExecutionResult]:
-        return [await self._execute_one(request) for request in requests]
+        async def _guarded(request: WorkflowExecutionRequest) -> WorkflowExecutionResult:
+            if semaphore is not None:
+                async with semaphore:
+                    return await self._execute_one(request)
+            return await self._execute_one(request)
+
+        return list(await gather(*(_guarded(r) for r in requests)))
 
     async def _execute_one(
         self,
@@ -392,6 +400,7 @@ class BackendCachedRunner:
     async def execute_batch(
         self,
         requests: List[WorkflowExecutionRequest],
+        semaphore: Optional[Semaphore] = None,
     ) -> List[WorkflowExecutionResult]:
         results: List[Optional[WorkflowExecutionResult]] = [None] * len(requests)
         missing: List[WorkflowExecutionRequest] = []
@@ -419,7 +428,7 @@ class BackendCachedRunner:
             missing_positions.append(idx)
 
         if missing:
-            executed = await self.runner.execute_batch(missing)
+            executed = await self.runner.execute_batch(missing, semaphore=semaphore)
             for idx, execution in zip(missing_positions, executed):
                 results[idx] = execution
 

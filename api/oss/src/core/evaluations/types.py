@@ -141,9 +141,16 @@ class EvaluationRunDataMapping(BaseModel):
     step: EvaluationRunDataMappingStep
 
 
+class EvaluationRunDataConcurrency(BaseModel):
+    batch_size: Optional[int] = None
+    max_retries: Optional[int] = None
+    retry_delay: Optional[float] = None
+
+
 class EvaluationRunData(BaseModel):
     steps: Optional[List[EvaluationRunDataStep]] = None
     repeats: Optional[int] = 1
+    concurrency: Optional[EvaluationRunDataConcurrency] = None
     mappings: Optional[List[EvaluationRunDataMapping]] = None
 
     @field_validator("repeats")

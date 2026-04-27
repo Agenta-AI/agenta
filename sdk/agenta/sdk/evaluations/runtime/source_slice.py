@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Awaitable, Callable, Dict, List, Mapping, Optional
 from uuid import UUID
 
@@ -14,6 +15,7 @@ from agenta.sdk.evaluations.runtime.models import (
     ResolvedSourceItem,
     ResultLogRequest,
     WorkflowExecutionRequest,
+    WorkflowExecutionResult,
 )
 from agenta.sdk.evaluations.runtime.planner import EvaluationPlanner
 from agenta.sdk.models.evaluations import EvaluationStatus
@@ -49,16 +51,26 @@ async def process_evaluation_source_slice(
     is_split: bool = False,
     log_pending: bool = True,
     refresh_metrics_without_auto_results: bool = True,
+    batch_size: Optional[int] = None,
+    max_retries: Optional[int] = None,
+    retry_delay: Optional[float] = None,
 ) -> List[ProcessedScenario]:
     """Process concrete source items through the SDK-owned runtime contract.
 
     The function is runner/persistence agnostic. SDK preview uses local
     decorator runners and API result logging; backend code can move to this
     shape by supplying backend DAO/workflow adapters.
+
+    batch_size controls the maximum number of concurrent invoke_workflow calls
+    across all scenarios and repeats. A single asyncio.Semaphore is shared by
+    both the scenario-level gather and the per-step repeat batch so that peak
+    concurrency equals exactly batch_size regardless of how repeats are split.
     """
+    semaphore = asyncio.Semaphore(batch_size) if batch_size else None
+    processed_lock = asyncio.Lock()
     processed: List[ProcessedScenario] = []
 
-    for source_item in source_items:
+    async def _process_one(source_item: ResolvedSourceItem) -> None:
         scenario = await create_scenario(run_id)
         scenario_id = scenario.id
         plan = EvaluationPlanner().plan(
@@ -147,9 +159,12 @@ async def process_evaluation_source_slice(
                 for batch_cell in batch_cells
             ]
 
-            executions = await execute_workflow_batch(
+            executions = await _execute_with_retry(
                 runner=runner,
                 requests=requests,
+                semaphore=semaphore,
+                max_retries=max_retries,
+                retry_delay=retry_delay,
             )
             for batch_cell, execution in zip(batch_cells, executions):
                 if trace_loader and execution.trace_id and execution.trace is None:
@@ -206,16 +221,20 @@ async def process_evaluation_source_slice(
         metrics = None
         if refresh_metrics_without_auto_results or scenario_auto_results_created:
             metrics = await refresh_metrics(run_id, scenario_id)
-        processed.append(
-            ProcessedScenario(
-                scenario=scenario,
-                results=results,
-                metrics=metrics,
-                has_pending=scenario_has_pending,
-                has_errors=scenario_has_errors,
-                auto_results_created=scenario_auto_results_created,
+
+        async with processed_lock:
+            processed.append(
+                ProcessedScenario(
+                    scenario=scenario,
+                    results=results,
+                    metrics=metrics,
+                    has_pending=scenario_has_pending,
+                    has_errors=scenario_has_errors,
+                    auto_results_created=scenario_auto_results_created,
+                )
             )
-        )
+
+    await asyncio.gather(*(_process_one(item) for item in source_items))
 
     if processed and (
         refresh_metrics_without_auto_results
@@ -224,6 +243,43 @@ async def process_evaluation_source_slice(
         await refresh_metrics(run_id, None)
 
     return processed
+
+
+async def _execute_with_retry(
+    *,
+    runner: Any,
+    requests: List[WorkflowExecutionRequest],
+    semaphore: Optional[asyncio.Semaphore],
+    max_retries: Optional[int],
+    retry_delay: Optional[float],
+) -> List[WorkflowExecutionResult]:
+    attempts = max(1, (max_retries or 0) + 1)
+    delay = retry_delay or 0.0
+    results: List[WorkflowExecutionResult] = await execute_workflow_batch(
+        runner=runner,
+        requests=requests,
+        semaphore=semaphore,
+    )
+    for _ in range(attempts - 1):
+        failed_indices = [
+            i
+            for i, r in enumerate(results)
+            if r.error
+            or str(r.status)
+            in {"failure", "EvaluationStatus.FAILURE", "errors", "EvaluationStatus.ERRORS"}
+        ]
+        if not failed_indices:
+            break
+        if delay > 0:
+            await asyncio.sleep(delay)
+        retried = await execute_workflow_batch(
+            runner=runner,
+            requests=[requests[i] for i in failed_indices],
+            semaphore=semaphore,
+        )
+        for idx, result in zip(failed_indices, retried):
+            results[idx] = result
+    return results
 
 
 def _step_by_key(
