@@ -3,7 +3,7 @@ import type {Dispatch, HTMLProps, SetStateAction} from "react"
 import type {EvaluatorCatalogTemplate, Workflow} from "@agenta/entities/workflow"
 import {ModalProps} from "antd"
 
-import {LLMRunRateLimit, Evaluator, SimpleEvaluator, testset} from "@/oss/lib/Types"
+import {Evaluator, SimpleEvaluator, testset} from "@/oss/lib/Types"
 import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
 export interface NewEvaluationAppOption {
@@ -14,8 +14,10 @@ export interface NewEvaluationAppOption {
     updatedAt?: string | null
 }
 
-export interface LLMRunRateLimitWithCorrectAnswer extends LLMRunRateLimit {
-    correct_answer_column: string
+export interface EvaluationConcurrencySettings {
+    batch_size: number
+    max_retries: number
+    retry_delay: number
 }
 
 export interface NewEvaluationModalProps extends ModalProps {
@@ -53,8 +55,8 @@ export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement
     testsets: testset[]
     evaluators: EvaluatorCatalogTemplate[] | Evaluator[] | EvaluatorDto<"response">[]
     evaluatorConfigs: SimpleEvaluator[]
-    advanceSettings: LLMRunRateLimitWithCorrectAnswer
-    setAdvanceSettings: Dispatch<SetStateAction<LLMRunRateLimitWithCorrectAnswer>>
+    advanceSettings: EvaluationConcurrencySettings
+    setAdvanceSettings: Dispatch<SetStateAction<EvaluationConcurrencySettings>>
     appOptions: NewEvaluationAppOption[]
     selectedAppId: string
     onSelectApp: (value: string) => void
@@ -103,8 +105,8 @@ export interface SelectEvaluatorSectionProps extends HTMLProps<HTMLDivElement> {
 }
 
 export interface AdvancedSettingsProps {
-    advanceSettings: LLMRunRateLimitWithCorrectAnswer
-    setAdvanceSettings: Dispatch<SetStateAction<LLMRunRateLimitWithCorrectAnswer>>
+    advanceSettings: EvaluationConcurrencySettings
+    setAdvanceSettings: Dispatch<SetStateAction<EvaluationConcurrencySettings>>
     preview?: boolean
 }
 

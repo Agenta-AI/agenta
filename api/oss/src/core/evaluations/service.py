@@ -20,6 +20,7 @@ from oss.src.core.evaluations.types import (
     EvaluationRunDataMapping,
     EvaluationRunDataStepInput,
     EvaluationRunDataStep,
+    EvaluationRunDataConcurrency,
     EvaluationRunData,
     EvaluationRun,
     EvaluationRunCreate,
@@ -1867,6 +1868,7 @@ class SimpleEvaluationsService:
                 evaluator_steps=evaluation.data.evaluator_steps,
                 #
                 repeats=evaluation.data.repeats,
+                concurrency=evaluation.data.concurrency,
                 #
                 is_live=evaluation.flags.is_live,
             )
@@ -2471,6 +2473,7 @@ class SimpleEvaluationsService:
         evaluator_steps: Optional[Target] = None,
         #
         repeats: Optional[int] = None,
+        concurrency: Optional[EvaluationRunDataConcurrency] = None,
         #
         is_live: Optional[bool] = None,
     ) -> Optional[EvaluationRunData]:
@@ -3030,6 +3033,7 @@ class SimpleEvaluationsService:
                 steps=steps,
                 mappings=mappings,
                 repeats=repeats or 1,
+                concurrency=concurrency,
             )
 
         except Exception:  # pylint: disable=broad-exception-caught

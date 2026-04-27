@@ -507,6 +507,7 @@ class SimpleEvaluationData(BaseModel):
     evaluator_steps: Optional[Target] = None
 
     repeats: Optional[int] = None
+    concurrency: Optional[EvaluationRunDataConcurrency] = None
 
 
 class SimpleEvaluation(Version, Identifier, Lifecycle, Header, Metadata):

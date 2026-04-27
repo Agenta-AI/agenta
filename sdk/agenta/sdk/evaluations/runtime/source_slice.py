@@ -19,6 +19,9 @@ from agenta.sdk.evaluations.runtime.models import (
 )
 from agenta.sdk.evaluations.runtime.planner import EvaluationPlanner
 from agenta.sdk.models.evaluations import EvaluationStatus
+from agenta.sdk.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class ProcessedScenario(BaseModel):
@@ -70,9 +73,19 @@ async def process_evaluation_source_slice(
     processed_lock = asyncio.Lock()
     processed: List[ProcessedScenario] = []
 
+    logger.info(
+        "[SLICE] Starting",
+        run_id=str(run_id),
+        scenarios=len(source_items),
+        batch_size=batch_size,
+        max_retries=max_retries,
+        retry_delay=retry_delay,
+    )
+
     async def _process_one(source_item: ResolvedSourceItem) -> None:
         scenario = await create_scenario(run_id)
         scenario_id = scenario.id
+
         plan = EvaluationPlanner().plan(
             run_id=run_id,
             scenario_id=scenario_id,
@@ -236,6 +249,13 @@ async def process_evaluation_source_slice(
 
     await asyncio.gather(*(_process_one(item) for item in source_items))
 
+    logger.info(
+        "[SLICE] Complete",
+        run_id=str(run_id),
+        processed=len(processed),
+        has_errors=any(item.has_errors for item in processed),
+    )
+
     if processed and (
         refresh_metrics_without_auto_results
         or any(item.auto_results_created for item in processed)
@@ -260,16 +280,28 @@ async def _execute_with_retry(
         requests=requests,
         semaphore=semaphore,
     )
-    for _ in range(attempts - 1):
+    for attempt in range(attempts - 1):
         failed_indices = [
             i
             for i, r in enumerate(results)
             if r.error
             or str(r.status)
-            in {"failure", "EvaluationStatus.FAILURE", "errors", "EvaluationStatus.ERRORS"}
+            in {
+                "failure",
+                "EvaluationStatus.FAILURE",
+                "errors",
+                "EvaluationStatus.ERRORS",
+            }
         ]
         if not failed_indices:
             break
+        logger.warning(
+            "[RETRY] Retrying failed requests",
+            attempt=attempt + 1,
+            failed=len(failed_indices),
+            total=len(requests),
+            delay=delay,
+        )
         if delay > 0:
             await asyncio.sleep(delay)
         retried = await execute_workflow_batch(

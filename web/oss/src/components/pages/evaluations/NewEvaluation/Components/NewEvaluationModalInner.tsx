@@ -49,7 +49,7 @@ import {
     selectedTestsetRevisionIdAtom,
     selectedTestsetVersionAtom,
 } from "../state/selection"
-import type {LLMRunRateLimitWithCorrectAnswer, NewEvaluationModalInnerProps} from "../types"
+import type {EvaluationConcurrencySettings, NewEvaluationModalInnerProps} from "../types"
 
 const NewEvaluationModalContent = dynamic(() => import("./NewEvaluationModalContent"), {
     ssr: false,
@@ -215,7 +215,7 @@ const NewEvaluationModalInner = ({
     const [evaluationName, setEvaluationName] = useState("")
     const [nameFocused, setNameFocused] = useState(false)
     const [advanceSettings, setAdvanceSettings] =
-        useState<LLMRunRateLimitWithCorrectAnswer>(DEFAULT_ADVANCE_SETTINGS)
+        useState<EvaluationConcurrencySettings>(DEFAULT_ADVANCE_SETTINGS)
 
     const allowTestsetAutoAdvance = !(
         activeTourId === FIRST_EVALUATION_TOUR_ID &&
@@ -464,7 +464,6 @@ const NewEvaluationModalInner = ({
             }
 
             const revisions = filteredVariants
-            const {correct_answer_column, ...rateLimitValues} = advanceSettings
 
             if (preview) {
                 const selectedRevisions = revisions
@@ -503,8 +502,7 @@ const NewEvaluationModalInner = ({
                     evaluators: selectedEvalConfigs
                         .map((id) => evaluatorRowsByRevisionId.get(id))
                         .filter(Boolean),
-                    rate_limit: rateLimitValues,
-                    correctAnswerColumn: correct_answer_column,
+                    concurrency: advanceSettings,
                 }
 
                 if (
@@ -555,8 +553,7 @@ const NewEvaluationModalInner = ({
                         testset_revision_id: selectedTestsetRevisionId,
                         revisions_ids: selectedVariantRevisionIds,
                         evaluator_revision_ids: selectedEvalConfigs,
-                        rate_limit: rateLimitValues,
-                        correct_answer_column: correct_answer_column,
+                        concurrency: advanceSettings,
                         name: evaluationName,
                     })
 
