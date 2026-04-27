@@ -12,6 +12,7 @@ from oss.src.core.tracing.utils.trees import (
     calculate_costs,
     connect_children,
     cumulate_costs,
+    cumulate_errors,
     cumulate_tokens,
     get_span_from_trace,
     infer_and_propagate_trace_type_by_trace,
@@ -39,11 +40,31 @@ def _span(
     completion_tokens: float = 0.0,
     prompt_cost: float = 0.0,
     completion_cost: float = 0.0,
+    errors: int = 0,
     start_offset_s: int = 0,
     span_type: SpanType = SpanType.TASK,
 ) -> OTelFlatSpan:
     total_tokens = prompt_tokens + completion_tokens
     total_cost = prompt_cost + completion_cost
+    metrics = {
+        "tokens": {
+            "incremental": {
+                "prompt": prompt_tokens,
+                "completion": completion_tokens,
+                "total": total_tokens,
+            }
+        },
+        "costs": {
+            "incremental": {
+                "prompt": prompt_cost,
+                "completion": completion_cost,
+                "total": total_cost,
+            }
+        },
+    }
+    if errors:
+        metrics["errors"] = {"incremental": errors}
+
     return OTelFlatSpan(
         trace_id=trace_id,
         span_id=span_id,
@@ -56,22 +77,7 @@ def _span(
             "ag": {
                 "data": {"parameters": {"model": "gpt-4o-mini"}},
                 "meta": {"response": {"model": "gpt-4o-mini"}},
-                "metrics": {
-                    "tokens": {
-                        "incremental": {
-                            "prompt": prompt_tokens,
-                            "completion": completion_tokens,
-                            "total": total_tokens,
-                        }
-                    },
-                    "costs": {
-                        "incremental": {
-                            "prompt": prompt_cost,
-                            "completion": completion_cost,
-                            "total": total_cost,
-                        }
-                    },
-                },
+                "metrics": metrics,
             }
         },
     )
@@ -133,6 +139,34 @@ def test_cumulate_tokens_and_costs_propagate_from_children_to_parent():
     assert root_costs["prompt"] == pytest.approx(0.5)
     assert root_costs["completion"] == pytest.approx(0.7)
     assert root_costs["total"] == pytest.approx(1.2)
+
+
+def test_cumulate_errors_propagates_scalar_counts_from_children_to_parent():
+    root = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        errors=1,
+    )
+    child = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="child",
+        errors=2,
+        start_offset_s=1,
+    )
+
+    span_idx = parse_span_dtos_to_span_idx([root, child])
+    tree = parse_span_idx_to_span_id_tree(span_idx)
+
+    cumulate_errors(tree, span_idx)
+
+    root_errors = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["errors"]
+    child_errors = span_idx[CHILD_A_UUID].attributes["ag"]["metrics"]["errors"]
+
+    assert root_errors["incremental"] == 1
+    assert root_errors["cumulative"] == 3
+    assert child_errors["incremental"] == 2
+    assert child_errors["cumulative"] == 2
 
 
 def test_connect_children_groups_duplicate_child_names_into_lists():
@@ -222,6 +256,7 @@ def test_calculate_and_propagate_metrics_runs_full_pipeline(monkeypatch):
         span_name="child",
         prompt_tokens=2,
         completion_tokens=3,
+        errors=1,
         span_type=SpanType.CHAT,
         start_offset_s=1,
     )
@@ -239,11 +274,13 @@ def test_calculate_and_propagate_metrics_runs_full_pipeline(monkeypatch):
 
     root_tokens = out_idx[ROOT_UUID].attributes["ag"]["metrics"]["tokens"]["cumulative"]
     root_costs = out_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["cumulative"]
+    root_errors = out_idx[ROOT_UUID].attributes["ag"]["metrics"]["errors"]["cumulative"]
 
     assert root_tokens["total"] == 7
     assert round(root_costs["total"], 6) == round(
         (1 * 0.01 + 1 * 0.02) + (2 * 0.01 + 3 * 0.02), 6
     )
+    assert root_errors == 1
 
 
 def test_infer_and_propagate_trace_type_by_trace_preserves_input_order():

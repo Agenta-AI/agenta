@@ -5,7 +5,7 @@ description: "Status check for OTLP"
 sidebar_label: "Status check for OTLP"
 hide_title: true
 hide_table_of_contents: true
-api: eJx1k8Fu2zAMhl/F4FmIkx19ajAMW9ABDZb2FBgDozCxWtlSJSqYZ/jdB9qO2wSYL7aknyL5/XQHjOcIxR6eDpHCBQ/GGm6hVOA8BWTjms0RCnBs/e/IyCmCgkDRuyZShKKDL8ulvI4UdTBeIqCAXdKaYjwlm/2axKBAu4apYZGj99boIUH+GiWmg6grqlG+fJD0bMYMU96iA249QQGRg2nOoIANW9nYjYq+V1eJO7yS5qHW92QCHaXJ6aLyI/Crs5Y0j/Fzpb086r6lQZPpivRbdnIhe3r+uQUFNXHlhNGZJJ9HrqCAXIjll1XOATUJNOFLQWB3kIIVDXoDvbouK2YfizyntNDWpeMCz9QwLtCMwlLu0CmIQXLJert5pPYH4ZECFPvys2AnKEd6t7KZIXrzSC0oaLCW9Tpx5YL5O1gCCoz0XI1RAsM0JzeET+TWQ3HZersBBdLYSGm5WC2WcM/uRixTgHqYgmvu4RjUHYi5f1BANRo5Y8L64eNAKvMuco3Np/v+Z9VNUTMJpj+ce4umgX4qoZts3A+DLw2uZNpGK0sFlYssp113wEgvwfa9bL8nCuJNqeCCweBBSO3LXl1Bim1v1ErLWpOXebmgTaMfdz+E2DnP1vdvz9D3/wD1VkA2
+api: eJyNU8tu2zAQ/BVjz6zl9KhTjaJojRRI0KQnQwjW1NpiQokMuTSqCvr3YilHtV20qC4StbOvmeEAjIcI5RbudpHCEXfGGu6hUuA8BWTjuk0NJTi2/ikycoqgIFD0rosUoRzg/Wolr5qiDsZLBpTwkLSmGPfJLr6dwKBAu46pY4Gj99bo3KB4jpIzQNQNtShfPkh7NlOHmLx3gZ9MnTO7/m4P5XYA7j1BCZGD6Q4wqvlPl6yFsVLAhi3lcXKFxaaGUc31OP6rnoK9Cy0ylFAj0zs2Lf1Xk8eYm0xklX+WnfETYhzVG8TtnklzJvg1mUC1KHMqdNboo7OWNE/5M72jPOpah4xZ6Ib0y2LvwuLu8es9KGiJGyfCHkj6eeQGSihE5uJ4U3BATaK0mIJCzPSkYAWD3mQapmPD7GNZFJSW2rpUL/FAHeMSzQSspIZOQVwlRdb3m1vqvxDWFKDcVueAB9F/kvwSNnOI3txSDwo6bOW8Tty4YH5mH4ECIzs3U5aQYbq9y+kn5tZ5uMX6fgMKZLGJpdXyZrmCa+4uwGJd1Nm6b71zGNQVEfP+oIBaNBJjwvbD74BM5l3kFruzen+T6mKomQmmH1x4i6YTs+URhpOM23xbZcEbcdskZaWgcZElOgw7jPQ92HGU36+JgmhTKThiMLgTprbVqN6IFNleqJeVtSYvfjmiTZMeV7dY5Jy99fnTI4zjL2Xjfjc=
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -54,7 +54,7 @@ Status check for OTLP
 <StatusCodes
   id={undefined}
   label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"status":{"type":"string","title":"Status"}},"type":"object","required":["status"],"title":"CollectStatusResponse"}}}}}}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"support_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Support Id"},"support_ts":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Support Ts"},"status":{"type":"string","title":"Status"}},"type":"object","required":["status"],"title":"CollectStatusResponse"}}}}}}
 >
   
 </StatusCodes>

@@ -1,11 +1,14 @@
-import {expect, Page, Response} from "@playwright/test"
 import {existsSync, readFileSync} from "fs"
 
+import {expect, Locator, Page, Response} from "@playwright/test"
+
+import {EvaluationRun} from "../../../../../oss/src/lib/hooks/usePreviewEvaluations/types"
+import {SnakeToCamelCaseKeys, testset} from "../../../../../oss/src/lib/Types"
 import {getProjectMetadataPath} from "../../../../playwright/config/runtime.ts"
 import {UseFn} from "../../types"
 import {FixtureContext} from "../types"
 
-import {SnakeToCamelCaseKeys, testset} from "../../../../../oss/src/lib/Types"
+import type {ApiHandlerOptions, ApiHelpers, CreateTestsetInput, CreatedTestset} from "./types"
 
 type APP_TYPE = "completion" | "chat" | "custom"
 
@@ -38,8 +41,6 @@ interface ApiVariant {
     created_at: string | null
     updated_at: string | null
 }
-import {EvaluationRun} from "../../../../../oss/src/lib/hooks/usePreviewEvaluations/types"
-import type {ApiHandlerOptions, ApiHelpers, CreateTestsetInput, CreatedTestset} from "./types"
 
 const APP_TYPE_LABELS: Record<APP_TYPE, string> = {
     completion: "Completion",
@@ -200,7 +201,41 @@ const waitForMatchingResponses = async (
     })
 }
 
+const selectCreatePromptType = async (dialog: Locator, appTypeLabel: string) => {
+    await expect(dialog.getByText("Choose the prompt type", {exact: true})).toBeVisible({
+        timeout: 15000,
+    })
+
+    const appTypeCards = dialog.locator(".ant-card")
+    await expect(appTypeCards.first()).toBeVisible({timeout: 15000})
+
+    const matchingCards = appTypeCards.filter({hasText: new RegExp(appTypeLabel, "i")})
+    await expect.poll(async () => await matchingCards.count(), {timeout: 15000}).toBeGreaterThan(0)
+
+    const appTypeCard = matchingCards.first()
+    await expect(appTypeCard).toBeVisible({timeout: 15000})
+
+    const appTypeRadio = appTypeCard.locator('input[type="radio"]').first()
+    const isSelected = async () => {
+        if ((await appTypeRadio.count().catch(() => 0)) > 0) {
+            return await appTypeRadio.isChecked().catch(() => false)
+        }
+
+        const checkedRadio = appTypeCard.locator(".ant-radio-checked").first()
+        return await checkedRadio.isVisible().catch(() => false)
+    }
+
+    if (!(await isSelected())) {
+        await appTypeCard.click()
+    }
+
+    await expect.poll(isSelected, {timeout: 15000}).toBe(true)
+}
+
 async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
+    await page.goto(`${getProjectScopedBasePath(page)}/apps`, {waitUntil: "domcontentloaded"})
+    await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
+
     const appName = `e2e-${type}-${Date.now()}`
     const dialog = page.getByRole("dialog").last()
     const createEntryPoints = [
@@ -208,6 +243,21 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
         page.getByRole("button", {name: /Click here to create your first prompt/i}).first(),
         page.getByText("Create a prompt", {exact: true}).first(),
     ]
+
+    await expect
+        .poll(
+            async () => {
+                for (const entryPoint of createEntryPoints) {
+                    if (await entryPoint.isVisible().catch(() => false)) {
+                        return true
+                    }
+                }
+
+                return false
+            },
+            {timeout: 15000},
+        )
+        .toBe(true)
 
     let dialogVisible = false
     for (const entryPoint of createEntryPoints) {
@@ -247,9 +297,7 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
         throw new Error(`App creation is not implemented for app type '${type}'.`)
     }
 
-    const appTypeOption = dialog.getByText(appTypeLabel).first()
-    await expect(appTypeOption).toBeVisible({timeout: 15000})
-    await appTypeOption.click()
+    await selectCreatePromptType(dialog, appTypeLabel)
 
     // 1. POST /workflows/ — create the workflow
     const createWorkflowPromise = page.waitForResponse((response) => {
@@ -461,7 +509,7 @@ export const createTestset = async (
         expect(queryResponse.ok()).toBe(true)
 
         const queryData = (await queryResponse.json()) as {
-            testsets?: Array<{id?: string; name?: string}>
+            testsets?: {id?: string; name?: string}[]
         }
         isVisibleInList = (queryData.testsets ?? []).some(
             (item) => item.id === testset.id || item.name === testset.name,
@@ -551,6 +599,9 @@ export const apiHelpers = () => {
         await use({
             waitForApiResponse: async <T>(options: ApiHandlerOptions<T>) => {
                 return await waitForApiResponse<T>(page, options)
+            },
+            createApp: async (type?: APP_TYPE): Promise<ListAppsItem> => {
+                return await createApp(page, type ?? "completion")
             },
             getApp: async (type?: APP_TYPE): Promise<ListAppsItem> => {
                 return await getApp(page, type)

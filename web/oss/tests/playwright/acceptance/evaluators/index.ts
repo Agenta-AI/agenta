@@ -10,6 +10,8 @@ import {
     selectCompletionAppFromDrawer,
     fillTestcaseField,
     createHumanEvaluatorFromDrawer,
+    editEvaluatorAndSaveNewVersion,
+    deleteEvaluator,
     EVALUATORS_PAGE_TITLE,
     EVALUATOR_TAB_AUTOMATIC,
     EVALUATOR_TAB_HUMAN,
@@ -31,7 +33,14 @@ import {
     TestCoverage,
     TestPath,
     TestScope,
+    TestSpeedType,
+    TestLensType,
+    TestCostType,
+    TestLicenseType,
+    TestRoleType,
+    TestcaseType,
 } from "@agenta/web-tests/playwright/config/testTags"
+import {buildAcceptanceTags} from "../utils/tags"
 
 const testEvaluators = () => {
     test(
@@ -362,6 +371,113 @@ const testEvaluators = () => {
             await expect(
                 page.locator("[data-row-key]").filter({hasText: evaluatorName}).first(),
             ).toBeVisible({timeout: 5000})
+        },
+    )
+    test(
+        "should edit an existing evaluator and save a new version",
+        {
+            tag: buildAcceptanceTags({
+                scope: [TestScope.EVALUATIONS],
+                coverage: [TestCoverage.LIGHT, TestCoverage.FULL],
+                path: TestPath.HAPPY,
+                lens: TestLensType.FUNCTIONAL,
+                cost: TestCostType.Free,
+                license: TestLicenseType.OSS,
+                role: TestRoleType.Owner,
+                caseType: TestcaseType.TYPICAL,
+                speed: TestSpeedType.FAST,
+            }),
+        },
+        async ({page, navigateToEvaluators}) => {
+            const evaluatorName = `e2e-exact-match-edit-${Date.now()}`
+
+            await navigateToEvaluators()
+
+            // Create a fresh evaluator to edit
+            const drawer = await selectEvaluatorTemplate(page, EVALUATOR_EXACT_MATCH_TEMPLATE_NAME)
+            await expect(drawer.getByText(EVALUATOR_DRAWER_CREATE_TITLE).first()).toBeVisible()
+
+            const drawerCreateButton = drawer
+                .getByRole("button", {name: EVALUATOR_DRAWER_CREATE_BUTTON_LABEL})
+                .first()
+            await expect(drawerCreateButton).toBeEnabled({timeout: 10000})
+            await drawerCreateButton.click()
+
+            const modal = getEvaluatorCommitModal(page)
+            await expect(modal.first()).toBeVisible({timeout: 10000})
+
+            const nameInput = modal
+                .locator(`input[placeholder="${EVALUATOR_COMMIT_MODAL_NAME_PLACEHOLDER}"]`)
+                .first()
+            await nameInput.fill(evaluatorName)
+
+            const creationPromise = waitForWorkflowCreation(page)
+            await modal
+                .getByRole("button", {name: EVALUATOR_COMMIT_MODAL_SUBMIT_LABEL})
+                .last()
+                .click()
+            await creationPromise
+
+            await expect(
+                page.locator(".ant-message").getByText(EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
+            ).toBeVisible({timeout: 10000})
+
+            // Open the row menu → Edit evaluator → Commit modal → confirm
+            await editEvaluatorAndSaveNewVersion(page, evaluatorName)
+        },
+    )
+
+    test(
+        "should delete an evaluator",
+        {
+            tag: buildAcceptanceTags({
+                scope: [TestScope.EVALUATIONS],
+                coverage: [TestCoverage.SMOKE, TestCoverage.LIGHT],
+                path: TestPath.HAPPY,
+                lens: TestLensType.FUNCTIONAL,
+                cost: TestCostType.Free,
+                license: TestLicenseType.OSS,
+                role: TestRoleType.Owner,
+                caseType: TestcaseType.TYPICAL,
+                speed: TestSpeedType.FAST,
+            }),
+        },
+        async ({page, navigateToEvaluators}) => {
+            const evaluatorName = `e2e-exact-match-del-${Date.now()}`
+
+            await navigateToEvaluators()
+
+            // Create a fresh evaluator to delete
+            const drawer = await selectEvaluatorTemplate(page, EVALUATOR_EXACT_MATCH_TEMPLATE_NAME)
+            await expect(drawer.getByText(EVALUATOR_DRAWER_CREATE_TITLE).first()).toBeVisible()
+
+            const drawerCreateButton = drawer
+                .getByRole("button", {name: EVALUATOR_DRAWER_CREATE_BUTTON_LABEL})
+                .first()
+            await expect(drawerCreateButton).toBeEnabled({timeout: 10000})
+            await drawerCreateButton.click()
+
+            const modal = getEvaluatorCommitModal(page)
+            await expect(modal.first()).toBeVisible({timeout: 10000})
+
+            const nameInput = modal
+                .locator(`input[placeholder="${EVALUATOR_COMMIT_MODAL_NAME_PLACEHOLDER}"]`)
+                .first()
+            await nameInput.fill(evaluatorName)
+
+            const creationPromise = waitForWorkflowCreation(page)
+            await modal
+                .getByRole("button", {name: EVALUATOR_COMMIT_MODAL_SUBMIT_LABEL})
+                .last()
+                .click()
+            await creationPromise
+
+            await expect(
+                page.locator(".ant-message").getByText(EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
+            ).toBeVisible({timeout: 10000})
+
+            // Open the row menu → Delete → confirm
+            await deleteEvaluator(page, evaluatorName)
         },
     )
 }

@@ -576,7 +576,7 @@ class BillingRouter:
                 },
             },
             #
-            ui_mode="hosted",
+            ui_mode="hosted_page",
             success_url=success_url,
         )
 

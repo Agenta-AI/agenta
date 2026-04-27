@@ -210,7 +210,7 @@ const ScenarioAnnotationPanel = ({
                 if (!hasValue) continue
 
                 const references: Record<string, unknown> = {
-                    evaluator: {id: evaluator.id, slug: evaluator.slug},
+                    evaluator: {id: evaluator.id},
                 }
                 if (testsetId) references.testset = {id: testsetId}
                 if (testcaseId) references.testcase = {id: testcaseId}

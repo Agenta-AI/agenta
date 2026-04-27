@@ -802,6 +802,9 @@ async function globalSetup() {
     const baseURL = process.env.AGENTA_WEB_URL || "http://localhost:3000"
     const apiURL = getApiURL(baseURL)
     const license = process.env.AGENTA_LICENSE || "oss"
+    const ossAuthUser = (process.env.AGENTA_TEST_OSS_AUTH_USER || "owner").trim().toLowerCase()
+    const useOssInvitedUser =
+        ossAuthUser === "invite" || ossAuthUser === "invitee" || ossAuthUser === "invited"
     const storageState = getStorageStatePath()
     console.log(`[global-setup] Base URL: ${baseURL}, License: ${license}`)
 
@@ -846,28 +849,35 @@ async function globalSetup() {
                     testmail,
                 })
 
-                console.log(`[global-setup] Inviting OSS test user: ${userEmail}`)
-                const inviteUrl = await inviteOssUser({
-                    page: ownerPage,
-                    apiURL,
-                    baseURL,
-                    email: userEmail,
-                })
+                if (useOssInvitedUser) {
+                    console.log(`[global-setup] Inviting OSS test user: ${userEmail}`)
+                    const inviteUrl = await inviteOssUser({
+                        page: ownerPage,
+                        apiURL,
+                        baseURL,
+                        email: userEmail,
+                    })
 
-                authenticatedContext = await browser.newContext()
-                authenticatedPage = await authenticatedContext.newPage()
+                    authenticatedContext = await browser.newContext()
+                    authenticatedPage = await authenticatedContext.newPage()
 
-                console.log(`[global-setup] Authenticating invited OSS user: ${userEmail}`)
-                await authenticateUser({
-                    page: authenticatedPage,
-                    entryUrl: inviteUrl,
-                    email: userEmail,
-                    password: userPassword,
-                    authMode,
-                    timeout,
-                    inputDelay,
-                    testmail,
-                })
+                    console.log(`[global-setup] Authenticating invited OSS user: ${userEmail}`)
+                    await authenticateUser({
+                        page: authenticatedPage,
+                        entryUrl: inviteUrl,
+                        email: userEmail,
+                        password: userPassword,
+                        authMode,
+                        timeout,
+                        inputDelay,
+                        testmail,
+                    })
+                } else {
+                    console.log("[global-setup] Reusing OSS owner session for tests")
+                    authenticatedContext = ownerContext
+                    authenticatedPage = ownerPage
+                    ownerContext = null
+                }
             } finally {
                 await ownerContext?.close()
             }

@@ -2,6 +2,8 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
+from oss.src.utils.exceptions import Support
+
 from oss.src.core.shared.dtos import (
     Reference,
     Windowing,
@@ -59,12 +61,12 @@ class ApplicationQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class ApplicationResponse(BaseModel):
+class ApplicationResponse(Support):
     count: int = 0
     application: Optional[Application] = None
 
 
-class ApplicationsResponse(BaseModel):
+class ApplicationsResponse(Support):
     count: int = 0
     applications: List[Application] = []
 
@@ -99,12 +101,12 @@ class ApplicationVariantQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class ApplicationVariantResponse(BaseModel):
+class ApplicationVariantResponse(Support):
     count: int = 0
     application_variant: Optional[ApplicationVariant] = None
 
 
-class ApplicationVariantsResponse(BaseModel):
+class ApplicationVariantsResponse(Support):
     count: int = 0
     application_variants: List[ApplicationVariant] = []
 
@@ -159,13 +161,13 @@ class ApplicationRevisionDeployRequest(BaseModel):
     message: Optional[str] = None
 
 
-class ApplicationRevisionResponse(BaseModel):
+class ApplicationRevisionResponse(Support):
     count: int = 0
     application_revision: Optional[ApplicationRevision] = None
     resolution_info: Optional[ResolutionInfo] = None  # Included when resolve=True
 
 
-class ApplicationRevisionsResponse(BaseModel):
+class ApplicationRevisionsResponse(Support):
     count: int = 0
     application_revisions: List[ApplicationRevision] = []
 
@@ -191,12 +193,12 @@ class SimpleApplicationQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class SimpleApplicationResponse(BaseModel):
+class SimpleApplicationResponse(Support):
     count: int = 0
     application: Optional[SimpleApplication] = None
 
 
-class SimpleApplicationsResponse(BaseModel):
+class SimpleApplicationsResponse(Support):
     count: int = 0
     applications: List[SimpleApplication] = []
 
@@ -214,37 +216,37 @@ class ApplicationRevisionResolveRequest(BaseModel):
     error_policy: Optional[ErrorPolicy] = ErrorPolicy.EXCEPTION
 
 
-class ApplicationRevisionResolveResponse(BaseModel):
+class ApplicationRevisionResolveResponse(Support):
     count: int = 0
     application_revision: Optional[ApplicationRevision] = None
     resolution_info: Optional[ResolutionInfo] = None
 
 
-class ApplicationCatalogTypeResponse(BaseModel):
+class ApplicationCatalogTypeResponse(Support):
     count: int = 0
     type: Optional[ApplicationCatalogType] = None
 
 
-class ApplicationCatalogTypesResponse(BaseModel):
+class ApplicationCatalogTypesResponse(Support):
     count: int = 0
     types: List[ApplicationCatalogType] = []
 
 
-class ApplicationCatalogTemplateResponse(BaseModel):
+class ApplicationCatalogTemplateResponse(Support):
     count: int = 0
     template: Optional[ApplicationCatalogTemplate] = None
 
 
-class ApplicationCatalogTemplatesResponse(BaseModel):
+class ApplicationCatalogTemplatesResponse(Support):
     count: int = 0
     templates: List[ApplicationCatalogTemplate] = []
 
 
-class ApplicationCatalogPresetResponse(BaseModel):
+class ApplicationCatalogPresetResponse(Support):
     count: int = 0
     preset: Optional[ApplicationCatalogPreset] = None
 
 
-class ApplicationCatalogPresetsResponse(BaseModel):
+class ApplicationCatalogPresetsResponse(Support):
     count: int = 0
     presets: List[ApplicationCatalogPreset] = []

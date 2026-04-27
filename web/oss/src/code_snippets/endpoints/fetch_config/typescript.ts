@@ -2,16 +2,16 @@ import {js as beautify} from "js-beautify"
 
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
-export default function tsCode(appName: string, env_name: string, apiKey: string): string {
+export default function tsCode(appSlug: string, env_name: string, apiKey: string): string {
     const codeString = `import axios from 'axios';
 
-const getConfig = async (appName: string, environmentSlug: string) => {
+const getConfig = async (appSlug: string, environmentSlug: string) => {
     const baseUrl = '${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}/applications/revisions/retrieve';
 
     try {
         const response = await axios.post(baseUrl, {
             application_ref: {
-                slug: appName,
+                slug: appSlug,
             },
             environment_ref: {
                 slug: environmentSlug,
@@ -29,7 +29,7 @@ const getConfig = async (appName: string, environmentSlug: string) => {
     }
 };
 
-getConfig('${appName}', '${env_name}').then(console.log).catch(console.error);
+getConfig('${appSlug}', '${env_name}').then(console.log).catch(console.error);
     `
 
     const formattedCodeString = beautify(codeString)
