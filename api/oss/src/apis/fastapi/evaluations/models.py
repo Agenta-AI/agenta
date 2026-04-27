@@ -1,7 +1,7 @@
 from typing import Optional, List
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from fastapi import HTTPException
 
 from oss.src.utils.exceptions import Support
@@ -351,6 +351,23 @@ class SimpleEvaluationIdResponse(Support):
 
 class SimpleQueueCreateRequest(BaseModel):
     queue: SimpleQueueCreate
+
+    @model_validator(mode="after")
+    def validate_queue_sources(self):
+        queue_data = self.queue.data if self.queue else None
+        if queue_data is None:
+            return self
+
+        has_kind = queue_data.kind is not None
+        has_queries = bool(queue_data.queries)
+        has_testsets = bool(queue_data.testsets)
+
+        if has_kind and (has_queries or has_testsets):
+            raise ValueError(
+                "simple queue source must not include kind alongside queries or testsets"
+            )
+
+        return self
 
 
 class SimpleQueueQueryRequest(BaseModel):

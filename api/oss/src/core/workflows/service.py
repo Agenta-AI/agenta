@@ -1164,11 +1164,11 @@ class WorkflowsService:
                 environment_variant_ref=environment_variant_ref,
                 environment_revision_ref=environment_revision_ref,
             )
-            log.info(
-                "retrieve_workflow_revision: env_revision=%r env_data=%r",
-                env_revision and env_revision.id,
-                env_revision and env_revision.data,
-            )
+            # log.info(
+            #     "retrieve_workflow_revision: env_revision=%r env_data=%r",
+            #     env_revision and env_revision.id,
+            #     env_revision and env_revision.data,
+            # )
 
             references_by_key = (
                 env_revision.data.references
@@ -1178,12 +1178,12 @@ class WorkflowsService:
             workflow_references = (
                 references_by_key.get(key) if references_by_key and key else None
             )
-            log.info(
-                "retrieve_workflow_revision: key=%r references_by_key keys=%r workflow_references=%r",
-                key,
-                list(references_by_key.keys()) if references_by_key else None,
-                workflow_references,
-            )
+            # log.info(
+            #     "retrieve_workflow_revision: key=%r references_by_key keys=%r workflow_references=%r",
+            #     key,
+            #     list(references_by_key.keys()) if references_by_key else None,
+            #     workflow_references,
+            # )
 
             if not workflow_references:
                 return None, None

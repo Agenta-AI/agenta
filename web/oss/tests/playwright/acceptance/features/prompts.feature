@@ -10,18 +10,18 @@ Feature: Prompts Page
   Background:
     Given the user is authenticated
 
-  @smoke @happy
+  @smoke @happy @scope:apps @speed:fast
   Scenario: Navigate to the Prompts page
     When the user navigates to the Prompts page
     Then the Prompts page is displayed with the Create new button
 
-  @smoke @happy
+  @smoke @happy @scope:apps @speed:fast
   Scenario: Create a new prompt via the Create new dropdown
     Given the user is on the Prompts page
     When the user clicks Create new, selects New prompt, and fills in the form
     Then the new prompt modal was opened and submitted successfully
 
-  @smoke @happy
+  @smoke @happy @scope:apps @speed:fast
   Scenario: Create a new folder via the Create new dropdown
     Given the user is on the Prompts page
     When the user clicks Create new, selects New folder, and enters a folder name
