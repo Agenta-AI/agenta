@@ -282,8 +282,15 @@ class OrganizationProvidersDAO:
     2. Without a session (creates own sessions): OrganizationProvidersDAO()
     """
 
-    def __init__(self, session: Optional[AsyncSession] = None):
+    def __init__(
+        self,
+        session: Optional[AsyncSession] = None,
+        engine: Optional[TransactionsEngine] = None,
+    ):
         self.session = session
+        if engine is None:
+            engine = get_transactions_engine()
+        self.engine = engine
 
     async def create(
         self,
