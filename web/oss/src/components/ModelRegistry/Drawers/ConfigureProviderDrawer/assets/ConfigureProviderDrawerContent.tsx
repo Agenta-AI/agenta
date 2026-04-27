@@ -124,7 +124,7 @@ const ConfigureProviderDrawerContent = ({
 
     // Build provider options for SelectLLMProviderBase
     const providerOptions = useMemo<ProviderGroup[]>(() => {
-        // MistralAI (legacy slug) is not shown in the UI, it's mapped to Mistral 
+        // MistralAI (legacy slug) is not shown in the UI, it's mapped to Mistral
         const standardForUi = standardProviders.filter((p) => p !== MISTRAL_LEGACY_PROVIDER_SLUG)
         const allProviders = [...new Set([...standardForUi, ...customProviders])]
         return allProviders.map((key) => {
