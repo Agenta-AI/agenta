@@ -44,19 +44,54 @@ interface AppWorkflowQueryMeta {
     searchTerm?: string
 }
 
+const APP_WORKFLOW_FLAGS = {is_evaluator: false} as const
+const COUNT_QUERY_STALE_TIME = 30_000
+
+const emptyFetchResult = <TRow>(
+    totalCount: number | null = null,
+): InfiniteTableFetchResult<TRow> => ({
+    rows: [],
+    totalCount,
+    hasMore: false,
+    nextCursor: null,
+    nextOffset: null,
+    nextWindowing: null,
+})
+
+const getCursorOffset = (cursor: string | null | undefined) =>
+    cursor ? Number.parseInt(cursor, 10) || 0 : 0
+
 const isArchivedWorkflow = (workflow: Workflow) => Boolean(workflow.deleted_at)
 
-async function queryArchivedAppWorkflows(meta: AppWorkflowQueryMeta) {
+const compareDeletedAtDesc = (a: Workflow, b: Workflow) => {
+    const aTime = a.deleted_at ? Date.parse(a.deleted_at) : 0
+    const bTime = b.deleted_at ? Date.parse(b.deleted_at) : 0
+    return bTime - aTime
+}
+
+async function fetchArchivedAppWorkflows(meta: AppWorkflowQueryMeta) {
     if (!meta.projectId) return [] as Workflow[]
 
     const response = await queryWorkflows({
         projectId: meta.projectId,
         name: meta.searchTerm,
-        flags: {is_evaluator: false},
+        flags: APP_WORKFLOW_FLAGS,
         includeArchived: true,
     })
 
-    return response.workflows.filter(isArchivedWorkflow)
+    return response.workflows.filter(isArchivedWorkflow).sort(compareDeletedAtDesc)
+}
+
+async function fetchActiveAppWorkflowCount(meta: AppWorkflowQueryMeta) {
+    if (!meta.projectId) return 0
+
+    const response = await queryWorkflows({
+        projectId: meta.projectId,
+        name: meta.searchTerm,
+        flags: APP_WORKFLOW_FLAGS,
+    })
+
+    return response.count ?? response.workflows.length
 }
 
 const skeletonDefaults: Partial<AppWorkflowRow> = {
@@ -81,10 +116,13 @@ const transformWorkflowRow = (apiRow: Workflow): AppWorkflowRow => ({
     deletedById: apiRow.deleted_by_id ?? null,
 })
 
-const appWorkflowMetaAtom = atom<AppWorkflowQueryMeta>((get) => ({
-    projectId: get(projectIdAtom),
-    searchTerm: get(appWorkflowSearchTermAtom).trim() || undefined,
-}))
+const createAppWorkflowMetaAtom = (searchTermAtom: typeof appWorkflowSearchTermAtom) =>
+    atom<AppWorkflowQueryMeta>((get) => ({
+        projectId: get(projectIdAtom),
+        searchTerm: get(searchTermAtom).trim() || undefined,
+    }))
+
+const appWorkflowMetaAtom = createAppWorkflowMetaAtom(appWorkflowSearchTermAtom)
 
 export const appWorkflowPaginatedStore = createPaginatedEntityStore<
     AppWorkflowRow,
@@ -95,20 +133,13 @@ export const appWorkflowPaginatedStore = createPaginatedEntityStore<
     metaAtom: appWorkflowMetaAtom,
     fetchPage: async ({meta, limit, cursor}): Promise<InfiniteTableFetchResult<Workflow>> => {
         if (!meta.projectId) {
-            return {
-                rows: [],
-                totalCount: null,
-                hasMore: false,
-                nextCursor: null,
-                nextOffset: null,
-                nextWindowing: null,
-            }
+            return emptyFetchResult<Workflow>()
         }
 
         const response = await queryWorkflows({
             projectId: meta.projectId,
             name: meta.searchTerm,
-            flags: {is_evaluator: false},
+            flags: APP_WORKFLOW_FLAGS,
             windowing: {limit, order: "descending", next: cursor ?? undefined},
         })
 
@@ -147,15 +178,10 @@ const appWorkflowTotalCountQueryAtom = atomWithQuery((get) => {
     return {
         queryKey: ["appWorkflowTotalCount", projectId],
         queryFn: async () => {
-            if (!projectId) return 0
-            const response = await queryWorkflows({
-                projectId,
-                flags: {is_evaluator: false},
-            })
-            return response.count ?? response.workflows.length
+            return fetchActiveAppWorkflowCount({projectId})
         },
         enabled: !!projectId,
-        staleTime: 30_000,
+        staleTime: COUNT_QUERY_STALE_TIME,
         refetchOnWindowFocus: false,
     }
 })
@@ -175,16 +201,10 @@ const appWorkflowCountQueryAtom = atomWithQuery((get) => {
     return {
         queryKey: ["appWorkflowCount", projectId, searchTerm ?? null],
         queryFn: async () => {
-            if (!projectId) return 0
-            const response = await queryWorkflows({
-                projectId,
-                name: searchTerm,
-                flags: {is_evaluator: false},
-            })
-            return response.count ?? response.workflows.length
+            return fetchActiveAppWorkflowCount({projectId, searchTerm})
         },
         enabled: !!projectId,
-        staleTime: 30_000,
+        staleTime: COUNT_QUERY_STALE_TIME,
         refetchOnWindowFocus: false,
     }
 })
@@ -197,14 +217,9 @@ export const appWorkflowCountAtom = atom((get) => {
     return query.data ?? 0
 })
 
-export {appWorkflowSearchTermAtom}
-
 const archivedAppWorkflowSearchTermAtom = atom("")
 
-const archivedAppWorkflowMetaAtom = atom<AppWorkflowQueryMeta>((get) => ({
-    projectId: get(projectIdAtom),
-    searchTerm: get(archivedAppWorkflowSearchTermAtom).trim() || undefined,
-}))
+const archivedAppWorkflowMetaAtom = createAppWorkflowMetaAtom(archivedAppWorkflowSearchTermAtom)
 
 const archivedAppWorkflowPaginatedStore = createPaginatedEntityStore<
     AppWorkflowRow,
@@ -215,18 +230,11 @@ const archivedAppWorkflowPaginatedStore = createPaginatedEntityStore<
     metaAtom: archivedAppWorkflowMetaAtom,
     fetchPage: async ({meta, limit, cursor}): Promise<InfiniteTableFetchResult<Workflow>> => {
         if (!meta.projectId) {
-            return {
-                rows: [],
-                totalCount: null,
-                hasMore: false,
-                nextCursor: null,
-                nextOffset: null,
-                nextWindowing: null,
-            }
+            return emptyFetchResult<Workflow>()
         }
 
-        const archivedWorkflows = await queryArchivedAppWorkflows(meta)
-        const offset = cursor ? Number.parseInt(cursor, 10) || 0 : 0
+        const archivedWorkflows = await fetchArchivedAppWorkflows(meta)
+        const offset = getCursorOffset(cursor)
         const rows = archivedWorkflows.slice(offset, offset + limit)
         const nextOffset = offset + rows.length
 
@@ -257,10 +265,10 @@ const archivedAppWorkflowTotalCountQueryAtom = atomWithQuery((get) => {
         queryKey: ["archivedAppWorkflowTotalCount", projectId],
         queryFn: async () => {
             if (!projectId) return 0
-            return (await queryArchivedAppWorkflows({projectId})).length
+            return (await fetchArchivedAppWorkflows({projectId})).length
         },
         enabled: !!projectId,
-        staleTime: 30_000,
+        staleTime: COUNT_QUERY_STALE_TIME,
         refetchOnWindowFocus: false,
     }
 })
@@ -278,10 +286,10 @@ const archivedAppWorkflowCountQueryAtom = atomWithQuery((get) => {
         queryKey: ["archivedAppWorkflowCount", projectId, searchTerm ?? null],
         queryFn: async () => {
             if (!projectId) return 0
-            return (await queryArchivedAppWorkflows({projectId, searchTerm})).length
+            return (await fetchArchivedAppWorkflows({projectId, searchTerm})).length
         },
         enabled: !!projectId,
-        staleTime: 30_000,
+        staleTime: COUNT_QUERY_STALE_TIME,
         refetchOnWindowFocus: false,
     }
 })
@@ -331,3 +339,5 @@ export async function invalidateAppManagementWorkflowQueries() {
         queryClient.invalidateQueries({queryKey: ["archivedAppWorkflowCount"], exact: false}),
     ])
 }
+
+export {appWorkflowSearchTermAtom}

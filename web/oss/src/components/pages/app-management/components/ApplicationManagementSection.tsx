@@ -86,9 +86,10 @@ const ApplicationManagementSection = ({
                 if (!isArchived) return
                 try {
                     const {projectId} = getProjectValues()
+                    if (!projectId) return
                     await unarchiveWorkflow(projectId, record.workflowId)
                     invalidateWorkflowsListCache()
-                    await mutateApps()
+                    await mutateApps?.()
                     await invalidateAppManagementWorkflowQueries()
                     message.success("App restored")
                 } catch (error) {
@@ -143,9 +144,20 @@ const ApplicationManagementSection = ({
     return (
         <div className="flex flex-col gap-2">
             {!isArchived ? (
-                <Title level={2} className="!my-0">
-                    Applications
-                </Title>
+                <div className="flex items-center justify-between gap-3">
+                    <Title level={2} className="!my-0">
+                        Applications
+                    </Title>
+                    {totalAppCount == 0 ? (
+                        <Button
+                            icon={<Tray size={14} />}
+                            onClick={() => router.push(`${baseAppURL}/archived`)}
+                            type="text"
+                        >
+                            Archived
+                        </Button>
+                    ) : null}
+                </div>
             ) : null}
 
             {totalAppCount > 0 ? (
