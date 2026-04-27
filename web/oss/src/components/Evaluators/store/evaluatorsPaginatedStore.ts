@@ -26,6 +26,12 @@ import {queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom, type Atom} from "jotai"
 
+import {
+    createDateDescComparator,
+    emptyFetchResult,
+    getCursorOffset,
+} from "@/oss/state/entities/shared"
+
 import type {EvaluatorCategory} from "../assets/types"
 
 import {evaluatorCategoryAtom, evaluatorSearchTermAtom} from "./evaluatorFilterAtoms"
@@ -70,17 +76,6 @@ export type EvaluatorsTableMode = "active" | "archived"
 // SHARED HELPERS
 // ============================================================================
 
-const emptyFetchResult = <TRow>(
-    totalCount: number | null = null,
-): InfiniteTableFetchResult<TRow> => ({
-    rows: [],
-    totalCount,
-    hasMore: false,
-    nextCursor: null,
-    nextOffset: null,
-    nextWindowing: null,
-})
-
 const skeletonDefaults: Partial<EvaluatorTableRow> = {
     revisionId: "",
     workflowId: "",
@@ -92,14 +87,7 @@ const skeletonDefaults: Partial<EvaluatorTableRow> = {
     key: "",
 }
 
-const getCursorOffset = (cursor: string | null | undefined) =>
-    cursor ? Number.parseInt(cursor, 10) || 0 : 0
-
-const compareDeletedAtDesc = (a: EvaluatorTableRow, b: EvaluatorTableRow) => {
-    const aTime = a.deletedAt ? Date.parse(a.deletedAt) : 0
-    const bTime = b.deletedAt ? Date.parse(b.deletedAt) : 0
-    return bTime - aTime
-}
+const compareDeletedAtDesc = createDateDescComparator<EvaluatorTableRow>((row) => row.deletedAt)
 
 const createEvaluatorMetaAtom = (
     categoryAtom: Atom<EvaluatorCategory>,

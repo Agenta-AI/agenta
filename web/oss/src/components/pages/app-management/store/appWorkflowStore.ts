@@ -11,8 +11,14 @@ import {queryWorkflows} from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
 import {queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
-import {atom} from "jotai"
+import {atom, type Atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
+
+import {
+    createDateDescComparator,
+    emptyFetchResult,
+    getCursorOffset,
+} from "@/oss/state/entities/shared"
 
 import {appWorkflowSearchTermAtom} from "./appWorkflowFilterAtoms"
 
@@ -47,27 +53,9 @@ interface AppWorkflowQueryMeta {
 const APP_WORKFLOW_FLAGS = {is_evaluator: false} as const
 const COUNT_QUERY_STALE_TIME = 30_000
 
-const emptyFetchResult = <TRow>(
-    totalCount: number | null = null,
-): InfiniteTableFetchResult<TRow> => ({
-    rows: [],
-    totalCount,
-    hasMore: false,
-    nextCursor: null,
-    nextOffset: null,
-    nextWindowing: null,
-})
-
-const getCursorOffset = (cursor: string | null | undefined) =>
-    cursor ? Number.parseInt(cursor, 10) || 0 : 0
-
 const isArchivedWorkflow = (workflow: Workflow) => Boolean(workflow.deleted_at)
 
-const compareDeletedAtDesc = (a: Workflow, b: Workflow) => {
-    const aTime = a.deleted_at ? Date.parse(a.deleted_at) : 0
-    const bTime = b.deleted_at ? Date.parse(b.deleted_at) : 0
-    return bTime - aTime
-}
+const compareDeletedAtDesc = createDateDescComparator<Workflow>((workflow) => workflow.deleted_at)
 
 async function fetchArchivedAppWorkflows(meta: AppWorkflowQueryMeta) {
     if (!meta.projectId) return [] as Workflow[]
@@ -116,7 +104,7 @@ const transformWorkflowRow = (apiRow: Workflow): AppWorkflowRow => ({
     deletedById: apiRow.deleted_by_id ?? null,
 })
 
-const createAppWorkflowMetaAtom = (searchTermAtom: typeof appWorkflowSearchTermAtom) =>
+const createAppWorkflowMetaAtom = (searchTermAtom: Atom<string>) =>
     atom<AppWorkflowQueryMeta>((get) => ({
         projectId: get(projectIdAtom),
         searchTerm: get(searchTermAtom).trim() || undefined,

@@ -34,7 +34,12 @@ import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import type {ExportFileType} from "@/oss/services/testsets/api"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {createPaginatedEntityStore} from "../shared"
+import {
+    createDateDescComparator,
+    createPaginatedEntityStore,
+    emptyFetchResult,
+    getCursorOffset,
+} from "../shared"
 
 // ============================================================================
 // TYPES
@@ -88,23 +93,7 @@ export type TestsetTableMode = "active" | "archived"
 const ARCHIVED_FETCH_PAGE_SIZE = 50
 const TESTSETS_WINDOW_ORDER = "descending"
 
-const emptyFetchResult = <TRow>(totalCount = 0): InfiniteTableFetchResult<TRow> => ({
-    rows: [],
-    totalCount,
-    hasMore: false,
-    nextOffset: null,
-    nextCursor: null,
-    nextWindowing: null,
-})
-
-const getCursorOffset = (cursor: string | null | undefined) =>
-    cursor ? Number.parseInt(cursor, 10) || 0 : 0
-
-const compareDeletedAtDesc = (a: TestsetApiRow, b: TestsetApiRow) => {
-    const aTime = a.deleted_at ? Date.parse(a.deleted_at) : 0
-    const bTime = b.deleted_at ? Date.parse(b.deleted_at) : 0
-    return bTime - aTime
-}
+const compareDeletedAtDesc = createDateDescComparator<TestsetApiRow>((row) => row.deleted_at)
 
 const toTestsetTableRow = (row: TestsetApiRow): TestsetTableRow => ({
     key: row.id,
@@ -207,7 +196,7 @@ async function fetchTestsetsPage({
     includeArchived?: boolean
 }): Promise<InfiniteTableFetchResult<TestsetApiRow>> {
     if (!meta.projectId) {
-        return emptyFetchResult<TestsetApiRow>()
+        return emptyFetchResult<TestsetApiRow>(0)
     }
 
     const windowingPayload: QueryWindowingPayload = {
@@ -282,7 +271,7 @@ async function fetchTestsetsPage({
         }
     } catch (error) {
         console.error("[TestsetPaginatedStore] Failed to fetch testsets:", error)
-        return emptyFetchResult<TestsetApiRow>()
+        return emptyFetchResult<TestsetApiRow>(0)
     }
 }
 
