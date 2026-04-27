@@ -46,6 +46,14 @@ const TestsetsHeaderFilters = ({tableMode = "active"}: TestsetsHeaderFiltersProp
                         padding: 0,
                     },
                     arrow: false,
+                    styles: {
+                        body: {
+                            maxWidth: "360px",
+                            backgroundColor: "transparent",
+                            boxShadow: "none",
+                            border: "none",
+                        },
+                    },
                 }}
                 renderContent={(close) => (
                     <TestsetsFiltersContent tableMode={tableMode} onClose={close} />

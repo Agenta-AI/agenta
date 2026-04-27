@@ -160,7 +160,7 @@ export function createTestsetsColumns(
                       type: "text" as const,
                       key: "deletedById",
                       title: "Archived by",
-                      render: (_value, record: TestsetTableRow) => (
+                      render: (_value: unknown, record: TestsetTableRow) => (
                           <div className="h-full flex items-center">
                               <UserAuthorLabel
                                   userId={record.deletedById}

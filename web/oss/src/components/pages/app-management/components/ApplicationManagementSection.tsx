@@ -27,6 +27,7 @@ interface ApplicationManagementSectionProps {
 }
 
 const {Title} = Typography
+const PAGE_SIZE = 10
 
 const ApplicationManagementSection = ({
     setIsAddAppFromTemplatedModal,
@@ -49,12 +50,10 @@ const ApplicationManagementSection = ({
         [router, baseAppURL],
     )
 
-    const pageSize = isArchived ? 50 : 10
-
     const table = useTableManager<AppWorkflowRow>({
         datasetStore: tableState.paginatedStore.store as never,
         scopeId: isArchived ? "archived-app-workflows" : "app-workflows",
-        pageSize,
+        pageSize: PAGE_SIZE,
         onRowClick: handleRowClick,
         columnVisibilityStorageKey: isArchived
             ? "agenta:archived-apps:column-visibility"
@@ -169,7 +168,7 @@ const ApplicationManagementSection = ({
                     }
                     enableExport={isArchived}
                     paginationMode="paginated"
-                    paginatedPageSize={pageSize}
+                    paginatedPageSize={PAGE_SIZE}
                     paginatedTotalCount={filteredAppCount}
                 />
             ) : (
