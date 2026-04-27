@@ -1,8 +1,40 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {expect} from "@agenta/web-tests/utils"
+import type {Locator} from "@playwright/test"
 
 import {APP_TYPE_LABELS} from "./assets/types"
 import type {AppFixtures, CreateAppResponse} from "./assets/types"
+
+const selectCreatePromptType = async (dialog: Locator, appTypeLabel: string) => {
+    await expect(dialog.getByText("Choose the prompt type", {exact: true})).toBeVisible({
+        timeout: 15000,
+    })
+
+    const appTypeCards = dialog.locator(".ant-card")
+    await expect(appTypeCards.first()).toBeVisible({timeout: 15000})
+
+    const matchingCards = appTypeCards.filter({hasText: new RegExp(appTypeLabel, "i")})
+    await expect.poll(async () => await matchingCards.count(), {timeout: 15000}).toBeGreaterThan(0)
+
+    const appTypeCard = matchingCards.first()
+    await expect(appTypeCard).toBeVisible({timeout: 15000})
+
+    const appTypeRadio = appTypeCard.locator('input[type="radio"]').first()
+    const isSelected = async () => {
+        if ((await appTypeRadio.count().catch(() => 0)) > 0) {
+            return await appTypeRadio.isChecked().catch(() => false)
+        }
+
+        const checkedRadio = appTypeCard.locator(".ant-radio-checked").first()
+        return await checkedRadio.isVisible().catch(() => false)
+    }
+
+    if (!(await isSelected())) {
+        await appTypeCard.click()
+    }
+
+    await expect.poll(isSelected, {timeout: 15000}).toBe(true)
+}
 
 /**
  * App-specific test fixtures extending the base test fixture.
@@ -57,9 +89,7 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
             await expect(dialogTitle).toBeVisible()
             await uiHelpers.typeWithDelay('input[placeholder="Enter a name"]', appName)
             const appTypeLabel = APP_TYPE_LABELS[appType]
-            const appTypeOption = dialog.getByText(appTypeLabel).first()
-            await expect(appTypeOption).toBeVisible()
-            await appTypeOption.click()
+            await selectCreatePromptType(dialog, appTypeLabel)
             const createAppPromise = page.waitForResponse((response) => {
                 if (
                     !response.url().includes("/workflows") ||

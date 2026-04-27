@@ -1667,6 +1667,7 @@ async def _evaluate_batch_items(
     #
     testcase_ids: Optional[List[UUID]] = None,
     trace_ids: Optional[List[str]] = None,
+    input_step_key: Optional[str] = None,
     #
     tracing_service: Optional[TracingService] = None,
     testcases_service: Optional[TestcasesService] = None,
@@ -1720,7 +1721,17 @@ async def _evaluate_batch_items(
         invocation_steps = [step for step in steps if step.type == "invocation"]
         annotation_steps = [step for step in steps if step.type == "annotation"]
 
-        input_step_key = input_steps[0].key if input_steps else None
+        if input_step_key is not None:
+            matching_input_step = next(
+                (step for step in input_steps if step.key == input_step_key),
+                None,
+            )
+            if matching_input_step is None:
+                raise ValueError(
+                    f"Evaluation run with id {run_id} has no input step '{input_step_key}'!"
+                )
+        else:
+            input_step_key = input_steps[0].key if input_steps else None
         invocation_step_key = invocation_steps[0].key if invocation_steps else None
         evaluator_references = {
             step.key: step.references or {} for step in annotation_steps
@@ -2202,6 +2213,7 @@ async def evaluate_batch_traces(
     #
     run_id: UUID,
     trace_ids: List[str],
+    input_step_key: Optional[str] = None,
     #
     tracing_service: TracingService,
     workflows_service: WorkflowsService,
@@ -2213,6 +2225,7 @@ async def evaluate_batch_traces(
         run_id=run_id,
         #
         trace_ids=trace_ids,
+        input_step_key=input_step_key,
         tracing_service=tracing_service,
         workflows_service=workflows_service,
         evaluations_service=evaluations_service,
@@ -2226,6 +2239,7 @@ async def evaluate_batch_testcases(
     #
     run_id: UUID,
     testcase_ids: List[UUID],
+    input_step_key: Optional[str] = None,
     #
     tracing_service: TracingService,
     testcases_service: TestcasesService,
@@ -2238,6 +2252,7 @@ async def evaluate_batch_testcases(
         run_id=run_id,
         #
         testcase_ids=testcase_ids,
+        input_step_key=input_step_key,
         tracing_service=tracing_service,
         testcases_service=testcases_service,
         workflows_service=workflows_service,
