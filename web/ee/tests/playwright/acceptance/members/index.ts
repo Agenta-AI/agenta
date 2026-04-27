@@ -30,6 +30,36 @@ const lightFastTags = buildAcceptanceTags({
     speed: TestSpeedType.FAST,
 })
 
+/**
+ * Invite a member via the EE flow (email sent) and wait for their row to appear
+ * in the members table with "Invitation Pending" status.
+ * Returns the invited email so callers can locate the row.
+ */
+const invitePendingMember = async (page: any, apiHelpers: any, uiHelpers: any): Promise<string> => {
+    const testEmail = `test-member-${Date.now()}@agenta-e2e.test`
+
+    const basePath = apiHelpers.getProjectScopedBasePath()
+    await page.goto(`${basePath}/settings`, {waitUntil: "domcontentloaded"})
+    await uiHelpers.expectPath("/settings")
+    // networkidle ensures the dynamic() import for InviteUsersModal has finished loading
+    // before we click the button — avoids the race where the click fires before the
+    // modal component is mounted, leaving the dialog never visible.
+    await page.waitForLoadState("networkidle")
+    await expect(page.getByRole("button", {name: "Invite Members"})).toBeVisible({timeout: 15000})
+
+    await page.getByRole("button", {name: "Invite Members"}).click()
+    const inviteModal = page.getByRole("dialog", {name: "Invite Members"})
+    await expect(inviteModal).toBeVisible({timeout: 15000})
+    await inviteModal.getByPlaceholder("member@organization.com").fill(testEmail)
+    await inviteModal.getByRole("button", {name: "Invite"}).click()
+    await expect(inviteModal).not.toBeVisible({timeout: 15000})
+
+    // Wait for the pending row to appear in the refreshed table
+    await expect(page.getByText(testEmail)).toBeVisible({timeout: 15000})
+
+    return testEmail
+}
+
 const membersTests = () => {
     // WEB-ACC-MEMBERS-002
     test(
@@ -47,7 +77,6 @@ const membersTests = () => {
                 const basePath = apiHelpers.getProjectScopedBasePath()
                 await page.goto(`${basePath}/settings`, {waitUntil: "domcontentloaded"})
                 await uiHelpers.expectPath("/settings")
-                // The default tab is "workspace" which renders the Members section
                 await expect(page.getByRole("button", {name: "Invite Members"})).toBeVisible({
                     timeout: 15000,
                 })
@@ -65,10 +94,9 @@ const membersTests = () => {
                     await expect(emailInput).toBeVisible({timeout: 5000})
                     await emailInput.fill(testEmail)
 
-                    // EE renders a role selector; select "Viewer" (default) or leave as-is
+                    // EE renders a role selector; keep the default selection
                     const roleSelect = inviteModal.locator(".ant-select").first()
                     if (await roleSelect.isVisible()) {
-                        // Role selector is present in EE; keep the default selection
                         await expect(roleSelect).toBeVisible()
                     }
                 },
@@ -77,22 +105,93 @@ const membersTests = () => {
             await scenarios.and("the user submits the invitation", async () => {
                 const inviteModal = page.getByRole("dialog", {name: "Invite Members"})
                 await inviteModal.getByRole("button", {name: "Invite"}).click()
-                // EE: email is sent, modal closes, success toast appears
                 await expect(inviteModal).not.toBeVisible({timeout: 15000})
             })
 
             await scenarios.then(
                 "the invited member appears in the members list with an Invitation Pending tag",
                 async () => {
-                    // After the modal closes the members table refreshes
                     await expect(page.getByText("Invitation Pending").first()).toBeVisible({
                         timeout: 15000,
                     })
-
-                    // Confirm the invited email appears alongside the pending tag
                     await expect(page.getByText(testEmail)).toBeVisible({timeout: 10000})
                 },
             )
+        },
+    )
+
+    // WEB-ACC-MEMBERS-003
+    test(
+        "should resend an invitation and confirm success",
+        {tag: lightFastTags},
+        async ({page, apiHelpers, uiHelpers}) => {
+            test.setTimeout(60000)
+
+            await scenarios.given("the user is authenticated", async () => {
+                await expectAuthenticatedSession(page)
+            })
+
+            let testEmail = ""
+
+            await scenarios.and("a pending member invite exists", async () => {
+                testEmail = await invitePendingMember(page, apiHelpers, uiHelpers)
+            })
+
+            await scenarios.when("the user opens the actions menu for that member", async () => {
+                const memberRow = page.locator("tr").filter({hasText: testEmail})
+                await expect(memberRow).toBeVisible({timeout: 10000})
+                // ⋯ button is the last button in the row
+                await memberRow.locator("button").last().click()
+            })
+
+            await scenarios.and("the user clicks Resend invitation", async () => {
+                await page
+                    .locator(".ant-dropdown-menu-item")
+                    .filter({hasText: "Resend invitation"})
+                    .click()
+            })
+
+            await scenarios.then("a success confirmation is shown", async () => {
+                await expect(page.getByText("Invitation sent!")).toBeVisible({timeout: 10000})
+            })
+        },
+    )
+
+    // WEB-ACC-MEMBERS-004
+    test(
+        "should remove a pending member from the workspace",
+        {tag: lightFastTags},
+        async ({page, apiHelpers, uiHelpers}) => {
+            test.setTimeout(60000)
+
+            await scenarios.given("the user is authenticated", async () => {
+                await expectAuthenticatedSession(page)
+            })
+
+            let testEmail = ""
+
+            await scenarios.and("a pending member invite exists", async () => {
+                testEmail = await invitePendingMember(page, apiHelpers, uiHelpers)
+            })
+
+            await scenarios.when("the user opens the actions menu for that member", async () => {
+                const memberRow = page.locator("tr").filter({hasText: testEmail})
+                await expect(memberRow).toBeVisible({timeout: 10000})
+                await memberRow.locator("button").last().click()
+            })
+
+            await scenarios.and("the user clicks Remove and confirms", async () => {
+                await page.locator(".ant-dropdown-menu-item").filter({hasText: "Remove"}).click()
+
+                // AlertPopup renders as a modal.confirm dialog — title "Remove member"
+                const confirmDialog = page.getByRole("dialog", {name: "Remove member"})
+                await expect(confirmDialog).toBeVisible({timeout: 10000})
+                await confirmDialog.getByRole("button", {name: "Remove"}).click()
+            })
+
+            await scenarios.then("the member no longer appears in the members list", async () => {
+                await expect(page.getByText(testEmail)).not.toBeVisible({timeout: 15000})
+            })
         },
     )
 }

@@ -1292,3 +1292,48 @@ For every RTM entry below:
 - License: `ee`
 - Status: active
 
+### WEB-ACC-MEMBERS-003 - Resend an invitation to a pending member
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/members.feature`
+- Test file: `web/ee/tests/playwright/acceptance/members/index.ts`
+- Playwright title: `Members: invite flow > should resend an invitation and confirm success`
+
+#### Markers
+
+- Scope: `members`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `ee`
+- Status: active
+
+### WEB-ACC-MEMBERS-004 - Remove a pending member from the workspace
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/members.feature`
+- Test file: `web/ee/tests/playwright/acceptance/members/index.ts`
+- Playwright title: `Members: invite flow > should remove a pending member from the workspace`
+
+#### Markers
+
+- Scope: `members`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `ee`
+- Status: active
+
+

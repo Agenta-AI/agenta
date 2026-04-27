@@ -1,6 +1,6 @@
 # Tests: members/members.spec.ts -> members/index.ts (OSS)
 #        web/ee/tests/playwright/acceptance/members/members.spec.ts (EE)
-# RTM IDs: WEB-ACC-MEMBERS-001, WEB-ACC-MEMBERS-002
+# RTM IDs: WEB-ACC-MEMBERS-001, WEB-ACC-MEMBERS-002, WEB-ACC-MEMBERS-003, WEB-ACC-MEMBERS-004
 # Tags: @scope:members @coverage:light @path:happy @speed:fast
 #
 # Implementation notes:
@@ -29,3 +29,17 @@ Feature: Workspace Membership Invitation
     When the user clicks Invite Members, fills in an email address and selects a role
     And the user submits the invitation
     Then the invited member appears in the members list with an Invitation Pending tag
+
+  @light @happy @scope:members @speed:fast @license:ee
+  Scenario: Resend an invitation to a pending member (EE)
+    Given a pending member invite exists
+    When the user opens the actions menu for that member
+    And the user clicks Resend invitation
+    Then a success confirmation is shown
+
+  @light @happy @scope:members @speed:fast @license:ee
+  Scenario: Remove a pending member from the workspace (EE)
+    Given a pending member invite exists
+    When the user opens the actions menu for that member
+    And the user clicks Remove and confirms
+    Then the member no longer appears in the members list
