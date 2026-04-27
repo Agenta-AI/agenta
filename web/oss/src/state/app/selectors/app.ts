@@ -32,7 +32,7 @@ export {routerAppIdAtom, recentAppIdAtom}
  * Current app context - provides full context for current app
  * Used by: Components that need current app info
  */
-export const currentAppContextAtom = atom((get) => {
+export const currentAppContextAtom = eagerAtom((get) => {
     const currentApp = get(currentAppAtom)
     const selectedId = get(selectedAppIdAtom)
     const {isLoading} = get(appsQueryAtom)

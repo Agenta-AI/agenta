@@ -21,7 +21,7 @@
  * ```
  */
 
-import {atom, getDefaultStore} from "jotai"
+import {atom, getDefaultStore, type Atom} from "jotai"
 import {atomWithStorage} from "jotai/vanilla/utils"
 
 import type {BaseTableMeta} from "@/oss/components/InfiniteVirtualTable/helpers/createSimpleTableStore"
@@ -85,6 +85,35 @@ export interface TestsetPaginatedMeta extends BaseTableMeta {
 
 export type TestsetTableMode = "active" | "archived"
 
+const ARCHIVED_FETCH_PAGE_SIZE = 50
+const TESTSETS_WINDOW_ORDER = "descending"
+
+const emptyFetchResult = <TRow>(totalCount = 0): InfiniteTableFetchResult<TRow> => ({
+    rows: [],
+    totalCount,
+    hasMore: false,
+    nextOffset: null,
+    nextCursor: null,
+    nextWindowing: null,
+})
+
+const getCursorOffset = (cursor: string | null | undefined) =>
+    cursor ? Number.parseInt(cursor, 10) || 0 : 0
+
+const compareDeletedAtDesc = (a: TestsetApiRow, b: TestsetApiRow) => {
+    const aTime = a.deleted_at ? Date.parse(a.deleted_at) : 0
+    const bTime = b.deleted_at ? Date.parse(b.deleted_at) : 0
+    return bTime - aTime
+}
+
+const toTestsetTableRow = (row: TestsetApiRow): TestsetTableRow => ({
+    key: row.id,
+    __isSkeleton: false,
+    ...row,
+    deletedAt: row.deleted_at ?? null,
+    deletedById: row.deleted_by_id ?? null,
+})
+
 // ============================================================================
 // FILTER ATOMS
 // ============================================================================
@@ -119,35 +148,35 @@ const archivedTestsetsDateModifiedFilterAtom = atom<TestsetDateRange | null>(nul
 // META ATOM
 // ============================================================================
 
+const createTestsetsPaginatedMetaAtom = ({
+    searchTermAtom,
+    dateCreatedFilterAtom,
+    dateModifiedFilterAtom,
+}: {
+    searchTermAtom: Atom<string>
+    dateCreatedFilterAtom: Atom<TestsetDateRange | null>
+    dateModifiedFilterAtom: Atom<TestsetDateRange | null>
+}) =>
+    atom<TestsetPaginatedMeta>((get) => ({
+        projectId: get(projectIdAtom),
+        searchTerm: get(searchTermAtom),
+        dateCreatedFilter: get(dateCreatedFilterAtom),
+        dateModifiedFilter: get(dateModifiedFilterAtom),
+    }))
+
 /**
  * Combined metadata atom for testsets paginated query
  */
-export const testsetsPaginatedMetaAtom = atom<TestsetPaginatedMeta>((get) => {
-    const projectId = get(projectIdAtom)
-    const searchTerm = get(testsetsSearchTermAtom)
-    const dateCreatedFilter = get(testsetsDateCreatedFilterAtom)
-    const dateModifiedFilter = get(testsetsDateModifiedFilterAtom)
-
-    return {
-        projectId,
-        searchTerm,
-        dateCreatedFilter,
-        dateModifiedFilter,
-    }
+export const testsetsPaginatedMetaAtom = createTestsetsPaginatedMetaAtom({
+    searchTermAtom: testsetsSearchTermAtom,
+    dateCreatedFilterAtom: testsetsDateCreatedFilterAtom,
+    dateModifiedFilterAtom: testsetsDateModifiedFilterAtom,
 })
 
-const archivedTestsetsPaginatedMetaAtom = atom<TestsetPaginatedMeta>((get) => {
-    const projectId = get(projectIdAtom)
-    const searchTerm = get(archivedTestsetsSearchTermAtom)
-    const dateCreatedFilter = get(archivedTestsetsDateCreatedFilterAtom)
-    const dateModifiedFilter = get(archivedTestsetsDateModifiedFilterAtom)
-
-    return {
-        projectId,
-        searchTerm,
-        dateCreatedFilter,
-        dateModifiedFilter,
-    }
+const archivedTestsetsPaginatedMetaAtom = createTestsetsPaginatedMetaAtom({
+    searchTermAtom: archivedTestsetsSearchTermAtom,
+    dateCreatedFilterAtom: archivedTestsetsDateCreatedFilterAtom,
+    dateModifiedFilterAtom: archivedTestsetsDateModifiedFilterAtom,
 })
 
 // ============================================================================
@@ -178,19 +207,12 @@ async function fetchTestsetsPage({
     includeArchived?: boolean
 }): Promise<InfiniteTableFetchResult<TestsetApiRow>> {
     if (!meta.projectId) {
-        return {
-            rows: [],
-            totalCount: 0,
-            hasMore: false,
-            nextOffset: null,
-            nextCursor: null,
-            nextWindowing: null,
-        }
+        return emptyFetchResult<TestsetApiRow>()
     }
 
     const windowingPayload: QueryWindowingPayload = {
         limit,
-        order: "descending",
+        order: TESTSETS_WINDOW_ORDER,
     }
 
     if (cursor) {
@@ -260,14 +282,7 @@ async function fetchTestsetsPage({
         }
     } catch (error) {
         console.error("[TestsetPaginatedStore] Failed to fetch testsets:", error)
-        return {
-            rows: [],
-            totalCount: 0,
-            hasMore: false,
-            nextOffset: null,
-            nextCursor: null,
-            nextWindowing: null,
-        }
+        return emptyFetchResult<TestsetApiRow>()
     }
 }
 
@@ -278,7 +293,7 @@ async function fetchArchivedTestsets(meta: TestsetPaginatedMeta): Promise<Testse
     do {
         const page = await fetchTestsetsPage({
             meta,
-            limit: 100,
+            limit: ARCHIVED_FETCH_PAGE_SIZE,
             offset: 0,
             cursor,
             includeArchived: true,
@@ -288,13 +303,7 @@ async function fetchArchivedTestsets(meta: TestsetPaginatedMeta): Promise<Testse
         cursor = page.nextCursor
     } while (cursor)
 
-    rows.sort((a, b) => {
-        const aTime = a.deleted_at ? Date.parse(a.deleted_at) : 0
-        const bTime = b.deleted_at ? Date.parse(b.deleted_at) : 0
-        return bTime - aTime
-    })
-
-    return rows
+    return rows.sort(compareDeletedAtDesc)
 }
 
 // ============================================================================
@@ -326,6 +335,7 @@ export const testsetPaginatedStore = createPaginatedEntityStore<
             updated_at: "",
         },
     },
+    transformRow: toTestsetTableRow,
     isEnabled: (meta) => Boolean(meta?.projectId),
 })
 
@@ -338,7 +348,7 @@ const archivedTestsetPaginatedStore = createPaginatedEntityStore<
     metaAtom: archivedTestsetsPaginatedMetaAtom,
     fetchPage: async ({meta, limit, cursor}) => {
         const archivedRows = await fetchArchivedTestsets(meta)
-        const offset = cursor ? Number.parseInt(cursor, 10) || 0 : 0
+        const offset = getCursorOffset(cursor)
         const rows = archivedRows.slice(offset, offset + limit)
         const nextOffset = offset + rows.length
 
@@ -362,13 +372,7 @@ const archivedTestsetPaginatedStore = createPaginatedEntityStore<
             deletedById: null,
         },
     },
-    transformRow: (row) => ({
-        key: row.id,
-        __isSkeleton: false,
-        ...row,
-        deletedAt: row.deleted_at ?? null,
-        deletedById: row.deleted_by_id ?? null,
-    }),
+    transformRow: toTestsetTableRow,
     isEnabled: (meta) => Boolean(meta?.projectId),
 })
 
