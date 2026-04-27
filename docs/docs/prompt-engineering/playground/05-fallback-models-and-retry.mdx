@@ -1,0 +1,72 @@
+---
+title: "Fallback Models and Retry"
+sidebar_position: 5
+sidebar_label: "Fallback Models and Retry"
+description: "Learn how to configure fallback models and retry behavior in the Agenta playground."
+---
+
+Fallback models help your prompt keep working when the first model cannot complete a request. Retry settings let Agenta try the same model again before it moves on.
+
+Use these settings when you want a prompt to handle provider downtime, rate limits, or short network problems with less manual work.
+
+## Fallback Models
+
+A fallback model is a backup model for your prompt. Agenta starts with the main model. If that model fails for a reason allowed by your fallback policy, Agenta tries the next fallback model.
+
+Fallback models run in the order you add them. Put the best backup first.
+
+### Add a fallback model
+
+1. Open your prompt in the playground.
+2. Click the model settings in the prompt configuration panel.
+3. Open **Fallback**.
+4. Choose a **Policy**.
+5. Click **Add fallback model**.
+6. Select the backup model.
+7. Add another fallback model if you need one.
+
+Each fallback model can have its own model settings, such as temperature or max tokens. Keep these settings close to your main model unless you have a clear reason to change them.
+
+### Choose a fallback policy
+
+The policy controls when Agenta can move from the current model to a fallback model.
+
+| Policy | When Agenta can try the next model |
+| --- | --- |
+| Off | Never. Fallback models are disabled. |
+| Availability | The provider is unavailable, times out, or returns a server error. |
+| Capacity | Everything in Availability, plus rate limits and overload errors. |
+| Access | Everything in Capacity, plus access errors such as invalid credentials or permission issues. |
+| Any | Most provider call errors. Use this only when you want the broadest fallback behavior. |
+
+Agenta does not use fallback models for prompt setup problems. For example, it will not use a fallback when a required input is missing or the prompt template is invalid.
+
+## Retry
+
+Retry tells Agenta how many times to try the same model again after a failed attempt.
+
+### Configure retry
+
+1. Open your prompt in the playground.
+2. Click the model settings in the prompt configuration panel.
+3. Open **Retry**.
+4. Set **Max retries**.
+5. Set **Delay ms** if you want Agenta to wait between attempts.
+
+**Max retries** is the number of extra attempts for the same model. If you set it to `1`, Agenta can try the model twice in total.
+
+**Delay ms** is the wait time between retry attempts. For example, `500` means Agenta waits half a second before trying again.
+
+## How retry and fallback work together
+
+Retry and fallback are separate settings.
+
+Agenta first retries the current model. If the model still fails, Agenta checks the fallback policy. If the policy allows the error, Agenta moves to the next fallback model and applies the same retry settings there.
+
+This means you can:
+
+- Use retry without fallback models.
+- Use fallback models with no extra retries.
+- Use both together for stronger reliability.
+
+For production prompts, start with one fallback model and a small retry count. Then test the result in the playground before you deploy it.

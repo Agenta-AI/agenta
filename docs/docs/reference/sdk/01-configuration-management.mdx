@@ -296,6 +296,12 @@ All configuration data must be nested under the `prompt` key.
 | prompt.llm_config.response_format.json_schema.strict | boolean or null | Enable strict schema adherence |
 | prompt.llm_config.stream | boolean or null | Enable partial message streaming |
 | prompt.llm_config.tools | array or null | List of available tools (currently only functions supported) |
+| prompt.fallback_llm_configs | array or null | Ordered backup model configurations |
+| prompt.fallback_llm_configs[].model | string | Required model identifier for each fallback model |
+| prompt.retry_policy | object or null | Retry settings applied to each attempted model |
+| prompt.retry_policy.max_retries | integer | Number of extra attempts after the first failed attempt |
+| prompt.retry_policy.delay_ms | integer | Wait time between retry attempts, in milliseconds |
+| prompt.fallback_policy | string or null | Error policy for moving to a fallback model. Options: `off`, `availability`, `capacity`, `access`, or `any` |
 
 ### Example Prompt Configuration
 
@@ -320,6 +326,17 @@ All configuration data must be nested under the `prompt` key.
       "frequency_penalty": 0.0,
       "presence_penalty": 0.0
     },
+    "fallback_llm_configs": [
+      {
+        "model": "anthropic/claude-3-5-haiku-latest",
+        "temperature": 0.7
+      }
+    ],
+    "retry_policy": {
+      "max_retries": 1,
+      "delay_ms": 500
+    },
+    "fallback_policy": "capacity",
     "template_format": "curly"
   }
 }

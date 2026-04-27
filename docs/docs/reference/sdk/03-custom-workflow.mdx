@@ -59,13 +59,23 @@ def generate_text(input_text: str) -> str:
 #### Syntax
 
 ```python
-from agenta.sdk.types import PromptTemplate, Message, ModelConfig
+from agenta.sdk.types import (
+    FallbackModelConfig,
+    FallbackPolicy,
+    Message,
+    ModelConfig,
+    PromptTemplate,
+    RetryPolicy,
+)
 
 PromptTemplate(
     messages=[...],
     template_format="curly",
     input_keys=["var1", "var2"],
-    llm_config=ModelConfig(...)
+    llm_config=ModelConfig(...),
+    fallback_llm_configs=[FallbackModelConfig(model="...")],
+    retry_policy=RetryPolicy(max_retries=1, delay_ms=500),
+    fallback_policy=FallbackPolicy.CAPACITY,
 )
 ```
 
@@ -75,6 +85,9 @@ PromptTemplate(
 - `template_format` (str): Variable syntax. Use `"curly"` for `{{variable}}` syntax
 - `input_keys` (List[str]): Variables expected in the template
 - `llm_config` (ModelConfig): Model and parameter settings
+- `fallback_llm_configs` (List[FallbackModelConfig]): Optional ordered backup model settings
+- `retry_policy` (RetryPolicy): Optional retry settings for each attempted model
+- `fallback_policy` (FallbackPolicy): Optional policy for when Agenta can move to a fallback model
 
 #### Example
 
