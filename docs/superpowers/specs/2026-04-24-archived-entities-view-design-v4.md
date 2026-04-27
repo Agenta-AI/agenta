@@ -2,7 +2,7 @@
 
 **Status:** Draft — supersedes v1, v2, v3
 **Date:** 2026-04-24
-**Scope:** Frontend, plus a small backend prerequisite (see Backend Dependency).
+**Scope:** Frontend. No backend updates are required for the current implementation path.
 
 ## Problem
 
@@ -31,7 +31,7 @@ Ship a per-entity archived-list page for the three top-level git-based artifacts
 - No new modal/drawer UX. Archive is a full route.
 - No extension of `EntityModalAdapter`. Archive is not a modal concept.
 - No bulk restore, no permanent delete, no changes to the existing archive action.
-- No migration of existing callers (e.g., `Evaluators/index.tsx`, `DeleteAppModal`) off the standalone `archiveWorkflow`/`archiveTestsets` functions onto the new molecule actions. The new molecule actions are additive.
+- No migration of existing callers (e.g., `Evaluators/index.tsx`, `DeleteAppModal`) off the standalone `archiveWorkflow`/`archiveTestsets` functions. Molecule consolidation is a later cleanup, not part of this slice.
 
 ## Summary of changes from v3
 
@@ -43,23 +43,12 @@ v3 introduced a dedicated `@agenta/entity-ui/archived` module with a new `Archiv
 | Table component | New `ArchivedEntityPage` | Existing `InfiniteVirtualTableFeatureShell` + `useTableManager` |
 | Columns | New `columns.tsx` with archived-specific renderers | **Extend existing column factories** with a `mode: "active" \| "archived"` param |
 | Layout | Built into `ArchivedEntityPage` | **New small OSS `ArchivedEntityLayout`** (back + title + subtitle + `children`) |
-| Archive/unarchive | Standalone `archiveWorkflow(...)` functions called from archive page | **Promoted to molecule actions** on `workflowMolecule` and `testsetMolecule` |
-| Client-side `deleted_at` filter | Documented in spec | **Removed** — relies on backend support |
-| Backend dependency | None | **New `archived_only: true` flag on `POST /query`** (see Backend Dependency) |
+| Archive/unarchive | Standalone `archiveWorkflow(...)` functions called from archive page | **Keep standalone APIs for this slice**; molecule consolidation is deferred |
+| Client-side `deleted_at` filter | Documented in spec | **Kept** — use existing `include_archived: true` and filter archived rows client-side |
+| Backend dependency | None | **None** — existing `include_archived` query flags and unarchive routes are enough |
 
 The data-fetching strategy (one sibling `createPaginatedEntityStore` per entity, colocated with the live store) is the same as v3 and confirmed safe after auditing consumers of each live store.
 
-## Backend Dependency
-
-v4 assumes the backend can return archived-only rows. This is the one non-frontend prerequisite and must be confirmed before implementation starts.
-
-**Contract shape:** add a new boolean `archived_only: true` alongside `include_archived` on the `POST /query` endpoints for workflows and testsets. When true, the endpoint returns rows where `deleted_at IS NOT NULL`.
-
-We cannot overload `include_archived: true` to mean archived-only. Existing frontend callers already use `include_archived: true` to **broaden** results (live + archived together) — see `web/oss/src/components/EvalRunDetails/atoms/query.ts:391` and `web/oss/src/components/EvalRunDetails/components/CompareRunsMenu.tsx:567`. Changing that semantics silently would break those surfaces.
-
-The sibling stores in this spec pass `archivedOnly: true` (wire name aligns with backend). The frontend does no client-side `deleted_at` filtering.
-
-**Blocker:** if backend hasn't shipped the `archived_only` flag at frontend implementation time, the archive pages cannot ship — they would otherwise render live + archived mixed, which is an unacceptable UX. The implementation plan opens with verifying the backend contract and does not start the frontend slice until it is confirmed.
 
 ## Why sibling stores are safe (audit summary)
 
@@ -79,15 +68,17 @@ web/oss/src/components/ArchivedEntityLayout/              ← NEW (shared OSS la
 └── types.ts
 
 web/oss/src/components/pages/app-management/
-├── store/archivedAppWorkflowStore.ts                     ← NEW sibling store
+├── store/appWorkflowStore.ts                             ← active + archived sibling stores + getAppWorkflowTableState(mode)
+├── components/ApplicationManagementSection.tsx           ← mode="active" | "archived"
 └── ArchivedAppsPage.tsx                                  ← NEW
 
 web/oss/src/components/Evaluators/
-├── store/archivedEvaluatorsStore.ts                      ← NEW sibling store
+├── store/evaluatorsPaginatedStore.ts                     ← active + archived sibling stores + getEvaluatorsTableState(mode)
+├── Table/EvaluatorsTable.tsx                             ← mode="active" | "archived"
 └── ArchivedEvaluatorsPage.tsx                            ← NEW
 
 web/oss/src/state/entities/testset/
-└── archivedPaginatedStore.ts                             ← NEW sibling store
+└── paginatedStore.ts                                     ← active + archived sibling stores + getTestsetTableState(mode)
 web/oss/src/components/pages/testset/
 └── ArchivedTestsetsPage.tsx                              ← NEW
 
@@ -97,78 +88,35 @@ web/oss/src/pages/w/[workspace_id]/p/[project_id]/testsets/archived/index.tsx   
 
 + "Archived" button in each live table's primaryActions
 + Column factory mode extensions (see Column Factories)
-+ Molecule action additions (see Molecule Extensions)
++ Existing standalone archive/unarchive API wrappers and existing cache invalidation helpers
 ```
 
 ## Sibling Paginated Store
 
-Each archived store is a second `createPaginatedEntityStore(...)` call that lives next to its live sibling. It shares nothing with the live store except the underlying API function.
+Each archived store is still a second `createPaginatedEntityStore(...)` call, but the implementation keeps it colocated inside the existing store module instead of creating a separate `archived*.ts` file.
+
+Current pattern:
+
+- Apps: `appWorkflowStore.ts` exports `getAppWorkflowTableState(mode)` and keeps `archivedAppWorkflowPaginatedStore` private.
+- Evaluators: `evaluatorsPaginatedStore.ts` exports `getEvaluatorsTableState(mode)` and keeps `archivedEvaluatorsPaginatedStore` private.
+- Testsets: `paginatedStore.ts` exports `getTestsetTableState(mode)` and keeps `archivedTestsetPaginatedStore` private.
+
+The archived stores fetch with `includeArchived: true` and filter `deleted_at` client-side:
 
 ```ts
-// web/oss/src/components/pages/app-management/store/archivedAppWorkflowStore.ts
-import {createPaginatedEntityStore} from "@agenta/entities/shared"
-import {queryWorkflows} from "@agenta/entities/workflow"
-import type {Workflow} from "@agenta/entities/workflow"
-import {projectIdAtom} from "@agenta/shared/state"
-import {atom} from "jotai"
-
-import type {AppWorkflowRow} from "./appWorkflowStore"
-
-export const archivedAppWorkflowSearchTermAtom = atom<string>("")
-
-interface ArchivedAppWorkflowQueryMeta {
-    projectId: string | null
-    searchTerm?: string
-}
-
-const archivedAppWorkflowMetaAtom = atom<ArchivedAppWorkflowQueryMeta>((get) => ({
-    projectId: get(projectIdAtom),
-    searchTerm: get(archivedAppWorkflowSearchTermAtom).trim() || undefined,
-}))
-
-export const archivedAppWorkflowPaginatedStore = createPaginatedEntityStore<
-    AppWorkflowRow,
-    Workflow,
-    ArchivedAppWorkflowQueryMeta
->({
-    entityName: "archivedAppWorkflow",
-    metaAtom: archivedAppWorkflowMetaAtom,
-    fetchPage: async ({meta, limit, cursor}) => {
-        if (!meta.projectId) {
-            return {rows: [], totalCount: null, hasMore: false, nextCursor: null, nextOffset: null, nextWindowing: null}
-        }
-        const response = await queryWorkflows({
-            projectId: meta.projectId,
-            name: meta.searchTerm,
-            flags: {is_evaluator: false},
-            archivedOnly: true,
-            windowing: {limit, order: "descending", next: cursor ?? undefined},
-        })
-        return {
-            rows: response.workflows,
-            totalCount: response.count ?? null,
-            hasMore: !!response.windowing?.next,
-            nextCursor: response.windowing?.next ?? null,
-            nextOffset: null,
-            nextWindowing: null,
-        }
-    },
-    rowConfig: {getRowId: (row) => row.id},
-    transformRow: (apiRow): AppWorkflowRow => ({
-        key: apiRow.id,
-        workflowId: apiRow.id,
-        name: apiRow.name ?? apiRow.slug ?? apiRow.id,
-        appType: "",
-        updatedAt: apiRow.updated_at ?? apiRow.created_at ?? null,
-        createdAt: apiRow.created_at ?? null,
-        deletedAt: apiRow.deleted_at ?? null,
-        deletedById: apiRow.deleted_by_id ?? null,
-    }),
-    isEnabled: (meta) => Boolean(meta?.projectId),
+const response = await queryWorkflows({
+    projectId,
+    name: searchTerm,
+    flags: {is_evaluator: false},
+    includeArchived: true,
 })
+
+const archivedRows = response.workflows.filter((workflow) => Boolean(workflow.deleted_at))
 ```
 
-Evaluators and testsets have the same shape — the only variation is the query function wrapped (`queryWorkflows` with `is_evaluator: true` for evaluators; testset query for testsets) and the row transform.
+For testsets, the archived store walks all available `include_archived` pages with a larger page size, filters archived rows, sorts by `deleted_at`, and then slices locally for the table page. Apps and evaluators currently fetch the matching workflow list, filter archived rows, sort where needed, and slice locally.
+
+This is intentionally frontend-only. If the backend later adds archived-only query support, these private archived stores are the single place to swap from client filtering to server filtering.
 
 ### Row type additions
 
@@ -179,7 +127,7 @@ deletedAt?: string | null
 deletedById?: string | null
 ```
 
-The live store's `transformRow` leaves them undefined. The archived store's `transformRow` populates them from the API response. The archived-only columns that read these fields are only rendered in archived mode, so they're invisible on live pages.
+The archived store's transform/fetch path populates these fields from `deleted_at` / `deleted_by_id`. The archived-only columns that read these fields are only rendered in archived mode, so they're invisible on live pages.
 
 ## Column Factories
 
@@ -239,48 +187,17 @@ export function createAppWorkflowColumns(
 
 **"Archived by" resolution:** reuses the existing `@agenta/entities/shared/user` atom family — same atom already used by `created_by_id` cells elsewhere. Fallback for removed users is whatever that family already returns ("Former member" or equivalent; to verify during implementation).
 
-## Molecule Extensions
+## Restore APIs And Invalidation
 
-Two molecules gain two actions each. Actions are **additive** — existing callers of the standalone functions continue working. Each action wraps the existing API function and invalidates the **package-level** list caches. OSS-layer store invalidation is the calling page's responsibility (two lines after `await`), to keep molecules free of cross-package imports.
+The current implementation keeps restore/archive calls on existing standalone APIs instead of adding molecule actions in this slice.
 
-### `workflowMolecule` (apps + evaluators share this)
+Current top-level restore paths:
 
-File: `web/packages/agenta-entities/src/workflow/state/molecule.ts`
+- Apps: `unarchiveWorkflow(projectId, workflowId)` followed by `invalidateWorkflowsListCache()`, `mutateApps()`, and `invalidateAppManagementWorkflowQueries()`.
+- Evaluators: `unarchiveWorkflow(projectId, workflowId)` followed by `invalidateWorkflowsListCache()` and `invalidateEvaluatorsListCache()`. The evaluator paginated store also listens to `onEvaluatorMutation`.
+- Testsets: `unarchiveTestset(testsetId)` followed by `invalidateTestsetsListCache()` and `invalidateTestsetManagementQueries()`.
 
-```ts
-archive(workflowId: string): Promise<void>
-    // wraps archiveWorkflow(projectId, workflowId)
-    // then: invalidateWorkflowsListCache() + invalidateEvaluatorsListCache()
-    // invalidateEvaluatorsListCache already fires onEvaluatorMutation listeners
-
-unarchive(workflowId: string): Promise<void>
-    // mirrors archive
-```
-
-Evaluator pages already ride `onEvaluatorMutation` (existing, unchanged). App pages call `invalidateAppManagementWorkflowQueries()` themselves after awaiting the molecule — same pattern the archive page uses (see Archive Pages). No new listener registry.
-
-### `testsetMolecule`
-
-File: `web/packages/agenta-entities/src/testset/state/testsetMolecule.ts`
-
-```ts
-archive(testsetId: string): Promise<void>
-    // wraps archiveTestsets({projectId, testsetIds: [testsetId]})
-    // then: invalidateTestsetsListCache()
-
-unarchive(testsetId: string): Promise<void>
-    // wraps a new unarchiveTestsets API call
-    // then: invalidateTestsetsListCache()
-```
-
-A new `unarchiveTestsets` function is added to `web/packages/agenta-entities/src/testset/api/mutations.ts` to match the existing `archiveTestsets` shape.
-
-`invalidateTestsetsListCache` alone does **not** refresh `TestsetsTable` — that reads from `testset.paginated.store` (`TestsetsTable.tsx:358`), which lives in OSS. The live testset page and the archived testset page each call `testset.paginated.store.invalidate()` and their archived sibling's `invalidate()` respectively, after awaiting the molecule. Same two-lines-after-`await` pattern as apps.
-
-**Why molecule actions over the standalone functions:**
-- Centralizes API wrapping + package-level cache invalidation.
-- Future callers (entity row menus, bulk actions) go through a single typed surface.
-- Matches the user's direction: "it can come from the molecule."
+Current archive paths also continue to use the existing standalone archive helpers and modals. Molecule-level `archive` / `unarchive` actions remain a consolidation follow-up, not a prerequisite.
 
 ## `ArchivedEntityLayout`
 
@@ -321,72 +238,32 @@ export function ArchivedEntityLayout({title, subtitle, onBack, children}: Archiv
 
 ## Archive Pages (apps example)
 
-Each archive page is a thin composition: layout + existing table infrastructure + sibling store + column factory (archived mode) + molecule action.
+Each archive page is a thin composition: `ArchivedEntityLayout` + the existing live section/table component in archived mode. The restore action stays inside the reused component.
 
 ```tsx
 // web/oss/src/components/pages/app-management/ArchivedAppsPage.tsx
 export default function ArchivedAppsPage() {
     const router = useRouter()
     const {baseAppURL} = useURL()
-    const unarchive = useSetAtom(workflowMolecule.actions.unarchive)
-
-    const handleRowClick = useCallback(
-        (record: AppWorkflowRow) => router.push(`${baseAppURL}/${record.workflowId}/overview`),
-        [router, baseAppURL],
-    )
-
-    const actions = useMemo<AppWorkflowColumnActions>(
-        () => ({
-            onOpen: handleRowClick,
-            onOpenPlayground: () => {},
-            onDelete: () => {},
-            onRestore: async (record) => {
-                try {
-                    await unarchive(record.workflowId)
-                    archivedAppWorkflowPaginatedStore.invalidate()
-                    await invalidateAppManagementWorkflowQueries()
-                    message.success("App restored")
-                } catch (e) {
-                    message.error(extractApiErrorMessage(e))
-                }
-            },
-        }),
-        [handleRowClick, unarchive],
-    )
-
-    const columns = useMemo(
-        () => createAppWorkflowColumns(actions, {mode: "archived"}),
-        [actions],
-    )
-
-    const table = useTableManager<AppWorkflowRow>({
-        datasetStore: archivedAppWorkflowPaginatedStore.store as never,
-        scopeId: "archived-app-workflows",
-        pageSize: 50,
-        onRowClick: handleRowClick,
-        columnVisibilityStorageKey: "agenta:archived-apps:column-visibility",
-        rowClassName: "cursor-pointer",
-        search: {atom: archivedAppWorkflowSearchTermAtom, className: "w-full max-w-[400px]"},
-        exportFilename: "archived-apps.csv",
-    })
 
     return (
         <ArchivedEntityLayout
-            title="Archived apps"
-            subtitle="Archived apps are hidden from your workspace but keep all prompts, evaluations, and traces. Restore any time."
+            title="Archived Apps"
+            subtitle="Archived apps are hidden from your workspace but can be restored at any time."
             onBack={() => router.push(baseAppURL)}
         >
-            <InfiniteVirtualTableFeatureShell<AppWorkflowRow>
-                {...table.shellProps}
-                columns={columns}
-                enableExport
-            />
+            <ApplicationManagementSection mode="archived" />
         </ArchivedEntityLayout>
     )
 }
 ```
 
-Evaluators and testsets follow the same shape. Testsets retains its tree expansion for revisions — the shell's `expandable` wiring is unchanged.
+Evaluators and testsets follow the same shape:
+
+- `ArchivedEvaluatorsPage` renders `EvaluatorsRegistry mode="archived"`.
+- `ArchivedTestsetsPage` renders `TestsetsTable tableMode="archived"`.
+- `ApplicationManagementSection`, `EvaluatorsTable`, and `TestsetsTable` choose their active or archived store via `get*TableState(mode)`.
+- Testsets retains tree expansion for revisions. Archive-specific actions hide active-only clone/rename/archive/export-per-row controls and expose restore.
 
 ### Thin Next.js re-exports
 
@@ -440,18 +317,18 @@ If product later wants "export the entire archived set regardless of load state,
 
 - **Unit**
   - Each column factory with `mode: "archived"` produces the expected column order and action items. `mode: "active"` matches the pre-change output exactly (regression guard).
-  - Each sibling store's `fetchPage` sends `archivedOnly: true` and threads `searchTerm` / `projectId` through correctly.
-  - Molecule `archive` / `unarchive` actions call the API wrapper and invalidate package-level list caches (`invalidateWorkflowsListCache`, `invalidateEvaluatorsListCache`, `invalidateTestsetsListCache`).
+  - Each sibling store's `fetchPage` sends `includeArchived: true` / `include_archived: true`, filters `deleted_at`, and threads `searchTerm` / `projectId` through correctly.
+  - Restore handlers call the existing unarchive API wrapper and invalidate package-level plus OSS table caches.
 
 - **Integration (per entity)**
-  - Restore via molecule action calls the correct unarchive endpoint.
+  - Restore calls the correct unarchive endpoint.
   - Restore invalidates both sibling store and live-list cache.
   - Row click navigates to the correct details href.
 
 - **Manual QA checklist (per entity)**
   1. Live table shows "Archived" button next to "Create new" → click lands on `/{entity}/archived`.
   2. Archive something from live → disappears from live, appears in archived.
-  3. Search in archived list → server-side filter matches.
+  3. Search in archived list → search query applies and client-side archived filtering still returns only archived rows.
   4. Export CSV from archived list → downloads currently loaded rows.
   5. Click an archived row → existing details page loads without crash.
   6. Click "Restore" → row disappears from archived, reappears in live.
@@ -465,23 +342,24 @@ No new test infrastructure. Follow existing frontend test patterns.
 Additive feature. No migrations. No feature flag (read + single-row restore only; no new destructive action).
 
 **Implementation order:**
-1. Confirm / land backend `archived_only: true` flag on workflow + testset query endpoints.
-2. Molecule actions: `workflowMolecule.archive/unarchive`, `testsetMolecule.archive/unarchive`, plus new `unarchiveTestsets` API wrapper.
-3. Column factory `mode` extensions + row-type additions (`deletedAt`, `deletedById`).
-4. `ArchivedEntityLayout` component.
-5. Per-entity slice (each independently shippable):
+1. Confirm existing `include_archived` and unarchive routes are available for the target entity. No backend changes.
+2. Add or reuse standalone frontend API wrapper for restore when missing.
+3. Add archived sibling store inside the existing store module, plus a `get*TableState(mode)` selector.
+4. Add column factory `mode` extensions + row-type additions (`deletedAt`, `deletedById`).
+5. Add `ArchivedEntityLayout` component.
+6. Per-entity slice (each independently shippable):
    - Apps: sibling store → archive page → access button → QA.
    - Evaluators: same sequence.
-   - Testsets: column extraction (separate commit) → sibling store → archive page → access button → QA.
-6. Pre-ship details-page verification for all three.
+   - Testsets: table mode wiring → sibling store → archive page → access button → QA.
+7. Pre-ship details-page verification for all three.
 
 ## Known Risks
 
-1. **Backend prerequisite.** v4 cannot ship until the backend adds `archived_only: true` to the workflow + testset query endpoints. If the flag isn't shipped at frontend start, the archive page would show live + archived mixed — unacceptable. *Mitigation:* step 1 of the rollout is confirming / landing the flag. Frontend work does not start until it is confirmed.
+1. **Client-filtered pagination/counts.** Without archived-only backend queries, the archive stores must fetch active + archived rows and filter client-side. This can make exact counts expensive and can require walking multiple backend pages before enough archived rows are collected. *Mitigation:* keep archived stores private, use local slicing/counting, use `totalCountMode: "unknown"` where exact totals are not reliable, and treat server-side archived-only filtering as a future optimization.
 
-2. **Testset column extraction.** Moving ≈ 200 lines of inline columns out of `TestsetsTable.tsx` into an exported factory touches a dense file. *Mitigation:* pure move, no logic change; lives in its own commit; regression test is "the live testsets page looks identical after the extraction."
+2. **Testset table duplication.** `createTestsetsColumns.tsx` exists, but `TestsetsTable.tsx` still carries substantial inline column/action logic for active and archived modes. *Mitigation:* keep archive fixes scoped; a later cleanup can consolidate onto the factory once behavior is stable.
 
-3. **Molecule-action migration debt.** v4 adds `archive`/`unarchive` to molecules but does not migrate existing callers (which continue to use standalone functions). This is intentional scope control but creates two ways to do the same thing temporarily. *Mitigation:* tracked as a follow-up; not a shipping blocker.
+3. **Standalone restore calls remain duplicated.** This slice keeps existing standalone API helpers instead of centralizing restore/archive in molecules. *Mitigation:* tracked as a follow-up; not a shipping blocker.
 
 ## Open Questions
 
@@ -493,6 +371,6 @@ Additive feature. No migrations. No feature flag (read + single-row restore only
 - Bulk restore from the archived list.
 - Permanent delete (needs new backend endpoint + confirmation UX).
 - "Export all archived rows" (fetch-all or server-side export).
-- Archived revisions / variants inline in version history.
+- Full registry archive management beyond the frontend-only variants/revisions page.
 - Environments and Queries archived views.
-- Migrate existing standalone `archiveWorkflow` / `unarchiveWorkflow` / `archiveTestsets` callers onto the new molecule actions (consolidation).
+- Migrate existing standalone `archiveWorkflow` / `unarchiveWorkflow` / `archiveTestsets` callers onto molecule actions (consolidation).
