@@ -572,22 +572,25 @@ const TestsetsTable = ({
         [actions.handleCreate],
     )
 
-    const primaryActions = useMemo(() => {
+    const archiveButton = useMemo(() => {
         if (!isManageMode || isArchivedView) return undefined
 
         return (
-            <Space>
-                <Button
-                    type="text"
-                    icon={<ArchiveIcon size={14} />}
-                    onClick={() => router.push(`${projectURL}/testsets/archived`)}
-                >
-                    Archived
-                </Button>
-                {createButton}
-            </Space>
+            <Button
+                type="text"
+                icon={<ArchiveIcon size={14} />}
+                onClick={() => router.push(`${projectURL}/testsets/archived`)}
+            >
+                Archived
+            </Button>
         )
-    }, [createButton, isArchivedView, isManageMode, projectURL, router])
+    }, [isArchivedView, isManageMode, projectURL, router])
+
+    const primaryActions = useMemo(() => {
+        if (!isManageMode || isArchivedView) return undefined
+
+        return createButton
+    }, [createButton, isArchivedView, isManageMode])
 
     // Smart export button with dropdown - remembers last used format
     const renderExportButton = useCallback(
@@ -689,6 +692,7 @@ const TestsetsTable = ({
                 title={undefined}
                 filters={filtersNode}
                 primaryActions={primaryActions}
+                secondaryActions={archiveButton}
                 rowSelection={rowSelection}
                 deleteAction={undefined}
                 enableExport={isArchivedView ? true : isManageMode && canExportData}

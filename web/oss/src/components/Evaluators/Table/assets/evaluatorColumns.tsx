@@ -617,6 +617,9 @@ export function createEvaluatorColumns(
                         },
                     ],
             getRecordId: (record: EvaluatorTableRow) => record.revisionId,
+            showCopySlug: true,
+            getSlug: (record: EvaluatorTableRow) =>
+                workflowMolecule.get.data(record.workflowId)?.slug ?? undefined,
         },
     ])
 

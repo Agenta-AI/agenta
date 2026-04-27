@@ -17,7 +17,7 @@ Feature: Observability Traces
     Given the user is authenticated
     And at least one trace exists from a prior playground run
 
-  @smoke @happy
+  @smoke @happy @scope:observability @speed:slow
   Scenario: View traces and open trace detail drawer
     Given the user is on the Observability page
     When the user opens the traces table

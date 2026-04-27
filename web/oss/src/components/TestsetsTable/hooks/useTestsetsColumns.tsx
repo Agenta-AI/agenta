@@ -114,6 +114,19 @@ export const useTestsetsColumns = ({
                                             copyToClipboard(record._id)
                                         },
                                     },
+                                    ...(record.slug
+                                        ? [
+                                              {
+                                                  key: "copy-slug",
+                                                  label: "Copy Slug",
+                                                  icon: <Copy size={16} />,
+                                                  onClick: (e: any) => {
+                                                      e.domEvent.stopPropagation()
+                                                      copyToClipboard(record.slug!)
+                                                  },
+                                              },
+                                          ]
+                                        : []),
                                     {type: "divider"},
                                     {
                                         key: "rename",
