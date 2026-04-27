@@ -88,26 +88,34 @@ const skeletonDefaults: Partial<EvaluatorTableRow> = {
 }
 
 // ============================================================================
-// WORKFLOW ID CACHE
+// EVALUATOR WORKFLOW CACHE
 // ============================================================================
 
 /**
- * Lightweight cache of workflow IDs per category+project.
- * Used only to know which workflow IDs to pass to the revisions query.
+ * Lightweight cache of evaluator workflows per mode+category+project.
+ * Active lists use the workflow IDs to page revisions server-side.
+ * Archived lists use the richer entries because deleted metadata lives on the
+ * workflow row, not on the latest revision row.
  *
  * Workflow entities are seeded into workflowMolecule by their ID so that
  * group parent rows (which look up by workflowId) can read name/slug without
  * triggering individual revision fetches.
  *
- * Category classification (auto vs human) is derived from the latest revision's
+ * Category classification (automatic vs human) is derived from the latest revision's
  * URI/flags — workflow-level flags only have is_evaluator, not is_feedback.
  */
-interface WorkflowIdCache {
-    key: string // `${projectId}:${category}:${searchTerm}`
-    workflowIds: string[]
+interface EvaluatorWorkflowCacheEntry {
+    workflow: Workflow
+    latestRevision: Workflow | null
 }
 
-let _workflowIdCache: WorkflowIdCache | null = null
+interface EvaluatorWorkflowCache {
+    key: string // `${projectId}:${category}:${mode}:${searchTerm}`
+    workflowIds: string[]
+    entries: EvaluatorWorkflowCacheEntry[]
+}
+
+let _evaluatorWorkflowCache = new Map<string, EvaluatorWorkflowCache>()
 
 /**
  * Determine if a workflow revision represents a "human" evaluator.
@@ -122,22 +130,32 @@ function isHumanEvaluator(revision: Workflow | null | undefined): boolean {
     return Boolean(revision.flags?.is_feedback)
 }
 
-async function ensureWorkflowIdCache(
-    projectId: string,
-    category: EvaluatorCategory,
-    searchTerm?: string,
-): Promise<WorkflowIdCache> {
-    const cacheKey = `${projectId}:${category}:${searchTerm ?? ""}`
-    if (_workflowIdCache?.key === cacheKey) {
-        return _workflowIdCache
+async function ensureEvaluatorWorkflowCache({
+    projectId,
+    category,
+    searchTerm,
+    mode,
+}: {
+    projectId: string
+    category: EvaluatorCategory
+    searchTerm?: string
+    mode: EvaluatorsTableMode
+}): Promise<EvaluatorWorkflowCache> {
+    const cacheKey = `${projectId}:${category}:${mode}:${searchTerm ?? ""}`
+    const cached = _evaluatorWorkflowCache.get(cacheKey)
+    if (cached) {
+        return cached
     }
 
     const workflowsResponse = await queryWorkflows({
         projectId,
         flags: {is_evaluator: true as const},
         name: searchTerm || undefined,
+        includeArchived: mode === "archived",
     })
-    const workflows = (workflowsResponse.workflows ?? []).filter((w) => !w.deleted_at)
+    const workflows = (workflowsResponse.workflows ?? []).filter((workflow) =>
+        mode === "archived" ? Boolean(workflow.deleted_at) : !workflow.deleted_at,
+    )
 
     const allWorkflowIds = workflows.map((w) => w.id)
 
@@ -154,19 +172,34 @@ async function ensureWorkflowIdCache(
             ? await fetchWorkflowsBatch(projectId, allWorkflowIds)
             : new Map<string, Workflow>()
 
-    const workflowIds = allWorkflowIds.filter((id) => {
-        const revision = latestRevisions.get(id)
+    const entries = workflows.flatMap((workflow) => {
+        const revision = latestRevisions.get(workflow.id) ?? null
+
+        if (revision) {
+            workflowMolecule.set.seedEntity(revision.id, revision)
+        }
+
         const isHuman = isHumanEvaluator(revision)
-        return category === "human" ? isHuman : !isHuman
+        if (category === "human" ? !isHuman : isHuman) {
+            return [] as EvaluatorWorkflowCacheEntry[]
+        }
+
+        return [{workflow, latestRevision: revision}]
     })
 
-    _workflowIdCache = {key: cacheKey, workflowIds}
-    return _workflowIdCache
+    const cache = {
+        key: cacheKey,
+        workflowIds: entries.map((entry) => entry.workflow.id),
+        entries,
+    }
+
+    _evaluatorWorkflowCache.set(cacheKey, cache)
+    return cache
 }
 
 /** Clear caches so the next fetch re-queries the API. */
 export const clearEvaluatorWorkflowCache = () => {
-    _workflowIdCache = null
+    _evaluatorWorkflowCache.clear()
     // Also remove TanStack Query entries so the paginated store
     // re-fetches from the API instead of returning cached data.
     queryClient.removeQueries({queryKey: ["evaluator-paginated"], exact: false})
@@ -182,42 +215,19 @@ export function invalidateEvaluatorsPaginatedStore() {
     evaluatorsPaginatedStore.invalidate()
 }
 
-async function queryArchivedEvaluatorRows(meta: EvaluatorQueryMeta): Promise<EvaluatorTableRow[]> {
+async function buildArchivedEvaluatorRows(meta: EvaluatorQueryMeta): Promise<EvaluatorTableRow[]> {
     if (!meta.projectId) return []
 
-    const response = await queryWorkflows({
+    const cache = await ensureEvaluatorWorkflowCache({
         projectId: meta.projectId,
-        flags: {is_evaluator: true as const},
-        name: meta.searchTerm || undefined,
-        includeArchived: true,
+        category: meta.category,
+        searchTerm: meta.searchTerm,
+        mode: "archived",
     })
 
-    const archivedWorkflows = (response.workflows ?? []).filter((workflow) =>
-        Boolean(workflow.deleted_at),
-    )
-
-    for (const workflow of archivedWorkflows) {
-        workflowMolecule.set.seedEntity(workflow.id, workflow)
-    }
-
-    const latestRevisions =
-        archivedWorkflows.length > 0
-            ? await fetchWorkflowsBatch(
-                  meta.projectId,
-                  archivedWorkflows.map((workflow) => workflow.id),
-              )
-            : new Map<string, Workflow>()
-
-    const rows = archivedWorkflows.flatMap((workflow) => {
-        const revision = latestRevisions.get(workflow.id)
+    const rows = cache.entries.flatMap(({workflow, latestRevision}) => {
+        const revision = latestRevision
         if (!revision) return [] as EvaluatorTableRow[]
-
-        workflowMolecule.set.seedEntity(revision.id, revision)
-
-        const isHuman = isHumanEvaluator(revision)
-        if (meta.category === "human" ? !isHuman : isHuman) {
-            return [] as EvaluatorTableRow[]
-        }
 
         return [
             {
@@ -265,7 +275,12 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
             }
         }
 
-        const cache = await ensureWorkflowIdCache(meta.projectId, meta.category, meta.searchTerm)
+        const cache = await ensureEvaluatorWorkflowCache({
+            projectId: meta.projectId,
+            category: meta.category,
+            searchTerm: meta.searchTerm,
+            mode: "active",
+        })
 
         if (cache.workflowIds.length === 0) {
             return {
@@ -353,7 +368,7 @@ const archivedEvaluatorsPaginatedStore = createPaginatedEntityStore<
             }
         }
 
-        const archivedRows = await queryArchivedEvaluatorRows(meta)
+        const archivedRows = await buildArchivedEvaluatorRows(meta)
         const offset = cursor ? Number.parseInt(cursor, 10) || 0 : 0
         const rows = archivedRows.slice(offset, offset + limit)
         const nextOffset = offset + rows.length
