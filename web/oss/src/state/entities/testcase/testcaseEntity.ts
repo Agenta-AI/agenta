@@ -978,92 +978,9 @@ export const deleteColumnFromTestcasesAtom = atom(null, (get, set, columnKey: st
         const entity = get(testcaseEntityAtomFamily(id))
         if (!entity) continue
 
-        const record = entity as Record<string, unknown>
-
-        // Handle nested column keys (e.g., "inputs.code", "current_rfp.event")
-        if (columnKey.includes(".")) {
-            const parts = columnKey.split(".")
-            const rootKey = parts[0]
-
-            // Check if root exists
-            if (rootKey in record && record[rootKey] != null) {
-                let rootValue = record[rootKey]
-                let isJsonString = false
-
-                // Parse if it's a JSON string
-                if (typeof rootValue === "string") {
-                    try {
-                        const parsed = JSON.parse(rootValue)
-                        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-                            rootValue = parsed
-                            isJsonString = true
-                        }
-                    } catch {
-                        // Not valid JSON, skip this entity
-                        continue
-                    }
-                }
-
-                // Now rootValue should be an object
-                if (typeof rootValue === "object" && !Array.isArray(rootValue)) {
-                    // Clone to avoid mutation
-                    const clonedRoot = JSON.parse(JSON.stringify(rootValue))
-
-                    // Navigate to the parent of the property to delete
-                    let current: any = clonedRoot
-                    for (let i = 1; i < parts.length - 1; i++) {
-                        if (current && typeof current === "object" && parts[i] in current) {
-                            current = current[parts[i]]
-                        } else {
-                            current = null
-                            break
-                        }
-                    }
-
-                    // Delete the final property
-                    if (current && typeof current === "object") {
-                        const finalKey = parts[parts.length - 1]
-                        if (finalKey in current) {
-                            delete current[finalKey]
-
-                            // Check if the root object is now empty (no properties left)
-                            const hasRemainingProperties = Object.keys(clonedRoot).length > 0
-
-                            if (!hasRemainingProperties) {
-                                // Remove the entire parent key if empty
-                                updates.push({
-                                    id,
-                                    updates: {
-                                        [rootKey]: undefined,
-                                    } as Partial<FlattenedTestcase>,
-                                })
-                            } else {
-                                // Convert back to JSON string if needed
-                                const updatedValue = isJsonString
-                                    ? JSON.stringify(clonedRoot)
-                                    : clonedRoot
-
-                                updates.push({
-                                    id,
-                                    updates: {
-                                        [rootKey]: updatedValue,
-                                    } as Partial<FlattenedTestcase>,
-                                })
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            // Simple top-level column
-            if (columnKey in record) {
-                updates.push({
-                    id,
-                    updates: {
-                        [columnKey]: undefined,
-                    } as Partial<FlattenedTestcase>,
-                })
-            }
+        const deleteUpdates = buildDeleteUpdates(entity, columnKey)
+        if (deleteUpdates) {
+            updates.push({id, updates: deleteUpdates})
         }
     }
 
@@ -1089,15 +1006,9 @@ export const addColumnToTestcasesAtom = atom(
             const entity = get(testcaseEntityAtomFamily(id))
             if (!entity) continue
 
-            const record = entity as Record<string, unknown>
-            // Only add if column doesn't exist
-            if (!(columnKey in record)) {
-                updates.push({
-                    id,
-                    updates: {
-                        [columnKey]: defaultValue,
-                    } as Partial<FlattenedTestcase>,
-                })
+            const addUpdates = buildAddUpdates(entity, columnKey, defaultValue)
+            if (addUpdates) {
+                updates.push({id, updates: addUpdates})
             }
         }
 

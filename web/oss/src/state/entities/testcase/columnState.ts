@@ -670,8 +670,8 @@ export const renameColumnAtom = atom(
         if (!trimmedNewName) return false
         if (oldName === trimmedNewName) return true
 
-        // Check if new name already exists
-        const currentCols = get(currentColumnsAtom)
+        // Check expanded columns so object-derived leaf columns cannot overwrite siblings.
+        const currentCols = get(expandedColumnsAtom)
         if (currentCols.some((c) => c.key === trimmedNewName && c.key !== oldName)) return false
 
         // IMPORTANT: Rename in entities BEFORE adding pending rename

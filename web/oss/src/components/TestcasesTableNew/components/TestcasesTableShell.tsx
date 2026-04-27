@@ -213,20 +213,36 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                     ? trimmedName
                     : `${parentPath}.${trimmedName}`
 
-            // Get all columns that belong to this group
-            const columnsInGroup = table.columns
-                .filter((col) => col.key.startsWith(groupPath + "."))
-                .sort((left, right) => right.key.split(".").length - left.key.split(".").length)
+            const columnsInGroup = table.columns.filter((col) =>
+                col.key.startsWith(groupPath + "."),
+            )
 
             if (columnsInGroup.length === 0) return false
 
+            const renames = columnsInGroup.map((col) => {
+                const relativePath = col.key.substring(groupPath.length)
+                return {
+                    oldKey: col.key,
+                    newKey: `${targetGroupPath}${relativePath}`,
+                }
+            })
+
+            const targetKeys = new Set<string>()
+            for (const {newKey} of renames) {
+                if (targetKeys.has(newKey)) return false
+                targetKeys.add(newKey)
+            }
+
+            const sourceKeys = new Set(renames.map(({oldKey}) => oldKey))
+            const hasConflict = table.columns.some(
+                (col) => targetKeys.has(col.key) && !sourceKeys.has(col.key),
+            )
+            if (hasConflict) return false
+
             // Rename each nested column
             let allSucceeded = true
-            columnsInGroup.forEach((col) => {
-                // Replace the group prefix with the new group name
-                const relativePath = col.key.substring(groupPath.length)
-                const newColumnName = `${targetGroupPath}${relativePath}`
-                const success = table.renameColumn(col.key, newColumnName)
+            renames.forEach(({oldKey, newKey}) => {
+                const success = table.renameColumn(oldKey, newKey)
                 if (!success) allSucceeded = false
             })
 
