@@ -19,6 +19,14 @@ import {ConfigureProviderDrawerContentProps} from "./types"
 
 const {Text} = Typography
 
+/** Legacy API slug `mistralai`; canonical slug is {@link SecretDTOProvider.MISTRAL}. Kept on the enum for typing/API parity only. */
+const MISTRAL_LEGACY_PROVIDER_SLUG = SecretDTOProvider.MISTRALAI
+
+/** Maps legacy `mistralai` to canonical `mistral` for form + select state; all other slugs unchanged. */
+function mistralLegacySlugToCanonical(provider: string): string {
+    return provider === MISTRAL_LEGACY_PROVIDER_SLUG ? SecretDTOProvider.MISTRAL : provider
+}
+
 /**
  * Optional render metadata you can attach to each PROVIDER_FIELDS item.
  * Example:
@@ -116,7 +124,9 @@ const ConfigureProviderDrawerContent = ({
 
     // Build provider options for SelectLLMProviderBase
     const providerOptions = useMemo<ProviderGroup[]>(() => {
-        const allProviders = [...new Set([...standardProviders, ...customProviders])]
+        // MistralAI (legacy slug) is not shown in the UI, it's mapped to Mistral 
+        const standardForUi = standardProviders.filter((p) => p !== MISTRAL_LEGACY_PROVIDER_SLUG)
+        const allProviders = [...new Set([...standardForUi, ...customProviders])]
         return allProviders.map((key) => {
             const label = PROVIDER_LABELS[key] ?? capitalize(key)
             return {
@@ -143,9 +153,14 @@ const ConfigureProviderDrawerContent = ({
 
     useEffect(() => {
         if (selectedProvider) {
+
+            const rawProvider = selectedProvider.provider ?? ""
             form.setFieldsValue({
                 ...selectedProvider,
-                provider: selectedProvider.provider ?? "",
+                // Map legacy `mistralai` to canonical `mistral` for form + select state
+                provider: mistralLegacySlugToCanonical(
+                    typeof rawProvider === "string" ? rawProvider : String(rawProvider),
+                ),
             })
         } else {
             form.resetFields()
