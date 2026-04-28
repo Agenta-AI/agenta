@@ -2166,7 +2166,7 @@ async def _run_prompt_llm_config_with_retry(
                 dict(provider_settings),
                 llm_config=llm_config,
             )
-            openai_kwargs = formatted_prompt.to_openai_kwargs_for_llm_config(llm_config)
+            openai_kwargs = formatted_prompt.to_openai_kwargs(llm_config)
 
             if messages is not None:
                 openai_kwargs["messages"] = [*openai_kwargs["messages"], *messages]

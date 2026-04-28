@@ -944,12 +944,9 @@ class PromptTemplate(AgSchemaMixin):
             new_llm_config.response_format = rf_type(**substituted)
         return new_llm_config
 
-    def to_openai_kwargs(self) -> dict:
-        """Convert the prompt template to kwargs compatible with litellm/openai"""
-        return self.to_openai_kwargs_for_llm_config(self.llm_config)
-
-    def to_openai_kwargs_for_llm_config(self, llm_config: ModelConfig) -> dict:
-        """Convert the prompt template to kwargs for a specific LLM config."""
+    def to_openai_kwargs(self, llm_config: Optional[ModelConfig] = None) -> dict:
+        """Convert the prompt template to kwargs compatible with litellm/openai."""
+        llm_config = llm_config or self.llm_config
         kwargs = {
             "messages": [msg.model_dump(exclude_none=True) for msg in self.messages],
         }
