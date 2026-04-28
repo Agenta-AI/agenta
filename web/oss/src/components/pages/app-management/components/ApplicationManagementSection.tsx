@@ -1,8 +1,7 @@
 import {type SetStateAction, useCallback, useMemo} from "react"
 
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
-import {PlusOutlined} from "@ant-design/icons"
-import {Button, Typography} from "antd"
+import {Typography} from "antd"
 import {useSetAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -19,12 +18,12 @@ import {
 import type {AppWorkflowRow} from "../store"
 
 import {createAppWorkflowColumns, type AppWorkflowColumnActions} from "./appWorkflowColumns"
+import CreateAppDropdown from "./CreateAppDropdown"
 import EmptyAppView from "./EmptyAppView"
 
 interface ApplicationManagementSectionProps {
     selectedOrg: any
     setIsMaxAppModalOpen: (value: SetStateAction<boolean>) => void
-    setIsAddAppFromTemplatedModal: (value: SetStateAction<boolean>) => void
 }
 
 const {Title} = Typography
@@ -32,7 +31,6 @@ const {Title} = Typography
 const ApplicationManagementSection = ({
     selectedOrg,
     setIsMaxAppModalOpen,
-    setIsAddAppFromTemplatedModal,
 }: ApplicationManagementSectionProps) => {
     const router = useRouter()
     const {baseAppURL} = useURL()
@@ -78,18 +76,7 @@ const ApplicationManagementSection = ({
 
     const columns = useMemo(() => createAppWorkflowColumns(actions), [actions])
 
-    const primaryActionsNode = useMemo(
-        () => (
-            <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => setIsAddAppFromTemplatedModal(true)}
-            >
-                Create New Prompt
-            </Button>
-        ),
-        [setIsAddAppFromTemplatedModal],
-    )
+    const primaryActionsNode = useMemo(() => <CreateAppDropdown />, [])
 
     return (
         <div className="flex flex-col gap-2">
@@ -107,7 +94,7 @@ const ApplicationManagementSection = ({
                     paginatedTotalCount={filteredAppCount}
                 />
             ) : (
-                <EmptyAppView setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal} />
+                <EmptyAppView />
             )}
         </div>
     )
