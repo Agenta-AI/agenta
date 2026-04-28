@@ -3,9 +3,10 @@
 # Tags: @scope:deployment @coverage:smoke @coverage:light @coverage:full @path:happy
 #
 # Implementation notes:
-# - There is no /deployments sidebar link; deployment section is on the app Overview page
-# - Navigation: /apps -> Prompts sidebar -> search app -> click app -> scroll to Deployment section
-# - Variant data is fetched via direct API call (page.request.get) to avoid navigation issues
+# - Clicking an environment card on the overview page navigates to /variants?tab=deployments&selectedEnvName=<env>
+# - The DeploymentsDashboard on the variants page has a standalone "Deploy" button
+# - Clicking "Deploy" opens SelectDeployVariantModal: a table of variants with radio selection
+# - Selecting a variant row and clicking Deploy in the footer triggers the publish mutation
 
 Feature: Variant Deployment
   As a user
@@ -16,13 +17,12 @@ Feature: Variant Deployment
     Given the user is authenticated
     And at least one completion app with a variant exists
 
-  @smoke @happy
-  Scenario: Deploy a variant to development environment
+  @smoke @happy @scope:deployment @speed:slow
+  Scenario: Deploy a variant to the Development environment
     Given the user is on the app overview page
+    Then the three environment cards are visible
     When the user opens the Development deployment flow
-    Then the following environment cards should be visible:
-      | Environment  |
-      | Development  |
-      | Staging      |
-      | Production   |
-    And the deployment flow completes without leaving the overview context
+    And the user opens the deploy dialog
+    And the user selects a variant to deploy to Development
+    And the user confirms the deployment
+    Then the deployment to Development succeeds

@@ -1,6 +1,7 @@
 import {type ReactNode, useCallback, useMemo} from "react"
 
 import {extractAgData} from "@agenta/entities/trace"
+import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {DeleteOutlined} from "@ant-design/icons"
 import {Play, SidebarSimple} from "@phosphor-icons/react"
@@ -12,6 +13,7 @@ import dynamic from "next/dynamic"
 import AddToTestsetButton from "@/oss/components/SharedDrawers/AddToTestsetDrawer/components/AddToTestsetButton"
 import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
 import {openTraceInPlaygroundAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/openInPlayground"
+import {closeTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useAppNavigation} from "@/oss/state/appState"
 import {urlAtom} from "@/oss/state/url"
@@ -70,6 +72,8 @@ const TraceTypeHeader = ({
 }: TraceTypeHeaderProps) => {
     const setDeleteModalState = useSetAtom(deleteTraceModalAtom)
     const setOpenInPlayground = useSetAtom(openTraceInPlaygroundAtom)
+    const openWorkflowRevisionDrawer = useSetAtom(openWorkflowRevisionDrawerAtom)
+    const closeTraceDrawer = useSetAtom(closeTraceDrawerAtom)
     const url = useAtomValue(urlAtom)
     const navigation = useAppNavigation()
     const spanIds = useMemo(() => {
@@ -143,25 +147,48 @@ const TraceTypeHeader = ({
     const handleOpenInPlayground = useCallback(() => {
         if (!activeTrace) return
         const result = setOpenInPlayground(activeTrace)
-        if (url.projectURL && result?.entityId) {
-            if (result.appId) {
-                // Span with an app reference → app playground
-                const appPlaygroundBase = `${url.baseAppURL}/${result.appId}/playground`
-                const playgroundUrl =
-                    result.type === "revision"
-                        ? `${appPlaygroundBase}?revisions=${result.entityId}`
-                        : buildPlaygroundUrl([result.entityId], appPlaygroundBase)
-                navigation.push(playgroundUrl)
-            } else {
-                // No app reference → project playground as an ephemeral session
-                const playgroundUrl = buildPlaygroundUrl(
-                    [result.entityId],
-                    `${url.projectURL}/playground`,
-                )
-                navigation.push(playgroundUrl)
-            }
+        if (!result?.entityId) return
+
+        if (result.appId) {
+            // Span with an app reference → navigate to app playground.
+            // Close the trace drawer since we're leaving observability entirely.
+            closeTraceDrawer()
+            const appPlaygroundBase = `${url.baseAppURL}/${result.appId}/playground`
+            const playgroundUrl =
+                result.type === "revision"
+                    ? `${appPlaygroundBase}?revisions=${result.entityId}`
+                    : buildPlaygroundUrl([result.entityId], appPlaygroundBase)
+            navigation.push(playgroundUrl)
+            return
         }
-    }, [activeTrace, setOpenInPlayground, url.projectURL, url.baseAppURL, navigation])
+
+        // No app reference → open the playground in the workflow revision drawer
+        // overlaid on top of the trace drawer (which stays open behind so the
+        // user can still see the span they came from).
+        //
+        // We use "variant" context so the drawer renders DrawerAppPlayground
+        // (mode="app") with the ephemeral entity as the workflow under test —
+        // matching what the project-scoped /playground page did before this
+        // change. Even for evaluator spans, we want to replay the evaluator
+        // itself, NOT enter the evaluator-grading-an-app configuration flow
+        // that "evaluator-create" routes into.
+        //
+        // `expanded: true` opens the drawer in test mode (full playground
+        // with execution panel) instead of the collapsed config+metadata
+        // view — span replay is fundamentally a "run it and see" interaction.
+        openWorkflowRevisionDrawer({
+            entityId: result.entityId,
+            context: "variant",
+            expanded: true,
+        })
+    }, [
+        activeTrace,
+        setOpenInPlayground,
+        url.baseAppURL,
+        navigation,
+        openWorkflowRevisionDrawer,
+        closeTraceDrawer,
+    ])
 
     const displayTrace = activeTrace || traces?.[0]
 
