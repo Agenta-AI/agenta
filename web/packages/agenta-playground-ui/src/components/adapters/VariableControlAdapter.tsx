@@ -162,14 +162,37 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     const isJsonType = portType === "object" || portType === "array"
     const jsonDefault = portType === "array" ? "[]" : "{}"
 
-    // Detect whether the value looks like JSON. Derived directly from `value`
-    // (no intermediate useState + useEffect) so the mode is correct on the very
+    // Detect whether the value looks like JSON. Derived during render (no
+    // useState + useEffect indirection) so the mode is correct on the very
     // first render after a paste/edit — avoids a flicker where the content
-    // briefly appears in the wrong editor before the effect-driven sync kicks
-    // in. The EditorProvider downstream is keyed on this flag, so every flip
+    // briefly appears in the wrong editor before an effect-driven sync runs.
+    //
+    // Sticky during character-by-character edits: once detected as JSON, a
+    // single-keystroke change that transiently breaks the JSON shape (e.g.
+    // deleting the closing `}`) keeps the editor in JSON mode rather than
+    // remounting Lexical mid-edit. Bulk replacements (paste, Cmd+A+Delete,
+    // programmatic resets) skip stickiness because their length delta exceeds
+    // 1 — they re-detect freshly from the new value.
+    //
+    // The EditorProvider downstream is keyed on this flag, so every flip
     // triggers a clean Lexical remount (avoiding the MarkdownShortcuts
     // dependency crash that earlier blocked downgrades on the same instance).
-    const detectedAsJson = typeof value === "string" && !!value && isJsonString(value)
+    const valStr = typeof value === "string" ? value : ""
+    const prevValueRef = useRef<string>("")
+    const prevDetectedRef = useRef<boolean>(false)
+    let detectedAsJson: boolean
+    if (!valStr) {
+        detectedAsJson = false
+    } else if (isJsonString(valStr)) {
+        detectedAsJson = true
+    } else {
+        const isCharEdit = Math.abs(valStr.length - prevValueRef.current.length) <= 1
+        detectedAsJson = isCharEdit && prevDetectedRef.current
+    }
+    useEffect(() => {
+        prevValueRef.current = valStr
+        prevDetectedRef.current = detectedAsJson
+    })
 
     const isJsonEditor = isJsonType || detectedAsJson
     const effectiveValue =
