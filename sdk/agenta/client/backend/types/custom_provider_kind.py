@@ -15,6 +15,7 @@ CustomProviderKind = typing.Union[
         "deepinfra",
         "alephalpha",
         "groq",
+        "minimax",
         "mistral",
         "mistralai",
         "anthropic",
