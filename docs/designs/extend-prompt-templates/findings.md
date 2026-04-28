@@ -112,23 +112,21 @@ No open questions.
 - Alternatives: Keep top-level controls only if design accepts them, but that would leave the current requested-changes review unresolved.
 - Sources: PR `#4171` reviews by `mmabrouk` and `ardaerzin` on 2026-04-22 and 2026-04-27.
 
-### [OPEN] FPT-010: Error classification still uses broad string heuristics
+### [CLOSED] FPT-010: Error classification still uses broad string heuristics
 
 - ID: `FPT-010`
 - Origin: `PR #4171 review`
 - Lens: `correctness`
 - Severity: `P2`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Correctness`
-- Summary: Retry/fallback error classification still contains broad substring heuristics for words such as timeout, network, rate limit, overload, auth, and validation.
-- Evidence: GitHub thread `PRRT_kwDOJbjazM5973Ez` on `sdk/agenta/sdk/engines/running/handlers.py` says the heuristics are weird. Current code classifies some generic string-only exceptions as retryable or fallback-eligible without a typed provider error or HTTP status code.
+- Summary: Retry/fallback error classification still contained broad substring heuristics for words such as timeout, network, rate limit, overload, auth, and validation.
+- Evidence: GitHub thread `PRRT_kwDOJbjazM5973Ez` on `sdk/agenta/sdk/engines/running/handlers.py`. In `_classify_prompt_fallback_error` and `_classify_prompt_retry_error`, after typed-exception and HTTP status-code checks failed to match, the code fell through to plain text scanning. A local `ValueError("connection string is missing")` would be classified as `"availability"` and trigger a retry or fallback.
 - Files:
   - `sdk/agenta/sdk/engines/running/handlers.py`
-- Cause: The classifier tries to infer provider failure categories from exception text after typed exception and status-code checks.
-- Explanation: String-only matching can incorrectly treat local or deterministic failures as provider-call failures. The one useful exception is context-window detection on provider 400/422 responses, because providers often expose that case only in the error message.
-- Suggested Fix: Remove broad text heuristics from retry/fallback classifiers. Keep typed exceptions and HTTP status codes as the primary taxonomy, and keep a narrow context-window text check only for 400/422 provider responses.
-- Alternatives: Keep broad text matching only if it is hidden behind `RetryPolicy.ANY` or explicit provider adapter errors, but this is less predictable.
+  - `sdk/oss/tests/pytest/unit/test_prompt_template_extensions.py`
+- Resolution: Deleted the entire text-heuristic fall-through block from both classifiers. Classification is now driven solely by typed exceptions (`TimeoutError`, `httpx.TimeoutException`, `httpx.RequestError`, `InvalidSecretsV0Error`) and HTTP status codes. `_is_context_window_error()` is kept only inside the `status_code in (400, 422)` branch where it was already correctly scoped. Unknown exceptions with no status code return `None` (not classified, not retried, not falling back). Four regression tests added to assert that plain `ValueError`s with incidentally matching text are not classified as retryable or fallback-eligible.
 - Sources: PR `#4171` review by `mmabrouk` on 2026-04-27 and current local code scan.
 
 ## Closed Findings

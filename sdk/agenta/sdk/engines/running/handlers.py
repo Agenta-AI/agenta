@@ -1998,40 +1998,6 @@ def _classify_prompt_fallback_error(error: Exception) -> Optional[str]:
     if status_code in (400, 404, 422):
         return "any"
 
-    error_text = _error_text(error)
-    if any(
-        marker in error_text
-        for marker in (
-            "timeout",
-            "timed out",
-            "network",
-            "connection",
-            "connect",
-            "unavailable",
-        )
-    ):
-        return "availability"
-    if any(marker in error_text for marker in ("rate limit", "ratelimit", "overload")):
-        return "capacity"
-    if any(
-        marker in error_text
-        for marker in ("auth", "unauthorized", "forbidden", "permission", "api key")
-    ):
-        return "access"
-    if _is_context_window_error(error):
-        return "context"
-    if any(
-        marker in error_text
-        for marker in (
-            "badrequest",
-            "bad request",
-            "notfound",
-            "not found",
-            "validation",
-        )
-    ):
-        return "any"
-
     return None
 
 
@@ -2048,33 +2014,6 @@ def _classify_prompt_retry_error(error: Exception) -> Optional[str]:
     if status_code == 503 or (status_code is not None and 500 <= status_code <= 599):
         return "availability"
     if status_code in (409, 423):
-        return "transient"
-
-    error_text = _error_text(error)
-    if any(
-        marker in error_text
-        for marker in (
-            "timeout",
-            "timed out",
-            "network",
-            "connection",
-            "connect",
-            "unavailable",
-        )
-    ):
-        return "availability"
-    if any(marker in error_text for marker in ("rate limit", "ratelimit", "overload")):
-        return "capacity"
-    if any(
-        marker in error_text
-        for marker in (
-            "temporarily unavailable",
-            "temporary unavailable",
-            "try again",
-            "resource busy",
-            "upstream error",
-        )
-    ):
         return "transient"
 
     if status_code is not None:

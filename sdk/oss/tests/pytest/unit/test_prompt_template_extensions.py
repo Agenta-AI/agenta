@@ -184,6 +184,38 @@ def test_retry_policy_any_is_still_provider_call_errors_only():
     )
 
 
+def test_plain_value_error_with_network_text_is_not_retryable():
+    # A local ValueError whose message incidentally contains "connection" must not
+    # be classified as retryable — only typed exceptions and HTTP status codes drive
+    # retry classification.
+    error = ValueError("connection string is missing")
+    retry_config = RetryConfig(max_retries=2)
+
+    assert not _should_retry(error, retry_config, RetryPolicy.ANY)
+
+
+def test_plain_value_error_with_network_text_is_not_fallback_eligible():
+    # Same principle for fallback: text heuristics must not classify local errors.
+    error = ValueError("connection string is missing")
+
+    assert not _should_fallback(error, FallbackPolicy.ANY)
+
+
+def test_plain_value_error_with_auth_text_is_not_fallback_eligible():
+    error = ValueError("authorization header is required by this function")
+
+    assert not _should_fallback(error, FallbackPolicy.ACCESS)
+    assert not _should_fallback(error, FallbackPolicy.ANY)
+
+
+def test_plain_value_error_with_timeout_text_is_not_retryable():
+    error = ValueError("timed out waiting for lock")
+    retry_config = RetryConfig(max_retries=2)
+
+    assert not _should_retry(error, retry_config, RetryPolicy.AVAILABILITY)
+    assert not _should_retry(error, retry_config, RetryPolicy.ANY)
+
+
 @pytest.mark.asyncio
 async def test_prompt_runner_moves_to_fallback_after_candidate_failure(monkeypatch):
     calls = []
