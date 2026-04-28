@@ -656,6 +656,9 @@ const TestsetsTable = ({
                         },
                     ],
                     getRecordId: (record) => record.id,
+                    showCopySlug: true,
+                    getSlug: (record) =>
+                        (record as any).__isRevision ? undefined : (record.slug ?? undefined),
                 },
             ]),
         [

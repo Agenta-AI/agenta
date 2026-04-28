@@ -70,13 +70,19 @@ const AppManagement: React.FC = () => {
     const [isAddAppFromTemplatedModal, setIsAddAppFromTemplatedModal] = useState(false)
     const [isSetupTracingModal, setIsSetupTracingModal] = useState(false)
     const [appName, setAppName] = useState("")
+    const [appSlug, setAppSlug] = useState<string | undefined>(undefined)
     const {error, mutate} = useAppsData()
 
     const {secrets} = useVaultSecret()
     const {selectedOrg} = useOrgData()
 
-    const handleTemplateCardClick = async (templateId: string, submittedAppName: string) => {
+    const handleTemplateCardClick = async (
+        templateId: string,
+        submittedAppName: string,
+        submittedAppSlug?: string,
+    ) => {
         setAppName(submittedAppName)
+        setAppSlug(submittedAppSlug)
         setTemplateKey(templateId)
         setIsAddAppFromTemplatedModal(false)
         setStatusModalOpen(true)
@@ -86,6 +92,7 @@ const AppManagement: React.FC = () => {
         const apiKeys = secrets
         await createAppWithTemplate({
             appName: submittedAppName,
+            slug: submittedAppSlug,
             templateKey: templateId,
             providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
             onStatusChange: async (status, details, appId) => {
@@ -129,7 +136,7 @@ const AppManagement: React.FC = () => {
             await mutate()
             await invalidateAppManagementWorkflowQueries()
         }
-        handleTemplateCardClick(templateKey as string, appName)
+        handleTemplateCardClick(templateKey as string, appName, appSlug)
     }
 
     const onTimeoutRetry = async () => {

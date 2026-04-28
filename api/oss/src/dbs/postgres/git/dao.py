@@ -9,6 +9,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.git.interfaces import GitDAOInterface
+from oss.src.core.git.types import VariantForkError
 from oss.src.core.git.dtos import (
     Artifact,
     ArtifactCreate,
@@ -816,7 +817,7 @@ class GitDAO(GitDAOInterface):
 
     # --------------------------------------------------------------------------
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[VariantForkError])
     async def fork_variant(
         self,
         *,
@@ -825,6 +826,16 @@ class GitDAO(GitDAOInterface):
         #
         artifact_fork: ArtifactFork,
     ) -> Optional[Variant]:
+        if artifact_fork.variant is None:
+            raise VariantForkError(
+                "Fork requires a 'variant' payload describing the new variant."
+            )
+
+        if not artifact_fork.variant_id and not artifact_fork.revision_id:
+            raise VariantForkError(
+                "Fork requires a source reference: 'variant_id' or 'revision_id'."
+            )
+
         source_revisions = await self.log_revisions(
             project_id=project_id,
             #
@@ -836,7 +847,11 @@ class GitDAO(GitDAOInterface):
         )
 
         if not source_revisions:
-            return None
+            raise VariantForkError(
+                "Fork source has no revisions to copy. "
+                "Verify 'variant_id'/'revision_id' resolve to an existing variant "
+                "with at least one committed revision."
+            )
 
         source_variant = await self.fetch_variant(
             project_id=project_id,
@@ -845,7 +860,7 @@ class GitDAO(GitDAOInterface):
         )
 
         if not source_variant:
-            return None
+            raise VariantForkError("Fork source variant could not be resolved.")
 
         variant_create = VariantCreate(
             slug=artifact_fork.variant.slug,
@@ -897,29 +912,30 @@ class GitDAO(GitDAOInterface):
                 revision_commit=revision_commit,
             )
 
-        revision_commit = RevisionCommit(
-            slug=artifact_fork.revision.slug,
-            #
-            name=artifact_fork.revision.name,
-            description=artifact_fork.revision.description,
-            #
-            flags=artifact_fork.revision.flags,
-            tags=artifact_fork.revision.tags,
-            meta=artifact_fork.revision.meta,
-            #
-            message=artifact_fork.revision.message,
-            data=artifact_fork.revision.data or source_revisions[0].data,
-            #
-            artifact_id=target_variant.artifact_id,
-            variant_id=target_variant.id,
-        )
+        if artifact_fork.revision is not None:
+            revision_commit = RevisionCommit(
+                slug=artifact_fork.revision.slug,
+                #
+                name=artifact_fork.revision.name,
+                description=artifact_fork.revision.description,
+                #
+                flags=artifact_fork.revision.flags,
+                tags=artifact_fork.revision.tags,
+                meta=artifact_fork.revision.meta,
+                #
+                message=artifact_fork.revision.message,
+                data=artifact_fork.revision.data or source_revisions[0].data,
+                #
+                artifact_id=target_variant.artifact_id,
+                variant_id=target_variant.id,
+            )
 
-        await self.commit_revision(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            revision_commit=revision_commit,
-        )
+            await self.commit_revision(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                revision_commit=revision_commit,
+            )
 
         return target_variant  # type: ignore
 

@@ -16,6 +16,7 @@ export type {
     CommitSubmitParams,
     CommitSubmitResult,
     CommitModeOption,
+    CommitCreateFieldsConfig,
     EntityCommitContentProps,
 } from "./components"
 

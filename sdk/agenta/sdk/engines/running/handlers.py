@@ -2221,20 +2221,31 @@ async def _run_prompt_with_fallback(
 @instrument(ignore_inputs=["parameters"])
 async def completion_v0(
     parameters: Data,
-    inputs: Dict[str, str],
+    inputs: Dict[str, Any],
+    #
 ) -> Any:
     if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+        raise InvalidConfigurationParametersV0Error(
+            expected="dict",
+            got=parameters,
+        )
 
     if "prompt" not in parameters:
         raise MissingConfigurationParameterV0Error(path="prompt")
 
-    params: Dict[str, Any] = {**(parameters or {})}
+    if inputs is not None and not isinstance(inputs, dict):
+        raise InvalidInputsV0Error(
+            expected="dict",
+            got=inputs,
+        )
 
-    config = SinglePromptConfig(**params)
+    _variables = dict(inputs or {})
+
+    config = SinglePromptConfig(**parameters)
+
     if config.prompt.input_keys is not None:
         required_keys = set(config.prompt.input_keys)
-        provided_keys = set(inputs.keys())
+        provided_keys = set(_variables.keys())
 
         if required_keys != provided_keys:
             raise InvalidInputsV0Error(
@@ -2242,8 +2253,13 @@ async def completion_v0(
                 got=sorted(provided_keys),
             )
 
-    formatted_prompt = config.prompt.format(**inputs)
+    if inputs is not None:
+        formatted_prompt = config.prompt.format(**_variables)
+    else:
+        formatted_prompt = config.prompt
+
     await SecretsManager.ensure_secrets_in_workflow()
+
     response = await _run_prompt_with_fallback(formatted_prompt)
 
     message = response.choices[0].message  # type: ignore
@@ -2261,20 +2277,33 @@ async def completion_v0(
 @instrument(ignore_inputs=["parameters"])
 async def chat_v0(
     parameters: Data,
-    inputs: Optional[Dict[str, str]] = None,
+    inputs: Optional[Dict[str, Any]] = None,
     messages: Optional[List[Message]] = None,
 ):
-    has_inputs = inputs is not None
-    inputs = dict(inputs or {})
-    # This prevents a mismatch in `required_keys != provided_keys``
-    inputs.pop("messages", None)
+    if parameters is None or not isinstance(parameters, dict):
+        raise InvalidConfigurationParametersV0Error(
+            expected="dict",
+            got=parameters,
+        )
 
-    params: Dict[str, Any] = {**(parameters or {})}
+    if "prompt" not in parameters:
+        raise MissingConfigurationParameterV0Error(path="prompt")
 
-    config = SinglePromptConfig(**params)
+    if inputs is not None and not isinstance(inputs, dict):
+        raise InvalidInputsV0Error(
+            expected="dict",
+            got=inputs,
+        )
+
+    _variables = dict(inputs or {})
+    _messages = _variables.pop("messages", None)
+    _messages = _messages if messages is None else messages
+
+    config = SinglePromptConfig(**parameters)
+
     if config.prompt.input_keys is not None:
-        required_keys = set(config.prompt.input_keys)
-        provided_keys = set(inputs.keys()) if inputs is not None else set()
+        required_keys = set(config.prompt.input_keys) - {"messages"}
+        provided_keys = set(_variables.keys())
 
         if required_keys != provided_keys:
             raise InvalidInputsV0Error(
@@ -2282,15 +2311,23 @@ async def chat_v0(
                 got=sorted(provided_keys),
             )
 
-    if has_inputs:
-        formatted_prompt = config.prompt.format(**inputs)
+        config.prompt = config.prompt.model_copy(
+            update={"input_keys": sorted(required_keys)},
+            deep=True,
+        )
+
+    if inputs is not None:
+        formatted_prompt = config.prompt.format(**_variables)
     else:
         formatted_prompt = config.prompt
 
     await SecretsManager.ensure_secrets_in_workflow()
-    response = await _run_prompt_with_fallback(formatted_prompt, messages=messages)
 
-    return response.choices[0].message.model_dump(exclude_none=True)  # type: ignore
+    response = await _run_prompt_with_fallback(formatted_prompt, messages=_messages)
+
+    message = response.choices[0].message  # type: ignore
+
+    return message.model_dump(exclude_none=True)  # type: ignore
 
 
 @instrument(ignore_inputs=["parameters"])

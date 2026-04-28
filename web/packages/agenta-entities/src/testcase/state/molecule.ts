@@ -958,8 +958,13 @@ export const testcaseMolecule = {
         },
     },
 
-    // Imperative API
-    get: extendedMolecule.get,
+    // Imperative API — override get.data to use testcaseEntityAtomFamily
+    // (handles draft-only/new testcases that the base molecule's merge returns null for)
+    get: {
+        ...extendedMolecule.get,
+        data: (id: string, options?: StoreOptions) =>
+            getStore(options).get(testcaseEntityAtomFamily(id)),
+    },
     set: extendedMolecule.set,
 
     // Lifecycle and cleanup from base molecule
