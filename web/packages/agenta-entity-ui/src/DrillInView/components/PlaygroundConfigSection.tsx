@@ -1062,12 +1062,15 @@ function PlaygroundConfigSection({
         handleResetRetryPolicy,
     ])
 
-    const handleConfigureOpenChange = useCallback((open: boolean) => {
-        setIsModelConfigOpen(open)
-        if (!open) {
-            setFallbackDetail(null)
-        }
-    }, [])
+    const handleConfigureOpenChange = useCallback(
+        (open: boolean) => {
+            setIsModelConfigOpen(open)
+            if (!open && fallbackDetail) {
+                handleCommitFallbackDetail()
+            }
+        },
+        [fallbackDetail, handleCommitFallbackDetail],
+    )
 
     const configurePopoverContent = (
         <div className="w-[320px] max-h-[550px] overflow-hidden rounded bg-white">

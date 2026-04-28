@@ -12,6 +12,9 @@ interface PolicyOption {
     description?: string
 }
 
+const getSchemaText = (value: unknown): string | undefined =>
+    typeof value === "string" ? value : undefined
+
 export interface RetryConfigTabProps {
     retryPolicy?: string | null
     retryPolicyOptions: PolicyOption[]
@@ -51,13 +54,15 @@ export const RetryConfigTab = memo(function RetryConfigTab({
     ) => {
         const schema = resolveAnyOfSchema(retryConfigProperties[key])
         const min = typeof schema?.minimum === "number" ? schema.minimum : 0
+        const title = getSchemaText(schema?.title)
+        const description = getSchemaText(schema?.description)
 
         return (
             <div className="flex items-center justify-between gap-3">
                 <div className="flex flex-col gap-0.5">
-                    <Typography.Text>{formatLabel(schema?.title || key)}</Typography.Text>
+                    <Typography.Text>{formatLabel(title || key)}</Typography.Text>
                     <Typography.Text type="secondary" className="text-xs leading-snug">
-                        {schema?.description || fallbackDescription}
+                        {description || fallbackDescription}
                     </Typography.Text>
                 </div>
                 <InputNumber
