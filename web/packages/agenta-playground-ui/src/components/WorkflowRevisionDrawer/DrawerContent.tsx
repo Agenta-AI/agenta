@@ -17,7 +17,11 @@ import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import MetadataSidebar from "./MetadataSidebar"
-import {workflowRevisionDrawerContextAtom, workflowRevisionDrawerExpandedAtom} from "./store"
+import {
+    isCreateContext,
+    workflowRevisionDrawerContextAtom,
+    workflowRevisionDrawerExpandedAtom,
+} from "./store"
 
 const EMPTY_ID = "__workflow-drawer-empty__"
 
@@ -51,7 +55,7 @@ const DrawerContent = ({entityId, playgroundContent}: DrawerContentProps) => {
     const isExpanded = useAtomValue(workflowRevisionDrawerExpandedAtom)
     const context = useAtomValue(workflowRevisionDrawerContextAtom)
 
-    const showMetadata = !isExpanded && context !== "evaluator-create"
+    const showMetadata = !isExpanded && !isCreateContext(context)
 
     return (
         <section className="flex w-full h-full overflow-hidden">
