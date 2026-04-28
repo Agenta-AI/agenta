@@ -151,6 +151,7 @@ export enum SecretDTOProvider {
     TOGETHERAI = "together_ai",
     OPENROUTER = "openrouter",
     GEMINI = "gemini",
+    MINIMAX = "minimax",
 }
 
 export const PROVIDER_LABELS: Record<string, string> = {
@@ -170,6 +171,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
     vertex_ai: "Google Vertex AI",
     bedrock: "AWS Bedrock",
     azure: "Azure OpenAI",
+    minimax: "MiniMax",
     custom: "Custom Provider",
 }
 

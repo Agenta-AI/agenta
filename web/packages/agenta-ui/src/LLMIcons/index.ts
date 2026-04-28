@@ -23,6 +23,7 @@ import Fireworks from "./assets/Fireworks"
 import Gemini from "./assets/Gemini"
 import Groq from "./assets/Groq"
 import Lepton from "./assets/Lepton"
+import MiniMax from "./assets/MiniMax"
 import Mistral from "./assets/Mistral"
 import OpenAi from "./assets/OpenAi"
 import OpenRouter from "./assets/OpenRouter"
@@ -60,6 +61,7 @@ export const LLMIconMap: Record<string, React.FC<{className?: string}>> = {
     Lepton: Lepton,
     Replicate: Replicate,
     xAI: XAI,
+    MiniMax: MiniMax,
 }
 
 // Export individual icons for direct use
@@ -75,6 +77,7 @@ export {
     Gemini,
     Groq,
     Lepton,
+    MiniMax,
     Mistral,
     OpenAi,
     OpenRouter,
