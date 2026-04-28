@@ -236,14 +236,20 @@ class EvaluatorsService:
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Evaluator]:
+        evaluator_query_flags = EvaluatorArtifactQueryFlags(
+            **_dump_flags(evaluator_query.flags if evaluator_query else None),
+        )
+
         workflow_query = (
             WorkflowQuery(
                 **evaluator_query.model_dump(
                     mode="json",
+                    exclude={"flags"},
                 ),
+                flags=evaluator_query_flags,
             )
             if evaluator_query
-            else WorkflowQuery()
+            else WorkflowQuery(flags=evaluator_query_flags)
         )
 
         workflows = await self.workflows_service.query_workflows(

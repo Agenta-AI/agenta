@@ -52,6 +52,8 @@ export const useObservability = () => {
             isLoading: isLoadingTraces,
             isFetching: isFetchingTraces,
             isRefetching: isRefetchingTraces,
+            isError: isTracesError,
+            error: tracesError,
         },
     ] = useAtom(tracesQueryAtom)
 
@@ -82,6 +84,11 @@ export const useObservability = () => {
             isRefetchingAnnotations,
         [isFetchingTraces, isFetchingAnnotations, isRefetchingTraces, isRefetchingAnnotations],
     )
+
+    const isRateLimited = isTracesError && (tracesError as {status?: number})?.status === 429
+    const rateLimitMessage = isRateLimited
+        ? (tracesError as Error)?.message || "You have reached your monthly quota limit."
+        : undefined
 
     const fetchTraces = useCallback(async () => {
         const res = await refetchTraces()
@@ -124,6 +131,8 @@ export const useObservability = () => {
         annotations,
         isLoading:
             isLoadingObservability || isLoadingTraces || isLoadingAnnotations || isRefreshing,
+        isRateLimited,
+        rateLimitMessage,
         fetchMoreTraces,
         hasMoreTraces: hasNextPage,
         isFetchingMore: isFetchingNextPage,

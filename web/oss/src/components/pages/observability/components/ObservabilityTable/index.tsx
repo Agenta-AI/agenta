@@ -78,6 +78,8 @@ const ObservabilityTable = () => {
         fetchAnnotations,
         resetTracePages,
         limit,
+        isRateLimited,
+        rateLimitMessage,
     } = useObservability()
     const setTraceDrawerActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
     const isNewUser = useAtomValue(isNewUserAtom)
@@ -244,7 +246,7 @@ const ObservabilityTable = () => {
     )
 
     const showTableLoading = isLoading && traces.length === 0
-    const isEmptyState = traces.length === 0 && !isLoading
+    const isEmptyState = traces.length === 0 && !isLoading && !isRateLimited
     const showOnboarding = isNewUser && !hasReceivedTraces
 
     // Build pagination object expected by InfiniteVirtualTableFeatureShell
@@ -279,7 +281,9 @@ const ObservabilityTable = () => {
                 refreshTrigger={refreshTrigger}
             />
 
-            {isEmptyState ? (
+            {isRateLimited ? (
+                <EmptyObservability rateLimited rateLimitMessage={rateLimitMessage} />
+            ) : isEmptyState ? (
                 <EmptyObservability showOnboarding={showOnboarding} />
             ) : (
                 <InfiniteVirtualTableFeatureShell

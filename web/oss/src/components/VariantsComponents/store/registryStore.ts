@@ -39,6 +39,8 @@ export interface RegistryRevisionRow {
     workflowId: string
     variantId: string
     variantName: string
+    /** Variant slug (from workflow_variants query) — used by Copy Slug action */
+    variantSlug: string | null
     // Bare fields needed for sorting/grouping only
     version: number | null
     /** Pre-computed model name (scalar, extracted from parameters in transformRow) */
@@ -124,14 +126,19 @@ const skeletonDefaults: Partial<RegistryRevisionRow> = {
     workflowId: "",
     variantId: "",
     variantName: "",
+    variantSlug: null,
     version: null,
     model: "",
     createdAt: null,
     key: "",
 }
 
-// Cache variant names per workflow to avoid re-fetching on every page
-let _variantNameCache: {workflowId: string; map: Map<string, string>} | null = null
+// Cache variant metadata (name + slug) per workflow to avoid re-fetching on every page
+interface VariantMeta {
+    name: string
+    slug: string | null
+}
+let _variantNameCache: {workflowId: string; map: Map<string, VariantMeta>} | null = null
 
 /** Clear the variant name cache so the next fetch re-queries variants. */
 export const clearRegistryVariantNameCache = () => {
@@ -160,9 +167,12 @@ export const registryPaginatedStore = createPaginatedEntityStore<
         // Fetch variant names (cached per workflow)
         if (!_variantNameCache || _variantNameCache.workflowId !== meta.workflowId) {
             const variantsResponse = await queryWorkflowVariants(meta.workflowId, meta.projectId)
-            const map = new Map<string, string>()
+            const map = new Map<string, VariantMeta>()
             for (const v of variantsResponse.workflow_variants) {
-                map.set(v.id, v.name ?? v.slug ?? v.id)
+                map.set(v.id, {
+                    name: v.name ?? v.slug ?? v.id,
+                    slug: v.slug ?? null,
+                })
             }
             _variantNameCache = {workflowId: meta.workflowId, map}
         }
@@ -185,7 +195,7 @@ export const registryPaginatedStore = createPaginatedEntityStore<
         for (const rev of response.workflow_revisions) {
             const vid = rev.workflow_variant_id ?? rev.variant_id
             if (vid && !_variantNameCache.map.has(vid)) {
-                _variantNameCache.map.set(vid, rev.name ?? vid)
+                _variantNameCache.map.set(vid, {name: rev.name ?? vid, slug: null})
             }
         }
 
@@ -209,7 +219,8 @@ export const registryPaginatedStore = createPaginatedEntityStore<
     },
     transformRow: (apiRow): RegistryRevisionRow => {
         const variantId = apiRow.workflow_variant_id ?? apiRow.variant_id ?? ""
-        const variantName = _variantNameCache?.map.get(variantId) ?? apiRow.name ?? variantId ?? "-"
+        const variantMeta = _variantNameCache?.map.get(variantId)
+        const variantName = variantMeta?.name ?? apiRow.name ?? variantId ?? "-"
 
         return {
             key: apiRow.id,
@@ -217,6 +228,7 @@ export const registryPaginatedStore = createPaginatedEntityStore<
             workflowId: apiRow.workflow_id ?? "",
             variantId,
             variantName,
+            variantSlug: variantMeta?.slug ?? null,
             version: apiRow.version ?? null,
             model: pickModelFromParams(apiRow.data?.parameters ?? null),
             createdAt: apiRow.created_at ?? null,

@@ -102,7 +102,8 @@ export {
 export {dereferenceSchema, type DereferencedSchemaResult} from "./openapi"
 
 // API error utilities
-export {extractApiErrorMessage} from "./extractApiErrorMessage"
+export {extractApiErrorMessage, preserveResponseStatus} from "./extractApiErrorMessage"
+export type {ErrorWithResponseStatus} from "./extractApiErrorMessage"
 
 // Formatting utilities
 export {
@@ -138,6 +139,17 @@ export {dataUriToObjectUrl, isBase64, isUrl} from "./dataUri"
 
 // Value extraction utilities (strip enhanced wrappers / metadata)
 export {stripAgentaMetadataDeep, stripEnhancedWrappers} from "./valueExtraction"
+
+// Slug utilities
+export {
+    generateSlugWithExistingSuffix,
+    generateSlugWithSuffix,
+    getSlugSuffix,
+    isValidSlug,
+    regenerateSlugSuffix,
+    slugifyName,
+    stripSlugSuffix,
+} from "./slug"
 
 // Status inference utilities
 export {

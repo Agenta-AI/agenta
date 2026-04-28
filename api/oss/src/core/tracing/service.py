@@ -173,6 +173,7 @@ class TracingService:
         user_id: UUID,
         spans: Optional[OTelFlatSpans] = None,
         traces: Optional[OTelTraceTree] = None,
+        dropped: Optional[OTelLinks] = None,
     ) -> OTelLinks:
         _spans: Dict[str, Union[OTelSpan, OTelFlatSpans]] = dict()
 
@@ -202,7 +203,7 @@ class TracingService:
                                 )
                             )
 
-        span_dtos = parse_spans_from_request(_spans)
+        span_dtos = parse_spans_from_request(_spans, dropped=dropped)
 
         return await self.ingest_span_dtos(
             organization_id=organization_id,
@@ -1007,17 +1008,17 @@ class SimpleTracesService:
 
         references.evaluator = Reference(
             id=evaluator_revision.evaluator_id,
-            slug=(references.evaluator.slug if references.evaluator else None)
-            or (evaluator.slug if evaluator else None),
+            slug=(evaluator.slug if evaluator else None)
+            or (references.evaluator.slug if references.evaluator else None),
         )
         references.evaluator_variant = Reference(
             id=evaluator_revision.evaluator_variant_id,
-            slug=(
+            slug=(evaluator_variant.slug if evaluator_variant else None)
+            or (
                 references.evaluator_variant.slug
                 if references.evaluator_variant
                 else None
-            )
-            or (evaluator_variant.slug if evaluator_variant else None),
+            ),
         )
         references.evaluator_revision = Reference(
             id=evaluator_revision.id,
@@ -1061,6 +1062,12 @@ class SimpleTracesService:
             references=_references,
         )
 
+        span_name = (
+            references.evaluator.slug
+            if references.evaluator and references.evaluator.slug
+            else "annotation"
+        )
+
         otel_links = await self.tracing_service.create_trace(
             organization_id=organization_id,
             project_id=project_id,
@@ -1070,6 +1077,7 @@ class SimpleTracesService:
                     trace_id=trace_id,
                     span_id=span_id,
                     span_type=SpanType.TASK,
+                    span_name=span_name,
                     attributes=_attributes,
                     links=_links,
                 )

@@ -1,7 +1,7 @@
 from uuid import uuid4
 
 
-def _create_simple_query(authed_api) -> dict:
+def _create_simple_query(authed_api, *, trace_type: str = "invocation") -> dict:
     slug = uuid4().hex
     response = authed_api(
         "POST",
@@ -15,11 +15,16 @@ def _create_simple_query(authed_api) -> dict:
                         "operator": "and",
                         "conditions": [
                             {
+                                "field": "trace_type",
+                                "value": trace_type,
+                                "operator": "is",
+                            },
+                            {
                                 "field": "attributes",
                                 "key": f"test-key-{slug[:8]}",
                                 "value": "test-value",
                                 "operator": "is",
-                            }
+                            },
                         ],
                     }
                 },
@@ -91,3 +96,31 @@ class TestSimpleEvaluationsWorkflowReferences:
         assert set(evaluation["data"]["evaluator_steps"].keys()) == {
             evaluator["revision_id"]
         }
+
+    def test_create_live_simple_evaluation_rejects_non_invocation_query_revision(
+        self, authed_api
+    ):
+        query = _create_simple_query(authed_api, trace_type="annotation")
+        evaluator = _create_simple_evaluator(authed_api)
+
+        response = authed_api(
+            "POST",
+            "/simple/evaluations/",
+            json={
+                "evaluation": {
+                    "name": "live-non-invocation-query-rejected",
+                    "flags": {
+                        "is_live": True,
+                    },
+                    "data": {
+                        "query_steps": [query["revision_id"]],
+                        "evaluator_steps": [evaluator["revision_id"]],
+                    },
+                }
+            },
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["count"] == 0
+        assert body.get("evaluation") is None

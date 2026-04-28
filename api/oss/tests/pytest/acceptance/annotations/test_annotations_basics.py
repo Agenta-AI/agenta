@@ -218,6 +218,8 @@ class TestAnnotationsBasics:
                     },
                     "tags": {"tag3": "value3"},
                     "meta": {"meta3": "value3"},
+                    "references": {"evaluator": {"slug": evaluator_slug}},
+                    "links": annotation_links,
                 }
             },
         )
@@ -229,7 +231,7 @@ class TestAnnotationsBasics:
         assert response["count"] == 1
         assert response["trace"]["trace_id"] == trace_id
         assert response["trace"]["data"]["outputs"] == new_annotation_data_outputs
-        assert response["trace"]["links"] == {}
+        assert response["trace"]["links"] == annotation_links
         assert response["trace"]["tags"] == {"tag3": "value3"}
         assert response["trace"]["meta"] == {"meta3": "value3"}
         # ----------------------------------------------------------------------

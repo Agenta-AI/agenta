@@ -58,6 +58,25 @@ export const commitModalErrorAtom = atomWithReset<Error | null>(null)
  */
 export const commitModalEntityNameOverrideAtom = atomWithReset<string | null>(null)
 
+/**
+ * The slug for the entity being created.
+ * Generated once when the modal opens with a name.
+ * User may edit it or regenerate the suffix.
+ */
+export const commitModalEntitySlugAtom = atomWithReset<string | null>(null)
+
+/**
+ * Whether the slug field is in "editing" mode.
+ * Default state shows the slug as a read-only badge with an Edit link.
+ */
+export const commitModalSlugEditingAtom = atomWithReset(false)
+
+/**
+ * Field-level error for the slug input.
+ * Distinct from commitModalErrorAtom which drives the banner.
+ */
+export const commitModalSlugFieldErrorAtom = atomWithReset<string | null>(null)
+
 // ============================================================================
 // DERIVED ATOMS
 // ============================================================================
@@ -145,6 +164,9 @@ export const resetCommitModalAtom = atom(null, (_get, set) => {
     set(commitModalErrorAtom, RESET)
     set(commitModalActionLabelAtom, RESET)
     set(commitModalEntityNameOverrideAtom, RESET)
+    set(commitModalEntitySlugAtom, RESET)
+    set(commitModalSlugEditingAtom, RESET)
+    set(commitModalSlugFieldErrorAtom, RESET)
 })
 
 /**
@@ -200,6 +222,27 @@ export const setCommitErrorAtom = atom(null, (_get, set, error: Error | null) =>
  */
 export const setCommitEntityNameAtom = atom(null, (_get, set, name: string | null) => {
     set(commitModalEntityNameOverrideAtom, name)
+})
+
+/**
+ * Set the entity slug.
+ */
+export const setCommitEntitySlugAtom = atom(null, (_get, set, slug: string | null) => {
+    set(commitModalEntitySlugAtom, slug)
+})
+
+/**
+ * Set the slug field-level error.
+ */
+export const setCommitSlugFieldErrorAtom = atom(null, (_get, set, error: string | null) => {
+    set(commitModalSlugFieldErrorAtom, error)
+})
+
+/**
+ * Toggle slug editing mode.
+ */
+export const setCommitSlugEditingAtom = atom(null, (_get, set, editing: boolean) => {
+    set(commitModalSlugEditingAtom, editing)
 })
 
 /**

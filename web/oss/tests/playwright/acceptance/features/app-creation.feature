@@ -12,12 +12,12 @@ Feature: Prompt App Creation
     Given the user is authenticated
     And the user is on the Prompts page
 
-  @smoke @happy
+  @smoke @happy @scope:apps @speed:fast
   Scenario: Create a new completion prompt app
     When the user creates a "Completion Prompt" app with a unique name
     Then the new completion prompt app is visible after creation
 
-  @smoke @happy
+  @smoke @happy @scope:apps @speed:fast
   Scenario: Create a new chat prompt app
     When the user creates a "Chat Prompt" app with a unique name
     Then the new chat prompt app is visible after creation

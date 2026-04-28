@@ -221,17 +221,21 @@ class TracingRouter:
             except Exception:
                 log.warning("[tracing] Soft quota check failed", exc_info=True)
 
+        dropped: OTelLinks = []
+
         links = await self.service.ingest_spans(
             organization_id=UUID(request.state.organization_id),
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             spans=spans_request.spans,
             traces=spans_request.traces,
+            dropped=dropped,
         )
 
         link_response = OTelLinksResponse(
-            count=len(links),
+            count=len(links) + len(dropped),
             links=links,
+            dropped=dropped or None,
         )
 
         return link_response

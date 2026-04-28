@@ -286,6 +286,8 @@ export {
     // Evaluator configs (non-human, non-custom)
     evaluatorConfigsListDataAtom,
     evaluatorConfigsQueryStateAtom,
+    evaluatorConfigRevisionsListDataAtom,
+    evaluatorConfigRevisionsQueryStateAtom,
     // Human evaluators
     humanEvaluatorsListQueryAtom,
     humanEvaluatorsListDataAtom,

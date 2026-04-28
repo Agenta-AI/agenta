@@ -14,6 +14,7 @@ import {
     selectedRevisionIdAtom as sharedSelectedRevisionIdAtom,
 } from "@/oss/state/testsetSelection"
 
+import {MAX_TRACE_ANALYSIS_SAMPLE_SIZE} from "../assets/constants"
 import {createMappingId, type Mapping, type TestsetTraceData} from "../assets/types"
 
 import {
@@ -457,15 +458,7 @@ export const updateEditedTraceAtom = atom(
         const queryState = get(traceSpanMolecule.selectors.query(spanId))
         const serverState = queryState.data
 
-        console.log("[updateEditedTraceAtom] Called", {
-            hasUpdatedData: !!updatedData,
-            spanId,
-            hasEntity: !!currentEntity,
-            hasGetValueAtPath: !!getValueAtPath,
-        })
-
         if (!updatedData || !spanId || !currentEntity) {
-            console.log("[updateEditedTraceAtom] Early return - no data or entity")
             return {success: false, error: "No data to update"}
         }
 
@@ -481,10 +474,6 @@ export const updateEditedTraceAtom = atom(
             // Extract the data property (editor wraps in {data: ...})
             const newAgData = (parsedUpdatedData as {data: Record<string, any>}).data
 
-            console.log("[updateEditedTraceAtom] Parsed data", {
-                newAgData,
-            })
-
             // Get current and original ag.data for comparison
             const currentAgData = extractAgData(currentEntity)
             const originalAgData = serverState ? extractAgData(serverState) : currentAgData
@@ -498,21 +487,13 @@ export const updateEditedTraceAtom = atom(
             const currentString = JSON.stringify(normalizedCurrent)
             const originalString = JSON.stringify(normalizedOriginal)
 
-            console.log("[updateEditedTraceAtom] Comparing data", {
-                updatedPreview: updatedString.slice(0, 100),
-                currentPreview: currentString.slice(0, 100),
-                isEqual: updatedString === currentString,
-            })
-
             // No change
             if (updatedString === currentString) {
-                console.log("[updateEditedTraceAtom] No changes detected")
                 return {success: false, error: "No changes detected"}
             }
 
             // If reverting to original, discard draft instead
             if (updatedString === originalString) {
-                console.log("[updateEditedTraceAtom] Reverting to original - discarding draft")
                 set(traceSpanMolecule.actions.discard, spanId)
             } else {
                 // Update entity draft with new ag.data
@@ -522,7 +503,6 @@ export const updateEditedTraceAtom = atom(
                     "ag.data": newAgData,
                 }
 
-                console.log("[updateEditedTraceAtom] Setting entity draft", {spanId})
                 set(traceSpanMolecule.actions.update, spanId, newAttributes)
             }
 
@@ -531,10 +511,6 @@ export const updateEditedTraceAtom = atom(
                 const mappings = get(mappingDataAtom)
                 const traceData = get(traceDataFromEntitiesAtom)
 
-                console.log("[updateEditedTraceAtom] Updating local entities", {
-                    mappingsCount: mappings.length,
-                })
-
                 // eslint-disable-next-line @typescript-eslint/no-require-imports
                 const {updateAllLocalEntitiesAtom} = require("./localEntities")
                 set(updateAllLocalEntitiesAtom, {
@@ -542,7 +518,6 @@ export const updateEditedTraceAtom = atom(
                     mappings,
                     getValueAtPath,
                 })
-                console.log("[updateEditedTraceAtom] Local entities updated")
             }
 
             return {success: true}
@@ -583,8 +558,6 @@ export const revertEditedTraceAtom = atom(
 
         // Discard the entity draft to revert to server state
         set(traceSpanMolecule.actions.discard, spanId)
-
-        console.log("[revertEditedTraceAtom] Discarded draft for span", spanId)
 
         // Update local entities to reflect the reverted data
         if (getValueAtPath) {
@@ -644,9 +617,10 @@ export const spanByIdAtomFamily = traceSpanMolecule.selectors.data
  */
 export const allTracePathsAtom = atom((get) => {
     const traceData = get(traceDataFromEntitiesAtom)
+    const sampledTraceData = traceData.slice(0, MAX_TRACE_ANALYSIS_SAMPLE_SIZE)
 
     const uniquePaths = new Set<string>()
-    traceData.forEach((traceItem) => {
+    sampledTraceData.forEach((traceItem) => {
         // Include object paths (true) so users can manually select them
         const traceKeys = collectKeyPaths(traceItem?.data, "data", true)
         traceKeys.forEach((key) => uniquePaths.add(key))
@@ -671,9 +645,10 @@ export const allTracePathsSelectOptionsAtom = atom((get) => {
  */
 export const leafTracePathsAtom = atom((get) => {
     const traceData = get(traceDataFromEntitiesAtom)
+    const sampledTraceData = traceData.slice(0, MAX_TRACE_ANALYSIS_SAMPLE_SIZE)
 
     const uniquePaths = new Set<string>()
-    traceData.forEach((traceItem) => {
+    sampledTraceData.forEach((traceItem) => {
         // Don't include object paths (false) for auto-mapping
         const traceKeys = collectKeyPaths(traceItem?.data, "data", false)
         traceKeys.forEach((key) => uniquePaths.add(key))
@@ -941,11 +916,13 @@ export const executeAutoMappingAtom = atom(null, (get, set) => {
  */
 export const hasDifferentStructureAtom = atom((get) => {
     const traceData = get(traceDataFromEntitiesAtom)
-    if (traceData.length <= 1) return false
+    const sampledTraceData = traceData.slice(0, MAX_TRACE_ANALYSIS_SAMPLE_SIZE)
 
-    const referencePaths = collectKeyPaths(traceData[0].data).sort().join(",")
-    for (let i = 1; i < traceData.length; i++) {
-        const currentPaths = collectKeyPaths(traceData[i].data).sort().join(",")
+    if (sampledTraceData.length <= 1) return false
+
+    const referencePaths = collectKeyPaths(sampledTraceData[0].data).sort().join(",")
+    for (let i = 1; i < sampledTraceData.length; i++) {
+        const currentPaths = collectKeyPaths(sampledTraceData[i].data).sort().join(",")
         if (currentPaths !== referencePaths) {
             return true
         }

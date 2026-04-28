@@ -26,3 +26,13 @@ def test_simple_query_requests_preserve_slug_filters():
             "slug": "target",
             "slugs": ["target", "other"],
         }
+
+
+def test_simple_workflow_query_request_preserves_refs():
+    request = SimpleWorkflowQueryRequest.model_validate(
+        {
+            "workflow_refs": [{"slug": "target"}],
+        }
+    )
+
+    assert request.workflow_refs[0].slug == "target"

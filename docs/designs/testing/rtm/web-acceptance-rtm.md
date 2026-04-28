@@ -1,5 +1,11 @@
 # Web Acceptance RTM
 
+> **Source of truth**: This RTM file is the authoritative record for all web acceptance tests.
+> If there is a discrepancy between what is stated here and any `.feature` or `.spec` file,
+> **this RTM takes priority**. Discrepancies must be corrected by updating the `.feature` or
+> `.spec` file to match. If the correct resolution is not obvious, an agent must ask a human
+> before modifying any file.
+
 ## Scope
 
 This RTM covers the **existing OSS and EE web acceptance tests**. It is the left side of the
@@ -54,13 +60,6 @@ For every RTM entry below:
 - License: `oss`
 - Status: active
 
-#### Scenarios
-
-- Given the user has valid credentials for the OSS deployment
-- When the user navigates to the apps page
-- Then the user is redirected to the workspace-scoped apps page
-- And the page URL contains `/apps`
-
 ### WEB-ACC-APP-001 - Create a completion prompt app
 
 #### Source
@@ -82,13 +81,6 @@ For every RTM entry below:
 - Plan: environment-defined
 - License: `oss`
 - Status: active
-
-#### Scenarios
-
-- Given the user is authenticated
-- And the user is on the Prompts page
-- When the user creates a `Completion Prompt` app with a unique name
-- Then the new completion prompt app is visible after creation
 
 ### WEB-ACC-APP-002 - Create a chat prompt app
 
@@ -112,12 +104,71 @@ For every RTM entry below:
 - License: `oss`
 - Status: active
 
-#### Scenarios
+### WEB-ACC-APP-003 - Delete an app
 
-- Given the user is authenticated
-- And the user is on the Prompts page
-- When the user creates a `Chat Prompt` app with a unique name
-- Then the new chat prompt app is visible after creation
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/app-management.feature`
+- Test file: `web/oss/tests/playwright/acceptance/app/app-management.spec.ts`
+- Playwright title: `App Management > should delete an app`
+
+#### Markers
+
+- Scope: `apps`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-APP-004 - Rename an app
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/app-management.feature`
+- Test file: `web/oss/tests/playwright/acceptance/app/app-management.spec.ts`
+- Playwright title: `App Management > should rename an app`
+
+#### Markers
+
+- Scope: `apps`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-APP-005 - App overview page renders correctly
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/app-management.feature`
+- Test file: `web/oss/tests/playwright/acceptance/app/app-management.spec.ts`
+- Playwright title: `App Management > should render the app overview page with environment cards and variant list`
+
+#### Markers
+
+- Scope: `apps`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
 
 ### WEB-ACC-PLAYGROUND-001 - Run a completion variant in Playground
 
@@ -125,7 +176,7 @@ For every RTM entry below:
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
 - Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
-- Playwright title: `Should run single view variant for completion`
+- Playwright title: `Playground: Run Variant > Should run single view variant for completion`
 
 #### Markers
 
@@ -141,21 +192,13 @@ For every RTM entry below:
 - License: `oss`
 - Status: active
 
-#### Scenarios
-
-- Given the user is authenticated
-- And the active project has a configured test provider
-- And the user is on the playground for a completion app
-- When the user runs the completion variant with test inputs
-- Then the completion variant run succeeds without UI errors
-
 ### WEB-ACC-PLAYGROUND-002 - Run a chat variant in Playground
 
 #### Source
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
 - Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
-- Playwright title: `Should run single view variant for chat`
+- Playwright title: `Playground: Run Variant > Should run single view variant for chat`
 
 #### Markers
 
@@ -170,14 +213,6 @@ For every RTM entry below:
 - Plan: environment-defined
 - License: `oss`
 - Status: active
-
-#### Scenarios
-
-- Given the user is authenticated
-- And the active project has a configured test provider
-- And the user is on the playground for a chat app
-- When the user runs the chat variant with test inputs
-- Then the chat variant run succeeds without UI errors
 
 ### WEB-ACC-PLAYGROUND-003 - Update a prompt and save a new version
 
@@ -185,7 +220,7 @@ For every RTM entry below:
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
 - Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
-- Playwright title: `Should update the prompt and save the changes`
+- Playwright title: `Playground: Run Variant > Should update the prompt and save the changes`
 
 #### Markers
 
@@ -201,14 +236,93 @@ For every RTM entry below:
 - License: `oss`
 - Status: active
 
-#### Scenarios
+### WEB-ACC-PLAYGROUND-004 - Save the current changes as a new variant
 
-- Given the user is authenticated
-- And the user is on the playground for a completion app
-- When the user adds new prompt messages
-- And the user changes the template variable keys
-- And the user commits the changes `As a new version`
-- Then the prompt changes are saved successfully
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
+- Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
+- Playwright title: `Playground: Run Variant > should save the current changes as a new variant`
+
+#### Markers
+
+- Scope: `playground`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-PLAYGROUND-005 - Open compare mode and display two variants side by side
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
+- Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
+- Playwright title: `Playground: Run Variant > should open compare mode and display two variants side by side`
+
+#### Markers
+
+- Scope: `playground`
+- Coverage: `light`, `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-PLAYGROUND-006 - Load the correct variant when opened via a deep link with a revisions param
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
+- Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
+- Playwright title: `Playground: Run Variant > should load the correct variant when opened via a deep link with a revisions param`
+
+#### Markers
+
+- Scope: `playground`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-PLAYGROUND-007 - Configure output type and tools in the playground
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/playground.feature`
+- Test file: `web/oss/tests/playwright/acceptance/playground/index.ts`
+- Playwright title: `Playground: Run Variant > should configure output type and tools and save the changes`
+
+#### Markers
+
+- Scope: `playground`
+- Coverage: `light`, `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
 
 ### WEB-ACC-REGISTRY-001 - Open Playground from the workflow revision registry
 
@@ -216,7 +330,7 @@ For every RTM entry below:
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/prompt-registry.feature`
 - Test file: `web/oss/tests/playwright/acceptance/prompt-registry/index.ts`
-- Playwright title: `should open prompt details from prompt registry`
+- Playwright title: `Prompt Registry: workflow revisions > should open prompt details from prompt registry`
 
 #### Markers
 
@@ -232,23 +346,13 @@ For every RTM entry below:
 - License: `oss`
 - Status: active
 
-#### Scenarios
-
-- Given the user is authenticated
-- And at least one completion app exists
-- And the user is on the workflow revisions page for that app
-- When the user opens the first published workflow revision
-- And the workflow revision drawer is visible
-- And the user opens Playground from that drawer
-- Then the Playground opens for the selected revision
-
 ### WEB-ACC-SETTINGS-001 - Ensure the mock custom provider exists
 
 #### Source
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/settings.feature`
 - Test file: `web/oss/tests/playwright/acceptance/settings/model-hub.ts`
-- Playwright title: `should allow full add provider`
+- Playwright title: `Settings: Model Hub > should allow full add provider`
 
 #### Markers
 
@@ -264,19 +368,13 @@ For every RTM entry below:
 - License: `oss`
 - Status: active
 
-#### Scenarios
-
-- Given the user is authenticated
-- When the project scoped mock test provider is configured
-- Then the `Custom providers` table lists `mock`
-
 ### WEB-ACC-SETTINGS-002 - Create and delete an API key
 
 #### Source
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/settings.feature`
 - Test file: `web/oss/tests/playwright/acceptance/settings/api-keys.ts`
-- Playwright title: `should allow full API key flow`
+- Playwright title: `Settings: API Keys Management > should allow full API key flow`
 
 #### Markers
 
@@ -292,14 +390,49 @@ For every RTM entry below:
 - License: `oss`
 - Status: implemented, currently wrapped by a skipped spec
 
-#### Scenarios
+### WEB-ACC-SETTINGS-003 - Add a standard provider key via UI and verify it is listed
 
-- Given the user is authenticated
-- And the user is on the Settings page
-- When the user creates a new API key
-- Then the fresh API keys list contains the created key
-- When the user deletes the first API key from the list
-- Then the delete confirmation closes and the user remains on Settings
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/settings.feature`
+- Test file: `web/oss/tests/playwright/acceptance/settings/model-hub.ts`
+- Playwright title: `Settings: Model Hub > should configure a standard provider key and verify it is listed`
+
+#### Markers
+
+- Scope: `settings`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active with conditional skip when all standard providers are already configured
+
+### WEB-ACC-SETTINGS-004 - Add a custom provider via UI, verify it appears, then delete it
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/settings.feature`
+- Test file: `web/oss/tests/playwright/acceptance/settings/model-hub.ts`
+- Playwright title: `Settings: Model Hub > should add and delete a custom provider via the UI`
+
+#### Markers
+
+- Scope: `settings`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
 
 ### WEB-ACC-DATASETS-001 - View the default testset and its details
 
@@ -307,7 +440,7 @@ For every RTM entry below:
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
 - Test file: `web/oss/tests/playwright/acceptance/testsset/index.ts`
-- Playwright title: `should view the default testset`
+- Playwright title: `Testsets: view default testset > should view the default testset`
 
 #### Markers
 
@@ -323,13 +456,115 @@ For every RTM entry below:
 - License: `oss`
 - Status: active with conditional skip when no testsets exist
 
-#### Scenarios
+### WEB-ACC-DATASETS-002 - Create a testset from scratch
 
-- Given the user is authenticated
-- And the user navigates to the Test Sets page via the sidebar
-- When the page loads the default testset list
-- Then the test is skipped if no testsets exist
-- And the default testset detail page is visible with test cases
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
+- Test file: `web/oss/tests/playwright/acceptance/testsset/testset-management.spec.ts`
+- Playwright title: `Test Sets > should create a new testset from scratch`
+
+#### Markers
+
+- Scope: `datasets`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-DATASETS-003 - Upload a testset from CSV
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
+- Test file: `web/oss/tests/playwright/acceptance/testsset/testset-management.spec.ts`
+- Playwright title: `Test Sets > should upload a testset from CSV`
+
+#### Markers
+
+- Scope: `datasets`
+- Coverage: `light`, `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-DATASETS-004 - Edit a testcase inline and verify the change persists
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
+- Test file: `web/oss/tests/playwright/acceptance/testsset/testset-management.spec.ts`
+- Playwright title: `Test Sets > should edit a testcase inline and persist the change`
+
+#### Markers
+
+- Scope: `datasets`
+- Coverage: `light`, `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-DATASETS-005 - Add and delete rows and columns in a testset
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
+- Test file: `web/oss/tests/playwright/acceptance/testsset/testset-management.spec.ts`
+- Playwright title: `Test Sets > should add and delete rows and columns`
+
+#### Markers
+
+- Scope: `datasets`
+- Coverage: `light`, `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-DATASETS-006 - Delete a testset
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/testsets.feature`
+- Test file: `web/oss/tests/playwright/acceptance/testsset/testset-management.spec.ts`
+- Playwright title: `Test Sets > should delete a testset`
+
+#### Markers
+
+- Scope: `datasets`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
 
 ### WEB-ACC-DEPLOYMENT-001 - Deploy a variant to the Development environment
 
@@ -337,7 +572,7 @@ For every RTM entry below:
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/deployment.feature`
 - Test file: `web/oss/tests/playwright/acceptance/deployment/index.ts`
-- Playwright title: `deploy a variant`
+- Playwright title: `Deployment: deploy variant > deploy a variant`
 
 #### Markers
 
@@ -351,16 +586,7 @@ For every RTM entry below:
 - Role: `owner`
 - Plan: environment-defined
 - License: `oss`
-- Status: implemented, currently skipped pending deterministic bootstrap data
-
-#### Scenarios
-
-- Given the user is authenticated
-- And a completion app with at least one variant exists
-- And the user is on the app overview page
-- When the user opens the Development deployment flow
-- Then the environment cards for `Development`, `Staging`, and `Production` are visible
-- And the deployment flow completes without leaving the overview context
+- Status: active
 
 ### WEB-ACC-OBS-001 - Open a trace detail drawer from Observability
 
@@ -368,7 +594,7 @@ For every RTM entry below:
 
 - Feature file: `web/oss/tests/playwright/acceptance/features/observability.feature`
 - Test file: `web/oss/tests/playwright/acceptance/observability/index.ts`
-- Playwright title: `view traces`
+- Playwright title: `Observability: view traces > view traces`
 
 #### Markers
 
@@ -383,13 +609,6 @@ For every RTM entry below:
 - Plan: environment-defined
 - License: `oss`
 - Status: implemented, currently skipped pending deterministic trace generation
-
-#### Scenarios
-
-- Given the user is authenticated
-- And the user is on the Observability page
-- When the user opens the traces table
-- Then the trace detail drawer opens
 
 ### WEB-ACC-PROMPTS-001 - Navigate to the Prompts page
 
@@ -413,12 +632,6 @@ For every RTM entry below:
 - License: `oss`
 - Status: active
 
-#### Scenarios
-
-- Given the user is authenticated
-- When the user navigates to the Prompts page
-- Then the Prompts page is displayed with the Create new button
-
 ### WEB-ACC-PROMPTS-002 - Create a new prompt via the Create new dropdown
 
 #### Source
@@ -440,13 +653,6 @@ For every RTM entry below:
 - Plan: environment-defined
 - License: `oss`
 - Status: active
-
-#### Scenarios
-
-- Given the user is authenticated
-- And the user is on the Prompts page
-- When the user clicks Create new, selects New prompt, and fills in the form
-- Then the new prompt modal was opened and submitted successfully
 
 ### WEB-ACC-PROMPTS-003 - Create a new folder via the Create new dropdown
 
@@ -470,18 +676,11 @@ For every RTM entry below:
 - License: `oss`
 - Status: active
 
-#### Scenarios
-
-- Given the user is authenticated
-- And the user is on the Prompts page
-- When the user clicks Create new, selects New folder, and enters a folder name
-- Then the new folder is created and visible in the prompts table
-
 ### WEB-ACC-EVALUATORS-001 - Navigate to the Evaluators page and verify both tabs
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature` (not yet created)
+- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature`
 - Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
 - Playwright title: `Evaluators > should navigate to the evaluators page and display both automatic and human evaluator tabs`
 
@@ -490,30 +689,20 @@ For every RTM entry below:
 - Scope: `evaluations`
 - Coverage: `smoke`, `light`, `full`
 - Path: `happy`
-- Case: not set
-- Lens: not set
-- Speed: not set
-- Cost: not set
-- Role: not set
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
 - Plan: environment-defined
-- License: not set
+- License: `oss`
 - Status: active
-
-#### Scenarios
-
-- Given the user is authenticated
-- When the user navigates to the Evaluators page
-- Then the Automatic Evaluators tab is visible and selected by default
-- And the Human Evaluators tab is visible but not selected
-- And the Create new button is visible on both tabs
-- When the user switches between tabs
-- Then the active tab and URL parameter update correctly
 
 ### WEB-ACC-EVALUATORS-002 - Create an Exact Match evaluator from the template dropdown
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature` (not yet created)
+- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature`
 - Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
 - Playwright title: `Evaluators > should create an Exact Match evaluator from the template dropdown`
 
@@ -522,29 +711,20 @@ For every RTM entry below:
 - Scope: `evaluations`
 - Coverage: `smoke`, `light`, `full`
 - Path: `happy`
-- Case: not set
-- Lens: not set
-- Speed: not set
-- Cost: not set
-- Role: not set
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
 - Plan: environment-defined
-- License: not set
+- License: `oss`
 - Status: active
-
-#### Scenarios
-
-- Given the user is authenticated
-- And the user is on the Evaluators page
-- When the user opens the template dropdown and selects Exact Match
-- Then the New Evaluator drawer opens
-- When the user clicks Create, enters a name, and submits the commit modal
-- Then the evaluator creation succeeds and the new evaluator appears in the table
 
 ### WEB-ACC-EVALUATORS-003 - Open evaluator playground, select a completion app, and run
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature` (not yet created)
+- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature`
 - Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
 - Playwright title: `Evaluators > should open the evaluator playground, select a completion app, and run the evaluator`
 
@@ -553,31 +733,20 @@ For every RTM entry below:
 - Scope: `evaluations`
 - Coverage: `light`, `full`
 - Path: `happy`
-- Case: not set
-- Lens: not set
-- Speed: not set
-- Cost: not set
-- Role: not set
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
 - Plan: environment-defined
-- License: not set
+- License: `oss`
 - Status: active with conditional skip when no apps or no completion app exists
-
-#### Scenarios
-
-- Given the user is authenticated
-- And the user is on the Evaluators page
-- When the user creates a fresh Exact Match evaluator
-- And the user opens the evaluator view drawer and expands it to playground mode
-- And the user selects a completion-type app and its first revision
-- And the user fills in the testcase fields
-- When the user clicks Run
-- Then the evaluator result card appears
 
 ### WEB-ACC-EVALUATORS-004 - Create a human evaluator with a boolean feedback metric
 
 #### Source
 
-- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature` (not yet created)
+- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature`
 - Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
 - Playwright title: `Evaluators > should create a human evaluator with a boolean feedback metric`
 
@@ -586,28 +755,65 @@ For every RTM entry below:
 - Scope: `evaluations`
 - Coverage: `smoke`, `light`, `full`
 - Path: `happy`
-- Case: not set
-- Lens: not set
-- Speed: not set
-- Cost: not set
-- Role: not set
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
 - Plan: environment-defined
-- License: not set
+- License: `oss`
 - Status: active
 
-#### Scenarios
+### WEB-ACC-EVALUATORS-005 - Edit an existing evaluator and save a new version
 
-- Given the user is authenticated
-- And the user is on the Evaluators page on the Human Evaluators tab
-- When the user clicks Create new, fills in the evaluator name, feedback name, and selects Boolean type
-- Then the evaluator creation succeeds and the new human evaluator appears in the table
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature`
+- Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
+- Playwright title: `Evaluators > should edit an existing evaluator and save a new version`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `light`, `full`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-EVALUATORS-006 - Delete an evaluator
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/evaluators.feature`
+- Test file: `web/oss/tests/playwright/acceptance/evaluators/index.ts`
+- Playwright title: `Evaluators > should delete an evaluator`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
 
 ### WEB-ACC-AUTOEVAL-001 - Run a single auto evaluation
 
 #### Source
 
-- Feature file: not yet created
-- Test file: `web/ee/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
 - Playwright title: `Auto Evaluation: Run evaluation > should run a single evaluation`
 
 #### Markers
@@ -615,30 +821,21 @@ For every RTM entry below:
 - Scope: `evaluations`
 - Coverage: `smoke`, `light`, `full`
 - Path: `happy`
-- Case: not set
-- Lens: not set
-- Speed: not set
-- Cost: not set
-- Role: not set
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
 - Plan: environment-defined
-- License: `ee`
+- License: `oss`
 - Status: active
-
-#### Scenarios
-
-- Given the user is authenticated
-- And a completion app and at least one variant exist
-- And the user navigates to the auto evaluations page for that app
-- When the user creates a testset and runs an auto evaluation with Exact Match
-- Then the modal closes and the user is navigated to the evaluation results page
-- And the URL contains the auto evaluation results path
 
 ### WEB-ACC-AUTOEVAL-002 - Show error when creating auto evaluation with mismatched testset
 
 #### Source
 
-- Feature file: not yet created
-- Test file: `web/ee/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
 - Playwright title: `Auto Evaluation: Run evaluation > should show an error when attempting to create an evaluation with a mismatched testset`
 
 #### Markers
@@ -646,30 +843,21 @@ For every RTM entry below:
 - Scope: `evaluations`
 - Coverage: `smoke`, `light`, `full`
 - Path: `happy`
-- Case: not set
-- Lens: not set
-- Speed: not set
-- Cost: not set
-- Role: not set
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
 - Plan: environment-defined
-- License: `ee`
+- License: `oss`
 - Status: active
-
-#### Scenarios
-
-- Given the user is authenticated
-- And a chat app with at least one variant exists
-- And the user navigates to the auto evaluations page for that app
-- When the user opens the New Auto Evaluation modal and selects a testset with mismatched columns
-- Then the expected input variables note is shown and does not contain the mismatched column name
-- And the modal allows proceeding with the mismatched testset selected
 
 ### WEB-ACC-HUMAN-001 - Human evaluation entry point on the human tab
 
 #### Source
 
-- Feature file: not yet created
-- Test file: `web/ee/tests/playwright/acceptance/human-annotation/index.ts`
+- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
 - Playwright title: `Human Annotation > should show the human evaluation entry point on the human tab`
 
 #### Markers
@@ -677,28 +865,21 @@ For every RTM entry below:
 - Scope: `evaluations`
 - Coverage: `smoke`, `light`, `full`
 - Path: `happy`
-- Case: not set
-- Lens: not set
-- Speed: not set
-- Cost: not set
-- Role: not set
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
 - Plan: environment-defined
-- License: `ee`
+- License: `oss`
 - Status: active
-
-#### Scenarios
-
-- Given the user is authenticated
-- And a completion app exists
-- When the user navigates to the human evaluations tab for that app
-- Then the human evaluation entry point is displayed
 
 ### WEB-ACC-HUMAN-002 - Mismatched testset when configuring a human evaluation
 
 #### Source
 
-- Feature file: not yet created
-- Test file: `web/ee/tests/playwright/acceptance/human-annotation/index.ts`
+- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
 - Playwright title: `Human Annotation > should use a deliberately mismatched testset when configuring a human evaluation`
 
 #### Markers
@@ -706,29 +887,21 @@ For every RTM entry below:
 - Scope: `evaluations`
 - Coverage: `smoke`, `light`, `full`
 - Path: `happy`
-- Case: not set
-- Lens: not set
-- Speed: not set
-- Cost: not set
-- Role: not set
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
 - Plan: environment-defined
-- License: `ee`
+- License: `oss`
 - Status: active
-
-#### Scenarios
-
-- Given the user is authenticated
-- And a chat app with at least one variant exists
-- When the user opens the New Human Evaluation modal and selects a testset with mismatched columns
-- Then the expected input variables note is shown and does not contain the mismatched column name
-- And the modal allows proceeding with the mismatched testset selected
 
 ### WEB-ACC-HUMAN-003 - Create a human evaluation and land on the results page
 
 #### Source
 
-- Feature file: not yet created
-- Test file: `web/ee/tests/playwright/acceptance/human-annotation/index.ts`
+- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
 - Playwright title: `Human Annotation > should create a human evaluation and land on the results page`
 
 #### Markers
@@ -736,29 +909,109 @@ For every RTM entry below:
 - Scope: `evaluations`
 - Coverage: `smoke`, `light`, `full`
 - Path: `happy`
-- Case: not set
-- Lens: not set
-- Speed: not set
-- Cost: not set
-- Role: not set
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
 - Plan: environment-defined
-- License: `ee`
+- License: `oss`
 - Status: active
 
-#### Scenarios
+### WEB-ACC-AUTOEVAL-003 - View auto evaluation results — Scenarios tab
 
-- Given the user is authenticated
-- And a completion app with at least one variant exists
-- When the user creates a testset and runs a human evaluation
-- Then the modal closes and the user is navigated to the human evaluation results page
-- And the Annotate tab is selected with the inputs, outputs, and annotations sections visible
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Playwright title: `Auto Evaluation: Run evaluation > should view results detail on the Scenarios tab`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-AUTOEVAL-004 - View auto evaluation results — Configuration tab
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Playwright title: `Auto Evaluation: Run evaluation > should view results detail on the Configuration tab`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-AUTOEVAL-005 - Delete an auto evaluation run
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Playwright title: `Auto Evaluation: Run evaluation > should delete an evaluation run`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `smoke`, `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-AUTOEVAL-006 - Re-run an existing auto evaluation
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/auto-evaluation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/auto-evaluation/index.ts`
+- Playwright title: `Auto Evaluation: Run evaluation > should re-run an existing evaluation`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: skipped — re-run feature not yet implemented in the UI
 
 ### WEB-ACC-HUMAN-004 - Create evaluator inline and annotate a scenario from the Annotate tab
 
 #### Source
 
-- Feature file: not yet created
-- Test file: `web/ee/tests/playwright/acceptance/human-annotation/index.ts`
+- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
 - Playwright title: `Human Annotation > should create a new evaluator inline and annotate a scenario from the annotate tab`
 
 #### Markers
@@ -766,20 +1019,78 @@ For every RTM entry below:
 - Scope: `evaluations`
 - Coverage: `light`, `full`
 - Path: `happy`
-- Case: not set
-- Lens: not set
-- Speed: not set
-- Cost: not set
-- Role: not set
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
 - Plan: environment-defined
-- License: `ee`
+- License: `oss`
 - Status: active
 
-#### Scenarios
+### WEB-ACC-HUMAN-005 - Annotate multiple scenarios and see progress in the Scenarios tab
 
-- Given the user is authenticated
-- And a completion app with at least one variant exists
-- When the user creates a human evaluation run with an inline evaluator metric
-- Then the user is navigated to the human evaluation results page
-- And the user annotates the current scenario with a boolean metric value
-- Then the annotation is submitted successfully
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
+- Playwright title: `Human Annotation > should annotate multiple scenarios and see progress in the Scenarios tab`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
+### WEB-ACC-HUMAN-006 - Submit a partial annotation and resume later
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
+- Playwright title: `Human Annotation > should submit a partial annotation and resume later`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `slow`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: skipped — session persistence across page reloads not reliably testable in CI
+
+### WEB-ACC-HUMAN-007 - View the Overview tab on a human evaluation results page
+
+#### Source
+
+- Feature file: `web/oss/tests/playwright/acceptance/features/human-annotation.feature`
+- Test file: `web/oss/tests/playwright/acceptance/human-annotation/index.ts`
+- Playwright title: `Human Annotation > should view the Overview tab on a human evaluation results page`
+
+#### Markers
+
+- Scope: `evaluations`
+- Coverage: `light`
+- Path: `happy`
+- Case: `typical`
+- Lens: `functional`
+- Speed: `fast`
+- Cost: `free`
+- Role: `owner`
+- Plan: environment-defined
+- License: `oss`
+- Status: active
+
