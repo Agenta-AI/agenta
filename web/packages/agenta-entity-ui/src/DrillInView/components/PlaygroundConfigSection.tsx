@@ -807,7 +807,7 @@ function PlaygroundConfigSection({
                 ? enumValues.map((v) => String(v))
                 : FALLBACK_POLICY_OPTIONS.map((o) => o.value)
         return values.map((value) => ({
-            label: value,
+            label: formatLabel(value),
             value,
             description: metadata[value]?.description,
         }))
@@ -824,7 +824,7 @@ function PlaygroundConfigSection({
                 ? enumValues.map((v) => String(v))
                 : RETRY_POLICY_OPTIONS.map((o) => o.value)
         return values.map((value) => ({
-            label: value,
+            label: formatLabel(value),
             value,
             description: metadata[value]?.description,
         }))
@@ -847,12 +847,25 @@ function PlaygroundConfigSection({
                 nextConfig[key] = nextValue
             }
 
-            updatePromptRootField(
-                "retry_config",
-                Object.keys(nextConfig).length > 0 ? nextConfig : null,
-            )
+            const nextMaxRetries =
+                key === "max_retries"
+                    ? nextValue
+                    : typeof nextConfig.max_retries === "number"
+                      ? nextConfig.max_retries
+                      : DEFAULT_RETRY_CONFIG.max_retries
+            const nextRetryConfig = Object.keys(nextConfig).length > 0 ? nextConfig : null
+
+            if (!nextMaxRetries || nextMaxRetries <= 0) {
+                updatePromptRootFields({
+                    retry_config: nextRetryConfig,
+                    retry_policy: null,
+                })
+                return
+            }
+
+            updatePromptRootField("retry_config", nextRetryConfig)
         },
-        [retryConfig, updatePromptRootField],
+        [retryConfig, updatePromptRootField, updatePromptRootFields],
     )
 
     const handleAddFallbackModel = useCallback(() => {
@@ -907,9 +920,17 @@ function PlaygroundConfigSection({
     const handleRemoveFallbackModel = useCallback(
         (index: number) => {
             const nextConfigs = fallbackConfigs.filter((_, configIndex) => configIndex !== index)
-            updatePromptRootField("fallback_configs", nextConfigs.length > 0 ? nextConfigs : null)
+            if (nextConfigs.length === 0) {
+                updatePromptRootFields({
+                    fallback_configs: null,
+                    fallback_policy: null,
+                })
+                return
+            }
+
+            updatePromptRootField("fallback_configs", nextConfigs)
         },
-        [fallbackConfigs, updatePromptRootField],
+        [fallbackConfigs, updatePromptRootField, updatePromptRootFields],
     )
 
     const handleResetFallbackPolicy = useCallback(() => {
@@ -1045,7 +1066,7 @@ function PlaygroundConfigSection({
                     )}
                 </div>
                 <Button size="small" onClick={handleActiveConfigureReset} disabled={disabled}>
-                    Reset
+                    Reset to default
                 </Button>
             </div>
 
@@ -1108,6 +1129,18 @@ function PlaygroundConfigSection({
                                               }
                                               fallbackConfigs={fallbackConfigs}
                                               fallbackPolicyOptions={fallbackPolicyOptions}
+                                              fallbackPolicySchema={
+                                                  promptModelInfo?.promptSchemaProps
+                                                      .fallback_policy as
+                                                      | EntitySchemaProperty
+                                                      | undefined
+                                              }
+                                              fallbackConfigsSchema={
+                                                  promptModelInfo?.promptSchemaProps
+                                                      .fallback_configs as
+                                                      | EntitySchemaProperty
+                                                      | undefined
+                                              }
                                               onPolicyChange={(nextValue) =>
                                                   updatePromptRootField(
                                                       "fallback_policy",
@@ -1133,6 +1166,18 @@ function PlaygroundConfigSection({
                                                       | undefined) ?? null
                                               }
                                               retryPolicyOptions={retryPolicyOptions}
+                                              retryPolicySchema={
+                                                  promptModelInfo?.promptSchemaProps
+                                                      .retry_policy as
+                                                      | EntitySchemaProperty
+                                                      | undefined
+                                              }
+                                              retryConfigSchema={
+                                                  promptModelInfo?.promptSchemaProps
+                                                      .retry_config as
+                                                      | EntitySchemaProperty
+                                                      | undefined
+                                              }
                                               maxRetries={effectiveRetryConfig.max_retries}
                                               delayMs={effectiveRetryConfig.delay_ms}
                                               onPolicyChange={(nextValue) =>

@@ -1,6 +1,10 @@
 import {memo} from "react"
 
+import type {EntitySchemaProperty} from "@agenta/entities/shared"
+import {formatLabel} from "@agenta/ui/drill-in"
 import {InputNumber, Select, Typography} from "antd"
+
+import {resolveAnyOfSchema} from "../../SchemaControls/schemaUtils"
 
 interface PolicyOption {
     label: string
@@ -11,6 +15,8 @@ interface PolicyOption {
 export interface RetryConfigTabProps {
     retryPolicy?: string | null
     retryPolicyOptions: PolicyOption[]
+    retryPolicySchema?: EntitySchemaProperty
+    retryConfigSchema?: EntitySchemaProperty
     maxRetries: number
     delayMs: number
     onPolicyChange: (nextValue: string | null) => void
@@ -21,19 +27,70 @@ export interface RetryConfigTabProps {
 export const RetryConfigTab = memo(function RetryConfigTab({
     retryPolicy,
     retryPolicyOptions,
+    retryPolicySchema,
+    retryConfigSchema,
     maxRetries,
     delayMs,
     onPolicyChange,
     onConfigFieldChange,
     disabled,
 }: RetryConfigTabProps) {
+    const policyTitle = formatLabel(retryPolicySchema?.title || "retry_policy")
+    const policyDescription =
+        retryPolicySchema?.description ||
+        "Choose which failure types should trigger another request attempt."
+    const retryConfigProperties =
+        resolveAnyOfSchema(retryConfigSchema)?.properties ??
+        ({} as Record<string, EntitySchemaProperty>)
+    const isPolicyEnabled = !disabled && maxRetries > 0
+
+    const renderNumberField = (
+        key: "max_retries" | "delay_ms",
+        value: number,
+        fallbackDescription: string,
+    ) => {
+        const schema = resolveAnyOfSchema(retryConfigProperties[key])
+        const min = typeof schema?.minimum === "number" ? schema.minimum : 0
+
+        return (
+            <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-0.5">
+                    <Typography.Text>{formatLabel(schema?.title || key)}</Typography.Text>
+                    <Typography.Text type="secondary" className="text-xs leading-snug">
+                        {schema?.description || fallbackDescription}
+                    </Typography.Text>
+                </div>
+                <InputNumber
+                    min={min}
+                    precision={0}
+                    value={value}
+                    onChange={(nextValue) =>
+                        onConfigFieldChange(key, typeof nextValue === "number" ? nextValue : null)
+                    }
+                    disabled={disabled}
+                    className="w-[130px]"
+                />
+            </div>
+        )
+    }
+
     return (
         <div className="flex flex-col gap-4">
+            {renderNumberField(
+                "max_retries",
+                maxRetries,
+                "Additional attempts after the initial request fails.",
+            )}
+            {renderNumberField(
+                "delay_ms",
+                delayMs,
+                "Wait time between retry attempts in milliseconds.",
+            )}
             <div className="flex flex-col gap-1">
                 <div className="flex flex-col gap-0.5">
-                    <Typography.Text>Policy</Typography.Text>
+                    <Typography.Text>{policyTitle}</Typography.Text>
                     <Typography.Text type="secondary" className="text-xs leading-snug">
-                        Choose which failure types should trigger another request attempt.
+                        {policyDescription}
                     </Typography.Text>
                 </div>
                 <Select
@@ -43,7 +100,7 @@ export const RetryConfigTab = memo(function RetryConfigTab({
                     onChange={(nextValue) => onPolicyChange(nextValue ?? null)}
                     options={retryPolicyOptions}
                     placeholder="Select one"
-                    disabled={disabled}
+                    disabled={!isPolicyEnabled}
                     optionRender={(option) => {
                         const description = (option.data as {description?: string}).description
                         return (
@@ -57,48 +114,6 @@ export const RetryConfigTab = memo(function RetryConfigTab({
                             </div>
                         )
                     }}
-                />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-                <div className="flex flex-col gap-0.5">
-                    <Typography.Text>Max retries</Typography.Text>
-                    <Typography.Text type="secondary" className="text-xs leading-snug">
-                        Additional attempts after the initial request fails.
-                    </Typography.Text>
-                </div>
-                <InputNumber
-                    min={0}
-                    precision={0}
-                    value={maxRetries}
-                    onChange={(nextValue) =>
-                        onConfigFieldChange(
-                            "max_retries",
-                            typeof nextValue === "number" ? nextValue : null,
-                        )
-                    }
-                    disabled={disabled}
-                    className="w-[130px]"
-                />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-                <div className="flex flex-col gap-0.5">
-                    <Typography.Text>Delay ms</Typography.Text>
-                    <Typography.Text type="secondary" className="text-xs leading-snug">
-                        Wait time between retry attempts in milliseconds.
-                    </Typography.Text>
-                </div>
-                <InputNumber
-                    min={0}
-                    precision={0}
-                    value={delayMs}
-                    onChange={(nextValue) =>
-                        onConfigFieldChange(
-                            "delay_ms",
-                            typeof nextValue === "number" ? nextValue : null,
-                        )
-                    }
-                    disabled={disabled}
-                    className="w-[130px]"
                 />
             </div>
         </div>
