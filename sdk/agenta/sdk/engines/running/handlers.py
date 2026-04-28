@@ -1893,9 +1893,8 @@ class SinglePromptConfig(BaseModel):
 
 
 def _apply_responses_bridge_if_needed(
-    formatted_prompt: PromptTemplate,
     provider_settings: Dict,
-    llm_config: Optional[ModelConfig] = None,
+    llm_config: ModelConfig,
 ) -> Dict:
     """
     Checks if web_search_preview tool is present and applies responses bridge if needed.
@@ -1905,13 +1904,13 @@ def _apply_responses_bridge_if_needed(
     'openai/responses/' to the model name.
 
     Args:
-        formatted_prompt: The formatted prompt template containing LLM config and tools
         provider_settings: The provider settings dictionary that may be modified
+        llm_config: The LLM config containing tool definitions
 
     Returns:
         The provider_settings dictionary, potentially modified to use responses bridge
     """
-    tools = (llm_config or formatted_prompt.llm_config).tools
+    tools = llm_config.tools
     if tools:
         for tool in tools:
             if isinstance(tool, dict) and tool.get("type") in [
@@ -2162,7 +2161,6 @@ async def _run_prompt_llm_config_with_retry(
                 )
 
             provider_settings = _apply_responses_bridge_if_needed(
-                formatted_prompt,
                 dict(provider_settings),
                 llm_config=llm_config,
             )
