@@ -66,6 +66,12 @@ class OTLPRouter:
 
     @intercept_exceptions()
     async def otlp_status(self):
+        """Return the OTLP endpoint liveness status.
+
+        Lightweight readiness probe. Returns `{"status": "ready"}` when
+        the router is mounted. Intended for health checks from OTel
+        collectors before they start exporting traces.
+        """
         return CollectStatusResponse(status="ready")
 
     @intercept_exceptions()
@@ -73,6 +79,35 @@ class OTLPRouter:
         self,
         request: Request,
     ):
+        """Ingest traces via the OTLP/HTTP protobuf protocol.
+
+        This endpoint accepts a serialized
+        `ExportTraceServiceRequest` protobuf. Point any OTLP/HTTP
+        collector or SDK at `POST /otlp/v1/traces` and spans will flow
+        into the same ingest stream as the Agenta-native endpoints.
+
+        Use this when you already have OTel instrumentation emitting
+        OTLP. For new integrations that don't need raw OTLP, prefer
+        `POST /tracing/spans/ingest` — it takes JSON, accepts Agenta's
+        nested shape directly, and surfaces parse failures immediately.
+
+        ## Content-Type and size limit
+
+        Binary protobuf only (`Content-Type: application/x-protobuf`).
+        JSON OTLP is not accepted. Requests larger than the configured
+        batch limit (default 4 MB, see `OTLP_MAX_BATCH_BYTES`) return
+        `413 Request Entity Too Large`.
+
+        ## Response
+
+        Successful ingest returns `200 OK` with a serialized
+        `ExportTraceServiceResponse` protobuf. Parse failures on the
+        request body return `400`; malformed spans return `500`; quota
+        exhaustion returns `403`. Like the native ingest paths, spans
+        are queued on a Redis stream and persisted asynchronously — see
+        [Tracing — Async write
+        contract](/reference/api-guide/tracing#async-write-contract-202).
+        """
         # -------------------------------------------------------------------- #
         # Permission check
         # -------------------------------------------------------------------- #

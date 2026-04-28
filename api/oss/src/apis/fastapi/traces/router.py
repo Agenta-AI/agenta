@@ -93,6 +93,46 @@ class SimpleTracesRouter:
         *,
         trace_create_request: SimpleTraceCreateRequest,
     ) -> SimpleTraceResponse:
+        """Create a single-span "simple" trace.
+
+        This endpoint is a higher-level helper for the common case of
+        recording one self-contained event — an evaluator output, a human
+        annotation, a feedback entry, a manually-logged inference. It
+        creates one span under a fresh `trace_id` and returns the resulting
+        handle.
+
+        ## When to use this vs. `/tracing/spans/ingest`
+
+        - **Use this endpoint** when you have a single payload to record
+          with no internal hierarchy: evaluation results, human feedback,
+          manual annotations, or a standalone completion. It takes care of
+          `trace_id`/`span_id` generation, attribute namespacing, and link
+          wiring for you.
+        - **Use `POST /tracing/spans/ingest`** when you need multi-span
+          traces (e.g. an agent run with nested tool calls and LLM spans),
+          precise control over IDs, timings, or parent/child relationships,
+          or when forwarding traces from another OTel-compatible source.
+
+        ## Request body
+
+        Send a `trace` object with:
+
+        - `origin` — who produced the trace (`human`, `auto`, `custom`).
+        - `kind` — intent (`adhoc`, `eval`, `play`).
+        - `channel` — transport that produced it (`sdk`, `api`, `web`, `otlp`).
+        - `data` — required dict carrying the actual payload (inputs,
+          outputs, or evaluator results).
+        - `tags`, `meta` — optional free-form dicts for filtering and
+          metadata.
+        - `references` — optional links to Agenta entities (application,
+          variant, revision, evaluator, testset, etc.).
+        - `links` — optional OTel-style links to other traces/spans.
+
+        Use `PATCH /preview/tracing/traces/{trace_id}` to update fields
+        later, `GET` to fetch, and `DELETE` to remove. See
+        [Tracing — References and links](/reference/api-guide/tracing#references-and-entity-linking)
+        for when to use `references` vs. `links`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -122,6 +162,14 @@ class SimpleTracesRouter:
         *,
         trace_id: str,
     ) -> Union[Response, SimpleTraceResponse]:
+        """Fetch a single "simple" trace by `trace_id`.
+
+        Returns the high-level `SimpleTrace` view (origin, kind, channel,
+        data, references, links) rather than the raw OTel span shape. Use
+        this for evaluation results, feedback entries, and annotations
+        created via `POST /simple/traces/`. For the span-level view of the
+        same trace, call `GET /tracing/traces/{trace_id}`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -149,6 +197,17 @@ class SimpleTracesRouter:
         #
         trace_edit_request: SimpleTraceEditRequest,
     ) -> SimpleTraceResponse:
+        """Update an existing "simple" trace.
+
+        Supplied fields overwrite the existing trace. Fields not present
+        in the request body are left unchanged. `data` is required (the
+        payload being recorded); `tags`, `meta`, `references`, and
+        `links` are optional.
+
+        This endpoint is intended for annotations and feedback entries,
+        where the `data.outputs` is the part that typically gets revised.
+        For span-level edits, use `PUT /tracing/traces/{trace_id}`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -179,6 +238,14 @@ class SimpleTracesRouter:
         *,
         trace_id: str,
     ) -> SimpleTraceLinkResponse:
+        """Delete a "simple" trace.
+
+        Removes the single-span trace created via
+        `POST /simple/traces/`. Returns the `(trace_id, span_id)` pair
+        that was removed, for logging or downstream cleanup. Use
+        `DELETE /tracing/traces/{trace_id}` when operating on a
+        multi-span trace.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -206,6 +273,20 @@ class SimpleTracesRouter:
         *,
         trace_query_request: SimpleTraceQueryRequest,
     ) -> SimpleTracesResponse:
+        """Query "simple" traces.
+
+        Filter annotations and feedback by `origin`, `kind`, `channel`,
+        `tags`, `meta`, `references`, and `links`. The shape of the
+        request body is described in the
+        [Simple Endpoints](/reference/api-guide/simple-endpoints#query-traces)
+        guide, including the distinction between filtering via
+        `trace.links` (inbound links on the trace) and the top-level
+        `links` (batch GET by the trace's own IDs).
+
+        Use this endpoint when building feedback or annotation UIs.
+        For span-level queries across all trace types, use
+        `POST /tracing/spans/query`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,

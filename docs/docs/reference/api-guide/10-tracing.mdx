@@ -1,0 +1,262 @@
+---
+title: "Tracing"
+description: "Spans, traces, the ag namespace, and the four ingestion paths."
+sidebar_position: 10
+---
+
+Agenta's observability layer is built on OpenTelemetry spans plus a thin Agenta-owned attribute namespace. This page documents the primitives, how Agenta entities link into them, and which ingestion endpoint to pick.
+
+## Spans and traces
+
+A **span** is one unit of work — a request, an LLM call, a tool execution. It carries:
+
+| Field | Description |
+|-------|-------------|
+| `trace_id` | 32-char hex that groups all spans of one operation. |
+| `span_id` | 16-char hex identifying this span. |
+| `parent_id` | `span_id` of the parent, or null for a root. |
+| `start_time`, `end_time` | ISO-8601 timestamps. |
+| `span_kind` | OTel kind (`SPAN_KIND_SERVER`, `SPAN_KIND_INTERNAL`, etc.). |
+| `status_code` | `STATUS_CODE_UNSET`, `STATUS_CODE_OK`, or `STATUS_CODE_ERROR`. |
+| `attributes` | Free-form dict. Agenta's data lives under the `ag.*` subtree. |
+
+A **trace** is the set of spans sharing a `trace_id`. On endpoints that return a single trace, the payload is a `trace_id` plus a nested `SpansTree`: spans keyed by `span_name` under each parent's `spans` field (a list when siblings share a name). This nested form is what the UI renders as a waterfall.
+
+## Trace types: annotation vs invocation
+
+Every trace carries a `ag.type.trace` enum with three values:
+
+| Value | Meaning |
+|-------|---------|
+| `invocation` | The trace records a product event — an app run, an evaluator execution, an LLM call. Most traces produced by instrumented code are invocations. |
+| `annotation` | The trace records a human-authored judgment on another trace — feedback, a label, a manual score. Annotations almost always carry a `link` back to the invocation they describe. |
+| `unknown` | The type was not declared or could not be inferred. |
+
+The distinction matters at query time: annotation UIs filter on `ag.type.trace = annotation`, while evaluation views walk invocations.
+
+## Span types
+
+Each span also declares its role via `ag.type.span`:
+
+| Value | Role |
+|-------|------|
+| `agent` | An agent loop driving tool calls or sub-tasks. |
+| `chain` | A composed sequence of calls treated as one unit. |
+| `workflow` | The root of a product run (application or evaluator invocation). |
+| `task` | A generic unit of work. Default when no other type fits. |
+| `tool` | A tool call from an agent. |
+| `llm` | A raw LLM request. |
+| `completion` | A completion call (legacy distinction from `chat`). |
+| `chat` | A chat-completion call. |
+| `embedding` | An embedding request. |
+| `query` | A query against an index or retrieval system. |
+| `rerank` | A reranker call. |
+
+## How evaluators produce invocation traces
+
+Evaluations tie traces and the rest of the API together:
+
+1. Each evaluation run invokes its subject (an application revision) over a testset.
+2. Every invocation produces one trace of type `invocation`.
+3. Every evaluator execution produces another trace of type `invocation`.
+4. Evaluation **scenarios** reference those trace IDs via their links.
+
+So a single evaluation run leaves behind one invocation trace per (testcase × subject) plus one invocation trace per (testcase × evaluator). See [Evaluations](/reference/api-guide/evaluations) for how scenarios join them back together.
+
+## References and entity linking
+
+References are how a trace points at the Agenta entity that produced or triggered it. They live under `ag.references.<key>` and each value is a reference object:
+
+```json
+{"id": "019d952f-0000-0000-0000-000000000000", "slug": "support-bot", "version": "3"}
+```
+
+Any of the three fields is accepted. `id` always resolves. `slug` is resolved within the project. `version` applies to revisions and is a string.
+
+The supported reference keys:
+
+| Key | What it points at |
+|-----|-------------------|
+| `application`, `application_variant`, `application_revision` | The application and its branch/commit. |
+| `workflow`, `workflow_variant`, `workflow_revision` | The workflow and its branch/commit. |
+| `evaluator`, `evaluator_variant`, `evaluator_revision` | The evaluator and its branch/commit. |
+| `testset`, `testset_variant`, `testset_revision` | The testset and its branch/commit. |
+| `query`, `query_variant`, `query_revision` | The saved query and its branch/commit. |
+| `environment`, `environment_variant`, `environment_revision` | A deployment target. |
+| `snippet`, `snippet_variant`, `snippet_revision` | A reusable snippet. |
+| `testcase` | A specific testcase. |
+
+## Links vs references
+
+The two terms look similar but do different things.
+
+| | `links` | `references` |
+|-|---------|-------------|
+| Spec | OTel `SpanLink`. | Agenta extension. |
+| Points at | Another span in another trace (`trace_id` + `span_id`). | An Agenta entity revision (`id`/`slug`/`version`). |
+| Used for | "This span continues from span Y in that other trace." | "This trace was produced by application revision X." |
+
+An annotation trace typically carries both: a `link` to the invocation span being annotated, and a `reference` to the evaluator that produced it.
+
+## The four ingestion paths
+
+Tracing has four write endpoints. Pick the one that matches your payload shape.
+
+| Endpoint | When to use |
+|----------|-------------|
+| `POST /otlp/v1/traces` | Raw OTLP protobuf from an OTel SDK or collector. Pick this if you already have OTel instrumentation pointed somewhere else. |
+| `POST /tracing/spans/ingest` | Agenta-native structured ingest. Accepts either a flat `spans` list (parents via `parent_id`) or a nested `traces` tree. Pick this when writing spans directly with full control over IDs and hierarchy. |
+| `POST /simple/traces/` | Single-span helper for evaluations, feedback, or annotations. The endpoint generates the IDs and wraps the payload. Pick this for one standalone trace. |
+| `POST /traces/ingest`, `POST /traces/`, `PUT /traces/{trace_id}` | List-shaped trace CRUD. Accepts the canonical `Trace`/`Traces` shape. Pick this when operating on whole traces as records. |
+
+All four paths converge on the same ingest pipeline (`TracingService.ingest_span_dtos`), which publishes spans to a Redis stream for an async worker to persist.
+
+## Async write contract (202)
+
+Every ingest endpoint returns `202 Accepted`, never `200 OK`. This is intentional:
+
+- OTel semantics require the ingest buffer to return fast so instrumented apps don't block on telemetry.
+- The router parses the payload, emits Redis-stream messages, and returns. Validation against the database and the actual persist step happen asynchronously in a worker.
+- The `count` field on the response is the number of spans **parsed into the stream**, not the number the worker persisted.
+- If you submit `N` spans and see `count < N`, some spans failed at parse time (malformed JSON, invalid IDs). Worker failures are not visible on the response.
+
+A known edge case (tracked as AGE-3735) where validation failures can be reported under a `count: 0` response is being fixed. The ingest path is still stream-accept by design.
+
+## The `ag.*` attribute namespace
+
+Spans carry an OTel `attributes` dict. Agenta owns the `ag` subtree. Canonical sub-namespaces:
+
+| Namespace | Purpose |
+|-----------|---------|
+| `ag.type.trace`, `ag.type.span` | Trace and span type enums. |
+| `ag.data.inputs`, `ag.data.outputs`, `ag.data.parameters`, `ag.data.internals` | What the span saw and produced. |
+| `ag.metrics.duration`, `ag.metrics.errors`, `ag.metrics.tokens`, `ag.metrics.costs` | Server-computed metrics. Each has a `cumulative` and `incremental` view. |
+| `ag.references` | Entity references (see above). |
+| `ag.flags`, `ag.tags`, `ag.meta` | Filtering and labeling dicts. |
+| `ag.exception` | Structured exception payload. |
+| `ag.session.id`, `ag.user.id` | Optional session and user identifiers. |
+
+Two wire formats are accepted on ingest. Query responses always return the nested form.
+
+**Flat (dot-notation):**
+
+```json
+{
+  "attributes": {
+    "ag.type.trace": "invocation",
+    "ag.type.span": "workflow",
+    "ag.data.inputs.country": "France",
+    "ag.data.outputs": "Paris"
+  }
+}
+```
+
+**Nested:**
+
+```json
+{
+  "attributes": {
+    "ag": {
+      "type": {"trace": "invocation", "span": "workflow"},
+      "data": {"inputs": {"country": "France"}, "outputs": "Paris"}
+    }
+  }
+}
+```
+
+## `ag.unsupported` fallback
+
+Agenta's ingest does not strict-reject unknown or malformed `ag.*` fields. Instead, `initialize_ag_attributes`:
+
+1. Moves unknown keys, wrong-typed values, and unparseable JSON strings under `ag.data.{inputs, parameters, internals}` into `ag.unsupported.*`.
+2. On a Pydantic validation error, relocates the offending top-level key to `ag.unsupported` and retries.
+3. On a second failure, falls back to a minimal-valid attribute object with everything in `unsupported`.
+
+This is a product commitment: don't drop customer telemetry silently. AGE-3735 is one edge case where this fallback is currently defeated, not a sign the fallback has been removed.
+
+## Querying
+
+`POST /tracing/spans/query` takes filtering, windowing, and a `focus`:
+
+- `focus = "trace"` (default). Response is a nested `traces` tree keyed by `trace_id` → span name. The shape that `spans/ingest` accepts under `traces`.
+- `focus = "span"`. Response is a flat `spans` list. Paginates without rebuilding hierarchies.
+
+Exactly one of `traces`/`spans` is populated. `POST /spans/query` and `POST /traces/query` wrap the same backend, forcing `focus=SPAN` and `focus=TRACE` respectively. Use [Windowing](/reference/api-guide/query-pattern#windowing) for cursor pagination.
+
+## Worked examples
+
+### Ingest a nested trace
+
+```bash
+curl -X POST "$AGENTA_HOST/api/tracing/spans/ingest" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "traces": {
+      "f5a2efb40895881e938e2ebc070beca8": {
+        "spans": {
+          "workflow_v0": {
+            "trace_id": "f5a2efb40895881e938e2ebc070beca8",
+            "span_id": "15f3df0731995245",
+            "span_kind": "SPAN_KIND_SERVER",
+            "start_time": "2026-04-16T18:18:18.491929Z",
+            "end_time": "2026-04-16T18:18:20.415372Z",
+            "attributes": {
+              "ag": {
+                "type": {"trace": "invocation", "span": "workflow"},
+                "data": {"inputs": {"country": "France"}, "outputs": "Paris"}
+              }
+            },
+            "spans": {
+              "llm_call": {
+                "trace_id": "f5a2efb40895881e938e2ebc070beca8",
+                "span_id": "c8ae7f12d1b3e9a4",
+                "parent_id": "15f3df0731995245",
+                "start_time": "2026-04-16T18:18:18.800000Z",
+                "end_time": "2026-04-16T18:18:20.400000Z",
+                "attributes": {"ag.type.span": "llm"}
+              }
+            }
+          }
+        }
+      }
+    }
+  }'
+```
+
+Response (`202 Accepted`):
+
+```json
+{
+  "count": 2,
+  "links": [
+    {"trace_id": "f5a2efb40895881e938e2ebc070beca8", "span_id": "15f3df0731995245"},
+    {"trace_id": "f5a2efb40895881e938e2ebc070beca8", "span_id": "c8ae7f12d1b3e9a4"}
+  ]
+}
+```
+
+### Record a single annotation
+
+```bash
+curl -X POST "$AGENTA_HOST/api/simple/traces/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "trace": {
+      "origin": "human",
+      "kind": "adhoc",
+      "channel": "api",
+      "data": {"outputs": {"score": 5, "comment": "Good response"}},
+      "references": {"evaluator": {"slug": "user-feedback"}},
+      "links": {
+        "invocation": {
+          "trace_id": "0af7651916cd43dd8448eb211c80319c",
+          "span_id": "b7ad6b7169203331"
+        }
+      }
+    }
+  }'
+```
+
+The response returns the created trace with a server-generated `trace_id` and `span_id`. Use those IDs with `GET`, `PATCH`, or `DELETE` on `/simple/traces/{trace_id}`.

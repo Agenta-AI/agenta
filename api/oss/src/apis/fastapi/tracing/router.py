@@ -188,6 +188,64 @@ class TracingRouter:
         request: Request,
         spans_request: OTelTracingRequest,
     ) -> OTelLinksResponse:
+        """Ingest spans into the tracing backend.
+
+        Use this endpoint to write full OpenTelemetry-style spans — including
+        multi-span hierarchies (parent → child → grandchild), attributes,
+        references, events and links. For simple single-span annotations or
+        evaluator outputs, prefer `POST /preview/tracing/traces/`
+        (`create_simple_trace`) — it's a higher-level helper on top of this
+        endpoint.
+
+        ## Request body
+
+        Provide exactly one of:
+
+        - `spans`: a flat list of spans. Parent/child relationships are
+          expressed via `parent_id` on each span.
+        - `traces`: a nested tree keyed by `trace_id` then by span name,
+          where each node may contain a `spans` dict of its children. The
+          query endpoint (`POST /tracing/spans/query`) returns this shape.
+
+        Each span requires `trace_id`, `span_id`, `start_time`, `end_time`.
+        `trace_id` must be a 32-char hex UUID, `span_id` a 16-char hex.
+        Attributes follow the Agenta convention under the `ag` namespace
+        (`ag.type`, `ag.data`, `ag.metrics`, `ag.references`) and may be
+        submitted either as a flat dotted map (OTel wire format) or as a
+        nested object — both are accepted.
+
+        ## Response
+
+        Returns `202 Accepted` with the links (`trace_id` + `span_id`) for
+        the spans that were parsed into the ingest stream. See
+        [Tracing — Async write
+        contract](/reference/api-guide/tracing#async-write-contract-202)
+        for what `count < N submitted` means.
+
+        ## Example
+
+        ```json
+        {
+          "spans": [
+            {
+              "trace_id": "f5a2efb40895881e938e2ebc070beca8",
+              "span_id": "15f3df0731995245",
+              "span_name": "completion_v0",
+              "span_type": "workflow",
+              "span_kind": "SPAN_KIND_SERVER",
+              "start_time": "2026-04-16T18:18:18.491929Z",
+              "end_time": "2026-04-16T18:18:20.415372Z",
+              "attributes": {
+                "ag.type.trace": "invocation",
+                "ag.type.span": "workflow",
+                "ag.data.inputs.country": "France",
+                "ag.data.outputs": "Paris"
+              }
+            }
+          ]
+        }
+        ```
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -243,6 +301,25 @@ class TracingRouter:
         request: Request,
         query: Optional[TracingQuery] = Depends(parse_query_from_params_request),
     ) -> OTelTracingResponse:
+        """Query spans and traces in the tracing backend.
+
+        Use `focus` in the request body to control the response shape:
+
+        - `"trace"` (default): returns a nested `traces` tree keyed by
+          `trace_id` then by span name. Children hang off their parent's
+          `spans` field. Best for rendering a trace waterfall.
+        - `"span"`: returns a flat `spans` list. Best for paginating or
+          filtering across all spans regardless of hierarchy.
+
+        Use `oldest` / `newest` (unix seconds) to window the query and
+        `limit` to cap the number of traces/spans returned.
+
+        The response preserves the Agenta `ag.*` attribute namespace and
+        includes computed metrics (`ag.metrics.duration`, `ag.metrics.tokens`,
+        `ag.metrics.costs`) on each span. The `traces` tree returned here is
+        the same shape that `POST /tracing/spans/ingest` accepts as its
+        `traces` field.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -312,6 +389,33 @@ class TracingRouter:
             parse_analytics_from_params_request
         ),
     ) -> AnalyticsResponse:
+        """Aggregate span metrics into time buckets.
+
+        Runs filtering and windowing identical to `POST /tracing/spans/query`,
+        then bucketizes the matched spans by time and computes one or more
+        metric summaries per bucket. Use this to build charts of latency,
+        cost, token usage, or custom numeric and categorical attributes.
+
+        ## Request body
+
+        - `filtering` — same shape as the query endpoint, scoped to the spans
+          that contribute to the analytics.
+        - `windowing` — `oldest`/`newest` for the time range and `interval`
+          for bucket width (in seconds).
+        - `specs` — a list of `MetricSpec` entries describing which
+          attributes to summarize and how. Each spec declares a `type`
+          (`numeric/continuous`, `numeric/discrete`, `binary`,
+          `categorical/single`, `categorical/multiple`, `string`, `json`,
+          or `*` for auto) and a dotted `path` into the span (for example
+          `attributes.ag.metrics.costs.cumulative.total`).
+
+        ## Response
+
+        Buckets are returned in chronological order. Each bucket carries a
+        `metrics` dict keyed by spec path. See [Tracing — the ag.*
+        namespace](/reference/api-guide/tracing#the-ag-attribute-namespace)
+        for the cumulative/incremental metric layout on each span.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -359,6 +463,17 @@ class TracingRouter:
         request: Request,
         query: Optional[TracingQuery] = Depends(parse_query_from_params_request),
     ) -> OldAnalyticsResponse:
+        """Aggregate span metrics using the fixed legacy schema.
+
+        Returns time-bucketed aggregates with a fixed set of fields
+        (`count`, `duration`, `costs`, `tokens`) split into `total` and
+        `errors`. The shape predates `specs`-driven analytics and is kept
+        for the existing observability dashboards that consume it.
+
+        New integrations should prefer `POST /tracing/analytics/query`,
+        which accepts `specs` and can summarize arbitrary span attributes,
+        not just the four fixed metrics.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -412,6 +527,21 @@ class TracingRouter:
         request: Request,
         trace_request: OTelTracingRequest,
     ) -> OTelLinksResponse:
+        """Create a trace from one or more spans.
+
+        This is the single-trace counterpart to `POST /tracing/spans/ingest`.
+        Accepts the same `OTelTracingRequest` body (either `spans` flat list
+        or `traces` nested tree) but requires all spans to share a single
+        `trace_id`.
+
+        Returns `202 Accepted` with the links for the spans that entered
+        the ingest stream. See [Tracing — Async write
+        contract](/reference/api-guide/tracing#async-write-contract-202).
+
+        Most callers should prefer `POST /tracing/spans/ingest` (no
+        single-trace restriction) or `POST /simple/traces/` (helper for a
+        one-span payload).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -464,6 +594,16 @@ class TracingRouter:
         request: Request,
         trace_id: str,
     ) -> OTelTracingResponse:
+        """Fetch a single trace by `trace_id`.
+
+        Returns the trace as a `traces` map keyed by `trace_id` → span
+        name. The response is empty when the trace is not in the current
+        project. `trace_id` must be a 32-char hex UUID; any other format
+        returns `400`.
+
+        For flat-list retrieval across many traces, use
+        `POST /tracing/spans/query` with `focus="span"`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -498,6 +638,17 @@ class TracingRouter:
         #
         trace_id: str,
     ) -> OTelLinksResponse:
+        """Replace the spans of an existing trace.
+
+        The path `trace_id` must match the `trace_id` in the payload.
+        Mismatches return `400`. The payload must contain exactly one
+        trace; submitting spans from more than one trace returns `400`.
+
+        Edit is implemented as a re-ingest: the new spans are written
+        through the same stream as `POST /tracing/spans/ingest`, and the
+        `202 Accepted` response reports how many spans entered the stream.
+        The worker reconciles the trace asynchronously.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -583,6 +734,16 @@ class TracingRouter:
         request: Request,
         trace_id: str,
     ) -> OTelLinksResponse:
+        """Delete a trace and all its spans.
+
+        Removes every span that shares this `trace_id` within the project.
+        Returns `202 Accepted` with the links for the spans that were
+        marked for deletion. `trace_id` must be a 32-char hex UUID.
+
+        Deletion is not reversible. For soft-removal semantics on a
+        single-trace simple annotation, prefer
+        `DELETE /simple/traces/{trace_id}`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -618,6 +779,23 @@ class TracingRouter:
         request: Request,
         sessions_query_request: SessionsQueryRequest,
     ):
+        """List distinct session IDs from span attributes.
+
+        Returns the distinct values of `ag.session.id` across spans in the
+        current project, in a windowed, cursor-paginated form. Use this to
+        drive a session-picker UI before drilling into the spans of each
+        session.
+
+        The `realtime` flag controls the cursor field:
+
+        - `false` or unset — paginate by a stable `first_active` cursor
+          (safe to iterate under heavy write load).
+        - `true` — paginate by `last_active`, reflecting ongoing activity
+          but less stable between pages.
+
+        The response includes a `windowing` cursor; pass it as `windowing.next`
+        on the next call to continue.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -656,6 +834,13 @@ class TracingRouter:
         request: Request,
         users_query_request: UsersQueryRequest,
     ):
+        """List distinct user IDs from span attributes.
+
+        Returns the distinct values of `ag.user.id` across spans in the
+        current project. Same pagination and `realtime` semantics as
+        `POST /tracing/sessions/query`; pass the returned `windowing.next`
+        cursor on subsequent calls.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -779,6 +964,30 @@ class SpansRouter:
             default_factory=SpansQueryRequest
         ),
     ) -> SpansResponse:
+        """Query spans as a flat list.
+
+        Thin wrapper over the shared span-query backend that forces
+        `focus = "span"`. Use this when you want a paged list of spans
+        regardless of trace hierarchy — for example, to surface all LLM
+        calls across traces or to stream spans into an external system.
+
+        ## Request body
+
+        - `filtering` — span-level conditions (fields on `Span` and
+          `attributes` paths).
+        - `windowing` — cursor pagination and time range (see
+          [Query Pattern](/reference/api-guide/query-pattern#windowing)).
+        - `query_ref`, `query_variant_ref`, `query_revision_ref` — resolve
+          filtering and windowing from a saved query revision. If the
+          revision's stored `formatting.focus` is `trace`, this endpoint
+          returns `409` — call `POST /traces/query` for that revision.
+
+        ## Response
+
+        Returns `{count, spans}`. For the nested per-trace shape, call
+        `POST /traces/query` or `POST /tracing/spans/query` with
+        `focus="trace"` instead.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -851,6 +1060,16 @@ class SpansRouter:
         span_id: Optional[List[str]] = Query(default=None),
         span_ids: Optional[str] = Query(default=None),
     ) -> SpansResponse:
+        """Fetch spans by known IDs.
+
+        Point lookup endpoint. At least one of `trace_id` or `span_id`
+        must be present. Both accept either repeated query params
+        (`?trace_id=a&trace_id=b`) or a comma-separated single param
+        (`?trace_ids=a,b`); results are deduplicated.
+
+        Returns `400` when neither IDs nor trace IDs are supplied.
+        For filter-based retrieval, use `POST /spans/query`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -893,6 +1112,12 @@ class SpansRouter:
         trace_id: str,
         span_id: str,
     ) -> SpanResponse:
+        """Fetch a single span by `trace_id` + `span_id`.
+
+        Returns `{count: 1, span}` when found and `{count: 0}` otherwise.
+        Both IDs are required path parameters. Use this to drill in on one
+        span from a trace waterfall without pulling the full tree.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1025,6 +1250,30 @@ class TracesRouter:
             default_factory=TracesQueryRequest
         ),
     ) -> TracesResponse:
+        """Query traces as a list of canonical `Trace` records.
+
+        Thin wrapper over the shared span-query backend that forces
+        `focus = "trace"` and returns the list-shaped `Traces` payload
+        (one entry per trace, each with its nested `spans` tree). Use this
+        to build a table of runs, where each row is a trace.
+
+        ## Request body
+
+        - `filtering` — span-level conditions, same dialect as
+          `POST /spans/query`. A trace matches when any of its spans
+          matches.
+        - `windowing` — cursor pagination and time range.
+        - `query_ref`, `query_variant_ref`, `query_revision_ref` — resolve
+          filters and windowing from a saved query revision. If the
+          revision's stored `formatting.focus` is `span`, this endpoint
+          returns `409` — call `POST /spans/query` instead.
+
+        ## Response
+
+        Returns `{count, traces: [...]}`. For the per-trace map shape
+        keyed by `trace_id`, call `POST /tracing/spans/query` with
+        `focus="trace"`.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1089,6 +1338,21 @@ class TracesRouter:
         request: Request,
         trace_request: TraceRequest,
     ) -> TraceIdResponse:
+        """Create a single trace from the canonical `Trace` shape.
+
+        Accepts one trace (`trace_id` plus a nested `spans` tree) and
+        returns the resulting `trace_id`. The payload is internally
+        normalized into the same ingest pipeline as
+        `POST /tracing/spans/ingest`.
+
+        Returns `202 Accepted`. The async write contract applies — see
+        [Tracing — Async write
+        contract](/reference/api-guide/tracing#async-write-contract-202).
+
+        Use this when you want to operate on whole traces in the
+        list-shaped `Trace` payload. For flat-list ingestion or multiple
+        traces in one call, use `POST /traces/ingest` (plural).
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1143,6 +1407,19 @@ class TracesRouter:
         request: Request,
         traces_request: TracesRequest,
     ) -> TraceIdsResponse:
+        """Ingest a batch of traces in the canonical `Traces` list shape.
+
+        Accepts a list of trace records (each `trace_id` plus nested
+        `spans`). Internally normalized into the same pipeline as
+        `POST /tracing/spans/ingest`. Use this when you already hold
+        data in the `Traces` list shape — for example, replaying traces
+        from another environment.
+
+        Returns `202 Accepted` with the list of accepted `trace_ids`. See
+        [Tracing — Async write
+        contract](/reference/api-guide/tracing#async-write-contract-202)
+        for what `count` means here.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1199,6 +1476,16 @@ class TracesRouter:
         trace_request: TraceRequest,
         trace_id: str,
     ) -> TraceIdResponse:
+        """Replace a trace's spans using the canonical `Trace` shape.
+
+        Path `trace_id` must match the `trace_id` inside the payload's
+        `trace.trace_id`. Mismatches return `400`. The payload must
+        describe exactly one trace.
+
+        Edit re-ingests the spans through the same stream as
+        `POST /tracing/spans/ingest`. Returns `202 Accepted` once the
+        spans are queued. The worker reconciles the trace asynchronously.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1276,6 +1563,14 @@ class TracesRouter:
         trace_id: Optional[List[str]] = Query(default=None),
         trace_ids: Optional[str] = Query(default=None),
     ) -> TracesResponse:
+        """Fetch multiple traces by known IDs.
+
+        Point lookup endpoint. Accepts either repeated query params
+        (`?trace_id=a&trace_id=b`) or a comma-separated single param
+        (`?trace_ids=a,b`). Results are deduplicated. Returns `400` when
+        no IDs are supplied. Use `POST /traces/query` for filter-based
+        retrieval.
+        """
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1315,6 +1610,13 @@ class TracesRouter:
         *,
         trace_id: str,
     ) -> TraceResponse:
+        """Fetch a single trace by `trace_id` in the canonical `Trace` shape.
+
+        Returns `{count: 1, trace}` when found and `{count: 0}` otherwise.
+        `trace_id` must be a 32-char hex UUID; any other format returns
+        `400`. The reserved path segments `query` and `ingest` return
+        `405` to disambiguate from the sibling query/ingest endpoints.
+        """
         if trace_id.lower() in {"query", "ingest"}:
             raise HTTPException(
                 status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
