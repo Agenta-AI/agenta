@@ -464,12 +464,28 @@ export const createTestset = async (
         .replace(/^-+|-+$/g, "")
     const slug = `${slugBase || "e2e-testset"}-${Date.now()}`
 
-    const response = await page.request.post(
-        `${getApiURL(page)}/simple/testsets/?project_id=${projectId}`,
-        {
+    const apiUrl = `${getApiURL(page)}/simple/testsets/?project_id=${projectId}`
+
+    let response = await page.request.post(apiUrl, {
+        data: {
+            testset: {
+                slug,
+                name,
+                description,
+                data: {
+                    testcases: rows.map((row) => ({data: row})),
+                },
+            },
+        },
+    })
+
+    // On first failure, wait briefly and retry once — handles transient 5xx/network errors.
+    if (!response.ok()) {
+        await page.waitForTimeout(2000)
+        response = await page.request.post(apiUrl, {
             data: {
                 testset: {
-                    slug,
+                    slug: `${slug}-r`,
                     name,
                     description,
                     data: {
@@ -477,10 +493,17 @@ export const createTestset = async (
                     },
                 },
             },
-        },
-    )
+        })
+    }
 
-    expect(response.ok()).toBe(true)
+    if (!response.ok()) {
+        const body = await response.text().catch(() => "<unreadable>")
+        throw new Error(
+            `createTestset('${name}') failed: HTTP ${response.status()} ${response.statusText()}.\n` +
+                `URL: ${apiUrl}\n` +
+                `Response body: ${body}`,
+        )
+    }
 
     const data = (await response.json()) as SimpleTestsetApiResponse
     const testset = data.testset
