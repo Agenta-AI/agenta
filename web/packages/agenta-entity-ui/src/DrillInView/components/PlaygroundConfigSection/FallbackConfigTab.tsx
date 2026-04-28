@@ -60,19 +60,20 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                 {fallbackConfigs.map((config, index) => (
                     <div
                         key={fallbackConfigKeys[index] ?? `fallback-config-${index}`}
-                        className="flex items-center gap-2"
+                        className="flex min-w-0 items-center gap-2"
                     >
                         <Button
                             size="small"
                             type="default"
                             disabled={disabled}
-                            className="flex-1 flex items-center justify-between"
+                            className="flex min-w-0 flex-1 items-center justify-between overflow-hidden"
                             onClick={() => onEditFallbackModel(index)}
+                            title={(config.model as string) || "Select model"}
                         >
-                            <span className="truncate">
+                            <span className="min-w-0 flex-1 truncate text-left">
                                 {(config.model as string) || "Select model"}
                             </span>
-                            <CaretRight size={12} />
+                            <CaretRight size={12} className="shrink-0" />
                         </Button>
                         <Button
                             size="small"
@@ -80,6 +81,7 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                             icon={<X size={14} />}
                             onClick={() => onRemoveFallbackModel(index)}
                             disabled={disabled}
+                            className="shrink-0"
                             aria-label="Remove fallback model"
                         />
                     </div>

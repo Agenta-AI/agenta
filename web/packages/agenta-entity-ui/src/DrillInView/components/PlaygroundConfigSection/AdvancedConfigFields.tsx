@@ -1,4 +1,4 @@
-import {memo, useEffect, useRef, useState} from "react"
+import {memo, useEffect, useState} from "react"
 
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {HeightCollapse} from "@agenta/ui"
@@ -6,6 +6,8 @@ import {formatLabel} from "@agenta/ui/drill-in"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 import {Typography} from "antd"
+
+import {validateConfigAgainstSchema} from "../../SchemaControls/schemaValidator"
 
 export interface AdvancedConfigFieldsProps {
     entries: [string, unknown][]
@@ -48,6 +50,7 @@ export const AdvancedConfigFields = memo(function AdvancedConfigFields({
                                 key={key}
                                 fieldKey={key}
                                 label={formatLabel(schema.title || key)}
+                                schema={schema}
                                 value={value?.[key]}
                                 onChange={onChange}
                                 disabled={disabled}
@@ -63,25 +66,66 @@ export const AdvancedConfigFields = memo(function AdvancedConfigFields({
 const AdvancedJsonField = memo(function AdvancedJsonField({
     fieldKey,
     label,
+    schema,
     value,
     onChange,
     disabled,
 }: {
     fieldKey: string
     label: string
+    schema: EntitySchemaProperty
     value: unknown
     onChange: (key: string, next: unknown) => void
     disabled?: boolean
 }) {
     const externalEditorValue = value == null ? "" : JSON.stringify(value, null, 2)
     const [editorValue, setEditorValue] = useState(externalEditorValue)
-    const isFocusedRef = useRef(false)
+    const [parseError, setParseError] = useState<string | null>(null)
+    const [isFocused, setIsFocused] = useState(false)
 
     useEffect(() => {
-        if (!isFocusedRef.current) {
+        if (!isFocused || externalEditorValue === "") {
             setEditorValue(externalEditorValue)
+            setParseError(null)
         }
-    }, [externalEditorValue])
+    }, [externalEditorValue, isFocused])
+
+    const validateAndEmit = (nextEditorValue: string) => {
+        setEditorValue(nextEditorValue)
+
+        const raw = nextEditorValue.trim()
+        if (!raw) {
+            setParseError(null)
+            onChange(fieldKey, null)
+            return
+        }
+
+        let parsed: unknown
+        try {
+            parsed = JSON.parse(raw)
+        } catch (error: unknown) {
+            setParseError(error instanceof Error ? error.message : "Invalid JSON format")
+            return
+        }
+
+        if (parsed === null) {
+            setParseError(null)
+            onChange(fieldKey, null)
+            return
+        }
+
+        const validationResult = validateConfigAgainstSchema(
+            parsed as Record<string, unknown>,
+            schema as Record<string, unknown>,
+        )
+        if (!validationResult.valid) {
+            setParseError(validationResult.errors[0]?.message || "Invalid value")
+            return
+        }
+
+        setParseError(null)
+        onChange(fieldKey, parsed)
+    }
 
     return (
         <div className="flex flex-col gap-1">
@@ -97,22 +141,10 @@ const AdvancedJsonField = memo(function AdvancedJsonField({
                 placeholder='{"thinking": true}'
                 initialValue={editorValue}
                 value={editorValue}
-                handleChange={(nextEditorValue) => {
-                    setEditorValue(nextEditorValue)
-
-                    const raw = nextEditorValue.trim()
-                    if (!raw) {
-                        onChange(fieldKey, null)
-                        return
-                    }
-
-                    try {
-                        onChange(fieldKey, JSON.parse(raw))
-                    } catch {
-                        // Keep the last valid value.
-                    }
-                }}
+                error={!!parseError}
+                handleChange={validateAndEmit}
                 disabled={disabled}
+                disableDebounce
                 className="min-h-[96px] overflow-hidden"
                 editorProps={{
                     codeOnly: true,
@@ -120,9 +152,14 @@ const AdvancedJsonField = memo(function AdvancedJsonField({
                     showLineNumbers: false,
                 }}
                 onFocusChange={(focused) => {
-                    isFocusedRef.current = focused
+                    setIsFocused(focused)
                 }}
             />
+            {parseError && (
+                <Typography.Text type="danger" className="text-xs mt-1">
+                    {parseError}
+                </Typography.Text>
+            )}
         </div>
     )
 })

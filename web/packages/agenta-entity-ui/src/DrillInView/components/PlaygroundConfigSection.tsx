@@ -146,6 +146,46 @@ const createFallbackConfigKey = () => {
     return `${Date.now()}-${Math.random()}`
 }
 
+const updateConfigKey = (
+    base: Record<string, unknown> | undefined,
+    key: string,
+    value: unknown,
+) => {
+    const next = {...(base ?? {})}
+    if (value === null || value === undefined) {
+        delete next[key]
+    } else {
+        next[key] = value
+    }
+    return next
+}
+
+const getResettableLLMConfigKeys = (llmConfigProps: Record<string, unknown>) =>
+    Object.keys(llmConfigProps).filter(
+        (key) => key !== "model" && !PROMPT_EXTENSION_KEYS.includes(key),
+    )
+
+const resetLLMParameterFields = ({
+    base,
+    currentModel,
+    resetKeys,
+}: {
+    base: Record<string, unknown> | undefined
+    currentModel?: string
+    resetKeys: string[]
+}) => {
+    const next = {...(base ?? {})}
+    resetKeys.forEach((key) => {
+        delete next[key]
+    })
+    if (currentModel) {
+        next.model = currentModel
+    } else {
+        delete next.model
+    }
+    return next
+}
+
 // ============================================================================
 // AGENTA_METADATA HELPERS
 // ============================================================================
@@ -678,7 +718,7 @@ function PlaygroundConfigSection({
             // Canonical: llms array at root level
             if (Array.isArray(parameters.llms)) {
                 const currentLlms = parameters.llms as Record<string, unknown>[]
-                const updatedFirst = {...(currentLlms[0] || {}), [key]: newValue}
+                const updatedFirst = updateConfigKey(currentLlms[0], key, newValue)
                 dispatchUpdate(revisionId, {
                     ...parameters,
                     llms: [updatedFirst, ...currentLlms.slice(1)],
@@ -688,12 +728,7 @@ function PlaygroundConfigSection({
 
             // Canonical/root-level prompt without an llms array.
             if (promptModelInfo?.isRootLevel) {
-                const nextParameters = {...parameters}
-                if (newValue === null || newValue === undefined) {
-                    delete nextParameters[key]
-                } else {
-                    nextParameters[key] = newValue
-                }
+                const nextParameters = updateConfigKey(parameters, key, newValue)
                 dispatchUpdate(revisionId, nextParameters)
                 return
             }
@@ -707,16 +742,14 @@ function PlaygroundConfigSection({
                 const llmConfigKey = currentPrompt.llm_config ? "llm_config" : "llmConfig"
                 updatedPrompt = {
                     ...currentPrompt,
-                    [llmConfigKey]: {
-                        ...((currentPrompt[llmConfigKey] as Record<string, unknown>) || {}),
-                        [key]: newValue,
-                    },
+                    [llmConfigKey]: updateConfigKey(
+                        currentPrompt[llmConfigKey] as Record<string, unknown> | undefined,
+                        key,
+                        newValue,
+                    ),
                 }
             } else {
-                updatedPrompt = {
-                    ...currentPrompt,
-                    [key]: newValue,
-                }
+                updatedPrompt = updateConfigKey(currentPrompt, key, newValue)
             }
 
             dispatchUpdate(revisionId, {
@@ -863,27 +896,32 @@ function PlaygroundConfigSection({
 
     const handleRetryConfigFieldChange = useCallback(
         (key: "max_retries" | "delay_ms", nextValue: number | null) => {
-            const nextConfig = {...retryConfig}
-            if (nextValue === null) {
-                delete nextConfig[key]
-            } else {
-                nextConfig[key] = nextValue
-            }
-
             const nextMaxRetries =
                 key === "max_retries"
                     ? nextValue
-                    : typeof nextConfig.max_retries === "number"
-                      ? nextConfig.max_retries
+                    : typeof retryConfig.max_retries === "number"
+                      ? retryConfig.max_retries
                       : DEFAULT_RETRY_CONFIG.max_retries
-            const nextRetryConfig = Object.keys(nextConfig).length > 0 ? nextConfig : null
 
             if (!nextMaxRetries || nextMaxRetries <= 0) {
                 updatePromptRootFields({
-                    retry_config: nextRetryConfig,
+                    retry_config: null,
                     retry_policy: null,
                 })
                 return
+            }
+
+            const nextDelayMs =
+                key === "delay_ms"
+                    ? nextValue
+                    : typeof retryConfig.delay_ms === "number"
+                      ? retryConfig.delay_ms
+                      : DEFAULT_RETRY_CONFIG.delay_ms
+            const nextRetryConfig: Record<string, unknown> = {
+                max_retries: nextMaxRetries,
+            }
+            if (typeof nextDelayMs === "number" && nextDelayMs > DEFAULT_RETRY_CONFIG.delay_ms) {
+                nextRetryConfig.delay_ms = nextDelayMs
             }
 
             updatePromptRootField("retry_config", nextRetryConfig)
@@ -987,29 +1025,22 @@ function PlaygroundConfigSection({
             typeof promptModelInfo.llmConfigValue?.model === "string"
                 ? promptModelInfo.llmConfigValue.model
                 : undefined
-        const modelOnlyConfig = currentModel ? {model: currentModel} : {}
+        const resetKeys = getResettableLLMConfigKeys(promptModelInfo.llmConfigProps)
+        const resetLLMConfig = (base: Record<string, unknown> | undefined) => {
+            return resetLLMParameterFields({base, currentModel, resetKeys})
+        }
 
         if (Array.isArray(parameters.llms)) {
             const currentLlms = parameters.llms as Record<string, unknown>[]
             dispatchUpdate(revisionId, {
                 ...parameters,
-                llms: [modelOnlyConfig, ...currentLlms.slice(1)],
+                llms: [resetLLMConfig(currentLlms[0]), ...currentLlms.slice(1)],
             })
             return
         }
 
         if (promptModelInfo.isRootLevel) {
-            const resetKeys = Object.keys(promptModelInfo.llmConfigProps).filter(
-                (key) => key !== "model" && !PROMPT_EXTENSION_KEYS.includes(key),
-            )
-            const nextParameters = {...parameters}
-            resetKeys.forEach((key) => {
-                delete nextParameters[key]
-            })
-            if (currentModel) {
-                nextParameters.model = currentModel
-            }
-            dispatchUpdate(revisionId, nextParameters)
+            dispatchUpdate(revisionId, resetLLMConfig(parameters))
             return
         }
 
@@ -1022,25 +1053,17 @@ function PlaygroundConfigSection({
                 ...parameters,
                 prompt: {
                     ...currentPrompt,
-                    [llmKey]: modelOnlyConfig,
+                    [llmKey]: resetLLMConfig(
+                        currentPrompt[llmKey] as Record<string, unknown> | undefined,
+                    ),
                 },
             })
             return
         }
 
-        const resetKeys = Object.keys(promptModelInfo.llmConfigProps).filter(
-            (key) => key !== "model" && !PROMPT_EXTENSION_KEYS.includes(key),
-        )
-        const nextPrompt = {...currentPrompt}
-        resetKeys.forEach((key) => {
-            delete nextPrompt[key]
-        })
-        if (currentModel) {
-            nextPrompt.model = currentModel
-        }
         dispatchUpdate(revisionId, {
             ...parameters,
-            prompt: nextPrompt,
+            prompt: resetLLMConfig(currentPrompt),
         })
     }, [activeData, disabled, dispatchUpdate, parameters, promptModelInfo, revisionId])
 

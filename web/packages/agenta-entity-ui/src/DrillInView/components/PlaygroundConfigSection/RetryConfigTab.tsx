@@ -73,7 +73,7 @@ export const RetryConfigTab = memo(function RetryConfigTab({
                         onConfigFieldChange(key, typeof nextValue === "number" ? nextValue : null)
                     }
                     disabled={disabled}
-                    className="w-[130px]"
+                    className="w-[80px] shrink-0"
                 />
             </div>
         )
@@ -84,13 +84,9 @@ export const RetryConfigTab = memo(function RetryConfigTab({
             {renderNumberField(
                 "max_retries",
                 maxRetries,
-                "Additional attempts after the initial request fails.",
+                "Each model is retried this many times before moving to the next.",
             )}
-            {renderNumberField(
-                "delay_ms",
-                delayMs,
-                "Wait time between retry attempts in milliseconds.",
-            )}
+            {renderNumberField("delay_ms", delayMs, "Delay before each retry in milliseconds")}
             <div className="flex flex-col gap-1">
                 <div className="flex flex-col gap-0.5">
                     <Typography.Text>{policyTitle}</Typography.Text>
