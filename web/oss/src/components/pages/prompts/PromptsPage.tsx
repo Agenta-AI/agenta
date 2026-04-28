@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {archiveWorkflow, invalidateWorkflowsListCache} from "@agenta/entities/workflow"
+import {appTemplatesQueryAtom, createEphemeralAppFromTemplate} from "@agenta/entities/workflow"
+import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {PageLayout} from "@agenta/ui"
 import type {
     InfiniteVirtualTableRowSelection,
@@ -18,18 +19,12 @@ import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modal
 import DeleteAppModal from "@/oss/components/pages/app-management/modals/DeleteAppModal"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import useURL from "@/oss/hooks/useURL"
-import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
-import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {waitForAppToStart} from "@/oss/services/api"
-import {createAppWithTemplate, updateAppFolder} from "@/oss/services/app-selector/api"
+import {updateAppFolder} from "@/oss/services/app-selector/api"
 import {createFolder, deleteFolder, editFolder} from "@/oss/services/folders"
 import {Folder, FolderKind} from "@/oss/services/folders/types"
 import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreation/status"
-import {useProfileData} from "@/oss/state/profile"
-import {getProjectValues} from "@/oss/state/project"
 import {useProjectData} from "@/oss/state/project"
 
 import {type FolderTreeItem, slugify} from "./assets/utils"
@@ -59,10 +54,6 @@ const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
 )
 
-const AddAppFromTemplatedModal: any = dynamic(
-    () => import("@/oss/components/pages/app-management/modals/AddAppFromTemplateModal"),
-)
-
 const INITIAL_FOLDER_MODAL_STATE: FolderModalState = {
     name: "",
     modalOpen: false,
@@ -72,14 +63,16 @@ const INITIAL_FOLDER_MODAL_STATE: FolderModalState = {
 
 const PromptsPage = () => {
     const {projectId} = useProjectData()
-    const {secrets} = useVaultSecret()
-    const posthog = usePostHogAg()
     const router = useRouter()
     const {baseAppURL} = useURL()
-    const {user} = useProfileData()
     const statusData = useAtomValue(appCreationStatusAtom)
     const setStatusData = useSetAtom(appCreationStatusAtom)
     const resetAppCreation = useSetAtom(resetAppCreationAtom)
+    const setOpenDrawer = useSetAtom(openWorkflowRevisionDrawerAtom)
+
+    // Pre-fetch the catalog templates on page mount so the breadcrumb
+    // "+ New prompt" shortcut has data ready. Same rationale as on /apps.
+    useAtomValue(appTemplatesQueryAtom)
 
     // Entity-based data (scoped to current folder, or all when searching)
     const folders = useAtomValue(foldersAtom)
@@ -97,13 +90,9 @@ const PromptsPage = () => {
 
     const [moveModalOpen, setMoveModalOpen] = useState(false)
     const [statusModalOpen, setStatusModalOpen] = useState(false)
-    const [isAddAppFromTemplatedModal, setIsAddAppFromTemplatedModal] = useState(false)
     const [deleteModalOpen, setDeleteModalOpen] = useState(false)
     const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null)
     const [moveSelection, setMoveSelection] = useState<string | null>(null)
-    const [templateKey, setTemplateKey] = useState<string | undefined>(undefined)
-    const [appName, setAppName] = useState("")
-    const [appSlug, setAppSlug] = useState<string | undefined>(undefined)
     const [fetchingCustomWorkflow, setFetchingCustomWorkflow] = useState(false)
     const [moveEntity, setMoveEntity] = useState<{
         type: "folder" | "app"
@@ -375,58 +364,44 @@ const PromptsPage = () => {
         }
     }
 
-    const handleTemplateCardClick = async (
-        templateId: string,
-        submittedAppName: string,
-        submittedAppSlug?: string,
-    ) => {
-        setAppName(submittedAppName)
-        setAppSlug(submittedAppSlug)
-        setTemplateKey(templateId)
-        setIsAddAppFromTemplatedModal(false)
-        setStatusModalOpen(true)
-        resetAppCreation()
-
-        const apiKeys = secrets
-
-        await createAppWithTemplate({
-            appName: submittedAppName,
-            slug: submittedAppSlug,
-            templateKey: templateId,
-            folderId: currentFolderId ?? null,
-            providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
-            onStatusChange: async (status, details, appId) => {
-                if (["error", "bad_request", "timeout", "success"].includes(status))
-                    if (status === "success") {
-                        refetchWorkflows()
-                        posthog?.capture?.("app_deployment", {
-                            properties: {
-                                app_id: appId,
-                                environment: "UI",
-                                deployed_by: user?.id,
-                            },
-                        })
-                    }
-
-                setStatusData((prev) => ({...prev, status, details, appId: appId || prev.appId}))
+    /**
+     * "+ New prompt" shortcut: defaults to a Chat app (the most common case).
+     * Users who want Completion go through the apps page dropdown for full
+     * type selection. Custom workflow has its own entry below
+     * (`handleSetupWorkflow`).
+     */
+    const handleOpenNewPromptModal = useCallback(async () => {
+        const entityId = await createEphemeralAppFromTemplate({type: "chat"})
+        if (!entityId) {
+            message.error("Couldn't start prompt creation — please retry")
+            return
+        }
+        setOpenDrawer({
+            entityId,
+            context: "app-create",
+            onWorkflowCreated: ({newAppId, newRevisionId} = {}) => {
+                if (!newAppId || !newRevisionId) return
+                router.push(`${baseAppURL}/${newAppId}/playground?revisions=${newRevisionId}`)
             },
         })
+    }, [baseAppURL, router, setOpenDrawer])
+
+    const handleSetupWorkflow = () => {
+        openCustomWorkflowModal()
     }
 
-    const onErrorRetry = async () => {
-        if (statusData.appId) {
-            setStatusData((prev) => ({...prev, status: "cleanup", details: undefined}))
-            const {projectId} = getProjectValues()
-            await archiveWorkflow(projectId, statusData.appId).catch(console.error)
-            invalidateWorkflowsListCache()
-            refetchWorkflows()
-        }
-        if (templateKey) {
-            await handleTemplateCardClick(templateKey, appName, appSlug)
-        }
-    }
+    /**
+     * Status modal is mounted for the Custom workflow path — Custom is still
+     * eager-create with progress states. Retry handlers are no-ops here:
+     * Custom errors require the user to fix the form and resubmit, not a
+     * blind retry of the same payload.
+     */
+    const onErrorRetry = useCallback(() => {
+        setStatusModalOpen(false)
+        resetAppCreation()
+    }, [resetAppCreation])
 
-    const onTimeoutRetry = async () => {
+    const onTimeoutRetry = useCallback(async () => {
         if (!statusData.appId) return
         setStatusData((prev) => ({...prev, status: "configuring_app", details: undefined}))
         try {
@@ -440,15 +415,7 @@ const PromptsPage = () => {
         }
         setStatusData((prev) => ({...prev, status: "success", details: undefined}))
         refetchWorkflows()
-    }
-
-    const handleOpenNewPromptModal = () => {
-        setIsAddAppFromTemplatedModal(true)
-    }
-
-    const handleSetupWorkflow = () => {
-        openCustomWorkflowModal()
-    }
+    }, [refetchWorkflows, setStatusData, statusData.appId])
 
     const handleOpenAppOverview = (workflowId: string) => {
         router.push(`${baseAppURL}/${workflowId}/overview`)
@@ -826,12 +793,6 @@ const PromptsPage = () => {
                 okText={isRenameMode ? "Save" : "Create"}
             />
 
-            <AddAppFromTemplatedModal
-                open={isAddAppFromTemplatedModal}
-                onCancel={() => setIsAddAppFromTemplatedModal(false)}
-                handleTemplateCardClick={handleTemplateCardClick}
-            />
-
             <CreateAppStatusModal
                 open={statusModalOpen}
                 loading={fetchingCustomWorkflow}
@@ -842,7 +803,7 @@ const PromptsPage = () => {
                     resetAppCreation()
                 }}
                 statusData={statusData}
-                appName={appName}
+                appName=""
             />
 
             <DeleteAppModal />
