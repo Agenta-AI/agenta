@@ -143,9 +143,10 @@ const ConfigureProviderDrawerContent = ({
 
     useEffect(() => {
         if (selectedProvider) {
+            const rawProvider = String(selectedProvider.provider ?? "")
             form.setFieldsValue({
                 ...selectedProvider,
-                provider: selectedProvider.provider ?? "",
+                provider: PROVIDER_KINDS[rawProvider] ?? rawProvider,
             })
         } else {
             form.resetFields()
