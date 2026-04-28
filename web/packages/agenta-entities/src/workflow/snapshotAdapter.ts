@@ -73,12 +73,16 @@ export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
         if (!entity) return null
 
         const meta = entity.meta as Record<string, unknown> | null | undefined
+        const isEvaluator = entity.flags?.is_evaluator === true
         return {
             label: entity.name ?? "Restored Entity",
             inputs: (meta?.inputs as Record<string, unknown>) ?? {},
             outputs: meta?.outputs ?? {},
             parameters: entity.data?.parameters ?? {},
             ...(meta?.sourceRef ? {sourceRef: meta.sourceRef} : {}),
+            ...(isEvaluator ? {isEvaluator: true} : {}),
+            ...(entity.data?.uri ? {uri: entity.data.uri} : {}),
+            ...(meta?.envelope ? {envelope: meta.envelope} : {}),
         }
     },
 
@@ -94,6 +98,12 @@ export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
             sourceRef: data.sourceRef as
                 | {type: "application" | "evaluator"; id: string; slug?: string}
                 | undefined,
+            isEvaluator: data.isEvaluator === true,
+            uri: typeof data.uri === "string" ? data.uri : undefined,
+            envelope:
+                data.envelope && typeof data.envelope === "object"
+                    ? (data.envelope as Record<string, unknown>)
+                    : undefined,
         })
         return entityId
     },

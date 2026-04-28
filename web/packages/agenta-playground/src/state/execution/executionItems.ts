@@ -1214,12 +1214,42 @@ function buildExecutionItem(
                   if (body.data && typeof body.data === "object") {
                       const dataObj = body.data as Record<string, unknown>
                       const iv = params.inputValues as Record<string, unknown>
-                      dataObj.inputs = iv
+                      // Evaluator envelope: when ports expose `inputs` + `outputs`
+                      // directly (evaluator runnables), `iv` already has the envelope
+                      // shape. `iv.inputs` is the testcase row (object) and
+                      // `iv.outputs` is the upstream app output. Values may be
+                      // JSON-encoded strings — after the user edits the cell via
+                      // the JSON editor, or when the cell is stringified on the
+                      // wire — so we attempt to parse them back to their structured
+                      // form before unpacking. Unpack so `data.inputs` holds just
+                      // the row (not a doubly-nested `{inputs, outputs}` wrapper).
+                      const parseIfJsonObject = (value: unknown): unknown => {
+                          if (typeof value !== "string") return value
+                          const trimmed = value.trim()
+                          if (
+                              !(trimmed.startsWith("{") && trimmed.endsWith("}")) &&
+                              !(trimmed.startsWith("[") && trimmed.endsWith("]"))
+                          ) {
+                              return value
+                          }
+                          try {
+                              return JSON.parse(trimmed)
+                          } catch {
+                              return value
+                          }
+                      }
+                      const parsedInputs = parseIfJsonObject(iv.inputs)
+                      const isEnvelope =
+                          parsedInputs !== undefined &&
+                          parsedInputs !== null &&
+                          typeof parsedInputs === "object" &&
+                          !Array.isArray(parsedInputs)
+                      dataObj.inputs = isEnvelope ? (parsedInputs as Record<string, unknown>) : iv
                       // Set data.outputs from the upstream output value.
                       // Schema-driven inputs use "outputs" key; legacy uses "prediction".
-                      const upstreamOutputValue = iv.outputs ?? iv.prediction
-                      if (upstreamOutputValue !== undefined) {
-                          dataObj.outputs = upstreamOutputValue
+                      const upstreamOutputValueRaw = iv.outputs ?? iv.prediction
+                      if (upstreamOutputValueRaw !== undefined) {
+                          dataObj.outputs = parseIfJsonObject(upstreamOutputValueRaw)
                       }
                   } else {
                       // Fallback for payloads without nested data structure
