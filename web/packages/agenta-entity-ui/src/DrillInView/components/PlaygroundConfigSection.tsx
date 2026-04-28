@@ -138,6 +138,14 @@ const PROMPT_EXTENSION_KEYS = [
     "retry_policy",
 ]
 
+const createFallbackConfigKey = () => {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+        return crypto.randomUUID()
+    }
+
+    return `${Date.now()}-${Math.random()}`
+}
+
 // ============================================================================
 // AGENTA_METADATA HELPERS
 // ============================================================================
@@ -760,6 +768,21 @@ function PlaygroundConfigSection({
         const raw = promptModelInfo?.promptValue.fallback_configs
         return Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []
     }, [promptModelInfo])
+    const fallbackConfigKeysRef = useRef<string[]>([])
+    if (fallbackConfigKeysRef.current.length < fallbackConfigs.length) {
+        fallbackConfigKeysRef.current = [
+            ...fallbackConfigKeysRef.current,
+            ...Array.from(
+                {length: fallbackConfigs.length - fallbackConfigKeysRef.current.length},
+                createFallbackConfigKey,
+            ),
+        ]
+    } else if (fallbackConfigKeysRef.current.length > fallbackConfigs.length) {
+        fallbackConfigKeysRef.current = fallbackConfigKeysRef.current.slice(
+            0,
+            fallbackConfigs.length,
+        )
+    }
 
     const retryConfig = useMemo(() => {
         const raw = promptModelInfo?.promptValue.retry_config
@@ -913,6 +936,12 @@ function PlaygroundConfigSection({
                   )
                 : [...fallbackConfigs, fallbackDetail.draft]
 
+        if (fallbackDetail.mode === "new") {
+            fallbackConfigKeysRef.current = [
+                ...fallbackConfigKeysRef.current,
+                createFallbackConfigKey(),
+            ]
+        }
         updatePromptRootField("fallback_configs", nextConfigs.length > 0 ? nextConfigs : null)
         setFallbackDetail(null)
     }, [fallbackConfigs, fallbackDetail, updatePromptRootField])
@@ -920,6 +949,9 @@ function PlaygroundConfigSection({
     const handleRemoveFallbackModel = useCallback(
         (index: number) => {
             const nextConfigs = fallbackConfigs.filter((_, configIndex) => configIndex !== index)
+            fallbackConfigKeysRef.current = fallbackConfigKeysRef.current.filter(
+                (_, configIndex) => configIndex !== index,
+            )
             if (nextConfigs.length === 0) {
                 updatePromptRootFields({
                     fallback_configs: null,
@@ -1128,6 +1160,7 @@ function PlaygroundConfigSection({
                                                       | undefined) ?? null
                                               }
                                               fallbackConfigs={fallbackConfigs}
+                                              fallbackConfigKeys={fallbackConfigKeysRef.current}
                                               fallbackPolicyOptions={fallbackPolicyOptions}
                                               fallbackPolicySchema={
                                                   promptModelInfo?.promptSchemaProps

@@ -14,6 +14,7 @@ interface PolicyOption {
 export interface FallbackConfigTabProps {
     fallbackPolicy?: string | null
     fallbackConfigs: Record<string, unknown>[]
+    fallbackConfigKeys: string[]
     fallbackPolicyOptions: PolicyOption[]
     fallbackPolicySchema?: EntitySchemaProperty
     fallbackConfigsSchema?: EntitySchemaProperty
@@ -27,6 +28,7 @@ export interface FallbackConfigTabProps {
 export const FallbackConfigTab = memo(function FallbackConfigTab({
     fallbackPolicy,
     fallbackConfigs,
+    fallbackConfigKeys,
     fallbackPolicyOptions,
     fallbackPolicySchema,
     fallbackConfigsSchema,
@@ -56,7 +58,10 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                     </Typography.Text>
                 </div>
                 {fallbackConfigs.map((config, index) => (
-                    <div key={index} className="flex items-center gap-2">
+                    <div
+                        key={fallbackConfigKeys[index] ?? `fallback-config-${index}`}
+                        className="flex items-center gap-2"
+                    >
                         <Button
                             size="small"
                             type="default"
