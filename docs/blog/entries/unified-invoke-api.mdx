@@ -320,7 +320,73 @@ curl -X POST "https://cloud.agenta.ai/api/applications/revisions/retrieve" \
   }'
 ```
 
-The response is the same shape as a variant fetch. It includes the resolved revision metadata so you can tell which version is currently deployed.
+### Response shape
+
+The response shape changed too. The legacy endpoint returned a flat envelope with the configuration under `params` and reference IDs as siblings. The new endpoint wraps the revision in a query envelope, with the configuration nested under `application_revision.data.parameters`.
+
+**Before:**
+
+```json
+{
+  "params": {
+    "prompt": {"...": "..."}
+  },
+  "url": "https://cloud.agenta.ai/services/completion/v0",
+  "application_ref": {
+    "slug": "my-app",
+    "id": "019ce1cd-ccec-76f1-a803-eb1dc9187d57"
+  },
+  "variant_ref": {
+    "slug": "default",
+    "version": 1,
+    "id": "019ce1cd-cd98-7270-b51b-550c58e51e41"
+  },
+  "environment_ref": {
+    "slug": "production",
+    "version": 1,
+    "id": "..."
+  }
+}
+```
+
+**After:**
+
+```json
+{
+  "count": 1,
+  "application_revision": {
+    "id": "019ce1d0-7920-76a0-84b3-bb5a29750634",
+    "slug": "default",
+    "name": "default",
+    "version": "1",
+    "application_id": "019ce1cd-ccec-76f1-a803-eb1dc9187d57",
+    "application_variant_id": "019ce1cd-cd98-7270-b51b-550c58e51e41",
+    "data": {
+      "parameters": {
+        "prompt": {"...": "..."}
+      },
+      "url": "https://cloud.agenta.ai/services/completion/v0",
+      "uri": "agenta:builtin:completion:v0",
+      "schemas": {"...": "..."}
+    },
+    "flags": {"is_application": true, "is_chat": false, "...": "..."},
+    "created_at": "2026-03-12T11:31:02.045131Z"
+  }
+}
+```
+
+If you read fields from the response, here is where each one moved.
+
+| Old | New |
+|-----|-----|
+| `response["params"]` | `response["application_revision"]["data"]["parameters"]` |
+| `response["params"]["prompt"]` | `response["application_revision"]["data"]["parameters"]["prompt"]` |
+| `response["url"]` | `response["application_revision"]["data"]["url"]` |
+| `response["application_ref"]["id"]` | `response["application_revision"]["application_id"]` |
+| `response["variant_ref"]["id"]` | `response["application_revision"]["application_variant_id"]` |
+| `response["variant_ref"]["version"]` | `response["application_revision"]["version"]` |
+
+The new response also exposes the input/output `schemas` under `data.schemas` and a richer set of `flags` (including `is_chat`, `has_url`, etc.), which were not available in the legacy response.
 
 ### Python SDK unchanged
 
