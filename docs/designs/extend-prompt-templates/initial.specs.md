@@ -11,7 +11,8 @@ class PromptTemplate(BaseModel):
     input_keys: list[str] | None = None
 
     llm_config: LLMConfig
-    fallback_llm_configs: list[LLMConfig] | None = None
+    fallback_configs: list[LLMConfig] | None = None
+    retry_config: RetryConfig | None = None
     retry_policy: RetryPolicy | None = None
     fallback_policy: FallbackPolicy | None = None
 ```
@@ -29,17 +30,25 @@ runtime behavior default: field-specific built-in behavior
 llm_config
   Primary LLM config.
 
-fallback_llm_configs
+fallback_configs
   Ordered fallback LLM configs.
   Same shape as llm_config.
   Optional/null in stored config.
   Runtime default: [].
 
-retry_policy
+retry_config
+  Retry count and delay settings.
   Applies to each attempted LLM config:
   primary and every fallback.
   Optional/null in stored config.
-  Runtime default: built-in retry policy.
+  Runtime default: max_retries=0 and delay_ms=0.
+
+retry_policy
+  Controls which error categories can retry the same LLM config.
+  Applies to each attempted LLM config:
+  primary and every fallback.
+  Optional/null in stored config.
+  Runtime default: off.
 
 fallback_policy
   Decides whether the final error for one LLM config can move execution
@@ -51,13 +60,17 @@ fallback_policy
 New field defaults:
 
 ```text
-fallback_llm_configs
+fallback_configs
   data model: null
   runtime: []
 
+retry_config
+  data model: null
+  runtime: max_retries=0, delay_ms=0
+
 retry_policy
   data model: null
-  runtime: built-in retry policy
+  runtime: off
 
 fallback_policy
   data model: null
@@ -88,13 +101,13 @@ class LLMConfig(BaseModel):
     tool_choice: Literal["none", "auto"] | dict | None = None
 ```
 
-For `fallback_llm_configs` items, `model` is required and all other fields are optional.
+For `fallback_configs` items, `model` is required and all other fields are optional.
 
 ## JSON Schema Hints
 
 ```json
 {
-  "fallback_llm_configs": {
+  "fallback_configs": {
     "default": null,
     "anyOf": [
       {
@@ -118,7 +131,32 @@ For `fallback_llm_configs` items, `model` is required and all other fields are o
 }
 ```
 
-Use the same schema-default rule for `retry_policy`, `fallback_policy`, and `chat_template_kwargs`: nullable, with `default: null`.
+Use the same schema-default rule for `retry_config`, `retry_policy`, `fallback_policy`, and `chat_template_kwargs`: nullable, with `default: null`.
+
+## Retry Policy
+
+```python
+class RetryConfig(BaseModel):
+    max_retries: int = 0
+    delay_ms: int = 0
+```
+
+```text
+off
+  no retry
+
+availability
+  retry provider-side availability failures such as timeout, network errors, 5xx, and 503
+
+capacity
+  availability + 429/rate-capacity errors
+
+transient
+  capacity + temporary upstream/resource conflicts such as 409/423
+
+any
+  retry any classified provider-call error
+```
 
 ## Fallback Policy
 
@@ -135,8 +173,11 @@ capacity
 access
   capacity + 401/403
 
+context
+  access + context-window or token-limit provider errors
+
 any
-  access + 400/404/422 provider-call errors
+  context + 400/404/422 provider-call errors
 ```
 
 Local prompt/template errors do not fallback:
@@ -151,10 +192,10 @@ local schema/config validation error
 ## Runtime Loop
 
 ```text
-llm_configs = [llm_config, *fallback_llm_configs]
+llm_configs = [llm_config, *fallback_configs]
 
 for current_llm_config in llm_configs:
-  run current_llm_config with retry_policy
+  run current_llm_config with retry_config and retry_policy
 
   if success:
     return response

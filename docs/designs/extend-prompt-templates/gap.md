@@ -16,11 +16,12 @@ Current:
 
 Needed:
 
-- Add `fallback_llm_configs`, `retry_policy`, and `fallback_policy` to `PromptTemplate`.
+- Add `fallback_configs`, `retry_config`, `retry_policy`, and `fallback_policy` to `PromptTemplate`.
 - Keep every new field optional/null in stored config.
 - Apply runtime behavior defaults outside the data model:
-  - `fallback_llm_configs: null` -> `[]`
-  - `retry_policy: null` -> built-in retry policy
+  - `fallback_configs: null` -> `[]`
+  - `retry_config: null` -> `max_retries=0`, `delay_ms=0`
+  - `retry_policy: null` -> `off`
   - `fallback_policy: null` -> `off`
   - `chat_template_kwargs: null` -> omitted from provider kwargs
 - Reuse the current `ModelConfig` shape for fallback entries while requiring `model`.
@@ -42,7 +43,7 @@ Needed:
 
 - Add a shared prompt fallback runner for `completion_v0` and `chat_v0`.
 - Retry each current LLM config before considering fallback.
-- Classify provider-call errors into `availability`, `capacity`, `access`, and `any`.
+- Classify provider-call errors into `availability`, `capacity`, `access`, `context`, and `any`.
 - Keep local prompt/input validation outside fallback.
 - Resolve provider settings for each candidate via `SecretsManager.get_provider_settings_from_workflow()`.
 - Clean up `chat_v0` input normalization.
@@ -59,7 +60,7 @@ Current:
 Needed:
 
 - Update the generated/dereferenced prompt-template schema.
-- Ensure `fallback_llm_configs.items` carries the full LLM config schema.
+- Ensure `fallback_configs.items` carries the full LLM config schema.
 - Ensure fallback item `model` carries `x-ag-type-ref: "model"`.
 - Add or update catalog tests.
 
@@ -103,10 +104,10 @@ Current:
 
 Needed:
 
-- Confirm or add a usable array editor for `fallback_llm_configs`.
+- Confirm or add a usable array editor for `fallback_configs`.
 - Make fallback item `model` render through the grouped model selector.
 - Render `fallback_policy` as enum/choice.
-- Render `retry_policy` as a small object or inline advanced section.
+- Render `retry_config` and `retry_policy` in an advanced section.
 - Render `chat_template_kwargs` as a model parameter object field and preserve it unchanged.
 - Preserve fallback fields in prompt refine flows and execution payload building.
 - Optionally show fallback summary in registry/playground headers.

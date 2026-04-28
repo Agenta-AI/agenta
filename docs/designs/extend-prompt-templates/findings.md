@@ -1,6 +1,6 @@
 # Extend Prompt Templates Findings
 
-Scan scope: `973e80146..9420b8779` on `feat/extend-prompt-templates`
+Scan scope: PR `#4171` on `feat/extend-prompt-templates` through local head `84a45784d`
 
 Active path: `docs/designs/extend-prompt-templates`
 
@@ -8,6 +8,9 @@ Sources reviewed:
 
 - GitHub PR `#4171` metadata, reviews, comments, and unresolved review threads through 2026-04-27.
 - `docs/designs/extend-prompt-templates/{gap,initial.specs,plan,proposal,research}.md`
+- `docs/docs/reference/sdk/01-configuration-management.mdx`
+- `docs/docs/reference/sdk/03-custom-workflow.mdx`
+- `docs/docs/prompt-engineering/integrating-prompts/07-fallback-models-and-retry.mdx`
 - `sdk/agenta/sdk/utils/types.py`
 - `sdk/agenta/sdk/engines/running/handlers.py`
 - `sdk/agenta/sdk/engines/running/interfaces.py`
@@ -27,14 +30,19 @@ Verification run:
 - After fixes, `pytest -q sdk/oss/tests/pytest/unit/test_prompt_template_extensions.py`: passed, 9 tests.
 - After fixes, `poetry run python run-tests.py oss/tests/pytest/unit/evaluators/test_catalog_types.py` from `api`: passed, 1 test.
 - After fixes, `pnpm --filter @agenta/entity-ui build` from `web`: passed.
+- Sync on 2026-04-28 found five new Devin doc comments about stale `fallback_llm_configs` and object-shaped `retry_policy` docs; the affected docs were updated locally to `fallback_configs`, `retry_config`, and enum `retry_policy`.
 
 ## Notes
 
 - PR `#4171` is open with requested changes from frontend and product review.
 - No whitespace errors were found by `git diff --check HEAD~2..HEAD`.
 - User decision: `chat_template_kwargs` is a strict 1:1 provider pass-through field.
+- User decision: `fallback_llm_configs` was renamed to `fallback_configs` before release; no backward compatibility alias is needed.
+- User decision: retry controls are split into `retry_config` for max attempts/delay and `retry_policy` for retryable error categories. Retry defaults to off unless explicitly enabled.
 - User decision: prompt fallback fields are normal `data.parameters` fields and must be editable in the web registry or playground like other parameter fields.
 - User decision: web tests are out of scope for this work.
+- GitHub sync on 2026-04-28 shows the two Devin retry comments, the context fallback comment, the extra kwargs-helper comment, and the `_apply_responses_bridge_if_needed()` comment resolved in GitHub.
+- GitHub sync on 2026-04-28 still shows unresolved threads for frontend stable keys/memoization, two `_normalize_*` naming comments, one broad heuristic classification comment, and five docs comments that are fixed locally but not yet resolved in GitHub.
 
 ## Open Questions
 
@@ -73,13 +81,13 @@ No open questions.
 - Status: `open`
 - Category: `Compatibility`
 - Summary: Review requested proof that new prompt fields do not leak into stored config JSON for old apps that never use fallback, retry, or `chat_template_kwargs`.
-- Evidence: The requested cases are no-op commit on an old app, opening Retry/Fallback UI without changing anything, adding then removing a fallback model or resetting defaults, and SDK round-trip compatibility with `PromptTemplate(**old_config).model_dump(exclude_none=True)`.
+- Evidence: The requested cases are no-op commit on an old app, opening Retry/Fallback UI without changing anything, adding then removing a fallback model or resetting defaults, and SDK round-trip compatibility with `PromptTemplate(**old_config).model_dump(exclude_none=True)`. The field names are now `fallback_configs`, `retry_config`, `retry_policy`, `fallback_policy`, and `chat_template_kwargs`.
 - Files:
   - `sdk/agenta/sdk/utils/types.py`
   - `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/PromptSchemaControl.tsx`
   - `web/packages/agenta-entities/src/shared/execution/requestBodyBuilder.ts`
 - Cause: Adding nullable fields to the schema is not enough if UI default materialization or commit serialization writes empty/default keys back to persisted prompt config.
-- Explanation: Old apps should not gain `fallback_llm_configs`, `retry_policy`, `fallback_policy`, or `chat_template_kwargs` just because the branch code parsed or rendered them.
+- Explanation: Old apps should not gain `fallback_configs`, `retry_config`, `retry_policy`, `fallback_policy`, or `chat_template_kwargs` just because the branch code parsed or rendered them.
 - Suggested Fix: Add an SDK round-trip test for old prompt JSON and a targeted UI/service smoke check that no-op edits and reset-to-default flows omit these keys from committed JSON.
 - Alternatives: If full UI automation remains out of scope, document manual verification steps and add lower-level serialization tests for the commit payload builder.
 - Sources: PR `#4171` review by `mmabrouk` on 2026-04-22.
@@ -104,25 +112,24 @@ No open questions.
 - Alternatives: Keep top-level controls only if design accepts them, but that would leave the current requested-changes review unresolved.
 - Sources: PR `#4171` reviews by `mmabrouk` and `ardaerzin` on 2026-04-22 and 2026-04-27.
 
-### [OPEN] FPT-008: `chat_template_kwargs` needs clearer product justification and UI treatment
+### [OPEN] FPT-010: Error classification still uses broad string heuristics
 
-- ID: `FPT-008`
+- ID: `FPT-010`
 - Origin: `PR #4171 review`
-- Lens: `product`
+- Lens: `correctness`
 - Severity: `P2`
-- Confidence: `medium`
+- Confidence: `high`
 - Status: `open`
-- Category: `Completeness`
-- Summary: Review questioned whether `chat_template_kwargs` is backed by a real customer request and noted that a raw text field labeled `Chat Template Kwargs` is not useful in the playground.
-- Evidence: The PR body links the field to issue `#3996`, and earlier design notes treat it as a strict provider pass-through field. The latest review still asks for the reasoning/customer pull and UI clarity.
+- Category: `Correctness`
+- Summary: Retry/fallback error classification still contains broad substring heuristics for words such as timeout, network, rate limit, overload, auth, and validation.
+- Evidence: GitHub thread `PRRT_kwDOJbjazM5973Ez` on `sdk/agenta/sdk/engines/running/handlers.py` says the heuristics are weird. Current code classifies some generic string-only exceptions as retryable or fallback-eligible without a typed provider error or HTTP status code.
 - Files:
-  - `sdk/agenta/sdk/utils/types.py`
-  - `web/packages/agenta-entity-ui/src/DrillInView/components/PlaygroundConfigSection.tsx`
-- Cause: The API contract is defined as a provider pass-through, but the user-facing control does not explain or constrain the supported provider-specific parameters.
-- Explanation: A generic kwargs field can be technically correct but still unusable for playground users unless it is surfaced as advanced JSON/config with validation, examples, or provider-specific affordances.
-- Suggested Fix: Link the PR and docs to issue `#3996`, document concrete Granite/Qwen-style use cases, and move the UI into advanced model settings with a clearer label/help pattern.
-- Alternatives: Defer the UI control while keeping SDK/API pass-through if product only needs programmatic support for now.
-- Sources: PR `#4171` review by `mmabrouk` on 2026-04-27 and PR body reference to issue `#3996`.
+  - `sdk/agenta/sdk/engines/running/handlers.py`
+- Cause: The classifier tries to infer provider failure categories from exception text after typed exception and status-code checks.
+- Explanation: String-only matching can incorrectly treat local or deterministic failures as provider-call failures. The one useful exception is context-window detection on provider 400/422 responses, because providers often expose that case only in the error message.
+- Suggested Fix: Remove broad text heuristics from retry/fallback classifiers. Keep typed exceptions and HTTP status codes as the primary taxonomy, and keep a narrow context-window text check only for 400/422 provider responses.
+- Alternatives: Keep broad text matching only if it is hidden behind `RetryPolicy.ANY` or explicit provider adapter errors, but this is less predictable.
+- Sources: PR `#4171` review by `mmabrouk` on 2026-04-27 and current local code scan.
 
 ## Closed Findings
 
@@ -169,11 +176,11 @@ No open questions.
 - Confidence: `high`
 - Status: `fixed`
 - Category: `Completeness`
-- Summary: The prompt editor preserved fallback root fields but did not expose `fallback_llm_configs`, `fallback_policy`, or `retry_policy` for editing.
+- Summary: The prompt editor preserved fallback root fields but did not expose `fallback_configs`, `retry_config`, `retry_policy`, or `fallback_policy` for editing.
 - Evidence: The user confirmed these fields must be editable in the web registry or playground like any other `data.parameters` field. `PromptSchemaControl` previously returned only messages, tools, response format, and template format controls.
 - Files:
   - `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/PromptSchemaControl.tsx`
-- Resolution: Fixed by rendering prompt-root controls in `PromptSchemaControl` action-bar popovers. `Retry policy` appears to the right of `Prompt Syntax` and edits `max_retries` plus `delay_ms`; `Fallback policy` opens a popover with the fallback policy select and a list of fallback model dropdowns.
+- Resolution: Fixed by rendering prompt-root controls in `PromptSchemaControl` action-bar popovers. `Retry policy` appears to the right of `Prompt Syntax` and edits `retry_config.max_retries`, `retry_config.delay_ms`, and `retry_policy`; `Fallback policy` opens a popover with the fallback policy select and a list of fallback model dropdowns.
 - Sources: `pnpm --filter @agenta/entity-ui build`.
 
 ### [CLOSED] FPT-005: Retry behavior may change existing prompt-template execution
@@ -213,6 +220,48 @@ No open questions.
 - Resolution: Fixed by adding `FallbackPolicy.CONTEXT`, classifying context-window/token-limit provider errors as `context`, and including `context` in the fallback hierarchy before `any`.
 - Verification: `pytest -q sdk/oss/tests/pytest/unit/test_prompt_template_extensions.py` passed, including `test_fallback_policy_context_handles_context_window_errors`.
 - Sources: PR `#4171` review by `mmabrouk` on 2026-04-27.
+
+### [CLOSED] FPT-008: `chat_template_kwargs` needs clearer product justification and UI treatment
+
+- ID: `FPT-008`
+- Origin: `PR #4171 review`
+- Lens: `product`
+- Severity: `P2`
+- Confidence: `medium`
+- Status: `fixed`
+- Category: `Completeness`
+- Summary: Review questioned whether `chat_template_kwargs` is backed by a real customer request and noted that a raw text field labeled `Chat Template Kwargs` is not useful in the playground.
+- Evidence: The PR body links the field to issue `#3996`, design notes treat it as a strict provider pass-through field, and the GitHub thread was resolved after the issue was linked and the design was updated.
+- Files:
+  - `sdk/agenta/sdk/utils/types.py`
+  - `web/packages/agenta-entity-ui/src/DrillInView/components/PlaygroundConfigSection.tsx`
+  - `docs/designs/extend-prompt-templates/proposal.md`
+- Resolution: Fixed by tying the field to issue `#3996` and keeping it as an advanced model parameter concern. Remaining UI placement work is tracked under `FPT-007`.
+- Sources: PR `#4171` review by `mmabrouk` on 2026-04-27, PR body reference to issue `#3996`, and resolved GitHub thread `PRRT_kwDOJbjazM597fx3`.
+
+### [CLOSED] FPT-011: Public docs use stale fallback and retry field names
+
+- ID: `FPT-011`
+- Origin: `PR #4171 review`
+- Lens: `documentation`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Documentation`
+- Summary: Devin review found public docs and examples still used `fallback_llm_configs`, a non-existent `FallbackModelConfig`, and object-shaped `retry_policy` after the SDK moved to `fallback_configs`, `ModelConfig`, `retry_config`, and enum `retry_policy`.
+- Evidence: Open GitHub threads `PRRT_kwDOJbjazM5-F_z1`, `PRRT_kwDOJbjazM5-F_2P`, `PRRT_kwDOJbjazM5-F_4M`, `PRRT_kwDOJbjazM5-F_52`, and `PRRT_kwDOJbjazM5-F_7n` all point to stale docs examples and schema tables.
+- Files:
+  - `docs/docs/reference/sdk/01-configuration-management.mdx`
+  - `docs/docs/reference/sdk/03-custom-workflow.mdx`
+  - `docs/docs/prompt-engineering/integrating-prompts/07-fallback-models-and-retry.mdx`
+  - `docs/designs/extend-prompt-templates/proposal.md`
+  - `docs/designs/extend-prompt-templates/initial.specs.md`
+  - `docs/designs/extend-prompt-templates/plan.md`
+  - `docs/designs/extend-prompt-templates/gap.md`
+  - `docs/designs/extend-prompt-templates/research.md`
+- Resolution: Fixed locally by replacing stale field names with `fallback_configs`, documenting `retry_config` separately from enum `retry_policy`, replacing `FallbackModelConfig` with `ModelConfig`, and updating design docs to the current SDK contract.
+- Verification: Local docs sync and `rg` check no longer find stale public-doc references to `fallback_llm_configs`, `FallbackModelConfig`, or `RetryPolicy(max_retries=...)`; GitHub threads remain unresolved until the branch is pushed and threads are closed.
+- Sources: Devin review on PR `#4171` from 2026-04-28 and local docs scan.
 
 ## Triage Plan
 

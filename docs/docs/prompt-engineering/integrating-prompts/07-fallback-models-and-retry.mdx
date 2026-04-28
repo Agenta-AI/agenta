@@ -43,16 +43,17 @@ Example fetched configuration:
       "model": "openai/gpt-4o-mini",
       "temperature": 0.2
     },
-    "fallback_llm_configs": [
+    "fallback_configs": [
       {
         "model": "anthropic/claude-3-5-haiku-latest",
         "temperature": 0.2
       }
     ],
-    "retry_policy": {
+    "retry_config": {
       "max_retries": 1,
       "delay_ms": 500
     },
+    "retry_policy": "capacity",
     "fallback_policy": "capacity",
     "template_format": "curly"
   }
@@ -61,4 +62,4 @@ Example fetched configuration:
 
 Use these fields if you want your application to match the behavior tested in the playground.
 
-If a prompt has no fallback models, `fallback_llm_configs` can be empty, `null`, or missing. If no fallback policy is set, fallback behavior is off. If no retry policy is set, Agenta SDK runtimes use their built-in retry defaults.
+If a prompt has no fallback models, `fallback_configs` can be empty, `null`, or missing. If no fallback policy is set, fallback behavior is off. Retry is off unless `retry_policy` is explicitly set, and `retry_config` controls the retry count and delay.

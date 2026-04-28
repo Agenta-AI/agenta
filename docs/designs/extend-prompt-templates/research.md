@@ -49,7 +49,7 @@ The newer `llm_v0` interface is separate.
 
 - It stores model attempts in `parameters.llms`.
 - It already describes an ordered list of LLM configs.
-- It does not expose prompt-template root fields like `fallback_llm_configs`, `retry_policy`, or `fallback_policy`.
+- It does not expose prompt-template root fields like `fallback_configs`, `retry_config`, `retry_policy`, or `fallback_policy`.
 
 Relevant files:
 
@@ -174,9 +174,9 @@ Relevant files:
 
 ## Current Tests To Update Or Add
 
-- SDK prompt-template storage roundtrip should include `retry_policy`, `fallback_policy`, and `fallback_llm_configs`.
+- SDK prompt-template storage roundtrip should include `retry_config`, `retry_policy`, `fallback_policy`, and `fallback_configs`.
 - SDK/API/web tests should include `chat_template_kwargs` as a normal LLM config field.
-- Catalog type tests should assert new prompt-template schema fields and `fallback_llm_configs.items.properties.model["x-ag-type-ref"] == "model"`.
+- Catalog type tests should assert new prompt-template schema fields and `fallback_configs.items.properties.model["x-ag-type-ref"] == "model"`.
 - Built-in interface tests should preserve `x-ag-type-ref: "prompt-template"` and defaults.
 - Handler tests should cover primary success, retry before fallback, fallback by policy, policy rejection, and final exhaustion.
 - Web tests should cover schema rendering/persistence of fallback root fields and fallback model model-selector metadata.

@@ -2,22 +2,24 @@
 
 ## Task 1: SDK Contract
 
-1. Add optional `RetryPolicy`, `FallbackPolicy`, and prompt fallback fields to SDK types.
+1. Add optional `RetryConfig`, `RetryPolicy`, `FallbackPolicy`, and prompt fallback fields to SDK types.
 2. Keep `ModelConfig` as the reusable LLM config shape.
 3. Add `chat_template_kwargs` to `ModelConfig`.
 4. Ensure every new field defaults to `null` in the data model:
-   - `fallback_llm_configs`
+   - `fallback_configs`
+   - `retry_config`
    - `retry_policy`
    - `fallback_policy`
    - `chat_template_kwargs`
 5. Normalize behavior internally at runtime:
-   - `fallback_llm_configs: null` -> `[]`
-   - `retry_policy: null` -> built-in retry policy
+   - `fallback_configs: null` -> `[]`
+   - `retry_config: null` -> `max_retries=0`, `delay_ms=0`
+   - `retry_policy: null` -> `off`
    - `fallback_policy: null` -> `off`
    - `chat_template_kwargs: null` -> omit from provider kwargs
 6. Keep `to_openai_kwargs()` primary-only.
 7. Add internal helpers for:
-   - `[llm_config, *fallback_llm_configs]`
+   - `[llm_config, *fallback_configs]`
    - candidate-specific OpenAI/LiteLLM kwargs
    - retry policy defaults
 
@@ -48,26 +50,27 @@ Tests:
 Tests:
 
 - catalog type includes prompt-template fallback root fields
-- `fallback_llm_configs.items.properties.model["x-ag-type-ref"] == "model"`
+- `fallback_configs.items.properties.model["x-ag-type-ref"] == "model"`
 - catalog type includes `chat_template_kwargs`
 - existing prompt-template interface tests still pass
 
 ## Task 3: SDK Runtime
 
 1. Add error classifier:
-   - `availability`: network, timeout, 5xx, 503
-   - `capacity`: availability + 429/rate-limit/overload
+   - `availability`: timeout, network errors, 5xx, 503
+   - `capacity`: availability + 429/rate-capacity errors
    - `access`: capacity + 401/403
-   - `any`: access + 400/404/422 provider-call errors
+   - `context`: access + context-window/token-limit provider errors
+   - `any`: context + 400/404/422 provider-call errors
 2. Add `should_fallback(error, fallback_policy)`.
 3. Add `run_llm_config_with_retry_policy()`.
 4. Add prompt fallback runner:
 
 ```text
-llm_configs = [llm_config, *fallback_llm_configs]
+llm_configs = [llm_config, *fallback_configs]
 
 for current_llm_config in llm_configs:
-  run current_llm_config with retry_policy
+  run current_llm_config with retry_config and retry_policy
 
   if success:
     return response
@@ -113,14 +116,14 @@ Tests:
 ## Task 5: Web Schema And Editing
 
 1. Verify `x-ag-type-ref: "prompt-template"` dereferencing includes fallback fields.
-2. Verify generic array/object controls can edit `fallback_llm_configs`.
+2. Verify generic array/object controls can edit `fallback_configs`.
 3. If generic controls are not enough, add a compact prompt fallback editor:
    - add fallback config
    - remove fallback config
    - reorder fallback config
    - model selector per fallback config
 4. Render `fallback_policy` as enum/choice.
-5. Render `retry_policy` as a small inline object or advanced section.
+5. Render `retry_config` and `retry_policy` in an advanced section.
 6. Expose `chat_template_kwargs` in the model-parameters panel for issue #3996.
 7. Keep primary model popover focused on `llm_config`; do not overload it with fallback editing unless needed.
 
@@ -154,7 +157,8 @@ Tests:
 5. Document that local prompt/input errors do not fallback.
 6. Document that all new fields default to `null` in stored data.
 7. Document runtime default behavior:
-   - `fallback_llm_configs: null` -> no fallback models
+   - `fallback_configs: null` -> no fallback models
+   - `retry_config: null` -> `max_retries=0`, `delay_ms=0`
    - `fallback_policy: null` -> `off`
-   - `retry_policy: null` -> built-in retry policy
+   - `retry_policy: null` -> `off`
    - `chat_template_kwargs: null` -> omitted from provider kwargs
