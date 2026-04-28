@@ -29,6 +29,13 @@ export interface OpenDrawerParams {
     navigationIds?: string[]
     /** Callback after successful evaluator creation/commit */
     onEvaluatorCreated?: (configId?: string) => void
+    /**
+     * Override the drawer's initial expanded state. When omitted, evaluator
+     * contexts default to expanded and other contexts default to collapsed.
+     * Pass `true` to force expanded (full playground with execution panel) —
+     * e.g. when opening a span in playground for replay/testing.
+     */
+    expanded?: boolean
 }
 
 // ================================================================
@@ -78,7 +85,8 @@ export const workflowRevisionDrawerAtom = atom((get) => ({
 /** Open the drawer */
 export const openWorkflowRevisionDrawerAtom = atom(null, (get, set, params: OpenDrawerParams) => {
     const opensExpanded =
-        params.context === "evaluator-view" || params.context === "evaluator-create"
+        params.expanded ??
+        (params.context === "evaluator-view" || params.context === "evaluator-create")
 
     set(workflowRevisionDrawerEntityIdAtom, params.entityId)
     set(workflowRevisionDrawerOpenAtom, true)
