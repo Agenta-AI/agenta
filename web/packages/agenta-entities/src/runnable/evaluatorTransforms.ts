@@ -168,20 +168,35 @@ export function nestEvaluatorConfiguration(
         ...(json_schema ? {json_schema} : {}),
     }
 
-    const result = {
+    // Mirror `nestEvaluatorSchema`'s rule for emitting `advanced_config`:
+    // only include the section when the schema actually declares advanced
+    // fields. Emitting it unconditionally produced ghost "Advanced Config"
+    // sections with no schema properties for evaluators whose SDK interface
+    // doesn't carry `correct_answer_key` / `threshold` (e.g. `auto_ai_critique_v0`).
+    // Handles both flat schema (top-level `correct_answer_key` / `threshold`)
+    // and already-nested schema (`advanced_config` present).
+    const schemaProps = (schema?.properties ?? undefined) as Record<string, unknown> | undefined
+    const schemaHasAdvanced =
+        !!schemaProps?.correct_answer_key ||
+        !!schemaProps?.threshold ||
+        !!schemaProps?.advanced_config
+
+    const result: Record<string, unknown> = {
         prompt: {
             messages: prompt_template,
             llm_config: {
                 model,
             },
         },
-        // Feedback configuration as a top-level section (matches schema)
         feedback_config: feedbackConfig,
-        // Store evaluator-specific fields in a named section
-        advanced_config: {
-            correct_answer_key: _correctAnswerKey,
-            threshold: _threshold,
-        },
+        ...(schemaHasAdvanced
+            ? {
+                  advanced_config: {
+                      correct_answer_key: _correctAnswerKey,
+                      threshold: _threshold,
+                  },
+              }
+            : {}),
         ...rest,
     }
     return result

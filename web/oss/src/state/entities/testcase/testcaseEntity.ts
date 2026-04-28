@@ -1,4 +1,11 @@
-import {createBatchFetcher} from "@agenta/shared/utils"
+import {
+    createBatchFetcher,
+    deleteValueAtPath,
+    getValueAtPath,
+    getValueAtStringPath,
+    parsePath,
+    setValueAtPath,
+} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
@@ -548,6 +555,177 @@ export const testcaseIsDirtyAtomFamily = testcaseDraftState.isDirtyAtomFamily
 
 // Note: updateTestcaseAtom and discardDraftAtom are exported later after entity atom definition
 
+const applyTopLevelUpdates = (
+    record: FlattenedTestcase,
+    updates: Partial<FlattenedTestcase>,
+): FlattenedTestcase => {
+    const next = {...record, ...updates}
+
+    for (const [key, value] of Object.entries(updates)) {
+        if (value === undefined) {
+            delete next[key]
+        }
+    }
+
+    return next
+}
+
+const isEmptyObjectLike = (value: unknown): boolean => {
+    if (!value || typeof value !== "object") {
+        if (typeof value === "string") {
+            const trimmed = value.trim()
+            if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+                try {
+                    const parsed = JSON.parse(trimmed)
+                    return (
+                        !!parsed &&
+                        typeof parsed === "object" &&
+                        !Array.isArray(parsed) &&
+                        Object.keys(parsed).length === 0
+                    )
+                } catch {
+                    return false
+                }
+            }
+        }
+
+        return false
+    }
+
+    return !Array.isArray(value) && Object.keys(value).length === 0
+}
+
+const pruneEmptyAncestorPaths = (
+    record: Record<string, unknown>,
+    deletedPath: (string | number)[],
+): Record<string, unknown> => {
+    let next = record
+
+    for (let depth = deletedPath.length - 1; depth >= 1; depth--) {
+        const ancestorPath = deletedPath.slice(0, depth)
+        const ancestorValue = getValueAtPath(next, ancestorPath)
+
+        if (!isEmptyObjectLike(ancestorValue)) {
+            break
+        }
+
+        next = deleteValueAtPath(next, ancestorPath) as Record<string, unknown>
+    }
+
+    return next
+}
+
+const buildRenameUpdates = (
+    record: Record<string, unknown>,
+    oldKey: string,
+    newKey: string,
+): Partial<FlattenedTestcase> | null => {
+    if (!oldKey || !newKey || oldKey === newKey) {
+        return null
+    }
+
+    if (oldKey in record) {
+        return {
+            [newKey]: record[oldKey],
+            [oldKey]: undefined,
+        } as Partial<FlattenedTestcase>
+    }
+
+    if (!oldKey.includes(".")) {
+        return null
+    }
+
+    const oldPath = parsePath(oldKey)
+    const newPath = parsePath(newKey)
+
+    if (oldPath.length < 2 || newPath.length === 0) {
+        return null
+    }
+
+    const nestedValue = getValueAtStringPath(record, oldKey)
+    if (nestedValue === undefined) {
+        return null
+    }
+
+    const updatedRecord = pruneEmptyAncestorPaths(
+        deleteValueAtPath(setValueAtPath(record, newPath, nestedValue), oldPath) as Record<
+            string,
+            unknown
+        >,
+        oldPath,
+    )
+    const affectedRoots = new Set([String(oldPath[0]), String(newPath[0])])
+    const updates: Record<string, unknown> = {}
+
+    affectedRoots.forEach((rootKey) => {
+        updates[rootKey] = updatedRecord[rootKey]
+    })
+
+    return updates as Partial<FlattenedTestcase>
+}
+
+const buildDeleteUpdates = (
+    record: Record<string, unknown>,
+    columnKey: string,
+): Partial<FlattenedTestcase> | null => {
+    if (!columnKey) {
+        return null
+    }
+
+    if (columnKey in record) {
+        return {
+            [columnKey]: undefined,
+        } as Partial<FlattenedTestcase>
+    }
+
+    if (!columnKey.includes(".")) {
+        return null
+    }
+
+    const path = parsePath(columnKey)
+    if (path.length < 2 || getValueAtStringPath(record, columnKey) === undefined) {
+        return null
+    }
+
+    const updatedRecord = pruneEmptyAncestorPaths(
+        deleteValueAtPath(record, path) as Record<string, unknown>,
+        path,
+    )
+    const rootKey = String(path[0])
+
+    return {
+        [rootKey]: updatedRecord[rootKey],
+    } as Partial<FlattenedTestcase>
+}
+
+const buildAddUpdates = (
+    record: Record<string, unknown>,
+    columnKey: string,
+    defaultValue: unknown = "",
+): Partial<FlattenedTestcase> | null => {
+    if (!columnKey || columnKey in record) {
+        return null
+    }
+
+    if (!columnKey.includes(".")) {
+        return {
+            [columnKey]: defaultValue,
+        } as Partial<FlattenedTestcase>
+    }
+
+    const path = parsePath(columnKey)
+    if (path.length < 2 || getValueAtStringPath(record, columnKey) !== undefined) {
+        return null
+    }
+
+    const updatedRecord = setValueAtPath(record, path, defaultValue) as Record<string, unknown>
+    const rootKey = String(path[0])
+
+    return {
+        [rootKey]: updatedRecord[rootKey],
+    } as Partial<FlattenedTestcase>
+}
+
 // ============================================================================
 // COMBINED ENTITY ATOM FAMILY
 // Combines query (server state) + draft (local edits) + pending column changes
@@ -568,35 +746,37 @@ const applyPendingColumnChanges = (
         return data
     }
 
-    const result = {...data} as Record<string, unknown>
+    let result = {...data} as FlattenedTestcase
     let hasChanges = false
 
     // Apply renames
     for (const [oldKey, newKey] of renames.entries()) {
-        if (oldKey in result && !(newKey in result)) {
-            result[newKey] = result[oldKey]
-            delete result[oldKey]
+        const renameUpdates = buildRenameUpdates(result, oldKey, newKey)
+        if (renameUpdates) {
+            result = applyTopLevelUpdates(result, renameUpdates)
             hasChanges = true
         }
     }
 
     // Apply deletions (remove column from data)
     for (const columnKey of deletedColumns) {
-        if (columnKey in result) {
-            delete result[columnKey]
+        const deleteUpdates = buildDeleteUpdates(result, columnKey)
+        if (deleteUpdates) {
+            result = applyTopLevelUpdates(result, deleteUpdates)
             hasChanges = true
         }
     }
 
     // Apply additions (add empty column)
     for (const columnKey of addedColumns) {
-        if (!(columnKey in result)) {
-            result[columnKey] = ""
+        const addUpdates = buildAddUpdates(result, columnKey)
+        if (addUpdates) {
+            result = applyTopLevelUpdates(result, addUpdates)
             hasChanges = true
         }
     }
 
-    return hasChanges ? (result as FlattenedTestcase) : data
+    return hasChanges ? result : data
 }
 
 /**
@@ -757,15 +937,9 @@ export const renameColumnInTestcasesAtom = atom(
             // First check if there's a draft
             const draft = get(testcaseDraftAtomFamily(id))
             if (draft) {
-                const record = draft as Record<string, unknown>
-                if (oldKey in record) {
-                    updates.push({
-                        id,
-                        updates: {
-                            [newKey]: record[oldKey],
-                            [oldKey]: undefined,
-                        } as Partial<FlattenedTestcase>,
-                    })
+                const renameUpdates = buildRenameUpdates(draft, oldKey, newKey)
+                if (renameUpdates) {
+                    updates.push({id, updates: renameUpdates})
                 }
                 continue
             }
@@ -775,15 +949,9 @@ export const renameColumnInTestcasesAtom = atom(
             if (rowDataMap) {
                 const rowData = rowDataMap.get(id)
                 if (rowData) {
-                    const record = rowData as Record<string, unknown>
-                    if (oldKey in record) {
-                        updates.push({
-                            id,
-                            updates: {
-                                [newKey]: record[oldKey],
-                                [oldKey]: undefined,
-                            } as Partial<FlattenedTestcase>,
-                        })
+                    const renameUpdates = buildRenameUpdates(rowData, oldKey, newKey)
+                    if (renameUpdates) {
+                        updates.push({id, updates: renameUpdates})
                     }
                 }
             }
@@ -810,92 +978,9 @@ export const deleteColumnFromTestcasesAtom = atom(null, (get, set, columnKey: st
         const entity = get(testcaseEntityAtomFamily(id))
         if (!entity) continue
 
-        const record = entity as Record<string, unknown>
-
-        // Handle nested column keys (e.g., "inputs.code", "current_rfp.event")
-        if (columnKey.includes(".")) {
-            const parts = columnKey.split(".")
-            const rootKey = parts[0]
-
-            // Check if root exists
-            if (rootKey in record && record[rootKey] != null) {
-                let rootValue = record[rootKey]
-                let isJsonString = false
-
-                // Parse if it's a JSON string
-                if (typeof rootValue === "string") {
-                    try {
-                        const parsed = JSON.parse(rootValue)
-                        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-                            rootValue = parsed
-                            isJsonString = true
-                        }
-                    } catch {
-                        // Not valid JSON, skip this entity
-                        continue
-                    }
-                }
-
-                // Now rootValue should be an object
-                if (typeof rootValue === "object" && !Array.isArray(rootValue)) {
-                    // Clone to avoid mutation
-                    const clonedRoot = JSON.parse(JSON.stringify(rootValue))
-
-                    // Navigate to the parent of the property to delete
-                    let current: any = clonedRoot
-                    for (let i = 1; i < parts.length - 1; i++) {
-                        if (current && typeof current === "object" && parts[i] in current) {
-                            current = current[parts[i]]
-                        } else {
-                            current = null
-                            break
-                        }
-                    }
-
-                    // Delete the final property
-                    if (current && typeof current === "object") {
-                        const finalKey = parts[parts.length - 1]
-                        if (finalKey in current) {
-                            delete current[finalKey]
-
-                            // Check if the root object is now empty (no properties left)
-                            const hasRemainingProperties = Object.keys(clonedRoot).length > 0
-
-                            if (!hasRemainingProperties) {
-                                // Remove the entire parent key if empty
-                                updates.push({
-                                    id,
-                                    updates: {
-                                        [rootKey]: undefined,
-                                    } as Partial<FlattenedTestcase>,
-                                })
-                            } else {
-                                // Convert back to JSON string if needed
-                                const updatedValue = isJsonString
-                                    ? JSON.stringify(clonedRoot)
-                                    : clonedRoot
-
-                                updates.push({
-                                    id,
-                                    updates: {
-                                        [rootKey]: updatedValue,
-                                    } as Partial<FlattenedTestcase>,
-                                })
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            // Simple top-level column
-            if (columnKey in record) {
-                updates.push({
-                    id,
-                    updates: {
-                        [columnKey]: undefined,
-                    } as Partial<FlattenedTestcase>,
-                })
-            }
+        const deleteUpdates = buildDeleteUpdates(entity, columnKey)
+        if (deleteUpdates) {
+            updates.push({id, updates: deleteUpdates})
         }
     }
 
@@ -921,15 +1006,9 @@ export const addColumnToTestcasesAtom = atom(
             const entity = get(testcaseEntityAtomFamily(id))
             if (!entity) continue
 
-            const record = entity as Record<string, unknown>
-            // Only add if column doesn't exist
-            if (!(columnKey in record)) {
-                updates.push({
-                    id,
-                    updates: {
-                        [columnKey]: defaultValue,
-                    } as Partial<FlattenedTestcase>,
-                })
+            const addUpdates = buildAddUpdates(entity, columnKey, defaultValue)
+            if (addUpdates) {
+                updates.push({id, updates: addUpdates})
             }
         }
 

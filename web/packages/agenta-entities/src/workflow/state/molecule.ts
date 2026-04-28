@@ -637,6 +637,71 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
 )
 
 /**
+ * Infer a lightweight JSON Schema from a sample value. Used to turn the
+ * observed envelope (e.g. `{country: "Azerbaijan", correct_answer: "..."}`)
+ * into a property list the drill-in renderer can expand. Returns an open-ended
+ * object schema when the sample is missing or not a plain object.
+ */
+function inferEnvelopeSchema(sample: unknown): Record<string, unknown> {
+    if (!sample || typeof sample !== "object" || Array.isArray(sample)) {
+        return {type: "object", additionalProperties: true}
+    }
+    const properties: Record<string, Record<string, unknown>> = {}
+    for (const [key, value] of Object.entries(sample as Record<string, unknown>)) {
+        const valueType = Array.isArray(value)
+            ? "array"
+            : value === null
+              ? "null"
+              : typeof value === "object"
+                ? "object"
+                : typeof value
+        properties[key] = {type: valueType}
+    }
+    return {
+        type: "object",
+        properties,
+        additionalProperties: true,
+    }
+}
+
+/**
+ * Build envelope ports for an evaluator workflow: `inputs` (graded testset
+ * row) and `outputs` (graded app output). When meta carries a sample envelope
+ * (e.g. span-opened ephemerals), the observed shape is surfaced as the
+ * sub-schema so drill-in shows the real fields.
+ *
+ * Port types:
+ * - `inputs` is always a structured testcase row → `object` (JSON editor).
+ * - `outputs` can be a string, number, or object depending on the upstream
+ *   app → `string` so the editor picks mode from the observed value
+ *   (auto-detects JSON, falls back to plain text). Forcing `object` here
+ *   would lock the editor into JSON mode even when the user wants to enter
+ *   a plain-text output (e.g. for Exact Match).
+ */
+function buildEvaluatorEnvelopePorts(entity: Workflow | null | undefined): RunnablePort[] {
+    const meta = entity?.meta as Record<string, unknown> | null | undefined
+    const envelope = meta?.envelope as Record<string, unknown> | undefined
+    const envelopeInputs = envelope?.inputs as Record<string, unknown> | undefined
+    const envelopeOutputs = envelope?.outputs
+    return [
+        {
+            key: "inputs",
+            name: "Inputs",
+            type: "object",
+            required: true,
+            schema: inferEnvelopeSchema(envelopeInputs),
+        },
+        {
+            key: "outputs",
+            name: "Outputs",
+            type: "string",
+            required: true,
+            schema: inferEnvelopeSchema(envelopeOutputs),
+        },
+    ]
+}
+
+/**
  * Input ports selector.
  * Derives ports from schema, prompt template variables, or ephemeral trace metadata.
  */
@@ -644,6 +709,15 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
     atom<RunnablePort[]>((get) => {
         const entity = get(workflowEntityAtomFamily(workflowId))
         if (!entity) return []
+
+        // Evaluators always consume the {inputs, outputs} envelope at runtime.
+        // Their `schemas.inputs` is an open-ended object (no declared properties),
+        // so generic schema-driven port extraction yields nothing useful — we
+        // must surface the envelope structure explicitly. This applies to both
+        // ephemerals (span-opened) and server-backed revisions.
+        if (entity.flags?.is_evaluator) {
+            return buildEvaluatorEnvelopePorts(entity)
+        }
 
         // Ephemeral workflow: derive from template variables, then trace inputs
         if (entity.flags?.is_base) {
