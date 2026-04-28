@@ -1,0 +1,111 @@
+---
+title: "Workflows"
+description: "Versioned, invokable logic units. The lower-level primitive that applications and evaluators build on."
+sidebar_position: 6
+---
+
+A **workflow** is a versioned unit of logic with declared input, output, and parameter schemas. It is the lower-level primitive in Agenta. Applications and evaluators are specialized workflows that carry additional domain semantics on top of the same storage and versioning model.
+
+Workflows live under `/api/workflows/*` and share the artifact / variant / revision versioning model with applications, evaluators, and testsets. See [Versioning](/reference/api-guide/versioning) for the shape of commit, retrieve, and revision-log endpoints.
+
+## When to use workflows, applications, or evaluators
+
+Most callers do not need to reach for the workflows endpoints directly. Pick the resource that matches what the logic does:
+
+| Resource | Use when | API prefix |
+|----------|----------|------------|
+| **Application** | The logic serves inference — a prompt, a chat agent, a chain you want to deploy. | `/applications/*` |
+| **Evaluator** | The logic scores an output (optionally against ground truth) to produce a metric. | `/evaluators/*` |
+| **Workflow** | You want the raw primitive — multi-step orchestration, a snippet reused by other workflows, or a logic unit that is neither an application nor an evaluator. | `/workflows/*` |
+
+Applications and evaluators are persisted as workflows under the hood; they stay in their own domain routes because each carries extra behavior (deployments for applications, presets and scoring contracts for evaluators). If you know you want a serving endpoint, go to applications. If you know you want a scorer, go to evaluators. Reach for `/workflows/*` when neither fits.
+
+## Anatomy of a workflow
+
+Each workflow is an **artifact** with one or more **variants**, and each variant accumulates **revisions**. A revision snapshots:
+
+- `data.uri` — the handler identifier (a builtin reference like `agenta:custom:hook:v0`, or a user URI).
+- `data.url` — the HTTP(S) endpoint that receives invocations, when the handler is an HTTP worker.
+- `data.schemas` — JSON Schemas for `parameters`, `inputs`, and `outputs`.
+- `data.parameters` — parameter values to send on invocation.
+- `flags` — capability bits such as `is_chat`, `has_url`, `is_code`, `is_application`, `is_evaluator`.
+
+Archive and unarchive on the artifact, variant, or revision follow the rules documented in [Versioning](/reference/api-guide/versioning).
+
+## Invocation
+
+A workflow revision is invoked by posting the revision's input payload to the `url` in its `data`. The runtime reads `data.parameters` and `data.schemas` at the resolved revision and dispatches the call. Tracing is recorded under the `ag.references.workflow_*` namespace. See [Tracing](/reference/api-guide/tracing) for the full reference map.
+
+`POST /workflows/revisions/resolve` returns a revision with any `@ag.references` tokens in its configuration replaced by the referenced payload. Use this when a workflow revision embeds another workflow or a snippet.
+
+## Catalog: templates
+
+`GET /workflows/catalog/templates/` lists workflow blueprints shipped with the product. Each template has a `key`, a display name, a description, and `flags` indicating the domains it targets (`is_application`, `is_evaluator`, `is_snippet`). Templates scaffold new workflow artifacts; they are global and read-only.
+
+`GET /workflows/catalog/templates/{template_key}/presets/` lists presets for that template — named parameter sets you can commit directly as the first revision of a new variant. Presets can be empty for templates that have no canned configurations.
+
+`GET /workflows/catalog/types/` lists the shared JSON Schema fragments (`message`, `prompt`, and similar) that workflow input and output schemas reference via `x-ag-type-ref`.
+
+## Relationship to evaluators
+
+Evaluators persist through the same storage as workflows; an evaluator's `evaluator_id` is the same UUID as its underlying `workflow_id`. Retrieving `/workflows/{id}` for an evaluator's ID returns the evaluator's workflow record. Callers still use `/evaluators/*` for evaluator-specific behavior (presets, scoring contract).
+
+## Worked example
+
+Create a workflow, commit a revision, retrieve the latest.
+
+```bash
+# 1. Create the artifact.
+curl -X POST "$AGENTA_HOST/api/workflows/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "workflow": {
+      "slug": "classify-feedback",
+      "name": "classify-feedback",
+      "description": "Route customer feedback to a label."
+    }
+  }'
+```
+
+```bash
+# 2. Create a variant. Variant slugs are unique within the project.
+curl -X POST "$AGENTA_HOST/api/workflows/variants/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "workflow_variant": {
+      "workflow_id": "019d952f-0000-0000-0000-000000000000",
+      "slug": "classify-feedback-main",
+      "name": "main"
+    }
+  }'
+```
+
+```bash
+# 3. Commit a revision on that variant.
+curl -X POST "$AGENTA_HOST/api/workflows/revisions/commit" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "workflow_revision": {
+      "workflow_variant_id": "019d9530-0000-0000-0000-000000000000",
+      "message": "initial parameters",
+      "data": {"parameters": {"temperature": 0.2}}
+    }
+  }'
+```
+
+```bash
+# 4. Retrieve the latest revision on the variant.
+curl -X POST "$AGENTA_HOST/api/workflows/revisions/retrieve" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{"workflow_variant_ref": {"slug": "classify-feedback-main"}}'
+```
+
+The retrieve response returns the resolved revision with `id`, `version`, `author`, `date`, and the committed `data`. Pass that revision's `data.url` to the runtime to invoke it.
+
+## Simple workflows
+
+`POST /simple/workflows/query` returns one row per workflow artifact with its currently resolved variant and revision already merged, including the handler URI, URL, and JSON schemas. Use the simple surface when you want a workflow's invocation payload without walking the three layers yourself. See [Simple Endpoints](/reference/api-guide/simple-endpoints).
