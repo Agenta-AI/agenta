@@ -166,15 +166,15 @@ const TraceTypeHeader = ({
         // overlaid on top of the trace drawer (which stays open behind so the
         // user can still see the span they came from).
         //
-        // We always use "variant" context here so the drawer renders
-        // DrawerAppPlayground (mode="app") with the ephemeral entity as the
-        // workflow under test — matching what the project-scoped /playground
-        // page did before this change. Even for evaluator spans, we want to
-        // replay the evaluator itself, NOT enter the evaluator-grading-an-app
-        // configuration flow that "evaluator-create" routes into.
+        // We use "variant" context so the drawer renders DrawerAppPlayground
+        // (mode="app") with the ephemeral entity as the workflow under test —
+        // matching what the project-scoped /playground page did before this
+        // change. Even for evaluator spans, we want to replay the evaluator
+        // itself, NOT enter the evaluator-grading-an-app configuration flow
+        // that "evaluator-create" routes into.
         //
-        // Force expanded so the drawer opens in test mode (full playground
-        // with execution panel) rather than the collapsed config+metadata
+        // `expanded: true` opens the drawer in test mode (full playground
+        // with execution panel) instead of the collapsed config+metadata
         // view — span replay is fundamentally a "run it and see" interaction.
         openWorkflowRevisionDrawer({
             entityId: result.entityId,

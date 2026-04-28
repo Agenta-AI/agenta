@@ -25,7 +25,7 @@
 import {loadableStateAtomFamily} from "@agenta/entities/loadable"
 import {loadableController, snapshotAdapterRegistry} from "@agenta/entities/runnable"
 import {fetchTestcasesPage} from "@agenta/entities/testcase"
-import type {TraceSpanNode} from "@agenta/entities/trace"
+import type {TraceSpan, TraceSpanNode} from "@agenta/entities/trace"
 import {extractAgData, extractInputs, extractOutputs} from "@agenta/entities/trace"
 import {
     workflowMolecule,
@@ -896,6 +896,44 @@ function looksLikePromptConfig(value: unknown): boolean {
     return (hasMessages || hasLlmConfig) && (hasTemplateFormat || hasLlmConfig)
 }
 
+/**
+ * Walk a span's descendants depth-first and return the first non-empty
+ * `ag.data.parameters` found.
+ *
+ * Workflow/task/agent/chain spans are wrappers — the actual prompt/model
+ * config typically lives on a child LLM-call span (e.g. `litellm.completion`
+ * sub-span carries `parameters: {prompt: {...}}` or `parameters: {model,
+ * messages, ...}`). Without walking the tree, the parent ephemeral entity
+ * ends up with empty parameters and the playground renders the empty state.
+ *
+ * Parameters are returned as a parsed Record (handles JSON-encoded strings).
+ */
+function findDescendantParameters(
+    span: TraceSpanNode | TraceSpan | null,
+): Record<string, unknown> | null {
+    if (!span) return null
+    const children = (span as TraceSpanNode).children
+    if (!Array.isArray(children) || children.length === 0) return null
+
+    for (const child of children) {
+        const childAgData = extractAgData(child)
+        let childParams = childAgData?.parameters
+        if (typeof childParams === "string") {
+            try {
+                childParams = JSON.parse(childParams)
+            } catch {
+                childParams = undefined
+            }
+        }
+        if (isRecord(childParams) && Object.keys(childParams).length > 0) {
+            return childParams as Record<string, unknown>
+        }
+        const deeper = findDescendantParameters(child)
+        if (deeper) return deeper
+    }
+    return null
+}
+
 /** Check if inputs look like a chat variant (has messages array with role/content objects) */
 function looksLikeChat(inputs: Record<string, unknown>): boolean {
     if (!("messages" in inputs) || !Array.isArray(inputs.messages)) return false
@@ -1212,7 +1250,21 @@ const openFromTraceAtom = atom(
                       ? rawAgParameters
                       : {}
             ) as Record<string, unknown>
-            const baseParameters = stripOmittedKeys(rawParameters)
+            let baseParameters = stripOmittedKeys(rawParameters)
+
+            // Workflow/task/agent/chain spans wrap an LLM call whose actual
+            // prompt/model config lives on a descendant span. If the active
+            // span itself didn't capture parameters (common — only inputs are
+            // captured at the wrapper level), walk the tree and use the first
+            // non-empty `ag.data.parameters` we find. Without this fallback,
+            // the ephemeral entity ends up with no config and the playground
+            // shows the empty "No configuration needed" state.
+            if (Object.keys(baseParameters).length === 0) {
+                const descendantParams = findDescendantParameters(activeSpan)
+                if (descendantParams) {
+                    baseParameters = stripOmittedKeys(descendantParams)
+                }
+            }
 
             // Task/agent/chain spans often capture prompt config as inputs
             // (because `@ag.instrument()` records every function argument).
