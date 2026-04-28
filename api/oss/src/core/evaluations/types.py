@@ -3,7 +3,7 @@ from enum import Enum
 from uuid import UUID
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from oss.src.core.tracing.dtos import (
     MetricSpec,
@@ -400,6 +400,15 @@ class EvaluationQueueData(BaseModel):
     batch_size: Optional[int] = None
     batch_offset: Optional[int] = None
 
+    @field_validator("user_ids", mode="before")
+    def validate_user_ids(cls, v):
+        if v is None:
+            return None
+
+        return [
+            [UUID(str(user_id)) for user_id in repeat_user_ids] for repeat_user_ids in v
+        ]
+
     @field_validator("batch_size", mode="before")
     def validate_batch_size(cls, v):
         if v is None:
@@ -564,7 +573,21 @@ class SimpleQueueSettings(BaseModel):
 
 
 class SimpleQueueData(BaseModel):
-    kind: SimpleQueueKind
+    kind: Optional[SimpleQueueKind] = None
+
+    queries: Optional[List[UUID]] = None
+    """
+    Optional source-backed queue input. Values are query revision IDs.
+    When provided, the queue resolves those query revisions into trace IDs
+    at creation time and preserves the query revision refs in the run steps.
+    """
+
+    testsets: Optional[List[UUID]] = None
+    """
+    Optional source-backed queue input. Values are testset revision IDs.
+    When provided, the queue resolves those testset revisions into testcase IDs
+    at creation time and preserves the testset revision refs in the run steps.
+    """
 
     evaluators: Optional[Target] = None
     """
@@ -587,6 +610,29 @@ class SimpleQueueData(BaseModel):
     Optional distribution settings. Setting batch_size and/or batch_offset implies sequential
     (non-randomized) assignment. Omitting settings means randomized distribution.
     """
+
+    @field_validator("assignments", mode="before")
+    def validate_assignments(cls, v):
+        if v is None:
+            return None
+
+        return [
+            [UUID(str(user_id)) for user_id in repeat_user_ids] for repeat_user_ids in v
+        ]
+
+    @model_validator(mode="after")
+    def validate_sources(self):
+        has_kind = self.kind is not None
+        has_queries = bool(self.queries)
+        has_testsets = bool(self.testsets)
+
+        if has_queries and has_testsets:
+            raise ValueError("simple queue source must be either queries or testsets")
+
+        if not has_kind and not has_queries and not has_testsets:
+            raise ValueError("simple queue requires kind, queries, or testsets")
+
+        return self
 
 
 class SimpleQueue(Identifier, Lifecycle, Header, Metadata):

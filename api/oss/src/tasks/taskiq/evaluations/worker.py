@@ -391,6 +391,7 @@ class EvaluationsWorker:
             #
             run_id: UUID,
             trace_ids: list[str],
+            input_step_key: Optional[str] = None,
             context: Context = TaskiqDepends(),
         ) -> Any:
             log.info("[TASK] Starting evaluate_batch_traces")
@@ -405,6 +406,7 @@ class EvaluationsWorker:
                     #
                     run_id=run_id,
                     trace_ids=trace_ids,
+                    input_step_key=input_step_key,
                     #
                     tracing_service=self.tracing_service,
                     workflows_service=self.workflows_service,
@@ -426,6 +428,7 @@ class EvaluationsWorker:
             #
             run_id: UUID,
             testcase_ids: list[UUID],
+            input_step_key: Optional[str] = None,
             context: Context = TaskiqDepends(),
         ) -> Any:
             log.info("[TASK] Starting evaluate_batch_testcases")
@@ -440,6 +443,7 @@ class EvaluationsWorker:
                     #
                     run_id=run_id,
                     testcase_ids=testcase_ids,
+                    input_step_key=input_step_key,
                     #
                     tracing_service=self.tracing_service,
                     testcases_service=self.testcases_service,

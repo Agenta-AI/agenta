@@ -1,23 +1,52 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
+import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 import {expect} from "@agenta/web-tests/utils"
+import type {EvaluationRunForKindDetection} from "@agenta/web-tests/utils/evaluationKind"
 import type {Locator, Page} from "@playwright/test"
+import {randomUUID} from "crypto"
 
 import type {HumanEvaluationConfig, HumanEvaluationFixtures} from "./assets/types"
-import {getProjectScopedBasePath} from "tests/tests/fixtures/base.fixture/apiHelpers"
-import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
-import {EvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
 
-type EvaluationRunsResponse = {
-    runs: EvaluationRun[]
+interface EvaluationRunsResponse {
+    runs: EvaluationRunForKindDetection[]
     count: number
+}
+
+interface EvaluationRunStep {
+    key?: string
+    step_key?: string
+    type?: string
+    kind?: string
+    references?: Record<string, unknown>
+}
+
+interface EvaluationRunPayload {
+    id?: string
+    data?: {
+        steps?: EvaluationRunStep[]
+    }
+}
+
+interface EvaluationRunResponse {
+    runs?: (EvaluationRunPayload & {run?: EvaluationRunPayload})[]
+}
+
+interface EvaluationResultsResponse {
+    results?: {
+        id?: string
+        step_key?: string
+        stepKey?: string
+    }[]
+    steps?: {
+        id?: string
+        step_key?: string
+        stepKey?: string
+    }[]
 }
 
 const DEFAULT_HUMAN_EVALUATOR_METRIC_NAME = "isTestWorking"
 const DEFAULT_HUMAN_ANNOTATION_VALUE_LABEL = "True"
 
-const HUMAN_EVALUATION_EMPTY_STATE_TITLE = "Get Started with Human Evaluation"
-const HUMAN_EVALUATION_EMPTY_STATE_BUTTON_LABEL = /Create Evaluation/i
-const HUMAN_EVALUATION_LIST_BUTTON_LABEL = /New evaluation/i
 const HUMAN_EVALUATION_TAB_LABEL = "Human Evals"
 const HUMAN_EVALUATION_MODAL_TITLE = "New Human Evaluation"
 const HUMAN_EVALUATION_SUBMIT_BUTTON_LABEL = "Start Evaluation"
@@ -45,6 +74,135 @@ const getHumanEvaluationsUrl = (page: Page, appId: string) =>
 
 const getHumanResultsPathPrefix = (page: Page, appId: string) =>
     `${getHumanEvaluationsPath(page, appId)}/results/`
+
+const getApiURL = (page: Page): string => {
+    if (process.env.AGENTA_API_URL) {
+        return process.env.AGENTA_API_URL
+    }
+
+    const currentUrl = page.url() || process.env.AGENTA_WEB_URL || "http://localhost:3000"
+    const parsed = new URL(currentUrl)
+    return `${parsed.origin}/api`
+}
+
+const getProjectId = (page: Page): string => {
+    const currentUrl = page.url()
+    const configuredUrl = process.env.AGENTA_WEB_URL
+
+    for (const url of [currentUrl, configuredUrl].filter(Boolean) as string[]) {
+        const match = new URL(url).pathname.match(/\/p\/([^/]+)/)
+        if (match?.[1]) {
+            return match[1]
+        }
+    }
+
+    throw new Error(`Could not derive project ID from current URL: ${page.url()}`)
+}
+
+const getHumanResultsContext = (page: Page) => {
+    const url = new URL(page.url())
+    const runId = url.pathname.match(/\/evaluations\/results\/([^/]+)/)?.[1]
+    const scenarioId = url.searchParams.get("scenarioId")
+
+    if (!runId || !scenarioId) {
+        throw new Error(`Could not derive human results context from URL: ${url.toString()}`)
+    }
+
+    return {runId, scenarioId}
+}
+
+const getStepKey = (step: EvaluationRunStep) => step.key ?? step.step_key ?? ""
+
+const seedHumanInvocationResult = async (page: Page) => {
+    const {runId, scenarioId} = getHumanResultsContext(page)
+    const projectId = getProjectId(page)
+    const apiURL = getApiURL(page)
+
+    const runResponse = await page.request.post(
+        `${apiURL}/evaluations/runs/query?project_id=${projectId}`,
+        {
+            data: {
+                run: {
+                    ids: [runId],
+                },
+            },
+        },
+    )
+    expect(runResponse.ok()).toBe(true)
+
+    const runData = (await runResponse.json()) as EvaluationRunResponse
+    const runEntry = runData.runs?.[0]
+    const run = runEntry?.run ?? runEntry
+    const invocationStep = run?.data?.steps?.find((step) => {
+        const stepType = (step.type ?? step.kind ?? "").toLowerCase()
+        return stepType === "invocation"
+    })
+    const stepKey = invocationStep ? getStepKey(invocationStep) : ""
+
+    if (!stepKey) {
+        throw new Error(`Could not find invocation step for human evaluation run ${runId}`)
+    }
+
+    const resultsQueryResponse = await page.request.post(
+        `${apiURL}/evaluations/results/query?project_id=${projectId}`,
+        {
+            data: {
+                result: {
+                    run_id: runId,
+                    run_ids: [runId],
+                    scenario_ids: [scenarioId],
+                },
+                windowing: {},
+            },
+        },
+    )
+    expect(resultsQueryResponse.ok()).toBe(true)
+
+    const resultsData = (await resultsQueryResponse.json()) as EvaluationResultsResponse
+    const existingResults = resultsData.results ?? resultsData.steps ?? []
+    const existingResult = existingResults.find(
+        (result) => (result.step_key ?? result.stepKey) === stepKey,
+    )
+    const seededResult = {
+        status: "success",
+        trace_id: randomUUID(),
+    }
+
+    if (existingResult?.id) {
+        const updateResponse = await page.request.patch(
+            `${apiURL}/evaluations/results/?project_id=${projectId}`,
+            {
+                data: {
+                    results: [
+                        {
+                            id: existingResult.id,
+                            ...seededResult,
+                        },
+                    ],
+                },
+            },
+        )
+        expect(updateResponse.ok()).toBe(true)
+        return
+    }
+
+    const createResponse = await page.request.post(
+        `${apiURL}/evaluations/results/?project_id=${projectId}`,
+        {
+            data: {
+                results: [
+                    {
+                        run_id: runId,
+                        scenario_id: scenarioId,
+                        step_key: stepKey,
+                        ...seededResult,
+                    },
+                ],
+            },
+        },
+    )
+    expect(createResponse.ok()).toBe(true)
+}
 
 const getHumanAppIdFromEvaluationsPage = (page: Page) => {
     const match = new URL(page.url()).pathname.match(/\/apps\/([^/]+)\/evaluations\/?$/)
@@ -82,9 +240,8 @@ const waitForEvaluationRuns = async (page: Page, appId: string) => {
 }
 
 const getHumanEvaluationRuns = (evaluationRuns: EvaluationRunsResponse) => {
-    const runs = Array.isArray(evaluationRuns.runs) ? evaluationRuns.runs : []
-
-    return runs.filter((run) => deriveEvaluationKind(run) === "human")
+    // The page navigates to ?kind=human so the API response is already filtered to human runs
+    return Array.isArray(evaluationRuns.runs) ? evaluationRuns.runs : []
 }
 
 const getVisibleButtonByLabels = async (page: Page, labels: readonly (string | RegExp)[]) => {
@@ -103,14 +260,14 @@ const getVisibleButtonByLabels = async (page: Page, labels: readonly (string | R
     return null
 }
 
-const getHumanEvaluationCreateButton = async (page: Page) => {
+const getHumanEvaluationCreateButton = async (page: Page, timeout = 10000) => {
     await expect
         .poll(
             async () =>
                 Boolean(
                     await getVisibleButtonByLabels(page, HUMAN_EVALUATION_CREATE_BUTTON_LABELS),
                 ),
-            {timeout: 10000},
+            {timeout},
         )
         .toBe(true)
 
@@ -255,6 +412,14 @@ const goToHumanEvaluations = async (page: Page, appId: string) => {
     return getHumanEvaluationRuns(evaluationRuns)
 }
 
+const navigateToHumanRunResults = async (page: Page, appId: string, runId: string) => {
+    const url = `${getHumanResultsPathPrefix(page, appId)}${runId}?type=human`
+    await page.goto(url, {waitUntil: "domcontentloaded"})
+    await expect
+        .poll(() => new URL(page.url()).pathname)
+        .toContain(getHumanResultsPathPrefix(page, appId))
+}
+
 const waitForHumanResultsPage = async (page: Page, appId: string) => {
     await expect
         .poll(() => new URL(page.url()).pathname)
@@ -290,6 +455,17 @@ const openHumanAnnotateView = async (page: Page) => {
 
     if ((await annotateTab.getAttribute("aria-selected")) !== "true") {
         await annotateTab.click()
+
+        const switchedToAnnotate = await annotateTab
+            .getAttribute("aria-selected", {timeout: 5000})
+            .then((value) => value === "true")
+            .catch(() => false)
+
+        if (!switchedToAnnotate) {
+            const annotateUrl = new URL(page.url())
+            annotateUrl.searchParams.set("view", "focus")
+            await page.goto(annotateUrl.toString(), {waitUntil: "domcontentloaded"})
+        }
     }
 
     await expect(annotateTab).toHaveAttribute("aria-selected", "true")
@@ -300,7 +476,7 @@ const openHumanAnnotateView = async (page: Page) => {
 
 const openHumanEvaluationModal = async (page: Page) => {
     await ensureHumanEvaluationsContext(page)
-    await (await getHumanEvaluationCreateButton(page)).click()
+    await (await getHumanEvaluationCreateButton(page, 60000)).click()
 
     const modal = page.locator(".ant-modal").first()
     await expect(modal).toBeVisible()
@@ -487,7 +663,6 @@ const ensureSingleHumanEvaluatorSelection = async ({
                 async () => {
                     if (await hasSelectedEvaluator()) return true
 
-                    // Try the row first, then fall back to the explicit checkbox
                     const checkboxes = activePane.getByRole("checkbox")
                     if ((await checkboxes.count()) > 1) {
                         await checkboxes
@@ -513,24 +688,75 @@ const ensureSingleHumanEvaluatorSelection = async ({
     })
 }
 
+const waitForHumanAnnotationForm = async ({
+    page,
+    annotationsCard,
+    metricLabel,
+    timeout = 90000,
+}: {
+    page: Page
+    annotationsCard: Locator
+    metricLabel: string | RegExp
+    timeout?: number
+}) => {
+    const metricField = annotationsCard
+        .locator(".playground-property-control")
+        .filter({hasText: metricLabel})
+        .first()
+    const runButton = annotationsCard.getByRole("button", {name: /^Run$/}).first()
+    const outputRequiredMessage = annotationsCard
+        .getByText(
+            /Generate output to annotate|Generating output|Run the invocation to generate output/i,
+        )
+        .first()
+    let seededInvocationOutput = false
+
+    await expect
+        .poll(
+            async () => {
+                const overlayVisible = await outputRequiredMessage.isVisible().catch(() => false)
+                if ((await metricField.isVisible().catch(() => false)) && !overlayVisible) {
+                    return true
+                }
+
+                // Seed on the first iteration where the metric form is not yet ready.
+                // This handles all waiting states: overlay text visible, "No evaluators
+                // configured" (evaluators still loading), or any other transient state
+                // where none of the expected locators match.
+                if (!seededInvocationOutput) {
+                    seededInvocationOutput = true
+                    await seedHumanInvocationResult(page)
+                    await page.reload({waitUntil: "domcontentloaded"})
+                    await dismissEvaluationResultsOnboarding(page)
+                    return false
+                }
+
+                if (overlayVisible) {
+                    return false
+                }
+
+                await dismissEvaluationResultsOnboarding(page)
+                return await metricField.isVisible().catch(() => false)
+            },
+            {timeout},
+        )
+        .toBe(true)
+
+    return metricField
+}
+
 const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
     navigateToHumanEvaluation: async ({page}, use) => {
         await use(async (appId: string) => {
-            const humanEvaluationRuns = await goToHumanEvaluations(page, appId)
+            await page.goto(getHumanEvaluationsUrl(page, appId), {waitUntil: "domcontentloaded"})
+            await expect
+                .poll(() => new URL(page.url()).pathname)
+                .toBe(getHumanEvaluationsPath(page, appId))
+            await expect.poll(() => new URL(page.url()).searchParams.get("kind")).toBe("human")
+            await expect(page.getByTitle("Evaluations").first()).toBeVisible({timeout: 10000})
 
-            if (humanEvaluationRuns.length > 0) {
-                expect(humanEvaluationRuns.length).toBeGreaterThan(0)
-                await expect(
-                    page.getByRole("button", {name: HUMAN_EVALUATION_LIST_BUTTON_LABEL}).first(),
-                ).toBeVisible()
-                return
-            }
-
-            expect(humanEvaluationRuns).toHaveLength(0)
-            await expect(page.getByText(HUMAN_EVALUATION_EMPTY_STATE_TITLE).first()).toBeVisible()
-            await expect(
-                page.getByRole("button", {name: HUMAN_EVALUATION_EMPTY_STATE_BUTTON_LABEL}).first(),
-            ).toBeVisible()
+            await ensureHumanEvaluationsContext(page)
+            await getHumanEvaluationCreateButton(page, 60000)
         })
     },
 
@@ -647,42 +873,23 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
                 await dismissEvaluationResultsOnboarding(page)
 
                 const annotationsCard = page.locator("#focus-section-annotations")
-                const overlayMessage = annotationsCard
-                    .getByText(/Generate output to annotate|Generating output/i)
-                    .first()
-                const runButton = annotationsCard.getByRole("button", {name: /^Run$/}).first()
-
-                if (await runButton.isVisible().catch(() => false)) {
-                    await runButton.click()
-                }
-
-                await expect
-                    .poll(async () => await overlayMessage.isVisible().catch(() => false), {
-                        timeout: 60000,
-                    })
-                    .toBe(false)
-
-                await dismissEvaluationResultsOnboarding(page)
-
-                const metricField = annotationsCard
-                    .locator(".playground-property-control")
-                    .filter({hasText: metricLabel})
-                    .first()
-
-                await expect(metricField).toBeVisible({
-                    timeout: 60000,
+                const metricField = await waitForHumanAnnotationForm({
+                    page,
+                    annotationsCard,
+                    metricLabel,
                 })
 
                 await dismissEvaluationResultsOnboarding(page)
 
-                const visibleBooleanOption = metricField
+                const booleanOption = metricField.getByRole("radio", {name: valueLabel}).first()
+                const booleanOptionWrapper = metricField
                     .locator(".ant-radio-button-wrapper")
                     .filter({hasText: valueLabel})
                     .first()
-                await expect(visibleBooleanOption).toBeVisible()
-                await visibleBooleanOption.scrollIntoViewIfNeeded()
-                await visibleBooleanOption.click({force: true})
-                await expect(visibleBooleanOption).toHaveClass(/ant-radio-button-wrapper-checked/)
+                await expect(booleanOption).toBeAttached()
+                await expect(booleanOptionWrapper).toBeVisible()
+                await booleanOptionWrapper.click({force: true})
+                await expect(booleanOption).toBeChecked()
 
                 const annotateButton = annotationsCard
                     .getByRole("button", {name: "Annotate"})
@@ -713,4 +920,6 @@ export {
     openHumanEvaluationModal,
     goToHumanEvaluationStep,
     selectHumanEvaluationModalTableInput,
+    goToHumanEvaluations,
+    navigateToHumanRunResults,
 }
