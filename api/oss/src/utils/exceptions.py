@@ -6,6 +6,7 @@ from traceback import format_exc
 from contextlib import AbstractContextManager
 
 from fastapi import Request, HTTPException
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
@@ -191,6 +192,7 @@ def intercept_exceptions(
                     "support_ts": support.support_ts,
                     "operation_id": operation_id,
                 }
+                detail = jsonable_encoder(detail)
 
                 if verbose is True:
                     log.error(
@@ -229,7 +231,7 @@ class BaseHTTPException(HTTPException):
         self.message = message or self.default_message
         self.kwargs = kwargs
 
-        self.detail = {"message": self.message, **self.kwargs}
+        self.detail = jsonable_encoder({"message": self.message, **self.kwargs})
 
         super().__init__(status_code=self.code, detail=self.detail)
 

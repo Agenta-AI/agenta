@@ -152,6 +152,7 @@ export {
     Gemini,
     Groq,
     Lepton,
+    MiniMax,
     Mistral,
     OpenAi,
     OpenRouter,
