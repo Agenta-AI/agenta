@@ -31,6 +31,7 @@ from agenta.sdk.utils.types import (  # noqa: F401
     Messages,
     ModelConfig,
     PromptTemplate,
+    RetryConfig,
     RetryPolicy,
 )
 from agenta.sdk.managers.secrets import SecretsManager
@@ -1924,8 +1925,12 @@ def _apply_responses_bridge_if_needed(
     return provider_settings
 
 
+def _normalize_retry_config(retry_config: Optional[RetryConfig]) -> RetryConfig:
+    return retry_config or RetryConfig()
+
+
 def _normalize_retry_policy(retry_policy: Optional[RetryPolicy]) -> RetryPolicy:
-    return retry_policy or RetryPolicy()
+    return retry_policy or RetryPolicy.OFF
 
 
 def _normalize_fallback_policy(
@@ -1935,7 +1940,7 @@ def _normalize_fallback_policy(
 
 
 def _prompt_llm_configs(prompt: PromptTemplate) -> List[ModelConfig]:
-    return [prompt.llm_config, *(prompt.fallback_llm_configs or [])]
+    return [prompt.llm_config, *(prompt.fallback_configs or [])]
 
 
 def _error_status_code(error: Exception) -> Optional[int]:
@@ -1949,6 +1954,27 @@ def _error_status_code(error: Exception) -> Optional[int]:
         return status_code
 
     return None
+
+
+def _error_text(error: Exception) -> str:
+    return f"{type(error).__name__} {str(error)}".lower()
+
+
+def _is_context_window_error(error: Exception) -> bool:
+    error_text = _error_text(error)
+    return any(
+        marker in error_text
+        for marker in (
+            "context length",
+            "context window",
+            "context limit",
+            "maximum context",
+            "max context",
+            "token limit",
+            "too many tokens",
+            "input is too long",
+        )
+    )
 
 
 def _classify_prompt_fallback_error(error: Exception) -> Optional[str]:
@@ -1968,10 +1994,12 @@ def _classify_prompt_fallback_error(error: Exception) -> Optional[str]:
         return "capacity"
     if status_code == 503 or (status_code is not None and 500 <= status_code <= 599):
         return "availability"
+    if status_code in (400, 422) and _is_context_window_error(error):
+        return "context"
     if status_code in (400, 404, 422):
         return "any"
 
-    error_text = f"{type(error).__name__} {str(error)}".lower()
+    error_text = _error_text(error)
     if any(
         marker in error_text
         for marker in (
@@ -1991,6 +2019,8 @@ def _classify_prompt_fallback_error(error: Exception) -> Optional[str]:
         for marker in ("auth", "unauthorized", "forbidden", "permission", "api key")
     ):
         return "access"
+    if _is_context_window_error(error):
+        return "context"
     if any(
         marker in error_text
         for marker in (
@@ -2004,6 +2034,77 @@ def _classify_prompt_fallback_error(error: Exception) -> Optional[str]:
         return "any"
 
     return None
+
+
+def _classify_prompt_retry_error(error: Exception) -> Optional[str]:
+    if isinstance(error, (TimeoutError, httpx.TimeoutException)):
+        return "availability"
+
+    if isinstance(error, httpx.RequestError):
+        return "availability"
+
+    status_code = _error_status_code(error)
+    if status_code == 429:
+        return "capacity"
+    if status_code == 503 or (status_code is not None and 500 <= status_code <= 599):
+        return "availability"
+    if status_code in (409, 423):
+        return "transient"
+
+    error_text = _error_text(error)
+    if any(
+        marker in error_text
+        for marker in (
+            "timeout",
+            "timed out",
+            "network",
+            "connection",
+            "connect",
+            "unavailable",
+        )
+    ):
+        return "availability"
+    if any(marker in error_text for marker in ("rate limit", "ratelimit", "overload")):
+        return "capacity"
+    if any(
+        marker in error_text
+        for marker in (
+            "temporarily unavailable",
+            "temporary unavailable",
+            "try again",
+            "resource busy",
+            "upstream error",
+        )
+    ):
+        return "transient"
+
+    if status_code is not None:
+        return "any"
+
+    return None
+
+
+def _should_retry(
+    error: Exception,
+    retry_config: Optional[RetryConfig],
+    retry_policy: Optional[RetryPolicy],
+) -> bool:
+    config = _normalize_retry_config(retry_config)
+    policy = _normalize_retry_policy(retry_policy)
+    if config.max_retries <= 0 or policy == RetryPolicy.OFF:
+        return False
+
+    category = _classify_prompt_retry_error(error)
+    if category is None:
+        return False
+
+    allowed_categories = {
+        RetryPolicy.AVAILABILITY: {"availability"},
+        RetryPolicy.CAPACITY: {"availability", "capacity"},
+        RetryPolicy.TRANSIENT: {"availability", "capacity", "transient"},
+        RetryPolicy.ANY: {"availability", "capacity", "transient", "any"},
+    }
+    return category in allowed_categories.get(policy, set())
 
 
 def _should_fallback(
@@ -2021,7 +2122,19 @@ def _should_fallback(
         FallbackPolicy.AVAILABILITY: {"availability"},
         FallbackPolicy.CAPACITY: {"availability", "capacity"},
         FallbackPolicy.ACCESS: {"availability", "capacity", "access"},
-        FallbackPolicy.ANY: {"availability", "capacity", "access", "any"},
+        FallbackPolicy.CONTEXT: {
+            "availability",
+            "capacity",
+            "access",
+            "context",
+        },
+        FallbackPolicy.ANY: {
+            "availability",
+            "capacity",
+            "access",
+            "context",
+            "any",
+        },
     }
     return category in allowed_categories.get(policy, set())
 
@@ -2029,11 +2142,12 @@ def _should_fallback(
 async def _run_prompt_llm_config_with_retry(
     formatted_prompt: PromptTemplate,
     llm_config: ModelConfig,
+    retry_config: Optional[RetryConfig],
     retry_policy: Optional[RetryPolicy],
     messages: Optional[List[Message]] = None,
 ):
-    policy = _normalize_retry_policy(retry_policy)
-    attempts = policy.max_retries + 1
+    config = _normalize_retry_config(retry_config)
+    attempts = config.max_retries + 1
     last_error = None
 
     for attempt in range(attempts):
@@ -2055,7 +2169,7 @@ async def _run_prompt_llm_config_with_retry(
             openai_kwargs = formatted_prompt.to_openai_kwargs_for_llm_config(llm_config)
 
             if messages is not None:
-                openai_kwargs["messages"].extend(messages)
+                openai_kwargs["messages"] = [*openai_kwargs["messages"], *messages]
 
             with mockllm.user_aws_credentials_from(provider_settings):
                 return await mockllm.acompletion(
@@ -2064,10 +2178,14 @@ async def _run_prompt_llm_config_with_retry(
                 )
         except Exception as exc:
             last_error = exc
-            if attempt >= attempts - 1:
+            if attempt >= attempts - 1 or not _should_retry(
+                exc,
+                retry_config=config,
+                retry_policy=retry_policy,
+            ):
                 break
-            if policy.delay_ms > 0:
-                await asyncio.sleep(policy.delay_ms / 1000)
+            if config.delay_ms > 0:
+                await asyncio.sleep(config.delay_ms / 1000)
 
     raise last_error  # type: ignore[misc]
 
@@ -2084,6 +2202,7 @@ async def _run_prompt_with_fallback(
             return await _run_prompt_llm_config_with_retry(
                 formatted_prompt=formatted_prompt,
                 llm_config=current_llm_config,
+                retry_config=formatted_prompt.retry_config,
                 retry_policy=formatted_prompt.retry_policy,
                 messages=messages,
             )

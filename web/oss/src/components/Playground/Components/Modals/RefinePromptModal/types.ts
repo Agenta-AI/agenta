@@ -37,8 +37,9 @@ export interface PromptTemplate {
     template_format?: string | null
     input_keys?: string[] | null
     llm_config?: Record<string, unknown> | null
-    fallback_llm_configs?: Record<string, unknown>[] | null
-    retry_policy?: Record<string, unknown> | null
+    fallback_configs?: Record<string, unknown>[] | null
+    retry_config?: Record<string, unknown> | null
+    retry_policy?: string | null
     fallback_policy?: string | null
     [key: string]: unknown
 }

@@ -119,14 +119,22 @@ function hasParameters(data: {parameters?: Record<string, unknown>} | null | und
     return Boolean(data?.parameters && Object.keys(data.parameters).length > 0)
 }
 
-const FALLBACK_POLICY_OPTIONS = ["off", "availability", "capacity", "access", "any"].map(
+const FALLBACK_POLICY_OPTIONS = ["off", "availability", "capacity", "access", "context", "any"].map(
     (value) => ({label: value, value}),
 )
-const DEFAULT_RETRY_POLICY = {
-    max_retries: 1,
+const RETRY_POLICY_OPTIONS = ["off", "availability", "capacity", "transient", "any"].map(
+    (value) => ({label: value, value}),
+)
+const DEFAULT_RETRY_CONFIG = {
+    max_retries: 0,
     delay_ms: 0,
 }
-const PROMPT_EXTENSION_KEYS = ["fallback_llm_configs", "retry_policy", "fallback_policy"]
+const PROMPT_EXTENSION_KEYS = [
+    "fallback_configs",
+    "fallback_policy",
+    "retry_config",
+    "retry_policy",
+]
 
 // ============================================================================
 // AGENTA_METADATA HELPERS
@@ -876,29 +884,29 @@ function PlaygroundConfigSection({
     )
 
     const fallbackConfigs = useMemo(() => {
-        const raw = promptModelInfo?.promptValue.fallback_llm_configs
+        const raw = promptModelInfo?.promptValue.fallback_configs
         return Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []
     }, [promptModelInfo])
 
-    const retryPolicy = useMemo(() => {
-        const raw = promptModelInfo?.promptValue.retry_policy
+    const retryConfig = useMemo(() => {
+        const raw = promptModelInfo?.promptValue.retry_config
         return raw && typeof raw === "object" && !Array.isArray(raw)
             ? (raw as Record<string, unknown>)
             : {}
     }, [promptModelInfo])
 
-    const effectiveRetryPolicy = useMemo(
+    const effectiveRetryConfig = useMemo(
         () => ({
             max_retries:
-                typeof retryPolicy.max_retries === "number"
-                    ? retryPolicy.max_retries
-                    : DEFAULT_RETRY_POLICY.max_retries,
+                typeof retryConfig.max_retries === "number"
+                    ? retryConfig.max_retries
+                    : DEFAULT_RETRY_CONFIG.max_retries,
             delay_ms:
-                typeof retryPolicy.delay_ms === "number"
-                    ? retryPolicy.delay_ms
-                    : DEFAULT_RETRY_POLICY.delay_ms,
+                typeof retryConfig.delay_ms === "number"
+                    ? retryConfig.delay_ms
+                    : DEFAULT_RETRY_CONFIG.delay_ms,
         }),
-        [retryPolicy],
+        [retryConfig],
     )
 
     const hasPromptExtensionFields = useMemo(() => {
@@ -925,6 +933,23 @@ function PlaygroundConfigSection({
         }))
     }, [promptModelInfo])
 
+    const retryPolicyOptions = useMemo(() => {
+        const schema = promptModelInfo?.promptSchemaProps.retry_policy as
+            | {enum?: unknown[]; "x-ag-metadata"?: Record<string, {description?: string}>}
+            | undefined
+        const metadata = schema?.["x-ag-metadata"] ?? {}
+        const enumValues = schema?.enum
+        const values =
+            Array.isArray(enumValues) && enumValues.length > 0
+                ? enumValues.map((v) => String(v))
+                : RETRY_POLICY_OPTIONS.map((o) => o.value)
+        return values.map((value) => ({
+            label: value,
+            value,
+            description: metadata[value]?.description,
+        }))
+    }, [promptModelInfo])
+
     const fallbackModelOptions = useMemo(
         () => [
             ...(llmProviderConfig?.extraOptionGroups ?? []),
@@ -933,21 +958,21 @@ function PlaygroundConfigSection({
         [llmProviderConfig?.extraOptionGroups, promptModelInfo?.modelOptions],
     )
 
-    const handleRetryPolicyFieldChange = useCallback(
+    const handleRetryConfigFieldChange = useCallback(
         (key: "max_retries" | "delay_ms", nextValue: number | null) => {
-            const nextPolicy = {...retryPolicy}
+            const nextConfig = {...retryConfig}
             if (nextValue === null) {
-                delete nextPolicy[key]
+                delete nextConfig[key]
             } else {
-                nextPolicy[key] = nextValue
+                nextConfig[key] = nextValue
             }
 
             updatePromptRootField(
-                "retry_policy",
-                Object.keys(nextPolicy).length > 0 ? nextPolicy : null,
+                "retry_config",
+                Object.keys(nextConfig).length > 0 ? nextConfig : null,
             )
         },
-        [retryPolicy, updatePromptRootField],
+        [retryConfig, updatePromptRootField],
     )
 
     const handleFallbackConfigChange = useCallback(
@@ -962,10 +987,7 @@ function PlaygroundConfigSection({
                 }
                 return nextConfig
             })
-            updatePromptRootField(
-                "fallback_llm_configs",
-                nextConfigs.length > 0 ? nextConfigs : null,
-            )
+            updatePromptRootField("fallback_configs", nextConfigs.length > 0 ? nextConfigs : null)
         },
         [fallbackConfigs, updatePromptRootField],
     )
@@ -975,7 +997,7 @@ function PlaygroundConfigSection({
             typeof promptModelInfo?.llmConfigValue?.model === "string"
                 ? promptModelInfo.llmConfigValue.model
                 : ""
-        updatePromptRootField("fallback_llm_configs", [
+        updatePromptRootField("fallback_configs", [
             ...fallbackConfigs,
             {model: primaryModel || "gpt-4o-mini"},
         ])
@@ -984,10 +1006,7 @@ function PlaygroundConfigSection({
     const handleRemoveFallbackModel = useCallback(
         (index: number) => {
             const nextConfigs = fallbackConfigs.filter((_, configIndex) => configIndex !== index)
-            updatePromptRootField(
-                "fallback_llm_configs",
-                nextConfigs.length > 0 ? nextConfigs : null,
-            )
+            updatePromptRootField("fallback_configs", nextConfigs.length > 0 ? nextConfigs : null)
         },
         [fallbackConfigs, updatePromptRootField],
     )
@@ -999,7 +1018,7 @@ function PlaygroundConfigSection({
             const nextConfigs = fallbackConfigs.map((config, configIndex) =>
                 configIndex === index ? {model} : config,
             )
-            updatePromptRootField("fallback_llm_configs", nextConfigs)
+            updatePromptRootField("fallback_configs", nextConfigs)
         },
         [fallbackConfigs, updatePromptRootField],
     )
@@ -1007,7 +1026,7 @@ function PlaygroundConfigSection({
     const handleResetFallbackPolicy = useCallback(() => {
         updatePromptRootFields({
             fallback_policy: null,
-            fallback_llm_configs: null,
+            fallback_configs: null,
         })
     }, [updatePromptRootFields])
 
@@ -1017,21 +1036,58 @@ function PlaygroundConfigSection({
                 <Typography.Text className="font-medium">Retry</Typography.Text>
                 <Button
                     size="small"
-                    onClick={() => updatePromptRootField("retry_policy", null)}
+                    onClick={() =>
+                        updatePromptRootFields({
+                            retry_config: null,
+                            retry_policy: null,
+                        })
+                    }
                     disabled={disabled}
                 >
                     Reset default
                 </Button>
             </div>
             <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1">
+                    <Typography.Text>Policy</Typography.Text>
+                    <Select
+                        size="small"
+                        allowClear
+                        value={
+                            (promptModelInfo?.promptValue.retry_policy as
+                                | string
+                                | null
+                                | undefined) ?? undefined
+                        }
+                        onChange={(nextValue) =>
+                            updatePromptRootField("retry_policy", nextValue ?? null)
+                        }
+                        options={retryPolicyOptions}
+                        placeholder="Select one"
+                        disabled={disabled}
+                        optionRender={(option) => {
+                            const description = (option.data as {description?: string}).description
+                            return (
+                                <div className="flex items-center justify-between gap-3">
+                                    <span>{option.label}</span>
+                                    {description && (
+                                        <Typography.Text type="secondary" className="text-xs">
+                                            {description}
+                                        </Typography.Text>
+                                    )}
+                                </div>
+                            )
+                        }}
+                    />
+                </div>
                 <div className="flex items-center justify-between gap-3">
                     <Typography.Text>Max retries</Typography.Text>
                     <InputNumber
                         min={0}
                         precision={0}
-                        value={effectiveRetryPolicy.max_retries}
+                        value={effectiveRetryConfig.max_retries}
                         onChange={(nextValue) =>
-                            handleRetryPolicyFieldChange(
+                            handleRetryConfigFieldChange(
                                 "max_retries",
                                 typeof nextValue === "number" ? nextValue : null,
                             )
@@ -1045,9 +1101,9 @@ function PlaygroundConfigSection({
                     <InputNumber
                         min={0}
                         precision={0}
-                        value={effectiveRetryPolicy.delay_ms}
+                        value={effectiveRetryConfig.delay_ms}
                         onChange={(nextValue) =>
-                            handleRetryPolicyFieldChange(
+                            handleRetryConfigFieldChange(
                                 "delay_ms",
                                 typeof nextValue === "number" ? nextValue : null,
                             )

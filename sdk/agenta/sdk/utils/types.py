@@ -675,18 +675,16 @@ class AgLLMs(AgSchemaMixin, RootModel[List[AgLLM]]):
         return self.root[item]
 
 
-class FallbackModelConfig(ModelConfig):
-    """LLM config used for fallback entries. Same shape, required model."""
-
-    model: str = Field(
-        ...,
-        description="Model identifier to use for execution.",
-        json_schema_extra={"x-ag-type-ref": "model"},
-    )
+class RetryPolicy(str, Enum):
+    OFF = "off"
+    AVAILABILITY = "availability"
+    CAPACITY = "capacity"
+    TRANSIENT = "transient"
+    ANY = "any"
 
 
-class RetryPolicy(BaseModel):
-    max_retries: int = Field(default=1, ge=0)
+class RetryConfig(BaseModel):
+    max_retries: int = Field(default=0, ge=0)
     delay_ms: int = Field(default=0, ge=0)
 
 
@@ -695,6 +693,7 @@ class FallbackPolicy(str, Enum):
     AVAILABILITY = "availability"
     CAPACITY = "capacity"
     ACCESS = "access"
+    CONTEXT = "context"
     ANY = "any"
 
 
@@ -772,20 +771,16 @@ class PromptTemplate(AgSchemaMixin):
         default_factory=ModelConfig,
         description="Configuration for the model parameters",
     )
-    fallback_llm_configs: Optional[List[FallbackModelConfig]] = Field(
+    fallback_configs: Optional[List[ModelConfig]] = Field(
         default=None,
         description="Ordered fallback LLM configs. Runtime default is no fallback configs.",
-    )
-    retry_policy: Optional[RetryPolicy] = Field(
-        default=None,
-        description="Retry policy applied to each attempted LLM config.",
     )
     fallback_policy: Optional[FallbackPolicy] = Field(
         default=None,
         description="Controls which provider-call errors can move execution to the next fallback config.",
         json_schema_extra={
             "x-ag-type": "choice",
-            "enum": ["off", "availability", "capacity", "access", "any"],
+            "enum": ["off", "availability", "capacity", "access", "context", "any"],
             "x-ag-metadata": {
                 "off": {
                     "description": "disable fallbacks",
@@ -799,8 +794,40 @@ class PromptTemplate(AgSchemaMixin):
                 "access": {
                     "description": "capacity + fall back on auth errors (or 401/403)",
                 },
+                "context": {
+                    "description": "access + fall back on context-window errors",
+                },
                 "any": {
-                    "description": "access + fall back on any provider-call error (or 4xx)",
+                    "description": "context + fall back on any provider-call error (or 4xx)",
+                },
+            },
+        },
+    )
+    retry_config: Optional[RetryConfig] = Field(
+        default=None,
+        description="Retry count and delay applied to each attempted LLM config.",
+    )
+    retry_policy: Optional[RetryPolicy] = Field(
+        default=None,
+        description="Controls which errors can retry the same LLM config.",
+        json_schema_extra={
+            "x-ag-type": "choice",
+            "enum": ["off", "availability", "capacity", "transient", "any"],
+            "x-ag-metadata": {
+                "off": {
+                    "description": "disable retries",
+                },
+                "availability": {
+                    "description": "retry provider-side availability issues (or 5xx)",
+                },
+                "capacity": {
+                    "description": "availability + retry rate/capacity limits (or 429)",
+                },
+                "transient": {
+                    "description": "capacity + retry temporary upstream/resource errors",
+                },
+                "any": {
+                    "description": "retry any provider-call error",
                 },
             },
         },
@@ -818,13 +845,6 @@ class PromptTemplate(AgSchemaMixin):
                 messages.append(Message(role="user", content=values["user_prompt"]))
             if messages:
                 values["messages"] = messages
-        fallback_configs = values.get("fallback_llm_configs")
-        if isinstance(fallback_configs, list):
-            for index, fallback_config in enumerate(fallback_configs):
-                if isinstance(fallback_config, dict) and not fallback_config.get(
-                    "model"
-                ):
-                    raise ValueError(f"fallback_llm_configs[{index}].model is required")
         return values
 
     def _format_with_template(self, content: str, kwargs: Dict[str, Any]) -> str:
@@ -957,19 +977,20 @@ class PromptTemplate(AgSchemaMixin):
             )
 
         new_llm_config = self._format_llm_config(self.llm_config, kwargs)
-        new_fallback_llm_configs = None
-        if self.fallback_llm_configs is not None:
-            new_fallback_llm_configs = [
+        new_fallback_configs = None
+        if self.fallback_configs is not None:
+            new_fallback_configs = [
                 self._format_llm_config(fallback_config, kwargs)
-                for fallback_config in self.fallback_llm_configs
+                for fallback_config in self.fallback_configs
             ]
 
         return PromptTemplate(
             messages=new_messages,
             template_format=self.template_format,
             llm_config=new_llm_config,
-            fallback_llm_configs=new_fallback_llm_configs,
+            fallback_configs=new_fallback_configs,
             retry_policy=self.retry_policy,
+            retry_config=self.retry_config,
             fallback_policy=self.fallback_policy,
             input_keys=self.input_keys,
         )

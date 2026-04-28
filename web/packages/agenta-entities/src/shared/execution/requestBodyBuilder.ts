@@ -226,7 +226,8 @@ export function transformToRequestBody({
                 for (const key of [
                     "input_keys",
                     "template_format",
-                    "fallback_llm_configs",
+                    "fallback_configs",
+                    "retry_config",
                     "retry_policy",
                     "fallback_policy",
                 ]) {
