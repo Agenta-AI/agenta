@@ -7,11 +7,11 @@ description: "Migration guide from the v0.95 REST API to v0.96. Covers the unifi
 ---
 
 :::warning Guide updated 2026-04-28
-The original version of this guide, published on 2026-04-14, covered only the new invocation endpoint. It did not mention the prompt configuration fetch endpoint, nor the broader REST API restructure. Customers calling endpoints like `GET /apps`, `POST /variants/configs/fetch`, or `/invocations/*` directly hit unexpected 404s and had no documented migration path. This update fills those gaps.
+The original version of this guide did not mention the prompt configuration fetch endpoint and lacked several minor endpoints. This update covers them all.
 :::
 
 :::danger Deprecation deadline: May 31, 2026
-All legacy REST endpoints documented here continue to respond through an adapter layer until **May 31, 2026**. After that date, calls to the old endpoints will return errors. Update your integration before then.
+Every legacy REST endpoint covered in this guide will stop responding on **May 31, 2026**. Until then, an adapter layer keeps the old endpoints working. Update your integration before that date.
 :::
 
 # REST API Migration (v0.96)
@@ -20,12 +20,14 @@ All legacy REST endpoints documented here continue to respond through an adapter
 
 v0.96.0 restructures the REST API. Two changes affect most users who integrate with Agenta for prompt management:
 
-1. **Invoking a deployed prompt** moves to a single unified endpoint: `POST /services/{service}/v0/invoke`. The legacy `/run`, `/generate`, `/generate_deployed`, and `/test` endpoints still respond through the adapter layer until May 31, 2026.
-2. **Fetching a prompt configuration** moves to `POST /applications/revisions/retrieve`. The legacy `POST /variants/configs/fetch` still responds through the adapter layer until May 31, 2026.
+1. **Invoking a deployed prompt** moves to a single unified endpoint: `POST /services/{service}/v0/invoke`, replacing `/run`, `/generate`, `/generate_deployed`, and `/test`.
+2. **Fetching a prompt configuration** moves to `POST /applications/revisions/retrieve`, replacing `POST /variants/configs/fetch`.
 
 The release also restructures the rest of the REST CRUD surface (apps, variants, environments, traces, annotations, invocations). If you call any of those directly, see the [complete list of affected endpoints](#all-affected-endpoints) at the end of this guide.
 
-If you only call Agenta through the Python SDK (`agenta.ConfigManager`, `agenta.VariantManager`, `agenta.DeploymentManager`), you don't need to migrate. The SDK absorbs every change in this release.
+:::info SDK users don't need to migrate
+If you only call Agenta through the Python SDK (`agenta.ConfigManager`, `agenta.VariantManager`, `agenta.DeploymentManager`), you don't need to change anything. The SDK absorbs every change in this release.
+:::
 
 ## Invoking a deployed prompt
 
@@ -131,7 +133,9 @@ The key field-by-field changes are:
 
 The output value moves from `data` (a direct string) to `data.outputs` (nested). The `tree_id` field becomes `trace_id`, and we now return a `span_id` alongside it. The `content_type` field is removed. A new `status` object reports the operation code, an optional human-readable message, and a stacktrace when the call fails.
 
-### Quick reference
+### Field reference
+
+The following table maps every old field, endpoint, and response key to its new equivalent.
 
 | Old | New |
 |-----|-----|
@@ -149,7 +153,10 @@ The output value moves from `data` (a direct string) to `data.outputs` (nested).
 | Response `"data": "text"` | Response `"data": {"outputs": "text"}` |
 | Response `"tree_id"` | Response `"trace_id"` |
 
-### Invoking a chat application
+<details>
+<summary>More examples: chat applications and draft configurations</summary>
+
+#### Invoking a chat application
 
 Chat applications follow the same pattern. Messages move under `data.inputs.messages`.
 
@@ -195,7 +202,7 @@ response = requests.post(
 )
 ```
 
-### Testing with a draft configuration
+#### Testing with a draft configuration
 
 If you previously sent an inline `ag_config` to test a draft, that block now lives under `data.parameters`.
 
@@ -248,11 +255,11 @@ response = requests.post(
 )
 ```
 
+</details>
+
 ## Fetching a prompt configuration
 
-The canonical endpoint for fetching a prompt configuration is now `POST /applications/revisions/retrieve`. The legacy `POST /variants/configs/fetch` keeps working through the adapter layer until May 31, 2026. After that date it returns errors, so existing integrations should migrate before then.
-
-The new endpoint mirrors the shape of the invocation endpoint. You pass structured references to identify the variant or environment you want to fetch, and the response carries the configuration parameters together with metadata about the revision.
+`POST /variants/configs/fetch` is deprecated and superseded by `POST /applications/revisions/retrieve`. The new endpoint mirrors the shape of the invocation endpoint: you pass structured references to identify the variant or environment you want to fetch, and the response carries the configuration parameters together with metadata about the revision.
 
 ### Fetching by variant and version
 
@@ -281,7 +288,9 @@ curl -X POST "https://cloud.agenta.ai/api/applications/revisions/retrieve" \
   }'
 ```
 
-Note that `version` is now a string. Passing an integer returns a 422 error.
+:::info
+The `version` field is now a string, not an integer.
+:::
 
 ### Fetching by environment
 
@@ -328,123 +337,130 @@ The SDK calls the new endpoint internally and returns the same shape it always h
 
 ## All affected endpoints
 
-Below is the complete list of REST endpoints removed in v0.96.0, grouped by domain. Each row links to the API reference for the replacement. Two patterns recur across the list:
-
-- `GET /resource` becomes `POST /resource/query` with filters in the request body.
-- `DELETE /resource/{id}` becomes `POST /resource/{id}/archive` (soft delete; `POST /resource/{id}/unarchive` restores).
+Below is the complete list of REST endpoints moved in v0.96.0, grouped by domain.
 
 ### Application invocation
 
-| Removed | Replacement |
-|---------|-------------|
-| `POST /services/{svc}/run` | [`POST /services/{svc}/v0/invoke`](#invoking-a-deployed-prompt) |
-| `POST /services/{svc}/generate_deployed` | [`POST /services/{svc}/v0/invoke`](#invoking-a-deployed-prompt) |
-| `POST /services/{svc}/generate` | [`POST /services/{svc}/v0/invoke`](#invoking-a-deployed-prompt) |
-| `POST /services/{svc}/test` | [`POST /services/{svc}/v0/invoke`](#invoking-a-deployed-prompt) |
-| `POST /workflows/invoke` | [`POST /services/{svc}/v0/invoke`](#invoking-a-deployed-prompt) |
-| `POST /workflows/inspect` | [`POST /applications/revisions/resolve`](/reference/api/resolve-application-revision) |
+| Operation | Old | New |
+|-----------|-----|-----|
+| Invoke deployed prompt | `POST /services/{svc}/run` | [`POST /services/{svc}/v0/invoke`](#invoking-a-deployed-prompt) |
+| Invoke deployed prompt (alias) | `POST /services/{svc}/generate_deployed` | [`POST /services/{svc}/v0/invoke`](#invoking-a-deployed-prompt) |
+| Test with draft config | `POST /services/{svc}/generate` | [`POST /services/{svc}/v0/invoke`](#invoking-a-deployed-prompt) |
+| Test with draft config (alias) | `POST /services/{svc}/test` | [`POST /services/{svc}/v0/invoke`](#invoking-a-deployed-prompt) |
+| Invoke a workflow | `POST /workflows/invoke` | [`POST /services/{svc}/v0/invoke`](#invoking-a-deployed-prompt) |
+| Inspect a workflow revision | `POST /workflows/inspect` | [`POST /applications/revisions/resolve`](/reference/api/resolve-application-revision) |
 
 ### Apps CRUD
 
-| Removed | Replacement |
-|---------|-------------|
-| `GET /apps` | [`POST /simple/applications/query`](/reference/api/query-simple-applications) |
-| `POST /apps` | [`POST /simple/applications/`](/reference/api/create-simple-application) |
-| `GET /apps/{id}` | [`GET /applications/{id}`](/reference/api/fetch-application) |
-| `PATCH /apps/{id}` | [`PUT /applications/{id}`](/reference/api/edit-application) |
-| `DELETE /apps/{id}` | [`POST /applications/{id}/archive`](/reference/api/archive-application) |
-| `GET /apps/{id}/variants` | [`POST /applications/variants/query`](/reference/api/query-application-variants) |
-| `GET /apps/{id}/environments` | [`POST /preview/environments/query`](/reference/api/query-environments) |
-| `GET /apps/{id}/revisions/{environment_name}` | [`POST /applications/revisions/retrieve`](#fetching-a-prompt-configuration) |
-| `GET /apps/get_variant_by_env` | [`POST /applications/revisions/retrieve`](#fetching-a-prompt-configuration) |
-| `POST /apps/{id}/variant/from-template` | [`GET /applications/catalog/templates/`](/reference/api/list-application-catalog-templates) then [`POST /applications/variants/`](/reference/api/create-application-variant) |
-| `POST /apps/{id}/variant/from-service` | [`POST /applications/variants/`](/reference/api/create-application-variant) |
+| Operation | Old | New |
+|-----------|-----|-----|
+| List apps | `GET /apps` | [`POST /simple/applications/query`](/reference/api/query-simple-applications) |
+| Create app | `POST /apps` | [`POST /simple/applications/`](/reference/api/create-simple-application) |
+| Fetch app | `GET /apps/{id}` | [`GET /applications/{id}`](/reference/api/fetch-application) |
+| Update app | `PATCH /apps/{id}` | [`PUT /applications/{id}`](/reference/api/edit-application) |
+| Delete app | `DELETE /apps/{id}` | [`POST /applications/{id}/archive`](/reference/api/archive-application) |
+| List variants of an app | `GET /apps/{id}/variants` | [`POST /applications/variants/query`](/reference/api/query-application-variants) |
+| List environments of an app | `GET /apps/{id}/environments` | [`POST /preview/environments/query`](/reference/api/query-environments) |
+| Get deployed revision for an environment | `GET /apps/{id}/revisions/{environment_name}` | [`POST /applications/revisions/retrieve`](#fetching-a-prompt-configuration) |
+| Get variant deployed to an environment | `GET /apps/get_variant_by_env` | [`POST /applications/revisions/retrieve`](#fetching-a-prompt-configuration) |
+| Create variant from template | `POST /apps/{id}/variant/from-template` | [`GET /applications/catalog/templates/`](/reference/api/list-application-catalog-templates) then [`POST /applications/variants/`](/reference/api/create-application-variant) |
+| Create variant from service URL | `POST /apps/{id}/variant/from-service` | [`POST /applications/variants/`](/reference/api/create-application-variant) |
 
 ### Variants CRUD
 
-| Removed | Replacement |
-|---------|-------------|
-| `GET /variants/{id}` | [`GET /applications/variants/{id}`](/reference/api/fetch-application-variant) |
-| `DELETE /variants/{id}` | [`POST /applications/variants/{id}/archive`](/reference/api/archive-application-variant) |
-| `GET /variants/{id}/revisions` | [`POST /applications/revisions/log`](/reference/api/log-application-revisions) |
-| `GET /variants/{id}/revisions/{revision_number}` | [`POST /applications/revisions/retrieve`](#fetching-a-prompt-configuration) |
-| `DELETE /variants/{id}/revisions/{revision_id}` | [`POST /applications/revisions/{id}/archive`](/reference/api/archive-application-revision) |
-| `PUT /variants/{id}/parameters` | [`POST /applications/revisions/commit`](/reference/api/commit-application-revision) |
-| `PUT /variants/{id}/service` | [`PUT /applications/variants/{id}`](/reference/api/edit-application-variant) |
-| `POST /variants/from-base` | [`POST /applications/variants/fork`](/reference/api/fork-application-variant) |
-| `POST /variants/revisions/query` | [`POST /applications/revisions/query`](/reference/api/query-application-revisions) |
+| Operation | Old | New |
+|-----------|-----|-----|
+| Fetch a variant | `GET /variants/{id}` | [`GET /applications/variants/{id}`](/reference/api/fetch-application-variant) |
+| Delete a variant | `DELETE /variants/{id}` | [`POST /applications/variants/{id}/archive`](/reference/api/archive-application-variant) |
+| List variant revisions | `GET /variants/{id}/revisions` | [`POST /applications/revisions/log`](/reference/api/log-application-revisions) |
+| Fetch a variant revision | `GET /variants/{id}/revisions/{revision_number}` | [`POST /applications/revisions/retrieve`](#fetching-a-prompt-configuration) |
+| Delete a variant revision | `DELETE /variants/{id}/revisions/{revision_id}` | [`POST /applications/revisions/{id}/archive`](/reference/api/archive-application-revision) |
+| Update variant parameters | `PUT /variants/{id}/parameters` | [`POST /applications/revisions/commit`](/reference/api/commit-application-revision) |
+| Update variant service URL | `PUT /variants/{id}/service` | [`PUT /applications/variants/{id}`](/reference/api/edit-application-variant) |
+| Fork a variant from a base | `POST /variants/from-base` | [`POST /applications/variants/fork`](/reference/api/fork-application-variant) |
+| Query variant revisions | `POST /variants/revisions/query` | [`POST /applications/revisions/query`](/reference/api/query-application-revisions) |
 
 ### Variant configurations
 
-The git-style operations on variant configurations (commit, fork, history) are now exposed under the `/applications/revisions/*` namespace. The fetch endpoint stays available through the adapter layer until May 31, 2026.
+The git-style operations on variant configurations (commit, fork, history) are now exposed under the `/applications/revisions/*` namespace.
 
-| Removed | Replacement |
-|---------|-------------|
-| `POST /variants/configs/fetch` (adapter shim until May 31, 2026) | [`POST /applications/revisions/retrieve`](#fetching-a-prompt-configuration) |
-| `POST /variants/configs/add` | [`POST /applications/variants/`](/reference/api/create-application-variant) |
-| `POST /variants/configs/commit` | [`POST /applications/revisions/commit`](/reference/api/commit-application-revision) |
-| `POST /variants/configs/delete` | [`POST /applications/variants/{id}/archive`](/reference/api/archive-application-variant) |
-| `POST /variants/configs/deploy` | [`POST /applications/revisions/deploy`](/reference/api/deploy-application-revision) |
-| `POST /variants/configs/fork` | [`POST /applications/variants/fork`](/reference/api/fork-application-variant) |
-| `POST /variants/configs/history` | [`POST /applications/revisions/log`](/reference/api/log-application-revisions) |
-| `POST /variants/configs/list` | [`POST /applications/variants/query`](/reference/api/query-application-variants) |
-| `POST /variants/configs/query` | [`POST /applications/variants/query`](/reference/api/query-application-variants) |
+| Operation | Old | New |
+|-----------|-----|-----|
+| Fetch a configuration | `POST /variants/configs/fetch` | [`POST /applications/revisions/retrieve`](#fetching-a-prompt-configuration) |
+| Create a variant with initial config | `POST /variants/configs/add` | [`POST /applications/variants/`](/reference/api/create-application-variant) |
+| Commit a new configuration revision | `POST /variants/configs/commit` | [`POST /applications/revisions/commit`](/reference/api/commit-application-revision) |
+| Delete a variant | `POST /variants/configs/delete` | [`POST /applications/variants/{id}/archive`](/reference/api/archive-application-variant) |
+| Deploy a configuration to an environment | `POST /variants/configs/deploy` | [`POST /applications/revisions/deploy`](/reference/api/deploy-application-revision) |
+| Fork a variant | `POST /variants/configs/fork` | [`POST /applications/variants/fork`](/reference/api/fork-application-variant) |
+| Get the revision history of a variant | `POST /variants/configs/history` | [`POST /applications/revisions/log`](/reference/api/log-application-revisions) |
+| List variants of an app | `POST /variants/configs/list` | [`POST /applications/variants/query`](/reference/api/query-application-variants) |
+| Query variants with filters | `POST /variants/configs/query` | [`POST /applications/variants/query`](/reference/api/query-application-variants) |
 
 ### Environments and deployments
 
-Deployment is now treated as an action on a revision, not on an environment. To deploy, you commit a revision and then call `applications/revisions/deploy` with both the revision and the target environment.
+:::info Deployment is now an action on a revision
+In v0.95 you deployed by calling `POST /environments/deploy` with a variant ID and an environment name. The environment was the actor; the deployment was a side-effect on the environment.
 
-| Removed | Replacement |
-|---------|-------------|
-| `POST /environments/deploy` | [`POST /applications/revisions/deploy`](/reference/api/deploy-application-revision) |
-| `GET /configs` | [`POST /applications/revisions/query`](/reference/api/query-application-revisions) |
-| `GET /configs/deployment/{revision_id}` | [`POST /preview/environments/revisions/retrieve`](/reference/api/retrieve-environment-revision) |
-| `POST /configs/deployment/{revision_id}/revert` | [`POST /preview/environments/revisions/commit`](/reference/api/commit-environment-revision) |
+In v0.96 you deploy by calling `POST /applications/revisions/deploy` with a revision reference and a target environment reference. The revision is the actor; the environment is just where you point it.
+
+The legacy `/configs/*` endpoints exposed environment-side configuration directly. They split into two new namespaces: `/applications/revisions/*` for the revision lookup itself, and `/preview/environments/revisions/*` for the environment's deployment history (when, who, and which revision was deployed at each point).
+:::
+
+| Operation | Old | New |
+|-----------|-----|-----|
+| Deploy to environment | `POST /environments/deploy` | [`POST /applications/revisions/deploy`](/reference/api/deploy-application-revision) |
+| List configurations | `GET /configs` | [`POST /applications/revisions/query`](/reference/api/query-application-revisions) |
+| Fetch a deployed configuration | `GET /configs/deployment/{revision_id}` | [`POST /preview/environments/revisions/retrieve`](/reference/api/retrieve-environment-revision) |
+| Revert a deployment | `POST /configs/deployment/{revision_id}/revert` | [`POST /preview/environments/revisions/commit`](/reference/api/commit-environment-revision) |
 
 ### Containers
 
-| Removed | Replacement |
-|---------|-------------|
-| `GET /containers/templates` | [`GET /applications/catalog/templates/`](/reference/api/list-application-catalog-templates) |
+| Operation | Old | New |
+|-----------|-----|-----|
+| List built-in templates | `GET /containers/templates` | [`GET /applications/catalog/templates/`](/reference/api/list-application-catalog-templates) |
 
 ### Annotations
 
-Both the legacy `/annotations/*` endpoints and the `/preview/annotations/*` preview endpoints were removed. Annotations now live alongside other observability records under the unified `/simple/traces/*` API.
+Annotations are observability records you attach to a trace or span to capture things like a human rating, an evaluator score, or a correction. They previously lived under `/annotations/*` and `/preview/annotations/*`. Both namespaces were removed. Annotations now share the unified `/simple/traces/*` API with other observability records.
 
-| Removed | Replacement |
-|---------|-------------|
-| `POST /annotations/` | [`POST /simple/traces/`](/reference/api/create-simple-trace) |
-| `POST /annotations/query` | [`POST /simple/traces/query`](/reference/api/query-simple-traces) |
-| `GET /annotations/{trace_id}` | [`GET /simple/traces/{trace_id}`](/reference/api/fetch-simple-trace) |
-| `GET /annotations/{trace_id}/{span_id}` | [`GET /simple/traces/{trace_id}`](/reference/api/fetch-simple-trace) |
-| `PATCH /annotations/{trace_id}` | [`PATCH /simple/traces/{trace_id}`](/reference/api/edit-simple-trace) |
-| `PATCH /annotations/{trace_id}/{span_id}` | [`PATCH /simple/traces/{trace_id}`](/reference/api/edit-simple-trace) |
-| `DELETE /annotations/{trace_id}` | [`DELETE /simple/traces/{trace_id}`](/reference/api/delete-simple-trace) |
-| `DELETE /annotations/{trace_id}/{span_id}` | [`DELETE /simple/traces/{trace_id}`](/reference/api/delete-simple-trace) |
-| `POST /preview/annotations/` | [`POST /simple/traces/`](/reference/api/create-simple-trace) |
-| `POST /preview/annotations/query` | [`POST /simple/traces/query`](/reference/api/query-simple-traces) |
-| `GET /preview/annotations/{trace_id}/{span_id}` | [`GET /simple/traces/{trace_id}`](/reference/api/fetch-simple-trace) |
-| `PATCH /preview/annotations/{trace_id}/{span_id}` | [`PATCH /simple/traces/{trace_id}`](/reference/api/edit-simple-trace) |
-| `DELETE /preview/annotations/{trace_id}/{span_id}` | [`DELETE /simple/traces/{trace_id}`](/reference/api/delete-simple-trace) |
+| Operation | Old | New |
+|-----------|-----|-----|
+| Create an annotation | `POST /annotations/` | [`POST /simple/traces/`](/reference/api/create-simple-trace) |
+| Query annotations | `POST /annotations/query` | [`POST /simple/traces/query`](/reference/api/query-simple-traces) |
+| Fetch an annotation by trace | `GET /annotations/{trace_id}` | [`GET /simple/traces/{trace_id}`](/reference/api/fetch-simple-trace) |
+| Fetch an annotation by trace and span | `GET /annotations/{trace_id}/{span_id}` | [`GET /simple/traces/{trace_id}`](/reference/api/fetch-simple-trace) |
+| Update an annotation by trace | `PATCH /annotations/{trace_id}` | [`PATCH /simple/traces/{trace_id}`](/reference/api/edit-simple-trace) |
+| Update an annotation by trace and span | `PATCH /annotations/{trace_id}/{span_id}` | [`PATCH /simple/traces/{trace_id}`](/reference/api/edit-simple-trace) |
+| Delete an annotation by trace | `DELETE /annotations/{trace_id}` | [`DELETE /simple/traces/{trace_id}`](/reference/api/delete-simple-trace) |
+| Delete an annotation by trace and span | `DELETE /annotations/{trace_id}/{span_id}` | [`DELETE /simple/traces/{trace_id}`](/reference/api/delete-simple-trace) |
+| Create an annotation (preview) | `POST /preview/annotations/` | [`POST /simple/traces/`](/reference/api/create-simple-trace) |
+| Query annotations (preview) | `POST /preview/annotations/query` | [`POST /simple/traces/query`](/reference/api/query-simple-traces) |
+| Fetch an annotation (preview) | `GET /preview/annotations/{trace_id}/{span_id}` | [`GET /simple/traces/{trace_id}`](/reference/api/fetch-simple-trace) |
+| Update an annotation (preview) | `PATCH /preview/annotations/{trace_id}/{span_id}` | [`PATCH /simple/traces/{trace_id}`](/reference/api/edit-simple-trace) |
+| Delete an annotation (preview) | `DELETE /preview/annotations/{trace_id}/{span_id}` | [`DELETE /simple/traces/{trace_id}`](/reference/api/delete-simple-trace) |
 
 ### Invocations
 
-The `/invocations/*` REST endpoints were removed and folded into `/simple/traces/*`. Invocations and annotations are now both first-class records under the same trace API, distinguished by their `kind` field.
+Invocations are observability records that capture a single LLM call: the input, the output, latency, cost, and the model used. They previously lived under `/invocations/*`. They now share the unified `/simple/traces/*` API with annotations, distinguished by the `kind` field on each record.
 
-| Removed | Replacement |
-|---------|-------------|
-| `POST /invocations/` | [`POST /simple/traces/`](/reference/api/create-simple-trace) |
-| `POST /invocations/query` | [`POST /simple/traces/query`](/reference/api/query-simple-traces) |
-| `GET /invocations/{trace_id}` | [`GET /simple/traces/{trace_id}`](/reference/api/fetch-simple-trace) |
-| `GET /invocations/{trace_id}/{span_id}` | [`GET /simple/traces/{trace_id}`](/reference/api/fetch-simple-trace) |
-| `PATCH /invocations/{trace_id}` | [`PATCH /simple/traces/{trace_id}`](/reference/api/edit-simple-trace) |
-| `PATCH /invocations/{trace_id}/{span_id}` | [`PATCH /simple/traces/{trace_id}`](/reference/api/edit-simple-trace) |
-| `DELETE /invocations/{trace_id}` | [`DELETE /simple/traces/{trace_id}`](/reference/api/delete-simple-trace) |
-| `DELETE /invocations/{trace_id}/{span_id}` | [`DELETE /simple/traces/{trace_id}`](/reference/api/delete-simple-trace) |
+| Operation | Old | New |
+|-----------|-----|-----|
+| Create an invocation | `POST /invocations/` | [`POST /simple/traces/`](/reference/api/create-simple-trace) |
+| Query invocations | `POST /invocations/query` | [`POST /simple/traces/query`](/reference/api/query-simple-traces) |
+| Fetch an invocation by trace | `GET /invocations/{trace_id}` | [`GET /simple/traces/{trace_id}`](/reference/api/fetch-simple-trace) |
+| Fetch an invocation by trace and span | `GET /invocations/{trace_id}/{span_id}` | [`GET /simple/traces/{trace_id}`](/reference/api/fetch-simple-trace) |
+| Update an invocation by trace | `PATCH /invocations/{trace_id}` | [`PATCH /simple/traces/{trace_id}`](/reference/api/edit-simple-trace) |
+| Update an invocation by trace and span | `PATCH /invocations/{trace_id}/{span_id}` | [`PATCH /simple/traces/{trace_id}`](/reference/api/edit-simple-trace) |
+| Delete an invocation by trace | `DELETE /invocations/{trace_id}` | [`DELETE /simple/traces/{trace_id}`](/reference/api/delete-simple-trace) |
+| Delete an invocation by trace and span | `DELETE /invocations/{trace_id}/{span_id}` | [`DELETE /simple/traces/{trace_id}`](/reference/api/delete-simple-trace) |
 
 ### Spans
 
-| Removed | Replacement |
-|---------|-------------|
-| `POST /preview/spans/` | [`POST /simple/traces/`](/reference/api/create-simple-trace) |
-| `POST /preview/spans/ingest` | OTLP ingestion endpoint (see [Observability docs](/observability/overview)) |
+| Operation | Old | New |
+|-----------|-----|-----|
+| Create a span | `POST /preview/spans/` | [`POST /simple/traces/`](/reference/api/create-simple-trace) |
+| Ingest spans in bulk | `POST /preview/spans/ingest` | OTLP ingestion endpoint (see [Observability docs](/observability/overview)) |
+
+## Need help?
+
+If you have questions about migrating, reach out on [Slack](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw) or reply to the migration email. We are happy to help.
