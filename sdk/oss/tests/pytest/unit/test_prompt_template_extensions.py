@@ -3,9 +3,9 @@ from contextlib import nullcontext
 import pytest
 
 from agenta.sdk.engines.running.handlers import (
-    _normalize_fallback_policy,
-    _normalize_retry_config,
-    _normalize_retry_policy,
+    _coerce_fallback_policy,
+    _coerce_retry_config,
+    _coerce_retry_policy,
     _run_prompt_llm_config_with_retry,
     _prompt_llm_configs,
     _run_prompt_with_fallback,
@@ -44,16 +44,16 @@ def test_new_prompt_template_fields_default_to_null_in_data_model():
     assert dumped["fallback_policy"] is None
 
 
-def test_new_prompt_template_fields_normalize_at_runtime():
+def test_new_prompt_template_fields_coerce_at_runtime():
     prompt = PromptTemplate()
 
     assert _prompt_llm_configs(prompt) == [prompt.llm_config]
-    assert _normalize_retry_config(prompt.retry_config) == RetryConfig(
+    assert _coerce_retry_config(prompt.retry_config) == RetryConfig(
         max_retries=0,
         delay_ms=0,
     )
-    assert _normalize_retry_policy(prompt.retry_policy) == RetryPolicy.OFF
-    assert _normalize_fallback_policy(prompt.fallback_policy) == FallbackPolicy.OFF
+    assert _coerce_retry_policy(prompt.retry_policy) == RetryPolicy.OFF
+    assert _coerce_fallback_policy(prompt.fallback_policy) == FallbackPolicy.OFF
 
 
 def test_chat_template_kwargs_is_passed_through_when_set():

@@ -1924,15 +1924,15 @@ def _apply_responses_bridge_if_needed(
     return provider_settings
 
 
-def _normalize_retry_config(retry_config: Optional[RetryConfig]) -> RetryConfig:
+def _coerce_retry_config(retry_config: Optional[RetryConfig]) -> RetryConfig:
     return retry_config or RetryConfig()
 
 
-def _normalize_retry_policy(retry_policy: Optional[RetryPolicy]) -> RetryPolicy:
+def _coerce_retry_policy(retry_policy: Optional[RetryPolicy]) -> RetryPolicy:
     return retry_policy or RetryPolicy.OFF
 
 
-def _normalize_fallback_policy(
+def _coerce_fallback_policy(
     fallback_policy: Optional[FallbackPolicy],
 ) -> FallbackPolicy:
     return fallback_policy or FallbackPolicy.OFF
@@ -1976,7 +1976,7 @@ def _is_context_window_error(error: Exception) -> bool:
     )
 
 
-def _classify_prompt_fallback_error(error: Exception) -> Optional[str]:
+def _classify_fallback_error(error: Exception) -> Optional[str]:
     if isinstance(error, InvalidSecretsV0Error):
         return "access"
 
@@ -2001,7 +2001,7 @@ def _classify_prompt_fallback_error(error: Exception) -> Optional[str]:
     return None
 
 
-def _classify_prompt_retry_error(error: Exception) -> Optional[str]:
+def _classify_retry_error(error: Exception) -> Optional[str]:
     if isinstance(error, (TimeoutError, httpx.TimeoutException)):
         return "availability"
 
@@ -2027,12 +2027,12 @@ def _should_retry(
     retry_config: Optional[RetryConfig],
     retry_policy: Optional[RetryPolicy],
 ) -> bool:
-    config = _normalize_retry_config(retry_config)
-    policy = _normalize_retry_policy(retry_policy)
+    config = _coerce_retry_config(retry_config)
+    policy = _coerce_retry_policy(retry_policy)
     if config.max_retries <= 0 or policy == RetryPolicy.OFF:
         return False
 
-    category = _classify_prompt_retry_error(error)
+    category = _classify_retry_error(error)
     if category is None:
         return False
 
@@ -2048,11 +2048,11 @@ def _should_retry(
 def _should_fallback(
     error: Exception, fallback_policy: Optional[FallbackPolicy]
 ) -> bool:
-    policy = _normalize_fallback_policy(fallback_policy)
+    policy = _coerce_fallback_policy(fallback_policy)
     if policy == FallbackPolicy.OFF:
         return False
 
-    category = _classify_prompt_fallback_error(error)
+    category = _classify_fallback_error(error)
     if category is None:
         return False
 
@@ -2084,7 +2084,7 @@ async def _run_prompt_llm_config_with_retry(
     retry_policy: Optional[RetryPolicy],
     messages: Optional[List[Message]] = None,
 ):
-    config = _normalize_retry_config(retry_config)
+    config = _coerce_retry_config(retry_config)
     attempts = config.max_retries + 1
     last_error = None
 
