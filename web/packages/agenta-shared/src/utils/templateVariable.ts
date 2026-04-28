@@ -161,19 +161,25 @@ export function isValidTemplateVariable(expr: string): boolean {
  * Extract the inner expression from a raw `{{...}}` / `{%...%}` / `{#...#}`
  * token string. Returns the raw text if no curly/jinja wrapper is found.
  *
- * Used by the editor's token node to check semantic validity of rendered
- * placeholders without re-implementing the wrapper-stripping logic.
+ * Implemented as plain prefix/suffix stripping rather than a regex match
+ * to avoid polynomial backtracking on adversarial inputs (CodeQL js/redos).
  */
 export function extractTemplateExpression(tokenText: string): string {
     if (!tokenText) return tokenText
     // {{ expr }}
-    const curlyMatch = tokenText.match(/^\{\{\s*([\s\S]*?)\s*\}\}$/)
-    if (curlyMatch) return curlyMatch[1]
+    if (tokenText.startsWith("{{") && tokenText.endsWith("}}") && tokenText.length >= 4) {
+        return tokenText.slice(2, -2).trim()
+    }
     // {% expr %} / {%- expr -%}
-    const jinjaBlockMatch = tokenText.match(/^\{%-?\s*([\s\S]*?)\s*-?%\}$/)
-    if (jinjaBlockMatch) return jinjaBlockMatch[1]
+    if (tokenText.startsWith("{%") && tokenText.endsWith("%}") && tokenText.length >= 4) {
+        let inner = tokenText.slice(2, -2)
+        if (inner.startsWith("-")) inner = inner.slice(1)
+        if (inner.endsWith("-")) inner = inner.slice(0, -1)
+        return inner.trim()
+    }
     // {# expr #}
-    const jinjaCommentMatch = tokenText.match(/^\{#\s*([\s\S]*?)\s*#\}$/)
-    if (jinjaCommentMatch) return jinjaCommentMatch[1]
+    if (tokenText.startsWith("{#") && tokenText.endsWith("#}") && tokenText.length >= 4) {
+        return tokenText.slice(2, -2).trim()
+    }
     return tokenText
 }
