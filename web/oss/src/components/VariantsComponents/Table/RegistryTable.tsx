@@ -22,6 +22,12 @@ interface RegistryTableProps {
     filters?: ReactNode
     primaryActions?: ReactNode
     displayMode?: "flat" | "grouped"
+    /**
+     * Phase 6.2.2: when true, the per-row "Deploy" action is hidden. Used by
+     * the variants page when the current workflow is an evaluator (evaluators
+     * don't deploy to environments).
+     */
+    hideDeployActions?: boolean
 }
 
 const getVariantGroupKey = (row: RegistryRevisionRow) => row.variantId
@@ -40,6 +46,7 @@ const RegistryTable = ({
     filters,
     primaryActions,
     displayMode = "flat",
+    hideDeployActions = false,
 }: RegistryTableProps) => {
     const table = useTableManager<RegistryRevisionRow>({
         datasetStore: registryPaginatedStore.store as never,
@@ -60,8 +67,8 @@ const RegistryTable = ({
     })
 
     const columns = useMemo(
-        () => createRegistryColumns(actions, expandState),
-        [actions, expandState],
+        () => createRegistryColumns(actions, expandState, {hideDeployActions}),
+        [actions, expandState, hideDeployActions],
     )
 
     const isGrouped = displayMode === "grouped"

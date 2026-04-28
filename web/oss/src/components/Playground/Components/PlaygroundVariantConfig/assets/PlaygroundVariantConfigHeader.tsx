@@ -17,6 +17,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
+import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 
 import SelectVariant from "../../Menus/SelectVariant"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
@@ -49,11 +50,22 @@ const PlaygroundVariantConfigHeader = ({
     const appId = useAtomValue(routerAppIdAtom)
     const isProjectScoped = !appId
 
-    // Determine entity type from flags to pick the right browse adapter
+    // Phase 6.1.6: read evaluator status from the parent workflow (via
+    // currentWorkflowContextAtom) rather than from the revision data. v0
+    // (initial commit) revisions have flags.is_evaluator: false even on
+    // evaluator workflows — only v1+ carries the flag. Reading from the parent
+    // workflow record (which lives at artifact-level and has authoritative
+    // role flags) avoids that v0 inheritance gap.
+    //
+    // Fall back to the revision-level flag when the workflow context isn't
+    // resolved yet (e.g. project-scoped playground where there's no URL appId).
     const entityData = useAtomValue(workflowMolecule.selectors.data(variantId || ""))
-    const isEvaluatorEntity = Boolean(
-        (entityData as {flags?: {is_evaluator?: boolean} | null} | null)?.flags?.is_evaluator,
-    )
+    const workflowCtx = useAtomValue(currentWorkflowContextAtom)
+    const isEvaluatorEntity = workflowCtx.workflowId
+        ? workflowCtx.workflowKind === "evaluator"
+        : Boolean(
+              (entityData as {flags?: {is_evaluator?: boolean} | null} | null)?.flags?.is_evaluator,
+          )
 
     // Browse adapters: evaluator-only or app-only (non-evaluator, non-human)
     const evaluatorOnlyAdapter = useEnrichedEvaluatorOnlyAdapter()

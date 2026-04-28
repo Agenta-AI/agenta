@@ -117,10 +117,21 @@ export interface RegistryColumnActions {
     handleDelete?: (record: RegistryRevisionRow) => void
 }
 
+export interface CreateRegistryColumnsOptions {
+    /**
+     * Phase 6.2.2: hide the per-row "Deploy" action when the current workflow
+     * is an evaluator. Evaluators don't deploy to environments, so the action
+     * would error or silently fail.
+     */
+    hideDeployActions?: boolean
+}
+
 export function createRegistryColumns(
     actions: RegistryColumnActions,
     expandState?: GroupExpandState,
+    options: CreateRegistryColumnsOptions = {},
 ) {
+    const {hideDeployActions = false} = options
     return createStandardColumns<RegistryRevisionRow>([
         {
             type: "text",
@@ -225,12 +236,17 @@ export function createRegistryColumns(
                     icon: <ArrowSquareOut size={16} />,
                     onClick: (record) => actions.handleOpenInPlayground?.(record),
                 },
-                {
-                    key: "deploy",
-                    label: "Deploy",
-                    icon: <CloudArrowUp size={16} />,
-                    onClick: (record) => actions.handleDeploy?.(record),
-                },
+                ...(hideDeployActions
+                    ? []
+                    : [
+                          {
+                              key: "deploy",
+                              label: "Deploy",
+                              icon: <CloudArrowUp size={16} />,
+                              onClick: (record: RegistryRevisionRow) =>
+                                  actions.handleDeploy?.(record),
+                          },
+                      ]),
                 {type: "divider"},
                 {
                     key: "delete",
