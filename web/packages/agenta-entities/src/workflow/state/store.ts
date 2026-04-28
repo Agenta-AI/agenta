@@ -1888,6 +1888,29 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
     return {id, data: workflow}
 }
 
+/**
+ * Release a `local-*` ephemeral entity from the local atom family.
+ *
+ * Discards both the local server data (the ephemeral entity itself) and
+ * the draft layer (any in-progress edits). Used by drawer-create flows
+ * (`app-create`, `evaluator-create`, `trace-replay`) when the user closes
+ * the drawer without committing.
+ *
+ * Safe to call with non-local IDs — it's a no-op for those (the helper
+ * checks the prefix internally).
+ *
+ * **Caller is responsible for gating on commit-not-in-flight.** Releasing
+ * during an active commit can tear state mid-mutation. The drawer wrapper
+ * owns this gate.
+ */
+export const discardLocalServerDataAtom = atom(null, (_get, set, localId: string) => {
+    if (!localId || !localId.startsWith("local-")) return
+    set(workflowLocalServerDataAtomFamily(localId), null)
+    workflowLocalServerDataAtomFamily.remove(localId)
+    set(workflowDraftAtomFamily(localId), null)
+    workflowDraftAtomFamily.remove(localId)
+})
+
 // ============================================================================
 // CACHE INVALIDATION
 // ============================================================================
