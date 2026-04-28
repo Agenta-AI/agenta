@@ -1413,7 +1413,10 @@ const openFromTraceAtom = atom(
                 entityId,
                 label,
                 inputs: testcaseInputs,
-                appId: applicationId,
+                // Evaluator spans always open in the workflow drawer regardless
+                // of the app they grade — mirrors the evaluator-revision branch
+                // above and matches the intent in TraceTypeHeader.handleOpenInPlayground.
+                appId: isEvaluatorSpan ? undefined : applicationId,
             }
         }
 

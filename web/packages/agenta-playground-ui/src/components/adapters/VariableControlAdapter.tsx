@@ -239,6 +239,10 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     // event normally so cursor/selection/IME behavior is preserved.
     const handlePasteCapture = useCallback(
         (e: React.ClipboardEvent<HTMLDivElement>) => {
+            // Schema-typed fields (object/array) are pinned to JSON mode —
+            // no paste can cause a mode flip, so let Lexical handle it normally
+            // (preserves cursor position and avoids clobbering existing JSON).
+            if (isJsonType) return
             const pasted = e.clipboardData?.getData("text")
             if (!pasted) return
             const pastedLooksLikeJson = isJsonString(pasted)
@@ -249,7 +253,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
             shouldFocusAfterMountRef.current = true
             handleChange(pasted)
         },
-        [detectedAsJson, handleChange],
+        [isJsonType, detectedAsJson, handleChange],
     )
 
     const {isComparisonView} = useAtomValue(
