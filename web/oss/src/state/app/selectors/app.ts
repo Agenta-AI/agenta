@@ -12,6 +12,15 @@ export const selectedAppIdAtom = eagerAtom<string | null>((get) => {
     return get(routerAppIdAtom) || get(recentAppIdAtom) || null
 })
 
+/**
+ * @deprecated for new code. Use `currentWorkflowAtom` from `@/oss/state/workflow`
+ * for workflow-typed access (resolves both app and evaluator workflows by URL ID).
+ * Existing callers remain supported — `currentAppAtom` still resolves apps only.
+ *
+ * The two atom trees (`state/app/` and `state/workflow/`) are independent and
+ * parallel; neither derives from the other. They share underlying entity-package
+ * query atoms.
+ */
 export const currentAppAtom = eagerAtom<Workflow | null>((get) => {
     const apps = get(appsAtom)
     const appId = get(routerAppIdAtom) || get(recentAppIdAtom)

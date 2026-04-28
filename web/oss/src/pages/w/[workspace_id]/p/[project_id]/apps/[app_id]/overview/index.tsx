@@ -15,6 +15,7 @@ import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/moda
 // import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import DeploymentOverview from "@/oss/components/pages/overview/deployments/DeploymentOverview"
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
+import RequireWorkflowKind from "@/oss/components/RequireWorkflowKind"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {useAppsData} from "@/oss/state/app"
 
@@ -116,7 +117,7 @@ const AppDetailsSection = memo(() => {
     )
 })
 
-const OverviewPage = () => {
+const OverviewContent = () => {
     const {currentApp} = useAppsData()
     const appId = currentApp?.id ?? null
     const [isCustomWorkflowHistoryDrawerOpen, setIsCustomWorkflowHistoryDrawerOpen] =
@@ -153,5 +154,11 @@ const OverviewPage = () => {
         </>
     )
 }
+
+const OverviewPage = () => (
+    <RequireWorkflowKind allowed={["app"]} currentRoute="overview">
+        <OverviewContent />
+    </RequireWorkflowKind>
+)
 
 export default OverviewPage

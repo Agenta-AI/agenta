@@ -1,24 +1,46 @@
-import {GetServerSideProps} from "next/dist/types"
+import {useEffect, useRef} from "react"
 
-export const getServerSideProps: GetServerSideProps = async ({params}) => {
-    const workspaceId = params?.workspace_id
-    const projectId = params?.project_id
-    const appId = params?.app_id
+import {Spin} from "antd"
+import {useAtomValue} from "jotai"
+import {useRouter} from "next/router"
 
-    if (!workspaceId || !projectId || !appId) {
-        return {
-            notFound: true,
-        }
-    }
+import RequireWorkflowKind from "@/oss/components/RequireWorkflowKind"
+import {appIdentifiersAtom} from "@/oss/state/appState"
 
-    return {
-        redirect: {
-            destination: `/w/${workspaceId}/p/${projectId}/apps/${appId}/variants?tab=deployments`,
-            permanent: true,
-        },
-    }
+/**
+ * Deployments page → variants page redirect for APP workflows.
+ *
+ * Replaces the previous `getServerSideProps` permanent-redirect (Phase 2 design
+ * decision: client-side guard for consistency with the other 3 disabled-for-
+ * evaluator routes). For evaluator workflows, the wrapping `RequireWorkflowKind`
+ * fires `useWorkflowRouteGuard` which redirects to the evaluator's playground
+ * via `resolveWorkflowDestination` — single mechanism, single navigation.
+ */
+function DeploymentsAppRedirect() {
+    const router = useRouter()
+    const {workspaceId, projectId, appId} = useAtomValue(appIdentifiersAtom)
+    const redirected = useRef(false)
+
+    useEffect(() => {
+        if (redirected.current) return
+        if (!workspaceId || !projectId || !appId) return
+        redirected.current = true
+        router.replace(
+            `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps/${encodeURIComponent(appId)}/variants?tab=deployments`,
+        )
+    }, [workspaceId, projectId, appId, router])
+
+    return (
+        <div className="flex items-center justify-center w-full h-full min-h-[240px]">
+            <Spin />
+        </div>
+    )
 }
 
-const DeploymentsRedirectPage = () => null
+const DeploymentsRedirectPage = () => (
+    <RequireWorkflowKind allowed={["app"]} currentRoute="deployments">
+        <DeploymentsAppRedirect />
+    </RequireWorkflowKind>
+)
 
 export default DeploymentsRedirectPage

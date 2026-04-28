@@ -19,7 +19,7 @@ import {
     RocketLaunchIcon,
     ListChecksIcon,
 } from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
@@ -30,6 +30,7 @@ import {openWidgetAtom} from "@/oss/lib/onboarding"
 import {useAppsData} from "@/oss/state/app"
 import {useAppState} from "@/oss/state/appState"
 import {useOrgData} from "@/oss/state/org"
+import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 
 import {SidebarConfig} from "../../types"
 
@@ -45,6 +46,15 @@ export const useSidebarConfig = () => {
     const hasProjectURL = Boolean(projectURL)
     const hasAppContext =
         routeLayer === "app" && Boolean(routedAppId || appURL || recentlyVisitedAppURL)
+
+    // Phase 4: when the current workflow is an evaluator, DISABLE (not hide)
+    // the app-section items that don't apply to evaluators (overview,
+    // evaluations). Items stay visible but greyed out so the user understands
+    // they exist — they just aren't applicable for this workflow type.
+    // Endpoints and deployments aren't in the sidebar today, so no extra
+    // gating needed for those.
+    const workflowCtx = useAtomValue(currentWorkflowContextAtom)
+    const isCurrentWorkflowEvaluator = workflowCtx.workflowKind === "evaluator"
 
     const sidebarConfig: SidebarConfig[] = [
         {
@@ -113,7 +123,9 @@ export const useSidebarConfig = () => {
             icon: <DesktopIcon size={14} />,
             isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
             isAppSection: true,
-            disabled: !hasProjectURL,
+            // Disabled (not hidden) for evaluator workflows so the user still
+            // sees these surfaces exist — just not applicable here.
+            disabled: !hasProjectURL || isCurrentWorkflowEvaluator,
         },
         {
             key: "app-playground-link",
@@ -141,7 +153,8 @@ export const useSidebarConfig = () => {
             isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
             isAppSection: true,
             icon: <FlaskIcon size={14} />,
-            disabled: !hasProjectURL,
+            // Disabled (not hidden) for evaluator workflows.
+            disabled: !hasProjectURL || isCurrentWorkflowEvaluator,
             dataTour: "evaluations-nav",
         },
         {
