@@ -490,12 +490,14 @@ async def evaluate_live_query(
 
             scenario_has_errors: Dict[int, int] = dict()
             scenario_status: Dict[int, EvaluationStatus] = dict()
+            scenario_has_pending: Dict[int, bool] = dict()
 
             # iterate over query traces ----------------------------------------
             for idx, trace in enumerate(query_step_traces):
                 scenario_results_created = False
                 scenario_has_errors[idx] = 0
                 scenario_status[idx] = EvaluationStatus.SUCCESS
+                scenario_has_pending[idx] = False
 
                 scenario = scenarios[idx]
                 scenario_id = scenario_ids[idx]
@@ -532,6 +534,11 @@ async def evaluate_live_query(
                 # run evaluator revisions --------------------------------------
                 for jdx in range(nof_annotations):
                     annotation_step_key = annotation_steps_keys[jdx]
+                    annotation_step = annotation_steps[annotation_step_key]
+
+                    if annotation_step.origin in {"human", "custom"}:
+                        scenario_has_pending[idx] = True
+                        continue
 
                     step_status = EvaluationStatus.SUCCESS
 
@@ -795,7 +802,14 @@ async def evaluate_live_query(
                     id=scenario.id,
                     tags=scenario.tags,
                     meta=scenario.meta,
-                    status=scenario_status[idx],
+                    status=(
+                        EvaluationStatus.PENDING
+                        if (
+                            scenario_status[idx] == EvaluationStatus.SUCCESS
+                            and scenario_has_pending[idx]
+                        )
+                        else scenario_status[idx]
+                    ),
                 )
 
                 scenario = await evaluations_service.edit_scenario(
