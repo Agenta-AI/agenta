@@ -72,33 +72,22 @@ const deployVariantToEnv = async (
         .last()
     await expect(modal).toBeVisible({timeout: 10000})
 
-    const rows = modal.locator("[data-row-key]")
     const deployBtn = modal.getByRole("button", {name: "Deploy"})
-    const radioSelector = '.ant-radio-wrapper, .ant-radio, [role="radio"], input[type="radio"]'
 
-    await expect(rows.first()).toBeVisible({timeout: 15000})
+    // Wait for at least one row to be rendered in the table
+    await expect(modal.locator("[data-row-key]").first()).toBeVisible({timeout: 15000})
+
+    // Use poll + check() on the first radio input so that Ant Design's controlled
+    // rowSelection.onChange fires reliably — force clicks on the wrapper are flaky
+    // in headless CI because they bypass the native input change event.
     await expect
         .poll(
             async () => {
-                const rowCount = await rows.count()
-
-                for (let index = 0; index < rowCount; index += 1) {
-                    const row = rows.nth(index)
-                    await row.scrollIntoViewIfNeeded().catch(() => null)
-
-                    const radioControl = row.locator(radioSelector).first()
-                    if (await radioControl.isVisible().catch(() => false)) {
-                        await radioControl.click({force: true}).catch(() => null)
-                    } else {
-                        await row.click({force: true}).catch(() => null)
-                    }
-
-                    if (await deployBtn.isEnabled().catch(() => false)) {
-                        return true
-                    }
+                const firstRadio = modal.locator('input[type="radio"]').first()
+                if (await firstRadio.isVisible().catch(() => false)) {
+                    await firstRadio.check({force: true}).catch(() => null)
                 }
-
-                return false
+                return await deployBtn.isEnabled().catch(() => false)
             },
             {timeout: 30000},
         )
