@@ -1,12 +1,14 @@
 import {Dispatch, SetStateAction, useMemo, useState} from "react"
 
+import {testsetMolecule} from "@agenta/entities/testset"
 import {ArchiveIcon} from "@phosphor-icons/react"
 import {Modal, ModalProps} from "antd"
 import {KeyedMutator} from "swr"
 
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
 import {testset} from "@/oss/lib/Types"
-import {archiveTestsetRevision, deleteTestsets} from "@/oss/services/testsets/api"
+import {archiveTestsetRevision} from "@/oss/services/testsets/api"
+import {getProjectValues} from "@/oss/state/project"
 
 interface DeleteTestsetProps extends ModalProps {
     selectedTestsetToDelete: testset[]
@@ -59,7 +61,8 @@ const DeleteTestset = ({
                 )
                     return
 
-                await deleteTestsets(testsetsIds)
+                const {projectId} = getProjectValues()
+                await testsetMolecule.lifecycle.archive(testsetsIds, {projectId})
             }
 
             // Delete individual revisions

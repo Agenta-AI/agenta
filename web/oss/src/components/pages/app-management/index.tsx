@@ -1,6 +1,6 @@
 import {useEffect, useState} from "react"
 
-import {archiveWorkflow, invalidateWorkflowsListCache} from "@agenta/entities/workflow"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {PageLayout} from "@agenta/ui"
 import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -92,7 +92,7 @@ const AppManagement: React.FC = () => {
             onStatusChange: async (status, details, appId) => {
                 if (["error", "bad_request", "timeout", "success"].includes(status))
                     if (status === "success") {
-                        await mutate()
+                        await mutate?.()
                         await invalidateAppManagementWorkflowQueries()
                         posthog?.capture?.("app_deployment", {
                             properties: {
@@ -125,9 +125,10 @@ const AppManagement: React.FC = () => {
         if (statusData.appId) {
             setStatusData((prev) => ({...prev, status: "cleanup", details: undefined}))
             const {projectId} = getProjectValues()
-            await archiveWorkflow(projectId, statusData.appId).catch(console.error)
-            invalidateWorkflowsListCache()
-            await mutate()
+            await workflowMolecule.lifecycle
+                .archive(statusData.appId, {projectId})
+                .catch(console.error)
+            await mutate?.()
             await invalidateAppManagementWorkflowQueries()
         }
         handleTemplateCardClick(templateKey as string, appName, appSlug)
@@ -146,7 +147,7 @@ const AppManagement: React.FC = () => {
             }
         }
         setStatusData((prev) => ({...prev, status: "success", details: undefined}))
-        await mutate()
+        await mutate?.()
         await invalidateAppManagementWorkflowQueries()
     }
 

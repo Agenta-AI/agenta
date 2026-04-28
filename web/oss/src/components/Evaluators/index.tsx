@@ -1,12 +1,10 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {
-    archiveWorkflow,
     createEvaluatorFromTemplate,
     type EvaluatorCatalogTemplate,
     invalidateEvaluatorsListCache,
-    invalidateWorkflowsListCache,
-    unarchiveWorkflow,
+    workflowMolecule,
 } from "@agenta/entities/workflow"
 import {workflowRevisionDrawerNavigationIdsAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
@@ -229,9 +227,7 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
             const {projectId} = getProjectValues()
             if (!projectId || !record.workflowId) return
 
-            await unarchiveWorkflow(projectId, record.workflowId)
-            invalidateWorkflowsListCache()
-            invalidateEvaluatorsListCache()
+            await workflowMolecule.lifecycle.unarchive(record.workflowId, {projectId})
             message.success("Evaluator restored")
         } catch (error) {
             message.error(extractApiErrorMessage(error))
@@ -254,9 +250,9 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
                 if (!canDelete) return
             }
 
-            await Promise.all(deleteTargetIds.map((id) => archiveWorkflow(projectId, id)))
-            invalidateWorkflowsListCache()
-            invalidateEvaluatorsListCache()
+            await Promise.all(
+                deleteTargetIds.map((id) => workflowMolecule.lifecycle.archive(id, {projectId})),
+            )
 
             message.success(
                 deleteTargetIds.length === 1

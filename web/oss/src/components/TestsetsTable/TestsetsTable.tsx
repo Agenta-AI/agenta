@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {testsetMolecule} from "@agenta/entities/testset"
 import {message} from "@agenta/ui/app-message"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArchiveIcon, CaretDown, DownloadSimple} from "@phosphor-icons/react"
@@ -22,17 +23,11 @@ import {
     setOnboardingWidgetActivationAtom,
 } from "@/oss/lib/onboarding"
 import type {TestsetCreationMode} from "@/oss/lib/Types"
-import {
-    downloadTestset,
-    downloadRevision,
-    unarchiveTestset,
-    type ExportFileType,
-} from "@/oss/services/testsets/api"
+import {downloadTestset, downloadRevision, type ExportFileType} from "@/oss/services/testsets/api"
 import {
     fetchRevisionsList,
     getTestsetTableState,
     invalidateTestsetManagementQueries,
-    invalidateTestsetsListCache,
     testset,
     type TestsetTableMode,
     type TestsetTableRow,
@@ -392,8 +387,7 @@ const TestsetsTable = ({
     const handleRestoreTestset = useCallback(
         async (record: TestsetTableRow) => {
             try {
-                await unarchiveTestset(record.id)
-                invalidateTestsetsListCache()
+                await testsetMolecule.lifecycle.unarchive(record.id, {projectId})
                 invalidateTestsetManagementQueries()
                 setChildrenCache((prev) => {
                     const next = new Map(prev)

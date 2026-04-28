@@ -125,6 +125,7 @@ export {
     updateTestsetMetadata,
     cloneTestset,
     archiveTestsets,
+    unarchiveTestset,
     // Revision mutations
     patchRevision,
     commitRevision,

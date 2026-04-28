@@ -1,6 +1,6 @@
 import {type SetStateAction, useCallback, useMemo} from "react"
 
-import {invalidateWorkflowsListCache, unarchiveWorkflow} from "@agenta/entities/workflow"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
 import {PlusOutlined} from "@ant-design/icons"
@@ -86,8 +86,7 @@ const ApplicationManagementSection = ({
                 try {
                     const {projectId} = getProjectValues()
                     if (!projectId) return
-                    await unarchiveWorkflow(projectId, record.workflowId)
-                    invalidateWorkflowsListCache()
+                    await workflowMolecule.lifecycle.unarchive(record.workflowId, {projectId})
                     await mutateApps?.()
                     await invalidateAppManagementWorkflowQueries()
                     message.success("App restored")

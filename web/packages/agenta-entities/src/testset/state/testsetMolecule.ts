@@ -36,6 +36,7 @@
  * ```
  */
 
+import {projectIdAtom} from "@agenta/shared/state"
 import {
     getValueAtPath as getValueAtPathUtil,
     setValueAtPath,
@@ -53,7 +54,7 @@ import {
 import type {AtomFamily, QueryState, PathItem} from "../../shared"
 import {testcaseMolecule} from "../../testcase/state/molecule"
 import {fetchLatestRevision} from "../api"
-import {createTestset} from "../api/mutations"
+import {archiveTestsets, createTestset, unarchiveTestset} from "../api/mutations"
 import {isNewTestsetId, type Testset, type Revision, type RevisionListItem} from "../core"
 
 import {
@@ -193,6 +194,24 @@ function getChangesFromPath(
     }
 
     return null
+}
+
+interface TestsetLifecycleOptions {
+    projectId?: string | null
+    store?: ReturnType<typeof getDefaultStore>
+}
+
+function getLifecycleProjectId(options?: TestsetLifecycleOptions) {
+    const store = options?.store ?? getDefaultStore()
+    return options?.projectId ?? store.get(projectIdAtom)
+}
+
+function invalidateTestsetLifecycleCaches(testsetIds: string | string[]) {
+    const ids = Array.isArray(testsetIds) ? testsetIds : [testsetIds]
+    invalidateTestsetsListCache()
+    for (const testsetId of ids) {
+        invalidateTestsetCache(testsetId)
+    }
 }
 
 // ============================================================================
@@ -467,6 +486,28 @@ export const testsetMolecule = {
         list: invalidateTestsetsListCache,
         /** Invalidate a specific testset's cache */
         detail: invalidateTestsetCache,
+    },
+
+    /**
+     * Lifecycle mutation API.
+     * Thin wrapper over existing backend routes plus package cache invalidation.
+     */
+    lifecycle: {
+        archive: async (testsetIds: string | string[], options?: TestsetLifecycleOptions) => {
+            const projectId = getLifecycleProjectId(options)
+            const ids = Array.isArray(testsetIds) ? testsetIds : [testsetIds]
+            if (!projectId || ids.length === 0) return
+
+            await archiveTestsets({projectId, testsetIds: ids})
+            invalidateTestsetLifecycleCaches(ids)
+        },
+        unarchive: async (testsetId: string, options?: TestsetLifecycleOptions) => {
+            const projectId = getLifecycleProjectId(options)
+            if (!projectId || !testsetId) return
+
+            await unarchiveTestset({projectId, testsetId})
+            invalidateTestsetLifecycleCaches(testsetId)
+        },
     },
 
     /**
