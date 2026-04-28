@@ -1,0 +1,160 @@
+---
+title: "Testsets"
+description: "Versioned datasets of immutable testcases used as evaluation input."
+sidebar_position: 8
+---
+
+A **testset** is a versioned bag of **testcases**. Every time you change the contents, a new **revision** is committed and the old one stays reachable. Evaluations pin a specific revision, so the same evaluation always runs against the same inputs.
+
+## Artifact, variant, revision
+
+Testsets follow the shared versioning pattern. See [Versioning](/reference/api-guide/versioning) for the full model.
+
+| Layer | Holds |
+|-------|-------|
+| Testset (artifact) | Name, slug, tags, metadata, lifecycle. No rows. |
+| Testset variant | A history branch. Most testsets have one. |
+| Testset revision | An ordered list of testcase IDs plus commit metadata. |
+
+A revision's content is a list of testcase IDs in a deterministic order. Revisions are created with `POST /testsets/revisions/commit`; previous revisions are never mutated.
+
+## Testcases are immutable
+
+A testcase is a content-addressed blob scoped to its testset. Its ID is a hash of `data` + `testset_id` (plus an optional salt), so two testcases with the same content in the same testset collapse to the same ID.
+
+Because a testcase is a blob, editing a row does not mutate the existing testcase. The commit writes a **new** blob with a new ID, then creates a **new** revision whose testcase list points at the new ID. The old blob is still reachable by its original ID, which is why revision history is reproducible.
+
+A testcase payload:
+
+```json
+{
+  "id": "e44bf373-44ec-52ce-aa5c-a3bd982e783b",
+  "testset_id": "019d9ca2-0000-0000-0000-000000000000",
+  "data": {
+    "country": "Germany",
+    "capital": "Berlin",
+    "testcase_dedup_id": "gr-001"
+  }
+}
+```
+
+The schema of a testcase is implicit in the keys of `data` (one key per column). The revision does not store a column list separately; adding a column means committing rows that have the new key.
+
+## Dedup IDs: canonical and legacy
+
+Testcases support a caller-supplied dedup ID used to identify the same row across imports and edits.
+
+| Path | Where it lives | Used by |
+|------|----------------|---------|
+| `testcase_dedup_id` | Inside `data` | Canonical; JSON API |
+| `__dedup_id__` | Top-level of the row object | Legacy; CSV and older JSON uploads |
+
+Both are accepted on write. The server normalizes `__dedup_id__` into `data.testcase_dedup_id` when you send it. On export (CSV or JSON via `/download`), the server emits the **legacy** `__dedup_id__` form for round-trip compatibility with tools that expect it. If a row has no dedup ID on write, one is generated from the content hash.
+
+## Import and export
+
+Testcases move in and out of a testset as CSV or JSON arrays.
+
+| Endpoint | Action |
+|----------|--------|
+| `POST /testsets/revisions/{id}/upload` | Commit a new revision from a CSV or JSON file. |
+| `POST /testsets/revisions/{id}/download` | Download the revision's testcases as CSV or JSON. |
+| `POST /simple/testsets/upload` | Create a new testset and seed its first revision in one call. |
+| `POST /simple/testsets/{id}/upload` | Commit a new revision on an existing simple testset. |
+
+Each row may include `__id__` (preserve an existing testcase ID), `__dedup_id__` (legacy dedup), `__flags__`, `__tags__`, and `__meta__`. Empty metadata columns are dropped from exports.
+
+## Retrieve semantics
+
+`POST /testsets/revisions/retrieve` resolves a testset, variant, or revision reference to a single revision.
+
+- `include_testcases` defaults to `true` — full testcase objects are returned unless you opt out.
+- `include_testcase_ids` defaults to `true` — the ordered ID list is always returned unless you opt out.
+
+This is the **opposite default** of `POST /queries/revisions/retrieve` (see [Query Pattern](/reference/api-guide/query-pattern)), which defaults `include_traces` to `false` because trace materialization is expensive. Keep the asymmetry in mind when you build clients that consume both.
+
+## Simple testsets
+
+The simple surface under `/simple/testsets/*` collapses artifact, variant, and the first revision into one call. Useful when you do not want to manage lineage by hand. See [Simple Endpoints](/reference/api-guide/simple-endpoints) for the pattern.
+
+A simple-testset row is the same `Testcase` shape as above; `/simple/testsets/` returns the testset with its current revision's testcases merged in.
+
+## Relationship to evaluations
+
+An evaluation run stores a specific **testset revision ID** (not a testset ID) as its input pin. If you add rows later, existing runs still replay the exact data they started with. Forward link: [Evaluations](/reference/api-guide/evaluations).
+
+## End-to-end example
+
+Create a testset with two rows, add a row, retrieve the latest revision.
+
+```bash
+# 1. Create a simple testset with seed rows.
+curl -X POST "$AGENTA_HOST/api/simple/testsets/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "testset": {
+      "slug": "country-capitals",
+      "name": "country-capitals",
+      "data": {
+        "testcases": [
+          {"data": {"country": "France", "capital": "Paris"}},
+          {"data": {"country": "Japan",  "capital": "Tokyo"}}
+        ]
+      }
+    }
+  }'
+```
+
+```json
+{
+  "count": 1,
+  "testset": {
+    "id": "019d9ca1-0000-0000-0000-000000000000",
+    "slug": "country-capitals",
+    "revision_id": "019d9ca1-0000-0000-0000-000000000001",
+    "data": {
+      "testcase_ids": [
+        "25ee7879-0000-0000-0000-000000000000",
+        "b0f2f1c6-0000-0000-0000-000000000000"
+      ]
+    }
+  }
+}
+```
+
+```bash
+# 2. Add a row as a new revision using the structured commit endpoint.
+curl -X POST "$AGENTA_HOST/api/testsets/revisions/commit" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "testset_revision_commit": {
+      "testset_id": "019d9ca1-0000-0000-0000-000000000000",
+      "testset_revision_id": "019d9ca1-0000-0000-0000-000000000001",
+      "message": "Add Brazil",
+      "delta": {
+        "rows": {
+          "add": [{"data": {"country": "Brazil", "capital": "Brasilia"}}]
+        }
+      }
+    }
+  }'
+```
+
+```bash
+# 3. Retrieve the latest revision of the testset.
+curl -X POST "$AGENTA_HOST/api/testsets/revisions/retrieve" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{"testset_ref": {"id": "019d9ca1-0000-0000-0000-000000000000"}}'
+```
+
+An evaluation run that pins revision `019d9ca1-0000-0000-0000-000000000001` will keep replaying the original two rows, even though the testset now has three.
+
+## Reference
+
+- [Versioning](/reference/api-guide/versioning) — shared artifact / variant / revision model.
+- [Query Pattern](/reference/api-guide/query-pattern) — `/query` body shape and windowing.
+- [Simple Endpoints](/reference/api-guide/simple-endpoints) — `/simple/*` trade-offs.
+- [API Reference](/reference/api/category) — full endpoint list.
