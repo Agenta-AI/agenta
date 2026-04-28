@@ -146,7 +146,6 @@ export enum SecretDTOProvider {
     ALEPHALPHA = "alephalpha",
     GROQ = "groq",
     MISTRAL = "mistral",
-    MISTRALAI = "mistralai",
     ANTHROPIC = "anthropic",
     PERPLEXITYAI = "perplexityai",
     TOGETHERAI = "together_ai",
@@ -174,14 +173,18 @@ export const PROVIDER_LABELS: Record<string, string> = {
     custom: "Custom Provider",
 }
 
-export const PROVIDER_KINDS: Record<string, string> = Object.entries(PROVIDER_LABELS).reduce(
-    (acc, [kind, label]) => {
-        acc[kind] = kind
-        acc[label.toLowerCase()] = kind
-        return acc
-    },
-    {} as Record<string, string>,
-)
+export const PROVIDER_KINDS: Record<string, string> = {
+    ...Object.entries(PROVIDER_LABELS).reduce(
+        (acc, [kind, label]) => {
+            acc[kind] = kind
+            acc[label.toLowerCase()] = kind
+            return acc
+        },
+        {} as Record<string, string>,
+    ),
+    // Normalize legacy "mistralai" slug to canonical "mistral"
+    mistralai: "mistral",
+}
 
 interface VaultModels {
     slug: string
