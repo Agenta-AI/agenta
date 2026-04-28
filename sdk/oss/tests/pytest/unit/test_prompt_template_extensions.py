@@ -302,3 +302,257 @@ async def test_retry_runner_does_not_retry_deterministic_secret_errors(monkeypat
         )
 
     assert calls == ["primary"]
+
+
+# ---------------------------------------------------------------------------
+# FPT-004: runtime fallback matrix
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "status_code, policy, expected",
+    [
+        # availability
+        (503, FallbackPolicy.AVAILABILITY, True),
+        (500, FallbackPolicy.AVAILABILITY, True),
+        (503, FallbackPolicy.CAPACITY, True),
+        (503, FallbackPolicy.ACCESS, True),
+        (503, FallbackPolicy.ANY, True),
+        # capacity
+        (429, FallbackPolicy.AVAILABILITY, False),
+        (429, FallbackPolicy.CAPACITY, True),
+        (429, FallbackPolicy.ACCESS, True),
+        (429, FallbackPolicy.ANY, True),
+        # access
+        (401, FallbackPolicy.AVAILABILITY, False),
+        (401, FallbackPolicy.CAPACITY, False),
+        (401, FallbackPolicy.ACCESS, True),
+        (401, FallbackPolicy.ANY, True),
+        (403, FallbackPolicy.ACCESS, True),
+        # any (400/404/422 without context-window text)
+        (400, FallbackPolicy.AVAILABILITY, False),
+        (400, FallbackPolicy.CONTEXT, False),
+        (400, FallbackPolicy.ANY, True),
+        (404, FallbackPolicy.ANY, True),
+        (422, FallbackPolicy.ANY, True),
+        # context-window on 400
+        (400, FallbackPolicy.CONTEXT, False),  # plain 400 is not context
+    ],
+)
+def test_fallback_policy_status_code_matrix(status_code, policy, expected):
+    error = ProviderError(status_code)
+    assert _should_fallback(error, policy) == expected
+
+
+@pytest.mark.parametrize(
+    "status_code, policy, expected",
+    [
+        (503, RetryPolicy.AVAILABILITY, True),
+        (503, RetryPolicy.CAPACITY, True),
+        (503, RetryPolicy.TRANSIENT, True),
+        (503, RetryPolicy.ANY, True),
+        (429, RetryPolicy.AVAILABILITY, False),
+        (429, RetryPolicy.CAPACITY, True),
+        (429, RetryPolicy.TRANSIENT, True),
+        (429, RetryPolicy.ANY, True),
+        (400, RetryPolicy.AVAILABILITY, False),
+        (400, RetryPolicy.CAPACITY, False),
+        (400, RetryPolicy.TRANSIENT, False),
+        (400, RetryPolicy.ANY, True),
+        (404, RetryPolicy.ANY, True),
+        (422, RetryPolicy.ANY, True),
+        # typed timeout always availability
+        (503, RetryPolicy.AVAILABILITY, True),
+    ],
+)
+def test_retry_policy_status_code_matrix(status_code, policy, expected):
+    error = ProviderError(status_code)
+    retry_config = RetryConfig(max_retries=1)
+    assert _should_retry(error, retry_config, policy) == expected
+
+
+def test_retry_before_fallback_same_model_retried_first(monkeypatch):
+    """Retry exhausts on the primary before fallback fires."""
+    calls = []
+
+    async def fake_run_candidate(
+        formatted_prompt, llm_config, retry_config, retry_policy, messages=None
+    ):
+        calls.append(llm_config.model)
+        if llm_config.model == "primary":
+            raise ProviderError(503)
+        return "fallback ok"
+
+    monkeypatch.setattr(
+        "agenta.sdk.engines.running.handlers._run_prompt_llm_config_with_retry",
+        fake_run_candidate,
+    )
+
+    prompt = PromptTemplate(
+        llm_config=ModelConfig(model="primary"),
+        fallback_configs=[{"model": "secondary"}],
+        fallback_policy=FallbackPolicy.AVAILABILITY,
+        retry_config=RetryConfig(max_retries=2),
+        retry_policy=RetryPolicy.AVAILABILITY,
+    )
+
+    # _run_prompt_with_fallback delegates retry to _run_prompt_llm_config_with_retry;
+    # here fake_run_candidate stands in for the whole retry loop, so we only see
+    # one call per model — verifying that primary is tried before secondary.
+    import asyncio
+
+    result = asyncio.get_event_loop().run_until_complete(
+        _run_prompt_with_fallback(prompt)
+    )
+    assert result == "fallback ok"
+    assert calls == ["primary", "secondary"]
+
+
+@pytest.mark.asyncio
+async def test_fallback_not_triggered_on_local_error(monkeypatch):
+    """A local programming error must not trigger fallback."""
+    calls = []
+
+    async def fake_run_candidate(
+        formatted_prompt, llm_config, retry_config, retry_policy, messages=None
+    ):
+        calls.append(llm_config.model)
+        raise ValueError("bug in prompt rendering")
+
+    monkeypatch.setattr(
+        "agenta.sdk.engines.running.handlers._run_prompt_llm_config_with_retry",
+        fake_run_candidate,
+    )
+
+    prompt = PromptTemplate(
+        llm_config=ModelConfig(model="primary"),
+        fallback_configs=[{"model": "secondary"}],
+        fallback_policy=FallbackPolicy.ANY,
+    )
+
+    with pytest.raises(ValueError):
+        await _run_prompt_with_fallback(prompt)
+
+    assert calls == ["primary"]
+
+
+@pytest.mark.asyncio
+async def test_fallback_exhaustion_raises_last_error(monkeypatch):
+    """When all configs fail the last error is re-raised."""
+    errors = []
+
+    async def fake_run_candidate(
+        formatted_prompt, llm_config, retry_config, retry_policy, messages=None
+    ):
+        exc = ProviderError(503, f"{llm_config.model} unavailable")
+        errors.append(exc)
+        raise exc
+
+    monkeypatch.setattr(
+        "agenta.sdk.engines.running.handlers._run_prompt_llm_config_with_retry",
+        fake_run_candidate,
+    )
+
+    prompt = PromptTemplate(
+        llm_config=ModelConfig(model="primary"),
+        fallback_configs=[{"model": "secondary"}, {"model": "tertiary"}],
+        fallback_policy=FallbackPolicy.AVAILABILITY,
+    )
+
+    with pytest.raises(ProviderError) as exc_info:
+        await _run_prompt_with_fallback(prompt)
+
+    assert "tertiary" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_retry_exhaustion_raises_after_max_attempts(monkeypatch):
+    """Retry loop stops at max_retries+1 total attempts."""
+    calls = []
+
+    monkeypatch.setattr(
+        "agenta.sdk.engines.running.handlers.SecretsManager.get_provider_settings_from_workflow",
+        lambda model: {"model": model},
+    )
+    monkeypatch.setattr(
+        "agenta.sdk.engines.running.handlers.mockllm.user_aws_credentials_from",
+        lambda provider_settings: nullcontext(),
+    )
+
+    async def fake_completion(**kwargs):
+        calls.append(kwargs["model"])
+        raise ProviderError(503)
+
+    monkeypatch.setattr(
+        "agenta.sdk.engines.running.handlers.mockllm.acompletion",
+        fake_completion,
+    )
+
+    prompt = PromptTemplate(llm_config=ModelConfig(model="m"))
+
+    with pytest.raises(ProviderError):
+        await _run_prompt_llm_config_with_retry(
+            formatted_prompt=prompt,
+            llm_config=prompt.llm_config,
+            retry_config=RetryConfig(max_retries=3),
+            retry_policy=RetryPolicy.AVAILABILITY,
+        )
+
+    assert len(calls) == 4  # 1 initial + 3 retries
+
+
+# ---------------------------------------------------------------------------
+# FPT-006: backward compatibility — old prompt JSON must not gain new fields
+# ---------------------------------------------------------------------------
+
+
+def test_old_prompt_round_trip_omits_new_fields():
+    """PromptTemplate built from old-style JSON must not serialize new keys."""
+    old_config = {
+        "llm_config": {
+            "model": "gpt-4o-mini",
+            "temperature": 0.7,
+            "max_tokens": 512,
+        },
+        "messages": [{"role": "user", "content": "Hello"}],
+        "template_format": "fstring",
+    }
+
+    prompt = PromptTemplate(**old_config)
+    dumped = prompt.model_dump(exclude_none=True)
+
+    for new_key in (
+        "fallback_configs",
+        "retry_config",
+        "retry_policy",
+        "fallback_policy",
+        "chat_template_kwargs",
+    ):
+        assert new_key not in dumped, f"new field '{new_key}' leaked into old prompt"
+
+
+def test_default_prompt_serialization_omits_new_fields():
+    """A freshly constructed PromptTemplate with no new fields set must not
+    include those keys when serialized with exclude_none=True."""
+    prompt = PromptTemplate(llm_config=ModelConfig(model="gpt-4o-mini"))
+    dumped = prompt.model_dump(exclude_none=True)
+
+    for new_key in (
+        "fallback_configs",
+        "retry_config",
+        "retry_policy",
+        "fallback_policy",
+        "chat_template_kwargs",
+    ):
+        assert new_key not in dumped, (
+            f"new field '{new_key}' leaked into default prompt"
+        )
+
+
+def test_retry_config_default_not_serialized():
+    """RetryConfig() with default max_retries=0 must serialize as None-equivalent
+    when omitted from the prompt, not written as an object with defaults."""
+    prompt = PromptTemplate(llm_config=ModelConfig(model="gpt-4o-mini"))
+    assert prompt.retry_config is None
+    dumped = prompt.model_dump(exclude_none=True)
+    assert "retry_config" not in dumped

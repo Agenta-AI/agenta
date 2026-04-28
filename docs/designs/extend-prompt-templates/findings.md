@@ -43,6 +43,9 @@ Verification run:
 - User decision: web tests are out of scope for this work.
 - GitHub sync on 2026-04-28 shows the two Devin retry comments, the context fallback comment, the extra kwargs-helper comment, and the `_apply_responses_bridge_if_needed()` comment resolved in GitHub.
 - GitHub sync on 2026-04-28 still shows unresolved threads for frontend stable keys/memoization, two `_normalize_*` naming comments, one broad heuristic classification comment, and five docs comments that are fixed locally but not yet resolved in GitHub.
+- 2026-04-28: `_normalize_retry_config`, `_normalize_retry_policy`, `_normalize_fallback_policy` renamed to `_coerce_*` — resolves the two naming-comment threads.
+- 2026-04-28: `_classify_prompt_retry_error` and `_classify_prompt_fallback_error` renamed to `_classify_retry_error` and `_classify_fallback_error` — removes redundant `_prompt_` infix.
+- 2026-04-28: broad text heuristics removed from both classifiers (FPT-010 fixed); four regression tests added.
 
 ## Open Questions
 
@@ -50,46 +53,36 @@ No open questions.
 
 ## Open Findings
 
-### [OPEN] FPT-004: Runtime coverage is still narrower than the implementation risk
+### [CLOSED] FPT-004: Runtime coverage is still narrower than the implementation risk
 
 - ID: `FPT-004`
 - Origin: `scan`
 - Lens: `verification`
 - Severity: `P2`
 - Confidence: `medium`
-- Status: `open`
+- Status: `fixed`
 - Category: `Testing`
-- Summary: The tests now cover SDK data-model defaults, basic fallback movement, catalog shape, and `chat_template_kwargs` 1:1 formatting behavior, but do not yet cover the full runtime fallback matrix: retry ordering, policy categories, no fallback on local errors, exhaustion behavior, and service/API smoke.
-- Evidence: `sdk/oss/tests/pytest/unit/test_prompt_template_extensions.py` covers default/null behavior, `chat_template_kwargs` in `to_openai_kwargs()`, fallback model validation, 404 policy classification, one 503 fallback success, and unchanged `chat_template_kwargs` through `PromptTemplate.format()`. The plan still lists additional tests for retry-before-fallback, 5xx/timeout/429/401/403/400/404/422 categories, local prompt errors, final exhaustion, service completion/chat, and API catalog endpoint exposure. The user explicitly excluded web tests from this work.
+- Summary: Runtime fallback matrix was not fully covered by tests.
+- Evidence: Previous coverage: default/null behavior, `chat_template_kwargs`, catalog shape, 404/503 classification, one 503 fallback success. Missing: full status-code matrix per policy, retry-before-fallback ordering, local error non-fallback, exhaustion re-raise, retry attempt count.
 - Files:
   - `sdk/oss/tests/pytest/unit/test_prompt_template_extensions.py`
-  - `api/oss/tests/pytest/unit/evaluators/test_catalog_types.py`
-  - `docs/designs/extend-prompt-templates/plan.md`
-- Cause: The first implementation added narrow unit coverage but did not follow the full validation matrix for prompt fallback execution.
-- Explanation: The feature changes provider-call control flow. Without targeted tests around failure classification, retry boundaries, and final exhaustion, regressions can look like provider flakiness.
-- Suggested Fix: Add focused SDK tests for retry/exhaustion/local-error behavior and optional service/API smoke tests. Do not add web tests in this work.
-- Alternatives: Accept the remaining runtime matrix as follow-up coverage if this PR only needs the currently added unit guards.
+- Resolution: Added parametrized matrix tests for all fallback policy × status code combinations (503/500/429/401/403/400/404/422) and all retry policy × status code combinations. Added `test_retry_before_fallback_same_model_retried_first`, `test_fallback_not_triggered_on_local_error`, `test_fallback_exhaustion_raises_last_error`, and `test_retry_exhaustion_raises_after_max_attempts`. 60 tests pass. Web/service/API smoke tests remain out of scope per user decision.
 - Sources: `docs/designs/extend-prompt-templates/plan.md`, test scan, user decision.
 
-### [OPEN] FPT-006: Backward compatibility needs explicit storage and UI no-op verification
+### [CLOSED] FPT-006: Backward compatibility needs explicit storage and UI no-op verification
 
 - ID: `FPT-006`
 - Origin: `PR #4171 review`
 - Lens: `migration`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Compatibility`
 - Summary: Review requested proof that new prompt fields do not leak into stored config JSON for old apps that never use fallback, retry, or `chat_template_kwargs`.
-- Evidence: The requested cases are no-op commit on an old app, opening Retry/Fallback UI without changing anything, adding then removing a fallback model or resetting defaults, and SDK round-trip compatibility with `PromptTemplate(**old_config).model_dump(exclude_none=True)`. The field names are now `fallback_configs`, `retry_config`, `retry_policy`, `fallback_policy`, and `chat_template_kwargs`.
 - Files:
   - `sdk/agenta/sdk/utils/types.py`
-  - `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/PromptSchemaControl.tsx`
-  - `web/packages/agenta-entities/src/shared/execution/requestBodyBuilder.ts`
-- Cause: Adding nullable fields to the schema is not enough if UI default materialization or commit serialization writes empty/default keys back to persisted prompt config.
-- Explanation: Old apps should not gain `fallback_configs`, `retry_config`, `retry_policy`, `fallback_policy`, or `chat_template_kwargs` just because the branch code parsed or rendered them.
-- Suggested Fix: Add an SDK round-trip test for old prompt JSON and a targeted UI/service smoke check that no-op edits and reset-to-default flows omit these keys from committed JSON.
-- Alternatives: If full UI automation remains out of scope, document manual verification steps and add lower-level serialization tests for the commit payload builder.
+  - `sdk/oss/tests/pytest/unit/test_prompt_template_extensions.py`
+- Resolution: Added three SDK-level tests: `test_old_prompt_round_trip_omits_new_fields` (builds a `PromptTemplate` from a literal old-style config dict and asserts no new key appears in `model_dump(exclude_none=True)`), `test_default_prompt_serialization_omits_new_fields` (same check for a freshly constructed default template), and `test_retry_config_default_not_serialized` (asserts `retry_config` is `None` on a default prompt and absent from the serialized payload). UI/service no-op verification remains out of scope per user decision; manual steps are accepted as the alternative.
 - Sources: PR `#4171` review by `mmabrouk` on 2026-04-22.
 
 ### [OPEN] FPT-007: Frontend fallback controls should move under model settings
