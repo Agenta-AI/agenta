@@ -14,6 +14,7 @@ import {PlusOutlined} from "@ant-design/icons"
 import {ChartDonutIcon, ListChecksIcon} from "@phosphor-icons/react"
 import {Button, Input, Space} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useRouter} from "next/router"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
@@ -22,9 +23,10 @@ import {
     onboardingWidgetActivationAtom,
     setOnboardingWidgetActivationAtom,
 } from "@/oss/lib/onboarding"
-import {useQueryParamState} from "@/oss/state/appState"
+import {appIdentifiersAtom, useQueryParamState} from "@/oss/state/appState"
 import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStore"
 import {getProjectValues} from "@/oss/state/project"
+import {recentEvaluatorIdAtom} from "@/oss/state/workflow"
 
 import {DEFAULT_EVALUATOR_TAB, EVALUATOR_TABS} from "./assets/constants"
 import type {EvaluatorCategory} from "./assets/types"
@@ -58,6 +60,26 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
     const [, setQueryRevision] = useQueryParamState("revisionId")
     const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
     const openHumanDrawer = useSetAtom(openHumanEvaluatorDrawerAtom)
+
+    // Phase 5: full-page navigation for evaluator EDIT (drawer remains for
+    // human + create + the per-row "Quick edit" action). Writes
+    // recentEvaluatorIdAtom alongside the navigation push.
+    const router = useRouter()
+    const {workspaceId, projectId} = useAtomValue(appIdentifiersAtom)
+    const setRecentEvaluatorId = useSetAtom(recentEvaluatorIdAtom)
+    const navigateToEvaluatorPage = useCallback(
+        (evaluatorId: string) => {
+            if (!workspaceId || !projectId || !evaluatorId) return false
+            setRecentEvaluatorId(evaluatorId)
+            void router.push(
+                `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(
+                    projectId,
+                )}/apps/${encodeURIComponent(evaluatorId)}/playground`,
+            )
+            return true
+        },
+        [workspaceId, projectId, setRecentEvaluatorId, router],
+    )
 
     // Navigation: keep drawer prev/next list in sync with visible table rows
     const EVAL_CONTROLLER_PARAMS = useMemo(() => ({scopeId: "evaluators", pageSize: 50}), [])
@@ -145,29 +167,50 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
             openEvaluatorDrawer({
                 entityId: localId,
                 mode: "create",
-                onEvaluatorCreated: () => refetchAll(),
+                // Phase 5 post-create transition: after the user commits a new
+                // evaluator from the create-drawer, land them on the evaluator's
+                // full-page playground. Closes the loop with the "first part"
+                // workflow-creation design — drawer for create, full-page for edit.
+                onEvaluatorCreated: (configId?: string) => {
+                    refetchAll()
+                    if (configId) {
+                        navigateToEvaluatorPage(configId)
+                    }
+                },
             })
         },
-        [openEvaluatorDrawer],
+        [openEvaluatorDrawer, refetchAll, navigateToEvaluatorPage],
     )
 
     const handleRowClick = useCallback(
         (record: EvaluatorTableRow) => {
             if (activeTab === "human") {
+                // Human evaluators don't have a full-page playground; keep the
+                // existing drawer-edit flow.
                 openHumanDrawer({
                     mode: "edit",
                     workflowId: record.workflowId,
                     revisionId: record.revisionId,
                     onSuccess: () => refetchAll(),
                 })
-            } else {
+                return
+            }
+            // Phase 5: row click navigates to the evaluator's full-page
+            // playground. The drawer-open via "Configure" menu item (handled in
+            // columnActions.handleConfigure below) stays as the secondary
+            // "Quick edit" affordance.
+            const navigated = record.workflowId ? navigateToEvaluatorPage(record.workflowId) : false
+            if (!navigated) {
+                // Defensive fallback: workspace/project not ready yet, or no
+                // workflow id on the record. Open the drawer so the user can
+                // still inspect.
                 const revisionId = record.revisionId || record.workflowId
                 if (revisionId) {
                     setQueryRevision(revisionId, {shallow: true})
                 }
             }
         },
-        [activeTab, openHumanDrawer, refetchAll, setQueryRevision],
+        [activeTab, openHumanDrawer, refetchAll, navigateToEvaluatorPage, setQueryRevision],
     )
 
     const handleConfirmDelete = useCallback(async () => {
