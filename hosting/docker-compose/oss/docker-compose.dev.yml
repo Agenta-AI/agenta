@@ -43,9 +43,9 @@ services:
         volumes:
             #
             #
-            - ../../../web/oss/src:/api/oss/src
-            - ../../../web/oss/public:/api/oss/public
-            - ../../../web/packages:/app/packages
+            - ../../../web/oss/src:/web/oss/src
+            - ../../../web/oss/public:/web/oss/public
+            - ../../../web/packages:/web/packages
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
