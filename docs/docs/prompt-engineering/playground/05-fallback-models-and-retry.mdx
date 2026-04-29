@@ -37,6 +37,7 @@ The policy controls when Agenta can move from the current model to a fallback mo
 | Availability | The provider is unavailable, times out, or returns a server error. |
 | Capacity | Everything in Availability, plus rate limits and overload errors. |
 | Access | Everything in Capacity, plus access errors such as invalid credentials or permission issues. |
+| Context | Everything in Access, plus context-window or token-limit errors. Use this to fall back to a model with a larger context window. |
 | Any | Most provider call errors. Use this only when you want the broadest fallback behavior. |
 
 Agenta does not use fallback models for prompt setup problems. For example, it will not use a fallback when a required input is missing or the prompt template is invalid.
