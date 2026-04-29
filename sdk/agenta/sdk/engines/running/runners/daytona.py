@@ -128,6 +128,7 @@ class DaytonaRunner(CodeRunner):
             "deepinfra": "DEEPINFRA_API_KEY",
             "alephalpha": "ALEPHALPHA_API_KEY",
             "groq": "GROQ_API_KEY",
+            "minimax": "MINIMAX_API_KEY",
             "mistral": "MISTRAL_API_KEY",
             "mistralai": "MISTRAL_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",

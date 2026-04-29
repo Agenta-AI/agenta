@@ -719,10 +719,11 @@ const waitForHumanAnnotationForm = async ({
                     return true
                 }
 
-                const canRun =
-                    (await runButton.isVisible().catch(() => false)) &&
-                    (await runButton.isEnabled().catch(() => false))
-                if ((overlayVisible || canRun) && !seededInvocationOutput) {
+                // Seed on the first iteration where the metric form is not yet ready.
+                // This handles all waiting states: overlay text visible, "No evaluators
+                // configured" (evaluators still loading), or any other transient state
+                // where none of the expected locators match.
+                if (!seededInvocationOutput) {
                     seededInvocationOutput = true
                     await seedHumanInvocationResult(page)
                     await page.reload({waitUntil: "domcontentloaded"})

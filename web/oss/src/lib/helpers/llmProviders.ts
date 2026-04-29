@@ -47,6 +47,7 @@ export const transformSecret = (secrets: CustomSecretDTO[] | StandardSecretDTO[]
                 together_ai: "TOGETHERAI_API_KEY",
                 openrouter: "OPENROUTER_API_KEY",
                 gemini: "GEMINI_API_KEY",
+                minimax: "MINIMAX_API_KEY",
             }
 
             acc.push({
@@ -96,6 +97,7 @@ export const llmAvailableProviders: LlmProvider[] = [
     {title: "OpenRouter", key: "", name: "OPENROUTER_API_KEY"},
     {title: "Groq", key: "", name: "GROQ_API_KEY"},
     {title: "Google Gemini", key: "", name: "GEMINI_API_KEY"},
+    {title: "MiniMax", key: "", name: "MINIMAX_API_KEY"},
 ]
 
 export const transformCustomProviderPayloadData = (values: LlmProvider) => {
