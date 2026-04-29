@@ -34,7 +34,18 @@ interface Suggestion {
     hint?: string
 }
 
+type PathMode = "path" | "flat"
+
 interface PathContext {
+    /**
+     * "path" → user is authoring a JSONPath expression rooted at `$`.
+     * "flat" → user is authoring a plain curly token (e.g. `{{country}}`,
+     *          `{{country.region}}`); resolves at runtime against the
+     *          flattened `inputs` kwargs by the SDK template engine, so
+     *          we drill into the `inputs` envelope implicitly when
+     *          asking the suggestions consumer for candidates.
+     */
+    mode: PathMode
     /** Path segments already committed before the current input (e.g. ["inputs"] when typing `$.inputs.ar`). */
     prefix: string[]
     /** Current (incomplete) segment the user is typing. */
@@ -42,26 +53,39 @@ interface PathContext {
 }
 
 /**
- * Parse the inside of a `{{...}}` token to determine whether the user is
- * authoring a JSONPath expression and where within it they are. Returns
- * `null` for non-path inputs so the caller falls back to legacy mode.
+ * Parse the inside of a `{{...}}` token. Always returns a context — there
+ * is no longer a "legacy mode" fallback; flat curly tokens are first-class
+ * and produce the same testcase / port-key suggestions you'd get under
+ * `$.inputs.*`.
  *
- * Examples:
- *   `$.`                   → {prefix: [],                  current: ""}
- *   `$.in`                 → {prefix: [],                  current: "in"}
- *   `$.inputs.`            → {prefix: ["inputs"],          current: ""}
- *   `$.inputs.arda.`       → {prefix: ["inputs", "arda"],  current: ""}
- *   `$.inputs.arda.test`   → {prefix: ["inputs", "arda"],  current: "test"}
+ * Path-mode examples (`$`-prefixed):
+ *   `$.`                   → {mode:"path", prefix: [],                 current: ""}
+ *   `$.in`                 → {mode:"path", prefix: [],                 current: "in"}
+ *   `$.inputs.`            → {mode:"path", prefix: ["inputs"],         current: ""}
+ *   `$.inputs.arda.`       → {mode:"path", prefix: ["inputs","arda"],  current: ""}
+ *   `$.inputs.arda.test`   → {mode:"path", prefix: ["inputs","arda"],  current: "test"}
+ *
+ * Flat-mode examples (no `$` prefix):
+ *   ``                     → {mode:"flat", prefix: [],                 current: ""}
+ *   `co`                   → {mode:"flat", prefix: [],                 current: "co"}
+ *   `country.`             → {mode:"flat", prefix: ["country"],        current: ""}
+ *   `country.re`           → {mode:"flat", prefix: ["country"],        current: "re"}
  */
-function parsePathContext(input: string): PathContext | null {
-    if (!input.startsWith("$")) return null
-    const body = input.replace(/^\$\.?/, "")
-    if (body === "" && input === "$") return {prefix: [], current: ""}
+function parsePathContext(input: string): PathContext {
+    if (input.startsWith("$")) {
+        const body = input.replace(/^\$\.?/, "")
+        if (body === "" && input === "$") return {mode: "path", prefix: [], current: ""}
+        const endsOnBoundary = input.endsWith(".") || input.endsWith("[")
+        const segments = body.split(/[.[\]'"]/).filter(Boolean)
+        const prefix = endsOnBoundary ? segments : segments.slice(0, -1)
+        const current = endsOnBoundary ? "" : (segments[segments.length - 1] ?? "")
+        return {mode: "path", prefix, current}
+    }
     const endsOnBoundary = input.endsWith(".") || input.endsWith("[")
-    const segments = body.split(/[.[\]'"]/).filter(Boolean)
+    const segments = input.split(/[.[\]'"]/).filter(Boolean)
     const prefix = endsOnBoundary ? segments : segments.slice(0, -1)
     const current = endsOnBoundary ? "" : (segments[segments.length - 1] ?? "")
-    return {prefix, current}
+    return {mode: "flat", prefix, current}
 }
 
 interface TokenMenuPluginProps {
@@ -123,21 +147,26 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
     const allowedEnvelopeSlots = pathContextValue?.allowedEnvelopeSlots
 
     /**
-     * Suggestions while authoring a JSONPath token.
+     * Suggestions while authoring a token (path or flat curly).
      *
-     * Sources (in precedence order, deduped by label):
-     *  1. Envelope slots at depth 0 (always).
-     *  2. Consumer-provided suggestions from the path-suggestions context
-     *     (playground surfaces port schemas + observed keys here).
-     *  3. Fallback: previously-seen tokens sharing the current path prefix.
+     * Path mode (`{{$.inputs.country}}`) sources, in precedence order:
+     *  1. Envelope slots at depth 0.
+     *  2. Consumer-provided suggestions (playground port schemas + testcases).
+     *  3. Previously-seen path-mode tokens sharing the current prefix.
      *
-     * Trailing-dot rule: only envelope slots get `.` appended because
-     * they're always containers. Everything else ends cleanly — the user
-     * types `.` manually to continue drilling, or `}}` to close.
+     * Flat mode (`{{country.region}}`) sources, in precedence order:
+     *  1. Consumer-provided suggestions, queried as if drilling into
+     *     `$.inputs.<flat-prefix>` — flat tokens resolve against the
+     *     flattened inputs kwargs at runtime, so the candidate set is
+     *     identical to what `$.inputs.*` would offer at the same depth.
+     *  2. Previously-seen flat tokens sharing the current dot-prefix.
+     *
+     * Trailing-dot rule: only envelope slots auto-append `.` because
+     * they're always containers. Other entries end cleanly — the user
+     * types `.` manually to drill, or `}}` to close.
      */
     const pathSuggestions = useMemo<Suggestion[]>(() => {
-        if (!pathContext) return []
-        const {prefix, current} = pathContext
+        const {mode, prefix, current} = pathContext
         const query = current.toLowerCase()
         const results: Suggestion[] = []
         const seen = new Set<string>()
@@ -151,55 +180,66 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
             if (label === current) return
             seen.add(label)
             const body = [...prefix, label].join(".")
-            results.push({
-                label,
-                tokenText: `{{$.${body}${appendDot ? "." : ""}}}`,
-                hint,
-            })
+            const trailing = appendDot ? "." : ""
+            const tokenText =
+                mode === "path" ? `{{$.${body}${trailing}}}` : `{{${body}${trailing}}}`
+            results.push({label, tokenText, hint})
         }
 
-        // 1. Envelope slots at the root. Consumer can narrow the list via
-        //    `allowedEnvelopeSlots` on the context (e.g. playground only
-        //    enables inputs/outputs today).
-        if (prefix.length === 0) {
-            const slots = allowedEnvelopeSlots ?? Array.from(KNOWN_ENVELOPE_SLOTS)
-            for (const slot of slots) push(slot, {hint: "envelope", appendDot: true})
+        if (mode === "path") {
+            // 1. Envelope slots at the root. Consumer can narrow the list via
+            //    `allowedEnvelopeSlots` (e.g. playground hides envelopes
+            //    whose sources aren't wired yet).
+            if (prefix.length === 0) {
+                const slots = allowedEnvelopeSlots ?? Array.from(KNOWN_ENVELOPE_SLOTS)
+                for (const slot of slots) push(slot, {hint: "envelope", appendDot: true})
+            }
+
+            // 2. Consumer context (port schemas, observed keys — optional).
+            if (getContextSuggestions) {
+                const provided = getContextSuggestions(prefix, current)
+                for (const s of provided) push(s.label, {hint: s.hint})
+            }
+
+            // 3. Mine previously-seen path-mode tokens under this prefix.
+            if (prefix.length > 0) {
+                const pathPrefix = `$.${prefix.join(".")}.`
+                for (const token of dynamicallyReadingTokens) {
+                    if (!token || !token.startsWith(pathPrefix)) continue
+                    const rest = token.slice(pathPrefix.length)
+                    const nextSeg = rest.split(/[.[\]'"]/).filter(Boolean)[0]
+                    if (!nextSeg) continue
+                    push(nextSeg, {hint: "seen"})
+                }
+            }
+
+            return results
         }
 
-        // 2. Consumer context (port schemas, observed keys — optional).
+        // Flat-mode: ask the consumer for suggestions as if we were
+        // drilling into `$.inputs.<flat-prefix>`. Lets a single source
+        // (testcase columns, port schema sub-paths) feed both modes.
         if (getContextSuggestions) {
-            const provided = getContextSuggestions(prefix, current)
+            const provided = getContextSuggestions(["inputs", ...prefix], current)
             for (const s of provided) push(s.label, {hint: s.hint})
         }
 
-        // 3. Mine previously-seen tokens under this prefix (deepest fallback).
-        if (prefix.length > 0) {
-            const pathPrefix = `$.${prefix.join(".")}.`
-            for (const token of dynamicallyReadingTokens) {
-                if (!token || !token.startsWith(pathPrefix)) continue
-                const rest = token.slice(pathPrefix.length)
-                const nextSeg = rest.split(/[.[\]'"]/).filter(Boolean)[0]
-                if (!nextSeg) continue
-                push(nextSeg, {hint: "seen"})
-            }
+        // Mine previously-seen flat tokens (everything that doesn't
+        // start with `$.`) sharing the current dot-prefix.
+        const flatPrefix = prefix.length > 0 ? `${prefix.join(".")}.` : ""
+        for (const token of dynamicallyReadingTokens) {
+            if (!token || token.startsWith("$.") || token === "$") continue
+            if (flatPrefix && !token.startsWith(flatPrefix)) continue
+            const rest = flatPrefix ? token.slice(flatPrefix.length) : token
+            const nextSeg = rest.split(/[.[\]'"]/).filter(Boolean)[0]
+            if (!nextSeg) continue
+            push(nextSeg, {hint: "seen"})
         }
 
         return results
     }, [pathContext, getContextSuggestions, allowedEnvelopeSlots, dynamicallyReadingTokens])
 
-    // Legacy suggestions: previously-seen whole tokens (non-path mode only).
-    const legacySuggestions = useMemo<Suggestion[]>(() => {
-        if (pathContext) return []
-        const items = dynamicallyReadingTokens
-            .filter((token): token is string => !!token)
-            .filter((token) => {
-                if (!inputQuery) return true
-                return token.includes(inputQuery) && token !== inputQuery
-            })
-        return items.map((token) => ({label: token, tokenText: `{{${token}}}`}))
-    }, [dynamicallyReadingTokens, inputQuery, pathContext])
-
-    const suggestions = pathContext ? pathSuggestions : legacySuggestions
+    const suggestions = pathSuggestions
 
     const selectOption = useCallback(
         (suggestion: Suggestion) => {
