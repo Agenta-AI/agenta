@@ -442,8 +442,8 @@ const testsetTests = () => {
             // Click the gear (actions) button on the testset row
             const gearButton = testsetRow.getByRole("button").last()
             await gearButton.click()
-            await page.getByRole("menuitem", {name: "Delete"}).click()
-            await uiHelpers.confirmModal("Delete")
+            await page.getByRole("menuitem", {name: "Archive"}).click()
+            await uiHelpers.confirmModal("Archive")
 
             // Wait for the confirmation modal to close before asserting absence.
             // The modal body contains the testset name, which would cause a strict-mode
