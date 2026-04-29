@@ -22,11 +22,12 @@ import type {ListQueryState} from "../../shared"
 import {generateLocalId} from "../../shared"
 import {queryWorkflows, createWorkflow, updateWorkflow} from "../api"
 import {inspectWorkflow} from "../api"
-import type {EvaluatorCatalogTemplate, EvaluatorCatalogPresetsResponse} from "../api/templates"
-import {fetchEvaluatorTemplates, fetchEvaluatorCatalogPresets} from "../api/templates"
+import type {EvaluatorCatalogPresetsResponse} from "../api/templates"
+import {fetchEvaluatorCatalogPresets} from "../api/templates"
 import type {Workflow} from "../core"
 import {buildWorkflowUri, parseWorkflowKeyFromUri} from "../core"
 
+import {evaluatorTemplatesDataAtom} from "./evaluatorTemplateAtoms"
 import {buildServiceUrlFromUri} from "./helpers"
 import {
     workflowProjectIdAtom,
@@ -36,6 +37,15 @@ import {
     type WorkflowListRef,
     toWorkflowListRef,
 } from "./store"
+
+// Re-export template atoms from the leaf module so existing callers keep working.
+// The leaf module has no store dependency, so store.ts can import it directly.
+export {
+    evaluatorTemplatesQueryAtom,
+    evaluatorTemplatesDataAtom,
+    evaluatorTemplatesMapAtom,
+    evaluatorTemplateByKeyAtomFamily,
+} from "./evaluatorTemplateAtoms"
 
 // ============================================================================
 // EVALUATOR-FILTERED LIST QUERY
@@ -140,53 +150,9 @@ export function onEvaluatorMutation(listener: () => void): () => void {
     }
 }
 
-// ============================================================================
-// TEMPLATES QUERY
-// ============================================================================
-
-/**
- * Query atom for evaluator template definitions.
- * Templates are static data (built-in evaluator types), cached for 5 minutes.
- */
-export const evaluatorTemplatesQueryAtom = atomWithQuery((get) => {
-    const projectId = get(projectIdAtom)
-    return {
-        queryKey: ["evaluatorTemplates", projectId],
-        queryFn: async (): Promise<{count: number; templates: EvaluatorCatalogTemplate[]}> => {
-            if (!projectId) return {count: 0, templates: []}
-            return fetchEvaluatorTemplates(projectId)
-        },
-        enabled: get(sessionAtom) && !!projectId,
-        staleTime: 5 * 60_000,
-        refetchOnWindowFocus: false,
-    }
-})
-
-/**
- * Derived atom for the templates data array.
- */
-export const evaluatorTemplatesDataAtom = atom<EvaluatorCatalogTemplate[]>((get) => {
-    const query = get(evaluatorTemplatesQueryAtom)
-    return query.data?.templates ?? []
-})
-
-/**
- * Derived atom: evaluator key → display name.
- *
- * Maps template keys to their display names, e.g.:
- * - "auto_exact_match" → "Exact Match"
- * - "auto_ai_critique" → "LLM-as-a-judge"
- */
-export const evaluatorTemplatesMapAtom = atom<Map<string, string>>((get) => {
-    const templates = get(evaluatorTemplatesDataAtom)
-    const map = new Map<string, string>()
-    for (const t of templates) {
-        if (t.key && t.name) {
-            map.set(t.key, t.name)
-        }
-    }
-    return map
-})
+// Template atoms are defined in `./evaluatorTemplateAtoms` (a leaf module so
+// `store.ts` can consume them without module-load cycles). They're re-exported
+// from this file above for backward compatibility.
 
 // ============================================================================
 // EVALUATOR KEY MAP
@@ -249,21 +215,7 @@ const evaluatorRevisionFlagsMapAtom = atom<Map<string, EvaluatorRevisionFlags>>(
     return map
 })
 
-// ============================================================================
-// TEMPLATE LOOKUP
-// ============================================================================
-
-/**
- * Atom family to find a template by key.
- * Returns the matching EvaluatorTemplate or null.
- */
-export const evaluatorTemplateByKeyAtomFamily = atomFamily((key: string | null) =>
-    atom<EvaluatorCatalogTemplate | null>((get) => {
-        if (!key) return null
-        const templates = get(evaluatorTemplatesDataAtom)
-        return templates.find((t) => t.key === key) ?? null
-    }),
-)
+// TEMPLATE LOOKUP moved to `./evaluatorTemplateAtoms` (re-exported above).
 
 // ============================================================================
 // CATALOG PRESETS QUERY

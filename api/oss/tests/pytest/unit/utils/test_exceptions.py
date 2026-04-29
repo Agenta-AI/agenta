@@ -1,4 +1,4 @@
-from datetime import timezone
+from datetime import timezone, datetime
 
 import pytest
 from fastapi import HTTPException
@@ -49,4 +49,5 @@ async def test_intercept_exceptions_includes_support_metadata():
 
     detail = exc_info.value.detail
     assert detail["support_id"]
-    assert detail["support_ts"].tzinfo == timezone.utc
+    assert isinstance(detail["support_ts"], str)
+    assert datetime.fromisoformat(detail["support_ts"]).tzinfo == timezone.utc

@@ -88,10 +88,13 @@ export {loadableColumnsFromRunnableAtomFamily, getRunnableRootItems} from "./bri
 // Port/schema helpers (standalone utilities)
 export {
     extractInputPortsFromSchema,
+    extractLastPathSegment,
     extractOutputPortsFromSchema,
     formatKeyAsName,
+    groupTemplateVariables,
     resolveSchemaRef,
     resolveSchemaType,
+    type GroupedTemplateVariable,
 } from "./portHelpers"
 
 // Evaluator config transforms (standalone utilities)

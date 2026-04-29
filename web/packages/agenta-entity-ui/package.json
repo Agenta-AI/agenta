@@ -17,7 +17,8 @@
         "./modals": "./src/modals/index.ts",
         "./selection": "./src/selection/index.ts",
         "./testcase": "./src/testcase/index.ts",
-        "./variant": "./src/variant/index.ts"
+        "./variant": "./src/variant/index.ts",
+        "./workflow": "./src/workflow/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",

@@ -41,8 +41,9 @@ import type {
     WorkflowVariantsResponse,
     WorkflowRevisionsResponse,
 } from "../core"
-import {buildWorkflowUri} from "../core/schema"
+import {buildWorkflowUri, parseWorkflowKeyFromUri} from "../core/schema"
 
+import {evaluatorTemplateByKeyAtomFamily} from "./evaluatorTemplateAtoms"
 import {
     resolveServiceTypeFromUrl,
     buildServiceUrlFromUri,
@@ -1081,9 +1082,26 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
             // Apply evaluator normalization to local drafts too
             if (localData.flags?.is_evaluator) {
                 const flatParams = localData.data?.parameters as Record<string, unknown> | undefined
-                const flatSchema = localData.data?.schemas?.parameters as
+                let flatSchema = localData.data?.schemas?.parameters as
                     | Record<string, unknown>
                     | undefined
+
+                // Ephemeral evaluator workflows (e.g. opened from a trace span) don't
+                // carry their own parameter schema. Reactively seed it from the builtin
+                // evaluator template catalog so data nesting and schema nesting both
+                // run with the same schema context — otherwise `nestEvaluatorConfiguration`
+                // runs schemaless and emits empty `advanced_config` sections, and
+                // downstream schema readers return null for feedback_config.
+                if (!flatSchema && localData.flags?.is_base && localData.data?.uri) {
+                    const key = parseWorkflowKeyFromUri(localData.data.uri)
+                    if (key) {
+                        const template = get(evaluatorTemplateByKeyAtomFamily(key))
+                        const templateSchema = template?.data?.schemas?.parameters
+                        if (templateSchema && typeof templateSchema === "object") {
+                            flatSchema = templateSchema as Record<string, unknown>
+                        }
+                    }
+                }
 
                 const nestedParams = flatParams
                     ? nestEvaluatorConfiguration(flatParams, flatSchema)
@@ -1241,9 +1259,26 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
             // Apply evaluator normalization to local drafts too
             if (localData.flags?.is_evaluator) {
                 const flatParams = localData.data?.parameters as Record<string, unknown> | undefined
-                const flatSchema = localData.data?.schemas?.parameters as
+                let flatSchema = localData.data?.schemas?.parameters as
                     | Record<string, unknown>
                     | undefined
+
+                // Ephemeral evaluator workflows (e.g. opened from a trace span) don't
+                // carry their own parameter schema. Reactively seed it from the builtin
+                // evaluator template catalog so data nesting and schema nesting both
+                // run with the same schema context — otherwise `nestEvaluatorConfiguration`
+                // runs schemaless and emits empty `advanced_config` sections, and
+                // downstream schema readers return null for feedback_config.
+                if (!flatSchema && localData.flags?.is_base && localData.data?.uri) {
+                    const key = parseWorkflowKeyFromUri(localData.data.uri)
+                    if (key) {
+                        const template = get(evaluatorTemplateByKeyAtomFamily(key))
+                        const templateSchema = template?.data?.schemas?.parameters
+                        if (templateSchema && typeof templateSchema === "object") {
+                            flatSchema = templateSchema as Record<string, unknown>
+                        }
+                    }
+                }
 
                 const nestedParams = flatParams
                     ? nestEvaluatorConfiguration(flatParams, flatSchema)
@@ -1801,6 +1836,10 @@ export function createLocalDraftFromWorkflowRevision(
 
 /**
  * Parameters for creating an ephemeral workflow from trace data.
+ *
+ * `isEvaluator` + `uri` are required for evaluator spans so the ephemeral
+ * entity carries the evaluator identity — downstream selectors (schema,
+ * input ports, request payload) dispatch on `flags.is_evaluator` / `data.uri`.
  */
 export interface CreateEphemeralWorkflowParams {
     label: string
@@ -1808,6 +1847,12 @@ export interface CreateEphemeralWorkflowParams {
     outputs: unknown
     parameters: Record<string, unknown>
     sourceRef?: {type: "application" | "evaluator"; id: string; slug?: string}
+    /** When true, entity.flags.is_evaluator is set and evaluator selectors engage. */
+    isEvaluator?: boolean
+    /** Workflow URI (e.g. "agenta:builtin:auto_ai_critique:v0"). Required for evaluators. */
+    uri?: string
+    /** Full envelope `{trace, inputs, outputs}` for evaluator spans; preserved in meta. */
+    envelope?: Record<string, unknown>
 }
 
 /**
@@ -1842,7 +1887,9 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
     const store = getDefaultStore()
     const id = generateLocalId("local")
 
-    const isChat = detectIsChatFromInputs(params.inputs)
+    const isEvaluator = params.isEvaluator === true
+    // Chat detection is meaningless for evaluator envelopes (inputs are {trace, inputs, outputs}).
+    const isChat = isEvaluator ? false : detectIsChatFromInputs(params.inputs)
 
     const workflow: Workflow = {
         id,
@@ -1862,7 +1909,7 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
             has_script: false,
             has_handler: false,
             is_application: false,
-            is_evaluator: false,
+            is_evaluator: isEvaluator,
             is_snippet: false,
             is_base: true,
         },
@@ -1873,12 +1920,14 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
                 outputs: null,
                 parameters: null,
             },
+            ...(params.uri ? {uri: params.uri} : {}),
         },
         // Store trace I/O in meta for port derivation and snapshot serialization
         meta: {
             __ephemeral: true,
             inputs: params.inputs,
             outputs: params.outputs,
+            ...(params.envelope ? {envelope: params.envelope} : {}),
             ...(params.sourceRef ? {sourceRef: params.sourceRef} : {}),
         },
     } as Workflow

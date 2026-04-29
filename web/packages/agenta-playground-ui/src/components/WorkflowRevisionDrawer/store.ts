@@ -59,6 +59,13 @@ export interface OpenDrawerParams {
      * with existing evaluator-create call sites; will be removed in a follow-up.
      */
     onEvaluatorCreated?: (configId?: string) => void
+    /**
+     * Override the drawer's initial expanded state. When omitted, evaluator
+     * contexts default to expanded and other contexts default to collapsed.
+     * Pass `true` to force expanded (full playground with execution panel) —
+     * e.g. when opening a span in playground for replay/testing.
+     */
+    expanded?: boolean
 }
 
 // ================================================================
@@ -112,9 +119,10 @@ export const workflowRevisionDrawerAtom = atom((get) => ({
 /** Open the drawer */
 export const openWorkflowRevisionDrawerAtom = atom(null, (get, set, params: OpenDrawerParams) => {
     const opensExpanded =
-        params.context === "evaluator-view" ||
-        params.context === "evaluator-create" ||
-        params.context === "app-create"
+        params.expanded ??
+        (params.context === "evaluator-view" ||
+            params.context === "evaluator-create" ||
+            params.context === "app-create")
 
     set(workflowRevisionDrawerEntityIdAtom, params.entityId)
     set(workflowRevisionDrawerOpenAtom, true)
@@ -125,13 +133,18 @@ export const openWorkflowRevisionDrawerAtom = atom(null, (get, set, params: Open
     }
 
     // Prefer the new callback shape; bridge the deprecated one.
+    //
+    // Wrap the callback in an updater (`() => fn`). Jotai's primitive atoms
+    // treat a function value passed to `set` as an updater and invoke it with
+    // the current value — storing a callback directly would fire it once with
+    // `undefined` and persist the return value instead of the callback itself.
     if (params.onWorkflowCreated) {
-        set(workflowRevisionDrawerCallbackAtom, params.onWorkflowCreated)
+        const cb = params.onWorkflowCreated
+        set(workflowRevisionDrawerCallbackAtom, () => cb)
     } else if (params.onEvaluatorCreated) {
         const legacy = params.onEvaluatorCreated
-        set(workflowRevisionDrawerCallbackAtom, (result: {configId?: string}) =>
-            legacy(result.configId),
-        )
+        const bridged = (result: {configId?: string}) => legacy(result?.configId)
+        set(workflowRevisionDrawerCallbackAtom, () => bridged)
     } else {
         set(workflowRevisionDrawerCallbackAtom, undefined)
     }

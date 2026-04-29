@@ -1,5 +1,5 @@
 # Tests: observability/observability.spec.ts -> observability/index.ts
-# RTM ID: WEB-ACC-OBS-001
+# RTM IDs: WEB-ACC-OBS-001, WEB-ACC-OBS-002, WEB-ACC-OBS-003, WEB-ACC-OBS-004, WEB-ACC-OBS-005, WEB-ACC-OBS-006
 # Tags: @scope:observability @coverage:smoke @coverage:light @coverage:full @path:happy
 #
 # Implementation notes:
@@ -15,10 +15,49 @@ Feature: Observability Traces
 
   Background:
     Given the user is authenticated
-    And at least one trace exists from a prior playground run
+    And a completion app with a configured test provider exists
 
   @smoke @happy @scope:observability @speed:slow
   Scenario: View traces and open trace detail drawer
     Given the user is on the Observability page
     When the user opens the traces table
     Then the trace detail drawer opens
+
+  @light @happy @scope:observability @speed:slow
+  Scenario: Filter traces by date range and by app
+    Given the user runs the completion variant in Playground
+    When the user navigates to the Observability page
+    And clicks the Refresh button if traces do not appear immediately
+    And the user applies a date range filter
+    Then the traces table shows only rows matching the selected filter
+
+  @light @happy @scope:observability @speed:slow
+  Scenario: Filter traces by span name or attribute
+    Given the user runs the completion variant in Playground
+    When the user navigates to the Observability page
+    And clicks the Refresh button if traces do not appear immediately
+    And the user filters by span name or a known attribute value
+    Then the traces table narrows to rows matching that filter
+
+  @light @happy @scope:observability @speed:slow
+  Scenario: Open a span and drill into attributes
+    Given the user runs the completion variant in Playground
+    When the user navigates to the Observability page
+    And clicks the Refresh button if traces do not appear immediately
+    And the user opens the first trace row and expands a span
+    Then the span tree renders at least one node inside the trace drawer
+
+  @light @happy @scope:observability @speed:slow
+  Scenario: Verify trace tabs switch correctly
+    Given the user runs the completion variant in Playground
+    When the user navigates to the Observability page
+    And clicks the Refresh button if traces do not appear immediately
+    And the user switches between the LLM, All, and Root trace tabs
+    Then each tab updates the displayed rows accordingly
+
+  @light @happy @scope:observability @speed:slow
+  Scenario: Verify a trace is created after a Playground run
+    Given the user runs the completion variant in Playground
+    When the user navigates to the Observability page
+    And clicks the Refresh button if traces do not appear immediately
+    Then a new trace row is visible in the traces table for that run

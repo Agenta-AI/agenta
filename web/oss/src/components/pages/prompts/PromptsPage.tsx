@@ -1,6 +1,10 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {appTemplatesQueryAtom, createEphemeralAppFromTemplate} from "@agenta/entities/workflow"
+import {
+    appTemplatesQueryAtom,
+    createEphemeralAppFromTemplate,
+    type AppType,
+} from "@agenta/entities/workflow"
 import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {PageLayout} from "@agenta/ui"
 import type {
@@ -365,26 +369,29 @@ const PromptsPage = () => {
     }
 
     /**
-     * "+ New prompt" shortcut: defaults to a Chat app (the most common case).
-     * Users who want Completion go through the apps page dropdown for full
-     * type selection. Custom workflow has its own entry below
+     * "+ New prompt" entry in the breadcrumb / table-section menus. The menu
+     * surfaces a Chat / Completion submenu so the type is chosen explicitly
+     * before we mint the ephemeral app. Custom workflow has its own entry
      * (`handleSetupWorkflow`).
      */
-    const handleOpenNewPromptModal = useCallback(async () => {
-        const entityId = await createEphemeralAppFromTemplate({type: "chat"})
-        if (!entityId) {
-            message.error("Couldn't start prompt creation — please retry")
-            return
-        }
-        setOpenDrawer({
-            entityId,
-            context: "app-create",
-            onWorkflowCreated: ({newAppId, newRevisionId} = {}) => {
-                if (!newAppId || !newRevisionId) return
-                router.push(`${baseAppURL}/${newAppId}/playground?revisions=${newRevisionId}`)
-            },
-        })
-    }, [baseAppURL, router, setOpenDrawer])
+    const handleOpenNewPromptModal = useCallback(
+        async (type: AppType) => {
+            const entityId = await createEphemeralAppFromTemplate({type})
+            if (!entityId) {
+                message.error("Couldn't start prompt creation — please retry")
+                return
+            }
+            setOpenDrawer({
+                entityId,
+                context: "app-create",
+                onWorkflowCreated: ({newAppId, newRevisionId} = {}) => {
+                    if (!newAppId || !newRevisionId) return
+                    router.push(`${baseAppURL}/${newAppId}/playground?revisions=${newRevisionId}`)
+                },
+            })
+        },
+        [baseAppURL, router, setOpenDrawer],
+    )
 
     const handleSetupWorkflow = () => {
         openCustomWorkflowModal()

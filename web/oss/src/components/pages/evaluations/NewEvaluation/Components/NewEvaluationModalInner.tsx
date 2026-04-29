@@ -99,6 +99,12 @@ const NewEvaluationModalInner = ({
     const isAppScoped = Boolean(effectiveAppId)
     const {apps: availableApps = []} = useAppsData()
     const [selectedAppId, setSelectedAppId] = useState<string>(effectiveAppId)
+    // Name/kind captured when the user picks a workflow from the table so the
+    // panel tag stays readable even for evaluators (not present in `availableApps`).
+    const [selectedWorkflowMeta, setSelectedWorkflowMeta] = useState<{
+        label?: string
+        isEvaluator?: boolean
+    } | null>(null)
     const setRegistryWorkflowIdOverride = useSetAtom(registryWorkflowIdOverrideAtom)
 
     // Sync the registry store's workflow ID override with the modal's selected app.
@@ -122,16 +128,18 @@ const NewEvaluationModalInner = ({
             updatedAt: app.updated_at ?? null,
         }))
         if (selectedAppId && !options.some((opt) => opt.value === selectedAppId)) {
+            // Evaluators (and locally-picked workflows) aren't in useAppsData —
+            // fall back to the captured meta so the tag renders a real name.
             options.push({
-                label: selectedAppId,
+                label: selectedWorkflowMeta?.label ?? selectedAppId,
                 value: selectedAppId,
-                type: null,
+                type: selectedWorkflowMeta?.isEvaluator ? "evaluator" : null,
                 createdAt: null,
                 updatedAt: null,
             })
         }
         return options
-    }, [availableApps, selectedAppId])
+    }, [availableApps, selectedAppId, selectedWorkflowMeta])
     const router = useRouter()
     const {baseAppURL, projectURL} = useURL()
 
@@ -271,9 +279,10 @@ const NewEvaluationModalInner = ({
     }, [isAppScoped, selectedAppId, activePanel, setActivePanel])
 
     const handleAppSelection = useCallback(
-        (value: string) => {
+        (value: string, meta?: {label?: string; isEvaluator?: boolean}) => {
             if (value === selectedAppId) return
             setSelectedAppId(value)
+            setSelectedWorkflowMeta(value ? (meta ?? null) : null)
             setSelectedTestsetId("")
             setSelectedTestsetRevisionId("")
             setSelectedTestsetName("")
@@ -281,7 +290,7 @@ const NewEvaluationModalInner = ({
             setSelectedVariantRevisionIds([])
             setSelectedEvalConfigs([])
             setEvaluationName("")
-            setActivePanel("variantPanel")
+            setActivePanel(value ? "variantPanel" : "appPanel")
             setAdvanceSettings(DEFAULT_ADVANCE_SETTINGS)
         },
         [selectedAppId],
@@ -415,7 +424,7 @@ const NewEvaluationModalInner = ({
             return false
         }
         if (selectedVariantRevisionIds.length === 0) {
-            message.error("Please select app variant")
+            message.error("Please select a revision")
             return false
         }
 
@@ -432,7 +441,7 @@ const NewEvaluationModalInner = ({
 
         if (hasUnresolvableLocalDraft) {
             message.error(
-                "Please commit selected local draft variants before starting an evaluation.",
+                "Please commit selected local draft revisions before starting an evaluation.",
             )
             return false
         }
@@ -534,10 +543,10 @@ const NewEvaluationModalInner = ({
                     (evaluationType === "human" && !evaluationName)
                 ) {
                     message.error(
-                        `Please select a testset, app variant, ${
+                        `Please select a testset, revision, ${
                             evaluationType === "human" ? "evaluation name, and" : " and"
                         } evaluator configuration. Missing: ${
-                            !selectionData.revisions?.length ? "app revision" : ""
+                            !selectionData.revisions?.length ? "revision" : ""
                         } ${!selectionData.testset ? "testset" : ""} ${
                             !selectionData.evaluators?.length
                                 ? "evaluators"

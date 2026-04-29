@@ -440,6 +440,7 @@ class LLMConfig(BaseModel):
     openrouter: str = os.getenv("OPENROUTER_API_KEY", "")
     perplexityai: str = os.getenv("PERPLEXITYAI_API_KEY", "")
     togetherai: str = os.getenv("TOGETHERAI_API_KEY", "")
+    minimax: str = os.getenv("MINIMAX_API_KEY", "")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -461,6 +462,7 @@ class LLMConfig(BaseModel):
                 "openrouter",
                 "perplexityai",
                 "togetherai",
+                "minimax",
             ]
             if getattr(self, name)
         ]

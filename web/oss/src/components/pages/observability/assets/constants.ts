@@ -575,6 +575,44 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
             },
             {
                 kind: "group",
+                label: "Evaluator",
+                children: [
+                    {
+                        kind: "leaf",
+                        field: "references",
+                        type: "exists",
+                        value: "id",
+                        optionKey: "evaluator.id",
+                        queryKey: "evaluator.id",
+                        referenceCategory: "evaluator",
+                        referenceProperty: "id",
+                        label: "ID",
+                        displayLabel: "Evaluator ID",
+                        operatorOptions: [
+                            {value: "in", label: "is"},
+                            {value: "not_in", label: "is not"},
+                        ],
+                    },
+                    {
+                        kind: "leaf",
+                        field: "references",
+                        type: "exists",
+                        value: "slug",
+                        optionKey: "evaluator.slug",
+                        queryKey: "evaluator.slug",
+                        referenceCategory: "evaluator",
+                        referenceProperty: "slug",
+                        label: "Slug",
+                        displayLabel: "Evaluator Slug",
+                        operatorOptions: [
+                            {value: "in", label: "is"},
+                            {value: "not_in", label: "is not"},
+                        ],
+                    },
+                ],
+            },
+            {
+                kind: "group",
                 label: "Environment",
                 children: [
                     {

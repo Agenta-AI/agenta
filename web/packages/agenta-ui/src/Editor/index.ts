@@ -89,3 +89,15 @@ export {useEditorResize} from "./hooks/useEditorResize"
 // Commands
 export {INITIAL_CONTENT_COMMAND} from "./commands/InitialContentCommand"
 export type {InitialContentPayload} from "./commands/InitialContentCommand"
+
+// Token typeahead — path-aware suggestion context (playground providers
+// feed port schemas / observed keys into this).
+export {
+    TokenPathSuggestionsProvider,
+    useTokenPathSuggestions,
+} from "./plugins/token/TokenPathSuggestionsContext"
+export type {
+    TokenPathSuggestion,
+    TokenPathSuggestionsGetter,
+    TokenPathSuggestionsProviderProps,
+} from "./plugins/token/TokenPathSuggestionsContext"

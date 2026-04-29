@@ -18,7 +18,7 @@ import {useStyles} from "../assets/styles"
 import TabLabel from "../assets/TabLabel"
 import {NewEvaluationModalContentProps} from "../types"
 
-const SelectAppSection = dynamic(() => import("./SelectAppSection"), {ssr: false})
+const SelectWorkflowSection = dynamic(() => import("./SelectWorkflowSection"), {ssr: false})
 
 const SelectEvaluatorSection = dynamic(
     () => import("./SelectEvaluatorSection/SelectEvaluatorSection"),
@@ -129,7 +129,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
             {
                 key: "appPanel",
                 label: (
-                    <TabLabel tabTitle="Application" completed={appSelectionComplete}>
+                    <TabLabel tabTitle="Applications" completed={appSelectionComplete}>
                         {appSelectionComplete && (
                             <Tag
                                 closeIcon={<CloseCircleOutlined />}
@@ -145,10 +145,11 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 ),
                 children: (
                     <div className="flex flex-col gap-2">
-                        <SelectAppSection
-                            selectedAppId={selectedAppId}
-                            onSelectApp={onSelectApp}
+                        <SelectWorkflowSection
+                            selectedWorkflowId={selectedAppId}
+                            onSelectWorkflow={onSelectApp}
                             disabled={appSelectionDisabled}
+                            initialTypeFilter={appSelectionDisabled ? "app" : "all"}
                         />
                         {!appSelectionComplete && !appSelectionDisabled ? (
                             <Typography.Text type="secondary">
@@ -161,7 +162,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
             {
                 key: "variantPanel",
                 label: (
-                    <TabLabel tabTitle="Variant" completed={selectedVariants.length > 0}>
+                    <TabLabel tabTitle="Revision" completed={selectedVariants.length > 0}>
                         {selectedVariants.map((v) => (
                             <Tag
                                 key={v.id}

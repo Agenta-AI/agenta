@@ -1,5 +1,6 @@
 import React, {useMemo} from "react"
 
+import type {AppType} from "@agenta/entities/workflow"
 import {
     CaretDownIcon,
     FolderDashedIcon,
@@ -15,6 +16,7 @@ import {createUseStyles} from "react-jss"
 
 import {JSSTheme} from "@/oss/lib/Types"
 
+import {getAppTypeIcon} from "../assets/iconHelpers"
 import {FolderTreeNode} from "../assets/utils"
 
 import PromptsHouseIcon from "./PromptsHouseIcon"
@@ -24,7 +26,7 @@ interface PromptsBreadcrumbProps {
     foldersById: Record<string, FolderTreeNode>
     currentFolderId: string | null
     onFolderChange?: (folderId: string | null) => void
-    onNewPrompt?: () => void
+    onNewPrompt?: (type: AppType) => void
     onSetupWorkflow?: () => void
     onNewFolder?: () => void
     onMoveFolder?: (folderId: string | null) => void
@@ -125,7 +127,28 @@ const PromptsBreadcrumb = ({
                 key: "new_prompt",
                 icon: <SquaresFourIcon size={14} />,
                 label: "New prompt",
-                onClick: () => onNewPrompt?.(),
+                children: [
+                    {
+                        key: "new_prompt_chat",
+                        label: (
+                            <span className="inline-flex items-center gap-2">
+                                {getAppTypeIcon("chat")}
+                                <span>Chat</span>
+                            </span>
+                        ),
+                        onClick: () => onNewPrompt?.("chat"),
+                    },
+                    {
+                        key: "new_prompt_completion",
+                        label: (
+                            <span className="inline-flex items-center gap-2">
+                                {getAppTypeIcon("completion")}
+                                <span>Completion</span>
+                            </span>
+                        ),
+                        onClick: () => onNewPrompt?.("completion"),
+                    },
+                ],
             },
             {
                 key: "new_folder",
