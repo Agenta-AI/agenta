@@ -41,11 +41,11 @@ services:
         command: sh -c "pnpm dev-ee"
         # === STORAGE ============================================== #
         volumes:
-            - ../../../web/ee/src:/app/ee/src
-            - ../../../web/ee/public:/app/ee/public
-            - ../../../web/oss/src:/app/oss/src
-            - ../../../web/oss/public:/app/oss/public
-            - ../../../web/packages:/app/packages
+            - ../../../web/ee/src:/web/ee/src
+            - ../../../web/ee/public:/web/ee/public
+            - ../../../web/oss/src:/web/oss/src
+            - ../../../web/oss/public:/web/oss/public
+            - ../../../web/packages:/web/packages
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -77,16 +77,19 @@ services:
                 "8000",
                 "--reload",
                 "--reload-dir",
-                "/sdk",
+                "/sdks/python",
+                "--reload-dir",
+                "/clients/python",
                 "--root-path",
                 "/api",
             ]
         # === STORAGE ============================================== #
         volumes:
-            - ../../../api/ee:/app/ee
-            - ../../../api/oss:/app/oss
-            - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../api/ee:/api/ee
+            - ../../../api/oss:/api/oss
+            - ../../../api/entrypoints:/api/entrypoints
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -126,14 +129,15 @@ services:
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
+            watchmedo auto-restart --directory=/api/ --pattern=*.py --recursive --
             python -m entrypoints.worker_evaluations
         # === STORAGE ============================================== #
         volumes:
-            - ../../../api/ee:/app/ee
-            - ../../../api/oss:/app/oss
-            - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../api/ee:/api/ee
+            - ../../../api/oss:/api/oss
+            - ../../../api/entrypoints:/api/entrypoints
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -162,14 +166,15 @@ services:
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
+            watchmedo auto-restart --directory=/api/ --pattern=*.py --recursive --
             python -m entrypoints.worker_tracing
         # === STORAGE ============================================== #
         volumes:
-            - ../../../api/ee:/app/ee
-            - ../../../api/oss:/app/oss
-            - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../api/ee:/api/ee
+            - ../../../api/oss:/api/oss
+            - ../../../api/entrypoints:/api/entrypoints
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -198,14 +203,15 @@ services:
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
+            watchmedo auto-restart --directory=/api/ --pattern=*.py --recursive --
             python -m entrypoints.worker_webhooks
         # === STORAGE ============================================== #
         volumes:
-            - ../../../api/ee:/app/ee
-            - ../../../api/oss:/app/oss
-            - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../api/ee:/api/ee
+            - ../../../api/oss:/api/oss
+            - ../../../api/entrypoints:/api/entrypoints
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -240,14 +246,15 @@ services:
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
+            watchmedo auto-restart --directory=/api/ --pattern=*.py --recursive --
             python -m entrypoints.worker_events
         # === STORAGE ============================================== #
         volumes:
-            - ../../../api/ee:/app/ee
-            - ../../../api/oss:/app/oss
-            - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../api/ee:/api/ee
+            - ../../../api/oss:/api/oss
+            - ../../../api/entrypoints:/api/entrypoints
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -282,7 +289,7 @@ services:
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
         init: true
-        command: supercronic /app/crontab
+        command: supercronic /api/crontab
         # === STORAGE ============================================== #
         volumes:
             - ../../../api/oss/src/crons/queries.sh:/queries.sh
@@ -312,10 +319,11 @@ services:
         command: sh -c "python -m ee.databases.postgres.migrations.runner"
         # === STORAGE ============================================== #
         volumes:
-            - ../../../api/ee:/app/ee
-            - ../../../api/oss:/app/oss
-            - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../api/ee:/api/ee
+            - ../../../api/oss:/api/oss
+            - ../../../api/entrypoints:/api/entrypoints
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -343,14 +351,17 @@ services:
                 "8080",
                 "--reload",
                 "--reload-dir",
-                "/sdk",
+                "/sdks/python",
+                "--reload-dir",
+                "/clients/python",
                 "--root-path",
                 "/services",
             ]
         # === STORAGE ============================================== #
         volumes:
-            - ../../../services:/app
-            - ../../../sdk:/sdk
+            - ../../../services:/services
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}

@@ -41,11 +41,11 @@ web/src/pages/auth/[[...path]].tsx
 web/src/pages/auth/[[...path]].tsx
 .nextjs_cache/
 
-# sdk/
-sdk/tests/test_sdk_locally/config.toml
-sdk/agenta/client/fern
-sdk/agenta/templates/main.py
-sdk/agenta/templates/agenta.py
+# sdks/
+sdks/python/tests/test_sdk_locally/config.toml
+sdks/python/agenta/client/fern
+sdks/python/agenta/templates/main.py
+sdks/python/agenta/templates/agenta.py
 web/ee/public/__env.js
 web/oss/public/__env.js
 
@@ -55,8 +55,8 @@ web/oss/tests/results
 web/ee/tests/results
 api/oss/tests/results/
 api/ee/tests/results/
-sdk/oss/tests/results/
-sdk/ee/tests/results/
+sdks/python/oss/tests/results/
+sdks/python/ee/tests/results/
 services/oss/tests/results/
 services/ee/tests/results/
 .*
@@ -69,9 +69,9 @@ services/ee/tests/results/
 !services/.dockerignore
 !.env.example
 
-# Temporary SDK symlinks created by run.sh --local
-api/sdk
-services/sdk
+# Temporary SDK copies created by run.sh --local
+api/sdks
+services/sdks
 
 # Helm chart packages (built artifacts)
 agenta-oss-*.tgz

@@ -134,8 +134,10 @@ jobs:
       - name: Inject SDK into build context
         if: matrix.needs_sdk
         run: |
-          rm -rf "${{ matrix.context }}/sdk"
-          cp -R sdk "${{ matrix.context }}/sdk"
+          rm -rf "${{ matrix.context }}/sdks"
+          cp -R sdks "${{ matrix.context }}/sdks"
+          rm -rf "${{ matrix.context }}/clients"
+          cp -R clients "${{ matrix.context }}/clients"
 
       - name: Build and push image
         uses: docker/build-push-action@v6
@@ -163,9 +165,9 @@ jobs:
           sdk_path="$(tail -1 /tmp/sdk_stdout)"
           echo "Resolved SDK path: $sdk_path"
           case "$sdk_path" in
-            /app/sdk/*) ;;
+            /sdks/python/*) ;;
             *)
-              echo "Expected SDK to resolve from /app/sdk, got: $sdk_path"
+              echo "Expected SDK to resolve from /sdks/python, got: $sdk_path"
               exit 1
               ;;
           esac

@@ -4,4 +4,4 @@ FROM ghcr.io/agenta-ai/agenta-web:latest
 ENV HOSTNAME="0.0.0.0"
 ENV AGENTA_LICENSE=oss
 
-CMD ["sh", "-c", "/app/entrypoint.sh node /app/oss/server.js"]
+CMD ["sh", "-c", "/web/entrypoint.sh node /web/oss/server.js"]

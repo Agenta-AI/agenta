@@ -14,7 +14,7 @@ To make migrations after creating a new table schema or modifying a current colu
 
 
 ```bash
-docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/tracing agenta-oss-dev-api-1 alembic -c alembic.ini revision --autogenerate -m "migration message"
+docker exec -e PYTHONPATH=/api -w /api/oss/databases/postgres/migrations/tracing agenta-oss-dev-api-1 alembic -c alembic.ini revision --autogenerate -m "migration message"
 ```
 
 The above command will create a script that contains the changes that was made to the database schema. Kindly update "migration message" with a message that is clear to indicate what change was made. Here are some examples:
@@ -26,7 +26,7 @@ The above command will create a script that contains the changes that was made t
 ### Applying Migrations
 
 ```bash
-docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/tracing agenta-oss-dev-api-1 alembic -c alembic.ini upgrade head
+docker exec -e PYTHONPATH=/api -w /api/oss/databases/postgres/migrations/tracing agenta-oss-dev-api-1 alembic -c alembic.ini upgrade head
 ```
 
 The above command will be used to apply the changes in the script created to the database table(s).

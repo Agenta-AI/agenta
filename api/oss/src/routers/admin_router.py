@@ -152,6 +152,7 @@ class ReferenceTracker(BaseModel):
     "/accounts",
     operation_id="create_accounts",
     response_model=ScopesResponseModel,
+    include_in_schema=False,
 )
 async def create_accounts(
     entities: EntitiesRequestModel,

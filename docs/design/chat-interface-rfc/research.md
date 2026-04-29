@@ -223,7 +223,7 @@ class evaluator(workflow):
 | `sdk/agenta/sdk/decorators/routing.py` | Add `flags: Optional[dict]` to new `route` and pass to `auto_workflow()` |
 | `sdk/agenta/sdk/models/workflows.py` | (Optional) Add `is_chat` to `WorkflowFlags` for type hints |
 | `api/oss/src/core/workflows/dtos.py` | (Optional) Add `is_chat` to API `WorkflowFlags` |
-| `sdk/scripts/setup_fern.sh` | (Optional) Regenerate Fern client after backend updates |
+| `sdk/scripts/setup.sh` | (Optional) Regenerate Fern client after backend updates |
 
 ### Frontend (Phase 2)
 

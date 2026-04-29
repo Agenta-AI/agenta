@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.openapi.utils import get_openapi
 
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -104,29 +105,42 @@ def extend_main(app: FastAPI):
 
 
 def extend_app_schema(app: FastAPI):
-    app.openapi()["info"]["title"] = "Agenta API"
-    app.openapi()["info"]["description"] = "Agenta API"
-    app.openapi()["info"]["contact"] = {
-        "name": "Agenta",
-        "url": "https://agenta.ai",
-        "email": "team@agenta.ai",
-    }
-    app.openapi()["components"]["securitySchemes"] = {
-        "APIKeyHeader": {
-            "type": "apiKey",
-            "name": "Authorization",
-            "in": "header",
+    def custom_openapi():
+        if app.openapi_schema is not None:
+            return app.openapi_schema
+
+        schema = get_openapi(
+            title="Agenta API",
+            version=app.version,
+            description="Agenta API",
+            routes=app.routes,
+        )
+        schema["info"]["contact"] = {
+            "name": "Agenta",
+            "url": "https://agenta.ai",
+            "email": "team@agenta.ai",
         }
-    }
-    app.openapi()["security"] = [
-        {
-            "APIKeyHeader": [],
-        },
-    ]
-    app.openapi()["servers"] = [
-        {
-            "url": env.agenta.api_url,
-        },
-    ]
+        schema.setdefault("components", {})["securitySchemes"] = {
+            "APIKeyHeader": {
+                "type": "apiKey",
+                "name": "Authorization",
+                "in": "header",
+            }
+        }
+        schema["security"] = [
+            {
+                "APIKeyHeader": [],
+            },
+        ]
+        schema["servers"] = [
+            {
+                "url": env.agenta.api_url,
+            },
+        ]
+        app.openapi_schema = schema
+        return app.openapi_schema
+
+    app.openapi_schema = None
+    app.openapi = custom_openapi
 
     return app

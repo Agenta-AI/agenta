@@ -20,22 +20,36 @@ if ! command -v docker >/dev/null 2>&1; then
     exit 1
 fi
 
-SDK_SOURCE_DIR="$ROOT_DIR/sdk"
-API_SDK_DIR="$ROOT_DIR/api/sdk"
-SERVICES_SDK_DIR="$ROOT_DIR/services/sdk"
+SDKS_SOURCE_DIR="$ROOT_DIR/sdks"
+API_SDKS_DIR="$ROOT_DIR/api/sdks"
+SERVICES_SDKS_DIR="$ROOT_DIR/services/sdks"
 
-if [ ! -d "$SDK_SOURCE_DIR" ]; then
-    printf "Missing SDK directory: %s\n" "$SDK_SOURCE_DIR" >&2
+CLIENTS_SOURCE_DIR="$ROOT_DIR/clients"
+API_CLIENTS_DIR="$ROOT_DIR/api/clients"
+SERVICES_CLIENTS_DIR="$ROOT_DIR/services/clients"
+
+if [ ! -d "$SDKS_SOURCE_DIR" ]; then
+    printf "Missing SDKs directory: %s\n" "$SDKS_SOURCE_DIR" >&2
     exit 1
 fi
 
-if [ -e "$API_SDK_DIR" ] || [ -e "$SERVICES_SDK_DIR" ]; then
-    printf "Refusing to overwrite existing sdk build directories in api/ or services/.\n" >&2
+if [ ! -d "$CLIENTS_SOURCE_DIR" ]; then
+    printf "Missing clients directory: %s\n" "$CLIENTS_SOURCE_DIR" >&2
+    exit 1
+fi
+
+if [ -e "$API_SDKS_DIR" ] || [ -e "$SERVICES_SDKS_DIR" ]; then
+    printf "Refusing to overwrite existing sdks build directories in api/ or services/.\n" >&2
+    exit 1
+fi
+
+if [ -e "$API_CLIENTS_DIR" ] || [ -e "$SERVICES_CLIENTS_DIR" ]; then
+    printf "Refusing to overwrite existing clients build directories in api/ or services/.\n" >&2
     exit 1
 fi
 
 cleanup_sdk_dirs() {
-    rm -rf "$API_SDK_DIR" "$SERVICES_SDK_DIR"
+    rm -rf "$API_SDKS_DIR" "$SERVICES_SDKS_DIR" "$API_CLIENTS_DIR" "$SERVICES_CLIENTS_DIR"
 }
 
 trap cleanup_sdk_dirs EXIT
@@ -46,8 +60,10 @@ SERVICES_IMAGE="${REGISTRY}/${NAMESPACE}/agenta-services:${TAG}"
 
 printf "Building local images with tag '%s'\n" "$TAG"
 
-cp -R "$SDK_SOURCE_DIR" "$API_SDK_DIR"
-cp -R "$SDK_SOURCE_DIR" "$SERVICES_SDK_DIR"
+cp -R "$SDKS_SOURCE_DIR" "$API_SDKS_DIR"
+cp -R "$SDKS_SOURCE_DIR" "$SERVICES_SDKS_DIR"
+cp -R "$CLIENTS_SOURCE_DIR" "$API_CLIENTS_DIR"
+cp -R "$CLIENTS_SOURCE_DIR" "$SERVICES_CLIENTS_DIR"
 
 docker build -t "$API_IMAGE" -f "$ROOT_DIR/api/oss/docker/Dockerfile.gh" "$ROOT_DIR/api"
 docker build -t "$WEB_IMAGE" -f "$ROOT_DIR/web/oss/docker/Dockerfile.gh" "$ROOT_DIR/web"
