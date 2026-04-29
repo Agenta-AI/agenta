@@ -6,6 +6,7 @@ Planning workspace for unifying the runtime pieces used by LLM-as-a-judge and ch
 
 - `context.md` - Background, goals, non-goals, and scope clarification.
 - `research.md` - Codebase findings, relevant files, and current flow differences.
+- `variable-and-template-analysis.md` - Current input variables, value formats, and prompt-template behavior across judge, chat, and completion.
 - `plan.md` - Phased implementation plan.
 - `implementation-notes.md` - Concrete backend/frontend changes and compatibility notes.
 - `qa.md` - Validation scenarios and test coverage.

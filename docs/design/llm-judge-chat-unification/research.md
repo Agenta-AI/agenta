@@ -8,6 +8,7 @@
 - `completion_v0` and `chat_v0` call `mockllm.acompletion(...)` under `mockllm.user_aws_credentials_from(provider_settings)` with provider settings merged into the request.
 - `PromptTemplate` in `sdk/agenta/sdk/utils/types.py` supports `curly`, `fstring`, and `jinja2`, renders message content, recursively substitutes variables into response-format JSON, and converts prompt config into OpenAI/LiteLLM kwargs.
 - `auto_ai_critique_v0` has a local render path over `prompt_template` and `response_format` construction, so rendering behavior can drift from chat/completion.
+- `auto_ai_critique_v0` currently sends `temperature=0.01`. This should not be preserved in the shared call path because some newer models reject temperature. The compatibility target is the evaluator config/output contract, not preserving an unsupported optional provider kwarg.
 
 ## Frontend Findings
 
@@ -29,5 +30,5 @@
 
 - `chat_v0` currently mutates `inputs` with `inputs.pop("messages", None)` without guarding `inputs is None`. This is adjacent but out of scope unless helper extraction touches that path.
 - `threshold = parameters.get("threshold") or 0.5` rejects integer thresholds because the later validation requires `float`. Avoid changing this unless tests already cover it or product explicitly asks.
-- `auto_ai_critique_v0` has a hard-coded `temperature=0.01`. Preserve this behavior for compatibility.
+- Do not carry over the hard-coded `temperature=0.01` from `auto_ai_critique_v0`; preserving it would keep breaking models that reject temperature. The safer compatibility boundary is no stored config migration and unchanged result shape.
 - The frontend should not start persisting nested `prompt.llm_config` as the backend source of truth for old judge evaluators. Flatten back to `model`.

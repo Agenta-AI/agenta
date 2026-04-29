@@ -8,7 +8,7 @@ Steps:
 
 1. Replace manual standard-provider key extraction with the same workflow-secret path used by chat/completion.
 2. Resolve provider settings with `SecretsManager.get_provider_settings_from_workflow(model)`.
-3. Call the LLM using the resolved provider settings, preserving `temperature=0.01` and evaluator `response_format`.
+3. Call the LLM using the resolved provider settings and evaluator `response_format`, without injecting temperature or other optional model parameters.
 4. Reuse the existing `PromptTemplate` rendering path or a small shared rendering helper that mirrors it for flat `prompt_template`.
 5. Preserve current context variables: direct input keys, `inputs`, `outputs`, `prediction`, `ground_truth`, `correct_answer`, `reference`, `trace`, and `parameters`.
 6. Keep result parsing and return behavior unchanged.
@@ -27,6 +27,7 @@ Steps:
 4. Move LLM call execution into one function that accepts OpenAI/LiteLLM kwargs plus provider settings.
 5. Keep adapter-specific output extraction in `completion_v0`, `chat_v0`, and `auto_ai_critique_v0` so public outputs remain unchanged.
 6. Add tests around the helper and existing handlers before and after extraction.
+7. Use `variable-and-template-analysis.md` as the decision checklist for which context variables and formatting behavior are intentionally shared versus handler-specific.
 
 Milestone: Chat, completion, and judge use one runtime call path for provider resolution and prompt rendering.
 

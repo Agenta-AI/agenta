@@ -24,3 +24,5 @@ The LLM-as-a-judge evaluator (`auto_ai_critique_v0`) and the chat/completion app
 ## Scope Clarification
 
 The earlier “include full `llm_config`” idea should be narrowed. For this plan, frontend work means preserving model selection through the existing nested UI shape and ensuring custom/self-hosted model options remain available and persisted back to the flat `model` field. It does not mean exposing temperature, max tokens, tools, or response-format controls as new judge configuration features.
+
+Adding optional LLM parameters later can be backward compatible for stored evaluator configs if the new fields are optional, omitted by default, and flattened back into the existing judge contract only when explicitly configured. It is not automatically runtime-compatible, though: sending defaults such as `temperature` can break models that reject those parameters. That is why this plan treats extra model parameters as a separate product/API decision and only fixes model/provider resolution now.

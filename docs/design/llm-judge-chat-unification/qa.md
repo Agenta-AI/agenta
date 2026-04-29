@@ -27,7 +27,8 @@ Cover these cases with mocked dependencies:
 - `auto_ai_critique_v0` calls `SecretsManager.ensure_secrets_in_workflow()` and `SecretsManager.get_provider_settings_from_workflow(model)` for the configured model.
 - A custom/self-hosted model key returned by provider settings is passed to the LLM call through provider settings, not as a raw unsupported model string.
 - Missing provider settings raises `InvalidSecretsV0Error` with the selected model.
-- Existing judge call kwargs are preserved: rendered `messages`, `temperature=0.01`, and `response_format`.
+- Existing judge call kwargs are preserved where compatible: rendered `messages` and `response_format`.
+- The judge LLM call does not send `temperature` unless a future explicit judge config field is introduced.
 - Valid JSON model output is parsed and returned as a dict unchanged.
 - Numeric model output still returns `{score, success}` using the existing threshold behavior.
 - Boolean model output still returns `{success}`.
@@ -50,6 +51,7 @@ After Phase 2, add tests for the extracted helper itself:
 - Provider settings resolution raises the same domain error for missing settings.
 - Message rendering handles `curly`, `fstring`, and `jinja2` formats consistently with `PromptTemplate`.
 - Completion call helper strips or overrides raw `model` kwargs so provider settings remain authoritative, matching current chat/completion behavior.
+- Completion call helper does not inject optional kwargs such as `temperature` for judge unless they come from an existing supported config path.
 
 Keep adapter-specific return-shape tests in handler tests, not helper tests.
 
