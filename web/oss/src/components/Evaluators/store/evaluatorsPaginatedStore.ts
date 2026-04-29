@@ -116,6 +116,22 @@ function isHumanEvaluator(revision: Workflow | null | undefined): boolean {
     return Boolean(revision.flags?.is_feedback)
 }
 
+/**
+ * Determine if a workflow revision is platform-managed (URI rooted at
+ * `agenta:*`). User-deployed Python evaluators registered via the SDK
+ * get auto-generated URIs like `user:custom:__main__.MyEval:latest` —
+ * those are operationally evaluators but aren't first-class catalog
+ * entries the Evaluators page is built around, so we filter them out.
+ *
+ * The flag is URI-derived in the BE (`provider == "agenta"`) and lives
+ * on the revision (not artifact), so the check has to happen here after
+ * we've fetched the latest revision for category classification.
+ */
+function isManagedEvaluator(revision: Workflow | null | undefined): boolean {
+    if (!revision) return false
+    return Boolean(revision.flags?.is_managed)
+}
+
 async function ensureWorkflowIdCache(
     projectId: string,
     category: EvaluatorCategory,
@@ -150,6 +166,9 @@ async function ensureWorkflowIdCache(
 
     const workflowIds = allWorkflowIds.filter((id) => {
         const revision = latestRevisions.get(id)
+        // Drop user-deployed evaluators (`is_managed=false`) — they're
+        // not catalog entries and shouldn't appear here.
+        if (!isManagedEvaluator(revision)) return false
         const isHuman = isHumanEvaluator(revision)
         return category === "human" ? isHuman : !isHuman
     })
@@ -215,7 +234,12 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
         const response = await queryWorkflowRevisionsByWorkflows(
             cache.workflowIds,
             meta.projectId,
-            {is_evaluator: true},
+            // `is_managed: true` mirrors the workflow-id pre-filter in
+            // `ensureWorkflowIdCache`. Belt-and-suspenders — the BE
+            // applies the same filter on the revision side so we never
+            // surface a user-deployed evaluator if the cache somehow
+            // regresses.
+            {is_evaluator: true, is_managed: true},
             {next: cursor ?? undefined, limit: limit ?? undefined, order: "descending"},
             meta.searchTerm,
         )
