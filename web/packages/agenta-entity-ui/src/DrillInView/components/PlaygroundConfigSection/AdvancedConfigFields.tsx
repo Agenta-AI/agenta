@@ -1,4 +1,5 @@
-import {memo, useEffect, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useRef, useState} from "react"
+import type {PointerEvent} from "react"
 
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {HeightCollapse} from "@agenta/ui"
@@ -14,6 +15,32 @@ export interface AdvancedConfigFieldsProps {
     value: Record<string, unknown>
     onChange: (key: string, next: unknown) => void
     disabled?: boolean
+}
+
+interface ScrollSnapshot {
+    element: HTMLElement
+    top: number
+}
+
+const getNearestScrollSnapshot = (element: HTMLElement | null): ScrollSnapshot | null => {
+    if (typeof window === "undefined") return null
+    let current = element?.parentElement ?? null
+
+    while (current) {
+        const {overflowY} = window.getComputedStyle(current)
+        const canScroll = /(auto|scroll|overlay)/.test(overflowY)
+
+        if (canScroll && current.scrollHeight > current.clientHeight) {
+            return {
+                element: current,
+                top: current.scrollTop,
+            }
+        }
+
+        current = current.parentElement
+    }
+
+    return null
 }
 
 export const AdvancedConfigFields = memo(function AdvancedConfigFields({
@@ -82,6 +109,7 @@ const AdvancedJsonField = memo(function AdvancedJsonField({
     const [editorValue, setEditorValue] = useState(externalEditorValue)
     const [parseError, setParseError] = useState<string | null>(null)
     const isFocusedRef = useRef(false)
+    const scrollSnapshotRef = useRef<ScrollSnapshot | null>(null)
 
     useEffect(() => {
         if (!isFocusedRef.current || externalEditorValue === "") {
@@ -127,6 +155,27 @@ const AdvancedJsonField = memo(function AdvancedJsonField({
         onChange(fieldKey, parsed)
     }
 
+    const captureScrollPosition = useCallback((event: PointerEvent<HTMLDivElement>) => {
+        scrollSnapshotRef.current = getNearestScrollSnapshot(event.currentTarget)
+    }, [])
+
+    const restoreScrollPosition = useCallback(() => {
+        const snapshot = scrollSnapshotRef.current
+        scrollSnapshotRef.current = null
+        if (!snapshot?.element.isConnected) return
+
+        if (typeof window === "undefined") return
+
+        const restore = () => {
+            snapshot.element.scrollTop = snapshot.top
+        }
+
+        // Lexical/browser focus can scroll the AntD tab body to reveal the editor selection.
+        restore()
+        window.setTimeout(restore, 0)
+        window.requestAnimationFrame(restore)
+    }, [])
+
     return (
         <div className="flex flex-col gap-1">
             <div className="flex flex-col gap-0.5">
@@ -146,6 +195,9 @@ const AdvancedJsonField = memo(function AdvancedJsonField({
                 disabled={disabled}
                 disableDebounce
                 className="min-h-[96px] overflow-hidden"
+                onPointerDownCapture={captureScrollPosition}
+                onFocusCapture={restoreScrollPosition}
+                onClickCapture={restoreScrollPosition}
                 editorProps={{
                     codeOnly: true,
                     language: "json",
