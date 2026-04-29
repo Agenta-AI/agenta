@@ -14,10 +14,11 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
-import {openCustomWorkflowModalAtom} from "@/oss/state/customWorkflow/modalAtoms"
+
+import {getAppTypeIcon} from "../../../prompts/assets/iconHelpers"
 
 interface CreateAppDropdownItem {
-    type: AppType | "custom"
+    type: AppType
     label: string
     description: string
     testId: string
@@ -36,12 +37,6 @@ const ITEMS: CreateAppDropdownItem[] = [
         description: "Single-shot prompt completion.",
         testId: "create-app-dropdown-completion",
     },
-    {
-        type: "custom",
-        label: "Custom workflow",
-        description: "Bring your own workflow service URL.",
-        testId: "create-app-dropdown-custom",
-    },
 ]
 
 interface CreateAppDropdownProps {
@@ -59,7 +54,8 @@ interface CreateAppDropdownProps {
  * ephemeral → real app + variant + v1 in one server call, drawer closes, user
  * lands on `/apps/<new_app_id>/playground?revisions=<new_revision_id>`.
  *
- * Custom: opens the existing `CustomWorkflowModal` (unchanged eager-create path).
+ * Custom workflow has its own entry point ("Set up workflow" in the prompts
+ * breadcrumb / table action menu) and is intentionally not surfaced here.
  *
  * Race guard: rapid double-click is handled with `useTransition` + `AbortController`.
  * While a factory call is in-flight, dropdown items are disabled and any newer
@@ -73,7 +69,6 @@ const CreateAppDropdown = ({trigger, className}: CreateAppDropdownProps) => {
     const router = useRouter()
     const {baseAppURL} = useURL()
     const setOpenDrawer = useSetAtom(openWorkflowRevisionDrawerAtom)
-    const openCustomWorkflowModal = useSetAtom(openCustomWorkflowModalAtom)
 
     // Pre-fetch the catalog templates as soon as the dropdown mounts so the
     // factory has data ready when the user clicks Chat / Completion. Without
@@ -85,11 +80,6 @@ const CreateAppDropdown = ({trigger, className}: CreateAppDropdownProps) => {
         (item: CreateAppDropdownItem) => {
             if (isPending) return
             setOpen(false)
-
-            if (item.type === "custom") {
-                openCustomWorkflowModal({appId: null})
-                return
-            }
 
             // Cancel any prior in-flight request (rapid double-click pre-pending).
             inflightRef.current?.abort()
@@ -134,7 +124,7 @@ const CreateAppDropdown = ({trigger, className}: CreateAppDropdownProps) => {
                 }
             })
         },
-        [baseAppURL, isPending, openCustomWorkflowModal, router, setOpenDrawer],
+        [baseAppURL, isPending, router, setOpenDrawer],
     )
 
     const popoverContent = useMemo(
@@ -147,7 +137,7 @@ const CreateAppDropdown = ({trigger, className}: CreateAppDropdownProps) => {
                 </div>
                 <div className="flex flex-col">
                     {ITEMS.map((item) => {
-                        const disabled = isPending && item.type !== "custom"
+                        const disabled = isPending
                         return (
                             <div
                                 key={item.type}
@@ -155,7 +145,7 @@ const CreateAppDropdown = ({trigger, className}: CreateAppDropdownProps) => {
                                 className={cn(
                                     "border-0 border-b border-solid last:border-b-0",
                                     borderColors.secondary,
-                                    "min-h-[56px] flex flex-col justify-center gap-1 py-2 px-4",
+                                    "min-h-[56px] flex items-center gap-3 py-2 px-4",
                                     "group transition-colors",
                                     disabled
                                         ? "cursor-not-allowed opacity-50"
@@ -164,27 +154,37 @@ const CreateAppDropdown = ({trigger, className}: CreateAppDropdownProps) => {
                                 data-testid={item.testId}
                                 aria-disabled={disabled}
                             >
-                                <div className="flex items-center gap-2">
-                                    <Typography.Text className="text-sm font-medium">
-                                        {item.label}
-                                    </Typography.Text>
-                                    {!disabled && (
-                                        <ArrowRight
-                                            size={12}
-                                            className={cn(
-                                                textColors.tertiary,
-                                                "opacity-0 group-hover:opacity-100",
-                                                "-translate-x-2 group-hover:translate-x-0",
-                                                "transition-all duration-200 ease-in-out",
-                                            )}
-                                        />
+                                <span
+                                    className={cn(
+                                        "flex-shrink-0 flex items-center",
+                                        textColors.tertiary,
                                     )}
-                                </div>
-                                <Typography.Text
-                                    className={cn("text-xs line-clamp-1", textColors.tertiary)}
                                 >
-                                    {item.description}
-                                </Typography.Text>
+                                    {getAppTypeIcon(item.type)}
+                                </span>
+                                <div className="flex flex-col gap-1 min-w-0 flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <Typography.Text className="text-xs font-medium">
+                                            {item.label}
+                                        </Typography.Text>
+                                        {!disabled && (
+                                            <ArrowRight
+                                                size={12}
+                                                className={cn(
+                                                    textColors.tertiary,
+                                                    "opacity-0 group-hover:opacity-100",
+                                                    "-translate-x-2 group-hover:translate-x-0",
+                                                    "transition-all duration-200 ease-in-out",
+                                                )}
+                                            />
+                                        )}
+                                    </div>
+                                    <Typography.Text
+                                        className={cn("text-xs line-clamp-1", textColors.tertiary)}
+                                    >
+                                        {item.description}
+                                    </Typography.Text>
+                                </div>
                             </div>
                         )
                     })}

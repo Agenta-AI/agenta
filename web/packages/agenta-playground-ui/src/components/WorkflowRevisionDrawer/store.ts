@@ -133,13 +133,18 @@ export const openWorkflowRevisionDrawerAtom = atom(null, (get, set, params: Open
     }
 
     // Prefer the new callback shape; bridge the deprecated one.
+    //
+    // Wrap the callback in an updater (`() => fn`). Jotai's primitive atoms
+    // treat a function value passed to `set` as an updater and invoke it with
+    // the current value — storing a callback directly would fire it once with
+    // `undefined` and persist the return value instead of the callback itself.
     if (params.onWorkflowCreated) {
-        set(workflowRevisionDrawerCallbackAtom, params.onWorkflowCreated)
+        const cb = params.onWorkflowCreated
+        set(workflowRevisionDrawerCallbackAtom, () => cb)
     } else if (params.onEvaluatorCreated) {
         const legacy = params.onEvaluatorCreated
-        set(workflowRevisionDrawerCallbackAtom, (result: {configId?: string}) =>
-            legacy(result.configId),
-        )
+        const bridged = (result: {configId?: string}) => legacy(result?.configId)
+        set(workflowRevisionDrawerCallbackAtom, () => bridged)
     } else {
         set(workflowRevisionDrawerCallbackAtom, undefined)
     }
