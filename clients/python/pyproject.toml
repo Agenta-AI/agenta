@@ -8,7 +8,7 @@ description = "Fern-generated Python client for the Agenta API."
 authors = [
     "Juan Vega <jp@agenta.ai>"
 ]
-packages = [{ include = "agenta_client", from = "src" }]
+packages = [{ include = "agenta_client" }]
 
 [tool.poetry.dependencies]
 python = "^3.11"

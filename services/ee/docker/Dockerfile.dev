@@ -16,10 +16,10 @@ RUN groupadd --gid 10001 agenta && \
 COPY --chown=agenta:agenta ./oss /services/oss/
 COPY --chown=agenta:agenta ./entrypoints /services/entrypoints/
 
-ENV PYTHONPATH=/sdk:/clients/python/src:$PYTHONPATH
+ENV PYTHONPATH=/sdks/python:/clients/python:$PYTHONPATH
 
-RUN echo "/clients/python/src" > /usr/local/lib/python3.11/site-packages/agenta_client_path.pth \
-    && echo "/sdk" >> /usr/local/lib/python3.11/site-packages/agenta_client_path.pth
+RUN echo "/clients/python" > /usr/local/lib/python3.11/site-packages/agenta_client_path.pth \
+    && echo "/sdks/python" >> /usr/local/lib/python3.11/site-packages/agenta_client_path.pth
 
 USER 10001
 

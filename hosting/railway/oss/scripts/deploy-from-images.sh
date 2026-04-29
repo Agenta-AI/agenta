@@ -133,7 +133,7 @@ FROM ${AGENTA_WEB_IMAGE}
 ENV HOSTNAME=0.0.0.0
 ENV AGENTA_LICENSE=oss
 
-CMD ["sh", "-lc", "/app/entrypoint.sh node /app/oss/server.js"]
+CMD ["sh", "-lc", "/web/entrypoint.sh node /web/oss/server.js"]
 EOF
 }
 

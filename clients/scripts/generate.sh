@@ -156,7 +156,7 @@ groups:
           skip_formatting: true
         output:
           location: local-file-system
-          path: src/agenta_client
+          path: agenta_client
 EOF
 }
 
@@ -187,7 +187,7 @@ bootstrap_python_layout() {
   local client_root="$1"
 
   log "bootstrapping Python client layout in ${client_root}"
-  mkdir -p "${client_root}/src/agenta_client"
+  mkdir -p "${client_root}/agenta_client"
 
   if [[ ! -f "${client_root}/pyproject.toml" ]]; then
     log "writing pyproject.toml in ${client_root}"
@@ -202,7 +202,7 @@ description = "Fern-generated Python client for the Agenta API."
 authors = [
     "Juan Vega <jp@agenta.ai>"
 ]
-packages = [{ include = "agenta_client", from = "src" }]
+packages = [{ include = "agenta_client" }]
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -313,8 +313,8 @@ EOF
 
 generate_python() {
   local client_root="${CLIENTS_ROOT}/python"
-  local target_dir="${client_root}/src/agenta_client"
-  local sdk_mirror_dir="${CLIENTS_ROOT}/../sdk/agenta_client"
+  local target_dir="${client_root}/agenta_client"
+  local sdk_mirror_dir="${CLIENTS_ROOT}/../sdks/python/agenta_client"
   local fern_dir="${client_root}/fern"
   local fern_output_dir="${fern_dir}/src/agenta_client"
   local latest_version

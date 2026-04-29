@@ -77,9 +77,9 @@ services:
                 "8000",
                 "--reload",
                 "--reload-dir",
-                "/sdk",
+                "/sdks/python",
                 "--reload-dir",
-                "/clients/python/src",
+                "/clients/python",
                 "--root-path",
                 "/api",
             ]
@@ -88,8 +88,8 @@ services:
             - ../../../api/ee:/api/ee
             - ../../../api/oss:/api/oss
             - ../../../api/entrypoints:/api/entrypoints
-            - ../../../sdks/python:/sdk
-            - ../../../clients/python/src:/clients/python/src
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -136,8 +136,8 @@ services:
             - ../../../api/ee:/api/ee
             - ../../../api/oss:/api/oss
             - ../../../api/entrypoints:/api/entrypoints
-            - ../../../sdks/python:/sdk
-            - ../../../clients/python/src:/clients/python/src
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -173,8 +173,8 @@ services:
             - ../../../api/ee:/api/ee
             - ../../../api/oss:/api/oss
             - ../../../api/entrypoints:/api/entrypoints
-            - ../../../sdks/python:/sdk
-            - ../../../clients/python/src:/clients/python/src
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -210,8 +210,8 @@ services:
             - ../../../api/ee:/api/ee
             - ../../../api/oss:/api/oss
             - ../../../api/entrypoints:/api/entrypoints
-            - ../../../sdks/python:/sdk
-            - ../../../clients/python/src:/clients/python/src
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -253,8 +253,8 @@ services:
             - ../../../api/ee:/api/ee
             - ../../../api/oss:/api/oss
             - ../../../api/entrypoints:/api/entrypoints
-            - ../../../sdks/python:/sdk
-            - ../../../clients/python/src:/clients/python/src
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -322,8 +322,8 @@ services:
             - ../../../api/ee:/api/ee
             - ../../../api/oss:/api/oss
             - ../../../api/entrypoints:/api/entrypoints
-            - ../../../sdks/python:/sdk
-            - ../../../clients/python/src:/clients/python/src
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -351,17 +351,17 @@ services:
                 "8080",
                 "--reload",
                 "--reload-dir",
-                "/sdk",
+                "/sdks/python",
                 "--reload-dir",
-                "/clients/python/src",
+                "/clients/python",
                 "--root-path",
                 "/services",
             ]
         # === STORAGE ============================================== #
         volumes:
             - ../../../services:/services
-            - ../../../sdks/python:/sdk
-            - ../../../clients/python/src:/clients/python/src
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}

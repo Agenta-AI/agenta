@@ -44,15 +44,14 @@ RUN --mount=type=cache,id=pip-api,target=/root/.cache/pip \
     && find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 
 # Copy and install SDK first (changes less frequently than app code)
-RUN mkdir -p /sdk
-COPY ./sdks/python /sdk/
-COPY ./client[s] /clients/
+COPY ./sdks/python /sdks/python/
+COPY ./clients/python /clients/python/
 
 RUN --mount=type=cache,id=pip-api,target=/root/.cache/pip \
-    if [ -f /sdk/pyproject.toml ]; then \
+    if [ -f /sdks/python/pyproject.toml ]; then \
         . /opt/venv/bin/activate && \
         pip install pip && \
-        pip install --editable /sdk && \
+        pip install --editable /sdks/python && \
         (pip uninstall -y pip 2>/dev/null || true); \
     fi
 
@@ -71,7 +70,7 @@ WORKDIR /api
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/api:/sdk \
+    PYTHONPATH=/api:/sdks/python:/clients/python \
     PATH="/opt/venv/bin:${PATH}"
 
 # Hardcode bookworm codename to avoid pulling in lsb-release (+ perl ~56MB).
@@ -112,7 +111,8 @@ COPY --from=builder /opt/venv /opt/venv
 # Copy app code last (changes most frequently)
 COPY --chown=agenta:agenta --from=builder /api/oss /api/oss
 COPY --chown=agenta:agenta --from=builder /api/entrypoints /api/entrypoints
-COPY --chown=agenta:agenta --from=builder /sdk /sdk
+COPY --chown=agenta:agenta --from=builder /sdks/python /sdks/python
+COPY --chown=agenta:agenta --from=builder /clients/python /clients/python
 
 # Generate supercronic-compatible crontab (strip user field and /proc redirects)
 RUN set -eux; \

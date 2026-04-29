@@ -16,7 +16,7 @@ pydantic = "^2"
 
 [package.source]
 type = "directory"
-url = "../clients/python"
+url = "../../clients/python"
 
 [[package]]
 name = "aiofiles"
@@ -3729,4 +3729,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "397377cc960b0795826beca212a2eab7bce0b04a0b5a201ce1ec49ac804dbf52"
+content-hash = "8619f62b560f2803f42b7aadf57d790612d3fc8639889da5bfefee8fefa52c09"
