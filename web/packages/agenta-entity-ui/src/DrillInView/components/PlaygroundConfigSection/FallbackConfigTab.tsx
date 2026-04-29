@@ -57,6 +57,7 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                         <a
                             href="https://agenta.ai/docs/prompt-engineering/integrating-prompts/fallback-models-and-retry"
                             target="_blank"
+                            rel="noopener noreferrer"
                             className="text-gray-500"
                         >
                             Learn more
