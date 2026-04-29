@@ -165,9 +165,9 @@ jobs:
           sdk_path="$(tail -1 /tmp/sdk_stdout)"
           echo "Resolved SDK path: $sdk_path"
           case "$sdk_path" in
-            /sdk/*) ;;
+            /sdks/python/*) ;;
             *)
-              echo "Expected SDK to resolve from /sdk, got: $sdk_path"
+              echo "Expected SDK to resolve from /sdks/python, got: $sdk_path"
               exit 1
               ;;
           esac
