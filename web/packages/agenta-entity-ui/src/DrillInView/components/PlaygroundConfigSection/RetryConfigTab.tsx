@@ -61,7 +61,7 @@ export const RetryConfigTab = memo(function RetryConfigTab({
             <div className="flex items-center justify-between gap-3">
                 <div className="flex flex-col gap-0.5">
                     <Typography.Text>{formatLabel(title || key)}</Typography.Text>
-                    <Typography.Text type="secondary" className="text-xs leading-snug">
+                    <Typography.Text type="secondary" className=" leading-snug">
                         {description || fallbackDescription}
                     </Typography.Text>
                 </div>
@@ -90,8 +90,15 @@ export const RetryConfigTab = memo(function RetryConfigTab({
             <div className="flex flex-col gap-1">
                 <div className="flex flex-col gap-0.5">
                     <Typography.Text>{policyTitle}</Typography.Text>
-                    <Typography.Text type="secondary" className="text-xs leading-snug">
-                        {policyDescription}
+                    <Typography.Text type="secondary" className="leading-snug">
+                        {policyDescription}{" "}
+                        <a
+                            href="https://agenta.ai/docs/prompt-engineering/integrating-prompts/fallback-models-and-retry"
+                            target="_blank"
+                            className="text-gray-500"
+                        >
+                            Learn more
+                        </a>
                     </Typography.Text>
                 </div>
                 <Select
@@ -108,7 +115,7 @@ export const RetryConfigTab = memo(function RetryConfigTab({
                             <div className="flex items-center justify-between gap-3">
                                 <span>{option.label}</span>
                                 {description && (
-                                    <Typography.Text type="secondary" className="text-xs">
+                                    <Typography.Text type="secondary">
                                         {description}
                                     </Typography.Text>
                                 )}

@@ -1,4 +1,4 @@
-import {memo, useEffect, useState} from "react"
+import {memo, useEffect, useRef, useState} from "react"
 
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {HeightCollapse} from "@agenta/ui"
@@ -81,14 +81,14 @@ const AdvancedJsonField = memo(function AdvancedJsonField({
     const externalEditorValue = value == null ? "" : JSON.stringify(value, null, 2)
     const [editorValue, setEditorValue] = useState(externalEditorValue)
     const [parseError, setParseError] = useState<string | null>(null)
-    const [isFocused, setIsFocused] = useState(false)
+    const isFocusedRef = useRef(false)
 
     useEffect(() => {
-        if (!isFocused || externalEditorValue === "") {
+        if (!isFocusedRef.current || externalEditorValue === "") {
             setEditorValue(externalEditorValue)
             setParseError(null)
         }
-    }, [externalEditorValue, isFocused])
+    }, [externalEditorValue])
 
     const validateAndEmit = (nextEditorValue: string) => {
         setEditorValue(nextEditorValue)
@@ -152,7 +152,11 @@ const AdvancedJsonField = memo(function AdvancedJsonField({
                     showLineNumbers: false,
                 }}
                 onFocusChange={(focused) => {
-                    setIsFocused(focused)
+                    isFocusedRef.current = focused
+                    if (!focused) {
+                        setEditorValue(externalEditorValue)
+                        setParseError(null)
+                    }
                 }}
             />
             {parseError && (

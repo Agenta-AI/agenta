@@ -44,8 +44,7 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
         "Choose which failure types should try the fallback model list."
     const fallbackConfigsTitle = formatLabel(fallbackConfigsSchema?.title || "fallback_configs")
     const fallbackConfigsDescription =
-        fallbackConfigsSchema?.description ||
-        "Ordered backup models used when the fallback policy matches."
+        fallbackConfigsSchema?.description || "Add a fallback model to enable a policy."
     const isPolicyEnabled = !disabled && fallbackConfigs.length > 0
 
     return (
@@ -53,8 +52,15 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
             <div className="flex flex-col gap-2">
                 <div className="flex flex-col gap-0.5">
                     <Typography.Text>{fallbackConfigsTitle}</Typography.Text>
-                    <Typography.Text type="secondary" className="text-xs leading-snug">
-                        {fallbackConfigsDescription}
+                    <Typography.Text type="secondary" className="leading-snug">
+                        {fallbackConfigsDescription}{" "}
+                        <a
+                            href="https://agenta.ai/docs/prompt-engineering/integrating-prompts/fallback-models-and-retry"
+                            target="_blank"
+                            className="text-gray-500"
+                        >
+                            Learn more
+                        </a>
                     </Typography.Text>
                 </div>
                 {fallbackConfigs.map((config, index) => (
@@ -109,7 +115,7 @@ export const FallbackConfigTab = memo(function FallbackConfigTab({
                             <div className="flex items-center justify-between gap-3">
                                 <span>{option.label}</span>
                                 {description && (
-                                    <Typography.Text type="secondary" className="text-xs">
+                                    <Typography.Text type="secondary">
                                         {description}
                                     </Typography.Text>
                                 )}
