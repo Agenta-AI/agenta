@@ -1,7 +1,6 @@
 import {
     collectKeyPaths,
     extractAgData,
-    filterDataPaths,
     matchColumnsWithSuggestions,
     traceSpanMolecule,
     type TraceSpan,
@@ -131,10 +130,14 @@ export const traceDataFromEntitiesAtom = atom((get): TestsetTraceData[] => {
             }
         }
 
-        // Extract ag.data from entity attributes
+        // Testcase mirrors the source workflow's envelope: `inputs` and `outputs`
+        // columns hold ag.data.inputs and ag.data.outputs verbatim. For evaluator
+        // annotation spans that means `inputs` naturally contains the nested
+        // subject data — that's the evaluator workflow's actual input shape,
+        // and preserving it keeps replay honest.
         const agData = extractAgData(entity)
 
-        // Get original data for comparison/revert if dirty
+        // Get original data for comparison/revert if dirty.
         let originalData: Record<string, any> | null = null
         if (isDirty) {
             const queryState = get(traceSpanMolecule.selectors.query(spanId))
@@ -639,31 +642,30 @@ export const allTracePathsSelectOptionsAtom = atom((get) => {
 })
 
 /**
- * Derived: Leaf-only paths from trace data (no intermediate object paths)
- * Used for auto-mapping logic to avoid duplicate column mappings
- * Uses entity-derived trace data for reactive updates
+ * Derived: Canonical auto-mapping paths — `data.inputs` and `data.outputs`
+ * if present in any sampled trace.
+ *
+ * A testcase is a snapshot of one workflow invocation's envelope, so the
+ * default mapping is exactly the envelope's two top-level slots. Users can
+ * still manually select deeper paths via the AutoComplete dropdown
+ * (`allTracePathsAtom`), but we never auto-suggest leaf expansions — that
+ * shreds the envelope and breaks replay.
  */
-export const leafTracePathsAtom = atom((get) => {
+export const canonicalTracePathsAtom = atom((get) => {
     const traceData = get(traceDataFromEntitiesAtom)
     const sampledTraceData = traceData.slice(0, MAX_TRACE_ANALYSIS_SAMPLE_SIZE)
 
-    const uniquePaths = new Set<string>()
-    sampledTraceData.forEach((traceItem) => {
-        // Don't include object paths (false) for auto-mapping
-        const traceKeys = collectKeyPaths(traceItem?.data, "data", false)
-        traceKeys.forEach((key) => uniquePaths.add(key))
-    })
+    const hasInputs = sampledTraceData.some(
+        (item) => item?.data && (item.data as Record<string, unknown>).inputs !== undefined,
+    )
+    const hasOutputs = sampledTraceData.some(
+        (item) => item?.data && (item.data as Record<string, unknown>).outputs !== undefined,
+    )
 
-    return Array.from(uniquePaths)
-})
-
-/**
- * Derived: Filtered data paths from trace data (inputs/outputs/internals only)
- * Used for auto-mapping logic - uses leaf paths only to avoid duplicates
- */
-export const traceDataPathsAtom = atom((get) => {
-    const leafPaths = get(leafTracePathsAtom)
-    return filterDataPaths(leafPaths)
+    const paths: string[] = []
+    if (hasInputs) paths.push("data.inputs")
+    if (hasOutputs) paths.push("data.outputs")
+    return paths
 })
 
 /**
@@ -690,7 +692,7 @@ export const availableColumnsAtom = atom((get) => {
  * Returns suggested mappings that match data paths to existing or new columns
  */
 export const autoMappingSuggestionsAtom = atom((get) => {
-    const dataPaths = get(traceDataPathsAtom)
+    const dataPaths = get(canonicalTracePathsAtom)
     const availableColumns = get(availableColumnsAtom)
     const testsetInfo = get(selectedTestsetInfoAtom)
 
@@ -720,7 +722,7 @@ export const autoMappedTestsetIdAtom = atom<string | null>(null)
  * This is a pure derivation - no side effects
  */
 export const computedMappingSuggestionsAtom = atom((get) => {
-    const dataPaths = get(traceDataPathsAtom)
+    const dataPaths = get(canonicalTracePathsAtom)
     const testsetInfo = get(selectedTestsetInfoAtom)
     const isNewTestset = get(isNewTestsetAtom)
     const entityColumns = get(currentColumnsAtom)
@@ -788,7 +790,7 @@ export const applyAutoMappingAtom = atom(
             return null
         }
 
-        const dataPaths = get(traceDataPathsAtom)
+        const dataPaths = get(canonicalTracePathsAtom)
         const isNewTestset = get(isNewTestsetAtom)
         const currentMappings = get(mappingDataAtom)
 

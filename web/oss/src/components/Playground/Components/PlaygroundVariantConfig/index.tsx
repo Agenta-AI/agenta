@@ -20,6 +20,8 @@ import dynamic from "next/dynamic"
 
 import {extractJsonPaths, safeParseJson} from "@/oss/lib/helpers/extractJsonPaths"
 
+import {PlaygroundNodeTokenPathProvider} from "../../PlaygroundTokenPath"
+
 import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeader"
 import type {VariantConfigComponentProps} from "./types"
 
@@ -204,11 +206,19 @@ const PlaygroundVariantConfig: React.FC<
             ) : (
                 <>
                     <FieldsDetectionProvider value={fieldsDetectionValue}>
-                        <PlaygroundConfigSection
-                            revisionId={variantId}
-                            onRefinePrompt={handleRefinePrompt}
-                            viewMode={viewMode}
-                        />
+                        {/*
+                         * Scope the JSONPath typeahead to this node's
+                         * chain position. Surfaces `$.outputs.*` only
+                         * when the node has an upstream in the chain
+                         * DAG — evaluators fed by a variant, etc.
+                         */}
+                        <PlaygroundNodeTokenPathProvider entityId={variantId}>
+                            <PlaygroundConfigSection
+                                revisionId={variantId}
+                                onRefinePrompt={handleRefinePrompt}
+                                viewMode={viewMode}
+                            />
+                        </PlaygroundNodeTokenPathProvider>
                     </FieldsDetectionProvider>
                     {refinePromptKey && (
                         <RefinePromptModal

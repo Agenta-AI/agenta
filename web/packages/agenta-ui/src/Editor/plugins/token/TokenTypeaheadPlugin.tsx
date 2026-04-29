@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {KNOWN_ENVELOPE_SLOTS} from "@agenta/shared/utils"
 import {autoUpdate, flip, offset, shift, useFloating} from "@floating-ui/react"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {$getNodeByKey, $getSelection, $isRangeSelection} from "lexical"
@@ -7,6 +8,61 @@ import {createPortal} from "react-dom"
 
 import {navigateCursor} from "./assets/selectionUtils"
 import {$isTokenNode} from "./TokenNode"
+import {useTokenPathSuggestionsContext} from "./TokenPathSuggestionsContext"
+
+// ============================================================================
+// SUGGESTION MODEL
+// ============================================================================
+
+/**
+ * Unified suggestion item. Covers both legacy "completed token name" mode
+ * and path-aware mode (`$.<slot>.<root>.<...>`) so the render + keyboard
+ * handlers don't have to branch.
+ */
+interface Suggestion {
+    /** Displayed in the menu. */
+    label: string
+    /**
+     * Full `{{...}}` text to set on the token when chosen. Pre-rendering
+     * this at suggestion time keeps the selection handler stateless.
+     */
+    tokenText: string
+    /**
+     * Optional hint shown next to the label (e.g. "envelope slot").
+     * Helps users understand why a suggestion exists.
+     */
+    hint?: string
+}
+
+interface PathContext {
+    /** Path segments already committed before the current input (e.g. ["inputs"] when typing `$.inputs.ar`). */
+    prefix: string[]
+    /** Current (incomplete) segment the user is typing. */
+    current: string
+}
+
+/**
+ * Parse the inside of a `{{...}}` token to determine whether the user is
+ * authoring a JSONPath expression and where within it they are. Returns
+ * `null` for non-path inputs so the caller falls back to legacy mode.
+ *
+ * Examples:
+ *   `$.`                   → {prefix: [],                  current: ""}
+ *   `$.in`                 → {prefix: [],                  current: "in"}
+ *   `$.inputs.`            → {prefix: ["inputs"],          current: ""}
+ *   `$.inputs.arda.`       → {prefix: ["inputs", "arda"],  current: ""}
+ *   `$.inputs.arda.test`   → {prefix: ["inputs", "arda"],  current: "test"}
+ */
+function parsePathContext(input: string): PathContext | null {
+    if (!input.startsWith("$")) return null
+    const body = input.replace(/^\$\.?/, "")
+    if (body === "" && input === "$") return {prefix: [], current: ""}
+    const endsOnBoundary = input.endsWith(".") || input.endsWith("[")
+    const segments = body.split(/[.[\]'"]/).filter(Boolean)
+    const prefix = endsOnBoundary ? segments : segments.slice(0, -1)
+    const current = endsOnBoundary ? "" : (segments[segments.length - 1] ?? "")
+    return {prefix, current}
+}
 
 interface TokenMenuPluginProps {
     tokens: string[]
@@ -24,15 +80,10 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
     const {refs, floatingStyles} = useFloating({
         open: !!anchor,
         placement: "bottom-start",
-        middleware: [
-            offset(4), // 4px gap from reference element
-            flip(), // Flip to top if no space below
-            shift({padding: 8}), // Keep within viewport with 8px padding
-        ],
-        whileElementsMounted: autoUpdate, // Auto-update position on scroll/resize
+        middleware: [offset(4), flip(), shift({padding: 8})],
+        whileElementsMounted: autoUpdate,
     })
 
-    // Update reference element when anchor changes
     useEffect(() => {
         if (anchor) {
             refs.setReference(anchor.element)
@@ -55,33 +106,118 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
         return Array.from(uniqueTokens).filter(Boolean)
     }, [tokens])
 
-    // Filter tokens based on current input
-    const filteredTokens = useMemo(() => {
-        const _tokens = dynamicallyReadingTokens
-        if (!inputQuery) {
-            return _tokens
+    const pathContext = useMemo(() => parsePathContext(inputQuery), [inputQuery])
+
+    /**
+     * Consumer-provided path suggestions (optional). The playground injects
+     * this to surface port-schema sub-paths and observed testcase column
+     * names. When mounted it's unioned with the plugin's baseline sources.
+     *
+     * The context also carries optional `allowedEnvelopeSlots` — when
+     * set, the depth-0 envelope suggestion list is restricted to this
+     * subset (e.g. playground hides `$.trace` / `$.revision` until the
+     * sources for those are wired).
+     */
+    const pathContextValue = useTokenPathSuggestionsContext()
+    const getContextSuggestions = pathContextValue?.getSuggestions ?? null
+    const allowedEnvelopeSlots = pathContextValue?.allowedEnvelopeSlots
+
+    /**
+     * Suggestions while authoring a JSONPath token.
+     *
+     * Sources (in precedence order, deduped by label):
+     *  1. Envelope slots at depth 0 (always).
+     *  2. Consumer-provided suggestions from the path-suggestions context
+     *     (playground surfaces port schemas + observed keys here).
+     *  3. Fallback: previously-seen tokens sharing the current path prefix.
+     *
+     * Trailing-dot rule: only envelope slots get `.` appended because
+     * they're always containers. Everything else ends cleanly — the user
+     * types `.` manually to continue drilling, or `}}` to close.
+     */
+    const pathSuggestions = useMemo<Suggestion[]>(() => {
+        if (!pathContext) return []
+        const {prefix, current} = pathContext
+        const query = current.toLowerCase()
+        const results: Suggestion[] = []
+        const seen = new Set<string>()
+
+        const push = (
+            label: string,
+            {hint, appendDot = false}: {hint?: string; appendDot?: boolean} = {},
+        ) => {
+            if (seen.has(label)) return
+            if (query && !label.toLowerCase().startsWith(query)) return
+            if (label === current) return
+            seen.add(label)
+            const body = [...prefix, label].join(".")
+            results.push({
+                label,
+                tokenText: `{{$.${body}${appendDot ? "." : ""}}}`,
+                hint,
+            })
         }
 
-        return _tokens.filter((token) => token?.includes(inputQuery) && token !== inputQuery)
-    }, [dynamicallyReadingTokens, inputQuery])
+        // 1. Envelope slots at the root. Consumer can narrow the list via
+        //    `allowedEnvelopeSlots` on the context (e.g. playground only
+        //    enables inputs/outputs today).
+        if (prefix.length === 0) {
+            const slots = allowedEnvelopeSlots ?? Array.from(KNOWN_ENVELOPE_SLOTS)
+            for (const slot of slots) push(slot, {hint: "envelope", appendDot: true})
+        }
 
-    // Handle token selection
+        // 2. Consumer context (port schemas, observed keys — optional).
+        if (getContextSuggestions) {
+            const provided = getContextSuggestions(prefix, current)
+            for (const s of provided) push(s.label, {hint: s.hint})
+        }
+
+        // 3. Mine previously-seen tokens under this prefix (deepest fallback).
+        if (prefix.length > 0) {
+            const pathPrefix = `$.${prefix.join(".")}.`
+            for (const token of dynamicallyReadingTokens) {
+                if (!token || !token.startsWith(pathPrefix)) continue
+                const rest = token.slice(pathPrefix.length)
+                const nextSeg = rest.split(/[.[\]'"]/).filter(Boolean)[0]
+                if (!nextSeg) continue
+                push(nextSeg, {hint: "seen"})
+            }
+        }
+
+        return results
+    }, [pathContext, getContextSuggestions, allowedEnvelopeSlots, dynamicallyReadingTokens])
+
+    // Legacy suggestions: previously-seen whole tokens (non-path mode only).
+    const legacySuggestions = useMemo<Suggestion[]>(() => {
+        if (pathContext) return []
+        const items = dynamicallyReadingTokens
+            .filter((token): token is string => !!token)
+            .filter((token) => {
+                if (!inputQuery) return true
+                return token.includes(inputQuery) && token !== inputQuery
+            })
+        return items.map((token) => ({label: token, tokenText: `{{${token}}}`}))
+    }, [dynamicallyReadingTokens, inputQuery, pathContext])
+
+    const suggestions = pathContext ? pathSuggestions : legacySuggestions
+
     const selectOption = useCallback(
-        (token: string) => {
+        (suggestion: Suggestion) => {
             if (!anchor) return
 
             editor.update(() => {
                 const node = $getNodeByKey(anchor.key)
                 if ($isTokenNode(node)) {
-                    node.setTextContent(`{{${token}}}`)
+                    node.setTextContent(suggestion.tokenText)
+                    // Position cursor just before the closing `}}` so the user
+                    // can keep typing (e.g. drill further into a path).
                     navigateCursor({
                         nodeKey: node.getKey(),
-                        offset: node.getTextContent().length,
+                        offset: suggestion.tokenText.length - 2,
                     })
                 }
             })
 
-            // Reset state
             setAnchor(null)
             setSelectedIndex(0)
             setInputQuery("")
@@ -89,7 +225,7 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
         [anchor, editor],
     )
 
-    // Track token node changes
+    // Track token node changes — unchanged from legacy behavior.
     useEffect(() => {
         return editor.registerUpdateListener(() => {
             editor.getEditorState().read(() => {
@@ -103,16 +239,11 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
 
                 if ($isTokenNode(node)) {
                     const text = node.getTextContent()
-                    // Match the token content with or without cursor
                     const match = text.match(/^\{\{(.*?)\}\}$/)
+                    const offsetPos = selection.anchor.offset
 
-                    // Get cursor position relative to the node
-                    const offset = selection.anchor.offset
-
-                    // If we have a match and the cursor is between the double braces
-                    if (match && offset >= 2 && offset <= text.length - 2) {
-                        const tokenContent = match[1]
-                        setInputQuery(tokenContent)
+                    if (match && offsetPos >= 2 && offsetPos <= text.length - 2) {
+                        setInputQuery(match[1])
                         const dom = editor.getElementByKey(node.getKey())
                         if (dom) {
                             setAnchor({element: dom, key: node.getKey()})
@@ -125,6 +256,11 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
             })
         })
     }, [editor])
+
+    // Reset highlight when suggestion list changes (e.g. user typed another char).
+    useEffect(() => {
+        setSelectedIndex(0)
+    }, [suggestions])
 
     // Handle clicks outside
     useEffect(() => {
@@ -146,38 +282,36 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
         }
     }, [anchor])
 
-    // Handle keyboard navigation
+    // Keyboard navigation
     useEffect(() => {
         if (!anchor) return
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (!["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key)) return
+            if (!["ArrowDown", "ArrowUp", "Enter", "Escape", "Tab"].includes(e.key)) return
+            if (!suggestions.length && e.key !== "Escape") return
 
             e.preventDefault()
             e.stopPropagation()
 
-            const currentTokens = filteredTokens
-            if (!currentTokens.length) return
-
             switch (e.key) {
                 case "ArrowDown":
-                case "ArrowUp":
+                case "ArrowUp": {
                     const newIndex =
                         e.key === "ArrowDown"
-                            ? (selectedIndex + 1) % currentTokens.length
-                            : (selectedIndex - 1 + currentTokens.length) % currentTokens.length
+                            ? (selectedIndex + 1) % suggestions.length
+                            : (selectedIndex - 1 + suggestions.length) % suggestions.length
                     setSelectedIndex(newIndex)
                     requestAnimationFrame(() => {
                         selectedItemRef.current?.scrollIntoView({block: "nearest"})
                     })
                     break
-
+                }
                 case "Enter":
-                    if (currentTokens[selectedIndex]) {
-                        selectOption(currentTokens[selectedIndex])
+                case "Tab":
+                    if (suggestions[selectedIndex]) {
+                        selectOption(suggestions[selectedIndex])
                     }
                     break
-
                 case "Escape":
                     setAnchor(null)
                     break
@@ -186,9 +320,9 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
 
         document.addEventListener("keydown", handleKeyDown, true)
         return () => document.removeEventListener("keydown", handleKeyDown, true)
-    }, [anchor, filteredTokens, selectedIndex, selectOption])
+    }, [anchor, suggestions, selectedIndex, selectOption])
 
-    if (!anchor || !filteredTokens.length) return null
+    if (!anchor || !suggestions.length) return null
 
     return createPortal(
         <div
@@ -196,26 +330,31 @@ export function TokenMenuPlugin({tokens}: TokenMenuPluginProps) {
                 containerRef.current = node
                 refs.setFloating(node)
             }}
-            className="bg-white border border-solid border-gray-100 rounded drop-shadow-xl max-h-[160px] w-[150px] overflow-y-auto outline-none"
+            className="bg-white border border-solid border-gray-100 rounded drop-shadow-xl max-h-[200px] w-[200px] overflow-y-auto outline-none"
             style={{
                 ...floatingStyles,
                 zIndex: 1050,
             }}
         >
-            {filteredTokens.map((token, index) => (
+            {suggestions.map((suggestion, index) => (
                 <div
-                    key={token}
+                    key={`${suggestion.label}::${index}`}
                     ref={index === selectedIndex ? selectedItemRef : null}
                     onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
-                        selectOption(token!)
+                        selectOption(suggestion)
                     }}
-                    className={`px-2 py-1.5 cursor-pointer font-mono text-[10px] truncate ${
+                    className={`flex items-center justify-between gap-2 px-2 py-1.5 cursor-pointer font-mono text-[10px] ${
                         index === selectedIndex ? "bg-blue-100 text-blue-800" : "hover:bg-gray-100"
                     }`}
                 >
-                    {token}
+                    <span className="truncate">{suggestion.label}</span>
+                    {suggestion.hint ? (
+                        <span className="text-[9px] uppercase tracking-wide text-gray-400 shrink-0">
+                            {suggestion.hint}
+                        </span>
+                    ) : null}
                 </div>
             ))}
         </div>,

@@ -10,6 +10,7 @@ StandardProviderKind = typing.Union[
         "deepinfra",
         "alephalpha",
         "groq",
+        "minimax",
         "mistral",
         "mistralai",
         "anthropic",

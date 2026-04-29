@@ -3,10 +3,10 @@ import {memo} from "react"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {
     evaluatorTemplatesDataAtom,
-    getEvaluatorColor,
     workflowMolecule,
     resolveOutputSchemaProperties,
 } from "@agenta/entities/workflow"
+import {WorkflowTypeTag} from "@agenta/entity-ui/workflow"
 import type {GroupExpandState} from "@agenta/ui/table"
 import {
     SkeletonLine,
@@ -75,35 +75,15 @@ const workflowOutputSchemaKeysAtomFamily = atomFamily((id: string) =>
 
 /**
  * Type badge cell for automatic evaluators.
- * Reads evaluatorKey via scalar atomFamily (stable primitive).
+ * Reads evaluatorKey via scalar atomFamily (stable primitive) and delegates
+ * rendering to the shared `WorkflowTypeTag` so the tag looks identical to
+ * other evaluator surfaces (e.g. the evaluation creation modal).
  */
 const EvaluatorTypeCell = memo(({revisionId}: {revisionId: string}) => {
-    const templates = useDefaultStoreAtomValue(evaluatorTemplatesDataAtom)
     const evaluatorKey = useDefaultStoreAtomValue(workflowKeyAtomFamily(revisionId))
-
-    if (!evaluatorKey) return null
-
-    const template = templates.find((t) => t.key === evaluatorKey)
-    const label = template?.name ?? evaluatorKey
-    const color = getEvaluatorColor(evaluatorKey)
-
     return (
         <div className="h-full flex items-center">
-            <Tag
-                bordered
-                style={
-                    color
-                        ? {
-                              backgroundColor: color.bg,
-                              color: color.text,
-                              borderColor: color.border,
-                          }
-                        : undefined
-                }
-                className="!m-0 capitalize"
-            >
-                {label}
-            </Tag>
+            <WorkflowTypeTag isEvaluator workflowKey={evaluatorKey} />
         </div>
     )
 })

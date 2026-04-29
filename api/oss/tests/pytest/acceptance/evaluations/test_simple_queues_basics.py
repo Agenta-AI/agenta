@@ -31,6 +31,60 @@ def _create_evaluator(authed_api) -> str:
     return data["evaluator"]["revision_id"]
 
 
+def _create_query(authed_api) -> str:
+    slug = uuid4().hex
+    response = authed_api(
+        "POST",
+        "/simple/queries/",
+        json={
+            "query": {
+                "slug": f"query-{slug}",
+                "name": f"Query {slug}",
+                "data": {
+                    "filtering": {
+                        "operator": "and",
+                        "conditions": [
+                            {
+                                "field": "trace_type",
+                                "operator": "is",
+                                "value": "invocation",
+                            }
+                        ],
+                    }
+                },
+            }
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 1
+    return data["query"]["revision_id"]
+
+
+def _create_testset(authed_api) -> str:
+    slug = uuid4().hex
+    response = authed_api(
+        "POST",
+        "/simple/testsets/",
+        json={
+            "testset": {
+                "slug": slug,
+                "name": f"Testset {slug}",
+                "data": {
+                    "testcases": [
+                        {"data": {"input": "hello", "expected": "world"}},
+                        {"data": {"input": "hola", "expected": "mundo"}},
+                    ]
+                },
+            }
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 1
+    return data["testset"]["revision_id"]
+
+
 class TestSimpleQueuesBasics:
     # -- create ----------------------------------------------------------------
 
@@ -94,6 +148,56 @@ class TestSimpleQueuesBasics:
         assert "run_id" in queue
         # ----------------------------------------------------------------------
 
+    def test_create_simple_queue_from_queries(self, authed_api):
+        evaluator_revision_id = _create_evaluator(authed_api)
+        query_revision_id = _create_query(authed_api)
+
+        response = authed_api(
+            "POST",
+            "/simple/queues/",
+            json={
+                "queue": {
+                    "name": "query-backed-queue",
+                    "data": {
+                        "queries": [query_revision_id],
+                        "evaluators": [evaluator_revision_id],
+                    },
+                }
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        queue = data["queue"]
+        assert queue["data"]["kind"] == "traces"
+        assert queue["data"]["queries"] == [query_revision_id]
+
+    def test_create_simple_queue_from_testsets(self, authed_api):
+        evaluator_revision_id = _create_evaluator(authed_api)
+        testset_revision_id = _create_testset(authed_api)
+
+        response = authed_api(
+            "POST",
+            "/simple/queues/",
+            json={
+                "queue": {
+                    "name": "testset-backed-queue",
+                    "data": {
+                        "testsets": [testset_revision_id],
+                        "evaluators": [evaluator_revision_id],
+                    },
+                }
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        queue = data["queue"]
+        assert queue["data"]["kind"] == "testcases"
+        assert queue["data"]["testsets"] == [testset_revision_id]
+
     def test_create_simple_queue_without_evaluators_returns_empty(self, authed_api):
         # ACT ------------------------------------------------------------------
         response = authed_api(
@@ -117,6 +221,92 @@ class TestSimpleQueuesBasics:
             data.get("queue") is None
         )  # excluded when None (response_model_exclude_none)
         # ----------------------------------------------------------------------
+
+    def test_add_traces_rejects_query_backed_source_queue(self, authed_api):
+        evaluator_revision_id = _create_evaluator(authed_api)
+        query_revision_id = _create_query(authed_api)
+        create_response = authed_api(
+            "POST",
+            "/simple/queues/",
+            json={
+                "queue": {
+                    "data": {
+                        "queries": [query_revision_id],
+                        "evaluators": [evaluator_revision_id],
+                    },
+                }
+            },
+        )
+        assert create_response.status_code == 200
+        queue_id = create_response.json()["queue"]["id"]
+
+        response = authed_api(
+            "POST",
+            f"/simple/queues/{queue_id}/traces/",
+            json={"trace_ids": ["trace-1"]},
+        )
+
+        assert response.status_code == 400
+        data = response.json()
+        assert (
+            data["detail"]["message"]
+            == "Cannot add traces directly to a source-backed queue. Create a direct traces queue instead."
+        )
+
+    def test_add_testcases_rejects_testset_backed_source_queue(self, authed_api):
+        evaluator_revision_id = _create_evaluator(authed_api)
+        testset_revision_id = _create_testset(authed_api)
+        create_response = authed_api(
+            "POST",
+            "/simple/queues/",
+            json={
+                "queue": {
+                    "data": {
+                        "testsets": [testset_revision_id],
+                        "evaluators": [evaluator_revision_id],
+                    },
+                }
+            },
+        )
+        assert create_response.status_code == 200
+        queue_id = create_response.json()["queue"]["id"]
+
+        response = authed_api(
+            "POST",
+            f"/simple/queues/{queue_id}/testcases/",
+            json={"testcase_ids": [str(uuid4())]},
+        )
+
+        assert response.status_code == 400
+        data = response.json()
+        assert (
+            data["detail"]["message"]
+            == "Cannot add testcases directly to a source-backed queue. Create a direct testcases queue instead."
+        )
+
+    def test_create_simple_queue_rejects_kind_with_queries(self, authed_api):
+        evaluator_revision_id = _create_evaluator(authed_api)
+        query_revision_id = _create_query(authed_api)
+
+        response = authed_api(
+            "POST",
+            "/simple/queues/",
+            json={
+                "queue": {
+                    "data": {
+                        "kind": "traces",
+                        "queries": [query_revision_id],
+                        "evaluators": [evaluator_revision_id],
+                    },
+                }
+            },
+        )
+
+        assert response.status_code == 422
+        assert (
+            "simple queue source must not include kind alongside queries or testsets"
+            in response.text
+        )
 
     def test_create_simple_queue_with_assignments(self, authed_api):
         # ARRANGE --------------------------------------------------------------

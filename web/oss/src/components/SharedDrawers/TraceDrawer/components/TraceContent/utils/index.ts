@@ -30,19 +30,3 @@ export const transformDataInputs = (data: any) => {
 
     return transformed
 }
-
-export const stripNestedSpans = <T>(value: T): T => {
-    if (Array.isArray(value)) {
-        return value.map((item) => stripNestedSpans(item)) as T
-    }
-
-    if (value && typeof value === "object") {
-        return Object.fromEntries(
-            Object.entries(value as Record<string, unknown>)
-                .filter(([key]) => !["spans", "children", "nodes"].includes(key))
-                .map(([key, nestedValue]) => [key, stripNestedSpans(nestedValue)]),
-        ) as T
-    }
-
-    return value
-}
