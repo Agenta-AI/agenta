@@ -40,14 +40,14 @@ The new workflow system (`routing.py`) is used for internal orchestration only.
 The Fern client (`sdk/agenta/client/backend/`) is **not** manually maintained. It's generated from the backend's OpenAPI spec:
 
 ```bash
-# Script location: sdk/scripts/setup_fern.sh
+# Script location: sdk/scripts/setup.sh
 # Source: https://cloud.agenta.ai/api/openapi.json (or local)
 ```
 
 **Implication:** To add `is_chat` to the client:
 1. Add to `api/oss/src/core/workflows/dtos.py` (backend API model)
 2. Deploy backend (or use local spec)
-3. Run `./sdk/scripts/setup_fern.sh` to regenerate client
+3. Run `./sdk/scripts/setup.sh` to regenerate client
 
 ## Files Identified for Changes
 

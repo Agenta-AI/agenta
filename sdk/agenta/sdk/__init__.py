@@ -47,7 +47,7 @@ __all__ = [
     "types",
 ]
 
-import agenta.client.backend.types as client_types  # noqa: E402, F401
+import agenta.client.types as client_types  # noqa: E402, F401
 import agenta.sdk.utils.types as types  # noqa: E402, F401
 import agenta.sdk.utils.assets as assets  # noqa: E402, F401
 

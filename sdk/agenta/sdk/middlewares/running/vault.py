@@ -12,8 +12,8 @@ from agenta.sdk.utils.exceptions import suppress, display_exception
 from agenta.sdk.models.workflows import WorkflowServiceRequest
 from agenta.sdk.contexts.running import RunningContext
 
-from agenta.client.backend.types import SecretDto as SecretDTO
-from agenta.client.backend.types import (
+from agenta.client.types import SecretDto as SecretDTO
+from agenta.client.types import (
     StandardProviderKind,
     StandardProviderDto as StandardProviderDTO,
     StandardProviderSettingsDto as StandardProviderSettingsDTO,

@@ -78,6 +78,8 @@ services:
                 "--reload",
                 "--reload-dir",
                 "/sdk",
+                "--reload-dir",
+                "/clients/python/src",
                 "--root-path",
                 "/api",
             ]
@@ -87,6 +89,7 @@ services:
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdk:/sdk
+            - ../../../clients/python/src:/clients/python/src
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -134,6 +137,7 @@ services:
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdk:/sdk
+            - ../../../clients/python/src:/clients/python/src
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -170,6 +174,7 @@ services:
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdk:/sdk
+            - ../../../clients/python/src:/clients/python/src
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -206,6 +211,7 @@ services:
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdk:/sdk
+            - ../../../clients/python/src:/clients/python/src
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -248,6 +254,7 @@ services:
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdk:/sdk
+            - ../../../clients/python/src:/clients/python/src
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -282,7 +289,7 @@ services:
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
         init: true
-        command: supercronic /app/crontab
+        command: supercronic /api/crontab
         # === STORAGE ============================================== #
         volumes:
             - ../../../api/oss/src/crons/queries.sh:/queries.sh
@@ -316,6 +323,7 @@ services:
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
             - ../../../sdk:/sdk
+            - ../../../clients/python/src:/clients/python/src
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -344,6 +352,8 @@ services:
                 "--reload",
                 "--reload-dir",
                 "/sdk",
+                "--reload-dir",
+                "/clients/python/src",
                 "--root-path",
                 "/services",
             ]
@@ -351,6 +361,7 @@ services:
         volumes:
             - ../../../services:/app
             - ../../../sdk:/sdk
+            - ../../../clients/python/src:/clients/python/src
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}

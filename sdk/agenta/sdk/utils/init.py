@@ -3,7 +3,7 @@ from os import getenv
 from typing import Any, Callable, Optional
 
 import httpx
-from agenta.client.backend.client import AgentaApi, AsyncAgentaApi
+from agenta.client import AgentaApi, AsyncAgentaApi
 from agenta.sdk.engines.tracing import Tracing
 from agenta.sdk.utils.globals import set_global
 from agenta.sdk.utils.helpers import parse_url

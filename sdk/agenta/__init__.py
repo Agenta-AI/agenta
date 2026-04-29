@@ -7,7 +7,7 @@ except Exception:
 
 from typing import Any, Callable, Optional
 
-import agenta.client.backend.types as client_types  # pylint: disable=wrong-import-order
+import agenta.client.types as client_types  # pylint: disable=wrong-import-order
 from agenta.client import AgentaApi, AsyncAgentaApi
 
 from .sdk.utils import assets as assets

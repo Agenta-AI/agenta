@@ -40,6 +40,7 @@ RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
 # Copy and install SDK first (changes less frequently than app code)
 RUN mkdir -p /app/sdk
 COPY ./sd[k] /app/sdk/
+COPY ./client[s] /app/clients/
 
 RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
     if [ -f /app/sdk/pyproject.toml ]; then \

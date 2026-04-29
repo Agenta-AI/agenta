@@ -92,10 +92,10 @@ def deterministic_legacy_application_slug() -> str:
 def make_otlp_flat_span(
     *, trace_id: str, span_id: str, span_name: str, attributes: dict
 ) -> Any:
-    """Create a minimal Fern OTelFlatSpanInput."""
-    from agenta.client.backend.types import OTelFlatSpanInput
+    """Create a minimal Fern SpanInput (was OTelFlatSpanInput in the old backend client)."""
+    from agenta.client.types import SpanInput
 
-    return OTelFlatSpanInput(
+    return SpanInput(
         trace_id=trace_id,
         span_id=span_id,
         span_name=span_name,
@@ -117,7 +117,7 @@ def _force_reinit_sdk(host: str, api_key: str) -> None:
     the old client reference becomes stale.
     """
     from agenta.sdk.utils.init import AgentaSingleton
-    from agenta.client.backend.client import AgentaApi, AsyncAgentaApi
+    from agenta.client import AgentaApi, AsyncAgentaApi
 
     singleton = AgentaSingleton()
 

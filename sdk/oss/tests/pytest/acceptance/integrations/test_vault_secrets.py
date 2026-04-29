@@ -15,7 +15,7 @@ import time
 import pytest
 
 import agenta as ag
-from agenta.client.backend.types import (
+from agenta.client.types import (
     SecretDto,
     StandardProviderDto,
     StandardProviderSettingsDto,
@@ -243,10 +243,10 @@ class TestSecretsResponseSerialization:
         Test that the Fern types used by vault.py import correctly.
         """
         # These imports are used by sdk/agenta/sdk/middlewares/running/vault.py
-        from agenta.client.backend.types import SecretDto
-        from agenta.client.backend.types import StandardProviderKind
-        from agenta.client.backend.types import StandardProviderDto
-        from agenta.client.backend.types import StandardProviderSettingsDto
+        from agenta.client.types import SecretDto
+        from agenta.client.types import StandardProviderKind
+        from agenta.client.types import StandardProviderDto
+        from agenta.client.types import StandardProviderSettingsDto
 
         assert SecretDto is not None
         assert StandardProviderKind is not None

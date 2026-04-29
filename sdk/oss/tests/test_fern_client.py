@@ -17,18 +17,24 @@ class TestFernImports:
 
     def test_core_client_imports(self):
         """Test that the core AgentaApi clients can be imported from the backend module."""
-        from agenta.client.backend.client import AgentaApi, AsyncAgentaApi
+        from agenta.client import AgentaApi, AsyncAgentaApi
 
         assert AgentaApi is not None
         assert AsyncAgentaApi is not None
 
     def test_environment_import(self):
         """Test that AgentaApiEnvironment can be imported from the backend module."""
-        from agenta.client.backend.environment import AgentaApiEnvironment
+        from agenta.client import AgentaApiEnvironment
 
         assert AgentaApiEnvironment is not None
         # Verify DEFAULT environment exists
         assert hasattr(AgentaApiEnvironment, "DEFAULT")
+
+    def test_client_package_import(self):
+        """Test that the standalone client package exposes the main client API."""
+        from agenta.client import AgentaApi
+
+        assert AgentaApi is not None
 
     def test_client_reexport(self):
         """Test that AgentaApi is re-exported from agenta.client for convenience."""
@@ -44,37 +50,37 @@ class TestFernImports:
 
     def test_secret_dto_import(self):
         """Test that SecretDto type (used by vault) can be imported."""
-        from agenta.client.backend.types import SecretDto
+        from agenta.client.types import SecretDto
 
         assert SecretDto is not None
 
     def test_standard_provider_kind_import(self):
         """Test that StandardProviderKind type (used by vault) can be imported."""
-        from agenta.client.backend.types import StandardProviderKind
+        from agenta.client.types import StandardProviderKind
 
         assert StandardProviderKind is not None
 
     def test_standard_provider_dto_import(self):
         """Test that StandardProviderDto type (used by vault) can be imported."""
-        from agenta.client.backend.types import StandardProviderDto
+        from agenta.client.types import StandardProviderDto
 
         assert StandardProviderDto is not None
 
     def test_standard_provider_settings_dto_import(self):
         """Test that StandardProviderSettingsDto type (used by vault) can be imported."""
-        from agenta.client.backend.types import StandardProviderSettingsDto
+        from agenta.client.types import StandardProviderSettingsDto
 
         assert StandardProviderSettingsDto is not None
 
     def test_config_dto_import(self):
         """Test that ConfigDto type (used by shared.py) can be imported."""
-        from agenta.client.backend.types.config_dto import ConfigDto
+        from agenta.client.types.config_dto import ConfigDto
 
         assert ConfigDto is not None
 
     def test_config_response_model_import(self):
         """Test that ConfigResponseModel type (used by shared.py) can be imported."""
-        from agenta.client.backend.types.config_response_model import (
+        from agenta.client.types.config_response_model import (
             ConfigResponseModel,
         )
 
@@ -82,7 +88,7 @@ class TestFernImports:
 
     def test_reference_request_model_import(self):
         """Test that ReferenceRequestModel type (used by shared.py) can be imported."""
-        from agenta.client.backend.types.reference_request_model import (
+        from agenta.client.types.reference_request_model import (
             ReferenceRequestModel,
         )
 
@@ -111,14 +117,14 @@ class TestClientStructure:
     @pytest.fixture
     def sync_client(self):
         """Create a sync client with a dummy API key for structure testing."""
-        from agenta.client.backend.client import AgentaApi
+        from agenta.client import AgentaApi
 
         return AgentaApi(api_key="test-key")
 
     @pytest.fixture
     def async_client(self):
         """Create an async client with a dummy API key for structure testing."""
-        from agenta.client.backend.client import AsyncAgentaApi
+        from agenta.client import AsyncAgentaApi
 
         return AsyncAgentaApi(api_key="test-key")
 
@@ -206,36 +212,35 @@ class TestClientInstantiation:
 
     def test_sync_client_instantiation_with_api_key(self):
         """Test that sync client can be instantiated with just an API key."""
-        from agenta.client.backend.client import AgentaApi
+        from agenta.client import AgentaApi
 
         client = AgentaApi(api_key="test-key")
         assert client is not None
 
     def test_async_client_instantiation_with_api_key(self):
         """Test that async client can be instantiated with just an API key."""
-        from agenta.client.backend.client import AsyncAgentaApi
+        from agenta.client import AsyncAgentaApi
 
         client = AsyncAgentaApi(api_key="test-key")
         assert client is not None
 
     def test_sync_client_with_base_url(self):
         """Test that sync client can be instantiated with a custom base URL."""
-        from agenta.client.backend.client import AgentaApi
+        from agenta.client import AgentaApi
 
         client = AgentaApi(api_key="test-key", base_url="https://custom.api.com")
         assert client is not None
 
     def test_sync_client_with_environment(self):
         """Test that sync client can be instantiated with a specific environment."""
-        from agenta.client.backend.client import AgentaApi
-        from agenta.client.backend.environment import AgentaApiEnvironment
+        from agenta.client import AgentaApi, AgentaApiEnvironment
 
         client = AgentaApi(api_key="test-key", environment=AgentaApiEnvironment.DEFAULT)
         assert client is not None
 
     def test_sync_client_with_timeout(self):
         """Test that sync client can be instantiated with a custom timeout."""
-        from agenta.client.backend.client import AgentaApi
+        from agenta.client import AgentaApi
 
         client = AgentaApi(api_key="test-key", timeout=120.0)
         assert client is not None
@@ -247,7 +252,7 @@ class TestAdditionalClientSubmodules:
     @pytest.fixture
     def sync_client(self):
         """Create a sync client with a dummy API key for structure testing."""
-        from agenta.client.backend.client import AgentaApi
+        from agenta.client import AgentaApi
 
         return AgentaApi(api_key="test-key")
 
@@ -282,7 +287,7 @@ class TestTypeStructure:
 
     def test_config_dto_has_params_field(self):
         """Test that ConfigDto has the expected 'params' field."""
-        from agenta.client.backend.types.config_dto import ConfigDto
+        from agenta.client.types.config_dto import ConfigDto
 
         # Check that ConfigDto can be instantiated with expected fields
         # This verifies the structure matches what SharedManager expects
@@ -290,7 +295,7 @@ class TestTypeStructure:
 
     def test_reference_request_model_has_expected_fields(self):
         """Test that ReferenceRequestModel has expected fields for references."""
-        from agenta.client.backend.types.reference_request_model import (
+        from agenta.client.types.reference_request_model import (
             ReferenceRequestModel,
         )
 
@@ -300,7 +305,7 @@ class TestTypeStructure:
 
     def test_config_response_model_structure(self):
         """Test that ConfigResponseModel has expected structure for parsing."""
-        from agenta.client.backend.types.config_response_model import (
+        from agenta.client.types.config_response_model import (
             ConfigResponseModel,
         )
 
@@ -315,8 +320,8 @@ class TestBulkTypeImports:
     """Test that types can be imported in bulk from the types module."""
 
     def test_bulk_import_from_types(self):
-        """Test that common types can be imported from agenta.client.backend.types."""
-        from agenta.client.backend.types import (
+        """Test that common types can be imported from agenta.client.types."""
+        from agenta.client.types import (
             SecretDto,
             StandardProviderDto,
             StandardProviderKind,
@@ -334,14 +339,14 @@ class TestBulkTypeImports:
 
     def test_app_types_import(self):
         """Test that App-related types can be imported."""
-        from agenta.client.backend.types import App, CreateAppOutput
+        from agenta.client.types import App, CreateAppOutput
 
         assert App is not None
         assert CreateAppOutput is not None
 
     def test_variant_types_import(self):
         """Test that Variant-related types can be imported."""
-        from agenta.client.backend.types import AppVariantResponse, AppVariantRevision
+        from agenta.client.types import AppVariantResponse, AppVariantRevision
 
         assert AppVariantResponse is not None
         assert AppVariantRevision is not None

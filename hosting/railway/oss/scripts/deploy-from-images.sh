@@ -145,8 +145,8 @@ render_alembic_wrapper() {
 FROM ${AGENTA_API_IMAGE}
 
 ENV AGENTA_LICENSE=oss
-ENV ALEMBIC_CFG_PATH_CORE=/app/oss/databases/postgres/migrations/core/alembic.ini
-ENV ALEMBIC_CFG_PATH_TRACING=/app/oss/databases/postgres/migrations/tracing/alembic.ini
+ENV ALEMBIC_CFG_PATH_CORE=/api/oss/databases/postgres/migrations/core/alembic.ini
+ENV ALEMBIC_CFG_PATH_TRACING=/api/oss/databases/postgres/migrations/tracing/alembic.ini
 
 COPY create_databases.py /tmp/create_databases.py
 CMD ["sh", "-c", "/opt/venv/bin/python /tmp/create_databases.py && /opt/venv/bin/python -m oss.databases.postgres.migrations.runner"]
@@ -179,7 +179,7 @@ render_api_like_wrapper worker-tracing '["python", "-m", "entrypoints.worker_tra
 render_api_like_wrapper worker-evaluations '["python", "-m", "entrypoints.worker_evaluations"]'
 render_api_like_wrapper worker-webhooks '["python", "-m", "entrypoints.worker_webhooks"]'
 render_api_like_wrapper worker-events '["python", "-m", "entrypoints.worker_events"]'
-render_api_like_wrapper cron '["/usr/local/bin/supercronic", "/app/crontab"]'
+render_api_like_wrapper cron '["/usr/local/bin/supercronic", "/api/crontab"]'
 
 export RAILWAY_PROJECT_NAME="$PROJECT_NAME"
 export RAILWAY_ENVIRONMENT_NAME="$ENV_NAME"
