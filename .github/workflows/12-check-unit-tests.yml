@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - 'web/**'
-      - 'sdk/**'
+      - 'sdks/python/**'
       - 'api/**'
       - 'services/**'
       - '.github/workflows/12-check-unit-tests.yml'
@@ -88,26 +88,26 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-application-sdk-unit-pip-${{ hashFiles('sdk/pyproject.toml', 'sdk/poetry.lock', 'sdk/*/tests/requirements.txt') }}
+          key: ${{ runner.os }}-application-sdk-unit-pip-${{ hashFiles('sdks/python/pyproject.toml', 'sdks/python/poetry.lock', 'sdks/python/*/tests/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-application-sdk-unit-pip-
 
       - name: Install SDK dependencies
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
-        working-directory: sdk
+        working-directory: sdks/python
         run: |
           poetry install --no-interaction
 
       - name: Run SDK unit tests
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
-        working-directory: sdk
+        working-directory: sdks/python
         run: poetry run python run-tests.py -- oss/tests/pytest/unit
 
       - name: Publish SDK unit test results
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages))
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: sdk/oss/tests/results/junit.xml
+          files: sdks/python/oss/tests/results/junit.xml
           check_name: Application SDK Unit Test Results
           comment_mode: off
 
@@ -144,7 +144,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-application-api-unit-pip-${{ hashFiles('api/pyproject.toml', 'api/poetry.lock', 'api/*/tests/requirements.txt', 'sdk/pyproject.toml', 'sdk/poetry.lock') }}
+          key: ${{ runner.os }}-application-api-unit-pip-${{ hashFiles('api/pyproject.toml', 'api/poetry.lock', 'api/*/tests/requirements.txt', 'sdks/python/pyproject.toml', 'sdks/python/poetry.lock') }}
           restore-keys: |
             ${{ runner.os }}-application-api-unit-pip-
 
@@ -153,7 +153,7 @@ jobs:
         working-directory: api
         run: |
           poetry install --no-interaction
-          poetry run pip install -e ../sdk/
+          poetry run pip install -e ../sdks/python/
 
       - name: Run API unit tests
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
@@ -213,7 +213,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-application-services-unit-pip-${{ hashFiles('services/pyproject.toml', 'services/poetry.lock', 'services/*/tests/requirements.txt', 'sdk/pyproject.toml', 'sdk/poetry.lock') }}
+          key: ${{ runner.os }}-application-services-unit-pip-${{ hashFiles('services/pyproject.toml', 'services/poetry.lock', 'services/*/tests/requirements.txt', 'sdks/python/pyproject.toml', 'sdks/python/poetry.lock') }}
           restore-keys: |
             ${{ runner.os }}-application-services-unit-pip-
 
@@ -222,7 +222,7 @@ jobs:
         working-directory: services
         run: |
           poetry install --no-interaction
-          poetry run pip install -e ../sdk/
+          poetry run pip install -e ../sdks/python/
 
       - name: Run services unit tests
         if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'

@@ -1,11 +1,11 @@
 FROM python:3.11-slim-bookworm
 
-WORKDIR /app
+WORKDIR /services
 
 RUN pip install --upgrade pip \
     && pip install poetry
 
-COPY ./pyproject.toml /app/
+COPY ./pyproject.toml /services/
 
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi
@@ -13,8 +13,8 @@ RUN poetry config virtualenvs.create false \
 RUN groupadd --gid 10001 agenta && \
     useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta
 
-COPY --chown=agenta:agenta ./oss /app/oss/
-COPY --chown=agenta:agenta ./entrypoints /app/entrypoints/
+COPY --chown=agenta:agenta ./oss /services/oss/
+COPY --chown=agenta:agenta ./entrypoints /services/entrypoints/
 
 ENV PYTHONPATH=/sdk:/clients/python/src:$PYTHONPATH
 

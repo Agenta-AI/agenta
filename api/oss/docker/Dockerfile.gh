@@ -45,7 +45,7 @@ RUN --mount=type=cache,id=pip-api,target=/root/.cache/pip \
 
 # Copy and install SDK first (changes less frequently than app code)
 RUN mkdir -p /sdk
-COPY ./sd[k] /sdk/
+COPY ./sdks/python /sdk/
 COPY ./client[s] /clients/
 
 RUN --mount=type=cache,id=pip-api,target=/root/.cache/pip \

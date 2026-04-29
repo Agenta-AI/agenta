@@ -310,12 +310,12 @@ fi
 # This is necessary even without --build because docker compose up will auto-build missing images
 if [[ "$STAGE" == "gh.local" ]]; then
     echo "Copying local SDK and client into build contexts..."
-    rm -rf api/sdk services/sdk api/clients services/clients
-    cp -r sdk api/sdk
-    cp -r sdk services/sdk
+    rm -rf api/sdks services/sdks api/clients services/clients
+    cp -r sdks api/sdks
+    cp -r sdks services/sdks
     cp -r clients api/clients
     cp -r clients services/clients
-    cleanup_sdk_copies() { rm -rf api/sdk services/sdk api/clients services/clients; }
+    cleanup_sdk_copies() { rm -rf api/sdks services/sdks api/clients services/clients; }
     trap cleanup_sdk_copies EXIT
 fi
 

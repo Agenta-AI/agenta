@@ -134,8 +134,8 @@ jobs:
       - name: Inject SDK into build context
         if: matrix.needs_sdk
         run: |
-          rm -rf "${{ matrix.context }}/sdk"
-          cp -R sdk "${{ matrix.context }}/sdk"
+          rm -rf "${{ matrix.context }}/sdks"
+          cp -R sdks "${{ matrix.context }}/sdks"
           rm -rf "${{ matrix.context }}/clients"
           cp -R clients "${{ matrix.context }}/clients"
 

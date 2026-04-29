@@ -307,8 +307,8 @@ services:
             --error-logfile -
         # === STORAGE ============================================== #
         volumes:
-            - ../../../services:/app
-            - ../../../sdk:/sdk
+            - ../../../services:/services
+            - ../../../sdks/python:/sdk
             - ../../../clients/python/src:/clients/python/src
         # === CONFIGURATION ======================================== #
         env_file:

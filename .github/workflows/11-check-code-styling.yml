@@ -7,7 +7,7 @@ on:
   pull_request:
     paths:
       - 'api/**'
-      - 'sdk/**'
+      - 'sdks/python/**'
       - 'web/**'
       - '.github/workflows/11-check-code-styling.yml'
   workflow_dispatch:

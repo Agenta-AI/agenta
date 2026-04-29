@@ -27,7 +27,7 @@ python = "^3.11"
 
 # Fern-generated API client — path dep until published to PyPI.
 # Once released, replace with: agenta-client = "^<version>"
-agenta-client = { path = "../clients/python", develop = true }
+agenta-client = { path = "../../clients/python", develop = true }
 
 # Core dependencies (always loaded)
 pydantic = "^2"

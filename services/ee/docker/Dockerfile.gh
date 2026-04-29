@@ -2,7 +2,7 @@ FROM python:3.11-slim-bookworm AS builder
 
 ARG POETRY_VERSION=2.3.1
 
-WORKDIR /app
+WORKDIR /services
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=0 \
@@ -13,7 +13,7 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
     pip install --timeout=300 "poetry==${POETRY_VERSION}" "poetry-plugin-export"
 
-COPY ./pyproject.toml ./poetry.lock* /app/
+COPY ./pyproject.toml ./poetry.lock* /services/
 
 # Create clean venv, install app deps, strip heavy unused deps
 # Merged into one layer so stripped files don't persist in a previous layer.
@@ -38,21 +38,21 @@ RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
     && find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 
 # Copy and install SDK first (changes less frequently than app code)
-RUN mkdir -p /app/sdk
-COPY ./sd[k] /app/sdk/
-COPY ./client[s] /app/clients/
+RUN mkdir -p /sdk
+COPY ./sdks/python /sdk/
+COPY ./client[s] /services/clients/
 
 RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
-    if [ -f /app/sdk/pyproject.toml ]; then \
+    if [ -f /sdk/pyproject.toml ]; then \
         . /opt/venv/bin/activate && \
         pip install pip && \
-        pip install --editable /app/sdk && \
+        pip install --editable /sdk && \
         (pip uninstall -y pip 2>/dev/null || true); \
     fi
 
 # Copy app code last (changes more frequently)
-COPY ./oss /app/oss/
-COPY ./entrypoints /app/entrypoints/
+COPY ./oss /services/oss/
+COPY ./entrypoints /services/entrypoints/
 
 
 FROM python:3.11-slim-bookworm AS runner
@@ -61,20 +61,20 @@ ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION=0.0.0
 
-WORKDIR /app
+WORKDIR /services
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app:/app/sdk \
+    PYTHONPATH=/services:/sdk \
     PATH="/opt/venv/bin:${PATH}"
 
 RUN groupadd --gid 10001 agenta && \
     useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta
 
 COPY --from=builder /opt/venv /opt/venv
-COPY --chown=agenta:agenta --from=builder /app/oss /app/oss
-COPY --chown=agenta:agenta --from=builder /app/entrypoints /app/entrypoints
-COPY --chown=agenta:agenta --from=builder /app/sdk /app/sdk
+COPY --chown=agenta:agenta --from=builder /services/oss /services/oss
+COPY --chown=agenta:agenta --from=builder /services/entrypoints /services/entrypoints
+COPY --chown=agenta:agenta --from=builder /sdk /sdk
 
 USER 10001
 
