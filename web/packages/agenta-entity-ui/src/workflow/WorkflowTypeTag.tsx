@@ -8,7 +8,7 @@ import {
     type WorkflowType,
 } from "@agenta/entities/workflow"
 import {cn} from "@agenta/ui"
-import {Tag} from "antd"
+import {Tag, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
@@ -50,17 +50,22 @@ const TypePill = ({
     color: EvaluatorColor | null
     className?: string
 }) => (
-    <Tag
-        bordered
-        style={
-            color
-                ? {backgroundColor: color.bg, color: color.text, borderColor: color.border}
-                : undefined
-        }
-        className={cn("!m-0 capitalize", className)}
-    >
-        {label}
-    </Tag>
+    // Tooltip surfaces the full label when truncated — user-deployed
+    // evaluators have URI keys like `__main__.MyEvaluator` that exceed
+    // any column width we'd want to give a type column.
+    <Tooltip title={label} placement="topLeft">
+        <Tag
+            bordered
+            style={
+                color
+                    ? {backgroundColor: color.bg, color: color.text, borderColor: color.border}
+                    : undefined
+            }
+            className={cn("!m-0 max-w-[160px] truncate", className)}
+        >
+            {label}
+        </Tag>
+    </Tooltip>
 )
 
 const EvaluatorTag = ({
