@@ -2,7 +2,7 @@
 set -eu
 
 AGENTA_AUTH_KEY="${AGENTA_AUTH_KEY:-replace-me}"
-TRIGGER_INTERVAL=$(awk '/queries\.sh/ {split($1, a, "/"); print (a[2] ? a[2] : 1); exit}' /app/crontab)
+TRIGGER_INTERVAL=$(awk '/queries\.sh/ {split($1, a, "/"); print (a[2] ? a[2] : 1); exit}' /api/crontab)
 NOW_UTC=$(date -u "+%Y-%m-%dT%H:%M:00Z")
 MINUTE=$(date -u "+%M" | sed 's/^0*//')
 ROUNDED_MINUTE=$(( (MINUTE / TRIGGER_INTERVAL) * TRIGGER_INTERVAL ))

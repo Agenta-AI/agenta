@@ -153,17 +153,17 @@ oss.databases.postgres.migrations.runner
 
 {{- define "agenta.alembicCfgPathCore" -}}
 {{- if eq (include "agenta.edition" .) "ee" -}}
-/app/ee/databases/postgres/migrations/core/alembic.ini
+/api/ee/databases/postgres/migrations/core/alembic.ini
 {{- else -}}
-/app/oss/databases/postgres/migrations/core/alembic.ini
+/api/oss/databases/postgres/migrations/core/alembic.ini
 {{- end -}}
 {{- end }}
 
 {{- define "agenta.alembicCfgPathTracing" -}}
 {{- if eq (include "agenta.edition" .) "ee" -}}
-/app/ee/databases/postgres/migrations/tracing/alembic.ini
+/api/ee/databases/postgres/migrations/tracing/alembic.ini
 {{- else -}}
-/app/oss/databases/postgres/migrations/tracing/alembic.ini
+/api/oss/databases/postgres/migrations/tracing/alembic.ini
 {{- end -}}
 {{- end }}
 
