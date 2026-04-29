@@ -107,7 +107,7 @@ const AutomaticTagsCell = memo(({revisionId}: {revisionId: string}) => {
                 <Tag
                     key={tag}
                     variant="filled"
-                    className="!m-0 capitalize truncate max-w-[120px] bg-[#0517290F]"
+                    className="!m-0 truncate max-w-[120px] bg-[#0517290F]"
                 >
                     {tag}
                 </Tag>
