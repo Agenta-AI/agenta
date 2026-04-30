@@ -111,7 +111,7 @@ const humanAnnotationTests = () => {
                 .first()
                 .fill(`e2e-human-mismatch-${Date.now()}`)
 
-            await goToHumanEvaluationStep(modal, "Variant")
+            await goToHumanEvaluationStep(modal, "Revision")
             await selectHumanEvaluationModalTableInput({
                 modal,
                 rowText: variantName,
