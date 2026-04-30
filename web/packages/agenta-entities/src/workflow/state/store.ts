@@ -1079,6 +1079,10 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
         // Check local draft storage first (for browser-only clones)
         let localData = get(workflowLocalServerDataAtomFamily(workflowId))
         if (localData) {
+            // Track the original FLAT schema so the post-draft re-nest can still
+            // see the `x-ag-type: "hidden"` markers (the nested schema in
+            // `localData.data.schemas.parameters` no longer carries them).
+            let flatSchemaForReNest: Record<string, unknown> | undefined
             // Apply evaluator normalization to local drafts too
             if (localData.flags?.is_evaluator) {
                 const flatParams = localData.data?.parameters as Record<string, unknown> | undefined
@@ -1102,6 +1106,8 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
                         }
                     }
                 }
+
+                flatSchemaForReNest = flatSchema
 
                 const nestedParams = flatParams
                     ? nestEvaluatorConfiguration(flatParams, flatSchema)
@@ -1139,26 +1145,27 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
             } as Workflow
 
             // Re-apply evaluator nesting after draft merge.
-            // Presets write flat params to the draft, overwriting the nested
-            // structure. Re-nesting ensures the UI sees the correct format.
+            // Presets write flat params to the draft (with hidden keys preserved
+            // for round-tripping), so we re-nest using the ORIGINAL flat schema
+            // to drop hidden keys from the rendered data again.
             if (localMerged.flags?.is_evaluator && draft.data?.parameters) {
                 const draftParams = localMerged.data?.parameters as
                     | Record<string, unknown>
                     | undefined
-                const draftSchema = localMerged.data?.schemas?.parameters as
-                    | Record<string, unknown>
-                    | undefined
+                const reNestSchema =
+                    flatSchemaForReNest ??
+                    (localMerged.data?.schemas?.parameters as Record<string, unknown> | undefined)
                 if (draftParams) {
                     localMerged = {
                         ...localMerged,
                         data: {
                             ...localMerged.data,
-                            parameters: nestEvaluatorConfiguration(draftParams, draftSchema),
-                            ...(draftSchema
+                            parameters: nestEvaluatorConfiguration(draftParams, reNestSchema),
+                            ...(reNestSchema
                                 ? {
                                       schemas: {
                                           ...localMerged.data?.schemas,
-                                          parameters: nestEvaluatorSchema(draftSchema),
+                                          parameters: nestEvaluatorSchema(reNestSchema),
                                       },
                                   }
                                 : {}),
@@ -1179,11 +1186,14 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
         let merged = serverData
 
         // ── Evaluator normalization ──
+        let flatSchemaForReNest: Record<string, unknown> | undefined
         if (merged.flags?.is_evaluator) {
             const flatParams = merged.data?.parameters as Record<string, unknown> | undefined
             const flatSchema = merged.data?.schemas?.parameters as
                 | Record<string, unknown>
                 | undefined
+
+            flatSchemaForReNest = flatSchema
 
             const nestedParams = flatParams
                 ? nestEvaluatorConfiguration(flatParams, flatSchema)
@@ -1221,24 +1231,25 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
         } as Workflow
 
         // Re-apply evaluator nesting after draft merge.
-        // Config edits and presets write flat params to the draft, overwriting
-        // the nested structure. Re-nesting ensures the UI sees the correct format.
+        // Presets write flat params to the draft (with hidden keys preserved
+        // for round-tripping), so we re-nest using the ORIGINAL flat schema
+        // to drop hidden keys from the rendered data again.
         if (finalMerged.flags?.is_evaluator && draft.data?.parameters) {
             const draftParams = finalMerged.data?.parameters as Record<string, unknown> | undefined
-            const draftSchema = finalMerged.data?.schemas?.parameters as
-                | Record<string, unknown>
-                | undefined
+            const reNestSchema =
+                flatSchemaForReNest ??
+                (finalMerged.data?.schemas?.parameters as Record<string, unknown> | undefined)
             if (draftParams) {
                 finalMerged = {
                     ...finalMerged,
                     data: {
                         ...finalMerged.data,
-                        parameters: nestEvaluatorConfiguration(draftParams, draftSchema),
-                        ...(draftSchema
+                        parameters: nestEvaluatorConfiguration(draftParams, reNestSchema),
+                        ...(reNestSchema
                             ? {
                                   schemas: {
                                       ...finalMerged.data?.schemas,
-                                      parameters: nestEvaluatorSchema(draftSchema),
+                                      parameters: nestEvaluatorSchema(reNestSchema),
                                   },
                               }
                             : {}),
@@ -1256,6 +1267,10 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
         // Check local draft storage first (for browser-only clones)
         let localData = get(workflowLocalServerDataAtomFamily(workflowId))
         if (localData) {
+            // Track the original FLAT schema so the post-draft re-nest can still
+            // see the `x-ag-type: "hidden"` markers (the nested schema in
+            // `localData.data.schemas.parameters` no longer carries them).
+            let flatSchemaForReNest: Record<string, unknown> | undefined
             // Apply evaluator normalization to local drafts too
             if (localData.flags?.is_evaluator) {
                 const flatParams = localData.data?.parameters as Record<string, unknown> | undefined
@@ -1279,6 +1294,8 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
                         }
                     }
                 }
+
+                flatSchemaForReNest = flatSchema
 
                 const nestedParams = flatParams
                     ? nestEvaluatorConfiguration(flatParams, flatSchema)
@@ -1316,26 +1333,27 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
             } as Workflow
 
             // Re-apply evaluator nesting after draft merge.
-            // Presets write flat params to the draft, overwriting the nested
-            // structure. Re-nesting ensures the UI sees the correct format.
+            // Presets write flat params to the draft (with hidden keys preserved
+            // for round-tripping), so we re-nest using the ORIGINAL flat schema
+            // to drop hidden keys from the rendered data again.
             if (localMerged.flags?.is_evaluator && draft.data?.parameters) {
                 const draftParams = localMerged.data?.parameters as
                     | Record<string, unknown>
                     | undefined
-                const draftSchema = localMerged.data?.schemas?.parameters as
-                    | Record<string, unknown>
-                    | undefined
+                const reNestSchema =
+                    flatSchemaForReNest ??
+                    (localMerged.data?.schemas?.parameters as Record<string, unknown> | undefined)
                 if (draftParams) {
                     localMerged = {
                         ...localMerged,
                         data: {
                             ...localMerged.data,
-                            parameters: nestEvaluatorConfiguration(draftParams, draftSchema),
-                            ...(draftSchema
+                            parameters: nestEvaluatorConfiguration(draftParams, reNestSchema),
+                            ...(reNestSchema
                                 ? {
                                       schemas: {
                                           ...localMerged.data?.schemas,
-                                          parameters: nestEvaluatorSchema(draftSchema),
+                                          parameters: nestEvaluatorSchema(reNestSchema),
                                       },
                                   }
                                 : {}),
@@ -1439,11 +1457,14 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
         //
         // The reverse transform (flattenEvaluatorConfiguration) is only
         // applied at write boundaries (commit, updateConfiguration action).
+        let flatSchemaForReNest: Record<string, unknown> | undefined
         if (merged.flags?.is_evaluator) {
             const flatParams = merged.data?.parameters as Record<string, unknown> | undefined
             const flatSchema = merged.data?.schemas?.parameters as
                 | Record<string, unknown>
                 | undefined
+
+            flatSchemaForReNest = flatSchema
 
             const nestedParams = flatParams
                 ? nestEvaluatorConfiguration(flatParams, flatSchema)
@@ -1481,24 +1502,25 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
         } as Workflow
 
         // Re-apply evaluator nesting after draft merge.
-        // Config edits and presets write flat params to the draft, overwriting
-        // the nested structure. Re-nesting ensures the UI sees the correct format.
+        // Presets write flat params to the draft (with hidden keys preserved
+        // for round-tripping), so we re-nest using the ORIGINAL flat schema
+        // to drop hidden keys from the rendered data again.
         if (finalMerged.flags?.is_evaluator && draft.data?.parameters) {
             const draftParams = finalMerged.data?.parameters as Record<string, unknown> | undefined
-            const draftSchema = finalMerged.data?.schemas?.parameters as
-                | Record<string, unknown>
-                | undefined
+            const reNestSchema =
+                flatSchemaForReNest ??
+                (finalMerged.data?.schemas?.parameters as Record<string, unknown> | undefined)
             if (draftParams) {
                 finalMerged = {
                     ...finalMerged,
                     data: {
                         ...finalMerged.data,
-                        parameters: nestEvaluatorConfiguration(draftParams, draftSchema),
-                        ...(draftSchema
+                        parameters: nestEvaluatorConfiguration(draftParams, reNestSchema),
+                        ...(reNestSchema
                             ? {
                                   schemas: {
                                       ...finalMerged.data?.schemas,
-                                      parameters: nestEvaluatorSchema(draftSchema),
+                                      parameters: nestEvaluatorSchema(reNestSchema),
                                   },
                               }
                             : {}),
