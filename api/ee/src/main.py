@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.openapi.utils import get_openapi
 
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -106,9 +107,17 @@ def extend_main(app: FastAPI):
 
 
 def extend_app_schema(app: FastAPI):
-    from fastapi.openapi.utils import get_openapi
-
     def custom_openapi():
+        """
+        EE-aware OpenAPI schema generator, replaces FastAPI's default.
+
+        Extends the OSS schema with:
+        - Billing tag injected before Admin in the sidebar ordering
+        - APIKeyHeader security scheme and global security requirement
+        - Server URL pinned from config
+
+        Result is cached on app.openapi_schema and built only once per lifetime.
+        """
         if app.openapi_schema:
             return app.openapi_schema
 
