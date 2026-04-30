@@ -1,6 +1,6 @@
 import {useCallback} from "react"
 
-import {archiveWorkflow, invalidateWorkflowsListCache} from "@agenta/entities/workflow"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {Modal} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -31,9 +31,8 @@ const DeleteAppModal = (props = {}) => {
         setLoading(true)
         try {
             const {projectId} = getProjectValues()
-            await archiveWorkflow(projectId, appDetails.id)
-            invalidateWorkflowsListCache()
-            await mutateApps()
+            await workflowMolecule.lifecycle.archive(appDetails.id, {projectId})
+            await mutateApps?.()
             await invalidateAppManagementWorkflowQueries()
             closeModal()
             if (router.pathname.includes("/apps/")) {

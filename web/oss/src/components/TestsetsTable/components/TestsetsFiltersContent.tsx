@@ -4,15 +4,15 @@ import {Button, Divider, Typography} from "antd"
 import {useAtom} from "jotai"
 
 import QuickDateRangePicker from "@/oss/components/EvaluationRunsTablePOC/components/filters/QuickDateRangePicker"
-
 import {
-    testsetsDateCreatedFilterAtom,
-    testsetsDateModifiedFilterAtom,
+    getTestsetTableState,
     type TestsetDateRange,
-} from "../atoms/filters"
+    type TestsetTableMode,
+} from "@/oss/state/entities/testset"
 
 interface TestsetsFiltersContentProps {
     onClose: () => void
+    tableMode?: TestsetTableMode
 }
 
 type RangeValue = {from?: string | null; to?: string | null} | null
@@ -37,9 +37,10 @@ const normalizeRange = (range: TestsetDateRange | null): string => {
     return JSON.stringify({from: range.from ?? null, to: range.to ?? null})
 }
 
-const TestsetsFiltersContent = ({onClose}: TestsetsFiltersContentProps) => {
-    const [dateCreatedFilter, setDateCreatedFilter] = useAtom(testsetsDateCreatedFilterAtom)
-    const [dateModifiedFilter, setDateModifiedFilter] = useAtom(testsetsDateModifiedFilterAtom)
+const TestsetsFiltersContent = ({onClose, tableMode = "active"}: TestsetsFiltersContentProps) => {
+    const tableState = getTestsetTableState(tableMode)
+    const [dateCreatedFilter, setDateCreatedFilter] = useAtom(tableState.dateCreatedFilterAtom)
+    const [dateModifiedFilter, setDateModifiedFilter] = useAtom(tableState.dateModifiedFilterAtom)
 
     // Draft state for tracking changes
     const [draftDateCreated, setDraftDateCreated] = useState<TestsetDateRange | null>(

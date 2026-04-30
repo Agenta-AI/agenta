@@ -26,10 +26,10 @@ const DeleteEvaluatorsModal = ({
             centered
             open={open}
             onCancel={onCancel}
-            okText="Delete"
+            okText="Archive"
             cancelText="Cancel"
             onOk={onConfirm}
-            title={selectedCount === 1 ? "Delete evaluator" : "Delete evaluators"}
+            title={selectedCount === 1 ? "Archive evaluator" : "Archive evaluators"}
             width={480}
             okButtonProps={{
                 ...okButtonProps,

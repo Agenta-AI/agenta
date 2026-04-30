@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {GearSix, Note, Copy, PencilSimple, Trash} from "@phosphor-icons/react"
+import {ArchiveIcon, GearSix, Note, Copy, PencilSimple} from "@phosphor-icons/react"
 import {Button, Dropdown} from "antd"
 import type {ColumnsType} from "antd/es/table"
 
@@ -139,8 +139,8 @@ export const useTestsetsColumns = ({
                                     },
                                     {
                                         key: "delete",
-                                        label: "Delete",
-                                        icon: <Trash size={16} />,
+                                        label: "Archive",
+                                        icon: <ArchiveIcon size={14} />,
                                         danger: true,
                                         onClick: (e) => {
                                             e.domEvent.stopPropagation()

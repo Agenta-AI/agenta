@@ -161,6 +161,21 @@ export async function archiveTestsets(params: {projectId: string; testsetIds: st
     return results.map((r) => r.data)
 }
 
+/**
+ * Unarchive (restore) a testset.
+ */
+export async function unarchiveTestset(params: {projectId: string; testsetId: string}) {
+    const {projectId, testsetId} = params
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/simple/testsets/${testsetId}/unarchive`,
+        {},
+        {params: {project_id: projectId}},
+    )
+
+    return response.data
+}
+
 // ============================================================================
 // REVISION MUTATIONS
 // ============================================================================

@@ -14,7 +14,15 @@ import {
     useDefaultStoreAtomValue,
     formatDateCell,
 } from "@agenta/ui/table"
-import {Eye, GearSix, MinusCircle, PencilSimple, PlusCircle, Trash} from "@phosphor-icons/react"
+import {
+    ArrowCounterClockwise,
+    ArchiveIcon,
+    Eye,
+    GearSix,
+    MinusCircle,
+    PencilSimple,
+    PlusCircle,
+} from "@phosphor-icons/react"
 import {Tag, Typography} from "antd"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
@@ -385,16 +393,24 @@ export interface EvaluatorColumnActions {
     handleConfigure?: (record: EvaluatorTableRow) => void
     handleEdit?: (record: EvaluatorTableRow) => void
     handleDelete?: (record: EvaluatorTableRow) => void
+    handleOpen?: (record: EvaluatorTableRow) => void
+    handleRestore?: (record: EvaluatorTableRow) => void | Promise<void>
 }
 
 /** @deprecated Use GroupExpandState from @agenta/ui/table instead */
 export type EvaluatorExpandState = GroupExpandState
 
+interface EvaluatorColumnOptions {
+    mode?: "active" | "archived"
+}
+
 export function createEvaluatorColumns(
     actions: EvaluatorColumnActions,
     category: EvaluatorCategory,
     expandState?: EvaluatorExpandState,
+    {mode = "active"}: EvaluatorColumnOptions = {},
 ) {
+    const isArchived = mode === "archived"
     const columns = createStandardColumns<EvaluatorTableRow>([
         {
             type: "text",
@@ -447,38 +463,84 @@ export function createEvaluatorColumns(
                 return <AutomaticTagsCell revisionId={record.revisionId} />
             },
         },
-        {
-            type: "text",
-            key: "createdAt",
-            title: "Date Created",
-            render: (_value: unknown, record: EvaluatorTableRow) => {
-                if (record.__isSkeleton) return <SkeletonLine width="50%" />
-                return <DateCell date={record.revisionCreatedAt as string | null} />
-            },
-        },
-        {
-            type: "text",
-            key: "updatedAt",
-            title: "Last modified",
-            render: (_value: unknown, record: EvaluatorTableRow) => {
-                if (record.__isSkeleton) return <SkeletonLine width="50%" />
-                if (record.__isGroupChild)
-                    return <UpdatedAtRevisionCell revisionId={record.revisionId} />
-                return <UpdatedAtCell workflowId={record.workflowId} />
-            },
-        },
-        {
-            type: "text",
-            key: "modifiedBy",
-            title: "Modified by",
-            width: 200,
-            render: (_value, record) => {
-                if (record.__isSkeleton) return <SkeletonLine width="50%" />
-                if (record.__isGroupChild)
-                    return <ModifiedByRevisionCell revisionId={record.revisionId} />
-                return <ModifiedByCell workflowId={record.workflowId} />
-            },
-        },
+        ...(isArchived
+            ? []
+            : [
+                  {
+                      type: "text" as const,
+                      key: "createdAt",
+                      title: "Date Created",
+                      render: (_value: unknown, record: EvaluatorTableRow) => {
+                          if (record.__isSkeleton) return <SkeletonLine width="50%" />
+                          return <DateCell date={record.revisionCreatedAt as string | null} />
+                      },
+                  },
+              ]),
+        ...(isArchived
+            ? [
+                  {
+                      type: "text" as const,
+                      key: "archivedAt",
+                      title: "Archived at",
+                      render: (_value: unknown, record: EvaluatorTableRow) => {
+                          if (record.__isSkeleton) return <SkeletonLine width="50%" />
+                          return <DateCell date={record.deletedAt ?? null} />
+                      },
+                  },
+                  {
+                      type: "text" as const,
+                      key: "archivedBy",
+                      title: "Archived by",
+                      width: 200,
+                      render: (_value: unknown, record: EvaluatorTableRow) => {
+                          if (record.__isSkeleton) return <SkeletonLine width="50%" />
+                          if (!record.deletedById) return null
+                          return (
+                              <div className="h-full flex items-center">
+                                  <Typography.Text
+                                      type="secondary"
+                                      className="text-xs truncate block"
+                                  >
+                                      <UserAuthorLabel
+                                          userId={record.deletedById}
+                                          showPrefix={false}
+                                          showAvatar
+                                          showYouLabel
+                                      />
+                                  </Typography.Text>
+                              </div>
+                          )
+                      },
+                  },
+              ]
+            : []),
+        ...(isArchived
+            ? []
+            : [
+                  {
+                      type: "text" as const,
+                      key: "updatedAt",
+                      title: "Last modified",
+                      render: (_value: unknown, record: EvaluatorTableRow) => {
+                          if (record.__isSkeleton) return <SkeletonLine width="50%" />
+                          if (record.__isGroupChild)
+                              return <UpdatedAtRevisionCell revisionId={record.revisionId} />
+                          return <UpdatedAtCell workflowId={record.workflowId} />
+                      },
+                  },
+                  {
+                      type: "text" as const,
+                      key: "modifiedBy",
+                      title: "Modified by",
+                      width: 200,
+                      render: (_value: unknown, record: EvaluatorTableRow) => {
+                          if (record.__isSkeleton) return <SkeletonLine width="50%" />
+                          if (record.__isGroupChild)
+                              return <ModifiedByRevisionCell revisionId={record.revisionId} />
+                          return <ModifiedByCell workflowId={record.workflowId} />
+                      },
+                  },
+              ]),
         ...(category !== "human"
             ? [
                   {
@@ -497,50 +559,63 @@ export function createEvaluatorColumns(
             type: "actions",
             width: 48,
             maxWidth: 48,
-            items:
-                category === "human"
-                    ? [
-                          {
-                              key: "edit",
-                              label: "Edit",
-                              icon: <PencilSimple size={16} />,
-                              onClick: (record: EvaluatorTableRow) => actions.handleEdit?.(record),
-                          },
-                          {type: "divider" as const},
-                          {
-                              key: "delete",
-                              label: "Delete",
-                              icon: <Trash size={16} />,
-                              danger: true,
-                              onClick: (record: EvaluatorTableRow) =>
-                                  actions.handleDelete?.(record),
-                          },
-                      ]
-                    : [
-                          {
-                              key: "configure",
-                              label: "Configure",
-                              icon: <GearSix size={16} />,
-                              onClick: (record: EvaluatorTableRow) =>
-                                  actions.handleConfigure?.(record),
-                          },
-                          {
-                              key: "details",
-                              label: "View details",
-                              icon: <Eye size={16} />,
-                              onClick: (record: EvaluatorTableRow) =>
-                                  actions.handleConfigure?.(record),
-                          },
-                          {type: "divider" as const},
-                          {
-                              key: "delete",
-                              label: "Delete",
-                              icon: <Trash size={16} />,
-                              danger: true,
-                              onClick: (record: EvaluatorTableRow) =>
-                                  actions.handleDelete?.(record),
-                          },
-                      ],
+            items: isArchived
+                ? [
+                      {
+                          key: "open",
+                          label: "Open details",
+                          icon: <Eye size={16} />,
+                          onClick: (record: EvaluatorTableRow) => actions.handleOpen?.(record),
+                      },
+                      {type: "divider" as const},
+                      {
+                          key: "restore",
+                          label: "Restore",
+                          icon: <ArrowCounterClockwise size={16} />,
+                          onClick: (record: EvaluatorTableRow) => actions.handleRestore?.(record),
+                      },
+                  ]
+                : category === "human"
+                  ? [
+                        {
+                            key: "edit",
+                            label: "Edit",
+                            icon: <PencilSimple size={16} />,
+                            onClick: (record: EvaluatorTableRow) => actions.handleEdit?.(record),
+                        },
+                        {type: "divider" as const},
+                        {
+                            key: "delete",
+                            label: "Archive",
+                            icon: <ArchiveIcon size={14} />,
+                            danger: true,
+                            onClick: (record: EvaluatorTableRow) => actions.handleDelete?.(record),
+                        },
+                    ]
+                  : [
+                        {
+                            key: "configure",
+                            label: "Configure",
+                            icon: <GearSix size={16} />,
+                            onClick: (record: EvaluatorTableRow) =>
+                                actions.handleConfigure?.(record),
+                        },
+                        {
+                            key: "details",
+                            label: "View details",
+                            icon: <Eye size={16} />,
+                            onClick: (record: EvaluatorTableRow) =>
+                                actions.handleConfigure?.(record),
+                        },
+                        {type: "divider" as const},
+                        {
+                            key: "delete",
+                            label: "Archive",
+                            icon: <ArchiveIcon size={14} />,
+                            danger: true,
+                            onClick: (record: EvaluatorTableRow) => actions.handleDelete?.(record),
+                        },
+                    ],
             getRecordId: (record: EvaluatorTableRow) => record.revisionId,
             showCopySlug: true,
             getSlug: (record: EvaluatorTableRow) =>

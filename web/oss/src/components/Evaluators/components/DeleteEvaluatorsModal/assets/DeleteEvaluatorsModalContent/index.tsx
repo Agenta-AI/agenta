@@ -43,7 +43,7 @@ const DeleteEvaluatorsModalContent = ({
             <Typography.Paragraph className="mb-0 text-sm text-slate-700">
                 {selectedCount === 1 && previewEntities[0] ? (
                     <>
-                        Are you sure you want to delete{" "}
+                        Are you sure you want to archive{" "}
                         <EntityNameWithVersion
                             name={previewEntities[0].name}
                             version={previewEntities[0].version}
@@ -51,9 +51,9 @@ const DeleteEvaluatorsModalContent = ({
                         ?
                     </>
                 ) : selectedCount === 1 ? (
-                    "Are you sure you want to delete this evaluator?"
+                    "Are you sure you want to archive this evaluator?"
                 ) : (
-                    "Are you sure you want to delete the selected evaluators?"
+                    "Are you sure you want to archive the selected evaluators?"
                 )}
             </Typography.Paragraph>
 
@@ -80,7 +80,7 @@ const DeleteEvaluatorsModalContent = ({
             )}
 
             <Typography.Text type="secondary" className="text-xs">
-                This action cannot be undone.
+                Archived evaluators are hidden from your workspace and can be restored later.
             </Typography.Text>
         </div>
     )

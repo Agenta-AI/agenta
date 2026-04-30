@@ -268,6 +268,18 @@ export const deleteTestsets = async (ids: string[]) => {
     return results.map((r) => r.data)
 }
 
+export const unarchiveTestset = async (id: string) => {
+    const {projectId} = getProjectValues()
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/simple/testsets/${id}/unarchive`,
+        {},
+        {params: {project_id: projectId}},
+    )
+
+    return response.data
+}
+
 /**
  * Testcase data structure for commit
  */

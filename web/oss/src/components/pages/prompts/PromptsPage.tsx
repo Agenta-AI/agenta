@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {archiveWorkflow, invalidateWorkflowsListCache} from "@agenta/entities/workflow"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {PageLayout} from "@agenta/ui"
 import type {
     InfiniteVirtualTableRowSelection,
@@ -417,8 +417,9 @@ const PromptsPage = () => {
         if (statusData.appId) {
             setStatusData((prev) => ({...prev, status: "cleanup", details: undefined}))
             const {projectId} = getProjectValues()
-            await archiveWorkflow(projectId, statusData.appId).catch(console.error)
-            invalidateWorkflowsListCache()
+            await workflowMolecule.lifecycle
+                .archive(statusData.appId, {projectId})
+                .catch(console.error)
             refetchWorkflows()
         }
         if (templateKey) {
@@ -744,8 +745,10 @@ const PromptsPage = () => {
             onMoveItem: handleOpenMoveModal,
             onOpenAppOverview: handleOpenAppOverview,
             onDeleteApp: (record) => {
+                if (!record.workflowId || typeof record.name !== "string") return
+
                 openDeleteAppModal({
-                    id: record.workflowId,
+                    id: String(record.workflowId),
                     name: record.name,
                 })
             },

@@ -138,8 +138,11 @@ export {
     testset,
     type TestsetApiRow,
     type TestsetTableRow,
+    type TestsetTableMode,
     type TestsetDateRange,
     type TestsetPaginatedMeta,
+    getTestsetTableState,
+    invalidateTestsetManagementQueries,
 } from "./testsetController"
 
 // Paginated store (for direct access if needed)

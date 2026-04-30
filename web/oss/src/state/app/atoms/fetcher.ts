@@ -1,7 +1,13 @@
-import {appWorkflowsListQueryAtom, nonArchivedAppWorkflowsAtom} from "@agenta/entities/workflow"
-import {stringStorage} from "@agenta/shared/state"
+import {
+    appWorkflowsListQueryAtom,
+    nonArchivedAppWorkflowsAtom,
+    queryWorkflows,
+} from "@agenta/entities/workflow"
+import type {Workflow} from "@agenta/entities/workflow"
+import {projectIdAtom, sessionAtom, stringStorage} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
+import {atomWithQuery} from "jotai-tanstack-query"
 
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 
@@ -65,6 +71,42 @@ export const routerAppNavigationAtom = atom(null, (get, set, next: string | null
 
 export const recentAppIdAtom = atomWithStorage<string | null>(LS_APP_KEY, null, stringStorage)
 
+export const currentAppQueryAtom = atomWithQuery<Workflow | null>((get) => {
+    const projectId = get(projectIdAtom)
+    const appId = get(routerAppIdAtom) || get(recentAppIdAtom)
+    const liveApps = get(nonArchivedAppWorkflowsAtom)
+    const liveApp = appId ? (liveApps.find((app) => app.id === appId) ?? null) : null
+
+    return {
+        queryKey: ["currentApp", projectId, appId],
+        queryFn: async () => {
+            if (!projectId || !appId) return null
+
+            const response = await queryWorkflows({
+                projectId,
+                workflowRefs: [{id: appId}],
+                includeArchived: true,
+            })
+
+            return response.workflows.find((workflow) => workflow.id === appId) ?? null
+        },
+        enabled: get(sessionAtom) && !!projectId && !!appId && !liveApp,
+        initialData: liveApp ?? undefined,
+        staleTime: 30_000,
+        refetchOnWindowFocus: false,
+    }
+})
+
+interface WorkflowListQueryState {
+    data?: Workflow[]
+    isPending?: boolean
+    isLoading?: boolean
+    isFetching?: boolean
+    isError?: boolean
+    error?: Error | null
+    refetch?: () => unknown
+}
+
 // ============================================================================
 // APPS QUERY (derived from entity workflow list)
 // ============================================================================
@@ -75,12 +117,12 @@ export const recentAppIdAtom = atomWithStorage<string | null>(LS_APP_KEY, null, 
  * Returns `Workflow[]` directly from the entity layer (non-evaluator, non-archived).
  */
 export const appsQueryAtom = atom((get) => {
-    const query = get(appWorkflowsListQueryAtom)
+    const query = get(appWorkflowsListQueryAtom) as WorkflowListQueryState
     const workflows = get(nonArchivedAppWorkflowsAtom)
 
     return {
         data: workflows,
-        isPending: query.isPending,
+        isPending: query.isPending ?? false,
         isLoading: query.isLoading ?? query.isPending,
         isFetching: query.isFetching ?? false,
         isError: query.isError ?? false,

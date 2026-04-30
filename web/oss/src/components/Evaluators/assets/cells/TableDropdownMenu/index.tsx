@@ -1,7 +1,7 @@
 import {memo, useMemo} from "react"
 
 import {MoreOutlined} from "@ant-design/icons"
-import {PencilSimpleLine, Trash} from "@phosphor-icons/react"
+import {ArchiveIcon, PencilSimpleLine} from "@phosphor-icons/react"
 import {Button, Dropdown, MenuProps} from "antd"
 
 import {TableDropdownMenuProps} from "./types"
@@ -32,8 +32,8 @@ const TableDropdownMenu = ({
 
         menuItems.push({
             key: "delete",
-            label: "Delete",
-            icon: <Trash size={16} />,
+            label: "Archive",
+            icon: <ArchiveIcon size={14} />,
             danger: true,
             onClick: (event) => {
                 event.domEvent.stopPropagation()

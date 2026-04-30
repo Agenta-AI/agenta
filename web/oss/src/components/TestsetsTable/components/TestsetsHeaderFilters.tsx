@@ -1,20 +1,25 @@
 import {useCallback, useState} from "react"
 
 import {Input} from "antd"
-import {useAtom, useAtomValue} from "jotai"
+import {useAtom} from "jotai"
 
 import {FiltersPopoverTrigger} from "@/oss/components/InfiniteVirtualTable"
-import {testset} from "@/oss/state/entities/testset"
-
-import {testsetsFiltersButtonStateAtom} from "../atoms/filters"
+import {getTestsetTableState, type TestsetTableMode} from "@/oss/state/entities/testset"
 
 import TestsetsFiltersContent from "./TestsetsFiltersContent"
 import TestsetsFiltersSummary from "./TestsetsFiltersSummary"
 
-const TestsetsHeaderFilters = () => {
-    const [searchTerm, setSearchTerm] = useAtom(testset.filters.searchTerm)
-    const filtersButtonState = useAtomValue(testsetsFiltersButtonStateAtom)
+interface TestsetsHeaderFiltersProps {
+    tableMode?: TestsetTableMode
+}
+
+const TestsetsHeaderFilters = ({tableMode = "active"}: TestsetsHeaderFiltersProps) => {
+    const tableState = getTestsetTableState(tableMode)
+    const [searchTerm, setSearchTerm] = useAtom(tableState.searchTermAtom)
+    const [dateCreatedFilter] = useAtom(tableState.dateCreatedFilterAtom)
+    const [dateModifiedFilter] = useAtom(tableState.dateModifiedFilterAtom)
     const [, setIsFiltersOpen] = useState(false)
+    const filterCount = [dateCreatedFilter, dateModifiedFilter].filter(Boolean).length
 
     const handleFiltersOpenChange = useCallback((open: boolean) => {
         setIsFiltersOpen(open)
@@ -31,8 +36,8 @@ const TestsetsHeaderFilters = () => {
                 style={{minWidth: 220}}
             />
             <FiltersPopoverTrigger
-                filterCount={filtersButtonState.filterCount}
-                buttonType={filtersButtonState.buttonType as "default" | "primary"}
+                filterCount={filterCount}
+                buttonType={filterCount > 0 ? "primary" : "default"}
                 onOpenChange={handleFiltersOpenChange}
                 popoverProps={{
                     overlayStyle: {
@@ -50,9 +55,11 @@ const TestsetsHeaderFilters = () => {
                         },
                     },
                 }}
-                renderContent={(close) => <TestsetsFiltersContent onClose={close} />}
+                renderContent={(close) => (
+                    <TestsetsFiltersContent tableMode={tableMode} onClose={close} />
+                )}
             />
-            <TestsetsFiltersSummary />
+            <TestsetsFiltersSummary tableMode={tableMode} />
         </div>
     )
 }
