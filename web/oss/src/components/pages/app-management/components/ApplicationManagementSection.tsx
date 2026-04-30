@@ -64,6 +64,12 @@ const ApplicationManagementSection = ({
         exportFilename: isArchived ? "archived-apps.csv" : "apps.csv",
     })
 
+    const isArchivedInitialLoading =
+        isArchived &&
+        table.pagination.loadedRowCount === 0 &&
+        (isArchivedCountLoading || table.pagination.paginationInfo.isFetching)
+    const shouldShowTable = totalAppCount > 0 || (isArchived && isArchivedInitialLoading)
+
     const actions: AppWorkflowColumnActions = useMemo(
         () => ({
             onOpen: (record) => {
@@ -159,7 +165,7 @@ const ApplicationManagementSection = ({
                 </div>
             ) : null}
 
-            {totalAppCount > 0 || (isArchived && isArchivedCountLoading) ? (
+            {shouldShowTable ? (
                 <InfiniteVirtualTableFeatureShell<AppWorkflowRow>
                     {...table.shellProps}
                     columns={columns}
@@ -170,6 +176,10 @@ const ApplicationManagementSection = ({
                     paginationMode="paginated"
                     paginatedPageSize={PAGE_SIZE}
                     paginatedTotalCount={filteredAppCount}
+                    tableProps={{
+                        ...table.shellProps.tableProps,
+                        loading: isArchivedInitialLoading,
+                    }}
                 />
             ) : (
                 emptyState

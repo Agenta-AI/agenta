@@ -4,5 +4,6 @@ export interface ArchivedEntityLayoutProps {
     title: string
     subtitle?: string
     onBack?: () => void
+    isEmpty?: boolean
     children: ReactNode
 }
