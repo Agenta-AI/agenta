@@ -12,6 +12,12 @@
       "import": "./dist/index.js"
     }
   },
+  "browser": {
+    "fs": false,
+    "stream": false,
+    "stream/web": false,
+    "buffer": false
+  },
   "files": [
     "dist",
     "src"
