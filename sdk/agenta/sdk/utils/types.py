@@ -622,8 +622,8 @@ class RetryPolicy(str, Enum):
 
 
 class RetryConfig(BaseModel):
-    max_retries: int = Field(default=0, ge=0)
-    delay_ms: int = Field(default=0, ge=0)
+    max_retries: Optional[int] = Field(default=None, ge=0, le=5)
+    base_delay: Optional[int] = Field(default=None, ge=100, le=1000)
 
 
 class FallbackPolicy(str, Enum):

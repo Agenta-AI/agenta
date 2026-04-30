@@ -303,8 +303,8 @@ All configuration data must be nested under the `prompt` key.
 | prompt.fallback_configs | array or null | Ordered backup model configurations |
 | prompt.fallback_configs[].model | string | Required model identifier for each fallback model |
 | prompt.retry_config | object or null | Retry settings applied to each attempted model |
-| prompt.retry_config.max_retries | integer | Number of extra attempts after the first failed attempt |
-| prompt.retry_config.delay_ms | integer | Wait time between retry attempts, in milliseconds |
+| prompt.retry_config.max_retries | integer (0–5) | Number of extra attempts after the first failed attempt |
+| prompt.retry_config.base_delay | integer (100–1000) | Base delay in milliseconds before the first retry; doubles on each subsequent attempt |
 | prompt.retry_policy | string or null | Error policy for retrying the same model. Options: `off`, `availability`, `capacity`, `transient`, or `any` |
 | prompt.fallback_policy | string or null | Error policy for moving to a fallback model. Options: `off`, `availability`, `capacity`, `access`, `context`, or `any` |
 
@@ -339,7 +339,7 @@ All configuration data must be nested under the `prompt` key.
     ],
     "retry_config": {
       "max_retries": 1,
-      "delay_ms": 500
+      "base_delay": 500
     },
     "retry_policy": "capacity",
     "fallback_policy": "capacity",

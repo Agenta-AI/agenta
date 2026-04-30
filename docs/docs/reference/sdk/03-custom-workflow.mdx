@@ -74,7 +74,7 @@ PromptTemplate(
     input_keys=["var1", "var2"],
     llm_config=ModelConfig(...),
     fallback_configs=[ModelConfig(model="...")],
-    retry_config=RetryConfig(max_retries=1, delay_ms=500),
+    retry_config=RetryConfig(max_retries=1, base_delay=500),
     retry_policy=RetryPolicy.CAPACITY,
     fallback_policy=FallbackPolicy.CAPACITY,
 )
@@ -87,7 +87,7 @@ PromptTemplate(
 - `input_keys` (List[str]): Variables expected in the template
 - `llm_config` (ModelConfig): Model and parameter settings
 - `fallback_configs` (List[ModelConfig]): Optional ordered backup model settings
-- `retry_config` (RetryConfig): Optional retry count and delay settings for each attempted model
+- `retry_config` (RetryConfig): Optional retry count and base delay (ms) settings for each attempted model; delay doubles on each subsequent attempt
 - `retry_policy` (RetryPolicy): Optional policy for which errors can retry the same model
 - `fallback_policy` (FallbackPolicy): Optional policy for when Agenta can move to a fallback model
 
