@@ -7,6 +7,10 @@ import click
 from dotenv import load_dotenv
 
 
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+LOCAL_SDK_DIR = os.path.join(ROOT_DIR, "sdk")
+
+
 TYPES = {
     "license": ["ee", "oss"],
     "coverage": ["smoke", "full"],
@@ -29,6 +33,14 @@ def _has_pytest_option(pytest_args: Optional[tuple], option: str) -> bool:
 
 def _resolve_license() -> str:
     return "ee" if os.getenv("AGENTA_LICENSE") == "ee" else "oss"
+
+
+def _prepend_pythonpath(path: str) -> None:
+    current = os.environ.get("PYTHONPATH")
+    paths = [path]
+    if current:
+        paths.append(current)
+    os.environ["PYTHONPATH"] = os.pathsep.join(paths)
 
 
 @click.command()
@@ -142,6 +154,9 @@ def run_tests(
 
     license = _resolve_license()
     click.echo(f"AGENTA_LICENSE={license}")
+
+    if os.path.isdir(LOCAL_SDK_DIR):
+        _prepend_pythonpath(LOCAL_SDK_DIR)
 
     # Set optional dimensions
     for name, value in [

@@ -1,5 +1,6 @@
-import {expect, Locator, Page} from "@playwright/test"
 import {existsSync, readFileSync} from "fs"
+
+import {expect, Locator, Page} from "@playwright/test"
 
 import {getProjectMetadataPath} from "../../../../playwright/config/runtime.ts"
 import {UseFn} from "../../types"
@@ -33,9 +34,9 @@ interface VaultSecretRecord {
                 api_key?: string
             }
         }
-        models?: Array<{
+        models?: {
             slug?: string
-        }>
+        }[]
     }
 }
 
@@ -437,12 +438,12 @@ async function selectMockModel(page: Page): Promise<void> {
 
     await modelButton.click()
 
-    const modelParametersPopover = page.locator(".ant-popover").filter({
-        has: page.getByText("Model Parameters", {exact: true}),
+    const configurePopover = page.locator(".ant-popover").filter({
+        has: page.getByText("Configure", {exact: true}),
     })
-    await expect(modelParametersPopover).toBeVisible({timeout: 15000})
+    await expect(configurePopover).toBeVisible({timeout: 15000})
 
-    const modelSelect = modelParametersPopover
+    const modelSelect = configurePopover
         .locator(".ant-select")
         .filter({hasText: currentModel || ""})
         .first()

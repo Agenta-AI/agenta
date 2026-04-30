@@ -74,24 +74,33 @@ const deployVariantToEnv = async (
 
     const deployBtn = modal.getByRole("button", {name: "Deploy"})
 
-    // Wait for at least one row to be rendered in the table
-    await expect(modal.locator("[data-row-key]").first()).toBeVisible({timeout: 15000})
+    // Skeleton rows have keys like "deploy-variant-selector::skeleton-registryRevision-N-..."
+    // Clicking a skeleton radio enables the Deploy button (selectedRowKeys.length > 0) but
+    // selectedRowRef.current becomes null once real data loads and skeleton keys are replaced,
+    // causing handleDeploy to silently return early. Wait for real (non-skeleton) rows first.
+    const realRow = modal.locator('[data-row-key]:not([data-row-key*="skeleton"])').first()
+    await expect(realRow).toBeVisible({timeout: 30000})
 
-    // Use poll + check() on the first radio input so that Ant Design's controlled
-    // rowSelection.onChange fires reliably — force clicks on the wrapper are flaky
-    // in headless CI because they bypass the native input change event.
+    const radioSelector = '.ant-radio-wrapper, .ant-radio, [role="radio"], input[type="radio"]'
     await expect
         .poll(
             async () => {
-                const firstRadio = modal.locator('input[type="radio"]').first()
-                if (await firstRadio.isVisible().catch(() => false)) {
-                    await firstRadio.check({force: true}).catch(() => null)
+                const radioControl = realRow.locator(radioSelector).first()
+                if (await radioControl.isVisible().catch(() => false)) {
+                    await radioControl.click({force: true}).catch(() => null)
+                } else {
+                    await realRow.click({force: true}).catch(() => null)
                 }
                 return await deployBtn.isEnabled().catch(() => false)
             },
             {timeout: 30000},
         )
         .toBe(true)
+
+    // Confirm the context panel resolved the row — selectedRowRef.current is non-null
+    await expect(modal.getByText(/This will deploy the following revision to/i)).toBeVisible({
+        timeout: 15000,
+    })
 
     const deployResponsePromise = page.waitForResponse((response: any) => {
         return (

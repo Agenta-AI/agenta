@@ -1,3 +1,4 @@
+import asyncio
 import json
 import math
 import os
@@ -24,7 +25,15 @@ from agenta.sdk.utils.lazy import (
 )
 
 from agenta.sdk.litellm import mockllm
-from agenta.sdk.utils.types import PromptTemplate, Message, Messages  # noqa: F401
+from agenta.sdk.utils.types import (  # noqa: F401
+    FallbackPolicy,
+    Message,
+    Messages,
+    ModelConfig,
+    PromptTemplate,
+    RetryConfig,
+    RetryPolicy,
+)
 from agenta.sdk.managers.secrets import SecretsManager
 from agenta.sdk.decorators.tracing import instrument
 from agenta.sdk.models.shared import Data
@@ -1884,7 +1893,8 @@ class SinglePromptConfig(BaseModel):
 
 
 def _apply_responses_bridge_if_needed(
-    formatted_prompt: PromptTemplate, provider_settings: Dict
+    provider_settings: Dict,
+    llm_config: ModelConfig,
 ) -> Dict:
     """
     Checks if web_search_preview tool is present and applies responses bridge if needed.
@@ -1894,13 +1904,13 @@ def _apply_responses_bridge_if_needed(
     'openai/responses/' to the model name.
 
     Args:
-        formatted_prompt: The formatted prompt template containing LLM config and tools
         provider_settings: The provider settings dictionary that may be modified
+        llm_config: The LLM config containing tool definitions
 
     Returns:
         The provider_settings dictionary, potentially modified to use responses bridge
     """
-    tools = formatted_prompt.llm_config.tools
+    tools = llm_config.tools
     if tools:
         for tool in tools:
             if isinstance(tool, dict) and tool.get("type") in [
@@ -1912,6 +1922,237 @@ def _apply_responses_bridge_if_needed(
                 if model_val and "/" not in model_val:
                     provider_settings["model"] = f"openai/responses/{model_val}"
     return provider_settings
+
+
+def _coerce_retry_config(retry_config: Optional[RetryConfig]) -> RetryConfig:
+    return retry_config or RetryConfig()
+
+
+def _coerce_retry_policy(retry_policy: Optional[RetryPolicy]) -> RetryPolicy:
+    return retry_policy or RetryPolicy.OFF
+
+
+def _coerce_fallback_policy(
+    fallback_policy: Optional[FallbackPolicy],
+) -> FallbackPolicy:
+    return fallback_policy or FallbackPolicy.OFF
+
+
+def _prompt_llm_configs(prompt: PromptTemplate) -> List[ModelConfig]:
+    return [prompt.llm_config, *(prompt.fallback_configs or [])]
+
+
+def _error_status_code(error: Exception) -> Optional[int]:
+    status_code = getattr(error, "status_code", None)
+    if isinstance(status_code, int):
+        return status_code
+
+    response = getattr(error, "response", None)
+    status_code = getattr(response, "status_code", None)
+    if isinstance(status_code, int):
+        return status_code
+
+    return None
+
+
+def _error_text(error: Exception) -> str:
+    return f"{type(error).__name__} {str(error)}".lower()
+
+
+def _is_context_window_error(error: Exception) -> bool:
+    error_text = _error_text(error)
+    return any(
+        marker in error_text
+        for marker in (
+            "context length",
+            "context window",
+            "context limit",
+            "maximum context",
+            "max context",
+            "token limit",
+            "too many tokens",
+            "input is too long",
+        )
+    )
+
+
+def _classify_fallback_error(error: Exception) -> Optional[str]:
+    if isinstance(error, InvalidSecretsV0Error):
+        return "access"
+
+    if isinstance(error, (TimeoutError, httpx.TimeoutException)):
+        return "availability"
+
+    if isinstance(error, httpx.RequestError):
+        return "availability"
+
+    status_code = _error_status_code(error)
+    if status_code in (401, 403):
+        return "access"
+    if status_code == 429:
+        return "capacity"
+    if status_code == 503 or (status_code is not None and 500 <= status_code <= 599):
+        return "availability"
+    if status_code in (400, 422) and _is_context_window_error(error):
+        return "context"
+    if status_code in (400, 404, 422):
+        return "any"
+
+    return None
+
+
+def _classify_retry_error(error: Exception) -> Optional[str]:
+    if isinstance(error, (TimeoutError, httpx.TimeoutException)):
+        return "availability"
+
+    if isinstance(error, httpx.RequestError):
+        return "availability"
+
+    status_code = _error_status_code(error)
+    if status_code == 429:
+        return "capacity"
+    if status_code == 503 or (status_code is not None and 500 <= status_code <= 599):
+        return "availability"
+    if status_code in (409, 423):
+        return "transient"
+
+    if status_code is not None:
+        return "any"
+
+    return None
+
+
+def _should_retry(
+    error: Exception,
+    retry_config: Optional[RetryConfig],
+    retry_policy: Optional[RetryPolicy],
+) -> bool:
+    config = _coerce_retry_config(retry_config)
+    policy = _coerce_retry_policy(retry_policy)
+    if config.max_retries <= 0 or policy == RetryPolicy.OFF:
+        return False
+
+    category = _classify_retry_error(error)
+    if category is None:
+        return False
+
+    allowed_categories = {
+        RetryPolicy.AVAILABILITY: {"availability"},
+        RetryPolicy.CAPACITY: {"availability", "capacity"},
+        RetryPolicy.TRANSIENT: {"availability", "capacity", "transient"},
+        RetryPolicy.ANY: {"availability", "capacity", "transient", "any"},
+    }
+    return category in allowed_categories.get(policy, set())
+
+
+def _should_fallback(
+    error: Exception, fallback_policy: Optional[FallbackPolicy]
+) -> bool:
+    policy = _coerce_fallback_policy(fallback_policy)
+    if policy == FallbackPolicy.OFF:
+        return False
+
+    category = _classify_fallback_error(error)
+    if category is None:
+        return False
+
+    allowed_categories = {
+        FallbackPolicy.AVAILABILITY: {"availability"},
+        FallbackPolicy.CAPACITY: {"availability", "capacity"},
+        FallbackPolicy.ACCESS: {"availability", "capacity", "access"},
+        FallbackPolicy.CONTEXT: {
+            "availability",
+            "capacity",
+            "access",
+            "context",
+        },
+        FallbackPolicy.ANY: {
+            "availability",
+            "capacity",
+            "access",
+            "context",
+            "any",
+        },
+    }
+    return category in allowed_categories.get(policy, set())
+
+
+async def _run_prompt_llm_config_with_retry(
+    formatted_prompt: PromptTemplate,
+    llm_config: ModelConfig,
+    retry_config: Optional[RetryConfig],
+    retry_policy: Optional[RetryPolicy],
+    messages: Optional[List[Message]] = None,
+):
+    config = _coerce_retry_config(retry_config)
+    attempts = config.max_retries + 1
+    last_error = None
+
+    for attempt in range(attempts):
+        try:
+            provider_settings = SecretsManager.get_provider_settings_from_workflow(
+                llm_config.model
+            )
+
+            if not provider_settings:
+                raise InvalidSecretsV0Error(
+                    expected="dict", got=provider_settings, model=llm_config.model
+                )
+
+            provider_settings = _apply_responses_bridge_if_needed(
+                dict(provider_settings),
+                llm_config=llm_config,
+            )
+            openai_kwargs = formatted_prompt.to_openai_kwargs(llm_config)
+
+            if messages is not None:
+                openai_kwargs["messages"] = [*openai_kwargs["messages"], *messages]
+
+            with mockllm.user_aws_credentials_from(provider_settings):
+                return await mockllm.acompletion(
+                    **{k: v for k, v in openai_kwargs.items() if k != "model"},
+                    **provider_settings,
+                )
+        except Exception as exc:
+            last_error = exc
+            if attempt >= attempts - 1 or not _should_retry(
+                exc,
+                retry_config=config,
+                retry_policy=retry_policy,
+            ):
+                break
+            if config.delay_ms > 0:
+                await asyncio.sleep(config.delay_ms / 1000)
+
+    raise last_error  # type: ignore[misc]
+
+
+async def _run_prompt_with_fallback(
+    formatted_prompt: PromptTemplate,
+    messages: Optional[List[Message]] = None,
+):
+    llm_configs = _prompt_llm_configs(formatted_prompt)
+    last_error = None
+
+    for index, current_llm_config in enumerate(llm_configs):
+        try:
+            return await _run_prompt_llm_config_with_retry(
+                formatted_prompt=formatted_prompt,
+                llm_config=current_llm_config,
+                retry_config=formatted_prompt.retry_config,
+                retry_policy=formatted_prompt.retry_policy,
+                messages=messages,
+            )
+        except Exception as exc:
+            last_error = exc
+            has_next_config = index < len(llm_configs) - 1
+            if has_next_config and _should_fallback(
+                exc, formatted_prompt.fallback_policy
+            ):
+                continue
+            raise
+
+    raise last_error  # type: ignore[misc]
 
 
 @instrument(ignore_inputs=["parameters"])
@@ -1954,35 +2195,9 @@ async def completion_v0(
     else:
         formatted_prompt = config.prompt
 
-    openai_kwargs = formatted_prompt.to_openai_kwargs()
-
     await SecretsManager.ensure_secrets_in_workflow()
 
-    provider_settings = SecretsManager.get_provider_settings_from_workflow(
-        config.prompt.llm_config.model
-    )
-
-    if not provider_settings:
-        model = getattr(
-            getattr(getattr(config, "prompt", None), "llm_config", None), "model", None
-        )
-        raise InvalidSecretsV0Error(
-            expected="dict",
-            got=provider_settings,
-            model=model,
-        )
-
-    provider_settings = _apply_responses_bridge_if_needed(
-        formatted_prompt, provider_settings
-    )
-
-    with mockllm.user_aws_credentials_from(provider_settings):
-        response = await mockllm.acompletion(
-            **{
-                k: v for k, v in openai_kwargs.items() if k != "model"
-            },  # we should use the model_name from provider_settings
-            **provider_settings,
-        )
+    response = await _run_prompt_with_fallback(formatted_prompt)
 
     message = response.choices[0].message  # type: ignore
 
@@ -2043,38 +2258,9 @@ async def chat_v0(
     else:
         formatted_prompt = config.prompt
 
-    openai_kwargs = formatted_prompt.to_openai_kwargs()
-
-    if _messages is not None:
-        openai_kwargs["messages"].extend(_messages)
-
     await SecretsManager.ensure_secrets_in_workflow()
 
-    provider_settings = SecretsManager.get_provider_settings_from_workflow(
-        config.prompt.llm_config.model
-    )
-
-    if not provider_settings:
-        model = getattr(
-            getattr(getattr(config, "prompt", None), "llm_config", None), "model", None
-        )
-        raise InvalidSecretsV0Error(
-            expected="dict",
-            got=provider_settings,
-            model=model,
-        )
-
-    provider_settings = _apply_responses_bridge_if_needed(
-        formatted_prompt, provider_settings
-    )
-
-    with mockllm.user_aws_credentials_from(provider_settings):
-        response = await mockllm.acompletion(
-            **{
-                k: v for k, v in openai_kwargs.items() if k != "model"
-            },  # we should use the model_name from provider_settings
-            **provider_settings,
-        )
+    response = await _run_prompt_with_fallback(formatted_prompt, messages=_messages)
 
     message = response.choices[0].message  # type: ignore
 
@@ -3212,6 +3398,7 @@ async def _call_llm_with_fallback(
             "frequency_penalty",
             "presence_penalty",
             "reasoning_effort",
+            "chat_template_kwargs",
         ):
             val = llm_config.get(field)
             if val is not None:

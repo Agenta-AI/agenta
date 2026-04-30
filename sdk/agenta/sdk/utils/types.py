@@ -1,6 +1,7 @@
 import json
 from copy import deepcopy
 from dataclasses import dataclass
+from enum import Enum
 from typing import Annotated, ClassVar, List, Union, Optional, Dict, Literal, Any
 
 from pydantic import ConfigDict, BaseModel, HttpUrl, RootModel
@@ -446,6 +447,10 @@ class ModelConfig(BaseModel):
             "enum": ["none", "low", "medium", "high"],
         },
     )
+    chat_template_kwargs: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Provider-specific chat template options passed through unchanged.",
+    )
     response_format: Optional[ResponseFormat] = Field(
         default=None,
         description="An object specifying the format that the model must output",
@@ -584,6 +589,7 @@ class AgLLM(AgSchemaMixin):
         default=None,
         json_schema_extra={"x-ag-type": "choice"},
     )
+    chat_template_kwargs: Optional[Dict[str, Any]] = Field(default=None)
     tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = Field(
         default=None,
     )
@@ -605,6 +611,28 @@ class AgLLMs(AgSchemaMixin, RootModel[List[AgLLM]]):
 
     def __getitem__(self, item):
         return self.root[item]
+
+
+class RetryPolicy(str, Enum):
+    OFF = "off"
+    AVAILABILITY = "availability"
+    CAPACITY = "capacity"
+    TRANSIENT = "transient"
+    ANY = "any"
+
+
+class RetryConfig(BaseModel):
+    max_retries: int = Field(default=0, ge=0)
+    delay_ms: int = Field(default=0, ge=0)
+
+
+class FallbackPolicy(str, Enum):
+    OFF = "off"
+    AVAILABILITY = "availability"
+    CAPACITY = "capacity"
+    ACCESS = "access"
+    CONTEXT = "context"
+    ANY = "any"
 
 
 class AgLoop(AgSchemaMixin):
@@ -681,9 +709,72 @@ class PromptTemplate(AgSchemaMixin):
         default_factory=ModelConfig,
         description="Configuration for the model parameters",
     )
+    fallback_configs: Optional[List[ModelConfig]] = Field(
+        default=None,
+        description="Ordered fallback LLM configs. Runtime default is no fallback configs.",
+    )
+    fallback_policy: Optional[FallbackPolicy] = Field(
+        default=None,
+        description="Controls which provider-call errors can move execution to the next fallback config.",
+        json_schema_extra={
+            "x-ag-type": "choice",
+            "enum": ["off", "availability", "capacity", "access", "context", "any"],
+            "x-ag-metadata": {
+                "off": {
+                    "description": "disable fallbacks",
+                },
+                "availability": {
+                    "description": "fall back on provider-side issues (or 5xx)",
+                },
+                "capacity": {
+                    "description": "availability + fall back on rate/quota limits (or 429)",
+                },
+                "access": {
+                    "description": "capacity + fall back on auth errors (or 401/403)",
+                },
+                "context": {
+                    "description": "access + fall back on context-window errors",
+                },
+                "any": {
+                    "description": "context + fall back on any provider-call error (or 4xx)",
+                },
+            },
+        },
+    )
+    retry_config: Optional[RetryConfig] = Field(
+        default=None,
+        description="Retry count and delay applied to each attempted LLM config.",
+    )
+    retry_policy: Optional[RetryPolicy] = Field(
+        default=None,
+        description="Controls which errors can retry the same LLM config.",
+        json_schema_extra={
+            "x-ag-type": "choice",
+            "enum": ["off", "availability", "capacity", "transient", "any"],
+            "x-ag-metadata": {
+                "off": {
+                    "description": "disable retries",
+                },
+                "availability": {
+                    "description": "retry provider-side availability issues (or 5xx)",
+                },
+                "capacity": {
+                    "description": "availability + retry rate/capacity limits (or 429)",
+                },
+                "transient": {
+                    "description": "capacity + retry temporary upstream/resource errors",
+                },
+                "any": {
+                    "description": "retry any provider-call error",
+                },
+            },
+        },
+    )
 
     @model_validator(mode="before")
     def init_messages(cls, values):
+        if not isinstance(values, dict):
+            return values
         if "messages" not in values:
             messages = []
             if "system_prompt" in values and values["system_prompt"]:
@@ -823,61 +914,79 @@ class PromptTemplate(AgSchemaMixin):
                 )
             )
 
-        new_llm_config = self.llm_config.model_copy(deep=True)
-        if new_llm_config.response_format is not None:
-            rf_dict = new_llm_config.response_format.model_dump(by_alias=True)
-            substituted = self._substitute_variables(rf_dict, kwargs)
-            rf_type = type(new_llm_config.response_format)
-            new_llm_config.response_format = rf_type(**substituted)
+        new_llm_config = self._format_llm_config(self.llm_config, kwargs)
+        new_fallback_configs = None
+        if self.fallback_configs is not None:
+            new_fallback_configs = [
+                self._format_llm_config(fallback_config, kwargs)
+                for fallback_config in self.fallback_configs
+            ]
 
         return PromptTemplate(
             messages=new_messages,
             template_format=self.template_format,
             llm_config=new_llm_config,
+            fallback_configs=new_fallback_configs,
+            retry_policy=self.retry_policy,
+            retry_config=self.retry_config,
+            fallback_policy=self.fallback_policy,
             input_keys=self.input_keys,
         )
 
-    def to_openai_kwargs(self) -> dict:
-        """Convert the prompt template to kwargs compatible with litellm/openai"""
+    def _format_llm_config(
+        self, llm_config: ModelConfig, kwargs: Dict[str, Any]
+    ) -> ModelConfig:
+        new_llm_config = llm_config.model_copy(deep=True)
+        if new_llm_config.response_format is not None:
+            rf_dict = new_llm_config.response_format.model_dump(by_alias=True)
+            substituted = self._substitute_variables(rf_dict, kwargs)
+            rf_type = type(new_llm_config.response_format)
+            new_llm_config.response_format = rf_type(**substituted)
+        return new_llm_config
+
+    def to_openai_kwargs(self, llm_config: Optional[ModelConfig] = None) -> dict:
+        """Convert the prompt template to kwargs compatible with litellm/openai."""
+        llm_config = llm_config or self.llm_config
         kwargs = {
             "messages": [msg.model_dump(exclude_none=True) for msg in self.messages],
         }
 
         # Add optional parameters only if they are set
-        if self.llm_config.model is not None:
-            kwargs["model"] = self.llm_config.model
+        if llm_config.model is not None:
+            kwargs["model"] = llm_config.model
 
-        if self.llm_config.temperature is not None:
-            kwargs["temperature"] = self.llm_config.temperature
+        if llm_config.temperature is not None:
+            kwargs["temperature"] = llm_config.temperature
 
-        if self.llm_config.top_p is not None:
-            kwargs["top_p"] = self.llm_config.top_p
+        if llm_config.top_p is not None:
+            kwargs["top_p"] = llm_config.top_p
 
-        if self.llm_config.stream is not None:
-            kwargs["stream"] = self.llm_config.stream
+        if llm_config.stream is not None:
+            kwargs["stream"] = llm_config.stream
 
-        if self.llm_config.max_tokens is not None:
-            kwargs["max_tokens"] = self.llm_config.max_tokens
+        if llm_config.max_tokens is not None:
+            kwargs["max_tokens"] = llm_config.max_tokens
 
-        if self.llm_config.frequency_penalty is not None:
-            kwargs["frequency_penalty"] = self.llm_config.frequency_penalty
+        if llm_config.frequency_penalty is not None:
+            kwargs["frequency_penalty"] = llm_config.frequency_penalty
 
-        if self.llm_config.presence_penalty is not None:
-            kwargs["presence_penalty"] = self.llm_config.presence_penalty
+        if llm_config.presence_penalty is not None:
+            kwargs["presence_penalty"] = llm_config.presence_penalty
 
-        if self.llm_config.reasoning_effort is not None:
-            kwargs["reasoning_effort"] = self.llm_config.reasoning_effort
+        if llm_config.reasoning_effort is not None:
+            kwargs["reasoning_effort"] = llm_config.reasoning_effort
 
-        if self.llm_config.response_format:
-            kwargs["response_format"] = self.llm_config.response_format.dict(
-                by_alias=True
-            )
+        if llm_config.chat_template_kwargs is not None:
+            kwargs["chat_template_kwargs"] = llm_config.chat_template_kwargs
 
-        if self.llm_config.tools:
-            kwargs["tools"] = self.llm_config.tools
+        if llm_config.response_format:
+            kwargs["response_format"] = llm_config.response_format.dict(by_alias=True)
+
+        if llm_config.tools:
+            kwargs["tools"] = llm_config.tools
             # Only set tool_choice if tools are present
-            if self.llm_config.tool_choice is not None:
-                kwargs["tool_choice"] = self.llm_config.tool_choice
+            if llm_config.tool_choice is not None:
+                kwargs["tool_choice"] = llm_config.tool_choice
 
         return kwargs
 

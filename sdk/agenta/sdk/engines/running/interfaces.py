@@ -345,6 +345,7 @@ llm_v0_interface = WorkflowRevisionData(
                                 ),
                                 x_ag_type="choice",
                             ),
+                            "chat_template_kwargs": obj(additional_properties=True),
                             "tool_choice": {
                                 "oneOf": [
                                     scalar(jtype="string", enum=["none", "auto"]),
