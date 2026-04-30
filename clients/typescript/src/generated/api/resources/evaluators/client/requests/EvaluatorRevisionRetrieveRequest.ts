@@ -7,12 +7,12 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface EvaluatorRevisionRetrieveRequest {
-    evaluator_ref?: AgentaApi.Reference | null;
-    evaluator_variant_ref?: AgentaApi.Reference | null;
-    evaluator_revision_ref?: AgentaApi.Reference | null;
-    environment_ref?: AgentaApi.Reference | null;
-    environment_variant_ref?: AgentaApi.Reference | null;
-    environment_revision_ref?: AgentaApi.Reference | null;
+    evaluator_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    evaluator_variant_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    evaluator_revision_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    environment_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    environment_variant_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    environment_revision_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
     key?: string | null;
     resolve?: boolean | null;
 }

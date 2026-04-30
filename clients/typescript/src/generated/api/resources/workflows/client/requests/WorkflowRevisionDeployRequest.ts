@@ -7,12 +7,12 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface WorkflowRevisionDeployRequest {
-    workflow_ref?: AgentaApi.Reference | null;
-    workflow_variant_ref?: AgentaApi.Reference | null;
-    workflow_revision_ref?: AgentaApi.Reference | null;
-    environment_ref?: AgentaApi.Reference | null;
-    environment_variant_ref?: AgentaApi.Reference | null;
-    environment_revision_ref?: AgentaApi.Reference | null;
+    workflow_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    workflow_variant_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    workflow_revision_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    environment_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    environment_variant_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    environment_revision_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
     key?: string | null;
     message?: string | null;
 }

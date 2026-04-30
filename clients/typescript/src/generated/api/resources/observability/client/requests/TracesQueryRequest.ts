@@ -9,7 +9,7 @@ import type * as AgentaApi from "../../../../index.js";
 export interface TracesQueryRequest {
     filtering?: AgentaApi.FilteringInput | null;
     windowing?: AgentaApi.Windowing | null;
-    query_ref?: AgentaApi.Reference | null;
-    query_variant_ref?: AgentaApi.Reference | null;
-    query_revision_ref?: AgentaApi.Reference | null;
+    query_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    query_variant_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    query_revision_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
 }

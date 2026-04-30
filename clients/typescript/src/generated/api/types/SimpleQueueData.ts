@@ -3,9 +3,7 @@
 import type * as AgentaApi from "../index.js";
 
 export interface SimpleQueueData {
-    kind?: (AgentaApi.SimpleQueueKind | null) | undefined;
-    queries?: (string[] | null) | undefined;
-    testsets?: (string[] | null) | undefined;
+    kind: AgentaApi.SimpleQueueKind;
     evaluators?: (SimpleQueueData.Evaluators | null) | undefined;
     repeats?: (number | null) | undefined;
     assignments?: (string[][] | null) | undefined;

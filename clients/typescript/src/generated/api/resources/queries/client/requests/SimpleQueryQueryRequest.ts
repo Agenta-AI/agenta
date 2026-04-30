@@ -8,7 +8,7 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface SimpleQueryQueryRequest {
     query?: AgentaApi.SimpleQueryQuery | null;
-    query_refs?: AgentaApi.Reference[] | null;
+    query_refs?: AgentaApi.AgentaSdkModelsSharedReference[] | null;
     include_archived?: boolean | null;
     windowing?: AgentaApi.Windowing | null;
 }

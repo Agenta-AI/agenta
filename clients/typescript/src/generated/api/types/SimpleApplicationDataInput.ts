@@ -14,7 +14,7 @@ export interface SimpleApplicationDataInput {
 
 export namespace SimpleApplicationDataInput {
     export namespace Headers {
-        export type Value = string | AgentaApi.Reference;
+        export type Value = string | AgentaApi.AgentaSdkModelsSharedReference;
     }
 
     export const Runtime = {

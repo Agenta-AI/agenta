@@ -3,7 +3,7 @@
 import type * as AgentaApi from "../index.js";
 
 export interface ResolutionInfo {
-    references_used: Record<string, AgentaApi.Reference>[];
+    references_used: Record<string, AgentaApi.AgentaSdkModelsSharedReference>[];
     depth_reached: number;
     embeds_resolved: number;
     errors?: string[] | undefined;

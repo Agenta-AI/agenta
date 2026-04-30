@@ -8,9 +8,9 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface EvaluatorRevisionQueryRequest {
     evaluator_revision?: AgentaApi.EvaluatorRevisionQuery | null;
-    evaluator_refs?: AgentaApi.Reference[] | null;
-    evaluator_variant_refs?: AgentaApi.Reference[] | null;
-    evaluator_revision_refs?: AgentaApi.Reference[] | null;
+    evaluator_refs?: AgentaApi.AgentaSdkModelsSharedReference[] | null;
+    evaluator_variant_refs?: AgentaApi.AgentaSdkModelsSharedReference[] | null;
+    evaluator_revision_refs?: AgentaApi.AgentaSdkModelsSharedReference[] | null;
     include_archived?: boolean | null;
     windowing?: AgentaApi.Windowing | null;
     resolve?: boolean | null;

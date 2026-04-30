@@ -3,8 +3,6 @@
 import type * as AgentaApi from "../index.js";
 
 export interface EvaluatorVariantResponse {
-    support_id?: (string | null) | undefined;
-    support_ts?: (string | null) | undefined;
     count?: number | undefined;
     evaluator_variant?: (AgentaApi.EvaluatorVariant | null) | undefined;
 }

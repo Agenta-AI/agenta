@@ -8,7 +8,7 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface SimpleEnvironmentQueryRequest {
     environment?: AgentaApi.SimpleEnvironmentQuery | null;
-    environment_refs?: AgentaApi.Reference[] | null;
+    environment_refs?: AgentaApi.AgentaSdkModelsSharedReference[] | null;
     include_archived?: boolean | null;
     windowing?: AgentaApi.Windowing | null;
 }

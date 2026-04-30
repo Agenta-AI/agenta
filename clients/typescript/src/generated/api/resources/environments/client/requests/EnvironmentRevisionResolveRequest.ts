@@ -7,9 +7,9 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface EnvironmentRevisionResolveRequest {
-    environment_ref?: AgentaApi.Reference | null;
-    environment_variant_ref?: AgentaApi.Reference | null;
-    environment_revision_ref?: AgentaApi.Reference | null;
+    environment_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    environment_variant_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    environment_revision_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
     max_depth?: number | null;
     max_embeds?: number | null;
     error_policy?: AgentaApi.ErrorPolicy | null;

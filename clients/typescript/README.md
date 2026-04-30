@@ -6,8 +6,8 @@ Generate the TypeScript Fern client from a locally running API:
 bash ./clients/scripts/generate.sh --language typescript
 ```
 
-Generate the TypeScript Fern client with an explicit OpenAPI URL:
+Generate the TypeScript Fern client from the live cloud API:
 
 ```bash
-bash ./clients/scripts/generate.sh --language typescript --openapi-url http://localhost/api/openapi.json
+bash ./clients/scripts/generate.sh --language typescript --live
 ```

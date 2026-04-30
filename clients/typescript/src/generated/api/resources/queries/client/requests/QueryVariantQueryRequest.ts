@@ -8,8 +8,8 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface QueryVariantQueryRequest {
     query_variant?: AgentaApi.QueryVariantQuery | null;
-    query_refs?: AgentaApi.Reference[] | null;
-    query_variant_refs?: AgentaApi.Reference[] | null;
+    query_refs?: AgentaApi.AgentaSdkModelsSharedReference[] | null;
+    query_variant_refs?: AgentaApi.AgentaSdkModelsSharedReference[] | null;
     include_archived?: boolean | null;
     windowing?: AgentaApi.Windowing | null;
 }

@@ -14,7 +14,7 @@ export interface EvaluatorRevisionDataOutput {
 
 export namespace EvaluatorRevisionDataOutput {
     export namespace Headers {
-        export type Value = string | AgentaApi.Reference;
+        export type Value = string | AgentaApi.AgentaSdkModelsSharedReference;
     }
 
     export const Runtime = {

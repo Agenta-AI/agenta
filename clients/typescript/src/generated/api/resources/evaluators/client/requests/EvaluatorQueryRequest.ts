@@ -8,7 +8,7 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface EvaluatorQueryRequest {
     evaluator?: AgentaApi.EvaluatorQuery | null;
-    evaluator_refs?: AgentaApi.Reference[] | null;
+    evaluator_refs?: AgentaApi.AgentaSdkModelsSharedReference[] | null;
     include_archived?: boolean | null;
     windowing?: AgentaApi.Windowing | null;
 }

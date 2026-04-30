@@ -8,9 +8,9 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface TestsetRevisionQueryRequest {
     testset_revision?: AgentaApi.TestsetRevisionQuery | null;
-    testset_refs?: AgentaApi.Reference[] | null;
-    testset_variant_refs?: AgentaApi.Reference[] | null;
-    testset_revision_refs?: AgentaApi.Reference[] | null;
+    testset_refs?: AgentaApi.AgentaSdkModelsSharedReference[] | null;
+    testset_variant_refs?: AgentaApi.AgentaSdkModelsSharedReference[] | null;
+    testset_revision_refs?: AgentaApi.AgentaSdkModelsSharedReference[] | null;
     include_archived?: boolean | null;
     include_testcases?: boolean | null;
     windowing?: AgentaApi.Windowing | null;

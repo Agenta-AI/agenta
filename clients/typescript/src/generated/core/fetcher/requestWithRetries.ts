@@ -1,6 +1,6 @@
 const INITIAL_RETRY_DELAY = 1000; // in milliseconds
 const MAX_RETRY_DELAY = 60000; // in milliseconds
-const DEFAULT_MAX_RETRIES = 2;
+const DEFAULT_MAX_RETRIES = 3;
 const JITTER_FACTOR = 0.2; // 20% random jitter
 
 function addPositiveJitter(delay: number): number {

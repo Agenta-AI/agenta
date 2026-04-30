@@ -3,17 +3,17 @@
 import type * as AgentaApi from "../index.js";
 
 export interface SimpleTraceReferences {
-    query?: (AgentaApi.Reference | null) | undefined;
-    query_variant?: (AgentaApi.Reference | null) | undefined;
-    query_revision?: (AgentaApi.Reference | null) | undefined;
-    testset?: (AgentaApi.Reference | null) | undefined;
-    testset_variant?: (AgentaApi.Reference | null) | undefined;
-    testset_revision?: (AgentaApi.Reference | null) | undefined;
-    application?: (AgentaApi.Reference | null) | undefined;
-    application_variant?: (AgentaApi.Reference | null) | undefined;
-    application_revision?: (AgentaApi.Reference | null) | undefined;
-    evaluator?: (AgentaApi.Reference | null) | undefined;
-    evaluator_variant?: (AgentaApi.Reference | null) | undefined;
-    evaluator_revision?: (AgentaApi.Reference | null) | undefined;
-    testcase?: (AgentaApi.Reference | null) | undefined;
+    query?: (AgentaApi.AgentaSdkModelsSharedReference | null) | undefined;
+    query_variant?: (AgentaApi.AgentaSdkModelsSharedReference | null) | undefined;
+    query_revision?: (AgentaApi.AgentaSdkModelsSharedReference | null) | undefined;
+    testset?: (AgentaApi.AgentaSdkModelsSharedReference | null) | undefined;
+    testset_variant?: (AgentaApi.AgentaSdkModelsSharedReference | null) | undefined;
+    testset_revision?: (AgentaApi.AgentaSdkModelsSharedReference | null) | undefined;
+    application?: (AgentaApi.AgentaSdkModelsSharedReference | null) | undefined;
+    application_variant?: (AgentaApi.AgentaSdkModelsSharedReference | null) | undefined;
+    application_revision?: (AgentaApi.AgentaSdkModelsSharedReference | null) | undefined;
+    evaluator?: (AgentaApi.AgentaSdkModelsSharedReference | null) | undefined;
+    evaluator_variant?: (AgentaApi.AgentaSdkModelsSharedReference | null) | undefined;
+    evaluator_revision?: (AgentaApi.AgentaSdkModelsSharedReference | null) | undefined;
+    testcase?: (AgentaApi.AgentaSdkModelsSharedReference | null) | undefined;
 }

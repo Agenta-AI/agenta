@@ -3,8 +3,6 @@
 import type * as AgentaApi from "../index.js";
 
 export interface TestsetVariantsResponse {
-    support_id?: (string | null) | undefined;
-    support_ts?: (string | null) | undefined;
     count?: number | undefined;
     testset_variants?: AgentaApi.TestsetVariant[] | undefined;
 }

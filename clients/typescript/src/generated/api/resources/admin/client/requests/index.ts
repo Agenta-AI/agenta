@@ -25,3 +25,4 @@ export type { AdminSimpleAccountsUsersResetPasswordDto } from "./AdminSimpleAcco
 export type { AdminSimpleAccountsWorkspacesCreateDto } from "./AdminSimpleAccountsWorkspacesCreateDto.js";
 export type { AdminSimpleAccountsWorkspacesMembershipsCreateDto } from "./AdminSimpleAccountsWorkspacesMembershipsCreateDto.js";
 export type { AdminSwitchPlansRequest } from "./AdminSwitchPlansRequest.js";
+export type { EntitiesRequestModel } from "./EntitiesRequestModel.js";

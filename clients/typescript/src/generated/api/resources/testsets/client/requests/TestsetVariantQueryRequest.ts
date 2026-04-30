@@ -8,8 +8,8 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface TestsetVariantQueryRequest {
     testset_variant?: AgentaApi.TestsetVariantQuery | null;
-    testset_refs?: AgentaApi.Reference[] | null;
-    testset_variant_refs?: AgentaApi.Reference[] | null;
+    testset_refs?: AgentaApi.AgentaSdkModelsSharedReference[] | null;
+    testset_variant_refs?: AgentaApi.AgentaSdkModelsSharedReference[] | null;
     include_archived?: boolean | null;
     windowing?: AgentaApi.Windowing | null;
 }

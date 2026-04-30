@@ -7,9 +7,9 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface EvaluatorRevisionResolveRequest {
-    evaluator_ref?: AgentaApi.Reference | null;
-    evaluator_variant_ref?: AgentaApi.Reference | null;
-    evaluator_revision_ref?: AgentaApi.Reference | null;
+    evaluator_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    evaluator_variant_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    evaluator_revision_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
     max_depth?: number | null;
     max_embeds?: number | null;
     error_policy?: AgentaApi.ErrorPolicy | null;

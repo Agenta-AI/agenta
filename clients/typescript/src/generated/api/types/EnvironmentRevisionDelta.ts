@@ -9,6 +9,6 @@ import type * as AgentaApi from "../index.js";
  * - ``remove``: reference keys to remove.
  */
 export interface EnvironmentRevisionDelta {
-    set?: (Record<string, Record<string, AgentaApi.Reference | null> | null> | null) | undefined;
+    set?: (Record<string, Record<string, AgentaApi.AgentaSdkModelsSharedReference | null> | null> | null) | undefined;
     remove?: (string[] | null) | undefined;
 }

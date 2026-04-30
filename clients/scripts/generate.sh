@@ -180,6 +180,60 @@ groups:
         output:
           location: local-file-system
           path: src/generated
+        config:
+          # CORS — the Agenta API's allow_headers list (api/entrypoints/routers.py)
+          # only whitelists Content-Type + supertokens headers, so Fern's
+          # X-Fern-* identity headers fail browser preflight without this.
+          omitFernHeaders: true
+
+          # Browser cookie auth (Agenta supertokens session) — set
+          # withCredentials so cookies ride cross-origin requests.
+          includeCredentialsOnCrossOriginRequests: true
+
+          # Runtime: prefer browser/web standards. Reduces the surface that
+          # forces Node-only built-ins (fs, stream/web, buffer) into the
+          # browser bundle.
+          fetchSupport: native
+          streamType: web
+          formDataSupport: Node18
+          fileResponseType: binary-response
+
+          # Serde stays OFF for now (default). Turning it on with this Fern
+          # version (3.63.7) emits ~200 type errors against our spec:
+          #   - 189 × TS2322 — broken codegen for Record<string, T | null>
+          #     (e.g. `tags`, `meta` fields) where the serializer expects
+          #     non-null values
+          #   - 4 × TS2456 — circular type aliases for FullJson{Input,Output}
+          #     and LabelJson{Input,Output} (the same recursive-types issue
+          #     the Python generator patches in this script via sed)
+          #   - 4 × TS2393 — duplicate function implementations in admin/client
+          # Re-evaluate when Fern ships fixes; in the meantime, the convenience
+          # layer's Zod boundary handles `extra="allow"` at the entity level.
+          # noSerdeLayer: false
+          # allowExtraFields: true
+          # skipResponseValidation: true
+
+          # Network defaults aligned with v2 stage-0 client behavior.
+          defaultTimeoutInSeconds: 30
+          maxRetries: 3
+
+          # Keep wire-format property names (snake_case from Pydantic) instead
+          # of converting to camelCase. The backend, the OpenAPI spec, the v2
+          # entities Zod schemas, and ~all consumer code all use snake_case;
+          # camelCase conversion is more breakage than ergonomic win.
+          retainOriginalCasing: true
+
+          # Generated package.json — bake in the browser-stub for Node built-ins
+          # so consumers don't need per-app webpack/Turbopack workarounds, and
+          # ship @types/node so the client builds standalone.
+          packageJson:
+            browser:
+              fs: false
+              stream: false
+              "stream/web": false
+              buffer: false
+            devDependencies:
+              "@types/node": "^20.19.20"
 EOF
 }
 
@@ -269,6 +323,12 @@ EOF
       "import": "./dist/index.js"
     }
   },
+  "browser": {
+    "fs": false,
+    "stream": false,
+    "stream/web": false,
+    "buffer": false
+  },
   "files": [
     "dist",
     "src"
@@ -278,6 +338,7 @@ EOF
     "build": "tsc -p tsconfig.json"
   },
   "devDependencies": {
+    "@types/node": "^20.19.20",
     "typescript": "^5.9.3"
   }
 }
@@ -399,6 +460,68 @@ generate_python() {
   log "generated Python client in ${client_root}/src/agenta_client"
 }
 
+fix_typescript_admin_duplicates() {
+  local target_dir="$1"
+  local admin_client="${target_dir}/api/resources/admin/client/Client.ts"
+
+  if [[ ! -f "${admin_client}" ]]; then
+    return
+  fi
+
+  log "patching duplicate admin/client function names in ${admin_client}"
+
+  # Fern generates two `createAccounts` methods in admin/client because two
+  # OpenAPI operations resolve to the same TS function name. Backend should
+  # disambiguate via explicit operation_id on the routes; until then, rename
+  # the SECOND public+private pair to `createAccountsAlt` / `__createAccountsAlt`
+  # so the file compiles. Admin endpoints aren't in v0 scope.
+  python3 - "${admin_client}" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+DUPLICATES = ["createAccounts"]
+
+def rename_second_pair(src: str, name: str) -> str:
+    """Rename only the SECOND `public <name>` block and the SECOND
+    `private async __<name>` block (and the call to `this.__<name>` inside
+    the second public block). Leaves the first pair alone."""
+    public_re = re.compile(rf"(\bpublic\s+){name}(\s*\()")
+    private_re = re.compile(rf"(\bprivate\s+async\s+__){name}(\s*\()")
+    call_re = re.compile(rf"(this\.__){name}(\()")
+
+    # Locate spans in order; rename only those at index >= 1.
+    def replace_nth(text: str, regex: re.Pattern, replacement: str, target_index: int) -> str:
+        out = []
+        last = 0
+        for i, m in enumerate(regex.finditer(text)):
+            if i == target_index:
+                out.append(text[last:m.start()])
+                out.append(regex.sub(replacement, m.group(0), count=1))
+                last = m.end()
+                break
+        else:
+            return text
+        out.append(text[last:])
+        return "".join(out)
+
+    src = replace_nth(src, public_re, rf"\g<1>{name}Alt\g<2>", 1)
+    # Group 1 of private_re already captures `private async __`; the replacement
+    # only appends `<name>Alt`.
+    src = replace_nth(src, private_re, rf"\g<1>{name}Alt\g<2>", 1)
+    # The renamed public block now calls `this.__<name>`; flip ONLY that one
+    # call (the second `this.__<name>(` overall) to `this.__<name>Alt(`.
+    src = replace_nth(src, call_re, rf"\g<1>{name}Alt\g<2>", 1)
+    return src
+
+p = Path(sys.argv[1])
+text = p.read_text()
+for name in DUPLICATES:
+    text = rename_second_pair(text, name)
+p.write_text(text)
+PY
+}
+
 generate_typescript() {
   local client_root="${CLIENTS_ROOT}/typescript"
   local target_dir="${client_root}/src/generated"
@@ -425,6 +548,9 @@ generate_typescript() {
   log "syncing generated TypeScript client from ${fern_output_dir} to ${target_dir}"
   mkdir -p "$(dirname "${target_dir}")"
   cp -R "${fern_output_dir}" "${target_dir}"
+
+  fix_typescript_admin_duplicates "${target_dir}"
+
   log "cleaning Fern workspace ${fern_dir}"
   rm -rf "${fern_dir}"
   log "generated TypeScript client in ${target_dir}"

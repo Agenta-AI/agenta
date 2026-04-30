@@ -8,7 +8,7 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface SimpleWorkflowQueryRequest {
     workflow?: AgentaApi.SimpleWorkflowQuery | null;
-    workflow_refs?: AgentaApi.Reference[] | null;
+    workflow_refs?: AgentaApi.AgentaSdkModelsSharedReference[] | null;
     include_archived?: boolean | null;
     windowing?: AgentaApi.Windowing | null;
 }

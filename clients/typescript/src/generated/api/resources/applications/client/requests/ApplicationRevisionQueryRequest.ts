@@ -8,9 +8,9 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface ApplicationRevisionQueryRequest {
     application_revision?: AgentaApi.ApplicationRevisionQuery | null;
-    application_refs?: AgentaApi.Reference[] | null;
-    application_variant_refs?: AgentaApi.Reference[] | null;
-    application_revision_refs?: AgentaApi.Reference[] | null;
+    application_refs?: AgentaApi.AgentaSdkModelsSharedReference[] | null;
+    application_variant_refs?: AgentaApi.AgentaSdkModelsSharedReference[] | null;
+    application_revision_refs?: AgentaApi.AgentaSdkModelsSharedReference[] | null;
     include_archived?: boolean | null;
     windowing?: AgentaApi.Windowing | null;
     resolve?: boolean | null;

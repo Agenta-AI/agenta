@@ -7,9 +7,9 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface QueryRevisionRetrieveRequest {
-    query_ref?: AgentaApi.Reference | null;
-    query_variant_ref?: AgentaApi.Reference | null;
-    query_revision_ref?: AgentaApi.Reference | null;
+    query_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    query_variant_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    query_revision_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
     include_trace_ids?: boolean | null;
     include_traces?: boolean | null;
     windowing?: AgentaApi.Windowing | null;

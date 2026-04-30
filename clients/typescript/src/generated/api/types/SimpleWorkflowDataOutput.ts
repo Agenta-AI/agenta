@@ -14,7 +14,7 @@ export interface SimpleWorkflowDataOutput {
 
 export namespace SimpleWorkflowDataOutput {
     export namespace Headers {
-        export type Value = string | AgentaApi.Reference;
+        export type Value = string | AgentaApi.AgentaSdkModelsSharedReference;
     }
 
     export const Runtime = {

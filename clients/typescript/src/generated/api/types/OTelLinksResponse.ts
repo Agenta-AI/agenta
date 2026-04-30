@@ -3,9 +3,6 @@
 import type * as AgentaApi from "../index.js";
 
 export interface OTelLinksResponse {
-    support_id?: (string | null) | undefined;
-    support_ts?: (string | null) | undefined;
     count?: number | undefined;
     links?: (AgentaApi.OTelLinkOutput[] | null) | undefined;
-    dropped?: (AgentaApi.OTelLinkOutput[] | null) | undefined;
 }

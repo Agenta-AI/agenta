@@ -7,9 +7,9 @@ import type * as AgentaApi from "../../../../index.js";
  *     {}
  */
 export interface WorkflowRevisionResolveRequest {
-    workflow_ref?: AgentaApi.Reference | null;
-    workflow_variant_ref?: AgentaApi.Reference | null;
-    workflow_revision_ref?: AgentaApi.Reference | null;
+    workflow_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    workflow_variant_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
+    workflow_revision_ref?: AgentaApi.AgentaSdkModelsSharedReference | null;
     workflow_revision?: AgentaApi.WorkflowRevisionInput | null;
     max_depth?: number | null;
     max_embeds?: number | null;

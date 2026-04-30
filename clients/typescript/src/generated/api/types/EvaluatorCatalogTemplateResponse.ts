@@ -3,8 +3,6 @@
 import type * as AgentaApi from "../index.js";
 
 export interface EvaluatorCatalogTemplateResponse {
-    support_id?: (string | null) | undefined;
-    support_ts?: (string | null) | undefined;
     count?: number | undefined;
     template?: (AgentaApi.EvaluatorCatalogTemplate | null) | undefined;
 }

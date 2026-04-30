@@ -10,6 +10,6 @@ export interface EvaluationRunQuery {
     description?: (string | null) | undefined;
     status?: (AgentaApi.EvaluationStatus | null) | undefined;
     statuses?: (AgentaApi.EvaluationStatus[] | null) | undefined;
-    references?: (Record<string, AgentaApi.Reference>[] | null) | undefined;
+    references?: (Record<string, AgentaApi.AgentaSdkModelsSharedReference>[] | null) | undefined;
     ids?: (string[] | null) | undefined;
 }
