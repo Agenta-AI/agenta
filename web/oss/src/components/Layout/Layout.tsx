@@ -57,6 +57,7 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     const isTestsets = pathname.includes("/testsets") || pathname.includes("/prompts")
     const isAnnotations = pathname.includes("/annotations")
     const isRegistry = pathname.includes("/variants")
+    const isObservability = pathname.includes("/observability") || pathname.includes("/traces")
 
     return {
         isAuthRoute:
@@ -68,7 +69,13 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
         isPlayground: pathname.includes("/playground"),
         isHumanEval,
         isEvaluator,
-        isFullHeight: isHumanEval || isEvaluator || isTestsets || isAnnotations || isRegistry,
+        isFullHeight:
+            isHumanEval ||
+            isEvaluator ||
+            isTestsets ||
+            isAnnotations ||
+            isRegistry ||
+            isObservability,
     }
 })
 

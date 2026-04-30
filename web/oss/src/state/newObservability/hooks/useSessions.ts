@@ -1,6 +1,7 @@
 import {useCallback} from "react"
 
 import {useAtom, useAtomValue} from "jotai"
+import {queryClientAtom} from "jotai-tanstack-query"
 
 import {
     autoRefreshAtom,
@@ -42,11 +43,24 @@ export const useSessions = () => {
         await fetchNextPage()
     }, [fetchNextPage, hasNextPage])
 
+    const queryClient = useAtomValue(queryClientAtom)
+
+    /**
+     * Resets sessions and session-spans queries back to page 1.
+     * TanStack Query clears cache and re-fetches page 1 on next render.
+     * Use for auto-refresh to avoid N API calls for N loaded pages.
+     */
+    const resetSessionPages = useCallback(() => {
+        queryClient.resetQueries({queryKey: ["sessions"]})
+        queryClient.resetQueries({queryKey: ["session_spans"]})
+    }, [queryClient])
+
     return {
         sessionIds,
         sessionCount,
         isLoading,
         fetchMoreSessions,
+        resetSessionPages,
         hasMoreSessions: hasNextPage,
         isFetchingMore: isFetchingNextPage,
         refetchSessions,
