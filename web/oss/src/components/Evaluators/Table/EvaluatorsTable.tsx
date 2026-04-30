@@ -77,6 +77,7 @@ const EvaluatorsTable = ({
             columns={columns}
             filters={filters}
             primaryActions={primaryActions}
+            className="flex-1 min-h-0"
             autoHeight
             enableExport={isArchived}
             dataSource={isGrouped ? groupedDataSource : undefined}

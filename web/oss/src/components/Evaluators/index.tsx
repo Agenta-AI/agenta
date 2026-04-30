@@ -388,7 +388,7 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
         <PageLayout
             title={isArchived ? undefined : "Evaluators"}
             headerTabsProps={isArchived ? undefined : headerTabsProps}
-            className={isArchived ? "grow min-h-0 !pl-0" : "grow min-h-0"}
+            className={isArchived ? "grow !min-h-0 !pl-0" : "grow min-h-0"}
         >
             <EvaluatorsTable
                 mode={isArchived ? "archived" : "active"}
