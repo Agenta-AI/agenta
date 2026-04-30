@@ -128,8 +128,8 @@ const RETRY_POLICY_OPTIONS = ["off", "availability", "capacity", "transient", "a
     (value) => ({label: value, value}),
 )
 const DEFAULT_RETRY_CONFIG = {
-    max_retries: 0,
-    delay_ms: 0,
+    max_retries: null as number | null,
+    delay_ms: null as number | null,
 }
 const PROMPT_EXTENSION_KEYS = [
     "fallback_configs",
@@ -905,7 +905,7 @@ function PlaygroundConfigSection({
                       ? retryConfig.max_retries
                       : DEFAULT_RETRY_CONFIG.max_retries
 
-            if (!nextMaxRetries || nextMaxRetries <= 0) {
+            if (typeof nextMaxRetries !== "number" || nextMaxRetries <= 0) {
                 updatePromptRootFields({
                     retry_config: null,
                     retry_policy: null,
@@ -922,7 +922,7 @@ function PlaygroundConfigSection({
             const nextRetryConfig: Record<string, unknown> = {
                 max_retries: nextMaxRetries,
             }
-            if (typeof nextDelayMs === "number" && nextDelayMs > DEFAULT_RETRY_CONFIG.delay_ms) {
+            if (typeof nextDelayMs === "number") {
                 nextRetryConfig.delay_ms = nextDelayMs
             }
 

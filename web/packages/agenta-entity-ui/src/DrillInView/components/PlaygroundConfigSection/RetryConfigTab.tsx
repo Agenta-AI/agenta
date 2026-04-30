@@ -2,8 +2,9 @@ import {memo} from "react"
 
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {formatLabel} from "@agenta/ui/drill-in"
-import {InputNumber, Select, Typography} from "antd"
+import {Select, Tooltip, Typography} from "antd"
 
+import {NumberSliderControl} from "../../SchemaControls/NumberSliderControl"
 import {resolveAnyOfSchema} from "../../SchemaControls/schemaUtils"
 
 interface PolicyOption {
@@ -20,8 +21,8 @@ export interface RetryConfigTabProps {
     retryPolicyOptions: PolicyOption[]
     retryPolicySchema?: EntitySchemaProperty
     retryConfigSchema?: EntitySchemaProperty
-    maxRetries: number
-    delayMs: number
+    maxRetries: number | null
+    delayMs: number | null
     onPolicyChange: (nextValue: string | null) => void
     onConfigFieldChange: (key: "max_retries" | "delay_ms", nextValue: number | null) => void
     disabled?: boolean
@@ -45,37 +46,33 @@ export const RetryConfigTab = memo(function RetryConfigTab({
     const retryConfigProperties =
         resolveAnyOfSchema(retryConfigSchema)?.properties ??
         ({} as Record<string, EntitySchemaProperty>)
-    const isPolicyEnabled = !disabled && maxRetries > 0
+    const isRetryEnabled = typeof maxRetries === "number" && maxRetries > 0
+    const isPolicyEnabled = !disabled && isRetryEnabled
+    const retryRequiredMessage = "Set max retries first."
 
     const renderNumberField = (
         key: "max_retries" | "delay_ms",
-        value: number,
+        value: number | null,
         fallbackDescription: string,
     ) => {
         const schema = resolveAnyOfSchema(retryConfigProperties[key])
-        const min = typeof schema?.minimum === "number" ? schema.minimum : 0
         const title = getSchemaText(schema?.title)
         const description = getSchemaText(schema?.description)
+        const maxOverride =
+            key === "delay_ms" && typeof schema?.maximum !== "number" ? 10000 : undefined
 
         return (
-            <div className="flex items-center justify-between gap-3">
-                <div className="flex flex-col gap-0.5">
-                    <Typography.Text>{formatLabel(title || key)}</Typography.Text>
-                    <Typography.Text type="secondary" className=" leading-snug">
-                        {description || fallbackDescription}
-                    </Typography.Text>
-                </div>
-                <InputNumber
-                    min={min}
-                    precision={0}
-                    value={value}
-                    onChange={(nextValue) =>
-                        onConfigFieldChange(key, typeof nextValue === "number" ? nextValue : null)
-                    }
-                    disabled={disabled}
-                    className="w-[80px] shrink-0"
-                />
-            </div>
+            <NumberSliderControl
+                key={key}
+                schema={schema}
+                label={formatLabel(title || key)}
+                value={value}
+                onChange={(nextValue) => onConfigFieldChange(key, nextValue)}
+                description={description || fallbackDescription}
+                disabled={disabled || (key === "delay_ms" && !isRetryEnabled)}
+                disabledReason={key === "delay_ms" ? retryRequiredMessage : undefined}
+                max={maxOverride}
+            />
         )
     }
 
@@ -102,28 +99,34 @@ export const RetryConfigTab = memo(function RetryConfigTab({
                         </a>
                     </Typography.Text>
                 </div>
-                <Select
-                    size="small"
-                    allowClear
-                    value={retryPolicy ?? undefined}
-                    onChange={(nextValue) => onPolicyChange(nextValue ?? null)}
-                    options={retryPolicyOptions}
-                    placeholder="Select one"
-                    disabled={!isPolicyEnabled}
-                    optionRender={(option) => {
-                        const description = (option.data as {description?: string}).description
-                        return (
-                            <div className="flex items-center justify-between gap-3">
-                                <span>{option.label}</span>
-                                {description && (
-                                    <Typography.Text type="secondary">
-                                        {description}
-                                    </Typography.Text>
-                                )}
-                            </div>
-                        )
-                    }}
-                />
+                <Tooltip title={!isPolicyEnabled ? retryRequiredMessage : undefined}>
+                    <span>
+                        <Select
+                            size="small"
+                            allowClear
+                            value={retryPolicy ?? undefined}
+                            onChange={(nextValue) => onPolicyChange(nextValue ?? null)}
+                            options={retryPolicyOptions}
+                            placeholder={isPolicyEnabled ? "Select one" : retryRequiredMessage}
+                            disabled={!isPolicyEnabled}
+                            className="w-full"
+                            optionRender={(option) => {
+                                const description = (option.data as {description?: string})
+                                    .description
+                                return (
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span>{option.label}</span>
+                                        {description && (
+                                            <Typography.Text type="secondary">
+                                                {description}
+                                            </Typography.Text>
+                                        )}
+                                    </div>
+                                )
+                            }}
+                        />
+                    </span>
+                </Tooltip>
             </div>
         </div>
     )

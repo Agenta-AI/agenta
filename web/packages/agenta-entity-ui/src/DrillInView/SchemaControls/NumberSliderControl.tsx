@@ -32,6 +32,8 @@ export interface NumberSliderControlProps {
     withTooltip?: boolean
     /** Disable the control */
     disabled?: boolean
+    /** Tooltip text shown when the disabled state needs context */
+    disabledReason?: string
     /** Allow clearing the current value */
     allowClear?: boolean
     /** Placeholder text */
@@ -87,6 +89,7 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     description,
     withTooltip = true,
     disabled = false,
+    disabledReason,
     allowClear = true,
     placeholder,
     className,
@@ -99,9 +102,13 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     const min = overrideMin ?? constraints.min
     const max = overrideMax ?? constraints.max
     const step = overrideStep ?? constraints.step
+    const precision = schema?.type === "integer" ? 0 : undefined
 
     // Get description from schema or prop
-    const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
+    const tooltipText =
+        (disabled && disabledReason
+            ? disabledReason
+            : (description ?? (schema?.description as string | undefined))) ?? ""
 
     // Local state for immediate UI feedback
     const [localValue, setLocalValue] = useState<number | null>(value ?? null)
@@ -128,6 +135,7 @@ export const NumberSliderControl = memo(function NumberSliderControl({
                         min={min}
                         max={max}
                         step={step}
+                        precision={precision}
                         value={localValue}
                         onChange={handleValueChange}
                         disabled={disabled}
