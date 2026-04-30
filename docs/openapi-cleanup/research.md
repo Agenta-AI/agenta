@@ -309,6 +309,63 @@ Seven open PRs (all by mmabrouk) are a coordinated batch adding endpoint docstri
 
 ---
 
+## Scopes area — deferred
+
+The Organizations / Workspaces / Projects / Users / Keys / Secrets tags are left as-is. The scope/IAM surface is incomplete and will keep changing before it's stable enough to break down further.
+
+**Current route distribution across these tags:**
+
+| Tag | Routers | Key endpoints |
+|-----|---------|---------------|
+| Organizations | OSS org router, EE legacy org router, EE new org router | Org CRUD, ownership transfer, workspace CRUD (within org), domains CRUD+verify, SSO providers CRUD+test |
+| Workspaces | OSS workspace router, EE workspace router | Get workspace/roles/permissions, add/remove user role |
+| Projects | OSS projects router | Project CRUD |
+| Users | OSS user_profile router | Profile, update username, reset password |
+| Keys | OSS api_key router | API key list/create/delete |
+| Secrets | OSS vault router | Vault secret CRUD |
+
+**Known missing features before this area can be cleaned up:**
+
+- **SCIM** — not implemented yet; will add at minimum a `SCIM` tag and likely several endpoints under Organizations or a dedicated group
+- **Members** — invite/resend/accept/remove currently spread across Organizations and Workspaces; no dedicated surface
+- **Roles** — role catalog endpoints scattered (get_all_workspace_roles in Workspaces, get_all_workspace_permissions in Workspaces); no dedicated surface
+- **Domains** — Verified domains management (EE) currently under Organizations; could become its own tag
+- **Providers** — SSO provider management (EE) currently under Organizations; could become its own tag
+
+**Candidate future tag breakdown (post-stabilization):**
+
+```
+Organizations   — org CRUD, ownership transfer
+Workspaces      — workspace CRUD within org
+Members         — invite, accept, remove, assign/unassign role
+Roles           — role and permission catalog
+Domains         — Verified domains management (EE)
+Providers       — SSO provider management (EE)
+SCIM            — SCIM provisioning (EE, not yet built)
+Projects        — as-is
+Users           — as-is
+Keys            — as-is
+Secrets         — as-is
+```
+
+---
+
+## URL surface and scoping — deferred
+
+Several domains are expected to evolve their public URL shape and scoping model before the tag/route structure is final. Changes to watch:
+
+**Secrets (`/vault/v1/secrets/` → `/secrets/`):** The `vault/v1` prefix is an implementation detail leaking into the public API. Likely path: expose a clean `/secrets/` prefix, keep `/vault/v1/` mounted hidden for backward compat. Secrets may also become project-scoped rather than user-scoped.
+
+**Traces group (`/tracing/`, `/traces/`, `/spans/`, `/simple/traces/`):** The `/tracing/` router is the legacy RPC-style surface; its fate (deprecation, reduction, or expansion) is undecided. The split across four prefixes and two router files is a known mess. Until the tracing surface is stable, the Traces tag content should not be treated as final — endpoints may be hidden, moved, split into sub-tags (e.g. Sessions, Spans), or removed.
+
+**General pattern — many domains may follow the same:** Several resources that are currently global or user-scoped are candidates to become project- or workspace-scoped as the platform matures (e.g. keys, secrets, webhooks, tools). When that happens, URL shapes and tag groupings will need revisiting.
+
+**`operation_id` naming audit:** Beyond the 58 currently missing `operation_id` values, the existing names across the codebase have not been audited for consistency or clarity. As domains evolve (new prefixes, deprecated paths, renamed resources), `operation_id` values will need a pass to ensure they are stable, unambiguous, and suitable for SDK generation.
+
+The current cleanup does not attempt to resolve these. Tags and prefixes are set to what is accurate today.
+
+---
+
 ## What's not yet touched
 
 - **Content cleanup inside the Traces group** — which endpoints from `/tracing`, `/traces`, `/spans`, `/simple/traces` should be visible, which hidden, and what the final public surface should look like
