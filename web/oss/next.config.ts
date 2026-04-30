@@ -109,21 +109,6 @@ const COMMON_CONFIG: NextConfig = {
                       "@reduxjs/toolkit": reduxToolkitCjsEntry,
                   }
 
-                  // The Fern-generated `@agenta/client` ships Node-only file-upload
-                  // helpers (fs / stream / buffer). They're guarded behind dynamic
-                  // imports so they never run in the browser, but webpack still tries
-                  // to resolve them at bundle time. Stub these out for the browser
-                  // build; server bundles get the real Node modules.
-                  if (!isServer) {
-                      config.resolve.fallback = {
-                          ...(config.resolve.fallback ?? {}),
-                          fs: false,
-                          stream: false,
-                          "stream/web": false,
-                          buffer: false,
-                      }
-                  }
-
                   const envs: Record<string, string | undefined> = {}
                   config.cache = false
 
