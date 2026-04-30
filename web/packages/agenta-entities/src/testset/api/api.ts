@@ -5,6 +5,7 @@
  * These are pure functions with no Jotai dependencies.
  */
 
+import {getAgentaSdkClient} from "@agenta/sdk"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 
 import {safeParseWithLogging} from "../../shared"
@@ -212,7 +213,12 @@ export async function fetchRevisionsBatch(
 // ============================================================================
 
 /**
- * Fetch testsets list (metadata only)
+ * Fetch testsets list (metadata only).
+ *
+ * Migrated to consume the Fern-generated `@agenta/client` via `@agenta/sdk`
+ * (v3 PoC). Zod validation stays at the boundary because Fern's compile-time
+ * types under-declare backend `extra="allow"` fields — drift detection still
+ * has independent value.
  */
 export async function fetchTestsetsList({
     projectId,
@@ -222,25 +228,17 @@ export async function fetchTestsetsList({
         return {testsets: [], count: 0}
     }
 
-    const queryPayload: Record<string, unknown> = {
-        windowing: {limit: 100, order: "descending"},
-    }
+    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
 
-    if (searchQuery && searchQuery.trim()) {
-        queryPayload.testset = {
-            name: searchQuery.trim(),
-        }
-    }
-
-    const response = await axios.post(`${getAgentaApiUrl()}/testsets/query`, queryPayload, {
-        params: {project_id: projectId},
-    })
-
-    const validated = safeParseWithLogging(
-        testsetsResponseSchema,
-        response.data,
-        "[fetchTestsetsList]",
+    const data = await client.testsets.queryTestsets(
+        {
+            windowing: {limit: 100, order: "descending"},
+            ...(searchQuery && searchQuery.trim() ? {testset: {name: searchQuery.trim()}} : {}),
+        },
+        {queryParams: {project_id: projectId}},
     )
+
+    const validated = safeParseWithLogging(testsetsResponseSchema, data, "[fetchTestsetsList]")
     if (!validated) {
         return {testsets: [], count: 0}
     }

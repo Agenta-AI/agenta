@@ -47,7 +47,31 @@ export function init(options: AgentaInitOptions = {}): AgentaApiClient {
     return new AgentaApiClient({
         environment: host,
         apiKey: apiKey ?? "",
+        // Browser cookie auth: forward credentials so the existing cookie-session
+        // flow continues to work. Server-side calls supply apiKey directly and
+        // are unaffected by this fetch wrapper.
+        fetch: (input, requestInit) =>
+            fetch(input, {
+                ...requestInit,
+                credentials: "include",
+            }),
     })
 }
 
-export default {init}
+let _singleton: AgentaApiClient | undefined
+
+/**
+ * Lazy singleton accessor for the workspace's shared SDK client.
+ *
+ * First call constructs the client with the supplied (or default) options;
+ * subsequent calls return the same instance regardless of arguments. Callers
+ * that need a fresh instance should use {@link init} directly.
+ */
+export function getAgentaSdkClient(options: AgentaInitOptions = {}): AgentaApiClient {
+    if (!_singleton) {
+        _singleton = init(options)
+    }
+    return _singleton
+}
+
+export default {init, getAgentaSdkClient}

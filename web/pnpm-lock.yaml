@@ -779,6 +779,9 @@ importers:
 
   packages/agenta-entities:
     dependencies:
+      '@agenta/sdk':
+        specifier: workspace:../agenta-sdk
+        version: link:../agenta-sdk
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared
