@@ -129,7 +129,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
             {
                 key: "appPanel",
                 label: (
-                    <TabLabel tabTitle="Applications" completed={appSelectionComplete}>
+                    <TabLabel tabTitle="Application" completed={appSelectionComplete}>
                         {appSelectionComplete && (
                             <Tag
                                 closeIcon={<CloseCircleOutlined />}
