@@ -10,6 +10,7 @@
 **/*.vscode
 **/*.pem
 **/*dont_commit_me*
+clients/typescript/dist/
 
 __pycache__/
 **/__pycache__/
