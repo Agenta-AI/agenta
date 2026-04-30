@@ -266,6 +266,11 @@ const archivedAppWorkflowTotalCountAtom = atom((get) => {
     return query.data ?? 0
 })
 
+const archivedAppWorkflowTotalCountIsLoadingAtom = atom((get) => {
+    const query = get(archivedAppWorkflowTotalCountQueryAtom)
+    return query.isPending || query.isFetching
+})
+
 const archivedAppWorkflowCountQueryAtom = atomWithQuery((get) => {
     const projectId = get(projectIdAtom)
     const searchTerm = get(archivedAppWorkflowSearchTermAtom).trim() || undefined
@@ -287,6 +292,8 @@ const archivedAppWorkflowCountAtom = atom((get) => {
     return query.data ?? 0
 })
 
+const falseAtom = atom(false)
+
 export function getAppWorkflowTableState(mode: AppWorkflowTableMode = "active") {
     if (mode === "archived") {
         return {
@@ -295,6 +302,7 @@ export function getAppWorkflowTableState(mode: AppWorkflowTableMode = "active") 
             paginatedStore: archivedAppWorkflowPaginatedStore,
             countAtom: archivedAppWorkflowCountAtom,
             totalCountAtom: archivedAppWorkflowTotalCountAtom,
+            totalCountIsLoadingAtom: archivedAppWorkflowTotalCountIsLoadingAtom,
         }
     }
 
@@ -304,6 +312,7 @@ export function getAppWorkflowTableState(mode: AppWorkflowTableMode = "active") 
         paginatedStore: appWorkflowPaginatedStore,
         countAtom: appWorkflowCountAtom,
         totalCountAtom: appWorkflowTotalCountAtom,
+        totalCountIsLoadingAtom: falseAtom,
     }
 }
 

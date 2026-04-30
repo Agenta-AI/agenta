@@ -42,6 +42,7 @@ const ApplicationManagementSection = ({
     const {mutate: mutateApps} = useAppsData()
     const filteredAppCount = useAtomValue(tableState.countAtom)
     const totalAppCount = useAtomValue(tableState.totalCountAtom)
+    const isArchivedCountLoading = useAtomValue(tableState.totalCountIsLoadingAtom)
 
     const handleRowClick = useCallback(
         (record: AppWorkflowRow) => {
@@ -158,7 +159,7 @@ const ApplicationManagementSection = ({
                 </div>
             ) : null}
 
-            {totalAppCount > 0 ? (
+            {totalAppCount > 0 || (isArchived && isArchivedCountLoading) ? (
                 <InfiniteVirtualTableFeatureShell<AppWorkflowRow>
                     {...table.shellProps}
                     columns={columns}
