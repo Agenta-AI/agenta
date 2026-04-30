@@ -709,6 +709,10 @@ const waitForHumanAnnotationForm = async ({
             /Generate output to annotate|Generating output|Run the invocation to generate output/i,
         )
         .first()
+    // Separate locator for the auto-run "currently generating" state. We must NOT
+    // interrupt with a reload while auto-run is actively calling the LLM — doing so
+    // restarts the cycle and causes a 90 s timeout. Wait it out instead.
+    const isGeneratingMessage = annotationsCard.getByText(/Generating output/i).first()
     let seededInvocationOutput = false
 
     await expect
@@ -719,14 +723,24 @@ const waitForHumanAnnotationForm = async ({
                     return true
                 }
 
-                // Seed on the first iteration where the metric form is not yet ready.
-                // This handles all waiting states: overlay text visible, "No evaluators
-                // configured" (evaluators still loading), or any other transient state
-                // where none of the expected locators match.
+                // Auto-run is actively generating — wait for it to finish so the component
+                // can invalidate the steps query and reveal the annotation form naturally.
+                // Interrupting with a reload would restart the auto-run cycle.
+                if (await isGeneratingMessage.isVisible().catch(() => false)) {
+                    return false
+                }
+
+                // Seed the invocation result and re-navigate to the annotate view so that
+                // TanStack Query fetches fresh data with the seeded success status.
+                // Use an explicit URL with view=focus so the annotate tab is always active.
+                // page.reload() is avoided here because it can re-trigger auto-run and loop.
+                // Only seed once — on subsequent iterations just wait for the form to appear.
                 if (!seededInvocationOutput) {
                     seededInvocationOutput = true
                     await seedHumanInvocationResult(page)
-                    await page.reload({waitUntil: "domcontentloaded"})
+                    const annotateUrl = new URL(page.url())
+                    annotateUrl.searchParams.set("view", "focus")
+                    await page.goto(annotateUrl.toString(), {waitUntil: "domcontentloaded"})
                     await dismissEvaluationResultsOnboarding(page)
                     return false
                 }
