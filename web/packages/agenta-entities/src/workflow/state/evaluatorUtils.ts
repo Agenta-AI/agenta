@@ -693,9 +693,13 @@ export async function createEvaluatorFromTemplate(templateKey: string): Promise<
 
         const props = parametersTemplate!.properties as Record<string, Record<string, unknown>>
         for (const [key, prop] of Object.entries(props)) {
-            // Skip hidden fields — they are managed internally, not user-facing
+            // Hidden fields are managed internally and must never appear in the form.
+            // Strip in case the catalog's `template.data.parameters` baked in a value.
             const agType = prop?.["x-ag-type"] as string | undefined
-            if (agType === "hidden") continue
+            if (agType === "hidden") {
+                delete parameters[key]
+                continue
+            }
             if (!(key in parameters)) {
                 if (prop?.default !== undefined) {
                     parameters[key] = prop.default
@@ -718,6 +722,9 @@ export async function createEvaluatorFromTemplate(templateKey: string): Promise<
         parameters = {
             ...extractDefaultValues(parametersTemplate),
             ...parameters,
+        }
+        for (const key of hiddenKeys) {
+            delete parameters[key]
         }
     }
 

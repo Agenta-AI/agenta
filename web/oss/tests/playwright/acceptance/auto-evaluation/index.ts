@@ -116,7 +116,7 @@ const testAutoEval = () => {
                 .first()
                 .fill(`e2e-auto-mismatch-${Date.now()}`)
 
-            await goToAutoEvaluationStep(modal, "Variant")
+            await goToAutoEvaluationStep(modal, "Revision")
             await selectAutoEvaluationModalTableInput({
                 modal,
                 rowText: variantName,

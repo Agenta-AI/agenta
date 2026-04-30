@@ -112,7 +112,13 @@ export function nestEvaluatorConfiguration(
                 return primaryData
             }
 
-            // Flat schema path: detect hidden and advanced keys from flat schema props
+            // Flat schema path: detect hidden and advanced keys from flat schema props.
+            // Treat the schema as an allowlist — keys not present in the schema (e.g.
+            // legacy preset fields like `requires_llm_api_keys`, `correct_answer_key`
+            // that aren't declared on the schema) are dropped from the rendered data.
+            // The reverse transform (`flattenEvaluatorConfiguration`) preserves them
+            // via `originalFlat` so commits round-trip cleanly.
+            const allowedKeys = new Set(Object.keys(schemaProps))
             const hiddenKeys = Object.entries(schemaProps)
                 .filter(([, prop]) => prop["x-ag-type"] === "hidden")
                 .map(([key]) => key)
@@ -121,28 +127,27 @@ export function nestEvaluatorConfiguration(
                     ([, prop]) => prop["x-advanced"] === true || prop["x-ag-ui-advanced"] === true,
                 )
                 .map(([key]) => key)
-            if (hiddenKeys.length > 0 || advancedKeys.length > 0) {
-                const primaryData: Record<string, unknown> = {}
-                const advancedData: Record<string, unknown> = {}
-                for (const [key, value] of Object.entries(flat)) {
-                    if (hiddenKeys.includes(key)) continue
-                    if (advancedKeys.includes(key)) {
-                        advancedData[key] = value
-                    } else {
-                        primaryData[key] = value
-                    }
+            const primaryData: Record<string, unknown> = {}
+            const advancedData: Record<string, unknown> = {}
+            for (const [key, value] of Object.entries(flat)) {
+                if (!allowedKeys.has(key)) continue
+                if (hiddenKeys.includes(key)) continue
+                if (advancedKeys.includes(key)) {
+                    advancedData[key] = value
+                } else {
+                    primaryData[key] = value
                 }
-                // When all visible fields are advanced (no primary), schema also renders them flat
-                // (nestNonLlmEvaluatorSchema uses the same "all-advanced → flat" rule).
-                // Return advancedData directly so hidden keys are dropped.
-                if (Object.keys(primaryData).length === 0 && Object.keys(advancedData).length > 0) {
-                    return advancedData
-                }
-                if (Object.keys(advancedData).length > 0) {
-                    return {...primaryData, advanced_settings: advancedData}
-                }
-                return primaryData
             }
+            // When all visible fields are advanced (no primary), schema also renders them flat
+            // (nestNonLlmEvaluatorSchema uses the same "all-advanced → flat" rule).
+            // Return advancedData directly so hidden keys are dropped.
+            if (Object.keys(primaryData).length === 0 && Object.keys(advancedData).length > 0) {
+                return advancedData
+            }
+            if (Object.keys(advancedData).length > 0) {
+                return {...primaryData, advanced_settings: advancedData}
+            }
+            return primaryData
         }
 
         return flat

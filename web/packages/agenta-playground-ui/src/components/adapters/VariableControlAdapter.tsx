@@ -134,17 +134,24 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
         ),
     ) as string
     const variableKeys = useAtomValue(executionItemController.selectors.variableKeys) as string[]
-    const name = useMemo(
-        () => (variableKeys.includes(variableKey) ? variableKey : undefined),
-        [variableKeys, variableKey],
-    )
 
-    // Schema-aware type detection from input port definitions
+    // Schema-aware type detection from input port definitions — also source of
+    // the display label so path-style variable keys (`$.inputs.country`,
+    // `/inputs/country`, `inputs.country`) render as their last segment instead
+    // of the raw path. The key stays unchanged for request-payload identity.
     const schemaMap = useAtomValue(executionItemController.selectors.inputPortSchemaMap) as Record<
         string,
-        {type: string; schema?: unknown}
+        {type: string; name?: string; schema?: unknown}
     >
     const portType = schemaMap[variableKey]?.type ?? "string"
+    const portSchema = schemaMap[variableKey]?.schema
+    const name = useMemo(
+        () =>
+            variableKeys.includes(variableKey)
+                ? (schemaMap[variableKey]?.name ?? variableKey)
+                : undefined,
+        [variableKeys, variableKey, schemaMap],
+    )
 
     // Custom app variable gating: disable controls for names not in schema keys
     const schemaKeys = useAtomValue(
@@ -158,9 +165,25 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
 
     const setCellValue = useSetAtom(executionItemController.actions.setTestcaseCellValue)
 
-    // For object/array types, provide a sensible default when value is empty
+    // For object/array types, provide a sensible default when value is empty.
+    // For grouped envelope-path variables (e.g. `$.inputs.test.country`), the
+    // port carries a synthetic schema listing the known sub-keys — seed the
+    // default JSON with those keys so users see which fields the template
+    // references without having to re-read the prompt.
     const isJsonType = portType === "object" || portType === "array"
-    const jsonDefault = portType === "array" ? "[]" : "{}"
+    const jsonDefault = useMemo(() => {
+        if (portType === "array") return "[]"
+        const props =
+            portSchema && typeof portSchema === "object"
+                ? (portSchema as {properties?: Record<string, unknown>}).properties
+                : null
+        if (!props || typeof props !== "object") return "{}"
+        const keys = Object.keys(props)
+        if (keys.length === 0) return "{}"
+        const obj: Record<string, string> = {}
+        for (const k of keys) obj[k] = ""
+        return JSON.stringify(obj, null, 2)
+    }, [portType, portSchema])
 
     // Detect whether the value looks like JSON. Derived during render (no
     // useState + useEffect indirection) so the mode is correct on the very
@@ -195,15 +218,35 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     })
 
     const isJsonEditor = isJsonType || detectedAsJson
-    const effectiveValue =
-        isJsonEditor && isJsonType && (!value || value === "") ? jsonDefault : value
+    const isCellEmpty = !value || value === ""
+    const effectiveValue = isJsonEditor && isJsonType && isCellEmpty ? jsonDefault : value
 
-    // Seed the default back to the store so the execution payload has the correct value
-    useEffect(() => {
-        if (isJsonType && (!value || value === "")) {
-            setCellValue({testcaseId: rowId, column: variableKey, value: jsonDefault})
+    // Identity key for remounting the editor on SCHEMA changes only.
+    // Using `isCellEmpty` here (earlier approach) caused a cursor reset on
+    // the first keystroke: the cell flipped non-empty mid-edit, the editor
+    // key changed, Lexical remounted. Anchoring on the schema instead keeps
+    // the key stable across typing and only flips when the prompt itself
+    // introduces a new shape (different sub-paths, different slot).
+    const schemaKey = useMemo(() => {
+        if (!portSchema) return "no-schema"
+        try {
+            return JSON.stringify(portSchema)
+        } catch {
+            return "schema-err"
         }
-    }, [isJsonType, value, jsonDefault, setCellValue, rowId, variableKey])
+    }, [portSchema])
+
+    // `jsonDefault` is a VISUAL hint only — never written back to the cell.
+    // Earlier, we seeded the cell so the payload reflected the displayed shape,
+    // but that broke real-time sync: once the cell held the stale seed, later
+    // schema changes (user typed through a variable name, or added a new
+    // sub-path) wouldn't re-seed. The editor would freeze on the first seed.
+    //
+    // Trade-off: if the user never types and hits Run, the cell is empty and
+    // the payload won't carry the displayed JSON. Acceptable under the current
+    // "UI is honest about shape, payload untouched" scope — runtime resolution
+    // of JSONPath variables is broken either way until path-aware payload
+    // routing lands.
 
     const handleChange = useCallback(
         (nextText: unknown) => {
@@ -370,7 +413,11 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
             onKeyDownCapture={handleKeyDownCapture}
         >
             <EditorProvider
-                key={`${editorId}-${isJsonEditor}`}
+                // Stable across user keystrokes (cell value changes don't
+                // remount — preserves cursor position). Flips only when the
+                // port's schema changes, which happens when the prompt
+                // introduces new sub-paths or a different envelope root.
+                key={`${editorId}-${isJsonEditor}-${schemaKey}`}
                 id={editorId}
                 initialValue={effectiveValue}
                 placeholder={effectivePlaceholder}

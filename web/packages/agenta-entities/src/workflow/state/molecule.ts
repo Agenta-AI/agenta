@@ -42,9 +42,11 @@ import {
 } from "../../runnable/evaluatorTransforms"
 import {
     extractInputPortsFromSchema,
+    extractLastPathSegment,
     extractOutputPortsFromSchema,
     extractSystemFieldNames,
     formatKeyAsName,
+    groupTemplateVariables,
 } from "../../runnable/portHelpers"
 import {normalizeWorkflowResponse} from "../../runnable/responseHelpers"
 import {extractVariablesFromConfig} from "../../runnable/utils"
@@ -719,13 +721,25 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
             return buildEvaluatorEnvelopePorts(entity)
         }
 
-        // Ephemeral workflow: derive from template variables, then trace inputs
+        // Ephemeral workflow: derive from template variables, then trace inputs.
+        // Template placeholders addressing non-`inputs` envelopes (e.g.
+        // `{{$.outputs.score}}` in evaluator prompts) resolve from runtime-
+        // populated envelope slots at invocation time — they don't need a
+        // testcase column, so we filter them out here.
         if (entity.flags?.is_base) {
             const params = resolveParameters(entity.data)
             if (params) {
                 const vars = extractVariablesFromConfig(params as Record<string, unknown>)
                 if (vars.length > 0) {
-                    return vars.map((key) => ({key, name: key, type: "string", required: true}))
+                    return groupTemplateVariables(vars)
+                        .filter((group) => group.envelope === "inputs")
+                        .map((group) => ({
+                            key: group.key,
+                            name: group.name,
+                            type: group.type,
+                            required: true,
+                            ...(group.subPaths ? {schema: buildSubPathSchema(group.subPaths)} : {}),
+                        }))
                 }
             }
             // Fallback: derive from trace inputs stored in meta
@@ -736,7 +750,12 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
                 const inputKeys = Object.keys(inputs).filter(
                     (key) => !(isChat && key === "messages"),
                 )
-                return inputKeys.map((key) => ({key, name: key, type: "string", required: false}))
+                return inputKeys.map((key) => ({
+                    key,
+                    name: extractLastPathSegment(key),
+                    type: "string",
+                    required: false,
+                }))
             }
             return []
         }
@@ -756,12 +775,44 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
                 (key) => !systemFields.has(key),
             )
             if (vars.length > 0) {
-                return vars.map((key) => ({key, name: key, type: "string", required: true}))
+                return groupTemplateVariables(vars)
+                    .filter((group) => group.envelope === "inputs")
+                    .map((group) => ({
+                        key: group.key,
+                        name: group.name,
+                        type: group.type,
+                        required: true,
+                        ...(group.subPaths ? {schema: buildSubPathSchema(group.subPaths)} : {}),
+                    }))
             }
         }
         return []
     }),
 )
+
+/**
+ * Build a synthetic JSON Schema describing the known sub-paths of a grouped
+ * object variable. Used only as a UI shape hint (seeds the JSON editor's
+ * default so users see which keys the template references).
+ *
+ * Nested paths (`a.b.c`) are flattened to their top-level segment here —
+ * deeper structure is communicated via `_pathHints` for the adapter to
+ * optionally render, without imposing nesting on the default value.
+ */
+function buildSubPathSchema(subPaths: string[]): {
+    type: "object"
+    properties: Record<string, {type: "string"}>
+    _pathHints: string[]
+} {
+    const topLevelKeys = new Set<string>()
+    for (const sp of subPaths) {
+        const first = sp.split(/[.[\]/]/).filter(Boolean)[0]
+        if (first) topLevelKeys.add(first)
+    }
+    const properties: Record<string, {type: "string"}> = {}
+    for (const k of topLevelKeys) properties[k] = {type: "string"}
+    return {type: "object", properties, _pathHints: subPaths}
+}
 
 /**
  * Output ports selector.

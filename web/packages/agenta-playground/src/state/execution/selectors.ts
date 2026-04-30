@@ -925,23 +925,51 @@ export const inputVariableNamesAtom = atom<string[]>((get) => {
  * Used by VariableControlAdapter to render schema-aware controls
  * (e.g. JSON editor for object types, number input for numbers).
  */
-export const inputPortSchemaMapAtom = atom<Record<string, {type: string; schema?: unknown}>>(
-    (get) => {
-        const nodes = get(playgroundNodesAtom).filter((n) => n.depth === 0)
-        const map: Record<string, {type: string; schema?: unknown}> = {}
-        for (const node of nodes) {
-            const ports = get(
-                workflowMolecule.selectors.inputPorts(node.entityId),
-            ) as RunnablePort[]
-            for (const port of ports || []) {
-                if (port.key && !(port.key in map)) {
-                    map[port.key] = {type: port.type, schema: port.schema}
-                }
+export const inputPortSchemaMapAtom = atom<
+    Record<string, {type: string; name?: string; schema?: unknown}>
+>((get) => {
+    const nodes = get(playgroundNodesAtom).filter((n) => n.depth === 0)
+    const map: Record<string, {type: string; name?: string; schema?: unknown}> = {}
+    for (const node of nodes) {
+        const ports = get(workflowMolecule.selectors.inputPorts(node.entityId)) as RunnablePort[]
+        for (const port of ports || []) {
+            if (port.key && !(port.key in map)) {
+                map[port.key] = {type: port.type, name: port.name, schema: port.schema}
             }
         }
-        return map
-    },
-)
+    }
+    return map
+})
+
+/**
+ * Schema map for output variables (mirrors `inputPortSchemaMapAtom`).
+ *
+ * Sources:
+ *   - Declared schema at `entity.data.schemas.outputs` (structured apps).
+ *   - Inferred from trace metadata for ephemeral / custom workflows —
+ *     see `outputPortsAtomFamily` in the workflow molecule for the
+ *     derivation. Either way we surface ports here so the editor's
+ *     JSONPath typeahead can suggest `$.outputs.<field>` paths.
+ *
+ * Aggregates across ALL nodes in the current playground (apps +
+ * evaluators at depth > 0), because an evaluator prompt commonly
+ * references `$.outputs.*` pointing at the subject app's outputs.
+ */
+export const outputPortSchemaMapAtom = atom<
+    Record<string, {type: string; name?: string; schema?: unknown}>
+>((get) => {
+    const nodes = get(playgroundNodesAtom)
+    const map: Record<string, {type: string; name?: string; schema?: unknown}> = {}
+    for (const node of nodes) {
+        const ports = get(workflowMolecule.selectors.outputPorts(node.entityId)) as RunnablePort[]
+        for (const port of ports || []) {
+            if (port.key && !(port.key in map)) {
+                map[port.key] = {type: port.type, name: port.name, schema: port.schema}
+            }
+        }
+    }
+    return map
+})
 
 // ============================================================================
 // COMPARISON STATE (derived from playground nodes)

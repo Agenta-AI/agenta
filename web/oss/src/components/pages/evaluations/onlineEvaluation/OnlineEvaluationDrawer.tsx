@@ -69,8 +69,14 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
     // Load evaluators (with IDs) to map config URI key -> evaluator.id
     const evaluators = useAtomValue(evaluatorConfigRevisionsListDataAtom)
     const evaluatorRevisionsQuery = useAtomValue(evaluatorConfigRevisionsQueryStateAtom)
+    // Subject of a live eval is the trace, but the evaluator picked here must
+    // still be auto-invokable: skip human evaluators (`is_feedback`) and
+    // anything without a runnable URL — same rule as the new evaluation modal.
     const previewEvaluators = useMemo(
-        () => (evaluators || []).filter((e) => e.flags?.is_feedback !== true),
+        () =>
+            (evaluators || []).filter(
+                (e) => e.flags?.is_feedback !== true && e.flags?.has_url === true,
+            ),
         [evaluators],
     )
     const selectedEvaluatorRevisionId = Form.useWatch("evaluator", form)

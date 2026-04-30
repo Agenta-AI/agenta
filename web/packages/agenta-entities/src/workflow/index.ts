@@ -44,6 +44,8 @@ import "./snapshotAdapter"
 
 export {workflowMolecule, type WorkflowMolecule, type WorkflowType} from "./state/molecule"
 
+export {deriveWorkflowTypeFromRevision} from "./state/helpers"
+
 // ============================================================================
 // SCHEMAS & TYPES
 // ============================================================================
@@ -84,6 +86,7 @@ export {
     // Evaluator-specific utilities (for evaluator-type workflows)
     getEvaluatorColor,
     type EvaluatorColor,
+    getAppTypeColor,
     parseEvaluatorKeyFromUri,
     buildEvaluatorUri,
     isOnlineCapableEvaluator,

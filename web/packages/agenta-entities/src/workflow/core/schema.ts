@@ -564,6 +564,28 @@ export function getEvaluatorColor(uriOrKey: string | null | undefined): Evaluato
 }
 
 /**
+ * Fixed preset colors for app workflow types.
+ *
+ * Apps can't use the hash-based `getEvaluatorColor` because they only have a
+ * handful of types (`chat`/`completion`/`custom`) and users expect each type
+ * to have a stable, semantically-chosen color across the product. Returning
+ * the same `EvaluatorColor` shape lets app and evaluator tags share the
+ * exact same bordered-pill rendering.
+ */
+const APP_TYPE_PRESET: Record<string, PresetColorName> = {
+    chat: "blue",
+    completion: "cyan",
+    custom: "gold",
+}
+
+export function getAppTypeColor(appType: string | null | undefined): EvaluatorColor | null {
+    if (!appType) return null
+    const presetName = APP_TYPE_PRESET[appType]
+    if (!presetName) return null
+    return PRESET_COLOR_MAP[presetName]
+}
+
+/**
  * @deprecated Use `parseWorkflowKeyFromUri` instead.
  */
 export const parseEvaluatorKeyFromUri = parseWorkflowKeyFromUri

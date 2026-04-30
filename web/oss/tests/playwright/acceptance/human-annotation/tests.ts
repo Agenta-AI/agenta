@@ -770,7 +770,7 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
                 config.name,
             )
 
-            await goToHumanEvaluationStep(modal, "Variant")
+            await goToHumanEvaluationStep(modal, "Revision")
             await selectHumanEvaluationModalTableInput({
                 modal,
                 rowText: config.variants,
