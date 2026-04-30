@@ -1924,8 +1924,18 @@ def _apply_responses_bridge_if_needed(
     return provider_settings
 
 
-def _coerce_retry_config(retry_config: Optional[RetryConfig]) -> RetryConfig:
-    return retry_config or RetryConfig()
+def _coerce_retry_config(
+    retry_config: Optional[RetryConfig],
+    retry_policy: Optional[RetryPolicy] = None,
+) -> RetryConfig:
+    policy = _coerce_retry_policy(retry_policy)
+    config = retry_config or RetryConfig()
+    if policy != RetryPolicy.OFF:
+        return RetryConfig(
+            max_retries=config.max_retries if config.max_retries is not None else 1,
+            base_delay=config.base_delay if config.base_delay is not None else 1000,
+        )
+    return config
 
 
 def _coerce_retry_policy(retry_policy: Optional[RetryPolicy]) -> RetryPolicy:
@@ -2027,9 +2037,9 @@ def _should_retry(
     retry_config: Optional[RetryConfig],
     retry_policy: Optional[RetryPolicy],
 ) -> bool:
-    config = _coerce_retry_config(retry_config)
+    config = _coerce_retry_config(retry_config, retry_policy)
     policy = _coerce_retry_policy(retry_policy)
-    if config.max_retries <= 0 or policy == RetryPolicy.OFF:
+    if not config.max_retries or policy == RetryPolicy.OFF:
         return False
 
     category = _classify_retry_error(error)
@@ -2084,8 +2094,8 @@ async def _run_prompt_llm_config_with_retry(
     retry_policy: Optional[RetryPolicy],
     messages: Optional[List[Message]] = None,
 ):
-    config = _coerce_retry_config(retry_config)
-    attempts = config.max_retries + 1
+    config = _coerce_retry_config(retry_config, retry_policy)
+    attempts = (config.max_retries or 0) + 1
     last_error = None
 
     for attempt in range(attempts):
@@ -2121,8 +2131,8 @@ async def _run_prompt_llm_config_with_retry(
                 retry_policy=retry_policy,
             ):
                 break
-            if config.delay_ms > 0:
-                await asyncio.sleep(config.delay_ms / 1000)
+            if config.base_delay is not None:
+                await asyncio.sleep((config.base_delay / 1000) * (2**attempt))
 
     raise last_error  # type: ignore[misc]
 

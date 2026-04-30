@@ -22,9 +22,9 @@ export interface RetryConfigTabProps {
     retryPolicySchema?: EntitySchemaProperty
     retryConfigSchema?: EntitySchemaProperty
     maxRetries: number | null
-    delayMs: number | null
+    baseDelay: number | null
     onPolicyChange: (nextValue: string | null) => void
-    onConfigFieldChange: (key: "max_retries" | "delay_ms", nextValue: number | null) => void
+    onConfigFieldChange: (key: "max_retries" | "base_delay", nextValue: number | null) => void
     disabled?: boolean
 }
 
@@ -34,7 +34,7 @@ export const RetryConfigTab = memo(function RetryConfigTab({
     retryPolicySchema,
     retryConfigSchema,
     maxRetries,
-    delayMs,
+    baseDelay,
     onPolicyChange,
     onConfigFieldChange,
     disabled,
@@ -51,15 +51,13 @@ export const RetryConfigTab = memo(function RetryConfigTab({
     const retryRequiredMessage = "Set max retries first."
 
     const renderNumberField = (
-        key: "max_retries" | "delay_ms",
+        key: "max_retries" | "base_delay",
         value: number | null,
         fallbackDescription: string,
     ) => {
         const schema = resolveAnyOfSchema(retryConfigProperties[key])
         const title = getSchemaText(schema?.title)
         const description = getSchemaText(schema?.description)
-        const maxOverride =
-            key === "delay_ms" && typeof schema?.maximum !== "number" ? 10000 : undefined
 
         return (
             <NumberSliderControl
@@ -69,9 +67,8 @@ export const RetryConfigTab = memo(function RetryConfigTab({
                 value={value}
                 onChange={(nextValue) => onConfigFieldChange(key, nextValue)}
                 description={description || fallbackDescription}
-                disabled={disabled || (key === "delay_ms" && !isRetryEnabled)}
-                disabledReason={key === "delay_ms" ? retryRequiredMessage : undefined}
-                max={maxOverride}
+                disabled={disabled || (key === "base_delay" && !isRetryEnabled)}
+                disabledReason={key === "base_delay" ? retryRequiredMessage : undefined}
             />
         )
     }
@@ -83,7 +80,11 @@ export const RetryConfigTab = memo(function RetryConfigTab({
                 maxRetries,
                 "Each model is retried this many times before moving to the next.",
             )}
-            {renderNumberField("delay_ms", delayMs, "Delay before each retry in milliseconds")}
+            {renderNumberField(
+                "base_delay",
+                baseDelay,
+                "Base delay (ms) before the first retry; doubles on each subsequent attempt.",
+            )}
             <div className="flex flex-col gap-1">
                 <div className="flex flex-col gap-0.5">
                     <Typography.Text>{policyTitle}</Typography.Text>

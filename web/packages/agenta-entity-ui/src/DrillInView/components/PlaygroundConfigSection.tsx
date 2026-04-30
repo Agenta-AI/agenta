@@ -129,7 +129,7 @@ const RETRY_POLICY_OPTIONS = ["off", "availability", "capacity", "transient", "a
 )
 const DEFAULT_RETRY_CONFIG = {
     max_retries: null as number | null,
-    delay_ms: null as number | null,
+    base_delay: null as number | null,
 }
 const PROMPT_EXTENSION_KEYS = [
     "fallback_configs",
@@ -832,10 +832,10 @@ function PlaygroundConfigSection({
                 typeof retryConfig.max_retries === "number"
                     ? retryConfig.max_retries
                     : DEFAULT_RETRY_CONFIG.max_retries,
-            delay_ms:
-                typeof retryConfig.delay_ms === "number"
-                    ? retryConfig.delay_ms
-                    : DEFAULT_RETRY_CONFIG.delay_ms,
+            base_delay:
+                typeof retryConfig.base_delay === "number"
+                    ? retryConfig.base_delay
+                    : DEFAULT_RETRY_CONFIG.base_delay,
         }),
         [retryConfig],
     )
@@ -897,7 +897,7 @@ function PlaygroundConfigSection({
     )
 
     const handleRetryConfigFieldChange = useCallback(
-        (key: "max_retries" | "delay_ms", nextValue: number | null) => {
+        (key: "max_retries" | "base_delay", nextValue: number | null) => {
             const nextMaxRetries =
                 key === "max_retries"
                     ? nextValue
@@ -913,17 +913,17 @@ function PlaygroundConfigSection({
                 return
             }
 
-            const nextDelayMs =
-                key === "delay_ms"
+            const nextBaseDelay =
+                key === "base_delay"
                     ? nextValue
-                    : typeof retryConfig.delay_ms === "number"
-                      ? retryConfig.delay_ms
-                      : DEFAULT_RETRY_CONFIG.delay_ms
+                    : typeof retryConfig.base_delay === "number"
+                      ? retryConfig.base_delay
+                      : DEFAULT_RETRY_CONFIG.base_delay
             const nextRetryConfig: Record<string, unknown> = {
                 max_retries: nextMaxRetries,
             }
-            if (typeof nextDelayMs === "number") {
-                nextRetryConfig.delay_ms = nextDelayMs
+            if (typeof nextBaseDelay === "number") {
+                nextRetryConfig.base_delay = nextBaseDelay
             }
 
             updatePromptRootField("retry_config", nextRetryConfig)
@@ -1249,7 +1249,7 @@ function PlaygroundConfigSection({
                                                           | undefined
                                                   }
                                                   maxRetries={effectiveRetryConfig.max_retries}
-                                                  delayMs={effectiveRetryConfig.delay_ms}
+                                                  baseDelay={effectiveRetryConfig.base_delay}
                                                   onPolicyChange={handleRetryPolicyChange}
                                                   onConfigFieldChange={handleRetryConfigFieldChange}
                                                   disabled={disabled}
@@ -1266,7 +1266,7 @@ function PlaygroundConfigSection({
         [
             activeConfigureTab,
             disabled,
-            effectiveRetryConfig.delay_ms,
+            effectiveRetryConfig.base_delay,
             effectiveRetryConfig.max_retries,
             fallbackConfigKeys,
             fallbackConfigs,

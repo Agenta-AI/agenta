@@ -51,7 +51,7 @@ def test_catalog_types_include_message_messages_model_and_prompt_template():
     ]
     assert set(retry_object_schema["properties"]) == {
         "max_retries",
-        "delay_ms",
+        "base_delay",
     }
     assert retry_policy_schema["enum"] == [
         "off",

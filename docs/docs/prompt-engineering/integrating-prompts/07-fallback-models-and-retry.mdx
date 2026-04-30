@@ -51,7 +51,7 @@ Example fetched configuration:
     ],
     "retry_config": {
       "max_retries": 1,
-      "delay_ms": 500
+      "base_delay": 500
     },
     "retry_policy": "capacity",
     "fallback_policy": "capacity",
@@ -62,4 +62,4 @@ Example fetched configuration:
 
 Use these fields if you want your application to match the behavior tested in the playground.
 
-If a prompt has no fallback models, `fallback_configs` can be empty, `null`, or missing. If no fallback policy is set, fallback behavior is off. Retry is off unless `retry_policy` is explicitly set, and `retry_config` controls the retry count and delay.
+If a prompt has no fallback models, `fallback_configs` can be empty, `null`, or missing. If no fallback policy is set, fallback behavior is off. Retry is off unless `retry_policy` is explicitly set, and `retry_config` controls the retry count and base delay. The delay between retries doubles on each attempt (exponential backoff): the first retry waits `base_delay` ms, the second waits `base_delay * 2` ms, and so on.

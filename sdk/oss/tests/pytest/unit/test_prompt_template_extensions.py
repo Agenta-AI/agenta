@@ -49,8 +49,8 @@ def test_new_prompt_template_fields_coerce_at_runtime():
 
     assert _prompt_llm_configs(prompt) == [prompt.llm_config]
     assert _coerce_retry_config(prompt.retry_config) == RetryConfig(
-        max_retries=0,
-        delay_ms=0,
+        max_retries=None,
+        base_delay=None,
     )
     assert _coerce_retry_policy(prompt.retry_policy) == RetryPolicy.OFF
     assert _coerce_fallback_policy(prompt.fallback_policy) == FallbackPolicy.OFF
@@ -135,7 +135,7 @@ def test_prompt_template_catalog_schema_exposes_fallback_model_ref():
     ]
     assert set(retry_object_schema["properties"]) == {
         "max_retries",
-        "delay_ms",
+        "base_delay",
     }
     assert retry_policy_schema["enum"] == [
         "off",
