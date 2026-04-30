@@ -12,7 +12,8 @@ import {memo, useCallback, useEffect, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {cn, flexLayouts, gapClasses, textColors} from "@agenta/ui/styles"
-import {InputNumber, Slider, Tooltip, Typography} from "antd"
+import {X} from "@phosphor-icons/react"
+import {Button, InputNumber, Slider, Tooltip, Typography} from "antd"
 
 const {Text} = Typography
 
@@ -31,6 +32,8 @@ export interface NumberSliderControlProps {
     withTooltip?: boolean
     /** Disable the control */
     disabled?: boolean
+    /** Allow clearing the current value */
+    allowClear?: boolean
     /** Placeholder text */
     placeholder?: string
     /** Additional CSS classes */
@@ -84,6 +87,7 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     description,
     withTooltip = true,
     disabled = false,
+    allowClear = true,
     placeholder,
     className,
     min: overrideMin,
@@ -119,16 +123,28 @@ export const NumberSliderControl = memo(function NumberSliderControl({
         <div className={cn(flexLayouts.column, gapClasses.xs, className)}>
             <div className={cn(flexLayouts.rowCenter, "justify-between")}>
                 <Text className={cn("font-medium", textColors.primary)}>{label}</Text>
-                <InputNumber
-                    min={min}
-                    max={max}
-                    step={step}
-                    value={localValue}
-                    onChange={handleValueChange}
-                    disabled={disabled}
-                    style={{width: 70}}
-                    placeholder={placeholder}
-                />
+                <div className={cn(flexLayouts.rowCenter, gapClasses.xs)}>
+                    <InputNumber
+                        min={min}
+                        max={max}
+                        step={step}
+                        value={localValue}
+                        onChange={handleValueChange}
+                        disabled={disabled}
+                        style={{width: 70}}
+                        placeholder={placeholder}
+                    />
+                    {allowClear && localValue !== null && (
+                        <Button
+                            icon={<X size={14} />}
+                            type="text"
+                            size="small"
+                            onClick={() => handleValueChange(null)}
+                            disabled={disabled}
+                            aria-label={`Reset ${label}`}
+                        />
+                    )}
+                </div>
             </div>
             <Slider
                 min={min}
