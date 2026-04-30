@@ -40,6 +40,19 @@ const env = (key: string): string | undefined =>
  *   const ag = init({apiKey: "..."});
  *   const apps = await ag.applications.queryApplications({});
  */
+// Headers the Agenta API's CORS config (api/entrypoints/routers.py) doesn't
+// whitelist. The server only allows `Content-Type` + supertokens headers, so
+// anything else triggers a CORS preflight rejection in the browser:
+//   - X-Fern-* are Fern's identity headers, added unconditionally during client init
+//   - Authorization is set by Fern's HeaderAuthProvider even when the API key is
+//     an empty string (because empty string isn't `== null`); for browser cookie
+//     auth we don't want it.
+const HEADERS_BLOCKED_BY_AGENTA_CORS = [
+    "x-fern-language",
+    "x-fern-runtime",
+    "x-fern-runtime-version",
+] as const
+
 export function init(options: AgentaInitOptions = {}): AgentaApiClient {
     const host = options.host ?? env("AGENTA_HOST") ?? "https://cloud.agenta.ai"
     const apiKey = options.apiKey ?? env("AGENTA_API_KEY")
@@ -47,14 +60,25 @@ export function init(options: AgentaInitOptions = {}): AgentaApiClient {
     return new AgentaApiClient({
         environment: host,
         apiKey: apiKey ?? "",
-        // Browser cookie auth: forward credentials so the existing cookie-session
-        // flow continues to work. Server-side calls supply apiKey directly and
-        // are unaffected by this fetch wrapper.
-        fetch: (input, requestInit) =>
-            fetch(input, {
+        // Custom fetch: forward cookies for browser session-auth, and strip
+        // any headers Fern adds that the Agenta CORS allowlist doesn't accept.
+        // We can't reliably remove these via the `headers` option because Fern's
+        // request-time `mergeHeaders(authProviderHeaders, clientHeaders, ...)`
+        // re-adds `Authorization` from the auth provider after our overrides.
+        // The fetch wrapper is the last point we control before the wire.
+        fetch: (input, requestInit) => {
+            const sanitized = new Headers(requestInit?.headers)
+            for (const key of HEADERS_BLOCKED_BY_AGENTA_CORS) sanitized.delete(key)
+            // Drop empty Authorization (sent by HeaderAuthProvider when apiKey is "").
+            if (!apiKey && (sanitized.get("authorization") ?? "") === "") {
+                sanitized.delete("authorization")
+            }
+            return fetch(input, {
                 ...requestInit,
+                headers: sanitized,
                 credentials: "include",
-            }),
+            })
+        },
     })
 }
 
