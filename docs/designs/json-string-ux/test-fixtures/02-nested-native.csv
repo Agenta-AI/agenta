@@ -1,0 +1,5 @@
+inputs,outputs
+"{""country"": ""Tuvalu"", ""correct_answer"": ""The capital of Tuvalu is Funafuti.""}","{""countryName"": ""Tuvalu"", ""capital"": ""Funafuti""}"
+"{""country"": ""Kiribati"", ""correct_answer"": ""The capital of Kiribati is Tarawa.""}","{""countryName"": ""Kiribati"", ""capital"": ""South Tarawa""}"
+"{""country"": ""Comoros"", ""correct_answer"": ""The capital of Comoros is Moroni.""}","{""countryName"": ""Comoros"", ""capital"": ""Moroni""}"
+"{""country"": ""Vanuatu"", ""correct_answer"": ""The capital of Vanuatu is Port Vila.""}","{""countryName"": ""Vanuatu"", ""capital"": ""Port Vila""}"

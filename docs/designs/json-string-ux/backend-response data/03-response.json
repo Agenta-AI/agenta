@@ -1,0 +1,161 @@
+{
+    "count": 4,
+    "testcases": [
+        {
+            "testset_id": "019de2d3-9604-72e1-98da-5e8f59529003",
+            "set_id": "019de2d3-9604-72e1-98da-5e8f59529003",
+            "created_at": "2026-05-01T09:16:50.582772Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "24c92494-afbb-5243-b0e1-40bab846364b",
+            "data": {
+                "inputs": {
+                    "country": "Tuvalu",
+                    "languages": [
+                        "Tuvaluan",
+                        "English"
+                    ],
+                    "correct_answer": "The capital of Tuvalu is Funafuti."
+                },
+                "outputs": {
+                    "countryName": "Tuvalu",
+                    "capital": "Funafuti",
+                    "neighbors": [
+                        {
+                            "name": "Kiribati",
+                            "direction": "north"
+                        },
+                        {
+                            "name": "Fiji",
+                            "direction": "south"
+                        }
+                    ],
+                    "population_thousands": [
+                        11.2,
+                        11.8,
+                        12.1
+                    ]
+                },
+                "testcase_dedup_id": "89fdaf103d42"
+            }
+        },
+        {
+            "testset_id": "019de2d3-9604-72e1-98da-5e8f59529003",
+            "set_id": "019de2d3-9604-72e1-98da-5e8f59529003",
+            "created_at": "2026-05-01T09:16:50.582843Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "09fbef30-491e-5b9e-9aa8-873a385a0362",
+            "data": {
+                "inputs": {
+                    "country": "Kiribati",
+                    "languages": [
+                        "English",
+                        "Gilbertese"
+                    ],
+                    "correct_answer": "The capital of Kiribati is Tarawa."
+                },
+                "outputs": {
+                    "countryName": "Kiribati",
+                    "capital": "South Tarawa",
+                    "neighbors": [
+                        {
+                            "name": "Marshall Islands",
+                            "direction": "north"
+                        },
+                        {
+                            "name": "Tuvalu",
+                            "direction": "south"
+                        },
+                        {
+                            "name": "Nauru",
+                            "direction": "west"
+                        }
+                    ],
+                    "population_thousands": [
+                        120.4,
+                        121.3,
+                        122.0
+                    ]
+                },
+                "testcase_dedup_id": "5086ea71f499"
+            }
+        },
+        {
+            "testset_id": "019de2d3-9604-72e1-98da-5e8f59529003",
+            "set_id": "019de2d3-9604-72e1-98da-5e8f59529003",
+            "created_at": "2026-05-01T09:16:50.582866Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "bfa2b143-9a8f-5d50-9f46-b6b5430b8252",
+            "data": {
+                "inputs": {
+                    "country": "Comoros",
+                    "languages": [
+                        "Comorian",
+                        "Arabic",
+                        "French"
+                    ],
+                    "correct_answer": "The capital of Comoros is Moroni."
+                },
+                "outputs": {
+                    "countryName": "Comoros",
+                    "capital": "Moroni",
+                    "neighbors": [
+                        {
+                            "name": "Mozambique",
+                            "direction": "west"
+                        },
+                        {
+                            "name": "Madagascar",
+                            "direction": "east"
+                        }
+                    ],
+                    "population_thousands": [
+                        870.1,
+                        880.5
+                    ]
+                },
+                "testcase_dedup_id": "ebeaa7ba5d0a"
+            }
+        },
+        {
+            "testset_id": "019de2d3-9604-72e1-98da-5e8f59529003",
+            "set_id": "019de2d3-9604-72e1-98da-5e8f59529003",
+            "created_at": "2026-05-01T09:16:50.582887Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "5f8b41fe-42a3-50dd-adba-38ed41fb7f87",
+            "data": {
+                "inputs": {
+                    "country": "Vanuatu",
+                    "languages": [
+                        "Bislama",
+                        "English",
+                        "French"
+                    ],
+                    "correct_answer": "The capital of Vanuatu is Port Vila."
+                },
+                "outputs": {
+                    "countryName": "Vanuatu",
+                    "capital": "Port Vila",
+                    "neighbors": [
+                        {
+                            "name": "Solomon Islands",
+                            "direction": "north"
+                        },
+                        {
+                            "name": "New Caledonia",
+                            "direction": "south"
+                        },
+                        {
+                            "name": "Fiji",
+                            "direction": "east"
+                        }
+                    ],
+                    "population_thousands": [
+                        314.5,
+                        319.1
+                    ]
+                },
+                "testcase_dedup_id": "55cded792504"
+            }
+        }
+    ]
+}
