@@ -1,87 +1,67 @@
-# Gap 02 — Testset table cells render objects/arrays poorly
+# Gap 02 — Testset table cell preview format
 
 **Scope:** Frontend only. Backend returns clean shapes.
 
 **Anchor fixtures:** `03-arrays.json`, `05-mixed-per-column.json`, `06-deeply-nested.json`
 
-## What already works (don't break)
+**Audited 2026-05-04 against production.** Original framing ("table cells render objects/arrays poorly — no popover / no chip / no syntax highlighting") was wrong. Production already ships those primitives. The unique gap-02 contribution is the *preview format choice* plus chip vocabulary applied to cells.
 
-The testset table has a strong existing feature: **homogeneous nested object columns are expandable into sub-column groups**. Click `>` on `context` and it expands into `demographics` + `geo`. Click `>` on `geo` and it expands into `coordinates` + `region` + `subregion`. Drilling down to leaves works well.
+## What production already does
 
-The proposed variants below **compose with this expansion model**, not replace it. They affect only the *collapsed* cell preview — what the user sees before clicking `>`. After expansion, leaf scalar columns render as today.
+`web/oss/src/components/TestcasesTableNew/components/TestcaseCellContent.tsx` delegates to the renderer pipeline in `@agenta/ui/cell-renderers`:
 
-## What's still broken
+- `tryParseJson` + `extractChatMessages` for type detection.
+- `JsonCellContent` (syntax-highlighted JSON inline), `ChatMessagesCellContent` (chat preview inline), `TextCellContent` (plain text).
+- `CellContentPopover` — click-to-open popover with full content + Copy button.
+- Em-dash placeholder for `null` / `undefined` / empty string and missing keys.
+- `maxLines={10}` truncation on the inline preview.
 
-Three cases the existing column-expansion model doesn't solve:
+It works. The visible problem at scale: a deeply-nested object renders as ~10 lines of multi-line JSON inside the cell — burns vertical space, reads slow, and tells the user nothing about *shape* until they parse the indented block themselves.
 
-1. **Heterogeneous-type columns** (fixture 05). Same column has strings in some rows and objects/arrays/null in others. Object/array/null rows render `—` em-dash. Expansion can't help — the column isn't a homogeneous structure to expand into.
-2. **Arrays** (fixture 03 `languages`, `neighbors`). Arrays render as raw multi-line JSON inside the cell, eating ~3-5 lines of vertical space. Expansion would need to invent a row-per-element table-in-cell, which doesn't fit the grid model.
-3. **Collapsed leaf-object cells** (fixture 06 `context` before clicking `>`). The pre-expansion preview is raw JSON cropped at column width. A chip + key list would replace that without touching the expansion affordance.
+The **homogeneous-nested-object expansion** (click `>` on a `context` column to expand into `demographics + geo` sub-columns) is also already in production via `groupColumns`. The proposals below compose with that — they affect only the *collapsed* cell preview, before column expansion.
 
-The detection logic exists (`detectDataType` in `fieldUtils.ts:185`) and the drill-in (`DrillInContent`) uses it correctly. The table cell renderer just doesn't apply it to these three cases.
+## What gap-02 actually proposes
 
-## Three rendering directions
+A **dense preview format** plus chip vocabulary:
 
-All three apply only to the *collapsed* cell preview. Column expansion behavior is unchanged.
-
-### Variant A — Chip + count + first keys (recommended)
+- **Line 1:** `[obj]` chip + `{ 4 props }` count.
+- **Line 2:** comma-separated first 2-3 keys (or values for arrays).
+- Cell stays ~2 lines tall regardless of nested depth.
+- Hover/click popover (existing `CellContentPopover`) still shows the full structure.
+- **Stringified-JSON:** distinct `[json-str]` chip, parse-on-detect affordance, popover shows the *parsed* structure (production today shows the raw escaped string).
+- **Mixed columns:** `[mixed]` chip on the column header.
+- **Dotted-key columns:** `[dotted-key]` chip; collision rows stack `[⚠ collision]`.
 
 ```text
-outputs cell:
+outputs cell (object):
 ┌─────────────────────────────────────┐
 │ [obj] { 2 }                         │
 │ countryName, capital                │
 └─────────────────────────────────────┘
 
-neighbors cell:
+neighbors cell (array of records):
 ┌─────────────────────────────────────┐
 │ [arr] [ 3 records ]                 │
 │ Marshall Islands, Tuvalu, Nauru     │
 └─────────────────────────────────────┘
+
+metadata cell (stringified-JSON):
+┌─────────────────────────────────────┐
+│ [json-str] { 3 }                    │
+│ source, trace_id, latency_ms        │
+└─────────────────────────────────────┘
 ```
 
-- Two compact lines per cell. Predictable height.
-- Type chip + count + sample keys/values give immediate shape sense.
-- Click cell → opens the drill-in (hosted in the testcase drawer) at that field.
+The popover behind the cell parses the stringified JSON for display (production today renders the raw quoted string with backslash-escaped quotes — readable but slow).
 
-**Tradeoffs:** rows become two-line for non-string cells. Mixed columns vary in row height (mitigated by row-height setting that already exists).
+## Relationship to other gaps
 
-### Variant B — Mini JSON tree
+- **gap-01 (chip vocabulary)** — most of what's "missing" on cells today is the chip side, which is gap-01 applied to a different surface. The dense-format proposal here (count, sample keys, popover-on-parsed) is the cell-specific contribution. Both ship together on `/solutions-tables`.
+- **gap-04 (shape preservation)** — em-dash for missing keys is already in production. gap-04 adds the conceptual `[not-authored]` marker on top of it.
+- **gap-05 (dot-key disambiguation)** — `[dotted-key]` on column headers stacks with cell rendering.
+- **gap-06 (messages renderer)** — `ChatMessagesCellContent` already provides messages preview in cells. The `[tool]` chip for tool-call columns is gap-06's contribution to the table surface.
 
-```text
-outputs cell:
-{
-  countryName: "Kiribati",
-  capital: "South…"
-}
-```
-
-- Most faithful to JSON.
-- Four to six lines per object cell.
-- Syntax highlighting differentiates from string cells without a chip.
-
-**Tradeoffs:** big vertical footprint. Tables become hard to scan.
-
-### Variant C — Single-line inline JSON, syntax-highlighted
-
-```text
-outputs cell:
-{ countryName: "Kiribati", capital: "South Tar…" }
-```
-
-- Same row height as string cells.
-- Compact. Scannable.
-- Type signal is purely visual (color, braces).
-
-**Tradeoffs:** no chip means screen readers miss the type signal; truncation hides nested structure entirely.
-
-## Recommendation
-
-**Variant A.** Two-line cell with chip + shape preview. Uses the chip system from `gap-01-type-chips.md`. Predictable height, clear type signal, drill-in is a click away.
-
-For arrays of records (fixture 03 `neighbors`): show first 2-3 element values comma-separated. For arrays of primitives: show first 3-5 values. For objects: show first 2-3 keys.
-
-## Empty/null/messages cases
+## Empty / null / messages cases
 
 | Cell value | How to render |
 | --- | --- |
@@ -89,15 +69,33 @@ For arrays of records (fixture 03 `neighbors`): show first 2-3 element values co
 | `""` (empty string) | `""` literal in quotes |
 | `[]` | `[arr] [ empty ]` |
 | `{}` | `[obj] { empty }` |
-| Missing key (column doesn't exist for this row) | `—` em-dash, dimmed (this is the only legitimate em-dash use) |
-| `messages` array | `[msgs] [ N messages ]` chip, drill-in opens ChatMessageEditor (see `gap-06`) |
+| Missing key (column doesn't exist for this row) | `—` em-dash (production already does this) |
+| `messages` array | `[msgs] [ N messages ]`, popover/drill-in opens chat cards (production via `ChatMessagesCellContent`) |
+| `tool_calls` array | `[tool] [ N calls ]` chip, drill-in shows the tool-call card from gap-06 |
+| Stringified-JSON | `[json-str]` chip, popover shows parsed structure |
 
-## Implementation
+## Implementation path
 
-The single change is in the testset table cell renderer. It already receives the raw value. Wire `detectDataType(value)` through and render per the table above. No backend changes. No data shape changes. No schema changes.
+The dense preview can ship as either:
+
+1. A new option inside `JsonCellContent` (e.g. `variant="summary"`) so the rest of the renderer pipeline doesn't change.
+2. A new sibling renderer `SummaryCellContent` that `TestcaseCellContent` picks when the user toggles density.
+
+Either way, the chip vocabulary integrates with the existing detection (`tryParseJson`, `extractChatMessages`) and existing popover (`CellContentPopover`). No backend changes. No data shape changes. No schema changes.
+
+## Competitive validation (added 2026-05-04)
+
+See [`../competitive-analysis.md`](../competitive-analysis.md) §2.
+
+- **Braintrust** — renders cells as multi-line YAML preview with a row-height toggle (Compact / Comfortable / Tall) on the table toolbar. Direct precedent for our density toggle. No type chips on cells — relies on YAML's typographic conventions for shape.
+- **Langfuse** — renders multi-line JSON inline with no density control. No chips. Same blind spot as us pre-fix.
+- **Both** — share the stringified-JSON blind spot. They show the raw quoted string with escaped quotes, just like our production today. **Our parse-on-detect popover is the differentiator here.**
+
+**Net:** the chip vocabulary + dense preview catches us up to Braintrust's typographic shape signals. The stringified-JSON parse-on-detect popover puts us past both.
 
 ## Cross-references
 
 - `gap-01` — type chip styles used here
-- `gap-04` — empty-cell rendering must not pollute storage on save
-- `gap-06` — `messages` carve-out
+- `gap-04` — em-dash for missing keys is shared (production already has it)
+- `gap-05` — `[dotted-key]` chip on column headers
+- `gap-06` — `[tool]` chip + `ChatMessagesCellContent` carve-out

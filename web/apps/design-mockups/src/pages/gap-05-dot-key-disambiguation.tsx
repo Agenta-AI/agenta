@@ -1,8 +1,17 @@
 /**
  * Gap 05 — Dot-key vs nested disambiguation (concept page).
  *
- * Problem statement + proposed solution. Live demo on /solutions-drill-in
- * (pick the "08 collision" fixture).
+ * Audited 2026-05-04. The chip variants `[dotted-key]`, `[⚠ collision]`,
+ * `[shadowed]` are part of the gap-01 chip vocabulary. Production already
+ * has the column-grouping logic that shows literal vs nested as separate
+ * columns. What's unique to gap-05 is the *collision detection logic* —
+ * recognizing when both shapes exist on the same row — and the chip
+ * application driven by it.
+ *
+ * Sub-relationship: gap-05 is mostly gap-01 chip vocabulary applied to a
+ * specific case via a small detection function. Calling it out separately
+ * because the runtime correctness story (literal-key-first templating)
+ * deserves its own conversation, not because the UI primitive is new.
  */
 
 import Head from "next/head"
@@ -19,11 +28,63 @@ export default function Gap05Concept() {
             <MockupPageShell
                 title="Gap 05 — Dot-key vs nested path disambiguation"
                 blurb={
-                    "A testcase can store a key in two ways and they mean different things at template-render time: literal `{ \"geo.region\": \"...\" }` versus nested `{ geo: { region: \"...\" } }`. Both are valid JSON, both are stored faithfully, but `{{geo.region}}` resolves to the literal first under the RFC's literal-key-first rule. The UI today doesn't mark the distinction."
+                    "A testcase can store the same conceptual key two ways: literal `{ \"geo.region\": ... }` (a flat top-level key) versus nested `{ geo: { region: ... } }` (an object with a property). Both are valid JSON, both are stored faithfully, but `{{geo.region}}` resolves to the literal first under the RFC's literal-key-first rule. The UI doesn't currently mark which one templates resolve. This is a chip-application problem (gap-01 vocabulary) plus collision detection logic — small in scope, large in correctness impact."
                 }
                 notes={
                     <>
-                        <strong>The two shapes are different things:</strong>
+                        <strong>What production already does:</strong> the
+                        column-grouping logic in{" "}
+                        <code>currentColumnsAtom</code> /{" "}
+                        <code>groupColumns</code> shows literal{" "}
+                        <code>&quot;geo.region&quot;</code> as one flat column
+                        and nested <code>geo</code> as another column that
+                        expands via <code>&gt;</code> into{" "}
+                        <code>region</code> / <code>subregion</code>{" "}
+                        sub-columns. Structural separation works today — the
+                        user can see both shapes in the table.{" "}
+                        <strong>What's missing is labeling.</strong>
+                        <br />
+                        <br />
+                        <strong>Relationship to gap-01:</strong> the chip
+                        variants this gap relies on (<code>[dotted-key]</code>,{" "}
+                        <code>[⚠ collision]</code>, <code>[shadowed]</code>)
+                        are all part of the gap-01 chip vocabulary. Whether
+                        gap-05 stays as its own gap or folds into gap-01 is a
+                        framing call: the chips ARE gap-01, but the{" "}
+                        <em>collision detection logic</em> + the{" "}
+                        <em>runtime correctness conversation</em> (literal
+                        wins over nested at template time) are what gap-05
+                        uniquely owns.
+                        <br />
+                        <br />
+                        <strong>What gap-05 actually proposes:</strong>
+                        <ul style={styles.list}>
+                            <li>
+                                <strong>Detection logic.</strong> When loading
+                                a row, walk the keys: any key containing a dot
+                                gets <code>[dotted-key]</code>; if its first
+                                segment is also a key with an object value,
+                                stack <code>[⚠ collision]</code> on both
+                                sides; if literal-first templating would
+                                shadow the nested traversal, also stack{" "}
+                                <code>[shadowed]</code> on the nested side.
+                            </li>
+                            <li>
+                                <strong>Chip application.</strong> Surface
+                                those chips on the drill-in field row + the
+                                column header in the table. Already part of
+                                gap-01 vocabulary.
+                            </li>
+                            <li>
+                                <strong>Variables panel hint</strong>{" "}
+                                (gap-08-adjacent): when a user types{" "}
+                                <code>{"{{geo.region}}"}</code>, autocomplete
+                                shows both candidates with the chip
+                                distinguishing them.
+                            </li>
+                        </ul>
+                        <br />
+                        <strong>Two shapes resolve differently:</strong>
                         <ul style={styles.list}>
                             <li>
                                 <code>{"{{geo.region}}"}</code> returns the
@@ -35,39 +96,8 @@ export default function Gap05Concept() {
                                 always traverses (ignores literal keys).
                             </li>
                         </ul>
-                        The user's authoring choice matters. The UI doesn't
-                        currently mark it.
-                        <br />
-                        <br />
-                        <strong>What we see in fixture 08 today:</strong> the
-                        column-grouping model already shows the two shapes as
-                        separate columns — literal <code>&quot;geo.region&quot;</code>{" "}
-                        is a flat top-level column, and nested <code>geo</code>{" "}
-                        expands via <code>&gt;</code> into <code>region</code> /
-                        <code>subregion</code> sub-columns. Both visible
-                        side-by-side. The structural separation works.{" "}
-                        <strong>What's missing is labeling.</strong>
-                        <br />
-                        <br />
-                        <strong>Proposed:</strong>
-                        <ul style={styles.list}>
-                            <li>
-                                <code>[dotted-key]</code> chip on the literal
-                                row, signalling "this is a flat top-level key,
-                                not a path."
-                            </li>
-                            <li>
-                                <code>[⚠ collision]</code> chip when literal
-                                AND nested both exist on the same row.
-                                Stacks with <code>[dotted-key]</code> on the
-                                literal side.
-                            </li>
-                            <li>
-                                <code>[shadowed]</code> chip on the nested side
-                                when the literal silently overrides at runtime
-                                (literal-key-first rule).
-                            </li>
-                        </ul>
+                        Marking the structural difference in the UI is what
+                        prevents authoring bugs.
                     </>
                 }
                 competitiveNotes={
@@ -75,11 +105,11 @@ export default function Gap05Concept() {
                         Braintrust's drill-in form lists literal{" "}
                         <code>&quot;a.b&quot;</code> as one input and nested{" "}
                         <code>a.b</code> as a separate indented input under{" "}
-                        <code>a</code> — visually distinct rows, no chip needed
-                        because the form shape does the disambiguation.
-                        Langfuse renders both shapes in one JSON blob with no
-                        marker. Our chip + form structure (gap-07) combined =
-                        best-in-class. See{" "}
+                        <code>a</code> — visually distinct rows, no chip
+                        needed because the form shape does the disambiguation
+                        structurally. Langfuse renders both shapes in one JSON
+                        blob with no marker. Our chip + form structure
+                        (gap-07) combined = best-in-class. See{" "}
                         <a
                             href="../../../docs/designs/json-string-ux/competitive-analysis.md"
                             style={styles.link}
@@ -96,28 +126,36 @@ export default function Gap05Concept() {
                         Solutions · Drill-in — full demo →
                     </span>
                     <span style={styles.ctaBlurb}>
-                        Pick the "08 dot-key collision" fixture (Vanuatu) from
-                        the toolbar. The literal <code>&quot;geo.region&quot;</code>{" "}
-                        field shows <code>[dotted-key]</code> +{" "}
-                        <code>[⚠ collision]</code>; the nested <code>geo</code>{" "}
-                        sibling shows <code>[⚠ collision]</code>.
+                        Pick the "08 dot-key collision" fixture from the
+                        toolbar. Vanuatu has both literal{" "}
+                        <code>&quot;geo.region&quot;</code> and nested{" "}
+                        <code>geo</code>; the literal field shows{" "}
+                        <code>[dotted-key]</code> + <code>[⚠ collision]</code>;
+                        the nested sibling shows <code>[⚠ collision]</code>.
                     </span>
                 </Link>
 
                 <div style={styles.crossLinks}>
                     <strong>Related concept pages:</strong>{" "}
                     <Link href="/gap-01-type-chips" style={styles.link}>
-                        gap-01 (chip vocabulary, including [dotted-key] / [⚠
-                        collision] / [shadowed])
+                        gap-01 (chip vocabulary — gap-05's chips live there)
                     </Link>{" "}
                     ·{" "}
                     <Link href="/gap-04-shape-preservation" style={styles.link}>
-                        gap-04 (shape preservation prevents shadowing on save)
+                        gap-04 (save-side filter prevents shadowing on save)
                     </Link>{" "}
                     ·{" "}
                     <Link href="/gap-07-schema-aware-form" style={styles.link}>
                         gap-07 (schema-aware form does most of the
-                        disambiguation work structurally)
+                        disambiguation work structurally — Braintrust pattern)
+                    </Link>{" "}
+                    ·{" "}
+                    <Link
+                        href="/gap-08-playground-variable-validation"
+                        style={styles.link}
+                    >
+                        gap-08 (variable validation — the autocomplete needs
+                        the same dot-key disambiguation)
                     </Link>
                 </div>
             </MockupPageShell>

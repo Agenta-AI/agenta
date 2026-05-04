@@ -32,14 +32,22 @@ import {type ChipRenderMode} from "@/mockups/components/proposed/ProposedDrillIn
 import {
     fixture07_messages_and_tools,
     fixture_chip_showcase,
+    fixture_kitchen_sink,
     fixture_markdown_article,
 } from "@/mockups/data/stubTestcases"
 
+const kitchenSinkTestcase = fixture_kitchen_sink[0]
 const kiribatiTestcase = fixture_chip_showcase[0]
 const messagesTrace = fixture07_messages_and_tools.find(
     (tc) => tc.id === "tc-07-kiribati-tool",
 )!
 const markdownArticle = fixture_markdown_article[0]
+
+// Toggle to bring back the focused-fixture rows (chip-showcase, messages
+// trace, markdown article). Kept as a flag (rather than deleting them) so
+// they're one edit away if a focused review is needed. Kitchen-sink Vanuatu
+// (Row 1) covers every gap on its own.
+const SHOW_EXTRA_ROWS = false
 
 export default function SolutionsPlayground() {
     const [editMode, setEditMode] = useState<"editable" | "read-only">("editable")
@@ -250,9 +258,104 @@ export default function SolutionsPlayground() {
                         </span>
                     </div>
 
-                    {/* Row 1 — Kiribati chip-showcase fixture (gap-01) */}
+                    {/* Row 1 — Kitchen sink Vanuatu (every gap on one row) */}
                     <PlaygroundExecutionItemToday
-                        testcaseLabel="testcase 1"
+                        testcaseLabel="testcase 1 — kitchen sink"
+                        inputs={[
+                            {name: "country", value: kitchenSinkTestcase.data.country as string},
+                            {
+                                name: "population_thousands",
+                                value: String(kitchenSinkTestcase.data.population_thousands),
+                            },
+                            {
+                                name: "is_island_nation",
+                                value: String(kitchenSinkTestcase.data.is_island_nation),
+                            },
+                            {name: "languages"},
+                            {name: "inputs"},
+                            {name: "geo"},
+                            {name: "metadata", value: kitchenSinkTestcase.data.metadata as string},
+                            {name: "messages"},
+                        ]}
+                    />
+                    <PlaygroundExecutionItem
+                        testcaseLabel={`Testcase · ${kitchenSinkTestcase.label}`}
+                        inputs={[
+                            {name: "country", value: kitchenSinkTestcase.data.country},
+                            {
+                                name: "population_thousands",
+                                value: kitchenSinkTestcase.data.population_thousands,
+                            },
+                            {
+                                name: "is_island_nation",
+                                value: kitchenSinkTestcase.data.is_island_nation,
+                            },
+                            {name: "notes", value: kitchenSinkTestcase.data.notes},
+                            {name: "languages", value: kitchenSinkTestcase.data.languages},
+                            {name: "correct_answer", value: kitchenSinkTestcase.data.correct_answer},
+                            {name: "inputs", value: kitchenSinkTestcase.data.inputs},
+                            {name: "outputs", value: kitchenSinkTestcase.data.outputs},
+                            {name: "metadata", value: kitchenSinkTestcase.data.metadata},
+                            {name: "geo.region", value: kitchenSinkTestcase.data["geo.region"]},
+                            {name: "geo", value: kitchenSinkTestcase.data.geo},
+                            {name: "messages", value: kitchenSinkTestcase.data.messages},
+                        ]}
+                        output={{
+                            role: "assistant",
+                            content:
+                                "The capital of Vanuatu is Port Vila (ISO code: VU), on the southern coast of Efate Island.",
+                        }}
+                        evaluators={[
+                            {name: "exact_match", score: 1.0, passed: true},
+                            {name: "factual", score: 0.95, passed: true},
+                            {name: "tool_calls_correct", score: 1.0, passed: true},
+                        ]}
+                        durationMs={2410}
+                        chipMode={chipMode}
+                        editable={editable}
+                    />
+                    <PlaygroundExecutionItemCompact
+                        testcaseLabel={`Testcase · ${kitchenSinkTestcase.label}`}
+                        inputs={[
+                            {name: "country", value: kitchenSinkTestcase.data.country},
+                            {
+                                name: "population_thousands",
+                                value: kitchenSinkTestcase.data.population_thousands,
+                            },
+                            {
+                                name: "is_island_nation",
+                                value: kitchenSinkTestcase.data.is_island_nation,
+                            },
+                            {name: "notes", value: kitchenSinkTestcase.data.notes},
+                            {name: "languages", value: kitchenSinkTestcase.data.languages},
+                            {name: "correct_answer", value: kitchenSinkTestcase.data.correct_answer},
+                            {name: "inputs", value: kitchenSinkTestcase.data.inputs},
+                            {name: "outputs", value: kitchenSinkTestcase.data.outputs},
+                            {name: "metadata", value: kitchenSinkTestcase.data.metadata},
+                            {name: "geo.region", value: kitchenSinkTestcase.data["geo.region"]},
+                            {name: "geo", value: kitchenSinkTestcase.data.geo},
+                            {name: "messages", value: kitchenSinkTestcase.data.messages},
+                        ]}
+                        output={{
+                            role: "assistant",
+                            content:
+                                "The capital of Vanuatu is Port Vila (ISO code: VU), on the southern coast of Efate Island.",
+                        }}
+                        evaluators={[
+                            {name: "exact_match", score: 1.0, passed: true},
+                            {name: "factual", score: 0.95, passed: true},
+                            {name: "tool_calls_correct", score: 1.0, passed: true},
+                        ]}
+                        durationMs={2410}
+                        chipMode={chipMode}
+                        editable={editable}
+                    />
+
+                    {SHOW_EXTRA_ROWS ? (
+                        <>
+                    {/* Row 2 — Kiribati chip-showcase (focused gap-01) */}
+                    <PlaygroundExecutionItemToday
+                        testcaseLabel="testcase 2 — chip-showcase"
                         inputs={[
                             {name: "country", value: kiribatiTestcase.data.country as string},
                             {name: "age", value: String(kiribatiTestcase.data.age)},
@@ -296,7 +399,7 @@ export default function SolutionsPlayground() {
                         editable={editable}
                     />
 
-                    {/* Row 2 — Messages trace (gap-06) */}
+                    {/* Row 3 — Messages trace (gap-06) */}
                     <PlaygroundExecutionItemToday
                         testcaseLabel="testcase 2"
                         inputs={[
@@ -413,6 +516,8 @@ export default function SolutionsPlayground() {
                         chipMode={chipMode}
                         editable={editable}
                     />
+                        </>
+                    ) : null}
                 </div>
 
                 <div style={styles.crossLinks}>

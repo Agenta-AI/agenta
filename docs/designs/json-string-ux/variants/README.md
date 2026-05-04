@@ -6,7 +6,28 @@ Six focused gap docs, each with a prose argument (`.md`) and a visual mockup (`.
 
 **Competitive context (added 2026-05-04):** see [`../competitive-analysis.md`](../competitive-analysis.md). 50 screenshots of Braintrust + Langfuse running our 8 fixtures. Validates gap-03 / gap-05 / gap-06 directions, identifies a near-zero-cost stop-gap (full-row JSON popover), and surfaces two new candidate gaps. Reading the analysis is recommended before the team call — it changes the priority order.
 
+**Interactive mockup app (added 2026-05-04):** the static `.html` mockups in this folder are now superseded by an interactive Next.js app at [`../../../web/apps/design-mockups/`](../../../web/apps/design-mockups/). Run `pnpm --filter design-mockups dev` (port 3030) and open the **solution** pages — they mount production components alongside the proposal so the diff is visible:
+
+| Solution route | What it shows |
+| --- | --- |
+| `/solutions-drill-in` | Production drawer (`DrillInContent`) on the left vs `ProposedDrillIn` on the right, with a fixture toolbar to switch between fixtures 02-08. Use this for gap-01, gap-03, gap-04, gap-05, gap-06. |
+| `/solutions-playground` | Three-way compare grid per fixture (Today = production-style hand-mock, Embedded = full drill-in, Compact = click-to-edit row). Use this for the playground side of gap-01, gap-03, gap-06. |
+| `/solutions-tables` | Production `groupColumns` + `TestcaseCellContent` on the left vs `ProposedTableCell` (chip-and-shape) on the right, both in real antd `<Table>`s with stub rows simulating the entity layer. Use this for gap-02. |
+
+The **concept** pages (`/gap-NN-*` in the mockup app) document **what production already does** vs **what each gap actually proposes**. Several gap framings shifted as a result of that audit — see "Production audit (2026-05-04)" below.
+
 The HTML mockups all share `shared.css` so chip styles, surface containers, drill-in mockups, and the variables panel stay visually consistent across views. Open `index.html` for the full landing page, or any `gap-XX.html` directly for a specific gap.
+
+## Production audit (2026-05-04)
+
+Mounting the real production components alongside `ProposedDrillIn` / `ProposedTableCell` surfaced capabilities the gap docs originally claimed were missing. Each affected gap has been rescoped — the prose `.md` files below reflect the new framing.
+
+- **gap-02 (table cells).** Production already has `CellContentPopover` (full-row popover on click), `JsonCellContent` (syntax-highlighted JSON in cells), and em-dash for missing keys. **Unique gap-02 contribution = the dense two-line cell format (chip + count + first-keys preview)** plus the chip vocabulary applied to mixed/array/collapsed-object cells. Most of gap-02 is gap-01 chip vocabulary applied to the table surface.
+- **gap-03 (drill-in root view).** Production already has per-field collapse: `collapsedFields` state, `DrillInFieldHeader` caret button, `showFieldCollapse` prop, and `ChatMessageList` renders `dataType === "messages"` unconditionally at any depth (`DrillInContent.tsx:1284-1298`). **Unique gap-03 contribution = auto-expand-on-first-render** (a new `autoExpand` prop). Existing collapse machinery still works after auto-expand lands.
+- **gap-05 (dot-key disambiguation).** The chip variants (`[dotted-key]`, `[⚠ collision]`, `[shadowed]`) are part of gap-01 chip vocabulary. The structural separation between literal `"geo.region"` and nested `geo > region` is already visible via `groupColumns`. **Unique gap-05 contribution = collision detection logic + the runtime-correctness conversation (literal-key-first templating).** Most of gap-05 is gap-01 vocabulary applied with a small detection function.
+- **gap-06 (messages renderer).** Production already renders messages-shaped arrays via `ChatMessageList` at any depth, has `ToolMessageHeader` for `role: "tool"`, and `extractDisplayTextFromMessage` formats assistant `tool_calls` as inline text. **Unique gap-06 contribution = the dedicated tool-call card** (function name as heading, arguments JSON pretty-printed) and the `[tool]` chip in table cells. Root-level rendering falls out of gap-03 auto-expand, not gap-06.
+
+**Subset relationships:** gap-02, gap-05, and gap-06 all rely heavily on gap-01 chip vocabulary. They stay as their own gaps because each owns a non-trivial design surface that doesn't fit cleanly under gap-01 alone (cell format, collision detection, tool-call card), but the chip work is shared.
 
 ## Existing capabilities (don't break these)
 
@@ -33,7 +54,7 @@ The order below tells the story: vocabulary first, then where it's applied, then
 | **05** Dot-key disambiguation | [`gap-05-dot-key-disambiguation.html`](gap-05-dot-key-disambiguation.html) | [`gap-05-dot-key-vs-nested-disambiguation.md`](gap-05-dot-key-vs-nested-disambiguation.md) | **Correctness.** Literal-key-first behavior must be visible. |
 | **06** Messages renderer | [`gap-06-messages-renderer.html`](gap-06-messages-renderer.html) | [`gap-06-messages-renderer-coverage.md`](gap-06-messages-renderer-coverage.md) | Polish — wire `ChatMessageEditor` everywhere. |
 
-**For the team call:** open the HTML files. They have the variants side-by-side with tradeoffs in `<details>` blocks. Reference the md docs for the full prose argument.
+**For the team call:** open the **interactive mockup app** (preferred — `pnpm --filter design-mockups dev` then `/solutions-*`). The HTML files are still here but the live app is more useful because it mounts production components next to the proposals. Reference the `.md` docs for the full prose argument.
 
 ## Sequencing for the team conversation
 

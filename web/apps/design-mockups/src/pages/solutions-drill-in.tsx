@@ -43,8 +43,15 @@ import {
     fixture07_messages_and_tools,
     fixture08_dot_key_collision,
     fixture_chip_showcase,
+    fixture_kitchen_sink,
+    fixture_kitchen_sink_known_columns,
     fixture_markdown_article,
 } from "@/mockups/data/stubTestcases"
+
+// Toggle to bring back the multi-fixture switcher. Kept as a flag (rather
+// than deleting the FIXTURES array) so individual gap fixtures stay one
+// edit away if a focused review is needed.
+const SHOW_FIXTURE_SWITCHER = false
 
 // gap-04 — union of all column keys across fixture08 rows. Kiribati only
 // authors a subset of these, so the ghost-row machinery on ProposedDrillIn
@@ -61,6 +68,16 @@ const FIXTURE08_KNOWN_COLUMNS = [
 ]
 
 const FIXTURES = [
+    {
+        id: "kitchen-sink",
+        label: "Kitchen sink — every gap on one row",
+        testcase: fixture_kitchen_sink[0],
+        autoExpand: true,
+        detectCollisions: true,
+        knownColumns: fixture_kitchen_sink_known_columns,
+        gapNote:
+            "All gaps on one row. Vanuatu has every chip variant (gap-01), nested inputs/outputs auto-expand (gap-03), `metadata` is stringified-JSON with parse-on-detect (gap-04), `geo.region` collides between literal and nested shapes (gap-05), `messages` includes a tool_call + role:\"tool\" response (gap-06), and `correct_answer` is markdown-heavy → hydrates as [long-str] (gap-01 long-form). The other rows in this testset (Tuvalu, Kiribati) miss columns Vanuatu authors → ghost rows render as [not authored] (gap-04).",
+    },
     {
         id: "chip-showcase",
         label: "Chip showcase (gap-01)",
@@ -122,7 +139,7 @@ const FIXTURES = [
 
 export default function SolutionsDrillIn() {
     const [fixtureId, setFixtureId] =
-        useState<(typeof FIXTURES)[number]["id"]>("chip-showcase")
+        useState<(typeof FIXTURES)[number]["id"]>("kitchen-sink")
     const [editMode, setEditMode] = useState<"editable" | "read-only">("editable")
     const [chipMode, setChipMode] = useState<ChipRenderMode>("all")
     const editable = editMode === "editable"
@@ -199,16 +216,27 @@ export default function SolutionsDrillIn() {
                 }
             >
                 <div style={styles.toolbar}>
-                    <span style={styles.label}>Fixture:</span>
-                    <Segmented
-                        size="small"
-                        value={fixtureId}
-                        options={FIXTURES.map((f) => ({label: f.label, value: f.id}))}
-                        onChange={(v) =>
-                            setFixtureId(v as (typeof FIXTURES)[number]["id"])
-                        }
-                    />
-                    <span style={styles.divider} />
+                    {/* Fixture switcher hidden — kitchen-sink covers every gap on
+                        one row. Re-enable by setting SHOW_FIXTURE_SWITCHER=true. */}
+                    {SHOW_FIXTURE_SWITCHER ? (
+                        <>
+                            <span style={styles.label}>Fixture:</span>
+                            <Segmented
+                                size="small"
+                                value={fixtureId}
+                                options={FIXTURES.map((f) => ({
+                                    label: f.label,
+                                    value: f.id,
+                                }))}
+                                onChange={(v) =>
+                                    setFixtureId(
+                                        v as (typeof FIXTURES)[number]["id"],
+                                    )
+                                }
+                            />
+                            <span style={styles.divider} />
+                        </>
+                    ) : null}
                     <span style={styles.label}>Drawer mode:</span>
                     <Segmented
                         size="small"
