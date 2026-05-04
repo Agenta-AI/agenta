@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gap 04 — Shape preservation</title>
+<link rel="stylesheet" href="shared.css?v=3">
+</head>
+<body>
+
+<div class="nav-jump">
+  <strong>Gap 04 · Shape preservation</strong>
+  <a href="index.html">← Index</a>
+  <a href="gap-03-drill-in-root-view.html">← 03</a>
+  <a href="gap-05-dot-key-disambiguation.html">05 →</a>
+  <span class="ml-auto" style="color:var(--muted)">FE-only · BE is correct · anchor: fixtures 02, 08</span>
+</div>
+
+<div class="page">
+
+  <div class="crumbs"><a href="index.html">variants</a> / gap-04-shape-preservation</div>
+
+  <div class="page-header">
+    <h1>Gap 04 — Union-projected fields aren't visually distinct from authored fields</h1>
+    <p>First correctness gap. After applying chips (<a href="gap-01-type-chips.html">gap-01</a>) to the table (<a href="gap-02-table-cells.html">gap-02</a>) and drill-in (<a href="gap-03-drill-in-root-view.html">gap-03</a>), the next question is: what do those chips say about fields that <em>aren't actually authored</em>?</p>
+    <p><strong>State stays clean</strong> unless the user explicitly edits the JSON view. The "pollution" in the screenshots is a render-time projection at <a href="../../../web/oss/src/components/DrillInView/EntityDualViewEditor.tsx"><code>EntityDualViewEditor.tsx:144–155</code></a> (the <code>?? ""</code> fallback). The column union is a <em>convenience feature</em> — if testcase A has columns X+Z and testcase B has only X, the user can author Z in B without manually adding the column.</p>
+    <p>The remaining concerns are about <em>identity ambiguity</em>: the user can't tell authored-empty from union-projected-missing.</p>
+    <p><strong>Anchor components:</strong> <code>EntityDualViewEditor</code> (the <code>?? ""</code> projection at the JSON-view boundary) and <code>DrillInFieldHeader</code> (where a "not authored" chip stacks on top of the type chip). Aware of the drift: <code>valueMode="string"</code> (testcase) and <code>valueMode="native"</code> (trace) auto-parse stringified JSON differently — we should not extend the projection across that boundary without thinking through what the union means for trace data.</p>
+  </div>
+
+  <!-- Today — current state with screenshots -->
+  <section class="today-section warning">
+    <h2>Today <span class="label">Render-time projection</span></h2>
+    <p>The drill-in's JSON view (<code>EntityDualViewEditor</code>'s "JSON" mode) materializes the column union with empty fallbacks via <a href="../../../web/oss/src/components/DrillInView/EntityDualViewEditor.tsx"><code>EntityDualViewEditor.tsx:144–155</code></a> — <code>values[col.key] = entityData[col.key] ?? ""</code>. The underlying <code>data</code> stays clean. Opening the drill-in creates no draft.</p>
+    <div class="grid-2">
+      <div>
+        <div class="shot">
+          <img src="../screenshots/Screenshot%202026-05-01%20at%2011.28.30.png" alt="Fixture 08 Kiribati JSON view">
+          <div class="shot-caption"><strong>Fixture 08, Kiribati JSON view</strong>: the user uploaded only <code>{country, geo: {...}, correct_answer, outputs}</code>. The view shows injected <code>"geo.region": ""</code>, <code>"user.profile.name": ""</code>, <code>"user": ""</code> etc. None of those exist in BE storage.</div>
+        </div>
+      </div>
+      <div>
+        <div class="shot">
+          <img src="../screenshots/Screenshot%202026-05-01%20at%2011.28.51.png" alt="Fixture 08 Vanuatu JSON view">
+          <div class="shot-caption"><strong>Fixture 08, Vanuatu JSON view</strong>: the collision row. Real <code>"geo.region": "LITERAL_DOT_VALUE"</code> AND nested <code>geo</code> are intact, but <code>"geo.subregion": ""</code> and <code>"user.profile.*": ""</code> are injected by the FE union model.</div>
+        </div>
+      </div>
+    </div>
+    <p style="margin-top: 16px; margin-bottom: 0;"><strong>Source:</strong> <code>currentColumnsAtom</code> (<code>molecule.ts:210–244</code>) unions all keys across the testset for the table grid. The drill-in's JSON view then materializes that union with empty fallbacks for the per-row display string.</p>
+  </section>
+
+  <!-- BE vs FE comparison -->
+  <h2 style="font-size:16px; margin: 16px 0 12px;">Backend storage vs. drill-in JSON-view render (Kiribati, fixture 08)</h2>
+
+  <div class="grid-2">
+    <div>
+      <h4 style="color: var(--good-border);">Backend response (<code>data</code> on disk)</h4>
+      <div class="callout good" style="margin: 0;">
+        <div class="json-block" style="background: white; border: none; padding: 0;">
+<span class="p">{</span><br>
+&nbsp;&nbsp;<span class="k">"country"</span><span class="p">:</span> <span class="s">"Kiribati"</span><span class="p">,</span><br>
+&nbsp;&nbsp;<span class="k">"geo"</span><span class="p">:</span> <span class="p">{</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"region"</span><span class="p">:</span> <span class="s">"Micronesia"</span><span class="p">,</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"subregion"</span><span class="p">:</span> <span class="s">"Central Pacific"</span><br>
+&nbsp;&nbsp;<span class="p">},</span><br>
+&nbsp;&nbsp;<span class="k">"correct_answer"</span><span class="p">:</span> <span class="s">"…"</span><span class="p">,</span><br>
+&nbsp;&nbsp;<span class="k">"outputs"</span><span class="p">:</span> <span class="p">{</span> <span class="k">"countryName"</span><span class="p">:</span> <span class="s">"Kiribati"</span><span class="p">,</span> <span class="k">"capital"</span><span class="p">:</span> <span class="s">"S. Tarawa"</span> <span class="p">}</span><br>
+<span class="p">}</span>
+        </div>
+        <p style="margin-top:8px; margin-bottom:0;"><em>Clean. No injected keys. State stays this way unless the user explicitly edits.</em></p>
+      </div>
+    </div>
+    <div>
+      <h4 style="color: var(--chip-mixed-text);">Drill-in JSON view (rendered string)</h4>
+      <div class="callout warning" style="margin: 0; background: var(--warn-bg); border-color: var(--warn-border);">
+        <div class="json-block" style="background: white; border: none; padding: 0;">
+<span class="p">{</span><br>
+&nbsp;&nbsp;<span class="k">"country"</span><span class="p">:</span> <span class="s">"Kiribati"</span><span class="p">,</span><br>
+&nbsp;&nbsp;<span class="k">"geo.region"</span><span class="p">:</span> <span class="s">""</span><span class="p">,</span> <span class="c">// projected (Tuvalu's literal key)</span><br>
+&nbsp;&nbsp;<span class="k">"geo.subregion"</span><span class="p">:</span> <span class="s">""</span><span class="p">,</span> <span class="c">// projected</span><br>
+&nbsp;&nbsp;<span class="k">"geo"</span><span class="p">:</span> <span class="p">{</span> <span class="k">"region"</span><span class="p">:</span> <span class="s">"Micronesia"</span><span class="p">,</span> <span class="k">"subregion"</span><span class="p">:</span> <span class="s">"Central Pacific"</span> <span class="p">},</span><br>
+&nbsp;&nbsp;<span class="k">"correct_answer"</span><span class="p">:</span> <span class="s">"…"</span><span class="p">,</span><br>
+&nbsp;&nbsp;<span class="k">"outputs"</span><span class="p">:</span> <span class="p">{</span> ... <span class="p">},</span><br>
+&nbsp;&nbsp;<span class="k">"user.profile.name"</span><span class="p">:</span> <span class="s">""</span><span class="p">,</span> <span class="c">// projected (Nauru's literal key)</span><br>
+&nbsp;&nbsp;<span class="k">"user.profile.role"</span><span class="p">:</span> <span class="s">""</span><span class="p">,</span> <span class="c">// projected</span><br>
+&nbsp;&nbsp;<span class="k">"user"</span><span class="p">:</span> <span class="s">""</span> <span class="c">// projected</span><br>
+<span class="p">}</span>
+        </div>
+        <p style="margin-top:8px; margin-bottom:0;"><em>Render-time projection. Underlying <code>data</code> stays clean.</em></p>
+      </div>
+    </div>
+  </div>
+
+  <h2 style="font-size:16px; margin: 32px 0 12px;">Three risks (where the projection actually causes problems)</h2>
+
+  <div class="surface" style="padding: 12px;">
+    <table class="tsr">
+      <thead>
+        <tr><th>Risk</th><th>What happens</th><th>Impact</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>1. User confusion</strong></td>
+          <td>An empty <code>""</code> cell could mean "user authored empty string" or "column projected from another row." Both render identically.</td>
+          <td>Medium · review/debug clarity</td>
+        </tr>
+        <tr>
+          <td><strong>2. JSON-view edits</strong></td>
+          <td><code>handleJsonChange</code> dispatches the parsed object verbatim. Any keystroke replays the projection (with empties) into the draft.</td>
+          <td><strong>High · only path that pollutes BE</strong></td>
+        </tr>
+        <tr>
+          <td><strong>3. Template-runtime shadowing</strong></td>
+          <td>If the template resolver receives the projection (not <code>data</code>), <code>{{geo.region}}</code> resolves to <code>""</code> instead of falling back to nested traversal.</td>
+          <td>Depends on resolver path · verify</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 style="font-size:16px; margin: 32px 0 12px;">Before / after — drill-in Fields view</h2>
+
+  <p style="font-size:12px; color: var(--muted); margin-bottom: 12px;">Same Kiribati testcase, with Variant A applied. The drill-in is hosted in a drawer here (testcase drawer is one consumer; "Add to Testset" preview and playground execution item are others) so the full-screen mockup shows that proportion.</p>
+
+  <h4 style="margin: 16px 0 8px;"><strong>Before</strong> — fixture 08 Kiribati drill-in Fields view (today)</h4>
+  <div class="shot">
+    <img src="../screenshots/Screenshot%202026-05-01%20at%2011.28.21.png" alt="Kiribati drill-in Fields view, today">
+    <div class="shot-caption">Today: empty <code>geo.region</code>, <code>geo.subregion</code>, <code>user.profile.*</code> inputs sit alongside authored fields. Visually identical to "user authored an empty value here."</div>
+  </div>
+
+  <h4 style="margin: 24px 0 8px;"><strong>After</strong> — Variant A applied (full-screen drill-in render)</h4>
+  <div class="fullscreen-mock">
+    <div class="table-bg">
+      <div class="testset-title">08-dot-key-collision <span class="chip" style="font-size:9px;">v1</span></div>
+      <div class="breadcrumb">arda / Default / testsets / 08-dot-key-collision</div>
+      <table>
+        <thead>
+          <tr><th>country</th><th>"geo.region" <span class="chip chip-dotted" style="font-size:8px;">dotted</span></th><th>correct_answer</th><th>▸ geo <span class="chip chip-obj" style="font-size:8px;">obj</span></th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Tuvalu</td><td>Polynesia</td><td>The capital of Tuvalu is Funafuti, located on the western edge…</td><td style="color:var(--faint)">—</td></tr>
+          <tr style="background: rgba(22,119,255,0.04);"><td><strong>Kiribati</strong></td><td style="color:var(--faint)">—</td><td>The capital of Kiribati is South Tarawa, a small atoll in the central Pacific Ocean…</td><td><span class="chip chip-obj" style="font-size:8px;">obj</span> { 2 }</td></tr>
+          <tr><td>Comoros</td><td>Africa</td><td>The capital of Comoros is Moroni, located on Grande Comore island…</td><td>{ 1 }</td></tr>
+          <tr><td>Vanuatu <span class="chip chip-warn" style="font-size:8px;">collision</span></td><td>LITERAL_DOT_VALUE</td><td>The capital of Vanuatu is Port Vila, situated on the island of Efate…</td><td>{ 2 }</td></tr>
+          <tr><td>Nauru</td><td style="color:var(--faint)">—</td><td>Nauru does not have an official capital city, though Yaren District is the de facto seat of government…</td><td style="color:var(--faint)">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="drawer-panel">
+      <div class="drawer-header">
+        <span class="nav-arrows"><span>»</span><span>⌃</span><span>⌄</span></span>
+        <span class="title">Testcase 2 <span style="color:var(--muted); font-weight:normal; font-size:10px;">⎘</span></span>
+        <span class="add-queue">≡ Add to queue</span>
+        <span class="view-toggle"><span class="active">Fields</span><span class="inactive">JSON</span></span>
+      </div>
+      <div class="drawer-body">
+        <div class="root-label">Root</div>
+
+        <div class="field-card">
+          <div class="field-header">▾ country <span class="chip">str</span></div>
+          <div class="field-content"><input value="Kiribati"></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">▾ correct_answer <span class="chip">str</span></div>
+          <div class="field-content"><input value="The capital of Kiribati is South Tarawa, a small atoll located in the central Pacific Ocean approximately 4,000 km southwest of Hawaii."></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">▾ outputs <span class="chip chip-obj">obj</span> <span style="color:var(--muted); font-weight:normal; font-size:10px;">2 properties</span> <span class="actions"><span>⎘</span><span>&lt;/&gt;</span><span>Drill In ▸</span></span></div>
+          <div class="field-content">
+            <div class="json-block">
+<span class="p">{</span><br>
+&nbsp;&nbsp;<span class="k">"countryName"</span><span class="p">:</span> <span class="s">"Kiribati"</span><span class="p">,</span><br>
+&nbsp;&nbsp;<span class="k">"capital"</span><span class="p">:</span> <span class="s">"South Tarawa"</span><br>
+<span class="p">}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">▾ geo <span class="chip chip-obj">obj</span> <span style="color:var(--muted); font-weight:normal; font-size:10px;">2 properties</span> <span class="actions"><span>⎘</span><span>&lt;/&gt;</span><span>Drill In ▸</span></span></div>
+          <div class="field-content">
+            <div class="json-block">
+<span class="p">{</span><br>
+&nbsp;&nbsp;<span class="k">"region"</span><span class="p">:</span> <span class="s">"Micronesia"</span><span class="p">,</span><br>
+&nbsp;&nbsp;<span class="k">"subregion"</span><span class="p">:</span> <span class="s">"Central Pacific"</span><br>
+<span class="p">}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header projected">▾ "geo.region" <span class="chip chip-dotted">not authored</span></div>
+          <div class="field-content projected"><input class="placeholder" placeholder="Projected from Tuvalu / Comoros · type to add to this testcase"></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header projected">▾ "geo.subregion" <span class="chip chip-dotted">not authored</span></div>
+          <div class="field-content projected"><input class="placeholder" placeholder="Projected from Tuvalu · type to add to this testcase"></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header projected">▾ "user.profile.name" <span class="chip chip-dotted">not authored</span></div>
+          <div class="field-content projected"><input class="placeholder" placeholder="Projected from Nauru · type to add to this testcase"></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header projected">▾ "user.profile.role" <span class="chip chip-dotted">not authored</span></div>
+          <div class="field-content projected"><input class="placeholder" placeholder="Projected from Nauru · type to add to this testcase"></div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header projected">▾ user <span class="chip chip-dotted">not authored</span> <span class="chip chip-obj">obj</span></div>
+          <div class="field-content projected"><input class="placeholder" placeholder="Projected from Nauru · click to author as object"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p style="font-size:12px; color: var(--muted); margin-top: 8px;">
+    <strong>Delta:</strong> authored fields (<code>country</code>, <code>correct_answer</code>, <code>geo</code>, <code>outputs</code>) keep their look. Projected fields get dashed border + dimmed background + <span class="chip chip-dotted">not authored</span> chip + placeholder text naming <em>which</em> row contributed the projection. Typing in a projected input promotes it to the draft (the dashed border drops, chip removed). The page background and testset table stay visible behind the drill-in's drawer host for context, matching the existing app layout.
+  </p>
+
+  <h2 style="font-size:16px; margin: 32px 0 12px;">Before / after — drill-in JSON view</h2>
+
+  <h4 style="margin: 16px 0 8px;"><strong>Before</strong> — fixture 08 Kiribati JSON view (today)</h4>
+  <div class="shot">
+    <img src="../screenshots/Screenshot%202026-05-01%20at%2011.28.30.png" alt="Kiribati JSON view, today">
+    <div class="shot-caption">Today: shows <code>"geo.region": ""</code>, <code>"user.profile.*": ""</code> etc. — the union projection materialized. Editing this view replays empties into the draft.</div>
+  </div>
+
+  <h4 style="margin: 24px 0 8px;"><strong>After</strong> — Variant A: "as authored" default (full-screen drill-in render)</h4>
+  <div class="fullscreen-mock">
+    <div class="table-bg">
+      <div class="testset-title">08-dot-key-collision <span class="chip" style="font-size:9px;">v1</span></div>
+      <div class="breadcrumb">arda / Default / testsets / 08-dot-key-collision</div>
+      <table>
+        <thead><tr><th>country</th><th>"geo.region"</th><th>correct_answer</th></tr></thead>
+        <tbody>
+          <tr><td>Tuvalu</td><td>Polynesia</td><td>The capital of Tuvalu is Funafuti…</td></tr>
+          <tr style="background: rgba(22,119,255,0.04);"><td><strong>Kiribati</strong></td><td style="color:var(--faint)">—</td><td>The capital of Kiribati is South Tarawa…</td></tr>
+          <tr><td>Comoros</td><td>Africa</td><td>The capital of Comoros is Moroni…</td></tr>
+          <tr><td>Vanuatu</td><td>LITERAL_DOT_VALUE</td><td>The capital of Vanuatu is Port Vila…</td></tr>
+          <tr><td>Nauru</td><td style="color:var(--faint)">—</td><td>Nauru does not have an official capital…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="drawer-panel">
+      <div class="drawer-header">
+        <span class="nav-arrows"><span>»</span><span>⌃</span><span>⌄</span></span>
+        <span class="title">Testcase 2 <span style="color:var(--muted); font-weight:normal; font-size:10px;">⎘</span></span>
+        <span class="add-queue">≡ Add to queue</span>
+        <span class="view-toggle"><span class="inactive">Fields</span><span class="active">JSON</span></span>
+      </div>
+      <div style="padding: 8px 14px; border-bottom: 1px solid var(--line); display: flex; gap: 4px; align-items: center; font-size: 11px; background: rgba(5,23,41,0.02);">
+        <span style="color: var(--muted);">View:</span>
+        <span class="btn-mini" style="background: var(--ink); color: white; border-color: var(--ink);">As authored</span>
+        <span class="btn-mini">All columns (9)</span>
+        <span style="margin-left:auto; color: var(--muted); font-size: 10px;">Edits diff against authored data only</span>
+      </div>
+      <div class="drawer-body">
+        <div class="json-block" style="border: 1px solid var(--line); padding: 12px; font-size: 11px; line-height: 1.7;">
+<span class="p">{</span><br>
+&nbsp;&nbsp;<span class="k">"country"</span><span class="p">:</span> <span class="s">"Kiribati"</span><span class="p">,</span><br>
+&nbsp;&nbsp;<span class="k">"geo"</span><span class="p">:</span> <span class="p">{</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"region"</span><span class="p">:</span> <span class="s">"Micronesia"</span><span class="p">,</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"subregion"</span><span class="p">:</span> <span class="s">"Central Pacific"</span><br>
+&nbsp;&nbsp;<span class="p">},</span><br>
+&nbsp;&nbsp;<span class="k">"correct_answer"</span><span class="p">:</span> <span class="s">"The capital of Kiribati is South Tarawa, a small atoll located in the central Pacific Ocean approximately 4,000 km southwest of Hawaii. It serves as both the political and economic center of this island nation, which spans more than 3.5 million square kilometers of ocean."</span><span class="p">,</span><br>
+&nbsp;&nbsp;<span class="k">"outputs"</span><span class="p">:</span> <span class="p">{</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"countryName"</span><span class="p">:</span> <span class="s">"Kiribati"</span><span class="p">,</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"capital"</span><span class="p">:</span> <span class="s">"South Tarawa"</span><br>
+&nbsp;&nbsp;<span class="p">},</span><br>
+&nbsp;&nbsp;<span class="k">"testcase_dedup_id"</span><span class="p">:</span> <span class="s">"f9b1c05619ae"</span><br>
+<span class="p">}</span>
+        </div>
+        <p style="font-size: 10px; color: var(--muted); margin-top: 8px; line-height: 1.5;">
+          5 columns hidden because they're projected from other rows: <code>"geo.region"</code>, <code>"geo.subregion"</code>, <code>"user.profile.name"</code>, <code>"user.profile.role"</code>, <code>"user"</code>. Click <span class="btn-mini" style="font-size:9px;">All columns (9)</span> above to reveal them.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <p style="font-size:12px; color: var(--muted); margin-top: 8px;">
+    <strong>Delta:</strong> matches BE storage shape exactly. Toggle to "All columns" reveals the projection if the user wants to author into one of those fields. JSON-edit handler diffs against actual <code>data</code> before dispatching, so projection can't accidentally persist.
+  </p>
+
+  <h2 style="font-size:16px; margin: 32px 0 12px;">Three approaches to the fix</h2>
+
+  <p style="font-size:12px; color: var(--muted); max-width: 800px;">All three <strong>keep the convenience feature</strong>. They differ in how the projection is visually marked and how the JSON-edit path is bounded.</p>
+
+  <div class="var-grid">
+
+    <!-- A: Visually distinct + scoped save (recommended) -->
+    <div class="var-section">
+      <h3>A. Distinct projected fields + scoped JSON save<span class="recommended">★ recommended</span></h3>
+      <p class="desc">Keep the convenience feature. Mark projected fields visually so users can tell. JSON-edit path diffs against actual <code>data</code> so the projection can't accidentally persist.</p>
+      <div class="drawer-mock">
+        <div class="drawer-prop">
+          <div class="drawer-prop-header">▾ country <span class="chip">str</span></div>
+          <input class="drawer-prop-input" value="Kiribati">
+        </div>
+        <div class="drawer-prop">
+          <div class="drawer-prop-header">▾ geo <span class="chip chip-obj">obj</span></div>
+          <div class="json-block"><span class="p">{</span> <span class="k">"region"</span><span class="p">:</span> <span class="s">"Micronesia"</span><span class="p">,</span> <span class="k">"subregion"</span><span class="p">:</span> <span class="s">"Central Pacific"</span> <span class="p">}</span></div>
+        </div>
+        <div class="drawer-prop" style="background: rgba(5,23,41,0.02);">
+          <div class="drawer-prop-header" style="color: var(--muted);">▾ geo.region <span class="chip chip-dotted">not authored</span></div>
+          <input class="drawer-prop-input drawer-prop-injected placeholder" placeholder="Projected from another row · type to add to this testcase">
+        </div>
+        <div class="drawer-prop" style="background: rgba(5,23,41,0.02);">
+          <div class="drawer-prop-header" style="color: var(--muted);">▾ user.profile.name <span class="chip chip-dotted">not authored</span></div>
+          <input class="drawer-prop-input drawer-prop-injected placeholder" placeholder="Projected from another row · type to add to this testcase">
+        </div>
+      </div>
+      <p style="font-size: 11px; color: var(--muted); margin-top: 8px;">JSON view default: <em>as authored</em> (BE shape). Toggle reveals projection. JSON-edit handler diffs against actual <code>data</code> before dispatching.</p>
+      <details><summary>Tradeoffs</summary><div><strong>Pros:</strong> keeps convenience feature. User can distinguish authored vs. projected. JSON-edit path bounded.<br><strong>Cons:</strong> new UI vocabulary (dashed border + chip). One toggle in JSON view.</div></details>
+    </div>
+
+    <!-- B: Render only authored keys -->
+    <div class="var-section">
+      <h3>B. Render only authored keys</h3>
+      <p class="desc">Strict shape preservation. Loses the convenience feature.</p>
+      <div class="drawer-mock">
+        <div class="drawer-prop">
+          <div class="drawer-prop-header">▾ country <span class="chip">str</span></div>
+          <input class="drawer-prop-input" value="Kiribati">
+        </div>
+        <div class="drawer-prop">
+          <div class="drawer-prop-header">▾ geo <span class="chip chip-obj">obj</span></div>
+          <div class="json-block"><span class="p">{</span> <span class="k">"region"</span><span class="p">:</span> <span class="s">"Micronesia"</span><span class="p">,</span> <span class="k">"subregion"</span><span class="p">:</span> <span class="s">"Central Pacific"</span> <span class="p">}</span></div>
+        </div>
+        <div class="drawer-prop">
+          <div class="drawer-prop-header">▾ correct_answer <span class="chip">str</span></div>
+          <input class="drawer-prop-input" value="The capital of Kiribati is Tarawa.">
+        </div>
+        <div class="drawer-prop" style="background:rgba(5,23,41,0.02);">
+          <div style="font-size:11px; color:var(--muted);">+ Add field that exists in other rows: <code>geo.region</code>, <code>user.profile.name</code>, …</div>
+        </div>
+      </div>
+      <details><summary>Tradeoffs</summary><div><strong>Pros:</strong> smallest diff, 1:1 with BE.<br><strong>Cons:</strong> <strong>loses the convenience feature.</strong> Users must click "+ add" each time they want to author a missing column.</div></details>
+    </div>
+
+    <!-- C: Status quo + fix only Risk 2 -->
+    <div class="var-section">
+      <h3>C. Status quo + fix Risk 2 only</h3>
+      <p class="desc">Keep the rendering as-is. Filter the JSON-edit path so it can't replay the projection into storage.</p>
+      <div class="drawer-mock">
+        <div style="padding: 12px; font-size: 11px; color: var(--muted); line-height: 1.6;">
+          Display: unchanged. Drill-in Fields and JSON views show the union projection as today.
+          <br><br>
+          <code>handleJsonChange</code>: parse → diff against testcase's actual <code>data</code> → drop empty-string fallbacks for keys that weren't in <code>data</code> → dispatch the filtered diff.
+          <br><br>
+          User-facing behavior: identical for unedited testcases. JSON-view edits no longer accidentally persist projected empties.
+        </div>
+      </div>
+      <details><summary>Tradeoffs</summary><div><strong>Pros:</strong> minimal change. Eliminates the storage-pollution risk.<br><strong>Cons:</strong> doesn't address Risk 1 (user confusion). Doesn't help template-runtime if Risk 3 is real.</div></details>
+    </div>
+
+  </div>
+
+  <div class="recommend"><strong>Recommendation:</strong> Variant A. Preserves the convenience feature (which is the point of the union model) while making the projection visible and bounding the JSON-edit path so it can't accidentally persist projected empties. The dashed-border + <code>not authored</code> chip is also useful for template-authoring — when the user runs the playground on a single testcase, they can immediately see which referenced variables aren't authored on that row.</div>
+
+  <h2 style="font-size:16px; margin: 32px 0 12px;">Verification still worth doing</h2>
+
+  <div class="callout">
+    <strong>Confirm Risk 3 (template-runtime)</strong> by tracing what shape the playground / evaluation runner passes to the template resolver. If the resolver receives <code>entityData</code> directly, Risk 3 is hypothetical. If it gets the rendered JSON-view string or a synthesized projection, the empty-literal shadowing is real and Variant A's "as authored" default needs to extend to the runtime path too.
+  </div>
+
+  <p style="font-size:12px; color:var(--muted);">Cross-refs: <a href="gap-05-dot-key-disambiguation.html">gap-05</a> (disambiguation depends on shape preservation) · <a href="gap-03-drill-in-root-view.html">gap-03</a></p>
+
+</div>
+
+</body>
+</html>

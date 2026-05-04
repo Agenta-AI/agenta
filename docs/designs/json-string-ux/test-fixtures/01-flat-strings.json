@@ -1,0 +1,22 @@
+[
+  {
+    "country": "Tuvalu",
+    "correct_answer": "The capital of Tuvalu is Funafuti.",
+    "outputs": "The capital of Tuvalu is Funafuti."
+  },
+  {
+    "country": "Kiribati",
+    "correct_answer": "The capital of Kiribati is Tarawa.",
+    "outputs": "The capital of Kiribati is South Tarawa."
+  },
+  {
+    "country": "Comoros",
+    "correct_answer": "The capital of Comoros is Moroni.",
+    "outputs": "The capital of Comoros is Moroni."
+  },
+  {
+    "country": "Vanuatu",
+    "correct_answer": "The capital of Vanuatu is Port Vila.",
+    "outputs": "Port Vila is the capital of Vanuatu."
+  }
+]

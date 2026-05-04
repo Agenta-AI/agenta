@@ -6,7 +6,8 @@
         "oss",
         "tests",
         "variants-state",
-        "packages/*"
+        "packages/*",
+        "apps/*"
     ],
     "dependencies": {
         "ajv-formats": "^3.0.1",
@@ -49,6 +50,7 @@
         "build-ee": "turbo run build --filter=@agenta/ee",
         "dev-ee": "turbo run dev --filter=@agenta/ee",
         "dev-oss": "turbo run dev --filter=@agenta/oss",
+        "dev-mockups": "turbo run dev --filter=@agenta/design-mockups",
         "lint": "turbo run lint",
         "lint-fix": "turbo run lint -- --fix",
         "test:revision-centric": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-revision-centric.ts",

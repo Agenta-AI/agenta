@@ -1,0 +1,69 @@
+{
+    "count": 4,
+    "testcases": [
+        {
+            "testset_id": "019de2d3-c395-7a92-a3da-cf9df72e00ab",
+            "set_id": "019de2d3-c395-7a92-a3da-cf9df72e00ab",
+            "created_at": "2026-05-01T09:17:02.243086Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "5ab8c3d4-75c6-5ee1-a7c2-0cce2066fdd1",
+            "data": {
+                "inputs": {
+                    "country": "Tuvalu",
+                    "correct_answer": "The capital of Tuvalu is Funafuti.",
+                    "metadata": "{\"source\":\"trace\",\"trace_id\":\"abc123\",\"latency_ms\":420}"
+                },
+                "outputs": "{\"countryName\":\"Tuvalu\",\"capital\":\"Funafuti\",\"confidence\":0.97}",
+                "testcase_dedup_id": "dd34a85f3e98"
+            }
+        },
+        {
+            "testset_id": "019de2d3-c395-7a92-a3da-cf9df72e00ab",
+            "set_id": "019de2d3-c395-7a92-a3da-cf9df72e00ab",
+            "created_at": "2026-05-01T09:17:02.243129Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "6dfcd67e-61db-56f4-bbc3-f7c00ed349f8",
+            "data": {
+                "inputs": {
+                    "country": "Kiribati",
+                    "correct_answer": "The capital of Kiribati is Tarawa.",
+                    "metadata": "{\"source\":\"trace\",\"trace_id\":\"def456\",\"latency_ms\":510}"
+                },
+                "outputs": "{\"countryName\":\"Kiribati\",\"capital\":\"South Tarawa\",\"confidence\":0.92}",
+                "testcase_dedup_id": "7505c3642e2a"
+            }
+        },
+        {
+            "testset_id": "019de2d3-c395-7a92-a3da-cf9df72e00ab",
+            "set_id": "019de2d3-c395-7a92-a3da-cf9df72e00ab",
+            "created_at": "2026-05-01T09:17:02.243140Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "0a8d0a7c-13f3-5efe-8c78-33249b19d6f2",
+            "data": {
+                "inputs": {
+                    "country": "Comoros",
+                    "correct_answer": "The capital of Comoros is Moroni.",
+                    "metadata": "{\"source\":\"trace\",\"trace_id\":\"ghi789\",\"latency_ms\":380}"
+                },
+                "outputs": "{\"countryName\":\"Comoros\",\"capital\":\"Moroni\",\"confidence\":0.99}",
+                "testcase_dedup_id": "05ece527e0cc"
+            }
+        },
+        {
+            "testset_id": "019de2d3-c395-7a92-a3da-cf9df72e00ab",
+            "set_id": "019de2d3-c395-7a92-a3da-cf9df72e00ab",
+            "created_at": "2026-05-01T09:17:02.243148Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "9c3e2d22-a651-55c0-a5b7-db81a08ed9ef",
+            "data": {
+                "inputs": {
+                    "country": "Vanuatu",
+                    "correct_answer": "The capital of Vanuatu is Port Vila.",
+                    "metadata": "{\"source\":\"trace\",\"trace_id\":\"jkl012\",\"latency_ms\":445}"
+                },
+                "outputs": "{\"countryName\":\"Vanuatu\",\"capital\":\"Port Vila\",\"confidence\":0.95}",
+                "testcase_dedup_id": "b0ca9e010205"
+            }
+        }
+    ]
+}

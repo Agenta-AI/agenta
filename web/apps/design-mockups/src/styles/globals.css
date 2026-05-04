@@ -1,0 +1,31 @@
+@import "./animations.css";
+@import "./editor-theme.css";
+@import "./code-editor-styles.css";
+
+@layer tailwind-base, antd;
+
+@layer tailwind-base {
+    @tailwind base;
+}
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#__next {
+    height: 100%;
+    margin: 0;
+    background: #fafafa;
+    color: #051729;
+}
+
+body {
+    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+        Ubuntu, Cantarell, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+    box-sizing: border-box;
+}
