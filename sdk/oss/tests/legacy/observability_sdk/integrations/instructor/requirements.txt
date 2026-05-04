@@ -1,4 +1,0 @@
-agenta==0.27.0a0
-opentelemetry.instrumentation.openai==0.31.2
-openai
-instructor
