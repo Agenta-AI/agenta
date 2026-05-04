@@ -1,17 +1,23 @@
 /**
- * Solutions · Tables — unified demo combining every table-related proposal.
+ * Solutions · Tables — unified testset cell demo (mid-fidelity rebuild).
  *
- * Production TestcaseCellContent (Today, left) vs ProposedTableCell (Proposed,
- * right) on a fixture grid that exercises:
- *   - gap-01: type chips on every cell
- *   - gap-02: cell rendering for objects/arrays/messages with chip + count
- *   - gap-04: union-projected key marker (em-dash for missing)
- *   - gap-05: dotted-key + collision chips on column headers
- *   - gap-06: messages-shaped array preview
+ * Mounts a real antd `<Table>` with production's `groupColumns` utility +
+ * production's `TestcaseCellContent` renderer for the Today panel and our
+ * `ProposedTableCell` renderer for the Proposed panel. Same data source,
+ * same column grouping, two cell renderers — honest comparison at the
+ * column-grouping + cell level.
  *
- * The chip-mode toggle drives the proposed side. The same toggle exists on
- * the drill-in and playground solution pages — chip vocabulary decision
- * propagates across surfaces.
+ * What's REAL production code in use here:
+ *   - groupColumns (web/oss/.../utils/groupColumns.ts)
+ *   - TestcaseCellContent (web/oss/.../components/TestcaseCellContent.tsx)
+ *   - antd Table (column-grouping rendering)
+ *
+ * What's NOT production:
+ *   - The entity atom layer (testset / testcase / revisions / metadata)
+ *     is not seeded; we don't drive InfiniteVirtualTable or the
+ *     TestcasesTableShell directly. Stub data flows through helpers in
+ *     testsetTableHelpers.ts that simulate the union-and-flatten logic
+ *     the entity does for real.
  */
 
 import {useMemo, useState} from "react"
@@ -19,139 +25,167 @@ import {useMemo, useState} from "react"
 import Head from "next/head"
 import Link from "next/link"
 
-import {Segmented} from "antd"
+import {Segmented, Table} from "antd"
+import type {ColumnType} from "antd/es/table"
 
 import {MockupPageShell} from "@/mockups/components/MockupPageShell"
 import {ProposedTableCell} from "@/mockups/components/proposed/ProposedTableCell"
 import {type ChipRenderMode} from "@/mockups/components/proposed/ProposedDrillIn"
+import {TypeChip} from "@/mockups/components/proposed/TypeChip"
+import {
+    computeColumns,
+    detectCollisionColumns,
+    detectDottedKeyColumns,
+    detectMixedColumns,
+    flattenRow,
+    type FlatRow,
+    type StubRow,
+} from "@/mockups/components/proposed/testsetTableHelpers"
+import {
+    fixture02_capitals_with_geo,
+    fixture07_messages_and_tools,
+    fixture08_dot_key_collision,
+    fixture_kitchen_sink,
+} from "@/mockups/data/stubTestcases"
+import {groupColumns} from "@/oss/components/TestcasesTableNew/utils/groupColumns"
 import TestcaseCellContent from "@/oss/components/TestcasesTableNew/components/TestcaseCellContent"
 
-interface CellFixture {
-    label: string
-    note?: string
-    gap?: string
-    value: unknown
-    flags?: {
-        mixed?: boolean
-        dottedKey?: boolean
-        collision?: boolean
-        missing?: boolean
-    }
-}
+// Toggle to bring back the multi-testset switcher. Kept as a flag (rather
+// than deleting the focused testsets) so they're one edit away if a
+// targeted review is needed.
+const SHOW_TESTSET_SWITCHER = false
 
-const cellFixtures: CellFixture[] = [
-    // gap-01 — primitive chip variants
+// Multi-row testsets for the table demo. Each one exercises a different
+// column-shape problem so the demo isn't single-row.
+const TESTSETS: {
+    id: string
+    label: string
+    rows: StubRow[]
+    note: string
+}[] = [
     {
-        label: "string (short)",
-        gap: "gap-01",
-        value: "Tuvalu",
+        id: "kitchen-sink",
+        label: "Kitchen sink — every gap (3 rows)",
+        rows: fixture_kitchen_sink.map((tc) => ({
+            id: tc.id,
+            label: tc.label,
+            data: tc.data,
+        })),
+        note: "Single testset that exercises every table-side gap. Vanuatu (row 1) authors every column — nested `inputs`/`outputs`/`geo` expand into sub-column groups (production behavior); `metadata` is stringified-JSON ([json-str] chip + parsed popover); literal `\"geo.region\"` collides with nested `geo > region` ([dotted-key] + [⚠ collision]); `messages` includes a tool_calls turn ([msgs] + [tool] chips). Tuvalu (row 2) and Kiribati (row 3) miss some of those columns — em-dash on the cell. The `notes` column varies in type across rows (null / string / object) → [mixed] chip on the column header.",
     },
     {
-        label: "string (long, truncated)",
-        gap: "gap-02",
-        value:
-            "The capital of Kiribati is South Tarawa, a small atoll located in the central Pacific Ocean approximately 4,000 km southwest of Hawaii.",
+        id: "02-nested",
+        label: "02 nested-native (3 rows)",
+        rows: fixture02_capitals_with_geo.map((tc) => ({
+            id: tc.id,
+            label: tc.label,
+            data: tc.data,
+        })),
+        note: "Homogeneous nested objects (`inputs`, `outputs`) — production's column grouping expands them into sub-column groups. Try collapsing `outputs` via the group header.",
     },
     {
-        label: "number",
-        gap: "gap-01",
-        value: 11,
+        id: "08-collision",
+        label: "08 dot-key collision (3 rows)",
+        rows: fixture08_dot_key_collision.map((tc) => ({
+            id: tc.id,
+            label: tc.label,
+            data: tc.data,
+        })),
+        note: "Vanuatu has both literal `\"geo.region\"` AND nested `geo.region`. The literal column gets `[dotted-key]` + `[⚠ collision]`; the expanded `geo > region` sub-column also gets `[⚠ collision]`. Other rows render the literal cell as `—` (gap-04 not-authored).",
     },
     {
-        label: "boolean",
-        gap: "gap-01",
-        value: true,
-    },
-    // gap-02 — structured cells
-    {
-        label: "object (small)",
-        gap: "gap-02",
-        value: {countryName: "Kiribati", capital: "South Tarawa"},
-    },
-    {
-        label: "object (deep)",
-        gap: "gap-02",
-        value: {
-            countryName: "Tuvalu",
-            geo: {region: "Polynesia", coordinates: {lat: -8.52, lng: 179.2}},
-            verified: null,
-        },
-    },
-    {
-        label: "array of records",
-        note: "fixture 03 — neighbors",
-        gap: "gap-02",
-        value: [
-            {name: "Marshall Islands", relation: "neighbor"},
-            {name: "Tuvalu", relation: "neighbor"},
-            {name: "Nauru", relation: "neighbor"},
-        ],
-    },
-    {
-        label: "array of strings",
-        note: "fixture 03 — languages",
-        gap: "gap-02",
-        value: ["en", "tvl"],
-    },
-    // gap-06 — messages
-    {
-        label: "messages array",
-        note: "fixture 07 — chat",
-        gap: "gap-06",
-        value: [
-            {role: "system", content: "You are a geography assistant."},
-            {role: "user", content: "What is the capital of Kiribati?"},
-            {role: "assistant", content: "South Tarawa."},
-        ],
-    },
-    // gap-01 / gap-02 — null + missing
-    {
-        label: "null",
-        gap: "gap-01",
-        value: null,
-    },
-    {
-        label: "missing key",
-        note: "column exists in other rows",
-        gap: "gap-04",
-        value: undefined,
-        flags: {missing: true},
-    },
-    // gap-02/04 — stringified-JSON
-    {
-        label: "stringified-JSON-as-string",
-        note: "fixture 04 — looks like obj, stored as string",
-        gap: "gap-02 + gap-04",
-        value: '{"countryName":"Kiribati","capital":"South Tarawa","metadata":{"source":"trace"}}',
-    },
-    // gap-05 — dot-key + collision
-    {
-        label: "literal dotted key",
-        note: "fixture 08 column header",
-        gap: "gap-05",
-        value: "Polynesia",
-        flags: {dottedKey: true},
-    },
-    {
-        label: "collision row",
-        note: "Vanuatu — both literal + nested exist",
-        gap: "gap-05",
-        value: "LITERAL_DOT_VALUE",
-        flags: {collision: true, dottedKey: true},
-    },
-    // mixed column
-    {
-        label: "mixed column",
-        note: "different rows have different types in this column",
-        gap: "gap-02",
-        value: 42,
-        flags: {mixed: true},
+        id: "07-messages",
+        label: "07 messages + tools (3 rows)",
+        rows: fixture07_messages_and_tools.map((tc) => ({
+            id: tc.id,
+            label: tc.label,
+            data: tc.data,
+        })),
+        note: "Each row has a `messages` array and an `outputs` object with `tool_calls`. Today: `ChatMessagesCellContent` renders chat preview already. Proposed: adds `[msgs]` chip + count.",
     },
 ]
 
 export default function SolutionsTables() {
-    const grid = useMemo(() => cellFixtures, [])
+    const [testsetId, setTestsetId] =
+        useState<(typeof TESTSETS)[number]["id"]>("kitchen-sink")
     const [chipMode, setChipMode] = useState<ChipRenderMode>("all")
+
+    const active = TESTSETS.find((t) => t.id === testsetId) ?? TESTSETS[0]
+
+    // Column union + nested expansion. Same logic the production entity
+    // layer does, just running off stub data instead of atoms.
+    const columns = useMemo(() => computeColumns(active.rows), [active.rows])
+    const flatRows = useMemo(
+        () => active.rows.map((r) => flattenRow(r, columns)),
+        [active.rows, columns],
+    )
+    const mixedColumns = useMemo(
+        () => detectMixedColumns(flatRows, columns),
+        [flatRows, columns],
+    )
+    const collisionColumns = useMemo(
+        () => detectCollisionColumns(active.rows, columns),
+        [active.rows, columns],
+    )
+    const dottedKeyColumns = useMemo(
+        () => detectDottedKeyColumns(columns),
+        [columns],
+    )
+
+    // Today's column defs — render via production's TestcaseCellContent.
+    const todayColumns = useMemo(
+        () =>
+            groupColumns<FlatRow>(columns, (col, displayName) => ({
+                key: col.key,
+                dataIndex: col.key,
+                title: <span style={styles.todayHeader}>{displayName}</span>,
+                width: 220,
+                render: (value: unknown) => (
+                    <TestcaseCellContent value={value} maxLines={6} />
+                ),
+            })),
+        [columns],
+    )
+
+    // Proposed column defs — same data, ProposedTableCell renderer.
+    // Column header gets correctness chips ([dotted-key] / [mixed]) when
+    // applicable. Per-cell chip rendering happens inside ProposedTableCell.
+    const proposedColumns = useMemo(
+        () =>
+            groupColumns<FlatRow>(columns, (col, displayName) => {
+                const isMixed = mixedColumns.has(col.key)
+                const isDottedKey = dottedKeyColumns.has(col.key)
+                return {
+                    key: col.key,
+                    dataIndex: col.key,
+                    title: (
+                        <div style={styles.proposedHeader}>
+                            <span style={styles.proposedHeaderName}>
+                                {displayName}
+                            </span>
+                            {isDottedKey && chipMode !== "none" ? (
+                                <TypeChip variant="dotted-key" />
+                            ) : null}
+                            {isMixed && chipMode !== "none" ? (
+                                <TypeChip variant="mixed" />
+                            ) : null}
+                        </div>
+                    ),
+                    width: 220,
+                    render: (value: unknown) => (
+                        <ProposedTableCell
+                            value={value}
+                            isMixedColumn={isMixed}
+                            isDottedKey={isDottedKey}
+                            isCollision={collisionColumns.has(col.key)}
+                            treatUndefinedAsMissing
+                            chipMode={chipMode}
+                        />
+                    ),
+                }
+            }) as ColumnType<FlatRow>[],
+        [columns, mixedColumns, dottedKeyColumns, collisionColumns, chipMode],
+    )
 
     return (
         <>
@@ -161,86 +195,136 @@ export default function SolutionsTables() {
             <MockupPageShell
                 title="Solutions · Tables (testset cells)"
                 blurb={
-                    "Production TestcaseCellContent (Today, left) — already has CellContentPopover, syntax-highlighted JsonCellContent, ChatMessagesCellContent, em-dash for empty values — next to ProposedTableCell (Proposed, right) which adds the chip vocabulary + denser preview format. Same fixture across both. Chip-mode toggle drives the proposed side."
+                    "Real antd Table on both sides, driven by the same multi-row stub testset. Production's groupColumns utility computes the column-grouping (homogeneous nested objects expand into sub-column groups). Today panel uses production's TestcaseCellContent (popover, syntax highlighting, chat preview, em-dash). Proposed panel uses ProposedTableCell (chips, count, sample preview) plus correctness chips on column headers."
                 }
                 notes={
                     <>
-                        <strong>What production already does (Today column):</strong>{" "}
-                        <code>TestcaseCellContent</code> delegates to{" "}
-                        <code>@agenta/ui/cell-renderers</code> — type detection
-                        via <code>tryParseJson</code> +{" "}
-                        <code>extractChatMessages</code>, type-based renderers
-                        (<code>JsonCellContent</code> /{" "}
-                        <code>ChatMessagesCellContent</code> /{" "}
-                        <code>TextCellContent</code>), hover popover via{" "}
-                        <code>CellContentPopover</code> with full content + Copy
-                        button, em-dash for null/undefined/empty,{" "}
-                        <code>maxLines={"{10}"}</code> truncation in the cell
-                        preview. Functional, just not type-aware (no chip) and
-                        not dense (multi-line JSON dumps in the cell).
+                        <strong>What's real production code:</strong>
+                        <ul style={styles.notesList}>
+                            <li>
+                                <code>groupColumns</code> (
+                                <code>
+                                    web/oss/.../utils/groupColumns.ts
+                                </code>
+                                ) — the same utility that drives the live
+                                testset table's column grouping. Takes a flat
+                                column list, returns nested antd column defs.
+                                Sub-columns under group headers (
+                                <code>inputs &gt; country</code>) collapse on
+                                click, recursively.
+                            </li>
+                            <li>
+                                <code>TestcaseCellContent</code> (
+                                <code>
+                                    web/oss/.../components/TestcaseCellContent.tsx
+                                </code>
+                                ) — production's cell renderer with{" "}
+                                <code>CellContentPopover</code>,{" "}
+                                <code>JsonCellContent</code>,{" "}
+                                <code>ChatMessagesCellContent</code>, em-dash
+                                for null/undefined/empty.
+                            </li>
+                            <li>
+                                Antd <code>Table</code> handles the rendering,
+                                column header virtualization, header sticky
+                                behavior. Same Table component production uses
+                                inside <code>InfiniteVirtualTable</code>.
+                            </li>
+                        </ul>
+                        <br />
+                        <strong>What's NOT real production:</strong> the
+                        entity atom layer isn't seeded, so we don't mount{" "}
+                        <code>InfiniteVirtualTable</code> /{" "}
+                        <code>TestcasesTableShell</code> directly. Stub data
+                        flows through{" "}
+                        <code>testsetTableHelpers.ts</code> which simulates
+                        the union-and-flatten step the entity does in real
+                        life. Virtual scrolling isn't exercised (3-row demo
+                        doesn't need it).
                         <br />
                         <br />
                         <strong>What's proposed on the right column:</strong>
                         <ul style={styles.notesList}>
                             <li>
-                                <strong>gap-01</strong>: TypeChip on every cell.
-                                Primitives (string/number/boolean) hide the chip
-                                in <code>ambiguous-only</code> mode — value
-                                rendering disambiguates the type. Click a chip
-                                in the drawer or playground for type conversion;
-                                table-cell chips are display-only here.
+                                <strong>gap-01</strong>: <code>TypeChip</code>{" "}
+                                on every cell (or hidden in{" "}
+                                <code>ambiguous-only</code> mode for
+                                primitives).
                             </li>
                             <li>
-                                <strong>gap-02</strong>: structured cells render
-                                as <code>chip + count + sample keys/values</code>{" "}
-                                instead of multi-line JSON. ~2 lines tall
-                                regardless of nested depth. The existing{" "}
-                                <code>CellContentPopover</code> on hover still
-                                shows the full structure. Stringified-JSON gets
-                                its distinct <code>[json-str]</code> chip with
-                                a "parse?" affordance and the popover shows the{" "}
-                                <em>parsed</em> structure (production today
-                                shows the raw escaped string).
+                                <strong>gap-02</strong>: dense{" "}
+                                <code>chip + count + sample keys</code>{" "}
+                                preview for objects/arrays instead of
+                                multi-line JSON dump.
                             </li>
                             <li>
-                                <strong>gap-04</strong>: missing keys render as{" "}
-                                <code>—</code>; the union-projected indicator
-                                tells the user this column doesn't exist on this
-                                row.
+                                <strong>gap-04</strong>: missing keys render
+                                as <code>—</code> (production already does
+                                this for empty/null; the proposed marker is
+                                conceptually distinct from production's
+                                em-dash but renders the same way).
                             </li>
                             <li>
-                                <strong>gap-05</strong>: literal-dot column
-                                header gets <code>[dotted-key]</code>;
-                                collision rows stack <code>[⚠ collision]</code>.
+                                <strong>gap-05</strong>: dotted-key + collision
+                                chips on the column header (literal-dot keys
+                                like <code>&quot;geo.region&quot;</code>) and
+                                on cells where collision detected.
                             </li>
                             <li>
-                                <strong>gap-06</strong>: messages-shaped arrays
-                                show a chat preview (count + first role) instead
-                                of raw JSON.
+                                <strong>gap-02 [mixed]</strong>: heterogeneous
+                                column types across rows surface the{" "}
+                                <code>[mixed]</code> chip on the column
+                                header.
+                            </li>
+                            <li>
+                                <strong>gap-06</strong>: production already
+                                has <code>ChatMessagesCellContent</code>; the
+                                Proposed cell adds the <code>[msgs]</code>{" "}
+                                chip + count summary.
                             </li>
                         </ul>
                     </>
                 }
                 competitiveNotes={
                     <>
-                        Braintrust renders cells as YAML preview (clean to depth
-                        ~3, noisy at depth 5+); Langfuse renders multi-line JSON
-                        inline. Both ship the gap-02/04 fault line — stringified
-                        JSON shows literally with quotes intact, no chip
-                        distinguishing it from a parsed value. Our{" "}
-                        <code>[json-str]</code> chip is the differentiator. See{" "}
+                        Braintrust renders cells as multi-line YAML preview
+                        with a row-height toggle (Compact / Comfortable /
+                        Tall). Langfuse renders multi-line JSON inline. Both
+                        share the gap-02/04 stringified-JSON blind spot. See{" "}
                         <a
                             href="../../../docs/designs/json-string-ux/competitive-analysis.md"
                             style={styles.link}
                         >
                             competitive-analysis.md
                         </a>{" "}
-                        §2 + §13.
+                        §2.
                     </>
                 }
             >
                 <div style={styles.toolbar}>
-                    <span style={styles.toolbarLabel}>Chip mode:</span>
+                    {/* Testset switcher hidden — kitchen-sink testset covers every
+                        gap on a single 3-row testset. Re-enable by setting
+                        SHOW_TESTSET_SWITCHER=true. */}
+                    {SHOW_TESTSET_SWITCHER ? (
+                        <>
+                            <span style={styles.label}>Testset:</span>
+                            <Segmented
+                                size="small"
+                                value={testsetId}
+                                options={TESTSETS.map((t) => ({
+                                    label: t.label,
+                                    value: t.id,
+                                }))}
+                                onChange={(v) =>
+                                    setTestsetId(
+                                        v as (typeof TESTSETS)[number]["id"],
+                                    )
+                                }
+                            />
+                            <span style={styles.divider} />
+                        </>
+                    ) : null}
+                    <span style={styles.label}>Chip mode:</span>
                     <Segmented
                         size="small"
                         value={chipMode}
@@ -251,60 +335,50 @@ export default function SolutionsTables() {
                         ]}
                         onChange={(v) => setChipMode(v as ChipRenderMode)}
                     />
-                    <span style={styles.toolbarHint}>
-                        Same toggle as the drill-in and playground solution
-                        pages — chip vocabulary decision propagates across
-                        surfaces.
-                    </span>
+                </div>
+                <div style={styles.note}>{active.note}</div>
+
+                <div style={styles.tableSection}>
+                    <div style={styles.tableHeaderRow}>
+                        <div style={styles.tableLabel}>
+                            <span style={styles.todayPill}>Today</span>
+                            <span style={styles.tableLabelSub}>
+                                Production · TestcaseCellContent +
+                                groupColumns
+                            </span>
+                        </div>
+                    </div>
+                    <Table<FlatRow>
+                        columns={todayColumns}
+                        dataSource={flatRows}
+                        rowKey="id"
+                        pagination={false}
+                        size="small"
+                        bordered
+                        scroll={{x: "max-content"}}
+                    />
                 </div>
 
-                <table style={styles.table}>
-                    <thead>
-                        <tr>
-                            <th style={styles.thLabel}>Fixture</th>
-                            <th style={styles.thGap}>Gap</th>
-                            <th style={styles.thToday}>
-                                Today · TestcaseCellContent
-                            </th>
-                            <th style={styles.thProposed}>
-                                Proposed · ProposedTableCell
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {grid.map((cell) => (
-                            <tr key={cell.label}>
-                                <td style={styles.tdLabel}>
-                                    <div style={styles.cellTitle}>{cell.label}</div>
-                                    {cell.note ? (
-                                        <div style={styles.cellNote}>{cell.note}</div>
-                                    ) : null}
-                                </td>
-                                <td style={styles.tdGap}>
-                                    {cell.gap ? (
-                                        <span style={styles.gapPill}>{cell.gap}</span>
-                                    ) : null}
-                                </td>
-                                <td style={styles.tdToday}>
-                                    <TestcaseCellContent
-                                        value={cell.value}
-                                        maxLines={5}
-                                    />
-                                </td>
-                                <td style={styles.tdProposed}>
-                                    <ProposedTableCell
-                                        value={cell.value}
-                                        isMixedColumn={cell.flags?.mixed}
-                                        isDottedKey={cell.flags?.dottedKey}
-                                        isCollision={cell.flags?.collision}
-                                        treatUndefinedAsMissing={cell.flags?.missing}
-                                        chipMode={chipMode}
-                                    />
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+                <div style={styles.tableSection}>
+                    <div style={styles.tableHeaderRow}>
+                        <div style={styles.tableLabel}>
+                            <span style={styles.proposedPill}>Proposed</span>
+                            <span style={styles.tableLabelSub}>
+                                ProposedTableCell + chip-aware column headers
+                                + same groupColumns
+                            </span>
+                        </div>
+                    </div>
+                    <Table<FlatRow>
+                        columns={proposedColumns}
+                        dataSource={flatRows}
+                        rowKey="id"
+                        pagination={false}
+                        size="small"
+                        bordered
+                        scroll={{x: "max-content"}}
+                    />
+                </div>
 
                 <div style={styles.crossLinks}>
                     <strong>Other surfaces:</strong>{" "}
@@ -354,101 +428,76 @@ const styles = {
         border: "1px solid rgba(5, 23, 41, 0.08)",
         borderRadius: 8,
     },
-    toolbarLabel: {fontSize: 12, fontWeight: 600, color: "#051729"},
-    toolbarHint: {
-        fontSize: 11,
-        color: "rgba(5, 23, 41, 0.65)",
-        lineHeight: 1.5,
-        flex: 1,
-        minWidth: 280,
+    label: {fontSize: 12, fontWeight: 600, color: "#051729"},
+    divider: {width: 1, height: 20, background: "rgba(5, 23, 41, 0.12)"},
+    note: {
+        marginBottom: 16,
+        padding: "10px 14px",
+        background: "#fffbe6",
+        borderLeft: "3px solid #faad14",
+        fontSize: 12,
+        color: "#051729",
+        lineHeight: 1.6,
+        borderRadius: "0 4px 4px 0",
     },
     link: {color: "#1677ff", fontWeight: 500},
     notesList: {margin: "8px 0", paddingLeft: 20, lineHeight: 1.7},
-    table: {
-        width: "100%",
-        borderCollapse: "collapse" as const,
-        fontSize: 12,
-        background: "white",
-        border: "1px solid rgba(5, 23, 41, 0.08)",
-        borderRadius: 8,
-        overflow: "hidden" as const,
+    tableSection: {
+        marginBottom: 24,
     },
-    thLabel: {
-        width: 200,
-        padding: "10px 14px",
-        fontSize: 11,
-        textAlign: "left" as const,
-        background: "#fafafa",
-        borderBottom: "1px solid rgba(5, 23, 41, 0.08)",
-        fontWeight: 600,
+    tableHeaderRow: {
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        marginBottom: 8,
     },
-    thGap: {
-        width: 100,
-        padding: "10px 14px",
-        fontSize: 11,
-        textAlign: "left" as const,
-        background: "#fafafa",
-        borderBottom: "1px solid rgba(5, 23, 41, 0.08)",
-        fontWeight: 600,
+    tableLabel: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
     },
-    thToday: {
-        padding: "10px 14px",
-        fontSize: 11,
-        textAlign: "left" as const,
-        background: "#fafafa",
-        borderBottom: "1px solid rgba(5, 23, 41, 0.08)",
+    todayPill: {
+        fontSize: 10,
         fontWeight: 600,
+        padding: "2px 8px",
+        borderRadius: 4,
+        textTransform: "uppercase" as const,
+        letterSpacing: "0.04em",
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+        background: "rgba(5, 23, 41, 0.06)",
         color: "rgba(5, 23, 41, 0.65)",
     },
-    thProposed: {
-        padding: "10px 14px",
-        fontSize: 11,
-        textAlign: "left" as const,
-        background: "#f0f9ff",
-        borderBottom: "1px solid rgba(22, 119, 255, 0.15)",
-        fontWeight: 600,
-        color: "#1677ff",
-    },
-    tdLabel: {
-        padding: "12px 14px",
-        borderBottom: "1px solid rgba(5, 23, 41, 0.06)",
-        verticalAlign: "top" as const,
-    },
-    tdGap: {
-        padding: "12px 14px",
-        borderBottom: "1px solid rgba(5, 23, 41, 0.06)",
-        verticalAlign: "top" as const,
-    },
-    tdToday: {
-        padding: "12px 14px",
-        borderBottom: "1px solid rgba(5, 23, 41, 0.06)",
-        borderRight: "1px solid rgba(5, 23, 41, 0.06)",
-        verticalAlign: "top" as const,
-        background: "rgba(5, 23, 41, 0.01)",
-        minWidth: 240,
-    },
-    tdProposed: {
-        padding: "12px 14px",
-        borderBottom: "1px solid rgba(5, 23, 41, 0.06)",
-        verticalAlign: "top" as const,
-        background: "#fdfeff",
-        minWidth: 240,
-    },
-    cellTitle: {fontSize: 12, fontWeight: 600, color: "#051729"},
-    cellNote: {
-        fontSize: 10,
-        color: "rgba(5, 23, 41, 0.5)",
-        marginTop: 2,
-        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-    },
-    gapPill: {
+    proposedPill: {
         fontSize: 10,
         fontWeight: 600,
-        padding: "2px 6px",
+        padding: "2px 8px",
         borderRadius: 4,
-        background: "rgba(22, 119, 255, 0.08)",
-        color: "#1677ff",
+        textTransform: "uppercase" as const,
+        letterSpacing: "0.04em",
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+        background: "#f0f9ff",
+        color: "#1677ff",
+    },
+    tableLabelSub: {
+        fontSize: 11,
+        color: "rgba(5, 23, 41, 0.55)",
+    },
+    todayHeader: {
+        fontSize: 12,
+        fontWeight: 600,
+        color: "#051729",
+        whiteSpace: "nowrap" as const,
+    },
+    proposedHeader: {
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        flexWrap: "wrap" as const,
+    },
+    proposedHeaderName: {
+        fontSize: 12,
+        fontWeight: 600,
+        color: "#051729",
     },
     crossLinks: {
         marginTop: 24,

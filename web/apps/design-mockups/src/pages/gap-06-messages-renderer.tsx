@@ -1,9 +1,21 @@
 /**
  * Gap 06 — Messages renderer coverage (concept page).
  *
- * Problem statement + proposed solution. Live demos on /solutions-drill-in
- * (pick "07 messages + tools" fixture) and /solutions-playground (Row 2 —
- * messages trace).
+ * Audited 2026-05-04 against production code. Most of "messages renderer"
+ * already ships:
+ *   - DrillInContent.tsx:1284-1298 — ChatMessageList renders ANY field where
+ *     `dataType === "messages"`, regardless of editability.
+ *   - ToolMessageHeader for `role: "tool"`.
+ *   - extractDisplayTextFromMessage formats assistant tool_calls as text
+ *     strings like `get_weather({"city":"NYC"})`.
+ *
+ * What's NOT in production:
+ *   - Auto-rendering at root (subset of gap-03 — fixed when auto-expand lands).
+ *   - Tool-call CARD UI (production renders tool calls as inline text).
+ *   - [tool] chip in table cells (subset of gap-01 chip vocabulary).
+ *
+ * So gap-06's unique contribution is just the tool-call card. The rest is
+ * gap-03 + gap-01 applied to a specific case.
  */
 
 import Head from "next/head"
@@ -15,67 +27,104 @@ export default function Gap06Concept() {
     return (
         <>
             <Head>
-                <title>Gap 06 — Messages renderer coverage</title>
+                <title>Gap 06 — Messages + tool-call card</title>
             </Head>
             <MockupPageShell
-                title="Gap 06 — Messages renderer coverage"
+                title="Gap 06 — Messages + tool-call card"
                 blurb={
-                    "ChatMessageEditor exists in the codebase and renders messages-shaped arrays beautifully (system/user/assistant cards, content, tool_calls). But it only kicks in inside the drill-in after a user navigates into the messages array. At the root, large arrays of message-shaped objects fall through to the generic JSON editor. tool_calls are never given the dedicated treatment even though they're structurally similar."
+                    "ChatMessageList already renders messages-shaped arrays in production. ToolMessageHeader handles role: \"tool\" responses. What's missing: a dedicated card for assistant tool_calls (today they render as inline text via extractDisplayTextFromMessage), and the [tool] chip in table cells (gap-01 vocabulary applied here). Auto-rendering at root is gap-03's job — once auto-expand lands, messages render at root for free."
                 }
                 notes={
                     <>
-                        <strong>What's broken today:</strong>
+                        <strong>What production already does:</strong>
                         <ul style={styles.list}>
                             <li>
-                                Drill-in Fields view (root) — when{" "}
-                                <code>messages</code> is a top-level value:
-                                renders as a JSON code editor instead of
-                                ChatMessageEditor.
+                                <code>DrillInContent.tsx</code> line 1284-1298:
+                                ANY field where{" "}
+                                <code>dataType === &quot;messages&quot;</code>{" "}
+                                renders via <code>ChatMessageList</code>{" "}
+                                unconditionally — comment says "regardless of
+                                editability". So messages DO render with chat
+                                cards, just only at the depth the user has
+                                drilled to.
                             </li>
                             <li>
-                                Drill-in Fields view (after drill) —{" "}
-                                <code>tool_calls</code>: stays as raw JSON code
-                                editor instead of a dedicated tool-call view.
+                                <code>ChatMessageList</code> (
+                                <code>web/packages/agenta-ui/src/ChatMessage/</code>
+                                ) renders role badges + content + handles{" "}
+                                <code>role: &quot;tool&quot;</code> responses
+                                via <code>ToolMessageHeader</code>.
                             </li>
                             <li>
-                                Testset table — <code>tool_calls</code> column:
-                                raw JSON or single-line summary.
+                                Assistant messages with <code>tool_calls</code>{" "}
+                                use{" "}
+                                <code>extractDisplayTextFromMessage</code>{" "}
+                                which formats them as inline text like{" "}
+                                <code>
+                                    get_weather({'{"city": "NYC"}'})
+                                </code>
+                                . Functional but not visually distinct from
+                                regular content.
+                            </li>
+                            <li>
+                                Table cells: <code>ChatMessagesCellContent</code>{" "}
+                                shows a chat preview already. Same renderer
+                                pipeline.
                             </li>
                         </ul>
-                        <strong>The pattern:</strong> ChatMessageEditor is wired
-                        only after Drill In. <code>tool_calls</code> never get
-                        rich treatment.
                         <br />
-                        <br />
-                        <strong>Proposed:</strong>
+                        <strong>What gap-06 actually proposes (after
+                        accounting for what already ships):</strong>
                         <ul style={styles.list}>
                             <li>
-                                Lift the messages auto-detection out of{" "}
-                                <code>DrillInContent</code> (
-                                <code>line 1284</code>) into a shared helper so
-                                root-level message arrays render with the
-                                ChatMessageEditor.
+                                <strong>Dedicated tool-call card.</strong>{" "}
+                                Render assistant <code>tool_calls</code> as a
+                                card below the message body: function name as
+                                a heading, arguments JSON pretty-printed
+                                (parsed from the string). The genuinely new
+                                rendering. Production formats them as text
+                                because the original chat-message contract
+                                inherited from OpenAI uses string-encoded
+                                arguments.
                             </li>
                             <li>
-                                Detect tool-call shapes (
-                                <code>{"{role: \"assistant\", tool_calls: [...]}"}</code>
-                                ) and render an inline tool-call card with the
-                                parsed <code>arguments</code> JSON pretty-printed.
+                                <strong>
+                                    <code>[tool]</code> chip in table cells
+                                </strong>{" "}
+                                — part of gap-01 chip vocabulary applied to
+                                tool-call columns. Lets the user see
+                                tool-call columns at a glance.
                             </li>
                             <li>
-                                Surface tool-call counts in table cells with
-                                the <code>[tool]</code> chip.
+                                <strong>Root-level rendering</strong> — falls
+                                out of gap-03 (auto-expand). When auto-expand
+                                lands, the user sees{" "}
+                                <code>inputs.messages</code> rendered with
+                                chat cards at root without the drill-in click.
+                                <em> Not a unique gap-06 contribution; the
+                                lift comes from gap-03.</em>
                             </li>
                         </ul>
+                        <br />
+                        <strong>Subset relationship:</strong> the unique
+                        gap-06 piece is the tool-call card. Everything else is
+                        either already in production (
+                        <code>ChatMessageList</code> + chat preview) or comes
+                        from another gap (gap-03 auto-expand, gap-01 chip).
+                        Calling it out as its own gap because the tool-call
+                        card has its own design surface that doesn't fit
+                        cleanly under gap-01 or gap-03.
                     </>
                 }
                 competitiveNotes={
                     <>
-                        Both Braintrust and Langfuse render messages as YAML or
-                        JSON respectively — no chat cards, no tool-call cards.
-                        Lifting <code>ChatMessageEditor</code> + the tool-call
-                        card puts us past both competitors. One of three places
-                        we go further than the field rather than catch up. See{" "}
+                        Braintrust renders messages as YAML; Langfuse renders
+                        as JSON. Neither has a dedicated tool-call card; both
+                        leave <code>arguments</code> as a stringified-JSON
+                        string with no parse step. Lifting{" "}
+                        <code>ChatMessageList</code> at root + adding the
+                        tool-call card puts us past both competitors. One of
+                        three places we go further than the field. See{" "}
                         <a
                             href="../../../docs/designs/json-string-ux/competitive-analysis.md"
                             style={styles.link}
@@ -92,10 +141,11 @@ export default function Gap06Concept() {
                         Solutions · Drill-in — full demo →
                     </span>
                     <span style={styles.ctaBlurb}>
-                        Pick the "07 messages + tools" fixture from the toolbar.
-                        ChatMessageEditor renders inline at root with role
-                        cards; the assistant message's <code>tool_calls</code>{" "}
-                        block shows a parsed-arguments card.
+                        Pick the "07 messages + tools" fixture from the
+                        toolbar. <code>ChatMessageList</code> renders inline at
+                        root (via gap-03 auto-expand); the assistant message's{" "}
+                        <code>tool_calls</code> shows as a parsed-arguments
+                        card (the gap-06 unique contribution).
                     </span>
                 </Link>
                 <Link href="/solutions-playground" style={styles.cta}>
@@ -108,23 +158,25 @@ export default function Gap06Concept() {
                         compare grid. Today renders messages as a textarea
                         placeholder; Proposed renders chat cards inline; Alt
                         compact summarizes (
-                        <code>3 messages · system + user + assistant</code>) and
-                        expands on click.
+                        <code>3 messages · system + user + assistant</code>)
+                        and expands on click.
                     </span>
                 </Link>
 
                 <div style={styles.crossLinks}>
                     <strong>Related concept pages:</strong>{" "}
                     <Link href="/gap-01-type-chips" style={styles.link}>
-                        gap-01 ([msgs] + [tool] chips)
+                        gap-01 ([msgs] + [tool] chips, both in vocabulary)
                     </Link>{" "}
                     ·{" "}
                     <Link href="/gap-02-table-cells" style={styles.link}>
-                        gap-02 (messages preview in table cells)
+                        gap-02 (messages preview in table cells — already in
+                        production via <code>ChatMessagesCellContent</code>)
                     </Link>{" "}
                     ·{" "}
                     <Link href="/gap-03-drill-in-root-view" style={styles.link}>
-                        gap-03 (auto-expand surfaces messages at root)
+                        gap-03 (auto-expand surfaces messages at root — root
+                        rendering is gap-03's job, not gap-06's)
                     </Link>
                 </div>
             </MockupPageShell>

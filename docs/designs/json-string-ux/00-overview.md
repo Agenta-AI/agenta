@@ -6,6 +6,15 @@
 
 **Competitive context (added 2026-05-04):** see [`competitive-analysis.md`](competitive-analysis.md) — 50 screenshots of Braintrust + Langfuse running our 8 fixtures. Surfaced two new candidate gaps (07, 08 below) and reordered priorities by leverage. Schema-as-entity is Braintrust's moat and the highest-leverage move on the table.
 
+**Mockup app (added 2026-05-04):** the `.html` mockups in `variants/` are now superseded by an interactive Next.js app at [`web/apps/design-mockups/`](../../../web/apps/design-mockups/). Run `pnpm --filter design-mockups dev` (port 3030) and open:
+
+- `/solutions-drill-in` — full drill-in proposal (production drawer left, `ProposedDrillIn` right, per-fixture toolbar)
+- `/solutions-playground` — three-way compare grid (Today / Embedded / Compact) per fixture
+- `/solutions-tables` — mid-fidelity table comparison: production `groupColumns` + production `TestcaseCellContent` on the left vs `ProposedTableCell` (chip-and-shape) on the right, both mounted in real antd `<Table>`s with stub data simulating the entity layer
+- `/gap-NN-*` — concept pages per gap, blurb + audit notes + CTA to the relevant solution page
+
+The concept pages document **what production already does** vs **what each gap actually proposes**. Several gap framings shifted as a result of that audit (see "Production audit (2026-05-04)" below).
+
 **Core principle (from RFC):** *Native JSON stays native until template rendering.* Type travels with the value. The user's choice is preserved through save / load / invocation.
 
 ## Four surfaces
@@ -40,6 +49,17 @@ After reviewing 8 fixtures and their backend responses, the gaps split into 6 fo
 
 **Important framing:** the gaps are about the *cases the existing capabilities don't cover*, not about replacing what works. Column expansion already handles homogeneous nested objects in the table. The drill-in already handles nested editing. The proposals below compose with both, addressing only the leftover cases (mixed-type columns, arrays, collapsed leaf-object previews, root-level Fields default, type chips, messages renderer at root, dot-key disambiguation labels).
 
+## Production audit (2026-05-04)
+
+Mounting the real production components alongside `ProposedDrillIn` / `ProposedTableCell` in the mockup app surfaced capabilities the gap docs originally claimed were missing. Each affected gap was rescoped:
+
+- **gap-02 (table cells).** Production already has `CellContentPopover` (full-row popover on click), `JsonCellContent` (syntax-highlighted JSON in cells), and em-dash for missing keys via `ChatMessagesCellContent` for messages preview. The original "no popover / no chip / no syntax highlighting" framing was wrong. **Unique gap-02 contribution = the dense two-line cell format (chip + count + first-keys preview)** plus the chip vocabulary applied to mixed/array/collapsed-object cells. Most of gap-02 is gap-01 chip vocabulary applied to the table surface.
+- **gap-03 (drill-in root view).** Production already has per-field collapse machinery: `collapsedFields` state, `DrillInFieldHeader` caret button, `showFieldCollapse` prop, and `ChatMessageList` renders `dataType === "messages"` unconditionally at any depth (`DrillInContent.tsx:1284-1298`). The "bails to one giant code editor" framing was wrong — it bails to a `[json-object] [Drill In]` row by default. **Unique gap-03 contribution = auto-expand-on-first-render** (a new `autoExpand` prop). Existing collapse machinery still works after the auto-expand lands.
+- **gap-05 (dot-key disambiguation).** The chip variants (`[dotted-key]`, `[⚠ collision]`, `[shadowed]`) are part of gap-01 chip vocabulary. The structural separation between literal `"geo.region"` and nested `geo > region` is already visible via `groupColumns`. **Unique gap-05 contribution = collision detection logic + the runtime-correctness conversation (literal-key-first templating).** Most of gap-05 is gap-01 vocabulary applied with a small detection function.
+- **gap-06 (messages renderer).** Production already renders messages-shaped arrays via `ChatMessageList` at any depth, has `ToolMessageHeader` for `role: "tool"`, and `extractDisplayTextFromMessage` formats assistant `tool_calls` as inline text. **Unique gap-06 contribution = the dedicated tool-call card** (function name as heading, arguments JSON pretty-printed) and the `[tool]` chip in table cells. Root-level rendering falls out of gap-03 auto-expand, not gap-06.
+
+**Subset relationships:** gap-02, gap-05, and gap-06 all rely heavily on gap-01 chip vocabulary. They stay as their own gaps because each owns a non-trivial design surface that doesn't fit cleanly under gap-01 alone (cell format, collision detection, tool-call card), but the chip work is shared.
+
 See [`variants/index.html`](variants/index.html) (or [`variants/README.md`](variants/README.md)) for the gap docs. Order: vocabulary → surfaces → correctness → polish.
 
 | # | Gap | Anchor fixture(s) |
@@ -61,10 +81,13 @@ Existing capabilities (`detectDataType`, round-trip preservation, transparent st
 
 ## What this doc set covers
 
-The active gap docs live in [`variants/`](variants/) (open `index.html` for the landing page). The earlier all-surfaces draft is preserved in [`archive/`](archive/) for reference only — the gap docs supersede it.
+The active gap docs live in [`variants/`](variants/). The interactive Next.js mockup app at [`web/apps/design-mockups/`](../../../web/apps/design-mockups/) supersedes the static `.html` mockups for the team call — open the solution pages there to see the production component mounted next to the proposal. The earlier all-surfaces draft is preserved in [`archive/`](archive/) for reference only.
 
-| File | Topic |
+| File / route | Topic |
 | --- | --- |
+| `/solutions-drill-in` (mockup app) | Full drill-in proposal: production drawer left, `ProposedDrillIn` right, per-fixture toolbar |
+| `/solutions-playground` (mockup app) | Three-way compare grid (Today / Embedded / Compact) per fixture |
+| `/solutions-tables` (mockup app) | Mid-fidelity table comparison: production `groupColumns` + `TestcaseCellContent` vs `ProposedTableCell` (chip-and-shape), both in real antd `<Table>`s |
 | [`variants/index.html`](variants/index.html) | Landing page · component map · drift findings · reading order |
 | [`variants/gap-01-type-chips.html`](variants/gap-01-type-chips.html) | Type chips — the shared visual vocabulary |
 | [`variants/gap-02-table-cells.html`](variants/gap-02-table-cells.html) | Testset table cells (the view-only entry point) |
