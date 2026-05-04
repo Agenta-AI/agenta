@@ -43,6 +43,7 @@
         "./shared/invalidation": "./src/shared/invalidation/index.ts"
     },
     "dependencies": {
+        "@agenta/sdk": "workspace:../agenta-sdk",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
         "fast-deep-equal": "^3.1.3",
