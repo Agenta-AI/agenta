@@ -1,0 +1,362 @@
+{
+  "openai": {
+    "function_calling": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What's the weather in San Francisco?"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "description": "Get current weather",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "location": {
+                    "type": "string",
+                    "description": "City name"
+                  }
+                },
+                "required": ["location"]
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "code_execution": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Calculate fibonacci(10)"
+          }
+        ],
+        "tools": [
+          {
+            "type": "code_interpreter"
+          }
+        ]
+      }
+    ],
+    "bash_scripting": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "List all Python files in the current directory"
+          }
+        ],
+        "tools": [
+          {
+            "type": "local_shell"
+          }
+        ]
+      }
+    ],
+    "url_context": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Fetch content from https://example.com"
+          }
+        ],
+        "tools": []
+      }
+    ],
+    "web_search": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What are the latest developments in AI?"
+          }
+        ],
+        "tools": [
+          {
+            "type": "web_search"
+          }
+        ]
+      }
+    ],
+    "file_search": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Search for information about project timeline"
+          }
+        ],
+        "tools": [
+          {
+            "type": "file_search"
+          }
+        ]
+      }
+    ],
+    "mcp_calling": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Fetch data via MCP"
+          }
+        ],
+        "tools": [
+          {
+            "type": "remote_mcp",
+            "server": {
+              "url": "https://mcp-server.com",
+              "token": "token"
+            }
+          }
+        ]
+      }
+    ],
+    "computer_use": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Click the settings button"
+          }
+        ],
+        "tools": [
+          {
+            "type": "computer_use"
+          }
+        ]
+      }
+    ],
+    "image_generation": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Generate an image of a sunset over mountains"
+          }
+        ],
+        "tools": [
+          {
+            "type": "image_generation"
+          }
+        ]
+      }
+    ]
+  },
+  "anthropic": {
+    "function_calling": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What's the weather in San Francisco?"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "description": "Get current weather",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "location": {
+                    "type": "string",
+                    "description": "City name"
+                  }
+                },
+                "required": ["location"]
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "code_execution": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Calculate fibonacci(10)"
+          }
+        ],
+        "tools": [
+          {
+            "type": "code_execution_20250825",
+            "name": "code_execution"
+          }
+        ],
+        "extra_headers": {
+          "anthropic-beta": "code-execution-2025-08-25"
+        }
+      }
+    ],
+    "bash_scripting": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "List all files in the current directory"
+          }
+        ],
+        "tools": [
+          {
+            "type": "bash_20250124",
+            "name": "bash"
+          }
+        ]
+      }
+    ],
+    "text_editor": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Edit file.txt to add a new line"
+          }
+        ],
+        "tools": [
+          {
+            "type": "text_editor_20250728",
+            "name": "str_replace_based_edit_tool"
+          }
+        ]
+      }
+    ],
+    "url_context": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Fetch and analyze content from https://example.com"
+          }
+        ],
+        "tools": [
+          {
+            "type": "web_search_20250305",
+            "name": "web_search"
+          }
+        ]
+      }
+    ],
+    "web_search": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What are the latest developments in AI?"
+          }
+        ],
+        "tools": [
+          {
+            "type": "web_search_20250305",
+            "name": "web_search"
+          }
+        ]
+      }
+    ],
+    "computer_use": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Take a screenshot"
+          }
+        ],
+        "tools": [
+          {
+            "type": "computer_20241022",
+            "name": "computer",
+            "display_width_px": 1024,
+            "display_height_px": 768,
+            "display_number": 1
+          }
+        ]
+      }
+    ]
+  },
+  "google": {
+    "function_calling": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What's the weather in San Francisco?"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "description": "Get current weather",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "location": {
+                    "type": "string",
+                    "description": "City name"
+                  }
+                },
+                "required": ["location"]
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "code_execution": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Calculate fibonacci(10)"
+          }
+        ],
+        "tools": [
+          {
+            "code_execution": {}
+          }
+        ]
+      }
+    ],
+    "url_context": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Fetch and summarize content from https://example.com"
+          }
+        ],
+        "tools": [
+          {
+            "googleSearch": {}
+          }
+        ]
+      }
+    ],
+    "web_search": [
+      {
+        "messages": [
+          {
+            "role": "user",
+            "content": "What are the latest developments in AI?"
+          }
+        ],
+        "tools": [
+          {
+            "googleSearch": {}
+          }
+        ]
+      }
+    ]
+  }
+}

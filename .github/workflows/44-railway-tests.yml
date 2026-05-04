@@ -342,7 +342,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-railway-api-pip-${{ hashFiles('api/pyproject.toml', 'api/poetry.lock', 'api/*/tests/requirements.txt', 'sdk/pyproject.toml', 'sdk/poetry.lock') }}
+          key: ${{ runner.os }}-railway-api-pip-${{ hashFiles('api/pyproject.toml', 'api/poetry.lock', 'api/*/tests/requirements.txt', 'sdks/python/pyproject.toml', 'sdks/python/poetry.lock') }}
           restore-keys: |
             ${{ runner.os }}-railway-api-pip-
 
@@ -353,7 +353,7 @@ jobs:
           poetry export --without-hashes --format requirements.txt --output /tmp/api-requirements.txt
           pip install -r /tmp/api-requirements.txt
           pip install -r oss/tests/requirements.txt
-          pip install -e ../sdk/
+          pip install -e ../sdks/python/
 
       - name: Run API tests
         run: |
@@ -445,18 +445,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-railway-sdk-pip-${{ hashFiles('sdk/pyproject.toml', 'sdk/poetry.lock', 'sdk/*/tests/requirements.txt') }}
+          key: ${{ runner.os }}-railway-sdk-pip-${{ hashFiles('sdks/python/pyproject.toml', 'sdks/python/poetry.lock', 'sdks/python/*/tests/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-railway-sdk-pip-
 
       - name: Install SDK dependencies
         run: |
-          pip install -r sdk/oss/tests/requirements.txt
-          pip install -e sdk/
+          pip install -r sdks/python/oss/tests/requirements.txt
+          pip install -e sdks/python/
 
       - name: Run SDK tests
         run: |
-          cd sdk
+          cd sdks/python
 
           case "${{ matrix.layer }}" in
             acceptance) TARGET_PATH="oss/tests/pytest/acceptance" ;;
@@ -497,7 +497,7 @@ jobs:
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: sdk/oss/tests/results/junit.xml
+          files: sdks/python/oss/tests/results/junit.xml
           check_name: Railway SDK Test Results
           comment_mode: off
 
@@ -507,8 +507,8 @@ jobs:
         with:
           name: railway-sdk-test-results-${{ matrix.layer }}
           path: |
-            sdk/oss/tests/results/
-            sdk/pytest*.log
+            sdks/python/oss/tests/results/
+            sdks/python/pytest*.log
           retention-days: 14
 
   run-services-tests:

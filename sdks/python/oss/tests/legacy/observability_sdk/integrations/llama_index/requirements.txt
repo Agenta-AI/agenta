@@ -1,0 +1,6 @@
+opentelemetry-instrumentation-llamaindex
+llama-index
+chromadb
+opentelemetry.instrumentation.openai==0.31.2
+agenta==0.27.0a5
+llama-index-vector-stores-chroma

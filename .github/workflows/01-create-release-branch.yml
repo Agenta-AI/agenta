@@ -78,7 +78,7 @@ jobs:
 
           cd ..
 
-          cd sdk
+          cd sdks/python
           poetry version $BUMP_TYPE
           SDK_VERSION=$(poetry version -s)
           cd ..
@@ -128,7 +128,7 @@ jobs:
             - (web)
             - web/oss
             - web/ee
-            - sdk
+            - sdks/python
             - api
             - services
 
