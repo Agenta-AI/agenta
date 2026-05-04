@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JSON ↔ String UX — Gap docs index</title>
+<link rel="stylesheet" href="shared.css?v=3">
+</head>
+<body>
+
+<div class="nav-jump">
+  <strong>JSON ↔ String UX · Gap docs</strong>
+  <span class="ml-auto" style="color:var(--muted)">6 gap docs · all FE · BE verified correct</span>
+</div>
+
+<div class="page">
+
+  <div class="page-header">
+    <h1>JSON ↔ String UX — gap docs</h1>
+    <p>Six focused gap docs, each with a prose argument (<code>.md</code>) and a visual mockup (<code>.html</code>) at full-screen drawer/table proportions.</p>
+    <p><strong>Backend is correct.</strong> Verified against <code>backend-response data/</code>. Every gap below is a frontend issue.</p>
+  </div>
+
+  <section style="margin-bottom: 32px;">
+    <h2 style="font-size:16px; margin-bottom: 8px;">Existing capabilities (don't break these)</h2>
+    <p style="font-size:12px; color: var(--muted); margin-bottom: 12px;">The proposals compose with what already works. Specifically:</p>
+    <ul style="font-size:12px; color: var(--ink); line-height: 1.7; padding-left: 20px;">
+      <li><strong>Testset table column expansion.</strong> Homogeneous nested object columns expand into sub-column groups (<code>context &rsaquo; demographics + geo &rsaquo; coordinates + region + subregion</code>). Drilling to leaf scalars works well.</li>
+      <li><strong>Drill-in component.</strong> Nested objects render as per-property cards with type-driven widgets after one click. Lives in <code>DrillInContent</code>; consumed by drawers, "Add to Testset" preview, playground execution item, annotation UI.</li>
+      <li><strong>Detection logic.</strong> <code>detectDataType</code> (in <code>fieldUtils.ts:185</code>) recognizes string / object / array / number / boolean / null / messages — including stringified-JSON-as-string.</li>
+      <li><strong>Round-trip preservation.</strong> Storage shape is preserved through edits via <code>textModeToStorageValue</code>.</li>
+      <li><strong>Faithful JSON view.</strong> The drill-in's JSON view (<code>EntityDualViewEditor</code>'s "JSON" mode) renders the user's stored format exactly.</li>
+    </ul>
+    <p style="font-size:12px; color: var(--muted); margin-top: 12px;">The gap proposals affect only the cases these don't cover.</p>
+  </section>
+
+  <section style="margin-bottom: 32px;">
+    <h2 style="font-size:16px; margin-bottom: 12px;">Reading order</h2>
+    <p style="font-size:12px; color: var(--muted); margin-bottom: 12px;">The order tells the story: vocabulary → surfaces → correctness → polish.</p>
+    <div class="surface" style="padding: 0;">
+      <table class="tsr">
+        <thead>
+          <tr>
+            <th style="width: 60px;">Gap</th>
+            <th>Mockup (HTML)</th>
+            <th>Prose (MD)</th>
+            <th>What it does</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>01</strong></td>
+            <td><a href="gap-01-type-chips.html">Type chips</a></td>
+            <td><a href="gap-01-type-chips.md">md</a></td>
+            <td>Visual vocabulary used everywhere — read first.</td>
+          </tr>
+          <tr>
+            <td><strong>02</strong></td>
+            <td><a href="gap-02-table-cells.html">Table cells</a></td>
+            <td><a href="gap-02-table-object-array-cells.md">md</a></td>
+            <td>Apply chips to collapsed cells, arrays, mixed-type columns.</td>
+          </tr>
+          <tr>
+            <td><strong>03</strong></td>
+            <td><a href="gap-03-drill-in-root-view.html">Drill-in root view</a></td>
+            <td><a href="gap-03-drill-in-root-view-bailout.md">md</a></td>
+            <td>Auto-expand top-level keys in <code>DrillInContent</code>. Drawer + playground inherit the fix.</td>
+          </tr>
+          <tr>
+            <td><strong>04</strong></td>
+            <td><a href="gap-04-shape-preservation.html">Shape preservation</a></td>
+            <td><a href="gap-04-fe-shape-preservation.md">md</a></td>
+            <td><strong>Correctness.</strong> Mark union-projected fields visually distinct.</td>
+          </tr>
+          <tr>
+            <td><strong>05</strong></td>
+            <td><a href="gap-05-dot-key-disambiguation.html">Dot-key disambiguation</a></td>
+            <td><a href="gap-05-dot-key-vs-nested-disambiguation.md">md</a></td>
+            <td><strong>Correctness.</strong> Literal-key-first behavior must be visible.</td>
+          </tr>
+          <tr>
+            <td><strong>06</strong></td>
+            <td><a href="gap-06-messages-renderer.html">Messages renderer</a></td>
+            <td><a href="gap-06-messages-renderer-coverage.md">md</a></td>
+            <td>Polish — wire <code>ChatMessageEditor</code> everywhere.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:12px; color: var(--muted); margin-top: 12px;"><strong>For the team call:</strong> open the HTML files. They have variants side-by-side with tradeoffs in <code>&lt;details&gt;</code> blocks. Reference the md docs for the full prose argument.</p>
+  </section>
+
+  <section style="margin-bottom: 32px;">
+    <h2 style="font-size:16px; margin-bottom: 12px;">Sequencing for the team conversation</h2>
+
+    <div class="recommend">
+      <strong>Round 1 — agree on the vocabulary:</strong>
+      <ul style="margin: 6px 0 0 20px; padding: 0;">
+        <li>Walk through <a href="gap-01-type-chips.html">gap-01</a>. Decide chip visibility default (always-on / hover / ambiguous-only) and the chip catalog.</li>
+      </ul>
+    </div>
+
+    <div class="recommend">
+      <strong>Round 2 — apply it to the surfaces:</strong>
+      <ul style="margin: 6px 0 0 20px; padding: 0;">
+        <li><a href="gap-02-table-cells.html">gap-02</a>. Pick the table cell rendering variant (chip + count + keys is the recommendation).</li>
+        <li><a href="gap-03-drill-in-root-view.html">gap-03</a>. Auto-expand vs threshold vs always-cards for the drill-in root view (lands in <code>DrillInContent</code>).</li>
+      </ul>
+    </div>
+
+    <div class="recommend">
+      <strong>Round 3 — correctness:</strong>
+      <ul style="margin: 6px 0 0 20px; padding: 0;">
+        <li><a href="gap-04-shape-preservation.html">gap-04</a>. Render-only vs save-side fix for the union projection.</li>
+        <li><a href="gap-05-dot-key-disambiguation.html">gap-05</a>. Decide on the <code>[dotted-key]</code> + collision-warning chips.</li>
+      </ul>
+    </div>
+
+    <div class="recommend">
+      <strong>Round 4 — polish:</strong>
+      <ul style="margin: 6px 0 0 20px; padding: 0;">
+        <li><a href="gap-06-messages-renderer.html">gap-06</a>. Lift <code>ChatMessageEditor</code> auto-detection out of <code>DrillInContent</code> so <code>BeautifiedJsonView</code> + <code>JsonEditorWithLocalState</code> render messages consistently.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section style="margin-bottom: 32px;">
+    <h2 style="font-size:16px; margin-bottom: 12px;">Cross-fixture index</h2>
+    <p style="font-size:12px; color: var(--muted); margin-bottom: 12px;">Which fixture exposes which gap most clearly:</p>
+    <div class="surface" style="padding: 0;">
+      <table class="tsr">
+        <thead>
+          <tr><th>Fixture</th><th>Gaps it exposes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>01-flat-strings.json</code></td><td>baseline — none</td></tr>
+          <tr><td><code>02-nested-native.json</code></td><td><a href="gap-03-drill-in-root-view.html">gap-03</a> (drill-in root) — minor</td></tr>
+          <tr><td><code>03-arrays.json</code></td><td><strong><a href="gap-02-table-cells.html">gap-02</a></strong> (table cells)</td></tr>
+          <tr><td><code>04-stringified-nested.json</code></td><td><strong><a href="gap-03-drill-in-root-view.html">gap-03</a></strong> (drill-in root) — clear bailout to code editor</td></tr>
+          <tr><td><code>05-mixed-per-column.json</code></td><td><strong><a href="gap-02-table-cells.html">gap-02</a></strong> (em-dash for non-string), <strong><a href="gap-04-shape-preservation.html">gap-04</a></strong> (union projection surfaces here)</td></tr>
+          <tr><td><code>06-deeply-nested.json</code></td><td><strong><a href="gap-02-table-cells.html">gap-02</a></strong>, <strong><a href="gap-03-drill-in-root-view.html">gap-03</a></strong> — both at scale</td></tr>
+          <tr><td><code>07-messages-and-tools.json</code></td><td><strong><a href="gap-06-messages-renderer.html">gap-06</a></strong> (messages + tool_calls)</td></tr>
+          <tr><td><code>08-dot-key-collision.json</code></td><td><strong><a href="gap-04-shape-preservation.html">gap-04</a></strong> (the smoking gun), <strong><a href="gap-05-dot-key-disambiguation.html">gap-05</a></strong> (the disambiguation case)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section style="margin-bottom: 32px;">
+    <h2 style="font-size:16px; margin-bottom: 12px;">Cross-cutting consistency</h2>
+    <p style="font-size:12px; color: var(--ink); line-height: 1.6;">All gap docs share the same UI vocabulary:</p>
+    <ul style="font-size:12px; color: var(--ink); line-height: 1.7; padding-left: 20px;">
+      <li>Type chip styles defined in <a href="gap-01-type-chips.html">gap-01</a>. Every other doc references them.</li>
+      <li>Shape-preservation principle from <a href="gap-04-shape-preservation.html">gap-04</a> constrains the rendering approaches in <a href="gap-02-table-cells.html">gap-02</a> and <a href="gap-03-drill-in-root-view.html">gap-03</a>.</li>
+      <li>The <code>[dotted-key]</code> chip from <a href="gap-05-dot-key-disambiguation.html">gap-05</a> stacks with the type chip from <a href="gap-01-type-chips.html">gap-01</a>.</li>
+    </ul>
+  </section>
+
+  <section style="margin-bottom: 32px;">
+    <h2 style="font-size:16px; margin-bottom: 12px;">Component map — anchor proposals to these</h2>
+    <p style="font-size:12px; color: var(--muted); margin-bottom: 12px;">Drawers aren't a separate thing. They're surfaces that wrap a drill-in component. The proposals below should land on the underlying drill-in (and the testset table cell renderer for the view-only side), not on drawer chrome.</p>
+
+    <div class="surface" style="padding: 0; margin-bottom: 12px;">
+      <table class="tsr">
+        <thead>
+          <tr>
+            <th style="width: 30%;">Component (file:line)</th>
+            <th style="width: 12%;">Mode</th>
+            <th>Consumed by</th>
+            <th style="width: 16%;">Anchor for</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>DrillInContent</code><br><span style="color:var(--muted); font-size:10px;">DrillInView/DrillInContent.tsx:178</span></td>
+            <td>read or edit</td>
+            <td>The workhorse. Detects type, picks widget, renders ChatMessageEditor for messages, owns breadcrumb + raw toggle + column-mapping popover. Wrapped by every other drill-in.</td>
+            <td>gap-01, gap-03, gap-04, gap-05, gap-06</td>
+          </tr>
+          <tr>
+            <td><code>DrillInFieldHeader</code><br><span style="color:var(--muted); font-size:10px;">DrillInView/DrillInFieldHeader.tsx:209</span></td>
+            <td>read or edit</td>
+            <td>Per-field row inside <code>DrillInContent</code>. Renders field name + item count + view-mode <code>&lt;Select&gt;</code> (<code>Text</code> / <code>JSON</code> / <code>YAML</code> / <code>Markdown</code> / <code>Raw</code>) + action buttons. <strong>No type chip today</strong> — gap-01 proposes adding one alongside the existing chrome.</td>
+            <td>gap-01 (chip surface)</td>
+          </tr>
+          <tr>
+            <td><code>EntityDualViewEditor</code><br><span style="color:var(--muted); font-size:10px;">DrillInView/EntityDualViewEditor.tsx:71</span></td>
+            <td>edit</td>
+            <td>Adds the Fields ↔ JSON toggle on top of <code>EntityDrillInView</code>. Used by testcase drawer, "Add to Testset" preview.</td>
+            <td>gap-03, gap-04 (the JSON view <code>?? ""</code> projection lives at line 144–155)</td>
+          </tr>
+          <tr>
+            <td><code>TestcaseDrillInView</code> / <code>TraceSpanDrillInView</code></td>
+            <td>read or edit</td>
+            <td>Thin specializers over <code>EntityDrillInView</code>. <code>TraceSpanDrillInView</code> has two render paths (<code>rootScope="span"</code> vs <code>"attributes"</code>) — see drift below.</td>
+            <td>gap-06 (drift), gap-04 (per-entity)</td>
+          </tr>
+          <tr>
+            <td>Testset table cell renderer</td>
+            <td>read</td>
+            <td><strong>Not</strong> a drill-in. The view-only entry point. Clicking opens the drill-in via the drawer surface.</td>
+            <td>gap-02</td>
+          </tr>
+          <tr>
+            <td>Playground execution item</td>
+            <td>edit</td>
+            <td>The other editable surface besides the testcase drawer. Should consume the same drill-in for testcase inputs.</td>
+            <td>gap-03, gap-04, gap-06 (verify shared component path)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="font-size:12px; color: var(--ink); margin-bottom: 8px;"><strong>Why this matters:</strong> the gaps below are about behaviors the drill-in either lacks or implements inconsistently across its three specializers. Fix in <code>DrillInContent</code> + <code>DrillInFieldHeader</code> and the change propagates to every consumer.</p>
+  </section>
+
+  <section style="margin-bottom: 32px;">
+    <h2 style="font-size:16px; margin-bottom: 12px;">Drill-in component drift (note before fixing)</h2>
+    <p style="font-size:12px; color: var(--muted); margin-bottom: 12px;">Behaviors diverge across the drill-in family today. Worth surfacing in the team call so the fixes don't accidentally bake the drift in further.</p>
+
+    <ol style="font-size:12px; color: var(--ink); line-height: 1.7; padding-left: 20px;">
+      <li style="margin-bottom: 10px;"><strong>Two render paths in <code>TraceSpanDrillInView</code></strong> (<code>DrillInView/TraceSpanDrillInView.tsx:472–697</code>). <code>rootScope="span"</code> uses <code>BeautifiedJsonView</code> (envelope-unwrapped, no drill navigation). <code>rootScope="attributes"</code> uses the standard field-drill path. Same trace looks different depending on which surface opened it. Trace drawer picks beautified; "Add to Testset" picks attributes. Touches <a href="gap-06-messages-renderer.html">gap-06</a>.</li>
+
+      <li style="margin-bottom: 10px;"><strong>Stringified-JSON auto-parsing diverges by <code>valueMode</code></strong>. Testcase (<code>valueMode="string"</code>) auto-parses stringified JSON at the column level (<code>DrillInContent.tsx:354–388</code>). Trace span (<code>valueMode="native"</code>) auto-parses only when rendering messages (<code>DrillInContent.tsx:429–465</code>). The same payload reads differently depending on the entity type — testcase drills into nested keys, trace shows a raw string. Touches <a href="gap-04-shape-preservation.html">gap-04</a>.</li>
+
+      <li style="margin-bottom: 10px;"><strong>ChatMessageEditor auto-detection lives only in <code>DrillInContent</code></strong> (<code>line 1284</code>, <code>isChatMessageObject</code> check). <code>BeautifiedJsonView</code> unwraps message envelopes but doesn't render the editor — just cleaned JSON. <code>JsonEditorWithLocalState</code> shows raw JSON, no message detection. Result: the same message object renders three different ways depending on which view caught it. Touches <a href="gap-06-messages-renderer.html">gap-06</a>.</li>
+
+      <li style="margin-bottom: 10px;"><strong>Two parallel <code>DrillInContent</code> implementations</strong> (the big one). The drill-in lives in three tiers, with the OSS copy 2× the size of the package copy and architecturally different:
+        <ul style="margin: 6px 0 0 20px; padding: 0;">
+          <li><strong>Tier 1 — <code>@agenta/ui/drill-in</code></strong> (<code>web/packages/agenta-ui/src/drill-in/</code>). Entity-independent, dependency-injected framework. <code>core/DrillInContent.tsx</code> is <strong>798 lines</strong>. Renderers (<code>FieldRenderer</code>, <code>SchemaRenderer</code>) come in via props. Default field renderer is a simple JSON <code>&lt;pre&gt;</code>. Adds schema awareness (<code>getSchemaAtPath</code>, <code>getFieldViewModeOptions</code>, <code>getDefaultFieldViewMode</code>) and controlled-mode path (<code>currentPath</code>) — features the OSS copy lacks.</li>
+          <li><strong>Tier 2 — <code>@agenta/entity-ui/drill-in</code></strong> (<code>web/packages/agenta-entity-ui/src/DrillInView/</code>). Molecule-first wrappers + 14 schema-aware controls (<code>NumberSliderControl</code>, <code>GroupedChoiceControl</code>, <code>ToolSelectorPopover</code>, etc.). Exports <code>MoleculeDrillInView</code>, <code>useDrillIn</code>, <code>DrillInSlots</code> (slot-based composition), <code>DrillInClassNames</code> (themeable styling), and adapters (<code>createMoleculeDrillInAdapter</code>, etc.). Re-exports Tier 1 for convenience.</li>
+          <li><strong>Tier 3 — OSS</strong> (<code>web/oss/src/components/DrillInView/</code>). The 1581-line <code>DrillInContent</code> we've been anchoring on. Imports <code>ChatMessageEditor</code> / <code>SharedEditor</code> / <code>EditorProvider</code> directly — no DI. Adds three OSS-only props (<code>toolbarContent</code>, <code>hideRootBreadcrumb</code>, <code>renderExternalControls</code>) that <strong>are wired into the render path but have no external callers in the OSS codebase</strong> — declared but unused. Plus <code>EntityDrillInView</code>, <code>EntityDualViewEditor</code>, <code>TestcaseDrillInView</code>, <code>TraceSpanDrillInView</code>, <code>BeautifiedJsonView</code> — all OSS-specific.</li>
+        </ul>
+        <strong>Most likely history:</strong> OSS came first (monolithic, app-specific), Tier 1 was extracted later as a DI framework, Tier 2 added the molecule-first paradigm. OSS hasn't migrated to the package version because its rendering pipeline is fixed (no DI hooks); a port is non-trivial. Touches every gap — picking which tier to land a fix in is a real architectural decision.
+      </li>
+    </ol>
+
+    <p style="font-size:12px; color: var(--ink); margin-top: 12px;"><strong>Recommendation before fixing any gap:</strong></p>
+    <ol style="font-size:12px; color: var(--ink); line-height: 1.7; padding-left: 20px; margin-top: 4px;">
+      <li>Agree on whether the OSS or the package <code>DrillInContent</code> is canonical. Our read: the package version is the future (DI, slot-based, schema-aware), but the OSS version is what's shipping today, used by 6+ surfaces (<code>TestcaseEditDrawer</code>, <code>AnnotationTestcaseContent</code>, <code>DataPreviewEditor</code>, <code>TraceContent</code>, <code>OverviewTabItem</code>, <code>PlaygroundTestcaseEditor</code>). Migrating those is a separate project.</li>
+      <li>For the chip-system fix (<a href="gap-01-type-chips.html">gap-01</a>): land it as a slot override on <code>DrillInSlots.fieldHeader</code> (<code>FieldHeaderSlotProps</code> in Tier 2) <em>and</em> in OSS's <code>DrillInFieldHeader.tsx:209</code>. Slot path is the future-proof one; OSS path is what users see today.</li>
+      <li>Agree on whether <code>BeautifiedJsonView</code> + <code>JsonEditorWithLocalState</code> should delegate to <code>DrillInContent</code> for type-detection-driven rendering, or stay as alternative renderers. Without that decision, every fix below ships into one path and silently leaves the other two stale.</li>
+    </ol>
+
+    <p style="font-size:11px; color: var(--muted); margin-top: 12px;"><em>Detail of OSS-only / package-only props is in the design-mockups app — see the new <code>/molecule-drill-in</code> page for a side-by-side mount.</em></p>
+  </section>
+
+  <section style="margin-bottom: 32px;">
+    <h2 style="font-size:16px; margin-bottom: 12px;">Out of scope</h2>
+    <ul style="font-size:12px; color: var(--muted); line-height: 1.7; padding-left: 20px;">
+      <li>Backend changes (BE is correct)</li>
+      <li>Mustache template format (RFC WP-B3, separate)</li>
+      <li>LLM-as-a-judge unification (RFC WP-B1/B2, separate)</li>
+      <li>Storage-format conversion (RFC says preserve; fully implemented today, no UI affordance needed for v1)</li>
+    </ul>
+  </section>
+
+  <p style="font-size:11px; color: var(--muted); margin-top: 32px; text-align: center; padding-top: 16px; border-top: 1px solid var(--line);">
+    Companion prose docs: <a href="README.md">README.md</a> · Overview: <a href="../00-overview.md">00-overview.md</a>
+  </p>
+
+</div>
+
+</body>
+</html>

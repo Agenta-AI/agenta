@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gap 02 — Table cells (object/array rendering)</title>
+<link rel="stylesheet" href="shared.css?v=3">
+</head>
+<body>
+
+<div class="nav-jump">
+  <strong>Gap 02 · Table cells</strong>
+  <a href="index.html">← Index</a>
+  <a href="gap-01-type-chips.html">← 01</a>
+  <a href="gap-03-drill-in-root-view.html">03 →</a>
+  <span class="ml-auto" style="color:var(--muted)">FE-only · anchor: fixtures 03, 05, 06</span>
+</div>
+
+<div class="page">
+
+  <div class="crumbs"><a href="index.html">variants</a> / gap-02-table-cells</div>
+
+  <div class="page-header">
+    <h1>Gap 02 — Testset table cells render objects/arrays poorly</h1>
+    <p><strong>The view-only entry point.</strong> Testset table cells are <em>not</em> a drill-in — they're the surface the user scans before clicking through to <code>DrillInContent</code>. Today the cell renderer doesn't apply the chip vocabulary from <a href="gap-01-type-chips.html">gap-01</a>: arrays render as raw multi-line JSON eating row height (fixture 03). Mixed-type cells fall back to <span class="mono">—</span> em-dash (fixture 05). Deep objects show truncated raw JSON without shape preview (fixture 06).</p>
+    <p>The detection logic exists (<code>detectDataType</code>) and the drill-in already uses it. The table cell renderer just doesn't. Pulling the same chips up to the cell makes the table-to-drill-in transition visually continuous.</p>
+    <p><strong>Anchor component:</strong> testset table cell renderer (the only true view-only surface that's not a drill-in). Compose with the existing column-expansion model — chips on collapsed cells, sub-columns when the user expands.</p>
+  </div>
+
+  <!-- Today — current state with screenshots -->
+  <section class="today-section">
+    <h2>Today <span class="label">Current state</span></h2>
+    <p>The table already has a strong feature: <strong>nested object columns are expandable into sub-column groups</strong>. <code>context</code> → <code>demographics</code> + <code>geo</code> → <code>coordinates</code> + <code>region</code> + <code>subregion</code>. Drilling down to leaves works well.</p>
+    <p>The unsolved cases are where the value is NOT a homogeneous nested object: arrays of records, mixed types per column, leaf objects that don't get expanded.</p>
+    <div class="grid-3">
+      <div>
+        <div class="shot">
+          <img src="../screenshots/Screenshot%202026-05-01%20at%2011.20.13.png" alt="Fixture 06 deeply-nested table — collapsed">
+          <div class="shot-caption"><strong>Fixture 06 collapsed</strong>: <code>context</code> and <code>answer</code> render as raw JSON in their cells until the user clicks <code>&gt;</code>. <em>Browseable, but not scannable at a glance.</em> The expansion affordance is there but type/shape signal isn't.</div>
+        </div>
+      </div>
+      <div>
+        <div class="shot">
+          <img src="../screenshots/Screenshot%202026-05-01%20at%2011.20.22.png" alt="Fixture 06 deeply-nested table — fully expanded">
+          <div class="shot-caption"><strong>Fixture 06 expanded</strong>: <code>context &gt; geo</code> drilled down to <code>coordinates</code>, <code>region</code>, <code>subregion</code> as proper columns. <em>This is the working pattern.</em> Leaf scalars render cleanly; nested groups are reachable.</div>
+        </div>
+      </div>
+      <div>
+        <div class="shot">
+          <img src="../screenshots/Screenshot%202026-05-01%20at%2011.20.06.png" alt="Fixture 05 mixed types">
+          <div class="shot-caption"><strong>Fixture 05 — the actual gap</strong>: same column has strings in some rows and objects/arrays/null in others. Object/array/null rows render <span class="mono">—</span>. Expansion can't help here — the column isn't a homogeneous structure to expand into.</div>
+        </div>
+      </div>
+    </div>
+    <p style="margin-top:16px; margin-bottom:0;"><strong>So what's the gap?</strong> Two specific cases the existing column-expansion model doesn't solve:</p>
+    <ol style="font-size:12px; color:var(--ink); margin: 8px 0 0 20px; padding: 0; line-height: 1.6;">
+      <li><strong>Heterogeneous-type columns</strong> (fixture 05). Expansion needs a homogeneous shape; mixed types fall back to <span class="mono">—</span>. Need a per-cell type signal + drill-in.</li>
+      <li><strong>Arrays</strong> (fixture 03 <code>languages</code>, <code>neighbors</code>). Expansion would need to invent a row-per-element table-in-cell, which doesn't fit the grid model.</li>
+      <li><strong>Collapsed leaf-object cells</strong> (fixture 06 <code>context</code> before clicking <code>&gt;</code>). The pre-expansion preview is raw JSON. A chip + key list would replace that without breaking the expansion affordance.</li>
+    </ol>
+  </section>
+
+  <h2 style="font-size:16px; margin: 24px 0 12px;">Before / after — testset table at full width</h2>
+
+  <p style="font-size:12px; color: var(--muted); margin-bottom: 12px;">Two anchor cases at real proportions — fixture 05 (mixed types per column) and fixture 06 (deeply nested). Same fixtures, longer realistic strings + deeper nesting, before vs after Variant A applied.</p>
+
+  <h3 style="font-size:13px; font-weight:600; margin: 16px 0 6px;">Before — fixture 05, mixed-type column "outputs"</h3>
+
+  <div class="fullwidth-table-mock">
+    <div class="table-header">
+      <div>
+        <div class="title">mixed-type-outputs</div>
+        <div class="breadcrumb">testsets / mixed-type-outputs / fixture 05 · 6 testcases</div>
+      </div>
+      <div class="actions">
+        <span class="btn">+ New testcase</span>
+        <span class="btn">⏷ Filter</span>
+        <span class="btn">⌃ Export</span>
+      </div>
+    </div>
+    <table class="app-table">
+      <thead>
+        <tr>
+          <th style="width: 4%;">#</th>
+          <th style="width: 12%;">country</th>
+          <th style="width: 28%;">correct_answer</th>
+          <th style="width: 28%;">outputs</th>
+          <th style="width: 28%;">notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><span class="cell-string">"Tuvalu"</span></td>
+          <td><span class="cell-string">"The capital of Tuvalu is Funafuti, located on the main atoll of the Tuvaluan archipelago."</span></td>
+          <td><span class="cell-string">"Funafuti"</span></td>
+          <td style="color:var(--faint)">—</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><span class="cell-string">"Kiribati"</span></td>
+          <td><span class="cell-string">"The capital of Kiribati is South Tarawa, an atoll in the central Pacific Ocean."</span></td>
+          <td>
+            <div class="raw-json-blob">{"countryName":"Kiribati","capital":"South Tarawa","region":"Oceania","population_thousands":131,"is_island":true}</div>
+          </td>
+          <td><span class="cell-string">"verified by tourism board"</span></td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><span class="cell-string">"Comoros"</span></td>
+          <td><span class="cell-string">"The capital of Comoros is Moroni, on the western coast of Grande Comore island."</span></td>
+          <td><span class="cell-string">"Moroni"</span></td>
+          <td><span class="cell-string">"primary source: CIA World Factbook"</span></td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><span class="cell-string">"Vanuatu"</span></td>
+          <td><span class="cell-string">"The capital of Vanuatu is Port Vila, located on the southern coast of Efate Island."</span></td>
+          <td>
+            <div class="raw-json-blob">["Port Vila","Vanuatu",314500,{"verified":true,"source":"government census 2024"}]</div>
+          </td>
+          <td style="color:var(--faint)">—</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><span class="cell-string">"Nauru"</span></td>
+          <td><span class="cell-string">"Nauru does not have an official capital. Government offices are located in Yaren District."</span></td>
+          <td style="color:var(--faint)">—</td>
+          <td><span class="cell-string">"Nauru is unique — no de jure capital"</span></td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td><span class="cell-string">"Palau"</span></td>
+          <td><span class="cell-string">"The capital of Palau is Ngerulmud, on the island of Babeldaob."</span></td>
+          <td>
+            <div class="raw-json-blob">{"countryName":"Palau","capital":"Ngerulmud"}</div>
+          </td>
+          <td style="color:var(--faint)">—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p style="font-size:11px; color: var(--muted); margin: 4px 0 24px;">Today: <code>outputs</code> column is heterogeneous — strings in some rows, objects in others, an array in row 4, missing in row 5. Strings render fine. Objects/arrays dump as truncated raw JSON, hard to read at a glance. Missing values render as <span class="mono">—</span>, indistinguishable from "intentionally empty." User has to drill in to learn the shape.</p>
+
+  <h3 style="font-size:13px; font-weight:600; margin: 24px 0 6px;">After — Variant A applied (chip + count + sample keys/values)</h3>
+
+  <div class="fullwidth-table-mock">
+    <div class="table-header">
+      <div>
+        <div class="title">mixed-type-outputs</div>
+        <div class="breadcrumb">testsets / mixed-type-outputs / fixture 05 · 6 testcases</div>
+      </div>
+      <div class="actions">
+        <span class="btn">+ New testcase</span>
+        <span class="btn">⏷ Filter</span>
+        <span class="btn">⌃ Export</span>
+      </div>
+    </div>
+    <table class="app-table">
+      <thead>
+        <tr>
+          <th style="width: 4%;">#</th>
+          <th style="width: 12%;">country <span class="chip">str</span></th>
+          <th style="width: 28%;">correct_answer <span class="chip">str</span></th>
+          <th style="width: 28%;">outputs <span class="chip chip-mixed">mixed</span></th>
+          <th style="width: 28%;">notes <span class="chip">str</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><span class="cell-string">"Tuvalu"</span></td>
+          <td><span class="cell-string">"The capital of Tuvalu is Funafuti, located on the main atoll of the Tuvaluan archipelago."</span></td>
+          <td><span class="cell-string">"Funafuti"</span></td>
+          <td style="color:var(--faint)">—</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><span class="cell-string">"Kiribati"</span></td>
+          <td><span class="cell-string">"The capital of Kiribati is South Tarawa, an atoll in the central Pacific Ocean."</span></td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 6px;"><span class="chip chip-obj">obj</span><span class="mono" style="color:var(--muted); font-size: 10px;">{ 5 props }</span><span class="btn-mini" style="margin-left: auto; font-size: 9px;">▸ Drill</span></div>
+            <div class="cell-preview">countryName, capital, region, +2</div>
+          </td>
+          <td><span class="cell-string">"verified by tourism board"</span></td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><span class="cell-string">"Comoros"</span></td>
+          <td><span class="cell-string">"The capital of Comoros is Moroni, on the western coast of Grande Comore island."</span></td>
+          <td><span class="cell-string">"Moroni"</span></td>
+          <td><span class="cell-string">"primary source: CIA World Factbook"</span></td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td><span class="cell-string">"Vanuatu"</span></td>
+          <td><span class="cell-string">"The capital of Vanuatu is Port Vila, located on the southern coast of Efate Island."</span></td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 6px;"><span class="chip chip-arr">arr</span><span class="mono" style="color:var(--muted); font-size: 10px;">[ 4 mixed ]</span><span class="btn-mini" style="margin-left: auto; font-size: 9px;">▸ Drill</span></div>
+            <div class="cell-preview">"Port Vila", "Vanuatu", 314500, { … }</div>
+          </td>
+          <td style="color:var(--faint)">—</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td><span class="cell-string">"Nauru"</span></td>
+          <td><span class="cell-string">"Nauru does not have an official capital. Government offices are located in Yaren District."</span></td>
+          <td><span class="chip chip-null">null</span></td>
+          <td><span class="cell-string">"Nauru is unique — no de jure capital"</span></td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td><span class="cell-string">"Palau"</span></td>
+          <td><span class="cell-string">"The capital of Palau is Ngerulmud, on the island of Babeldaob."</span></td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 6px;"><span class="chip chip-obj">obj</span><span class="mono" style="color:var(--muted); font-size: 10px;">{ 2 props }</span><span class="btn-mini" style="margin-left: auto; font-size: 9px;">▸ Drill</span></div>
+            <div class="cell-preview">countryName, capital</div>
+          </td>
+          <td style="color:var(--faint)">—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p style="font-size:11px; color: var(--muted); margin: 4px 0 24px;"><strong>Delta:</strong> (1) column header carries <code>[mixed]</code> chip — user knows up-front this column has heterogeneous types; (2) object cells show <code>[obj] { 5 props }</code> + first 3 keys; (3) array cells show <code>[arr] [ 4 mixed ]</code> + first 3 elements; (4) explicit <code>null</code> values get the dimmed null chip (no longer indistinguishable from missing); (5) missing-column cells stay as <span class="mono">—</span> (the only legitimate em-dash); (6) inline drill affordance reaches the full structure without losing scannability.</p>
+
+  <h3 style="font-size:13px; font-weight:600; margin: 24px 0 6px;">Before — fixture 06, deeply-nested cells (collapsed)</h3>
+
+  <div class="fullwidth-table-mock">
+    <div class="table-header">
+      <div>
+        <div class="title">deeply-nested-context</div>
+        <div class="breadcrumb">testsets / deeply-nested-context / fixture 06 · 5 testcases</div>
+      </div>
+      <div class="actions">
+        <span class="btn">+ New testcase</span>
+        <span class="btn">⏷ Filter</span>
+        <span class="btn">⌃ Export</span>
+      </div>
+    </div>
+    <table class="app-table">
+      <thead>
+        <tr>
+          <th style="width: 4%;">#</th>
+          <th style="width: 14%;">country</th>
+          <th style="width: 32%;">correct_answer</th>
+          <th style="width: 25%;">▸ context</th>
+          <th style="width: 25%;">▸ answer</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><span class="cell-string">"Tuvalu"</span></td>
+          <td><span class="cell-string">"The capital of Tuvalu is Funafuti, the capital atoll consisting of 33 islets."</span></td>
+          <td>
+            <div class="raw-json-blob">{"geo":{"region":"Oceania","subregion":"Polynesia","coordinates":{"lat":-8.52,"lng":179.20}},"demographics":{"population":11792,"languages":["en","tvl"]}}</div>
+          </td>
+          <td>
+            <div class="raw-json-blob">{"primary":{"name":"Funafuti","type":"atoll"},"verification":{"source":"UN","year":2024}}</div>
+          </td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><span class="cell-string">"Kiribati"</span></td>
+          <td><span class="cell-string">"The capital of Kiribati is South Tarawa, located in the Gilbert Islands group."</span></td>
+          <td>
+            <div class="raw-json-blob">{"geo":{"region":"Oceania","subregion":"Micronesia","coordinates":{"lat":1.328,"lng":172.977}},"demographics":{"population":131232,"languages":["en","gil"]}}</div>
+          </td>
+          <td>
+            <div class="raw-json-blob">{"primary":{"name":"South Tarawa","type":"atoll"},"verification":{"source":"UN","year":2024}}</div>
+          </td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><span class="cell-string">"Vanuatu"</span></td>
+          <td><span class="cell-string">"The capital of Vanuatu is Port Vila, on the south coast of Efate Island."</span></td>
+          <td>
+            <div class="raw-json-blob">{"geo":{"region":"Oceania","subregion":"Melanesia","coordinates":{"lat":-15.376,"lng":166.959}},"demographics":{"population":314500,"languages":["en","fr","bi"]}}</div>
+          </td>
+          <td>
+            <div class="raw-json-blob">{"primary":{"name":"Port Vila","type":"city"},"verification":{"source":"government","year":2024}}</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p style="font-size:11px; color: var(--muted); margin: 4px 0 24px;">Today: <code>context</code> and <code>answer</code> dump the full JSON into the cell, truncated at column width. The column header has a <code>▸</code> expansion affordance, but the user has to click it to learn the shape. Until then, all five rows look like a wall of text.</p>
+
+  <h3 style="font-size:13px; font-weight:600; margin: 24px 0 6px;">After — Variant A on collapsed leaves (expansion still works)</h3>
+
+  <div class="fullwidth-table-mock">
+    <div class="table-header">
+      <div>
+        <div class="title">deeply-nested-context</div>
+        <div class="breadcrumb">testsets / deeply-nested-context / fixture 06 · 5 testcases</div>
+      </div>
+      <div class="actions">
+        <span class="btn">+ New testcase</span>
+        <span class="btn">⏷ Filter</span>
+        <span class="btn">⌃ Export</span>
+      </div>
+    </div>
+    <table class="app-table">
+      <thead>
+        <tr>
+          <th style="width: 4%;">#</th>
+          <th style="width: 14%;">country <span class="chip">str</span></th>
+          <th style="width: 32%;">correct_answer <span class="chip">str</span></th>
+          <th style="width: 25%;">▸ context <span class="chip chip-obj">obj</span></th>
+          <th style="width: 25%;">▸ answer <span class="chip chip-obj">obj</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><span class="cell-string">"Tuvalu"</span></td>
+          <td><span class="cell-string">"The capital of Tuvalu is Funafuti, the capital atoll consisting of 33 islets."</span></td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 6px;"><span class="chip chip-obj">obj</span><span class="mono" style="color:var(--muted); font-size: 10px;">{ 2 props · depth 4 }</span></div>
+            <div class="cell-preview">geo, demographics</div>
+          </td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 6px;"><span class="chip chip-obj">obj</span><span class="mono" style="color:var(--muted); font-size: 10px;">{ 2 props · depth 3 }</span></div>
+            <div class="cell-preview">primary, verification</div>
+          </td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td><span class="cell-string">"Kiribati"</span></td>
+          <td><span class="cell-string">"The capital of Kiribati is South Tarawa, located in the Gilbert Islands group."</span></td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 6px;"><span class="chip chip-obj">obj</span><span class="mono" style="color:var(--muted); font-size: 10px;">{ 2 props · depth 4 }</span></div>
+            <div class="cell-preview">geo, demographics</div>
+          </td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 6px;"><span class="chip chip-obj">obj</span><span class="mono" style="color:var(--muted); font-size: 10px;">{ 2 props · depth 3 }</span></div>
+            <div class="cell-preview">primary, verification</div>
+          </td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td><span class="cell-string">"Vanuatu"</span></td>
+          <td><span class="cell-string">"The capital of Vanuatu is Port Vila, on the south coast of Efate Island."</span></td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 6px;"><span class="chip chip-obj">obj</span><span class="mono" style="color:var(--muted); font-size: 10px;">{ 2 props · depth 4 }</span></div>
+            <div class="cell-preview">geo, demographics</div>
+          </td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 6px;"><span class="chip chip-obj">obj</span><span class="mono" style="color:var(--muted); font-size: 10px;">{ 2 props · depth 3 }</span></div>
+            <div class="cell-preview">primary, verification</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p style="font-size:11px; color: var(--muted); margin: 4px 0 24px;"><strong>Delta:</strong> (1) column header chip <code>[obj]</code> stays alongside the <code>▸</code> expansion affordance — chip describes the shape, the chevron is the action; (2) cells show property count + max depth (<code>depth 4</code> = nested 4 levels deep, hint that drilling matters); (3) preview line names the top-level keys; (4) raw JSON wall is gone — rows are scannable; (5) clicking <code>▸ context</code> still expands the column into <code>geo</code> + <code>demographics</code> sub-columns as today (existing behavior unchanged), and from there into <code>geo &rsaquo; coordinates</code> as a further nested group.</p>
+
+  <h2 style="font-size:16px; margin: 24px 0 12px;">Three rendering directions (compact reference)</h2>
+
+  <p style="font-size:12px; color: var(--muted); max-width: 800px;">
+    All three variants <strong>compose with</strong> the existing expansion model — they don't replace it. The chip + preview is what the user sees in a <em>collapsed</em> cell. Clicking <code>&gt;</code> on the column header still expands homogeneous nested objects into sub-columns as today. The variants below differ only in how the <em>collapsed leaf cell</em> communicates its shape.
+  </p>
+
+  <div class="var-grid">
+
+    <!-- A: Chip + count + keys (recommended) -->
+    <div class="var-section">
+      <h3>A. Chip + count + first keys<span class="recommended">★ recommended</span></h3>
+      <p class="desc">Two compact lines per cell. Chip + element count + first 2-3 sample keys/values.</p>
+      <div class="surface">
+        <table class="tsr">
+          <thead>
+            <tr><th>country</th><th>outputs</th><th>neighbors</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono">"Tuvalu"</td>
+              <td class="mono">"Funafuti"</td>
+              <td><span class="chip chip-arr">arr</span> <span class="mono" style="color:var(--muted)">[ 2 records ]</span><div class="mono" style="font-size:11px; color:var(--muted); margin-top:4px;">Kiribati, Fiji</div></td>
+            </tr>
+            <tr>
+              <td class="mono">"Kiribati"</td>
+              <td><span class="chip chip-obj">obj</span> <span class="mono" style="color:var(--muted)">{ 2 }</span><div class="mono" style="font-size:11px; color:var(--muted); margin-top:4px;">countryName, capital</div></td>
+              <td><span class="chip chip-arr">arr</span> <span class="mono" style="color:var(--muted)">[ 3 records ]</span><div class="mono" style="font-size:11px; color:var(--muted); margin-top:4px;">Marshall I., Tuvalu, Nauru</div></td>
+            </tr>
+            <tr>
+              <td class="mono">"Spain"</td>
+              <td><span class="chip chip-arr">arr</span> <span class="mono" style="color:var(--muted)">[ 5 ]</span><div class="mono" style="font-size:11px; color:var(--muted); margin-top:4px;">"Madrid", "Barcelona"...</div></td>
+              <td class="mono" style="color: var(--faint)">—</td>
+            </tr>
+            <tr>
+              <td class="mono">"Nauru"</td>
+              <td><span class="chip chip-null">null</span></td>
+              <td class="mono" style="color: var(--faint)">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <details><summary>Tradeoffs</summary><div><strong>Pros:</strong> scannable, type-explicit, predictable height.<br><strong>Cons:</strong> two-line cells make rows variable height (mitigated by row-height setting).</div></details>
+    </div>
+
+    <!-- B: Mini JSON tree -->
+    <div class="var-section">
+      <h3>B. Mini JSON tree</h3>
+      <p class="desc">Vertical 2-3 line indented preview. Most faithful to JSON, larger footprint.</p>
+      <div class="surface">
+        <table class="tsr">
+          <thead>
+            <tr><th>country</th><th>outputs</th><th>neighbors</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono">"Tuvalu"</td>
+              <td class="mono">"Funafuti"</td>
+              <td><div class="json-block"><span class="p">[</span><br>&nbsp;&nbsp;<span class="p">{</span> <span class="k">"name"</span><span class="p">:</span> <span class="s">"Kiribati"</span> <span class="p">},</span><br>&nbsp;&nbsp;<span class="p">{</span> <span class="k">"name"</span><span class="p">:</span> <span class="s">"Fiji"</span> <span class="p">}</span><br><span class="p">]</span></div></td>
+            </tr>
+            <tr>
+              <td class="mono">"Kiribati"</td>
+              <td><div class="json-block"><span class="p">{</span><br>&nbsp;&nbsp;<span class="k">"countryName"</span><span class="p">:</span> <span class="s">"Kiribati"</span><span class="p">,</span><br>&nbsp;&nbsp;<span class="k">"capital"</span><span class="p">:</span> <span class="s">"S. Tarawa"</span><br><span class="p">}</span></div></td>
+              <td><div class="json-block"><span class="p">[</span> <span class="p">{</span> <span class="k">"name"</span><span class="p">:</span> <span class="s">"Marshall I…"</span> <span class="p">}</span><span class="p">,</span> ... <span class="p">]</span></div></td>
+            </tr>
+            <tr>
+              <td class="mono">"Spain"</td>
+              <td><div class="json-block"><span class="p">[</span> <span class="s">"Madrid"</span><span class="p">,</span> <span class="s">"Barcelona"</span><span class="p">,</span> <span class="p">…</span> <span class="p">]</span></div></td>
+              <td class="mono" style="color: var(--faint)">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <details><summary>Tradeoffs</summary><div><strong>Pros:</strong> structural, syntax-highlighted, faithful to JSON.<br><strong>Cons:</strong> uses ~5 lines per object cell. Rows become very uneven.</div></details>
+    </div>
+
+    <!-- C: Inline single-line JSON -->
+    <div class="var-section">
+      <h3>C. Inline single-line JSON</h3>
+      <p class="desc">Compact, syntax-highlighted, truncated. Same row height as string cells.</p>
+      <div class="surface">
+        <table class="tsr">
+          <thead>
+            <tr><th>country</th><th>outputs</th><th>neighbors</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono">"Tuvalu"</td>
+              <td class="mono">"Funafuti"</td>
+              <td class="mono" style="overflow:hidden; white-space:nowrap;"><span style="color:var(--json-punct)">[</span> <span style="color:var(--json-punct)">{</span> <span style="color:var(--json-key)">"name"</span><span style="color:var(--json-punct)">:</span> <span style="color:var(--json-string)">"Kiribati…"</span> <span style="color:var(--json-punct)">}</span><span style="color:var(--json-punct)">,</span> ... <span style="color:var(--json-punct)">]</span></td>
+            </tr>
+            <tr>
+              <td class="mono">"Kiribati"</td>
+              <td class="mono" style="overflow:hidden; white-space:nowrap;"><span style="color:var(--json-punct)">{</span> <span style="color:var(--json-key)">"countryName"</span><span style="color:var(--json-punct)">:</span> <span style="color:var(--json-string)">"Kiribati"</span><span style="color:var(--json-punct)">,</span> <span style="color:var(--json-key)">"capital"</span><span style="color:var(--json-punct)">:</span> <span style="color:var(--json-string)">"S. Ta…"</span> <span style="color:var(--json-punct)">}</span></td>
+              <td class="mono" style="overflow:hidden; white-space:nowrap;"><span style="color:var(--json-punct)">[</span> <span style="color:var(--json-punct)">{</span><span style="color:var(--json-key)">"name"</span><span style="color:var(--json-punct)">:</span><span style="color:var(--json-string)">"Marshall I…"</span> ...</td>
+            </tr>
+            <tr>
+              <td class="mono">"Spain"</td>
+              <td class="mono"><span style="color:var(--json-punct)">[</span> <span style="color:var(--json-string)">"Madrid"</span><span style="color:var(--json-punct)">,</span> <span style="color:var(--json-string)">"Barcelona"</span><span style="color:var(--json-punct)">,</span> <span style="color:var(--json-punct)">… ]</span></td>
+              <td class="mono" style="color: var(--faint)">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <details><summary>Tradeoffs</summary><div><strong>Pros:</strong> uniform row height, dense, easy bulk-scanning. <br><strong>Cons:</strong> no chip = type signal is purely visual (color, braces). Less explicit. Truncation hides nested structure.</div></details>
+    </div>
+
+  </div>
+
+  <!-- Special cases -->
+  <div class="section-divider">
+    <h2 style="font-size:16px; margin-bottom:12px;">Special cases (consistent across A/B/C)</h2>
+    <div class="surface" style="padding: 12px;">
+      <table class="tsr">
+        <thead><tr><th style="width:200px;">Cell value</th><th>How to render</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">null</td><td><span class="chip chip-null">null</span></td></tr>
+          <tr><td class="mono">""</td><td>"" (literal empty string)</td></tr>
+          <tr><td class="mono">[]</td><td><span class="chip chip-arr">arr</span> [ empty ]</td></tr>
+          <tr><td class="mono">{}</td><td><span class="chip chip-obj">obj</span> { empty }</td></tr>
+          <tr><td class="mono">— missing key</td><td><span style="color:var(--faint)">—</span> em-dash, dimmed (the only legitimate em-dash use)</td></tr>
+          <tr><td class="mono">messages array</td><td><span class="chip chip-msg">msgs</span> [ 3 messages ] (see <a href="gap-06-messages-renderer.html">gap-06</a>)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="recommend"><strong>Recommendation:</strong> Variant A. Two-line cell with chip + shape preview. Predictable height, clear type signal, drill-in is a click away. Borrows directly from the chip system in <a href="gap-01-type-chips.html">gap-01</a>.</div>
+
+  <p style="font-size:12px; color:var(--muted);">Cross-refs: <a href="gap-04-shape-preservation.html">gap-04</a> (don't pollute storage on save) · <a href="gap-01-type-chips.html">gap-01</a> (chip styles) · <a href="gap-06-messages-renderer.html">gap-06</a> (messages carve-out)</p>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,203 @@
+{
+    "count": 6,
+    "testcases": [
+        {
+            "testset_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "set_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "created_at": "2026-05-01T09:17:12.592291Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "84deeae1-0314-57be-bc23-b86beea2612c",
+            "data": {
+                "inputs": {
+                    "country": "Tuvalu",
+                    "correct_answer": "The capital of Tuvalu is Funafuti."
+                },
+                "outputs": "Funafuti is the capital of Tuvalu.",
+                "testcase_dedup_id": "720e76cc6025"
+            }
+        },
+        {
+            "testset_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "set_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "created_at": "2026-05-01T09:17:12.592347Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "6490675c-c918-508f-99b5-5556d3abe25d",
+            "data": {
+                "inputs": {
+                    "country": "Kiribati",
+                    "correct_answer": "The capital of Kiribati is Tarawa."
+                },
+                "outputs": {
+                    "countryName": "Kiribati",
+                    "capital": "South Tarawa"
+                },
+                "testcase_dedup_id": "3c30ab5a2996"
+            }
+        },
+        {
+            "testset_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "set_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "created_at": "2026-05-01T09:17:12.592360Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "99e2bfa8-5a19-59ec-af27-4eae11217058",
+            "data": {
+                "inputs": {
+                    "country": "Comoros",
+                    "correct_answer": "The capital of Comoros is Moroni."
+                },
+                "outputs": "{\"countryName\":\"Comoros\",\"capital\":\"Moroni\"}",
+                "testcase_dedup_id": "a86732398c43"
+            }
+        },
+        {
+            "testset_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "set_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "created_at": "2026-05-01T09:17:12.592369Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "a9f81483-926f-5c11-92de-30ad6a93a227",
+            "data": {
+                "inputs": {
+                    "country": "Vanuatu",
+                    "correct_answer": "The capital of Vanuatu is Port Vila."
+                },
+                "outputs": [
+                    "Port Vila",
+                    "Vanuatu",
+                    314500
+                ],
+                "testcase_dedup_id": "0805d88cca8b"
+            }
+        },
+        {
+            "testset_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "set_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "created_at": "2026-05-01T09:17:12.592384Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "87b19206-8d7f-5a92-9baa-fe89ab789f56",
+            "data": {
+                "inputs": {
+                    "country": "Nauru",
+                    "correct_answer": "Nauru does not have an official capital, but Yaren is the de facto capital."
+                },
+                "outputs": null,
+                "testcase_dedup_id": "5178344e5866"
+            }
+        },
+        {
+            "testset_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "set_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "created_at": "2026-05-01T09:17:12.592395Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "e4b2c41a-cfef-5d09-8fb4-bd817f739927",
+            "data": {
+                "inputs": {
+                    "country": "Palau",
+                    "correct_answer": "The capital of Palau is Ngerulmud."
+                },
+                "outputs": 0.94,
+                "testcase_dedup_id": "13ca7c4f5cd9"
+            }
+        }
+    ]
+}{
+    "count": 6,
+    "testcases": [
+        {
+            "testset_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "set_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "created_at": "2026-05-01T09:17:12.592291Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "84deeae1-0314-57be-bc23-b86beea2612c",
+            "data": {
+                "inputs": {
+                    "country": "Tuvalu",
+                    "correct_answer": "The capital of Tuvalu is Funafuti."
+                },
+                "outputs": "Funafuti is the capital of Tuvalu.",
+                "testcase_dedup_id": "720e76cc6025"
+            }
+        },
+        {
+            "testset_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "set_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "created_at": "2026-05-01T09:17:12.592347Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "6490675c-c918-508f-99b5-5556d3abe25d",
+            "data": {
+                "inputs": {
+                    "country": "Kiribati",
+                    "correct_answer": "The capital of Kiribati is Tarawa."
+                },
+                "outputs": {
+                    "countryName": "Kiribati",
+                    "capital": "South Tarawa"
+                },
+                "testcase_dedup_id": "3c30ab5a2996"
+            }
+        },
+        {
+            "testset_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "set_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "created_at": "2026-05-01T09:17:12.592360Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "99e2bfa8-5a19-59ec-af27-4eae11217058",
+            "data": {
+                "inputs": {
+                    "country": "Comoros",
+                    "correct_answer": "The capital of Comoros is Moroni."
+                },
+                "outputs": "{\"countryName\":\"Comoros\",\"capital\":\"Moroni\"}",
+                "testcase_dedup_id": "a86732398c43"
+            }
+        },
+        {
+            "testset_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "set_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "created_at": "2026-05-01T09:17:12.592369Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "a9f81483-926f-5c11-92de-30ad6a93a227",
+            "data": {
+                "inputs": {
+                    "country": "Vanuatu",
+                    "correct_answer": "The capital of Vanuatu is Port Vila."
+                },
+                "outputs": [
+                    "Port Vila",
+                    "Vanuatu",
+                    314500
+                ],
+                "testcase_dedup_id": "0805d88cca8b"
+            }
+        },
+        {
+            "testset_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "set_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "created_at": "2026-05-01T09:17:12.592384Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "87b19206-8d7f-5a92-9baa-fe89ab789f56",
+            "data": {
+                "inputs": {
+                    "country": "Nauru",
+                    "correct_answer": "Nauru does not have an official capital, but Yaren is the de facto capital."
+                },
+                "outputs": null,
+                "testcase_dedup_id": "5178344e5866"
+            }
+        },
+        {
+            "testset_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "set_id": "019de2d3-ebf9-7b72-98f6-e960cf18980f",
+            "created_at": "2026-05-01T09:17:12.592395Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "e4b2c41a-cfef-5d09-8fb4-bd817f739927",
+            "data": {
+                "inputs": {
+                    "country": "Palau",
+                    "correct_answer": "The capital of Palau is Ngerulmud."
+                },
+                "outputs": 0.94,
+                "testcase_dedup_id": "13ca7c4f5cd9"
+            }
+        }
+    ]
+}

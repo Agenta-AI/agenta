@@ -1,0 +1,5 @@
+inputs,outputs
+"{""country"": ""Tuvalu"", ""correct_answer"": ""The capital of Tuvalu is Funafuti."", ""metadata"": ""{\""source\"":\""trace\"",\""trace_id\"":\""abc123\"",\""latency_ms\"":420}""}","{""countryName"":""Tuvalu"",""capital"":""Funafuti"",""confidence"":0.97}"
+"{""country"": ""Kiribati"", ""correct_answer"": ""The capital of Kiribati is Tarawa."", ""metadata"": ""{\""source\"":\""trace\"",\""trace_id\"":\""def456\"",\""latency_ms\"":510}""}","{""countryName"":""Kiribati"",""capital"":""South Tarawa"",""confidence"":0.92}"
+"{""country"": ""Comoros"", ""correct_answer"": ""The capital of Comoros is Moroni."", ""metadata"": ""{\""source\"":\""trace\"",\""trace_id\"":\""ghi789\"",\""latency_ms\"":380}""}","{""countryName"":""Comoros"",""capital"":""Moroni"",""confidence"":0.99}"
+"{""country"": ""Vanuatu"", ""correct_answer"": ""The capital of Vanuatu is Port Vila."", ""metadata"": ""{\""source\"":\""trace\"",\""trace_id\"":\""jkl012\"",\""latency_ms\"":445}""}","{""countryName"":""Vanuatu"",""capital"":""Port Vila"",""confidence"":0.95}"

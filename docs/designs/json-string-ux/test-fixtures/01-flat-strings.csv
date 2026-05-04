@@ -1,0 +1,5 @@
+country,correct_answer,outputs
+Tuvalu,The capital of Tuvalu is Funafuti.,The capital of Tuvalu is Funafuti.
+Kiribati,The capital of Kiribati is Tarawa.,The capital of Kiribati is South Tarawa.
+Comoros,The capital of Comoros is Moroni.,The capital of Comoros is Moroni.
+Vanuatu,The capital of Vanuatu is Port Vila.,Port Vila is the capital of Vanuatu.

@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gap 01 — Type chips</title>
+<link rel="stylesheet" href="shared.css?v=3">
+</head>
+<body>
+
+<div class="nav-jump">
+  <strong>Gap 01 · Type chips</strong>
+  <a href="index.html">← Index</a>
+  <a href="gap-02-table-cells.html">02 →</a>
+  <span class="ml-auto" style="color:var(--muted)">FE-only · primitive · cross-cutting · all fixtures</span>
+</div>
+
+<div class="page">
+
+  <div class="crumbs"><a href="index.html">variants</a> / gap-01-type-chips</div>
+
+  <div class="page-header">
+    <h1>Gap 01 — Type chips (the shared visual vocabulary)</h1>
+    <p>The chip system is the primitive every other gap doc uses. <code>detectDataType</code> drives widget selection inside the drill-in (<a href="../../../web/oss/src/components/DrillInView/DrillInContent.tsx">DrillInContent.tsx:771</a>) — but <strong>there's no type chip in the production drill-in today.</strong> <code>DrillInFieldHeader</code> (<a href="../../../web/oss/src/components/DrillInView/DrillInFieldHeader.tsx">DrillInFieldHeader.tsx:209</a>) renders the field name, an item count (<code>[N properties]</code>), a view-mode <code>&lt;Select&gt;</code> for the storage format (<code>Text</code> / <code>JSON</code> / <code>YAML</code> / <code>Markdown</code> / <code>Raw</code>), copy / drill-in / collapse buttons. The view-mode dropdown is the closest thing to a type indicator today — but it tells the user how the value will be <em>edited</em>, not what shape the value <em>is</em>.</p>
+    <p><strong>What gap-01 proposes:</strong> add a separate <code>[str]</code> / <code>[obj]</code> / <code>[arr]</code> / <code>[null]</code> / <code>[msgs]</code> / <code>[dotted-key]</code> chip on the field header — distinct from the view-mode selector, alongside the count. Pull the same chip vocabulary up into the testset table cell renderer (gap-02) and the variables panel.</p>
+    <p><strong>Anchor components:</strong> <code>DrillInFieldHeader</code> (where the new chip goes — alongside the existing item count + view-mode selector), testset table cell renderer (currently chip-less), variables panel. Verify the live "before" state at <a href="http://localhost:3030/gap-01-type-chips">/gap-01-type-chips</a> in the design-mockups app — that page mounts the production drill-in unchanged so you can confirm what's actually there.</p>
+    <p><strong>Two-tier landing strategy:</strong> the chip system should land in <em>both</em> places to keep the OSS app working today and the package consumers benefiting going forward.</p>
+    <ul style="margin: 4px 0 12px 20px; padding: 0; font-size:12px; color:var(--ink); line-height: 1.7;">
+      <li><strong>Tier-3 (OSS)</strong> — patch <code>web/oss/src/components/DrillInView/DrillInFieldHeader.tsx:209</code> directly. This is what 6+ OSS surfaces render today (testcase drawer, annotation, observability, "Add to Testset," playground execution item).</li>
+      <li><strong>Tier-2 (package)</strong> — provide a <code>FieldHeaderSlot</code> override via <code>DrillInSlots.fieldHeader</code> on <code>MoleculeDrillInView</code>. Slot prop is <code>FieldHeaderSlotProps</code> from <code>@agenta/entity-ui/drill-in</code>. New molecule-first surfaces (evaluator drill-in, future testcase migration) pick up the chip vocabulary automatically.</li>
+    </ul>
+  </div>
+
+  <!-- Today — current state with screenshots -->
+  <section class="today-section warning">
+    <h2>Today <span class="label">Current state</span></h2>
+    <p><code>DrillInFieldHeader</code> renders the field name, an item count (when applicable), a view-mode selector (<code>Text</code> / <code>JSON</code> / <code>YAML</code> / <code>Markdown</code> / <code>Raw</code>), and action buttons (copy / drill-in / collapse / raw-toggle). <strong>No type chip.</strong> The view-mode dropdown tells the user how the value will be edited, not what shape the value is. Testset table cells (the view-only entry point) have no chip wiring either. Variables panel and span detail also miss it.</p>
+    <p>The user infers type from widget shape (quoted text input vs code editor) or from glyphs (quotes/braces/brackets). Works for trivial cases. Breaks the moment a value is ambiguous (e.g., a stringified-JSON-as-string vs a real object).</p>
+    <div class="grid-2">
+      <div>
+        <div class="shot">
+          <img src="../screenshots/Screenshot%202026-05-01%20at%2011.17.59.png" alt="Fixture 01 drill-in Fields view">
+          <div class="shot-caption"><strong>Fixture 01, drill-in Fields view</strong> (hosted in the testcase drawer): <code>country</code>, <code>correct_answer</code>, <code>outputs</code> all render as text inputs. No chip indicating they're strings. Type is left to inference.</div>
+        </div>
+      </div>
+      <div>
+        <div class="shot">
+          <img src="../screenshots/Screenshot%202026-05-01%20at%2011.18.27.png" alt="Fixture 02 drill-in Fields view">
+          <div class="shot-caption"><strong>Fixture 02, drill-in Fields view</strong>: <code>inputs</code> and <code>outputs</code> render as code-block widgets. The widget choice IS the type signal — but no explicit chip, no count, no shape preview at the field header.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <h2 style="font-size:16px; margin: 24px 0 12px;">Chip catalog (proposed)</h2>
+
+  <div class="surface" style="padding: 16px;">
+    <table class="tsr">
+      <thead>
+        <tr><th>Chip</th><th>Type</th><th>Color</th><th>When shown</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="chip">str</span></td><td>string</td><td>grey</td><td>only when ambiguous (compact rows)</td></tr>
+        <tr><td><span class="chip chip-obj">obj</span></td><td>JSON object</td><td>light blue</td><td>always</td></tr>
+        <tr><td><span class="chip chip-arr">arr</span></td><td>JSON array</td><td>light cyan</td><td>always</td></tr>
+        <tr><td><span class="chip">num</span></td><td>number</td><td>grey</td><td>hidden — digits self-evident</td></tr>
+        <tr><td><span class="chip">bool</span></td><td>boolean</td><td>grey</td><td>hidden — keyword self-evident</td></tr>
+        <tr><td><span class="chip chip-null">null</span></td><td>null</td><td>dimmed pill</td><td>always</td></tr>
+        <tr><td><span class="chip chip-msg">msgs</span></td><td>messages array</td><td>light purple</td><td>always (see <a href="gap-06-messages-renderer.html">gap-06</a>)</td></tr>
+        <tr><td><span class="chip chip-dotted">dotted-key</span></td><td>literal dotted key</td><td>amber</td><td>always (stacks with type chip; see <a href="gap-05-dot-key-disambiguation.html">gap-05</a>)</td></tr>
+        <tr><td><span class="chip chip-mixed">mixed</span></td><td>column with multiple types</td><td>amber</td><td>column header, when applicable</td></tr>
+        <tr><td><span class="chip chip-warn">⚠ collision</span></td><td>literal-vs-nested collision</td><td>red</td><td>row level, only when ambiguous</td></tr>
+        <tr><td><span class="chip chip-tool">tool</span></td><td>tool call</td><td>green (deferred to v2 — see <a href="gap-06-messages-renderer.html">gap-06</a>)</td><td>future</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 style="font-size:16px; margin: 32px 0 12px;">Before / after — drill-in Fields view at real proportions</h2>
+
+  <p style="font-size:12px; color: var(--muted); margin-bottom: 12px;">Same testcase rendered at the size the drill-in actually occupies: drawer-hosted overlay on the right, dimmed table behind. Chips are always-on at drill-in field headers (the editing surface where consistency pays). Realistic content, mixed types, deeper nesting.</p>
+
+  <h3 style="font-size:13px; font-weight:600; margin: 16px 0 6px;">Before — fixture 02 drill-in Fields view (no chips, no counts)</h3>
+
+  <div class="fullscreen-mock">
+    <div class="table-bg">
+      <div class="testset-title">capitals-with-geo-context</div>
+      <div class="breadcrumb">testsets / capitals-with-geo-context / fixture 02</div>
+      <table>
+        <thead><tr><th>#</th><th>country</th><th>inputs</th><th>outputs</th><th>correct_answer</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Tuvalu</td><td>obj (4)</td><td>obj (5)</td><td>The capital…</td></tr>
+          <tr style="background: rgba(22,119,255,0.04);"><td>2</td><td>Kiribati</td><td>obj (4)</td><td>obj (5)</td><td>The capital…</td></tr>
+          <tr><td>3</td><td>Vanuatu</td><td>obj (4)</td><td>obj (5)</td><td>Port Vila is…</td></tr>
+          <tr><td>4</td><td>Comoros</td><td>obj (4)</td><td>obj (5)</td><td>Moroni is…</td></tr>
+          <tr><td>5</td><td>Nauru</td><td>obj (4)</td><td>obj (5)</td><td>Yaren is…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="drawer-panel">
+      <div class="drawer-header">
+        <div class="nav-arrows"><span>»</span><span>⌃</span><span>⌄</span></div>
+        <div class="title">Testcase 2</div>
+        <div class="add-queue">+ Add to queue</div>
+        <div class="view-toggle" style="margin-left: 12px;">
+          <span class="active">Fields</span>
+          <span class="inactive">JSON</span>
+        </div>
+      </div>
+      <div class="drawer-body">
+        <div class="root-label">data</div>
+
+        <div class="field-card">
+          <div class="field-header">
+            ▾ country
+            <div class="actions"><span>⤢</span><span>⌃</span></div>
+          </div>
+          <div class="field-content">
+            <input value="Kiribati">
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            ▾ inputs
+            <div class="actions"><span>⤢</span><span>⌃</span></div>
+          </div>
+          <div class="field-content">
+            <div class="json-block">
+<span class="p">{</span><br>
+&nbsp;&nbsp;<span class="k">"country"</span><span class="p">:</span> <span class="s">"Kiribati"</span><span class="p">,</span><br>
+&nbsp;&nbsp;<span class="k">"region"</span><span class="p">:</span> <span class="s">"Oceania"</span><span class="p">,</span><br>
+&nbsp;&nbsp;<span class="k">"population_thousands"</span><span class="p">:</span> <span class="n">131</span><span class="p">,</span><br>
+&nbsp;&nbsp;<span class="k">"is_island_nation"</span><span class="p">:</span> <span class="n">true</span><br>
+<span class="p">}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            ▾ outputs
+            <div class="actions"><span>⤢</span><span>⌃</span></div>
+          </div>
+          <div class="field-content">
+            <div class="json-block">
+<span class="p">{</span><br>
+&nbsp;&nbsp;<span class="k">"countryName"</span><span class="p">:</span> <span class="s">"Kiribati"</span><span class="p">,</span><br>
+&nbsp;&nbsp;<span class="k">"capital"</span><span class="p">:</span> <span class="s">"South Tarawa"</span><span class="p">,</span><br>
+&nbsp;&nbsp;<span class="k">"alternative_names"</span><span class="p">:</span> <span class="p">[</span><span class="s">"Tarawa"</span><span class="p">,</span> <span class="s">"Bairiki"</span><span class="p">]</span><span class="p">,</span><br>
+&nbsp;&nbsp;<span class="k">"coordinates"</span><span class="p">:</span> <span class="p">{</span> <span class="k">"lat"</span><span class="p">:</span> <span class="n">1.328</span><span class="p">,</span> <span class="k">"lng"</span><span class="p">:</span> <span class="n">172.977</span> <span class="p">}</span><span class="p">,</span><br>
+&nbsp;&nbsp;<span class="k">"verified"</span><span class="p">:</span> <span class="n">null</span><br>
+<span class="p">}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            ▾ correct_answer
+            <div class="actions"><span>⤢</span><span>⌃</span></div>
+          </div>
+          <div class="field-content">
+            <input value="The capital of Kiribati is South Tarawa, a small atoll located in the central Pacific Ocean approximately 4,000 km southwest of Hawaii.">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p style="font-size:11px; color: var(--muted); margin: 4px 0 24px;">Today: every header reads the same regardless of type. <code>country</code> (string), <code>inputs</code> (object with 4 props), <code>outputs</code> (object with nested array, nested object, and a null) all wear identical chrome. The widget choice (input vs code block) is the only signal. <code>verified: null</code> hides inside the JSON — easy to miss on a quick scan.</p>
+
+  <h3 style="font-size:13px; font-weight:600; margin: 24px 0 6px;">After — Variant C applied (always-on at drill-in field headers)</h3>
+
+  <div class="fullscreen-mock">
+    <div class="table-bg">
+      <div class="testset-title">capitals-with-geo-context</div>
+      <div class="breadcrumb">testsets / capitals-with-geo-context / fixture 02</div>
+      <table>
+        <thead><tr><th>#</th><th>country <span class="chip">str</span></th><th>inputs <span class="chip chip-obj">obj</span></th><th>outputs <span class="chip chip-obj">obj</span></th><th>correct_answer</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Tuvalu</td><td>4 props</td><td>5 props</td><td>The capital…</td></tr>
+          <tr style="background: rgba(22,119,255,0.04);"><td>2</td><td>Kiribati</td><td>4 props</td><td>5 props</td><td>The capital…</td></tr>
+          <tr><td>3</td><td>Vanuatu</td><td>4 props</td><td>5 props</td><td>Port Vila is…</td></tr>
+          <tr><td>4</td><td>Comoros</td><td>4 props</td><td>5 props</td><td>Moroni is…</td></tr>
+          <tr><td>5</td><td>Nauru</td><td>4 props</td><td>5 props</td><td>Yaren is…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="drawer-panel">
+      <div class="drawer-header">
+        <div class="nav-arrows"><span>»</span><span>⌃</span><span>⌄</span></div>
+        <div class="title">Testcase 2</div>
+        <div class="add-queue">+ Add to queue</div>
+        <div class="view-toggle" style="margin-left: 12px;">
+          <span class="active">Fields</span>
+          <span class="inactive">JSON</span>
+        </div>
+      </div>
+      <div class="drawer-body">
+        <div class="root-label">data</div>
+
+        <div class="field-card">
+          <div class="field-header">
+            ▾ country <span class="chip">str</span>
+            <div class="actions"><span>⤢</span><span>⌃</span></div>
+          </div>
+          <div class="field-content">
+            <input value="Kiribati">
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            ▾ inputs <span class="chip chip-obj">obj</span>
+            <span style="color: var(--muted); font-weight: normal; font-size: 11px;">4 properties</span>
+            <div class="actions"><span>⤢ Drill In</span><span>⌃</span></div>
+          </div>
+          <div class="field-content">
+            <div style="display: grid; grid-template-columns: 1fr; gap: 6px;">
+              <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px;"><span style="min-width: 140px; font-weight: 500;">country</span><span class="chip">str</span><span class="mono" style="font-size: 11px;">"Kiribati"</span></div>
+              <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px;"><span style="min-width: 140px; font-weight: 500;">region</span><span class="chip">str</span><span class="mono" style="font-size: 11px;">"Oceania"</span></div>
+              <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px;"><span style="min-width: 140px; font-weight: 500;">population_thousands</span><span class="chip">num</span><span class="mono" style="font-size: 11px;">131</span></div>
+              <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px;"><span style="min-width: 140px; font-weight: 500;">is_island_nation</span><span class="chip">bool</span><span class="mono" style="font-size: 11px;">true</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            ▾ outputs <span class="chip chip-obj">obj</span>
+            <span style="color: var(--muted); font-weight: normal; font-size: 11px;">5 properties · contains null</span>
+            <div class="actions"><span>⤢ Drill In</span><span>⌃</span></div>
+          </div>
+          <div class="field-content">
+            <div style="display: grid; grid-template-columns: 1fr; gap: 6px;">
+              <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px;"><span style="min-width: 140px; font-weight: 500;">countryName</span><span class="chip">str</span><span class="mono" style="font-size: 11px;">"Kiribati"</span></div>
+              <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px;"><span style="min-width: 140px; font-weight: 500;">capital</span><span class="chip">str</span><span class="mono" style="font-size: 11px;">"South Tarawa"</span></div>
+              <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px;"><span style="min-width: 140px; font-weight: 500;">alternative_names</span><span class="chip chip-arr">arr</span><span class="mono" style="font-size: 11px;">2 strings · ["Tarawa", "Bairiki"]</span></div>
+              <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px;"><span style="min-width: 140px; font-weight: 500;">coordinates</span><span class="chip chip-obj">obj</span><span class="mono" style="font-size: 11px;">2 numeric props</span></div>
+              <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px; background: rgba(5,23,41,0.02);"><span style="min-width: 140px; font-weight: 500; color: var(--muted);">verified</span><span class="chip chip-null">null</span><span class="mono" style="font-size: 11px; color: var(--faint);">explicit null</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            ▾ correct_answer <span class="chip">str</span>
+            <div class="actions"><span>⤢</span><span>⌃</span></div>
+          </div>
+          <div class="field-content">
+            <input value="The capital of Kiribati is South Tarawa, a small atoll located in the central Pacific Ocean approximately 4,000 km southwest of Hawaii.">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p style="font-size:11px; color: var(--muted); margin: 4px 0 24px;"><strong>Delta:</strong> (1) every drill-in field header carries a chip — type readable without inspecting the widget; (2) object headers show property count + special flags ("contains null") so the user knows what's inside before drilling; (3) nested children show their own chips inline, so <code>verified: null</code> jumps out instead of hiding in JSON; (4) array chip carries item count + type ("2 strings"); (5) table column headers carry the same chip vocabulary so columns are self-describing.</p>
+
+  <h2 style="font-size:16px; margin: 32px 0 12px;">Three placement strategies (compact reference)</h2>
+
+  <div class="var-grid">
+
+    <!-- A: Always-on -->
+    <div class="var-section">
+      <h3>A. Always-on</h3>
+      <p class="desc">Every value, every row, every surface. Maximum signal. Mahmoud's RFC literal reading.</p>
+      <div class="surface">
+        <div class="panel-title">Property values</div>
+        <div>
+          <div class="row"><span class="name">country</span><span class="chip">str</span><span class="val mono">"Tuvalu"</span></div>
+          <div class="row"><span class="name">profile</span><span class="chip chip-obj">obj</span><span class="val mono">{ name: "Ada", … }</span></div>
+          <div class="row"><span class="name">age</span><span class="chip">num</span><span class="val mono">42</span></div>
+          <div class="row"><span class="name">active</span><span class="chip">bool</span><span class="val mono">true</span></div>
+          <div class="row"><span class="name">tags</span><span class="chip chip-arr">arr</span><span class="val mono">[ "x", "y", … ]</span></div>
+          <div class="row"><span class="name">notes</span><span class="chip chip-null">null</span><span class="val mono" style="color:var(--faint)">null</span></div>
+        </div>
+      </div>
+      <details><summary>Tradeoffs</summary><div><strong>Pros:</strong> consistent. Type info always visible. Literal reading of RFC.<br><strong>Cons:</strong> chip on every string adds visual noise. Strings are most common.</div></details>
+    </div>
+
+    <!-- B: Hover-only -->
+    <div class="var-section">
+      <h3>B. Hover-only</h3>
+      <p class="desc">Reveal on row hover. Cleaner default state.</p>
+      <div class="surface">
+        <div class="panel-title">Property values <span style="text-transform: none; font-weight: normal; color: var(--faint);">hover row 2</span></div>
+        <div>
+          <div class="row"><span class="name">country</span><span></span><span class="val mono">"Tuvalu"</span></div>
+          <div class="row" style="background: var(--hover);"><span class="name">profile</span><span class="chip chip-obj">obj</span><span class="val mono">{ name: "Ada", … }</span></div>
+          <div class="row"><span class="name">age</span><span></span><span class="val mono">42</span></div>
+          <div class="row"><span class="name">active</span><span></span><span class="val mono">true</span></div>
+          <div class="row"><span class="name">tags</span><span></span><span class="val mono">[ "x", "y", … ]</span></div>
+        </div>
+      </div>
+      <details><summary>Tradeoffs</summary><div><strong>Pros:</strong> minimal visual noise at rest.<br><strong>Cons:</strong> mobile-hostile. Discoverability — users may never hover, never learn the system.</div></details>
+    </div>
+
+    <!-- C: Ambiguous-only (recommended) -->
+    <div class="var-section">
+      <h3>C. Ambiguous-only<span class="recommended">★ recommended</span></h3>
+      <p class="desc">Strings/numbers/booleans get no chip (rendering self-evident). Objects/arrays/null/messages always show.</p>
+      <div class="surface">
+        <div class="panel-title">Property values</div>
+        <div>
+          <div class="row"><span class="name">country</span><span></span><span class="val mono">"Tuvalu"</span></div>
+          <div class="row"><span class="name">profile</span><span class="chip chip-obj">obj</span><span class="val mono">{ name: "Ada", … }</span></div>
+          <div class="row"><span class="name">age</span><span></span><span class="val mono">42</span></div>
+          <div class="row"><span class="name">active</span><span></span><span class="val mono">true</span></div>
+          <div class="row"><span class="name">tags</span><span class="chip chip-arr">arr</span><span class="val mono">[ "x", "y", … ]</span></div>
+          <div class="row"><span class="name">notes</span><span class="chip chip-null">null</span><span class="val mono" style="color:var(--faint)">null</span></div>
+        </div>
+      </div>
+      <details><summary>Tradeoffs</summary><div><strong>Pros:</strong> clean for the common case. Important types stay visible.<br><strong>Cons:</strong> requires "is rendering self-evident?" judgement. RFC's literal reading is "always-on."</div></details>
+    </div>
+
+  </div>
+
+  <div class="recommend"><strong>Recommendation:</strong> Variant C for compact surfaces (table cells, observability/eval display). <strong>Always-on for drill-in field headers</strong> (<code>DrillInFieldHeader</code>, the editing surface where consistency pays). Compromise that respects both readability and RFC intent.</div>
+
+  <h2 style="font-size:16px; margin: 32px 0 12px;">Per-surface rules (with recommendation)</h2>
+
+  <div class="surface" style="padding: 12px;">
+    <table class="tsr">
+      <thead>
+        <tr>
+          <th>Surface</th>
+          <th>strings</th>
+          <th>numbers</th>
+          <th>booleans</th>
+          <th>objects</th>
+          <th>arrays</th>
+          <th>null</th>
+          <th>messages</th>
+          <th>dotted-key</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Drill-in field header (<code>DrillInFieldHeader</code>)</td><td>always</td><td>always</td><td>always</td><td>always</td><td>always</td><td>always</td><td>always</td><td>always</td></tr>
+        <tr><td>Drill-in JSON view (<code>EntityDualViewEditor</code>)</td><td colspan="8" style="color:var(--muted); font-style:italic;">n/a — JSON tree itself is the type signal</td></tr>
+        <tr><td><strong>Testset table column header</strong></td><td>when ambiguous</td><td>never</td><td>never</td><td>always</td><td>always</td><td>n/a</td><td>always</td><td>always</td></tr>
+        <tr><td>Testset table cell (collapsed)</td><td>when compact</td><td>never</td><td>never</td><td>always</td><td>always</td><td>always</td><td>always</td><td>always</td></tr>
+        <tr><td>Variables panel</td><td>always</td><td>always</td><td>always</td><td>always</td><td>always</td><td>always</td><td>always</td><td>always</td></tr>
+        <tr><td>Autocomplete entry</td><td>always</td><td>always</td><td>always</td><td>always</td><td>always</td><td>always</td><td>always</td><td>always</td></tr>
+        <tr><td>Observability span detail</td><td>when ambiguous</td><td>never</td><td>never</td><td>always</td><td>always</td><td>always</td><td>always</td><td>n/a</td></tr>
+        <tr><td>Eval result row</td><td>when ambiguous</td><td>never</td><td>never</td><td>always</td><td>always</td><td>always</td><td>always</td><td>n/a</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p style="font-size:12px; color:var(--ink); margin-top: 16px;">
+    <strong>Note on column headers:</strong> the testset table column-grouping / expansion model (see <a href="gap-02-table-cells.html">gap-02</a>) creates parent-child column relationships. Chips help disambiguate them — <code>[obj]</code> on a column header signals "this expands"; <code>[dotted-key]</code> on a flat literal column signals "this is a literal-dot key, not a path component" (see <a href="gap-05-dot-key-disambiguation.html">gap-05</a>); <code>[mixed]</code> warns when cells have heterogeneous types.
+  </p>
+
+  <p style="font-size:12px; color:var(--muted); margin-top: 16px;">Cross-refs: every other gap doc uses these chips. <a href="gap-02-table-cells.html">gap-02</a>, <a href="gap-05-dot-key-disambiguation.html">gap-05</a>, <a href="gap-03-drill-in-root-view.html">gap-03</a>, <a href="gap-06-messages-renderer.html">gap-06</a>.</p>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>JSON ↔ String UX — Variants</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --ink: #051729;
+    --muted: rgba(5, 23, 41, 0.55);
+    --line: rgba(5, 23, 41, 0.08);
+    --line-med: rgba(5, 23, 41, 0.15);
+    --hover: rgba(5, 23, 41, 0.04);
+    --chip-bg: rgba(5, 23, 41, 0.06);
+    --chip-obj-bg: #e6f4ff;
+    --chip-obj-text: #1677ff;
+    --chip-arr-bg: #e6fffb;
+    --chip-arr-text: #13c2c2;
+    --chip-msg-bg: #f9f0ff;
+    --chip-msg-text: #722ed1;
+    --chip-null-bg: rgba(5, 23, 41, 0.06);
+    --chip-null-text: rgba(5, 23, 41, 0.45);
+    --json-key: #cf222e;
+    --json-string: #0a3069;
+    --json-num: #0550ae;
+    --json-punct: rgba(5, 23, 41, 0.45);
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink);
+    background: #fafafa;
+  }
+  .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+  .surface {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    line-height: 16px;
+    background: var(--chip-bg);
+    color: var(--ink);
+    user-select: none;
+  }
+  .chip-obj { background: var(--chip-obj-bg); color: var(--chip-obj-text); }
+  .chip-arr { background: var(--chip-arr-bg); color: var(--chip-arr-text); }
+  .chip-msg { background: var(--chip-msg-bg); color: var(--chip-msg-text); }
+  .chip-null { background: var(--chip-null-bg); color: var(--chip-null-text); }
+  .chip-mixed { background: #fff7e6; color: #d46b08; }
+  .row {
+    display: grid;
+    grid-template-columns: 130px 24px 1fr;
+    gap: 8px;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  .row + .row { border-top: 1px solid var(--line); }
+  .row:hover { background: var(--hover); }
+  .row .name { color: var(--ink); font-weight: 500; }
+  .row .val { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .json-preview { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; line-height: 1.5; }
+  .json-preview .k { color: var(--json-key); }
+  .json-preview .s { color: var(--json-string); }
+  .json-preview .n { color: var(--json-num); }
+  .json-preview .p { color: var(--json-punct); }
+  table.tsr { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.tsr th { text-align: left; padding: 8px 12px; font-weight: 600; color: var(--ink); background: rgba(5, 23, 41, 0.02); border-bottom: 1px solid var(--line); }
+  table.tsr td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink); }
+  table.tsr tr:hover td { background: var(--hover); }
+  .btn-mini {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    line-height: 16px;
+    border: 1px solid var(--line-med);
+    background: white;
+    color: var(--ink);
+    cursor: pointer;
+    user-select: none;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  .btn-mini:hover { background: var(--hover); }
+  .pill-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 4px 1px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    line-height: 16px;
+    background: var(--chip-obj-bg);
+    color: var(--chip-obj-text);
+    cursor: pointer;
+    user-select: none;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  .menu-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .menu-item:hover { background: var(--hover); }
+  .panel-title {
+    padding: 8px 12px;
+    background: rgba(5, 23, 41, 0.02);
+    border-bottom: 1px solid var(--line);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .var-section h3 {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--ink);
+  }
+  .var-section .desc {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 12px;
+    line-height: 1.5;
+  }
+  .var-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .pattern-section {
+    margin-bottom: 56px;
+  }
+  .pattern-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line-med);
+  }
+  .pattern-header h2 { font-size: 18px; font-weight: 700; color: var(--ink); }
+  .pattern-header .label { font-size: 12px; color: var(--muted); }
+  .pattern-summary { font-size: 13px; color: var(--ink); margin-bottom: 16px; line-height: 1.6; }
+  .recommend {
+    background: #f0f9ff;
+    border-left: 3px solid #1677ff;
+    padding: 8px 12px;
+    font-size: 12px;
+    margin: 8px 0;
+    border-radius: 0 4px 4px 0;
+  }
+  .recommend strong { color: #1677ff; }
+  .ascii { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; white-space: pre; color: var(--ink); }
+  details { margin-top: 12px; }
+  details summary { font-size: 11px; color: var(--muted); cursor: pointer; user-select: none; }
+  details summary:hover { color: var(--ink); }
+  details > div { margin-top: 8px; padding: 8px 10px; background: rgba(5, 23, 41, 0.02); border-radius: 4px; font-size: 11px; line-height: 1.6; color: var(--ink); }
+  .nav-jump {
+    position: sticky;
+    top: 0;
+    background: white;
+    border-bottom: 1px solid var(--line-med);
+    padding: 12px 24px;
+    z-index: 10;
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+  }
+  .nav-jump a { color: var(--ink); text-decoration: none; padding: 4px 8px; border-radius: 4px; }
+  .nav-jump a:hover { background: var(--hover); }
+  /* Tooltip simulation */
+  .tooltip-host { position: relative; }
+  .tooltip {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    background: #052850;
+    color: white;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    z-index: 5;
+    line-height: 1.4;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+  .tooltip::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 12px;
+    border: 4px solid transparent;
+    border-bottom-color: #052850;
+  }
+  .tooltip-static { position: static; margin-top: 8px; display: inline-block; }
+  /* Show hover state by default in mockup */
+  .row.hover-active { background: var(--hover); }
+  /* Drawer mock styling */
+  .drawer-mock {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: white;
+    overflow: hidden;
+  }
+  .drawer-prop {
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .drawer-prop:last-child { border-bottom: none; }
+  .drawer-prop-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .drawer-prop-input {
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-size: 12px;
+    background: white;
+  }
+  .drawer-prop-actions {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+  }
+  /* Variables panel */
+  .vars-panel {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: white;
+    overflow: hidden;
+  }
+  .vars-section {
+    border-bottom: 1px solid var(--line);
+  }
+  .vars-section:last-child { border-bottom: none; }
+  .vars-section-title {
+    padding: 8px 12px;
+    background: rgba(5, 23, 41, 0.02);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .vars-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .vars-row:hover { background: var(--hover); }
+  .vars-row.indent-1 { padding-left: 24px; }
+  .vars-row.indent-2 { padding-left: 36px; }
+  .vars-row .name { color: var(--ink); flex: 1; }
+  .vars-row .src { font-size: 10px; color: var(--muted); font-family: ui-monospace, monospace; }
+  .vars-tab {
+    padding: 8px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  .vars-tab.active {
+    border-bottom-color: #1677ff;
+    color: #1677ff;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<div class="nav-jump">
+  <strong>JSON ↔ String UX Variants</strong>
+  <a href="#pattern-a">A. Type indicator</a>
+  <a href="#pattern-b">B. Table cell</a>
+  <a href="#pattern-c">C. Conversion affordance</a>
+  <a href="#pattern-d">D. Variables panel</a>
+  <span class="ml-auto text-xs text-gray-400">Generated 2026-05-01</span>
+</div>
+
+<div class="max-w-[1280px] mx-auto px-6 py-8">
+
+  <header class="mb-8">
+    <h1 class="text-2xl font-bold mb-2">JSON ↔ String UX — Design Variants</h1>
+    <p class="text-sm text-gray-600 max-w-3xl">
+      Three variants per pattern, generated as concrete reactions to the recommendations in
+      <code class="bg-gray-100 px-1 rounded">docs/designs/json-string-ux/</code>. The team picks a direction
+      per pattern; this is the artifact for the design conversation.
+    </p>
+    <p class="text-sm text-gray-600 mt-2 max-w-3xl">
+      Existing capabilities (`detectDataType`, round-trip preservation, transparent stringified-JSON traversal)
+      are not changed by any of these variants. They visualize the missing pieces only:
+      <strong>visible chips</strong>, <strong>table cell rendering</strong>, <strong>conversion affordance</strong>,
+      <strong>variables panel</strong>.
+    </p>
+  </header>
+
+  <!-- ============ PATTERN A ============ -->
+  <section class="pattern-section" id="pattern-a">
+    <div class="pattern-header">
+      <h2>A. Type indicator chip placement</h2>
+      <span class="label">drawer Fields view, variable panel, observability</span>
+    </div>
+    <div class="pattern-summary">
+      Where and when to show a type chip. The user needs to answer "is this a string or an object?" without clicking.
+      <div class="recommend"><strong>My recommendation:</strong> <em>A3 — Ambiguous-only.</em> Strings get no chip in compact rows; objects/arrays/null/messages always show. Cleaner default, still meets RFC requirement.</div>
+    </div>
+
+    <div class="var-grid">
+
+      <!-- A1: Always-on -->
+      <div class="var-section">
+        <h3>A1. Always-on</h3>
+        <p class="desc">Every value, every row gets a chip. Maximum signal, but every cell carries chip chrome.</p>
+        <div class="surface">
+          <div class="panel-title">Property values</div>
+          <div>
+            <div class="row"><span class="name">country</span><span class="chip">str</span><span class="val mono">"Tuvalu"</span></div>
+            <div class="row"><span class="name">profile</span><span class="chip chip-obj">obj</span><span class="val mono">{ name: "Ada", … }</span></div>
+            <div class="row"><span class="name">age</span><span class="chip">num</span><span class="val mono">42</span></div>
+            <div class="row"><span class="name">active</span><span class="chip">bool</span><span class="val mono">true</span></div>
+            <div class="row"><span class="name">tags</span><span class="chip chip-arr">arr</span><span class="val mono">[ "x", "y", … ]</span></div>
+            <div class="row"><span class="name">session</span><span class="chip chip-msg">msgs</span><span class="val mono">[3 messages ▸]</span></div>
+            <div class="row"><span class="name">notes</span><span class="chip chip-null">null</span><span class="val mono" style="color:rgba(5,23,41,0.35)">null</span></div>
+          </div>
+        </div>
+        <details>
+          <summary>Tradeoffs</summary>
+          <div>
+            <strong>Pros:</strong> consistent visual language. Type info always visible. Mahmoud's RFC literal reading: "show wherever values are edited or inspected."
+            <br><br>
+            <strong>Cons:</strong> chip chrome on every row adds visual weight. Strings (most common) get a chip that says nothing the quotes don't already say.
+          </div>
+        </details>
+      </div>
+
+      <!-- A2: Hover-only -->
+      <div class="var-section">
+        <h3>A2. Hover-only</h3>
+        <p class="desc">Clean default. Chips appear when the user hovers a row, plus a tooltip with type detail.</p>
+        <div class="surface">
+          <div class="panel-title">Property values <span class="text-[10px] font-normal normal-case tracking-normal text-gray-400">(hover row 2 to preview)</span></div>
+          <div>
+            <div class="row"><span class="name">country</span><span></span><span class="val mono">"Tuvalu"</span></div>
+            <div class="row hover-active tooltip-host">
+              <span class="name">profile</span>
+              <span class="chip chip-obj">obj</span>
+              <span class="val mono">{ name: "Ada", … }</span>
+              <span class="tooltip">Object · 3 properties<br>name, tags, lastLogin · Click to convert</span>
+            </div>
+            <div class="row"><span class="name">age</span><span></span><span class="val mono">42</span></div>
+            <div class="row"><span class="name">active</span><span></span><span class="val mono">true</span></div>
+            <div class="row"><span class="name">tags</span><span></span><span class="val mono">[ "x", "y", … ]</span></div>
+            <div class="row"><span class="name">session</span><span></span><span class="val mono">[3 messages ▸]</span></div>
+          </div>
+        </div>
+        <details>
+          <summary>Tradeoffs</summary>
+          <div>
+            <strong>Pros:</strong> minimal visual noise at rest. Reveals on intent. Mobile-hostile but most authoring is desktop.
+            <br><br>
+            <strong>Cons:</strong> discoverability — users might never hover and never learn types are detected. Mobile users see nothing.
+          </div>
+        </details>
+      </div>
+
+      <!-- A3: Ambiguous-only (recommended) -->
+      <div class="var-section">
+        <h3>A3. Ambiguous-only <span class="ml-1 text-blue-600">★ recommended</span></h3>
+        <p class="desc">Strings get no chip (rendering is self-evident: quotes). Objects/arrays/null/messages always show.</p>
+        <div class="surface">
+          <div class="panel-title">Property values</div>
+          <div>
+            <div class="row"><span class="name">country</span><span></span><span class="val mono">"Tuvalu"</span></div>
+            <div class="row"><span class="name">profile</span><span class="chip chip-obj">obj</span><span class="val mono">{ name: "Ada", … }</span></div>
+            <div class="row"><span class="name">age</span><span></span><span class="val mono">42</span></div>
+            <div class="row"><span class="name">active</span><span></span><span class="val mono">true</span></div>
+            <div class="row"><span class="name">tags</span><span class="chip chip-arr">arr</span><span class="val mono">[ "x", "y", … ]</span></div>
+            <div class="row"><span class="name">session</span><span class="chip chip-msg">msgs</span><span class="val mono">[3 messages ▸]</span></div>
+            <div class="row"><span class="name">notes</span><span class="chip chip-null">null</span><span class="val mono" style="color:rgba(5,23,41,0.35)">null</span></div>
+          </div>
+        </div>
+        <details>
+          <summary>Tradeoffs</summary>
+          <div>
+            <strong>Pros:</strong> clean for the common case (strings). Important types stay visible. Honest about which signal needs chrome and which doesn't.
+            <br><br>
+            <strong>Cons:</strong> requires "is rendering self-evident?" judgement. RFC's literal reading is "always-on" — this might need Mahmoud's blessing.
+          </div>
+        </details>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ PATTERN B ============ -->
+  <section class="pattern-section" id="pattern-b">
+    <div class="pattern-header">
+      <h2>B. Testset table — object/array cell rendering</h2>
+      <span class="label">testset table page</span>
+    </div>
+    <div class="pattern-summary">
+      Cells are narrow (~200px). Object cells today flatten to truncated text. How do we signal "this is an object" and preview shape?
+      <div class="recommend"><strong>My recommendation:</strong> <em>B1 — Chip + count + key list.</em> Compact, scannable, matches the rest of the chip system.</div>
+    </div>
+
+    <div class="var-grid">
+
+      <!-- B1: Chip + count + keys (recommended) -->
+      <div class="var-section">
+        <h3>B1. Chip + count + key list <span class="ml-1 text-blue-600">★ recommended</span></h3>
+        <p class="desc">[obj] { 2 } countryName, capital — uses ~1.5 lines. Scannable type + shape preview.</p>
+        <div class="surface overflow-hidden">
+          <table class="tsr">
+            <thead>
+              <tr><th>correct_answer</th><th>country</th><th>outputs</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mono">"The capital of Tuvalu…"</td>
+                <td class="mono">"Tuvalu"</td>
+                <td class="mono">"The capital of Tuv…"</td>
+              </tr>
+              <tr>
+                <td class="mono">"The capital of Kiribati is Tarawa."</td>
+                <td class="mono">"Kiribati"</td>
+                <td>
+                  <div><span class="chip chip-obj">obj</span> <span class="mono text-gray-500">{ 2 }</span></div>
+                  <div class="text-[11px] mono text-gray-500 mt-1">countryName, capital</div>
+                </td>
+              </tr>
+              <tr>
+                <td class="mono">"What capitals…"</td>
+                <td class="mono">"Spain"</td>
+                <td>
+                  <div><span class="chip chip-arr">arr</span> <span class="mono text-gray-500">[ 5 ]</span></div>
+                  <div class="text-[11px] mono text-gray-500 mt-1">"Madrid", "Barcelona"…</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <details>
+          <summary>Tradeoffs</summary>
+          <div><strong>Pros:</strong> scannable, type-explicit, predictable height. <br><strong>Cons:</strong> two-line cells make rows variable height.</div>
+        </details>
+      </div>
+
+      <!-- B2: Mini JSON tree -->
+      <div class="var-section">
+        <h3>B2. Mini JSON tree</h3>
+        <p class="desc">Vertical 2-3 line indented preview. More structural, more vertical space.</p>
+        <div class="surface overflow-hidden">
+          <table class="tsr">
+            <thead>
+              <tr><th>correct_answer</th><th>country</th><th>outputs</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mono">"The capital of Tuvalu…"</td>
+                <td class="mono">"Tuvalu"</td>
+                <td class="mono">"The capital of Tuv…"</td>
+              </tr>
+              <tr>
+                <td class="mono">"The capital of Kiribati is Tarawa."</td>
+                <td class="mono">"Kiribati"</td>
+                <td>
+                  <div class="json-preview">
+                    <span class="p">{</span><br>
+                    &nbsp;&nbsp;<span class="k">"countryName"</span><span class="p">:</span> <span class="s">"Kiribati"</span><span class="p">,</span><br>
+                    &nbsp;&nbsp;<span class="k">"capital"</span><span class="p">:</span> <span class="s">"S. Tarawa"</span><br>
+                    <span class="p">}</span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td class="mono">"What capitals…"</td>
+                <td class="mono">"Spain"</td>
+                <td>
+                  <div class="json-preview">
+                    <span class="p">[</span><br>
+                    &nbsp;&nbsp;<span class="s">"Madrid"</span><span class="p">,</span><br>
+                    &nbsp;&nbsp;<span class="s">"Barcelona"</span><span class="p">,</span> <span class="p">…</span><br>
+                    <span class="p">]</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <details>
+          <summary>Tradeoffs</summary>
+          <div><strong>Pros:</strong> structural, syntax-highlighted, faithful to JSON. <br><strong>Cons:</strong> uses ~5 lines per object cell. Rows become very uneven.</div>
+        </details>
+      </div>
+
+      <!-- B3: Inline single-line JSON -->
+      <div class="var-section">
+        <h3>B3. Inline single-line JSON</h3>
+        <p class="desc">Compact single line with syntax highlighting, truncated. Same row height as strings.</p>
+        <div class="surface overflow-hidden">
+          <table class="tsr">
+            <thead>
+              <tr><th>correct_answer</th><th>country</th><th>outputs</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mono">"The capital of Tuvalu…"</td>
+                <td class="mono">"Tuvalu"</td>
+                <td class="mono">"The capital of Tuv…"</td>
+              </tr>
+              <tr>
+                <td class="mono">"The capital of Kiribati is Tarawa."</td>
+                <td class="mono">"Kiribati"</td>
+                <td class="json-preview overflow-hidden whitespace-nowrap"><span class="p">{</span> <span class="k">"countryName"</span><span class="p">:</span> <span class="s">"Kiribati"</span><span class="p">,</span> <span class="k">"capital"</span><span class="p">:</span> <span class="s">"South Ta…"</span> <span class="p">}</span></td>
+              </tr>
+              <tr>
+                <td class="mono">"What capitals…"</td>
+                <td class="mono">"Spain"</td>
+                <td class="json-preview overflow-hidden whitespace-nowrap"><span class="p">[</span> <span class="s">"Madrid"</span><span class="p">,</span> <span class="s">"Barcelona"</span><span class="p">,</span> <span class="p">… ]</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <details>
+          <summary>Tradeoffs</summary>
+          <div><strong>Pros:</strong> uniform row height, dense, easy bulk-scanning. Syntax highlighting differentiates from string cells. <br><strong>Cons:</strong> no chip = type signal is purely visual (color, braces). Less explicit.</div>
+        </details>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ PATTERN C ============ -->
+  <section class="pattern-section" id="pattern-c">
+    <div class="pattern-header">
+      <h2>C. Drawer — per-property conversion affordance</h2>
+      <span class="label">testcase drawer Fields view</span>
+    </div>
+    <div class="pattern-summary">
+      Where and how to expose the "convert string → object" action. Reminder: by default the system <em>preserves</em> storage — conversion is an opt-in user action, not a default behavior.
+      <div class="recommend"><strong>My recommendation:</strong> <em>C1 — Inline buttons.</em> Discoverable, single click. Optional layered chip-dropdown for power users.</div>
+    </div>
+
+    <div class="var-grid">
+
+      <!-- C1: Inline buttons (recommended) -->
+      <div class="var-section">
+        <h3>C1. Inline buttons <span class="ml-1 text-blue-600">★ recommended</span></h3>
+        <p class="desc">[→ obj] [→ arr] buttons next to property header. One click conversion.</p>
+        <div class="drawer-mock">
+          <div class="drawer-prop">
+            <div class="drawer-prop-header">
+              <span>▾</span>
+              <span>profile</span>
+              <span class="chip">str</span>
+              <div class="drawer-prop-actions">
+                <span class="btn-mini">→ obj</span>
+                <span class="btn-mini">→ arr</span>
+              </div>
+            </div>
+            <div class="drawer-prop-input mono text-xs text-gray-700">{"name": "Ada"}</div>
+          </div>
+          <div class="drawer-prop">
+            <div class="drawer-prop-header">
+              <span>▾</span>
+              <span>country</span>
+              <span class="chip">str</span>
+              <div class="drawer-prop-actions">
+                <span class="btn-mini">→ obj</span>
+                <span class="btn-mini">→ arr</span>
+              </div>
+            </div>
+            <div class="drawer-prop-input mono text-xs text-gray-700">Tuvalu</div>
+          </div>
+          <div class="drawer-prop">
+            <div class="drawer-prop-header">
+              <span>▾</span>
+              <span>tags</span>
+              <span class="chip chip-arr">arr</span>
+              <div class="drawer-prop-actions">
+                <span class="btn-mini">→ str</span>
+              </div>
+            </div>
+            <div class="drawer-prop-input mono text-xs text-gray-700">[ "alpha", "beta" ]</div>
+          </div>
+        </div>
+        <details>
+          <summary>Tradeoffs</summary>
+          <div><strong>Pros:</strong> discoverable, one-click. Always visible. <br><strong>Cons:</strong> adds chrome on every property header. Visually busy on long forms.</div>
+        </details>
+      </div>
+
+      <!-- C2: Chip dropdown -->
+      <div class="var-section">
+        <h3>C2. Chip dropdown</h3>
+        <p class="desc">Click the type chip to open a conversion menu. Compact, but discoverability requires hover.</p>
+        <div class="drawer-mock">
+          <div class="drawer-prop">
+            <div class="drawer-prop-header">
+              <span>▾</span>
+              <span>profile</span>
+              <span class="pill-trigger">str ▾</span>
+            </div>
+            <div class="drawer-prop-input mono text-xs text-gray-700">{"name": "Ada"}</div>
+            <!-- simulated open menu -->
+            <div class="surface mt-2 inline-block" style="min-width: 180px;">
+              <div class="menu-item"><span class="text-gray-400 mr-2">●</span> String <span class="text-gray-400 ml-auto">current</span></div>
+              <div class="menu-item"><span class="text-blue-500 mr-2">→</span> Convert to object</div>
+              <div class="menu-item"><span class="text-blue-500 mr-2">→</span> Convert to array</div>
+              <div class="menu-item"><span class="text-blue-500 mr-2">→</span> Convert to number</div>
+            </div>
+          </div>
+          <div class="drawer-prop">
+            <div class="drawer-prop-header">
+              <span>▾</span>
+              <span>country</span>
+              <span class="pill-trigger">str ▾</span>
+            </div>
+            <div class="drawer-prop-input mono text-xs text-gray-700">Tuvalu</div>
+          </div>
+          <div class="drawer-prop">
+            <div class="drawer-prop-header">
+              <span>▾</span>
+              <span>tags</span>
+              <span class="pill-trigger" style="background: var(--chip-arr-bg); color: var(--chip-arr-text);">arr ▾</span>
+            </div>
+            <div class="drawer-prop-input mono text-xs text-gray-700">[ "alpha", "beta" ]</div>
+          </div>
+        </div>
+        <details>
+          <summary>Tradeoffs</summary>
+          <div><strong>Pros:</strong> compact. Type chip itself is the action. Scales to many type options without crowding. <br><strong>Cons:</strong> not obvious the chip is clickable. Requires hover/click discovery.</div>
+        </details>
+      </div>
+
+      <!-- C3: Three-dot menu -->
+      <div class="var-section">
+        <h3>C3. Three-dot menu</h3>
+        <p class="desc">Conventional ⋯ menu next to header opens context menu with conversions + delete.</p>
+        <div class="drawer-mock">
+          <div class="drawer-prop">
+            <div class="drawer-prop-header">
+              <span>▾</span>
+              <span>profile</span>
+              <span class="chip">str</span>
+              <div class="drawer-prop-actions">
+                <span class="btn-mini" style="border:none; background:none;">⋯</span>
+              </div>
+            </div>
+            <div class="drawer-prop-input mono text-xs text-gray-700">{"name": "Ada"}</div>
+            <!-- simulated open menu -->
+            <div class="surface mt-2" style="max-width: 200px;">
+              <div class="menu-item"><span class="text-blue-500 mr-2">→</span> Convert to object</div>
+              <div class="menu-item"><span class="text-blue-500 mr-2">→</span> Convert to array</div>
+              <div class="menu-item"><span class="text-blue-500 mr-2">→</span> Convert to number</div>
+              <div class="menu-item border-t border-gray-100"><span class="mr-2">⎘</span> Duplicate</div>
+              <div class="menu-item"><span class="mr-2 text-red-500">🗑</span> <span class="text-red-500">Delete</span></div>
+            </div>
+          </div>
+          <div class="drawer-prop">
+            <div class="drawer-prop-header">
+              <span>▾</span>
+              <span>country</span>
+              <span class="chip">str</span>
+              <div class="drawer-prop-actions">
+                <span class="btn-mini" style="border:none; background:none;">⋯</span>
+              </div>
+            </div>
+            <div class="drawer-prop-input mono text-xs text-gray-700">Tuvalu</div>
+          </div>
+        </div>
+        <details>
+          <summary>Tradeoffs</summary>
+          <div><strong>Pros:</strong> conventional pattern (⋯ = "more"). Groups conversion with delete/duplicate. Less header chrome. <br><strong>Cons:</strong> two clicks (open menu → pick action). Conversion buried with destructive actions.</div>
+        </details>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ PATTERN D ============ -->
+  <section class="pattern-section" id="pattern-d">
+    <div class="pattern-header">
+      <h2>D. Playground variables panel</h2>
+      <span class="label">playground right side</span>
+    </div>
+    <div class="pattern-summary">
+      Show what's referenced in the prompt + what's available from testcase/trace/evaluator context. User clicks a variable to insert at cursor.
+      <div class="recommend"><strong>My recommendation:</strong> <em>D1 — Sectioned panel.</em> Source-grouped, expandable nesting. Most legible when many sources are active.</div>
+    </div>
+
+    <div class="var-grid">
+
+      <!-- D1: Sectioned (recommended) -->
+      <div class="var-section">
+        <h3>D1. Sectioned panel <span class="ml-1 text-blue-600">★ recommended</span></h3>
+        <p class="desc">Sections by source, collapsible. Each section has its own header and contents.</p>
+        <div class="vars-panel">
+          <div class="vars-section">
+            <div class="vars-section-title"><span>▾</span> Discovered from prompt</div>
+            <div class="vars-row"><span class="name mono">{{inputs}}</span><span class="chip chip-obj">obj</span><span class="src">testcase</span></div>
+            <div class="vars-row"><span class="name mono">{{outputs}}</span><span class="chip chip-obj">obj</span><span class="src">upstream</span></div>
+          </div>
+          <div class="vars-section">
+            <div class="vars-section-title"><span>▾</span> Available · testcase</div>
+            <div class="vars-row"><span>▾</span><span class="name">inputs</span><span class="chip chip-obj">obj</span></div>
+            <div class="vars-row indent-1"><span class="name">country</span><span class="chip">str</span></div>
+            <div class="vars-row indent-1"><span class="name">correct_answer</span><span class="chip">str</span></div>
+            <div class="vars-row"><span>▾</span><span class="name">outputs</span><span class="chip chip-obj">obj</span></div>
+            <div class="vars-row indent-1"><span class="name">countryName</span><span class="chip">str</span></div>
+            <div class="vars-row indent-1"><span class="name">capital</span><span class="chip">str</span></div>
+          </div>
+          <div class="vars-section">
+            <div class="vars-section-title"><span>▸</span> Available · evaluator <span class="text-gray-400 ml-auto normal-case font-normal text-[10px]">2 vars</span></div>
+          </div>
+        </div>
+        <details>
+          <summary>Tradeoffs</summary>
+          <div><strong>Pros:</strong> source is unambiguous, scales when many sections are populated, easy to collapse what's not relevant. <br><strong>Cons:</strong> section chrome eats vertical space when sections are sparse.</div>
+        </details>
+      </div>
+
+      <!-- D2: Flat list with filter -->
+      <div class="var-section">
+        <h3>D2. Flat list + filter chips</h3>
+        <p class="desc">All variables in one scrollable list. Source filter chips at top. Maximum density.</p>
+        <div class="vars-panel">
+          <div class="p-3 border-b border-gray-100">
+            <div class="flex flex-wrap gap-1.5">
+              <span class="chip cursor-pointer" style="background: #051729; color: white;">all · 8</span>
+              <span class="chip cursor-pointer">testcase · 4</span>
+              <span class="chip cursor-pointer">upstream · 2</span>
+              <span class="chip cursor-pointer">evaluator · 2</span>
+            </div>
+            <input type="text" placeholder="Filter…" class="mt-2 w-full text-xs px-2 py-1 border border-gray-200 rounded">
+          </div>
+          <div>
+            <div class="vars-row"><span class="name mono">{{inputs}}</span><span class="chip chip-obj">obj</span><span class="src">tc</span></div>
+            <div class="vars-row"><span class="name mono">{{outputs}}</span><span class="chip chip-obj">obj</span><span class="src">up</span></div>
+            <div class="vars-row"><span class="name">country</span><span class="chip">str</span><span class="src">tc</span></div>
+            <div class="vars-row"><span class="name">correct_answer</span><span class="chip">str</span><span class="src">tc</span></div>
+            <div class="vars-row"><span class="name">countryName</span><span class="chip">str</span><span class="src">up</span></div>
+            <div class="vars-row"><span class="name">capital</span><span class="chip">str</span><span class="src">up</span></div>
+            <div class="vars-row"><span class="name">correct_answer_key</span><span class="chip">str</span><span class="src">eval</span></div>
+            <div class="vars-row"><span class="name">threshold</span><span class="chip">num</span><span class="src">eval</span></div>
+          </div>
+        </div>
+        <details>
+          <summary>Tradeoffs</summary>
+          <div><strong>Pros:</strong> highest density. Filter is fast. Search-friendly. <br><strong>Cons:</strong> source distinction relies on tiny tags (`tc`/`up`/`eval`) which take learning. Loses the prompt-discovered grouping.</div>
+        </details>
+      </div>
+
+      <!-- D3: Tabbed -->
+      <div class="var-section">
+        <h3>D3. Tabbed (Discovered | Available)</h3>
+        <p class="desc">Two tabs separate prompt-referenced from context-available. Inside each, secondary grouping.</p>
+        <div class="vars-panel">
+          <div class="flex border-b border-gray-100">
+            <span class="vars-tab active">Discovered <span class="text-gray-400 ml-1 text-[10px]">2</span></span>
+            <span class="vars-tab">Available <span class="text-gray-400 ml-1 text-[10px]">8</span></span>
+          </div>
+          <div>
+            <div class="vars-row"><span class="name mono">{{inputs}}</span><span class="chip chip-obj">obj</span><span class="src">resolves: testcase</span></div>
+            <div class="vars-row"><span class="name mono">{{outputs}}</span><span class="chip chip-obj">obj</span><span class="src">resolves: upstream</span></div>
+            <div class="p-3 text-[11px] text-gray-500 italic border-t border-gray-100">
+              All prompt-referenced variables resolve. Switch to <span class="text-blue-600">Available</span> to insert more.
+            </div>
+          </div>
+        </div>
+        <details>
+          <summary>Tradeoffs</summary>
+          <div><strong>Pros:</strong> clear separation between "what the prompt uses now" and "what else is around." Discovered tab can show resolution status (resolves/missing). <br><strong>Cons:</strong> tab switching costs context. Easy to forget the other tab exists.</div>
+        </details>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ FEEDBACK GUIDE ============ -->
+  <section class="surface p-6 mb-8" style="background:#fffbe6; border-color:#ffe58f;">
+    <h2 class="text-lg font-bold mb-2">For the team conversation</h2>
+    <ol class="text-sm space-y-2 list-decimal pl-6">
+      <li>Open this page in the call. Scroll through pattern by pattern.</li>
+      <li>For each pattern, agree on a variant (or call out a hybrid).</li>
+      <li>Annotate decisions in <code class="bg-white px-1 rounded">07-decisions.md</code>.</li>
+      <li>If a variant is rejected entirely, sketch the missing direction together — these aren't exhaustive, just a starting set.</li>
+    </ol>
+    <p class="text-xs text-gray-600 mt-4">
+      All four patterns can ship independently. Pattern B (testset table cell) is the most user-visible gap and the easiest unblock.
+      Pattern C (conversion affordance) is the most likely to be deferred — current preserve-by-default behavior is already good.
+    </p>
+  </section>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,219 @@
+{
+    "count": 4,
+    "testcases": [
+        {
+            "testset_id": "019de2d4-40fb-7973-977b-e7f0739f18a7",
+            "set_id": "019de2d4-40fb-7973-977b-e7f0739f18a7",
+            "created_at": "2026-05-01T09:17:34.350663Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "e4cf471f-e6fd-5f99-8299-ef5749263e10",
+            "data": {
+                "inputs": {
+                    "country": "Tuvalu",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are a geography expert. Answer concisely."
+                        },
+                        {
+                            "role": "user",
+                            "content": "What is the capital of Tuvalu?"
+                        }
+                    ],
+                    "correct_answer": "The capital of Tuvalu is Funafuti."
+                },
+                "outputs": {
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "content": "The capital of Tuvalu is Funafuti."
+                        }
+                    ],
+                    "tool_calls": []
+                },
+                "testcase_dedup_id": "f5cd64637b62"
+            }
+        },
+        {
+            "testset_id": "019de2d4-40fb-7973-977b-e7f0739f18a7",
+            "set_id": "019de2d4-40fb-7973-977b-e7f0739f18a7",
+            "created_at": "2026-05-01T09:17:34.350794Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "9f3759a0-99ca-5238-a8e4-51d1c6779abf",
+            "data": {
+                "inputs": {
+                    "country": "Kiribati",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are a geography expert. Use the lookup_country tool when needed."
+                        },
+                        {
+                            "role": "user",
+                            "content": "What is the capital of Kiribati?"
+                        }
+                    ],
+                    "correct_answer": "The capital of Kiribati is Tarawa."
+                },
+                "outputs": {
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "content": null,
+                            "tool_calls": [
+                                {
+                                    "id": "call_abc123",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "lookup_country",
+                                        "arguments": "{\"country\":\"Kiribati\"}"
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "role": "tool",
+                            "tool_call_id": "call_abc123",
+                            "content": "{\"capital\":\"South Tarawa\",\"population\":121000}"
+                        },
+                        {
+                            "role": "assistant",
+                            "content": "The capital of Kiribati is South Tarawa."
+                        }
+                    ],
+                    "tool_calls": [
+                        {
+                            "name": "lookup_country",
+                            "args": {
+                                "country": "Kiribati"
+                            },
+                            "result": "South Tarawa"
+                        }
+                    ]
+                },
+                "testcase_dedup_id": "c278065322f1"
+            }
+        },
+        {
+            "testset_id": "019de2d4-40fb-7973-977b-e7f0739f18a7",
+            "set_id": "019de2d4-40fb-7973-977b-e7f0739f18a7",
+            "created_at": "2026-05-01T09:17:34.350844Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "2ccb8f06-2b97-5103-9533-062f4a80ef28",
+            "data": {
+                "inputs": {
+                    "country": "Comoros",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "Answer the user's question about geography."
+                        },
+                        {
+                            "role": "user",
+                            "content": "What is the capital of Comoros?"
+                        },
+                        {
+                            "role": "assistant",
+                            "content": "Could you confirm — are you asking about the modern capital or a historical one?"
+                        },
+                        {
+                            "role": "user",
+                            "content": "The current one."
+                        }
+                    ],
+                    "correct_answer": "The capital of Comoros is Moroni."
+                },
+                "outputs": {
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "content": "The current capital of Comoros is Moroni."
+                        }
+                    ],
+                    "tool_calls": []
+                },
+                "testcase_dedup_id": "6469afc169c1"
+            }
+        },
+        {
+            "testset_id": "019de2d4-40fb-7973-977b-e7f0739f18a7",
+            "set_id": "019de2d4-40fb-7973-977b-e7f0739f18a7",
+            "created_at": "2026-05-01T09:17:34.350893Z",
+            "created_by_id": "019d720c-ae7a-74d2-90fa-c14f4720c178",
+            "id": "b5564eb2-efcc-527f-a646-db3bde9d1fb2",
+            "data": {
+                "inputs": {
+                    "country": "Vanuatu",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You can use lookup_country and search_web tools."
+                        },
+                        {
+                            "role": "user",
+                            "content": "What is the capital of Vanuatu and what is the population?"
+                        }
+                    ],
+                    "correct_answer": "The capital of Vanuatu is Port Vila."
+                },
+                "outputs": {
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "content": null,
+                            "tool_calls": [
+                                {
+                                    "id": "call_xyz789",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "lookup_country",
+                                        "arguments": "{\"country\":\"Vanuatu\"}"
+                                    }
+                                },
+                                {
+                                    "id": "call_xyz790",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "search_web",
+                                        "arguments": "{\"query\":\"Vanuatu population 2024\"}"
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "role": "tool",
+                            "tool_call_id": "call_xyz789",
+                            "content": "{\"capital\":\"Port Vila\"}"
+                        },
+                        {
+                            "role": "tool",
+                            "tool_call_id": "call_xyz790",
+                            "content": "{\"population\":314500,\"year\":2024}"
+                        },
+                        {
+                            "role": "assistant",
+                            "content": "The capital of Vanuatu is Port Vila. The population was approximately 314,500 in 2024."
+                        }
+                    ],
+                    "tool_calls": [
+                        {
+                            "name": "lookup_country",
+                            "args": {
+                                "country": "Vanuatu"
+                            },
+                            "result": "Port Vila"
+                        },
+                        {
+                            "name": "search_web",
+                            "args": {
+                                "query": "Vanuatu population 2024"
+                            },
+                            "result": "314500"
+                        }
+                    ]
+                },
+                "testcase_dedup_id": "7f5be8955728"
+            }
+        }
+    ]
+}

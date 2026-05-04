@@ -1,0 +1,68 @@
+[
+  {
+    "inputs": {
+      "country": "Tuvalu",
+      "languages": ["Tuvaluan", "English"],
+      "correct_answer": "The capital of Tuvalu is Funafuti."
+    },
+    "outputs": {
+      "countryName": "Tuvalu",
+      "capital": "Funafuti",
+      "neighbors": [
+        {"name": "Kiribati", "direction": "north"},
+        {"name": "Fiji", "direction": "south"}
+      ],
+      "population_thousands": [11.2, 11.8, 12.1]
+    }
+  },
+  {
+    "inputs": {
+      "country": "Kiribati",
+      "languages": ["English", "Gilbertese"],
+      "correct_answer": "The capital of Kiribati is Tarawa."
+    },
+    "outputs": {
+      "countryName": "Kiribati",
+      "capital": "South Tarawa",
+      "neighbors": [
+        {"name": "Marshall Islands", "direction": "north"},
+        {"name": "Tuvalu", "direction": "south"},
+        {"name": "Nauru", "direction": "west"}
+      ],
+      "population_thousands": [120.4, 121.3, 122.0]
+    }
+  },
+  {
+    "inputs": {
+      "country": "Comoros",
+      "languages": ["Comorian", "Arabic", "French"],
+      "correct_answer": "The capital of Comoros is Moroni."
+    },
+    "outputs": {
+      "countryName": "Comoros",
+      "capital": "Moroni",
+      "neighbors": [
+        {"name": "Mozambique", "direction": "west"},
+        {"name": "Madagascar", "direction": "east"}
+      ],
+      "population_thousands": [870.1, 880.5]
+    }
+  },
+  {
+    "inputs": {
+      "country": "Vanuatu",
+      "languages": ["Bislama", "English", "French"],
+      "correct_answer": "The capital of Vanuatu is Port Vila."
+    },
+    "outputs": {
+      "countryName": "Vanuatu",
+      "capital": "Port Vila",
+      "neighbors": [
+        {"name": "Solomon Islands", "direction": "north"},
+        {"name": "New Caledonia", "direction": "south"},
+        {"name": "Fiji", "direction": "east"}
+      ],
+      "population_thousands": [314.5, 319.1]
+    }
+  }
+]

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gap 05 — Dot-key vs nested disambiguation</title>
+<link rel="stylesheet" href="shared.css?v=3">
+</head>
+<body>
+
+<div class="nav-jump">
+  <strong>Gap 05 · Dot-key disambiguation</strong>
+  <a href="index.html">← Index</a>
+  <a href="gap-04-shape-preservation.html">← 04</a>
+  <a href="gap-06-messages-renderer.html">06 →</a>
+  <span class="ml-auto" style="color:var(--muted)">FE-only · anchor: fixture 08</span>
+</div>
+
+<div class="page">
+
+  <div class="crumbs"><a href="index.html">variants</a> / gap-05-dot-key-disambiguation</div>
+
+  <div class="page-header">
+    <h1>Gap 05 — Literal dotted keys vs nested paths</h1>
+    <p>Second correctness gap, sharper edge case. A testcase can store <code>{"geo.region": "..."}</code> (literal flat key) AND <code>{"geo": {"region": "..."}}</code> (nested object). Both are valid. Both are stored faithfully. Templates resolve them differently under literal-key-first.</p>
+    <p>The column-grouping model already shows them as separate columns. What's missing is <em>labeling</em> — uses the <code>[dotted-key]</code> chip from <a href="gap-01-type-chips.html">gap-01</a> stacked with a collision-warning chip and an inline runtime explanation.</p>
+    <p><strong>Anchor components:</strong> <code>DrillInContent</code> (path navigation already does <code>path.split(".")</code> at line 244 — adjacent to where the chip + collision detector would live), <code>DrillInFieldHeader</code> (chip stack), testset table cell renderer (column header chips). Same primitive, three surfaces.</p>
+  </div>
+
+  <!-- Today — current state with screenshots -->
+  <section class="today-section warning">
+    <h2>Today <span class="label">Current state</span></h2>
+    <p>Structural separation works (column expansion shows both shapes). Labeling doesn't — no chip says "this is a literal-dot key" vs "this is a nested-path component."</p>
+    <div class="grid-3">
+      <div>
+        <div class="shot">
+          <img src="../screenshots/Screenshot%202026-05-01%20at%2011.28.08.png" alt="Fixture 08 testset table">
+          <div class="shot-caption"><strong>Fixture 08 table</strong>: literal <code>geo.region</code> is a flat top-level column; nested <code>geo &gt; region</code> is an expanded sub-column. <em>Both visible.</em> But no chip tells the user which one <code>{{geo.region}}</code> resolves to.</div>
+        </div>
+      </div>
+      <div>
+        <div class="shot">
+          <img src="../screenshots/Screenshot%202026-05-01%20at%2011.28.40.png" alt="Vanuatu drill-in Fields view">
+          <div class="shot-caption"><strong>Vanuatu drill-in Fields view (the collision)</strong>: literal <code>geo.region: "LITERAL_DOT_VALUE"</code> as a flat property AND <code>geo</code> object showing <code>region: "NESTED_PATH_VALUE"</code> side-by-side. <em>Both visible.</em> No marker that one shadows the other for templates.</div>
+        </div>
+      </div>
+      <div>
+        <div class="shot">
+          <img src="../screenshots/Screenshot%202026-05-01%20at%2011.28.21.png" alt="Kiribati drill-in Fields view">
+          <div class="shot-caption"><strong>Kiribati drill-in Fields view</strong>: source has only nested <code>geo</code>, but the view shows <em>empty</em> <code>geo.region</code> + <code>geo.subregion</code> inputs (column-union projection from <a href="gap-04-shape-preservation.html">gap-04</a> bleeds into this gap too).</div>
+        </div>
+      </div>
+    </div>
+    <p style="margin-top: 16px; margin-bottom: 0;"><code>{{geo.region}}</code> on Vanuatu resolves to <code>"LITERAL_DOT_VALUE"</code> (literal-key-first). The user can see both columns but has no way to know which one wins.</p>
+  </section>
+
+  <h2 style="font-size:16px; margin: 24px 0 12px;">Before / after — Vanuatu collision drill-in, full screen</h2>
+
+  <p style="font-size:12px; color: var(--muted); margin-bottom: 12px;">The collision case at real proportions. Vanuatu has BOTH <code>"geo.region"</code> (literal flat key) AND <code>geo.region</code> (nested-object path). Both render in the drill-in. Today nothing flags which one wins for templates.</p>
+
+  <h3 style="font-size:13px; font-weight:600; margin: 16px 0 6px;">Before — fixture 08, Vanuatu drill-in (no disambiguation)</h3>
+
+  <div class="fullscreen-mock">
+    <div class="table-bg">
+      <div class="testset-title">dot-key-collision-set</div>
+      <div class="breadcrumb">testsets / dot-key-collision-set / fixture 08</div>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>country</th>
+            <th>geo.region</th>
+            <th>geo.subregion</th>
+            <th>geo › region</th>
+            <th>geo › subregion</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td>Tuvalu</td><td>Polynesia</td><td>Western P…</td><td>—</td><td>—</td></tr>
+          <tr><td>2</td><td>Kiribati</td><td>—</td><td>—</td><td>Micronesia</td><td>Central P…</td></tr>
+          <tr><td>3</td><td>Comoros</td><td>Africa</td><td>—</td><td>—</td><td>Eastern A…</td></tr>
+          <tr style="background: rgba(255,77,79,0.05); font-weight: 600;"><td>4</td><td>Vanuatu</td><td>LITERAL…</td><td>—</td><td>NESTED_…</td><td>Melanesia</td></tr>
+          <tr><td>5</td><td>Nauru</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top: 8px; font-size: 9px; color: var(--bad-border); padding: 4px 6px; background: rgba(255,77,79,0.04); border-radius: 3px;">
+        ⚠ Vanuatu has both shapes. Which one does <code>{{geo.region}}</code> use?
+      </div>
+    </div>
+    <div class="drawer-panel">
+      <div class="drawer-header">
+        <div class="nav-arrows"><span>»</span><span>⌃</span><span>⌄</span></div>
+        <div class="title">Testcase 4 · Vanuatu</div>
+        <div class="add-queue">+ Add to queue</div>
+        <div class="view-toggle" style="margin-left: 12px;">
+          <span class="active">Fields</span>
+          <span class="inactive">JSON</span>
+        </div>
+      </div>
+      <div class="drawer-body">
+        <div class="root-label">data</div>
+
+        <div class="field-card">
+          <div class="field-header">
+            ▾ country
+            <div class="actions"><span>⤢</span><span>⌃</span></div>
+          </div>
+          <div class="field-content">
+            <input value="Vanuatu">
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            ▾ geo.region
+            <div class="actions"><span>⤢</span><span>⌃</span></div>
+          </div>
+          <div class="field-content">
+            <input value="LITERAL_DOT_VALUE_for_vanuatu_region_stored_as_a_flat_string_key">
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            ▾ correct_answer
+            <div class="actions"><span>⤢</span><span>⌃</span></div>
+          </div>
+          <div class="field-content">
+            <input value="The capital of Vanuatu is Port Vila, located on the southern coast of Efate Island in the South Pacific Ocean.">
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            ▾ geo
+            <div class="actions"><span>⤢</span><span>⌃</span></div>
+          </div>
+          <div class="field-content">
+            <div class="json-block">
+<span class="p">{</span><br>
+&nbsp;&nbsp;<span class="k">"region"</span><span class="p">:</span> <span class="s">"NESTED_PATH_VALUE_for_vanuatu_region_stored_inside_a_geo_object"</span><span class="p">,</span><br>
+&nbsp;&nbsp;<span class="k">"subregion"</span><span class="p">:</span> <span class="s">"Melanesia"</span><span class="p">,</span><br>
+&nbsp;&nbsp;<span class="k">"coordinates"</span><span class="p">:</span> <span class="p">{</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"lat"</span><span class="p">:</span> <span class="n">-15.376</span><span class="p">,</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"lng"</span><span class="p">:</span> <span class="n">166.959</span><br>
+&nbsp;&nbsp;<span class="p">}</span><br>
+<span class="p">}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p style="font-size:11px; color: var(--muted); margin: 4px 0 24px;">Today: both fields render side-by-side without distinction. The user has no way to know that <code>{{geo.region}}</code> resolves to "LITERAL_DOT_VALUE…" (literal-key-first rule) and that the nested path is shadowed at runtime. Two valid pieces of data, one wins, the user can't tell which.</p>
+
+  <h3 style="font-size:13px; font-weight:600; margin: 24px 0 6px;">After — Variant A (chips everywhere) + Variant B (collision warning)</h3>
+
+  <div class="fullscreen-mock">
+    <div class="table-bg">
+      <div class="testset-title">dot-key-collision-set</div>
+      <div class="breadcrumb">testsets / dot-key-collision-set / fixture 08</div>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>country</th>
+            <th>"geo.region" <span class="chip chip-dotted" style="font-size: 8px;">dotted</span></th>
+            <th>"geo.subregion" <span class="chip chip-dotted" style="font-size: 8px;">dotted</span></th>
+            <th colspan="2" style="background: rgba(22,119,255,0.06);">geo <span class="chip chip-obj" style="font-size: 8px;">obj</span></th>
+          </tr>
+          <tr style="font-size: 8px; color: var(--muted);">
+            <th></th><th></th><th></th><th></th>
+            <th style="background: rgba(22,119,255,0.04);">region <span class="chip" style="font-size: 8px;">path</span></th>
+            <th style="background: rgba(22,119,255,0.04);">subregion <span class="chip" style="font-size: 8px;">path</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td>Tuvalu</td><td>Polynesia</td><td>Western P…</td><td>—</td><td>—</td></tr>
+          <tr><td>2</td><td>Kiribati</td><td>—</td><td>—</td><td>Micronesia</td><td>Central P…</td></tr>
+          <tr><td>3</td><td>Comoros</td><td>Africa</td><td>—</td><td>—</td><td>Eastern A…</td></tr>
+          <tr style="background: rgba(255,77,79,0.05); font-weight: 600;"><td>4</td><td>Vanuatu <span class="chip chip-warn" style="font-size: 8px;">⚠</span></td><td>LITERAL…</td><td>—</td><td>NESTED_…</td><td>Melanesia</td></tr>
+          <tr><td>5</td><td>Nauru</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="drawer-panel">
+      <div class="drawer-header">
+        <div class="nav-arrows"><span>»</span><span>⌃</span><span>⌄</span></div>
+        <div class="title">Testcase 4 · Vanuatu</div>
+        <div class="add-queue">+ Add to queue</div>
+        <div class="view-toggle" style="margin-left: 12px;">
+          <span class="active">Fields</span>
+          <span class="inactive">JSON</span>
+        </div>
+      </div>
+      <div class="drawer-body">
+        <div class="root-label">data <span class="chip chip-warn" style="font-size: 9px;">⚠ collision detected</span></div>
+
+        <div class="field-card">
+          <div class="field-header">
+            ▾ country <span class="chip">str</span>
+            <div class="actions"><span>⤢</span><span>⌃</span></div>
+          </div>
+          <div class="field-content">
+            <input value="Vanuatu">
+          </div>
+        </div>
+
+        <div class="field-card" style="border-color: var(--bad-border); border-radius: 6px; border: 1px solid var(--bad-border);">
+          <div class="field-header" style="background: rgba(255,77,79,0.06); border-color: var(--bad-border);">
+            ▾ "geo.region"
+            <span class="chip-stack" style="margin-left: 4px;">
+              <span class="chip chip-dotted">dotted-key</span>
+              <span class="chip">str</span>
+              <span class="chip chip-warn">⚠ shadows {{geo.region}}</span>
+            </span>
+            <div class="actions"><span>⤢</span><span>⌃</span></div>
+          </div>
+          <div class="field-content" style="background: rgba(255,77,79,0.02);">
+            <input value="LITERAL_DOT_VALUE_for_vanuatu_region_stored_as_a_flat_string_key">
+            <div style="font-size: 10px; color: var(--bad-border); margin-top: 8px; padding: 6px 8px; background: rgba(255,77,79,0.05); border-radius: 4px; line-height: 1.5;">
+              <strong>Template runtime resolution:</strong> <code>{{geo.region}}</code> resolves <strong>this literal-key value</strong> (literal-key-first rule). The nested <code>geo &rsaquo; region</code> below is <strong>shadowed</strong> for templates and won't be substituted. Use <code>{{$.geo.region}}</code> to reach the nested value.
+            </div>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            ▾ correct_answer <span class="chip">str</span>
+            <div class="actions"><span>⤢</span><span>⌃</span></div>
+          </div>
+          <div class="field-content">
+            <input value="The capital of Vanuatu is Port Vila, located on the southern coast of Efate Island in the South Pacific Ocean.">
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">
+            ▾ geo <span class="chip chip-obj">obj</span>
+            <span style="color: var(--muted); font-weight: normal; font-size: 11px;">3 properties</span>
+            <div class="actions"><span>⤢ Drill In</span><span>⌃</span></div>
+          </div>
+          <div class="field-content">
+            <div style="display: grid; grid-template-columns: 1fr; gap: 6px;">
+              <div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; background: rgba(5,23,41,0.02);">
+                <span style="min-width: 110px; font-weight: 500;">region</span>
+                <span class="chip-stack"><span class="chip">path</span><span class="chip">str</span><span class="chip chip-warn" style="font-size: 9px;">shadowed</span></span>
+                <span class="mono" style="font-size: 11px; color: var(--muted); flex: 1; overflow: hidden; text-overflow: ellipsis;">"NESTED_PATH_VALUE_for_vanuatu_region…"</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px;">
+                <span style="min-width: 110px; font-weight: 500;">subregion</span>
+                <span class="chip">path</span><span class="chip">str</span>
+                <span class="mono" style="font-size: 11px;">"Melanesia"</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 4px;">
+                <span style="min-width: 110px; font-weight: 500;">coordinates</span>
+                <span class="chip chip-obj">obj</span>
+                <span class="mono" style="font-size: 11px; color: var(--muted);">{ lat: -15.376, lng: 166.959 }</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p style="font-size:11px; color: var(--muted); margin: 4px 0 24px;"><strong>Delta:</strong> (1) every literal-dotted column header carries <code>[dotted-key]</code> chip; (2) Vanuatu row gets a <code>⚠</code> collision marker; (3) drill-in flags a top-level <code>⚠ collision detected</code>; (4) the literal-key card is highlighted with a red border + the explicit message <code>⚠ shadows {{geo.region}}</code>; (5) the runtime explanation tells the user exactly which value templates resolve to and how to reach the other one with <code>{{$.geo.region}}</code>; (6) the shadowed nested child also gets a <code>shadowed</code> chip so it's clear from both sides.</p>
+
+  <h2 style="font-size:16px; margin: 24px 0 12px;">Three disambiguation approaches (proposed)</h2>
+
+  <div class="var-grid">
+
+    <!-- A: Path indicator everywhere (recommended) -->
+    <div class="var-section">
+      <h3>A. <code>[dotted-key]</code> chip everywhere<span class="recommended">★ recommended</span></h3>
+      <p class="desc">Every literal-dot key gets a chip distinguishing it from a nested-path component.</p>
+
+      <p style="font-size:11px; color:var(--muted); margin: 12px 0 4px;">Drill-in Fields view:</p>
+      <div class="drawer-mock" style="font-size: 11px;">
+        <div class="drawer-prop">
+          <div class="drawer-prop-header"><span>▾</span> "geo.region" <span class="chip-stack"><span class="chip chip-dotted">dotted-key</span><span class="chip">str</span></span></div>
+          <input class="drawer-prop-input" value="LITERAL_DOT_VALUE">
+        </div>
+        <div class="drawer-prop">
+          <div class="drawer-prop-header"><span>▾</span> geo <span class="chip chip-obj">obj</span></div>
+          <div class="json-block"><span class="p">{</span> <span class="k">"region"</span><span class="p">:</span> <span class="s">"NESTED_PATH_VALUE"</span><span class="p">,</span> <span class="k">"subregion"</span><span class="p">:</span> <span class="s">"Melanesia"</span> <span class="p">}</span></div>
+        </div>
+      </div>
+
+      <p style="font-size:11px; color:var(--muted); margin: 12px 0 4px;">Variables panel:</p>
+      <div class="vars-panel" style="font-size: 11px;">
+        <div class="vars-row"><span class="name mono">{{geo.region}}</span><span class="chip-stack"><span class="chip chip-dotted">dotted</span><span class="chip">str</span></span><span class="src">"LITERAL_DOT_VALUE"</span></div>
+        <div class="vars-row"><span class="name mono">{{$.geo.region}}</span><span class="chip-stack"><span class="chip">path</span><span class="chip">str</span></span><span class="src">"NESTED_PATH_VALUE"</span></div>
+      </div>
+      <details><summary>Tradeoffs</summary><div><strong>Pros:</strong> explicit, doesn't change behavior, user makes informed choice. Uses the same chip system everywhere.<br><strong>Cons:</strong> adds visual chrome to every dotted column.</div></details>
+    </div>
+
+    <!-- B: Auto-warn on collision only -->
+    <div class="var-section">
+      <h3>B. Auto-warn on collision only</h3>
+      <p class="desc">Quiet by default. Warning chip appears only when both shapes exist for the same path.</p>
+      <div class="drawer-mock" style="font-size:11px;">
+        <div class="drawer-prop">
+          <div class="drawer-prop-header"><span>▾</span> geo.region <span class="chip-stack"><span class="chip chip-warn">⚠ shadows nested</span><span class="chip">str</span></span></div>
+          <input class="drawer-prop-input" value="LITERAL_DOT_VALUE">
+          <div style="font-size:10px; color: var(--bad-border); margin-top: 4px;">Templates <code>{{geo.region}}</code> resolve this literal value, shadowing <code>geo.region</code> = "NESTED_PATH_VALUE".</div>
+        </div>
+        <div class="drawer-prop">
+          <div class="drawer-prop-header"><span>▾</span> geo <span class="chip chip-obj">obj</span></div>
+          <div class="json-block"><span class="p">{</span> <span class="k">"region"</span><span class="p">:</span> <span class="s">"NESTED_PATH_VALUE"</span><span class="p">,</span> ... <span class="p">}</span></div>
+        </div>
+      </div>
+      <details><summary>Tradeoffs</summary><div><strong>Pros:</strong> quiet by default, only fires when there's actual ambiguity.<br><strong>Cons:</strong> users learn the distinction only when they hit a collision. Variables panel still doesn't disambiguate the two insertion options.</div></details>
+    </div>
+
+    <!-- C: Display merge (REJECTED) -->
+    <div class="var-section">
+      <h3>C. Display-time merge <span style="color: var(--bad-border);">✗ rejected</span></h3>
+      <p class="desc">Auto-collapse: pick one shape (always literal, or always nested) for display. Hide the other.</p>
+      <div class="drawer-mock" style="font-size:11px;">
+        <div class="drawer-prop">
+          <div class="drawer-prop-header"><span>▾</span> geo <span class="chip chip-obj">obj</span></div>
+          <div class="json-block"><span class="p">{</span> <span class="k">"region"</span><span class="p">:</span> <span class="s">"NESTED_PATH_VALUE"</span><span class="p">,</span> <span class="k">"subregion"</span><span class="p">:</span> <span class="s">"Melanesia"</span> <span class="p">}</span><br><span class="c">// "geo.region": "LITERAL_DOT_VALUE" hidden from view</span></div>
+        </div>
+      </div>
+      <details><summary>Why rejected</summary><div>Lossy. Lies to the user about what's stored. Breaks templates that depend on the hidden form. Storage shape must remain visible.</div></details>
+    </div>
+
+  </div>
+
+  <div class="recommend"><strong>Recommendation:</strong> Variant A as the baseline (chip everywhere). Variant B layered on top for collisions specifically (warning chip + inline explanation). Both ship together.</div>
+
+  <h2 style="font-size:16px; margin: 32px 0 12px;">Table view — both expansion states</h2>
+
+  <p style="font-size:12px; color: var(--muted); margin-bottom: 12px;">The testset table can render <code>geo</code> either collapsed (parent group with a chip + drill affordance) or expanded (sub-columns visible). Variant A applies in both states. Showing both because the user might inspect the table in either mode.</p>
+
+  <h3 style="font-size: 13px; margin: 16px 0 8px;">Collapsed: <code>geo</code> as a parent group with a drill-in chevron</h3>
+
+  <p style="font-size: 11px; color: var(--muted); margin-bottom: 8px;">User hasn't expanded <code>geo</code> yet. Both literal-dotted columns AND the collapsed <code>geo</code> object column are visible side-by-side. Chips disambiguate.</p>
+
+  <div class="surface">
+    <table class="tsr">
+      <thead>
+        <tr>
+          <th>country</th>
+          <th>"geo.region" <span class="chip chip-dotted">dotted-key</span></th>
+          <th>"geo.subregion" <span class="chip chip-dotted">dotted-key</span></th>
+          <th>▸ geo <span class="chip chip-obj">obj</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="mono">Tuvalu</td><td>Polynesia</td><td>Western Polynesia</td><td style="color:var(--faint)">—</td></tr>
+        <tr><td class="mono">Kiribati</td><td style="color:var(--faint)">—</td><td style="color:var(--faint)">—</td><td><span class="chip chip-obj">obj</span> <span class="mono" style="color:var(--muted)">{ 2 }</span> <span class="mono" style="color:var(--muted); font-size: 11px;">region, subregion</span></td></tr>
+        <tr><td class="mono">Comoros</td><td>Africa</td><td style="color:var(--faint)">—</td><td><span class="chip chip-obj">obj</span> <span class="mono" style="color:var(--muted)">{ 1 }</span> <span class="mono" style="color:var(--muted); font-size: 11px;">subregion</span></td></tr>
+        <tr style="background: rgba(255, 77, 79, 0.04);"><td class="mono">Vanuatu <span class="chip chip-warn">collision</span></td><td>LITERAL_DOT_VALUE</td><td style="color:var(--faint)">—</td><td><span class="chip chip-obj">obj</span> <span class="mono" style="color:var(--muted)">{ 2 }</span> <span class="mono" style="color:var(--muted); font-size: 11px;">region, subregion</span></td></tr>
+        <tr><td class="mono">Nauru</td><td style="color:var(--faint)">—</td><td style="color:var(--faint)">—</td><td style="color:var(--faint)">—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p style="font-size:12px; color: var(--muted); margin-top: 12px;">
+    Even collapsed, the user can read: <em>"there's a literal <code>geo.region</code> column AND there's a separate <code>geo</code> object column."</em> Vanuatu's collision row shows both have values; the row-level <span class="chip chip-warn">collision</span> chip flags it. Click <code>▸ geo</code> on the column header to expand.
+  </p>
+
+  <h3 style="font-size: 13px; margin: 24px 0 8px;">Expanded: <code>geo</code> drilled into sub-columns</h3>
+
+  <p style="font-size: 11px; color: var(--muted); margin-bottom: 8px;">User clicked <code>▸ geo</code>. Sub-columns appear under a parent header. Path-traversal labels distinguish from literal-dotted columns.</p>
+
+  <div class="surface">
+    <table class="tsr">
+      <thead>
+        <tr>
+          <th rowspan="2">country</th>
+          <th rowspan="2">"geo.region" <span class="chip chip-dotted">dotted-key</span></th>
+          <th rowspan="2">"geo.subregion" <span class="chip chip-dotted">dotted-key</span></th>
+          <th colspan="2" style="text-align: center; background: rgba(22, 119, 255, 0.04);">▾ geo <span class="chip chip-obj">obj</span></th>
+        </tr>
+        <tr>
+          <th style="background: rgba(22, 119, 255, 0.04);">region <span class="chip">path</span></th>
+          <th style="background: rgba(22, 119, 255, 0.04);">subregion <span class="chip">path</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="mono">Tuvalu</td><td>Polynesia</td><td>Western Polynesia</td><td style="color:var(--faint)">—</td><td style="color:var(--faint)">—</td></tr>
+        <tr><td class="mono">Kiribati</td><td style="color:var(--faint)">—</td><td style="color:var(--faint)">—</td><td>Micronesia</td><td>Central Pacific</td></tr>
+        <tr><td class="mono">Comoros</td><td>Africa</td><td style="color:var(--faint)">—</td><td style="color:var(--faint)">—</td><td>Eastern Africa</td></tr>
+        <tr style="background: rgba(255, 77, 79, 0.04);"><td class="mono">Vanuatu <span class="chip chip-warn">collision</span></td><td>LITERAL_DOT_VALUE</td><td style="color:var(--faint)">—</td><td>NESTED_PATH_VALUE</td><td>Melanesia</td></tr>
+        <tr><td class="mono">Nauru</td><td style="color:var(--faint)">—</td><td style="color:var(--faint)">—</td><td style="color:var(--faint)">—</td><td style="color:var(--faint)">—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p style="font-size:12px; color: var(--muted); margin-top: 12px;">
+    Once expanded, the user sees both forms as distinct columns. Visual grouping (parent header, indentation, color tint) reinforces that <code>region</code> / <code>subregion</code> are children of <code>geo</code>, not siblings of the literal-dotted columns. The Vanuatu collision is unambiguous: literal column shows "LITERAL_DOT_VALUE", path column shows "NESTED_PATH_VALUE".
+  </p>
+
+  <div class="recommend">
+    Chips work in both expansion states. <code>[dotted-key]</code> on flat literal columns. <code>[obj]</code> on collapsed parent groups. <code>[path]</code> on expanded sub-columns. Same vocabulary in the table header, the drill-in, the variables panel.
+  </div>
+
+  <p style="font-size:12px; color:var(--muted);">Cross-refs: <a href="gap-04-shape-preservation.html">gap-04</a> (preserve shape) · <a href="gap-01-type-chips.html">gap-01</a> (chip system)</p>
+
+</div>
+
+</body>
+</html>

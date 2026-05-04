@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gap 03 — Drill-in root view bailout</title>
+<link rel="stylesheet" href="shared.css?v=3">
+</head>
+<body>
+
+<div class="nav-jump">
+  <strong>Gap 03 · Drill-in root view</strong>
+  <a href="index.html">← Index</a>
+  <a href="gap-02-table-cells.html">← 02</a>
+  <a href="gap-04-shape-preservation.html">04 →</a>
+  <span class="ml-auto" style="color:var(--muted)">FE-only · anchor: fixtures 04, 06, 07</span>
+</div>
+
+<div class="page">
+
+  <div class="crumbs"><a href="index.html">variants</a> / gap-03-drill-in-root-view</div>
+
+  <div class="page-header">
+    <h1>Gap 03 — Drill-in root view bails to one giant code editor</h1>
+    <p><strong>The editable surface, anchored on the drill-in component itself.</strong> The "drawer" in the screenshots is just <code>EntityDualViewEditor</code> wrapping <code>EntityDrillInView</code> wrapping <code>DrillInContent</code>. The fix lives in <code>DrillInContent</code> (and propagates everywhere the drill-in is consumed: testcase drawer, "Add to Testset" preview, playground execution item, annotation UI).</p>
+    <p>For non-trivial testcases (stringified-nested, deeply nested, messages-with-tools), the drill-in at root renders top-level objects as one big JSON code editor each. Users only get per-property cards after clicking <strong>Drill In</strong>. The drilled-in experience is good. The default isn't.</p>
+    <p><strong>Anchor component:</strong> <code>DrillInContent</code> ([DrillInContent.tsx:178](../../../web/oss/src/components/DrillInView/DrillInContent.tsx)). Auto-expand top-level keys to first-level cards. Don't touch drawer chrome — the drawer just hosts the drill-in.</p>
+  </div>
+
+  <!-- Today — current state with screenshots -->
+  <section class="today-section">
+    <h2>Today <span class="label">Current state</span></h2>
+    <p>The root view bails to one big code editor per top-level key. Cards-with-detection only kicks in after the user clicks <strong>Drill In</strong>.</p>
+    <div class="grid-3">
+      <div>
+        <div class="shot">
+          <img src="../screenshots/Screenshot%202026-05-01%20at%2011.19.14.png" alt="Fixture 04 drill-in Fields view (root)">
+          <div class="shot-caption"><strong>Fixture 04 drill-in root</strong>: <code>inputs</code> and <code>outputs</code> render as one big JSON code editor each. Stringified <code>metadata</code> is hidden inside an escaped string; user can't see it as an object until they drill in.</div>
+        </div>
+      </div>
+      <div>
+        <div class="shot">
+          <img src="../screenshots/Screenshot%202026-05-01%20at%2011.19.21.png" alt="Fixture 04 drilled-in fields view">
+          <div class="shot-caption"><strong>Fixture 04 drilled-in</strong>: after one click, the experience is good — per-property cards, <code>metadata</code> auto-parsed as <code>[3 properties]</code> object editor. <em>This should be the default at root.</em></div>
+        </div>
+      </div>
+      <div>
+        <div class="shot">
+          <img src="../screenshots/Screenshot%202026-05-01%20at%2011.20.26.png" alt="Fixture 06 drill-in Fields view (root)">
+          <div class="shot-caption"><strong>Fixture 06 drill-in root (deeply nested)</strong>: same problem at scale. The user sees a wall of JSON instead of a navigable tree of cards.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <h2 style="font-size:16px; margin: 24px 0 12px;">Before / after — fixture 06 (deeply nested) full-screen drill-in render</h2>
+
+  <p style="font-size:12px; color: var(--muted); margin-bottom: 12px;">Same Tuvalu testcase from fixture 06 (4-5 levels of nesting). Variant A (auto-expand top-level) applied to <code>DrillInContent</code>. Full-screen rendering shows the drill-in inside its drawer host so the proportions match the actual app layout.</p>
+
+  <h4 style="margin: 16px 0 8px;"><strong>Before</strong> — fixture 06 drill-in root view (today)</h4>
+  <div class="shot">
+    <img src="../screenshots/Screenshot%202026-05-01%20at%2011.20.26.png" alt="Fixture 06 root, today">
+    <div class="shot-caption">Today: a wall of JSON. <code>context</code> with 4-5 levels of nesting renders as one code editor. Navigation requires reading raw JSON. Even <code>correct_answer</code> + the demographic/geographic context is squeezed into a single editor.</div>
+  </div>
+
+  <h4 style="margin: 24px 0 8px;"><strong>After</strong> — Variant A applied (full-screen drill-in render)</h4>
+  <div class="fullscreen-mock">
+    <div class="table-bg">
+      <div class="testset-title">06-deeply-nested <span class="chip" style="font-size:9px;">v1</span></div>
+      <div class="breadcrumb">arda / Default / testsets / 06-deeply-nested</div>
+      <table>
+        <thead><tr><th>country</th><th>correct_answer</th><th>▸ context <span class="chip chip-obj" style="font-size:8px;">obj</span></th><th>▸ answer <span class="chip chip-obj" style="font-size:8px;">obj</span></th></tr></thead>
+        <tbody>
+          <tr style="background: rgba(22,119,255,0.04);"><td><strong>Tuvalu</strong></td><td>The capital of Tuvalu is Funafuti, a coral atoll situated in the central Pacific Ocean…</td><td>{ 2 }</td><td>{ 2 }</td></tr>
+          <tr><td>Kiribati</td><td>The capital of Kiribati is South Tarawa, located in the central Pacific…</td><td>{ 2 }</td><td>{ 2 }</td></tr>
+          <tr><td>Comoros</td><td>The capital of Comoros is Moroni, situated on Grande Comore island…</td><td>{ 2 }</td><td>{ 2 }</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="drawer-panel">
+      <div class="drawer-header">
+        <span class="nav-arrows"><span>»</span><span>⌃</span><span>⌄</span></span>
+        <span class="title">Testcase 1 <span style="color:var(--muted); font-weight:normal; font-size:10px;">⎘</span></span>
+        <span class="add-queue">≡ Add to queue</span>
+        <span class="view-toggle"><span class="active">Fields</span><span class="inactive">JSON</span></span>
+      </div>
+      <div class="drawer-body">
+        <div class="root-label">Root</div>
+
+        <div class="field-card">
+          <div class="field-header">▾ inputs <span class="chip chip-obj">obj</span> <span style="color:var(--muted); font-weight:normal; font-size:10px;">3 properties</span> <span class="actions"><span>⎘</span><span>&lt;/&gt;</span><span>Drill In ▸</span></span></div>
+          <div class="field-content" style="padding: 8px 12px;">
+            <div class="nested-card">
+              <div class="field-card" style="margin-bottom: 8px;">
+                <div class="field-header" style="padding: 6px 10px;">▾ country <span class="chip">str</span></div>
+                <div class="field-content" style="padding: 8px 10px;"><input value="Tuvalu"></div>
+              </div>
+              <div class="field-card" style="margin-bottom: 8px;">
+                <div class="field-header" style="padding: 6px 10px;">▾ correct_answer <span class="chip">str</span></div>
+                <div class="field-content" style="padding: 8px 10px;"><input value="The capital of Tuvalu is Funafuti, a coral atoll situated in the central Pacific Ocean approximately 1,000 km north of Fiji and 4,000 km northeast of Sydney."></div>
+              </div>
+              <div class="field-card" style="margin-bottom: 4px;">
+                <div class="field-header" style="padding: 6px 10px;">▾ context <span class="chip chip-obj">obj</span> <span style="color:var(--muted); font-weight:normal; font-size:10px;">2 properties</span> <span class="actions"><span>Drill In ▸</span></span></div>
+                <div class="field-content" style="padding: 8px 10px;">
+                  <div class="nested-card" style="margin-left: 0; padding-left: 10px;">
+                    <div style="margin-bottom: 6px;">
+                      <span style="font-weight: 500; font-size: 11px;">▾ geo</span> <span class="chip chip-obj">obj</span> <span style="color: var(--muted); font-size: 10px;">3 properties</span>
+                      <div style="padding-left: 12px; font-size: 10px; color: var(--muted); margin-top: 4px; line-height: 1.6;">
+                        ▸ region · str · "Polynesia"<br>
+                        ▸ subregion · str · "Western Polynesia"<br>
+                        ▸ coordinates · obj · 3 properties (lat, lng, altitude_m) · <span style="color: var(--info-border);">Drill In ▸</span>
+                      </div>
+                    </div>
+                    <div>
+                      <span style="font-weight: 500; font-size: 11px;">▾ demographics</span> <span class="chip chip-obj">obj</span> <span style="color: var(--muted); font-size: 10px;">2 properties</span>
+                      <div style="padding-left: 12px; font-size: 10px; color: var(--muted); margin-top: 4px; line-height: 1.6;">
+                        ▸ population · obj · 2 properties (total: 11200, by_atoll: { Funafuti, Niutao, Vaitupu }) · <span style="color: var(--info-border);">Drill In ▸</span><br>
+                        ▸ languages · obj · 2 properties (official: ["Tuvaluan", "English"], speakers_percent: {…}) · <span style="color: var(--info-border);">Drill In ▸</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-header">▾ outputs <span class="chip chip-obj">obj</span> <span style="color:var(--muted); font-weight:normal; font-size:10px;">1 property (answer)</span> <span class="actions"><span>⎘</span><span>&lt;/&gt;</span><span>Drill In ▸</span></span></div>
+          <div class="field-content" style="padding: 8px 12px;">
+            <div class="nested-card">
+              <div style="margin-bottom: 4px;">
+                <span style="font-weight: 500; font-size: 11px;">▾ answer</span> <span class="chip chip-obj">obj</span> <span style="color: var(--muted); font-size: 10px;">2 properties</span>
+                <div style="padding-left: 12px; font-size: 10px; color: var(--muted); margin-top: 4px; line-height: 1.6;">
+                  ▸ primary · str · "Funafuti"<br>
+                  ▸ verification · obj · 2 properties (sources: [1 record], checks: { spelling, factual }) · <span style="color: var(--info-border);">Drill In ▸</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p style="font-size:12px; color: var(--muted); margin-top: 8px;">
+    <strong>Delta:</strong> top-level <code>inputs</code> and <code>outputs</code> are open as cards by default. First-level children render inline (<code>country</code>, <code>correct_answer</code>, <code>context</code>, <code>answer</code>). Levels 2-5 compressed into one-line summaries showing key names + types + sample values + a <strong>Drill In ▸</strong> affordance per branch. The user can navigate the entire 5-level tree without ever reading raw JSON. The <code>&lt;/&gt;</code> toggle still takes them to raw JSON if they want it.
+  </p>
+
+  <h2 style="font-size:16px; margin: 24px 0 12px;">Three approaches (proposed)</h2>
+
+  <div class="var-grid">
+
+    <!-- A: Auto-expand first level (recommended) -->
+    <div class="var-section">
+      <h3>A. Auto-expand top-level<span class="recommended">★ recommended</span></h3>
+      <p class="desc">Each top-level key renders as a per-property card. Object/array values render their first level inline. Drill-in unlocks deeper levels.</p>
+      <div class="drawer-mock" style="font-size:11px;">
+        <div class="drawer-prop">
+          <div class="drawer-prop-header"><span>▾</span> inputs <span class="chip chip-obj">obj</span> <span style="color:var(--muted); font-weight: normal;">3 props</span> <span class="actions"><span class="btn-mini icon">⎘</span><span class="btn-mini icon">&lt;/&gt;</span><span class="btn-mini">Drill In ▸</span></span></div>
+          <div style="padding-left: 16px; border-left: 2px solid var(--line); margin-top: 4px;">
+            <div class="drawer-prop" style="border: none; padding: 4px 0;">
+              <div class="drawer-prop-header"><span>▾</span> country <span class="chip">str</span></div>
+              <input class="drawer-prop-input" value="Tuvalu">
+            </div>
+            <div class="drawer-prop" style="border: none; padding: 4px 0;">
+              <div class="drawer-prop-header"><span>▾</span> correct_answer <span class="chip">str</span></div>
+              <input class="drawer-prop-input" value="The capital of Tuvalu is Funafuti.">
+            </div>
+            <div class="drawer-prop" style="border: none; padding: 4px 0;">
+              <div class="drawer-prop-header"><span>▾</span> metadata <span class="chip chip-obj">obj</span> <span class="actions"><span class="btn-mini">Drill In ▸</span></span></div>
+              <div class="json-block"><span class="p">{</span> <span class="k">"source"</span><span class="p">:</span> <span class="s">"trace"</span><span class="p">,</span> <span class="k">"trace_id"</span><span class="p">:</span> <span class="s">"abc123"</span><span class="p">,</span> <span class="k">"latency_ms"</span><span class="p">:</span> <span class="n">420</span> <span class="p">}</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <details><summary>Tradeoffs</summary><div><strong>Pros:</strong> structure visible immediately. Matches drilled-in UX. Stringified-JSON detection still kicks in (metadata renders as parsed obj).<br><strong>Cons:</strong> very large/deep testcases get a tall scroll. Stops at first level inline; deeper requires drill-in.</div></details>
+    </div>
+
+    <!-- B: Threshold-based -->
+    <div class="var-section">
+      <h3>B. Threshold-based smart default</h3>
+      <p class="desc">Cards if obj has ≤ 3 properties AND depth ≤ 2. Code editor otherwise. User can toggle either way.</p>
+      <div class="drawer-mock" style="font-size:11px;">
+        <div class="drawer-prop">
+          <div class="drawer-prop-header"><span>▾</span> inputs <span class="chip chip-obj">obj</span> <span style="color:var(--muted); font-weight: normal;">3 props · depth 2 → cards</span> <span class="actions"><span class="btn-mini icon">&lt;/&gt;</span></span></div>
+          <div style="padding-left: 16px;"><span style="font-size:10px; color:var(--muted);">[as in A]</span></div>
+        </div>
+        <div class="drawer-prop">
+          <div class="drawer-prop-header"><span>▾</span> outputs <span class="chip chip-obj">obj</span> <span style="color:var(--muted); font-weight: normal;">depth 5 → editor</span> <span class="actions"><span class="btn-mini">Show as cards</span></span></div>
+          <div class="json-block"><span class="p">{</span><br>&nbsp;&nbsp;<span class="k">"answer"</span><span class="p">:</span> <span class="p">{</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"primary"</span><span class="p">:</span> <span class="s">"Funafuti"</span><span class="p">,</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="k">"verification"</span><span class="p">:</span> <span class="p">{</span> ... <span class="p">}</span><br>&nbsp;&nbsp;<span class="p">}</span><br><span class="p">}</span></div>
+        </div>
+      </div>
+      <details><summary>Tradeoffs</summary><div><strong>Pros:</strong> balances readability with scroll-pain.<br><strong>Cons:</strong> users learn a non-obvious rule. Edge cases surprise ("why does this one show cards but the bigger one doesn't?").</div></details>
+    </div>
+
+    <!-- C: Always cards + paginate deep -->
+    <div class="var-section">
+      <h3>C. Always cards, paginate deep</h3>
+      <p class="desc">Always render top-level keys as cards. For object values, show first 5 keys + "show more (5 of 12)".</p>
+      <div class="drawer-mock" style="font-size:11px;">
+        <div class="drawer-prop">
+          <div class="drawer-prop-header"><span>▾</span> context <span class="chip chip-obj">obj</span> <span style="color:var(--muted); font-weight: normal;">8 props</span></div>
+          <div style="padding-left: 16px; border-left: 2px solid var(--line); margin-top: 4px;">
+            <div class="drawer-prop" style="border: none; padding: 4px 0;">
+              <div class="drawer-prop-header"><span>▾</span> geo <span class="chip chip-obj">obj</span></div>
+            </div>
+            <div class="drawer-prop" style="border: none; padding: 4px 0;">
+              <div class="drawer-prop-header"><span>▾</span> demographics <span class="chip chip-obj">obj</span></div>
+            </div>
+            <div class="drawer-prop" style="border: none; padding: 4px 0;">
+              <div class="drawer-prop-header"><span>▾</span> languages <span class="chip chip-obj">obj</span></div>
+            </div>
+            <div class="drawer-prop" style="border: none; padding: 4px 0; color: var(--muted);">
+              <div style="font-size:10px;">▸ Show 5 more (8 total)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <details><summary>Tradeoffs</summary><div><strong>Pros:</strong> consistent behavior, scales to large testcases.<br><strong>Cons:</strong> more UI complexity. Pagination chrome adds clutter.</div></details>
+    </div>
+
+  </div>
+
+  <div class="recommend">
+    <strong>Recommendation:</strong> Variant A. Auto-expand top-level objects to first-level cards. Use existing <strong>Drill In</strong> for deeper nesting. The <code>&lt;/&gt;</code> toggle stays available for users who prefer raw JSON. The current default optimizes for the wrong case — users want to see structure first, edit raw second.
+  </div>
+
+  <h2 style="font-size:16px; margin: 32px 0 12px;">For really large testcases (fixture 06)</h2>
+
+  <p style="font-size:12px; color: var(--muted); margin-bottom: 12px;">Variant A behavior on fixture 06's <code>inputs.context</code> (4-5 levels deep):</p>
+
+  <div class="grid-2">
+    <div>
+      <h4>Root view shows</h4>
+      <div class="drawer-mock" style="font-size:11px;">
+        <div class="drawer-prop">
+          <div class="drawer-prop-header"><span>▾</span> country <span class="chip">str</span></div>
+          <input class="drawer-prop-input" value="Tuvalu">
+        </div>
+        <div class="drawer-prop">
+          <div class="drawer-prop-header"><span>▾</span> correct_answer <span class="chip">str</span></div>
+          <input class="drawer-prop-input" value="The capital of Tuvalu is Funafuti.">
+        </div>
+        <div class="drawer-prop">
+          <div class="drawer-prop-header"><span>▾</span> context <span class="chip chip-obj">obj</span> <span class="actions"><span class="btn-mini">Drill In ▸</span></span></div>
+          <div style="padding-left: 16px; font-size:10px; color: var(--muted); margin-top: 4px;">
+            ▾ geo · obj — region, subregion, coordinates<br>
+            ▾ demographics · obj — population, languages
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <h4>Drill into <code>context</code></h4>
+      <div class="drawer-mock" style="font-size:11px;">
+        <div style="padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 11px; color: var(--muted);">← Root / context</div>
+        <div class="drawer-prop">
+          <div class="drawer-prop-header"><span>▾</span> geo <span class="chip chip-obj">obj</span> <span class="actions"><span class="btn-mini">Drill ▸</span></span></div>
+          <div class="json-block"><span class="p">{</span> <span class="k">"region"</span><span class="p">:</span> <span class="s">"Polynesia"</span><span class="p">,</span> <span class="k">"subregion"</span><span class="p">:</span> <span class="s">"Western P."</span><span class="p">,</span> <span class="k">"coordinates"</span><span class="p">:</span> <span class="p">{</span>...<span class="p">}</span> <span class="p">}</span></div>
+        </div>
+        <div class="drawer-prop">
+          <div class="drawer-prop-header"><span>▾</span> demographics <span class="chip chip-obj">obj</span> <span class="actions"><span class="btn-mini">Drill ▸</span></span></div>
+          <div class="json-block"><span class="p">{</span> <span class="k">"population"</span><span class="p">:</span> <span class="p">{</span>...<span class="p">},</span> <span class="k">"languages"</span><span class="p">:</span> <span class="p">{</span>...<span class="p">}</span> <span class="p">}</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p style="font-size:12px; color: var(--muted); margin-top: 16px;">
+    User always sees one level of structure with the option to drill. Never sees a wall of JSON unless they explicitly open <code>&lt;/&gt;</code>.
+  </p>
+
+  <p style="font-size:12px; color:var(--muted);">Cross-refs: <a href="gap-02-table-cells.html">gap-02</a> (same shape preview vocabulary) · <a href="gap-01-type-chips.html">gap-01</a> · <a href="gap-06-messages-renderer.html">gap-06</a> (messages don't go to code editor at root)</p>
+
+</div>
+
+</body>
+</html>
