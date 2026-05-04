@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "agenta-client"
+# Pre-release version — will become a proper PyPI release once the client stabilises.
+# When published, replace the path dependency in sdks/python/pyproject.toml with:
+#   agenta-client = "^<version>"
+version = "0.0.0.dev0"
+description = "Fern-generated Python client for the Agenta API."
+authors = [
+    "Juan Vega <jp@agenta.ai>"
+]
+packages = [{ include = "agenta_client" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+httpx = "^0.28"
+pydantic = "^2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

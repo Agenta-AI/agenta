@@ -6,11 +6,13 @@ repos:
         entry: python3 -m ruff format
         language: system
         types: [python]
+        exclude: ^clients/
       - id: ruff-check
         name: ruff check
         entry: python3 -m ruff check
         language: system
         types: [python]
+        exclude: ^clients/
       - id: prettier-format
         name: prettier --write (web)
         entry: bash -c 'cd web && pnpm exec prettier --write --cache --log-level warn "**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}" --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore'
