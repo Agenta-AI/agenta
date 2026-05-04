@@ -56,7 +56,7 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml pull
 Before updating services, apply any database schema changes:
 
 ```bash
-docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/core <api-container-name> alembic -c alembic.ini upgrade head
+docker exec -e PYTHONPATH=/api -w /api/oss/databases/postgres/migrations/core <api-container-name> alembic -c alembic.ini upgrade head
 ```
 
 Replace `<api-container-name>` with your actual API container name (e.g., `agenta-oss-gh-api-1`).
@@ -133,13 +133,13 @@ docker ps | grep api
 Apply all pending migrations:
 
 ```bash
-docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/core <api-container-name> alembic -c alembic.ini upgrade head
+docker exec -e PYTHONPATH=/api -w /api/oss/databases/postgres/migrations/core <api-container-name> alembic -c alembic.ini upgrade head
 ```
 
 **Command Breakdown:**
 - `docker exec`: Runs commands inside an existing container
-- `-e PYTHONPATH=/app`: Sets the Python path for the application
-- `-w /app/oss/databases/postgres/migrations/core`: Sets the working directory to the migrations folder
+- `-e PYTHONPATH=/api`: Sets the Python path for the application
+- `-w /api/oss/databases/postgres/migrations/core`: Sets the working directory to the migrations folder
 - `<api-container-name>`: Your actual API container name
 - `alembic -c alembic.ini upgrade head`: Runs all migrations to the latest version
 

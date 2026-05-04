@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.20
 FROM node:20.18.0-slim AS base
 
-WORKDIR /app
+WORKDIR /web
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     TURBO_TELEMETRY_DISABLED=1 \
@@ -21,7 +21,7 @@ RUN PNPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[
 FROM base AS builder
 
 ENV NODE_OPTIONS="--max_old_space_size=4096"
-ENV TURBO_CACHE_DIR="/app/.turbo"
+ENV TURBO_CACHE_DIR="/web/.turbo"
 
 COPY docker/run-turbo-build.sh /usr/local/bin/run-turbo-build.sh
 
@@ -41,8 +41,8 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 COPY packages/ ./packages/
 COPY oss/ ./oss/
 
-RUN --mount=type=cache,id=turbo-oss,target=/app/.turbo \
-    --mount=type=cache,id=nextjs-oss,target=/app/oss/.next/cache \
+RUN --mount=type=cache,id=turbo-oss,target=/web/.turbo \
+    --mount=type=cache,id=nextjs-oss,target=/web/oss/.next/cache \
     --mount=type=secret,id=turbo_team,required=false \
     --mount=type=secret,id=turbo_token,required=false \
     /usr/local/bin/run-turbo-build.sh @agenta/oss
@@ -54,7 +54,7 @@ ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION=0.0.0
 
-WORKDIR /app
+WORKDIR /web
 
 ENV NEXT_TELEMETRY_DISABLED=1 \
     NODE_ENV=production
@@ -62,10 +62,10 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
 RUN groupadd --gid 10001 agenta && \
     useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta
 
-COPY --chown=agenta:agenta --from=builder /app/oss/.next/standalone /app
-COPY --chown=agenta:agenta --from=builder /app/oss/.next/static /app/oss/.next/static
-COPY --chown=agenta:agenta --from=builder /app/oss/public /app/oss/public
-COPY --chown=agenta:agenta ./entrypoint.sh /app/entrypoint.sh
+COPY --chown=agenta:agenta --from=builder /web/oss/.next/standalone /web
+COPY --chown=agenta:agenta --from=builder /web/oss/.next/static /web/oss/.next/static
+COPY --chown=agenta:agenta --from=builder /web/oss/public /web/oss/public
+COPY --chown=agenta:agenta ./entrypoint.sh /web/entrypoint.sh
 
 USER 10001
 
@@ -75,5 +75,5 @@ LABEL org.opencontainers.image.title="agenta-web" \
     org.opencontainers.image.revision="${VCS_REF}" \
     org.opencontainers.image.created="${BUILD_DATE}"
 
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["/web/entrypoint.sh"]
 EXPOSE 3000

@@ -7,7 +7,7 @@ if [ "$AGENTA_LICENSE" != "ee" ]; then
 fi
 
 if [ "$ENTRYPOINT_DIR" != "." ]; then
-  ENTRYPOINT_DIR="/app"
+  ENTRYPOINT_DIR="/web"
 fi
 
 # Infer AGENTA_SENDGRID_ENABLED from SENDGRID_API_KEY and sender address

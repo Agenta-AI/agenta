@@ -2,7 +2,7 @@ FROM node:20.18-slim
 
 ENV TURBO_TELEMETRY_DISABLED=1
 
-WORKDIR /app
+WORKDIR /web
 
 # Install jq for JSON parsing
 RUN apt-get update && apt-get install -y jq
@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y jq
 # Install dependencies based on the preferred package manager
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* .npmrc* ./
 COPY patches/ ./patches/
-COPY ./entrypoint.sh /app/entrypoint.sh   
+COPY ./entrypoint.sh /web/entrypoint.sh
 
 # Extract PNPM version and install it
 RUN PNPM_VERSION=$(cat package.json | jq -r '.packageManager | split("@")[1]') && \
@@ -39,7 +39,7 @@ COPY tests/package.json ./tests/
 COPY ./pnpm-workspace.yaml ./turbo.json ./
 RUN groupadd --gid 10001 agenta && \
     useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta && \
-    chown -R agenta:agenta /app
+    chown -R agenta:agenta /web
 
 USER 10001
 

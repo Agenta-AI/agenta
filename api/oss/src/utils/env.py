@@ -653,10 +653,10 @@ class AlembicConfig(BaseModel):
     """Database migration configuration"""
 
     cfg_path_core: str = os.getenv("ALEMBIC_CFG_PATH_CORE") or (
-        f"/app/{_LICENSE}/databases/postgres/migrations/core/alembic.ini"
+        f"/api/{_LICENSE}/databases/postgres/migrations/core/alembic.ini"
     )
     cfg_path_tracing: str = os.getenv("ALEMBIC_CFG_PATH_TRACING") or (
-        f"/app/{_LICENSE}/databases/postgres/migrations/tracing/alembic.ini"
+        f"/api/{_LICENSE}/databases/postgres/migrations/tracing/alembic.ini"
     )
 
     model_config = ConfigDict(extra="ignore")

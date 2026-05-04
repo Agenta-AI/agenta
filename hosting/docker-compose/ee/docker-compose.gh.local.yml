@@ -236,7 +236,7 @@ services:
             dockerfile: ee/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         init: true
-        command: supercronic /app/crontab
+        command: supercronic /api/crontab
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}

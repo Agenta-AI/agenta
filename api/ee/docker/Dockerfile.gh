@@ -2,7 +2,7 @@ FROM python:3.11-slim-bookworm AS builder
 
 ARG POETRY_VERSION=2.3.1
 
-WORKDIR /app
+WORKDIR /api
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=0 \
@@ -13,7 +13,7 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 RUN --mount=type=cache,id=pip-api,target=/root/.cache/pip \
     pip install --timeout=300 "poetry==${POETRY_VERSION}" "poetry-plugin-export"
 
-COPY ./pyproject.toml ./poetry.lock* /app/
+COPY ./pyproject.toml ./poetry.lock* /api/
 
 # Create clean venv, install app deps, strip heavy unused deps, add stubs
 # Merged into one layer so stripped files don't persist in a previous layer.
@@ -44,21 +44,21 @@ RUN --mount=type=cache,id=pip-api,target=/root/.cache/pip \
     && find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 
 # Copy and install SDK first (changes less frequently than app code)
-RUN mkdir -p /app/sdk
-COPY ./sd[k] /app/sdk/
+COPY ./sdks/python /sdks/python/
+COPY ./clients/python /clients/python/
 
 RUN --mount=type=cache,id=pip-api,target=/root/.cache/pip \
-    if [ -f /app/sdk/pyproject.toml ]; then \
+    if [ -f /sdks/python/pyproject.toml ]; then \
         . /opt/venv/bin/activate && \
         pip install pip && \
-        pip install --editable /app/sdk && \
+        pip install --editable /sdks/python && \
         (pip uninstall -y pip 2>/dev/null || true); \
     fi
 
 # Copy app code last (changes more frequently)
-COPY ./ee /app/ee/
-COPY ./oss /app/oss/
-COPY ./entrypoints /app/entrypoints/
+COPY ./ee /api/ee/
+COPY ./oss /api/oss/
+COPY ./entrypoints /api/entrypoints/
 
 
 FROM python:3.11-slim-bookworm AS runner
@@ -67,11 +67,11 @@ ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION=0.0.0
 
-WORKDIR /app
+WORKDIR /api
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app:/app/sdk \
+    PYTHONPATH=/api:/sdks/python:/clients/python \
     PATH="/opt/venv/bin:${PATH}"
 
 # Hardcode bookworm codename to avoid pulling in lsb-release (+ perl ~56MB)
@@ -113,10 +113,11 @@ COPY --chmod=644 ./ee/src/crons/spans.txt /etc/cron.d/spans-cron
 COPY --from=builder /opt/venv /opt/venv
 
 # Copy app code last (changes most frequently)
-COPY --chown=agenta:agenta --from=builder /app/ee /app/ee
-COPY --chown=agenta:agenta --from=builder /app/oss /app/oss
-COPY --chown=agenta:agenta --from=builder /app/entrypoints /app/entrypoints
-COPY --chown=agenta:agenta --from=builder /app/sdk /app/sdk
+COPY --chown=agenta:agenta --from=builder /api/ee /api/ee
+COPY --chown=agenta:agenta --from=builder /api/oss /api/oss
+COPY --chown=agenta:agenta --from=builder /api/entrypoints /api/entrypoints
+COPY --chown=agenta:agenta --from=builder /sdks/python /sdks/python
+COPY --chown=agenta:agenta --from=builder /clients/python /clients/python
 
 # Generate supercronic-compatible crontab (strip user field and /proc redirects)
 RUN set -eux; \
@@ -125,8 +126,8 @@ RUN set -eux; \
     done; \
     cat /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron \
         | sed -E 's/^(([^[:space:]]+[[:space:]]+){5})root[[:space:]]+/\1/' \
-        | sed 's| >> /proc/1/fd/1 2>&1||' > /app/crontab && \
-    chown agenta:agenta /app/crontab
+        | sed 's| >> /proc/1/fd/1 2>&1||' > /api/crontab && \
+    chown agenta:agenta /api/crontab
 
 USER 10001
 

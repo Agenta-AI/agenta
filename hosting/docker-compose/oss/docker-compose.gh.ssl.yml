@@ -247,7 +247,7 @@ services:
             dockerfile: oss/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         init: true
-        command: supercronic /app/crontab
+        command: supercronic /api/crontab
         # === STORAGE ============================================== #
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
@@ -305,10 +305,6 @@ services:
             --log-level info
             --access-logfile -
             --error-logfile -
-        # === STORAGE ============================================== #
-        volumes:
-            - ../../../services:/app
-            - ../../../sdk:/sdk
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}

@@ -32,7 +32,7 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          command: ["/app/entrypoint.sh"]
+          command: ["/web/entrypoint.sh"]
           args: ["node", {{ include "agenta.webServerPath" . | quote }}]
           ports:
             - name: http

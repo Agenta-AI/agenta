@@ -229,7 +229,7 @@ services:
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-internal-ee-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         init: true
-        command: supercronic /app/crontab
+        command: supercronic /api/crontab
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}

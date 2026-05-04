@@ -2,8 +2,8 @@
 FROM ghcr.io/agenta-ai/agenta-api:latest
 
 ENV AGENTA_LICENSE=oss
-ENV ALEMBIC_CFG_PATH_CORE=/app/oss/databases/postgres/migrations/core/alembic.ini
-ENV ALEMBIC_CFG_PATH_TRACING=/app/oss/databases/postgres/migrations/tracing/alembic.ini
+ENV ALEMBIC_CFG_PATH_CORE=/api/oss/databases/postgres/migrations/core/alembic.ini
+ENV ALEMBIC_CFG_PATH_TRACING=/api/oss/databases/postgres/migrations/tracing/alembic.ini
 
 COPY create_databases.py /tmp/create_databases.py
 
