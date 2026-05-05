@@ -492,7 +492,11 @@ export type ColumnTypePrimitive =
     | "json-object"
     | "json-array"
 
-export type ColumnRenderHint = "messages" | "tool-calls" | "stringified"
+export type ColumnRenderHint =
+    | "messages"
+    | "tool-calls"
+    | "stringified"
+    | "markdown"
 
 export interface ColumnTypeInfo {
     type: ColumnTypePrimitive
@@ -543,6 +547,10 @@ function looksLikeStringifiedJson(s: string): boolean {
     }
 }
 
+function looksLikeMarkdownString(s: string): boolean {
+    return s.length > 100 || s.includes("\n")
+}
+
 export function detectColumnTypes(
     rows: FlatRow[],
     columns: ExpandedColumn[],
@@ -555,6 +563,7 @@ export function detectColumnTypes(
         let observedHint: ColumnRenderHint | null = null
         let sawAnyValue = false
         let allStringsAreStringified = true
+        let allStringsAreMarkdown = true
         let sawAnyString = false
         for (const row of rows) {
             const v = row[col.key]
@@ -575,6 +584,9 @@ export function detectColumnTypes(
                 nextType = "string"
                 if (!looksLikeStringifiedJson(v)) {
                     allStringsAreStringified = false
+                }
+                if (!looksLikeMarkdownString(v)) {
+                    allStringsAreMarkdown = false
                 }
             } else if (typeof v === "number") {
                 nextType = "number"
@@ -603,15 +615,16 @@ export function detectColumnTypes(
                 observedHint = null
             }
         }
-        // Promote `string` → `string + stringified` if every observed string
-        // parses as JSON. The render hint stacks alongside the type chip.
-        if (
-            sawAnyValue &&
-            observedType === "string" &&
-            sawAnyString &&
-            allStringsAreStringified
-        ) {
-            observedHint = "stringified"
+        // Promote string-typed columns to a render-hint when every observed
+        // string in the column matches the hint's heuristic. Stringified
+        // takes precedence (a JSON-parseable string is also long, but the
+        // stringified semantic is more useful).
+        if (sawAnyValue && observedType === "string" && sawAnyString) {
+            if (allStringsAreStringified) {
+                observedHint = "stringified"
+            } else if (allStringsAreMarkdown) {
+                observedHint = "markdown"
+            }
         }
         if (observedType) {
             result.set(col.key, {type: observedType, hint: observedHint})
