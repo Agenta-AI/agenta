@@ -20,6 +20,8 @@
  * + tool-call inline rendering — all the same code path the drawer uses.
  */
 
+import {useState} from "react"
+
 import {ArrowClockwise} from "@phosphor-icons/react"
 
 import {
@@ -37,6 +39,14 @@ interface PlaygroundExecutionItemProps {
     testcaseLabel: string
     /** Each entry becomes a row in the embedded ProposedDrillIn */
     inputs: InputField[]
+    /**
+     * Names of testcase columns the prompt chain doesn't reference. Rendered
+     * as a peekable footer below the inputs body so the user knows the
+     * extra columns exist without paying the visual cost of all of them.
+     * Click to reveal. Mahmoud's 2026-05-05 SME-complexity feedback: hide
+     * what doesn't matter, surface what does.
+     */
+    unusedTestcaseColumns?: string[]
     /** Model response — string for plain text, object for tool-call or JSON output */
     output: unknown
     /** Optional evaluator scores rendered as inline chips below the output */
@@ -98,6 +108,7 @@ function classify(value: unknown): {type: ChipVariant; hint: ChipVariant | null}
 export function PlaygroundExecutionItem({
     testcaseLabel,
     inputs,
+    unusedTestcaseColumns,
     output,
     evaluators,
     durationMs = 1240,
@@ -141,6 +152,9 @@ export function PlaygroundExecutionItem({
                     editable={editable}
                     autoExpand={false}
                 />
+                {unusedTestcaseColumns && unusedTestcaseColumns.length > 0 ? (
+                    <UnusedColumnsFooter columns={unusedTestcaseColumns} />
+                ) : null}
             </section>
 
             <section style={styles.section}>
@@ -193,6 +207,44 @@ export function PlaygroundExecutionItem({
                         </span>
                     ))}
                 </section>
+            ) : null}
+        </div>
+    )
+}
+
+/**
+ * Peekable footer below the inputs body listing testcase columns the
+ * prompt chain doesn't reference. Defaults closed; click to reveal the
+ * column names. The user can still get to them via the Variable map
+ * above the compare grid — this is a redundant in-context affordance
+ * for users who don't scroll back up.
+ */
+function UnusedColumnsFooter({columns}: {columns: string[]}) {
+    const [open, setOpen] = useState(false)
+    return (
+        <div style={styles.unusedFooter}>
+            <button
+                type="button"
+                style={styles.unusedToggle}
+                onClick={() => setOpen((v) => !v)}
+            >
+                <span style={styles.unusedCaret}>{open ? "▾" : "▸"}</span>
+                <span>
+                    {open ? "Hide" : "Show"} {columns.length} unused testcase
+                    column{columns.length === 1 ? "" : "s"}
+                </span>
+                <span style={styles.unusedHint}>
+                    on the testcase but not referenced by any prompt
+                </span>
+            </button>
+            {open ? (
+                <ul style={styles.unusedList}>
+                    {columns.map((c) => (
+                        <li key={c} style={styles.unusedItem}>
+                            <code style={styles.unusedItemName}>{c}</code>
+                        </li>
+                    ))}
+                </ul>
             ) : null}
         </div>
     )
@@ -308,6 +360,51 @@ const styles = {
         borderRadius: 4,
         border: "1px solid",
         fontWeight: 600,
+    },
+    unusedFooter: {
+        marginTop: 8,
+        paddingTop: 8,
+        borderTop: "1px dashed rgba(5, 23, 41, 0.08)",
+    },
+    unusedToggle: {
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        background: "transparent",
+        border: "none",
+        cursor: "pointer",
+        padding: "2px 0",
+        fontSize: 11,
+        color: "rgba(5, 23, 41, 0.65)",
+        textAlign: "left" as const,
+    },
+    unusedCaret: {
+        fontSize: 10,
+        color: "rgba(5, 23, 41, 0.45)",
+    },
+    unusedHint: {
+        fontStyle: "italic" as const,
+        color: "rgba(5, 23, 41, 0.45)",
+        marginLeft: 4,
+    },
+    unusedList: {
+        listStyle: "none" as const,
+        margin: "6px 0 0",
+        padding: 0,
+        display: "flex",
+        flexWrap: "wrap" as const,
+        gap: 6,
+    },
+    unusedItem: {
+        opacity: 0.65,
+    },
+    unusedItemName: {
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+        fontSize: 11,
+        background: "rgba(5, 23, 41, 0.04)",
+        padding: "1px 6px",
+        borderRadius: 3,
+        color: "rgba(5, 23, 41, 0.65)",
     },
 }
 

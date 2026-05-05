@@ -34,6 +34,10 @@ import {
     type PlaygroundVariable,
 } from "@/mockups/components/proposed/PlaygroundVariableMap"
 import {
+    PromptConfigView,
+    type PromptConfig,
+} from "@/mockups/components/proposed/PromptConfigView"
+import {
     fixture07_messages_and_tools,
     fixture_chip_showcase,
     fixture_kitchen_sink,
@@ -126,6 +130,87 @@ const KITCHEN_SINK_VARIABLE_MAP: PlaygroundVariable[] = [
 // they're one edit away if a focused review is needed. Kitchen-sink Vanuatu
 // (Row 1) covers every gap on its own.
 const SHOW_EXTRA_ROWS = false
+
+// The 4-prompt chain that drives the kitchen-sink Vanuatu execution item.
+// Variable references match KITCHEN_SINK_VARIABLE_MAP — `country` and
+// `messages` are used by every prompt; `geo` and `languages` are partial
+// (chain state); `iso_code` is referenced but not on the testcase yet
+// (draft state). Defined here so the prompt config view above the
+// execution items reads as the contract that the playground row resolves.
+const KITCHEN_SINK_PROMPT_CHAIN: PromptConfig[] = [
+    {
+        step: 1,
+        name: "Languages briefing",
+        template:
+            "Brief the user on languages spoken in {{country}}. Reference: {{languages}}.",
+        variables: [
+            {name: "country", state: "resolved"},
+            {name: "languages", state: "resolved"},
+        ],
+    },
+    {
+        step: 2,
+        name: "Geography lookup",
+        template:
+            "Look up {{country}} ({{iso_code}}) in the {{geo}} region. Continue the conversation: {{messages}}.",
+        variables: [
+            {name: "country", state: "resolved"},
+            {name: "iso_code", state: "draft"},
+            {name: "geo", state: "resolved"},
+            {name: "messages", state: "resolved"},
+        ],
+    },
+    {
+        step: 3,
+        name: "Capital answer",
+        template:
+            "What is the capital of {{country}}? Use {{geo}} for context. Build on prior turns: {{messages}}.",
+        variables: [
+            {name: "country", state: "resolved"},
+            {name: "geo", state: "resolved"},
+            {name: "messages", state: "resolved"},
+        ],
+    },
+    {
+        step: 4,
+        name: "Final response",
+        template:
+            "Format the final answer for {{country}}. Conversation so far: {{messages}}.",
+        variables: [
+            {name: "country", state: "resolved"},
+            {name: "messages", state: "resolved"},
+        ],
+    },
+]
+
+// Variables actually referenced by the chain (any prompt). Used to filter
+// the execution-item inputs body so the user only sees what the prompts
+// pull in — not the full 12-column testcase dump. Mahmoud's 2026-05-05
+// feedback: "extremely complex, definitely not the right solution for
+// SME" was driven by exactly that overload.
+const IN_USE_VARIABLE_NAMES = new Set(
+    KITCHEN_SINK_VARIABLE_MAP.filter(
+        (v) => v.state === "used" || v.state === "chain" || v.state === "draft",
+    ).map((v) => v.name),
+)
+
+const UNUSED_VARIABLE_NAMES = KITCHEN_SINK_VARIABLE_MAP.filter(
+    (v) => v.state === "unused",
+).map((v) => v.name)
+
+// In-use inputs passed to the proposed (Embedded + Compact) execution items.
+// Built from KITCHEN_SINK_VARIABLE_MAP — only `used` / `chain` / `draft`
+// variables. Draft variables (e.g. `iso_code`) get an explicit `undefined`
+// value so the row renders the "draft" treatment instead of a missing key.
+const KITCHEN_SINK_IN_USE_INPUTS = KITCHEN_SINK_VARIABLE_MAP.filter(
+    (v) => v.state !== "unused",
+).map((v) => ({
+    name: v.name,
+    value:
+        v.value !== undefined
+            ? v.value
+            : (kitchenSinkTestcase.data as Record<string, unknown>)[v.name],
+}))
 
 export default function SolutionsPlayground() {
     const [editMode, setEditMode] = useState<"editable" | "read-only">("editable")
@@ -291,6 +376,24 @@ export default function SolutionsPlayground() {
                     />
                 </section>
 
+                <section style={styles.promptConfigSection}>
+                    <header style={styles.promptConfigHeader}>
+                        <span style={styles.promptConfigTag}>config</span>
+                        <h2 style={styles.promptConfigTitle}>
+                            Prompt chain that drives this execution item
+                        </h2>
+                    </header>
+                    <p style={styles.promptConfigLead}>
+                        The 4-prompt chain. Every <code>{`{{var}}`}</code>{" "}
+                        token below is what the execution-item inputs (in
+                        the grid further down) need to resolve. Showing the
+                        config here means the user reads "what the prompt
+                        needs" before "what the testcase has" — addresses
+                        the SME-complexity feedback (2026-05-05).
+                    </p>
+                    <PromptConfigView prompts={KITCHEN_SINK_PROMPT_CHAIN} />
+                </section>
+
                 <h2 style={styles.executionItemsTitle}>
                     Execution items — three-way compare
                 </h2>
@@ -315,7 +418,13 @@ export default function SolutionsPlayground() {
                         </span>
                     </div>
 
-                    {/* Row 1 — Kitchen sink Vanuatu (every gap on one row) */}
+                    {/* Row 1 — Kitchen sink Vanuatu (every gap on one row).
+                        Today panel shows the full testcase dump (production
+                        behavior — no filtering). Embedded + Compact filter
+                        to in-use variables only so the proposed surfaces
+                        actually demonstrate what they're proposing: a
+                        focused inputs body, not a column dump. The unused
+                        columns stay reachable via the Variable map above. */}
                     <PlaygroundExecutionItemToday
                         testcaseLabel="testcase 1 — kitchen sink"
                         inputs={[
@@ -337,26 +446,8 @@ export default function SolutionsPlayground() {
                     />
                     <PlaygroundExecutionItem
                         testcaseLabel={`Testcase · ${kitchenSinkTestcase.label}`}
-                        inputs={[
-                            {name: "country", value: kitchenSinkTestcase.data.country},
-                            {
-                                name: "population_thousands",
-                                value: kitchenSinkTestcase.data.population_thousands,
-                            },
-                            {
-                                name: "is_island_nation",
-                                value: kitchenSinkTestcase.data.is_island_nation,
-                            },
-                            {name: "notes", value: kitchenSinkTestcase.data.notes},
-                            {name: "languages", value: kitchenSinkTestcase.data.languages},
-                            {name: "correct_answer", value: kitchenSinkTestcase.data.correct_answer},
-                            {name: "inputs", value: kitchenSinkTestcase.data.inputs},
-                            {name: "outputs", value: kitchenSinkTestcase.data.outputs},
-                            {name: "metadata", value: kitchenSinkTestcase.data.metadata},
-                            {name: "geo.region", value: kitchenSinkTestcase.data["geo.region"]},
-                            {name: "geo", value: kitchenSinkTestcase.data.geo},
-                            {name: "messages", value: kitchenSinkTestcase.data.messages},
-                        ]}
+                        inputs={KITCHEN_SINK_IN_USE_INPUTS}
+                        unusedTestcaseColumns={UNUSED_VARIABLE_NAMES}
                         output={{
                             role: "assistant",
                             content:
@@ -373,26 +464,8 @@ export default function SolutionsPlayground() {
                     />
                     <PlaygroundExecutionItemCompact
                         testcaseLabel={`Testcase · ${kitchenSinkTestcase.label}`}
-                        inputs={[
-                            {name: "country", value: kitchenSinkTestcase.data.country},
-                            {
-                                name: "population_thousands",
-                                value: kitchenSinkTestcase.data.population_thousands,
-                            },
-                            {
-                                name: "is_island_nation",
-                                value: kitchenSinkTestcase.data.is_island_nation,
-                            },
-                            {name: "notes", value: kitchenSinkTestcase.data.notes},
-                            {name: "languages", value: kitchenSinkTestcase.data.languages},
-                            {name: "correct_answer", value: kitchenSinkTestcase.data.correct_answer},
-                            {name: "inputs", value: kitchenSinkTestcase.data.inputs},
-                            {name: "outputs", value: kitchenSinkTestcase.data.outputs},
-                            {name: "metadata", value: kitchenSinkTestcase.data.metadata},
-                            {name: "geo.region", value: kitchenSinkTestcase.data["geo.region"]},
-                            {name: "geo", value: kitchenSinkTestcase.data.geo},
-                            {name: "messages", value: kitchenSinkTestcase.data.messages},
-                        ]}
+                        inputs={KITCHEN_SINK_IN_USE_INPUTS}
+                        unusedTestcaseColumns={UNUSED_VARIABLE_NAMES}
                         output={{
                             role: "assistant",
                             content:
@@ -750,6 +823,42 @@ const styles = {
         color: "#051729",
     },
     gap09Lead: {
+        fontSize: 12,
+        color: "rgba(5, 23, 41, 0.65)",
+        lineHeight: 1.6,
+        margin: "0 0 12px",
+    },
+    promptConfigSection: {
+        padding: 16,
+        background: "white",
+        border: "1px solid rgba(5, 23, 41, 0.08)",
+        borderRadius: 8,
+        marginBottom: 24,
+    },
+    promptConfigHeader: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        marginBottom: 6,
+    },
+    promptConfigTag: {
+        fontSize: 10,
+        fontWeight: 600,
+        padding: "2px 8px",
+        borderRadius: 4,
+        background: "#e6f4ff",
+        color: "#1677ff",
+        textTransform: "uppercase" as const,
+        letterSpacing: "0.04em",
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+    },
+    promptConfigTitle: {
+        fontSize: 14,
+        fontWeight: 700,
+        margin: 0,
+        color: "#051729",
+    },
+    promptConfigLead: {
         fontSize: 12,
         color: "rgba(5, 23, 41, 0.65)",
         lineHeight: 1.6,
