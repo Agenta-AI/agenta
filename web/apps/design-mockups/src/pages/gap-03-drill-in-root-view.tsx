@@ -89,9 +89,12 @@ export default function Gap03Concept() {
                         Solutions · Drill-in — full demo →
                     </span>
                     <span style={styles.ctaBlurb}>
-                        Pick the "06 deeply nested" or "07 messages + tools"
-                        fixture from the toolbar to see auto-expand in action.
-                        Production drawer (collapsed at root) on the left vs{" "}
+                        The kitchen-sink Vanuatu row has nested{" "}
+                        <code>inputs</code>, <code>outputs</code>, and{" "}
+                        <code>geo</code> (with <code>geo.coordinates</code>{" "}
+                        going three levels deep) plus a messages array — so
+                        auto-expand fires across all of it. Production drawer
+                        (collapsed at root) on the left vs{" "}
                         <code>ProposedDrillIn</code> with{" "}
                         <code>autoExpand=true</code> on the right.
                     </span>
