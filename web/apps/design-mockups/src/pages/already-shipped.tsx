@@ -26,35 +26,18 @@ export default function AlreadyShipped() {
             <MockupPageShell
                 title="Already shipped — RFC pieces that landed before this work"
                 blurb={
-                    "Inventory of RFC items that were built ad-hoc earlier in 2026 and aren't in the gap docs. Listed here so new proposals don't accidentally re-specify them and so engineers know where to extend instead of duplicating. Most of WP-F3 (prompt-editor autocomplete + JSONPath) is already live; gap-08 + gap-09 build on this surface."
+                    "Inventory of RFC items that were built ad-hoc earlier in 2026 and aren't in the gap docs. WP-F3 (prompt-editor autocomplete + JSONPath token typeahead) is already in production; gap-08 and gap-09 build on top of it. Listed here so new proposals don't accidentally re-specify what already exists."
                 }
                 notes={
                     <>
-                        <strong>Why this page exists:</strong> the gap-01..09 docs assume
-                        a green-field surface, but the prompt editor, JSONPath token
-                        infrastructure, and template-variable validation already ship.
-                        Several open questions in gap-08 (variable validation) are
-                        actually implementation details on top of the surfaces below.
-                        New proposals should reference these by file path so the next
-                        round of work extends them rather than reinventing.
-                    </>
-                }
-                competitiveNotes={
-                    <>
-                        Worth flagging: most of what Braintrust's prompt editor does for
-                        variable typeahead, we already do — flat <code>{"{{name}}"}</code>{" "}
-                        and JSONPath <code>{"{{$.path}}"}</code> typeahead, envelope-aware
-                        suggestions, chain-DAG-scoped output access. Where Braintrust
-                        differs is the <em>schema entity</em> (gap-07) and the{" "}
-                        <em>visible variables panel</em> (gap-08-adjacent). The plumbing
-                        is here; the panel UI isn't. See{" "}
-                        <a
-                            href="../../../docs/designs/json-string-ux/competitive-analysis.md"
-                            style={styles.link}
-                        >
-                            competitive-analysis.md
-                        </a>{" "}
-                        §13 for the full comparison.
+                        <strong>Why this page exists:</strong> the gap-01..09
+                        docs read as if the prompt-editor surface is
+                        green-field, but the token typeahead, JSONPath
+                        envelope routing, and template-variable validation
+                        already ship. Several open questions in gap-08 are
+                        actually wiring details on top of code that's
+                        already running. Reference these file paths instead
+                        of redesigning them.
                     </>
                 }
             >

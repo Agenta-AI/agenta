@@ -145,26 +145,6 @@ export default function Gap01Concept() {
                         sub-pages for live demos.
                     </>
                 }
-                competitiveNotes={
-                    <>
-                        Chips are novel to us. Neither Braintrust nor Langfuse
-                        surfaces type as a first-class chip — Braintrust
-                        implies type via control choice (text input vs number
-                        input vs switch in their schema-aware form) but it's
-                        implicit. This is one of three places we go past the
-                        field rather than catch up. See{" "}
-                        <a
-                            href="../../../docs/designs/json-string-ux/competitive-analysis.md"
-                            style={styles.link}
-                        >
-                            competitive-analysis.md
-                        </a>{" "}
-                        §4 + §13. New variants added 2026-05-04:{" "}
-                        <code>[json-str]</code> (string storage with JSON shape)
-                        and <code>[long-str]</code> (long-form / markdown
-                        editor mode).
-                    </>
-                }
             >
                 <section style={styles.subPagesSection}>
                     <h2 style={styles.h2}>See it in action — solution pages</h2>
@@ -285,7 +265,8 @@ export default function Gap01Concept() {
                                 <li>
                                     Lossy / destructive conversions surface a{" "}
                                     <em>warning row</em> in the menu before
-                                    they execute. Goodwill replenished.
+                                    they execute, so the user can see what
+                                    they'll lose before clicking.
                                 </li>
                             </ul>
                         </div>

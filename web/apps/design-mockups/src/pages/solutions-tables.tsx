@@ -4,8 +4,8 @@
  * Mounts a real antd `<Table>` with production's `groupColumns` utility +
  * production's `TestcaseCellContent` renderer for the Today panel and our
  * `ProposedTableCell` renderer for the Proposed panel. Same data source,
- * same column grouping, two cell renderers — honest comparison at the
- * column-grouping + cell level.
+ * same column grouping, two cell renderers. The diff is the cell
+ * rendering, nothing else.
  *
  * What's REAL production code in use here:
  *   - groupColumns (web/oss/.../utils/groupColumns.ts)
@@ -541,21 +541,6 @@ export default function SolutionsTables() {
                                 chip + count summary.
                             </li>
                         </ul>
-                    </>
-                }
-                competitiveNotes={
-                    <>
-                        Braintrust renders cells as multi-line YAML preview
-                        with a row-height toggle (Compact / Comfortable /
-                        Tall). Langfuse renders multi-line JSON inline. Both
-                        share the gap-02/04 stringified-JSON blind spot. See{" "}
-                        <a
-                            href="../../../docs/designs/json-string-ux/competitive-analysis.md"
-                            style={styles.link}
-                        >
-                            competitive-analysis.md
-                        </a>{" "}
-                        §2.
                     </>
                 }
             >

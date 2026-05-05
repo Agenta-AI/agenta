@@ -144,79 +144,34 @@ export default function SolutionsPlayground() {
                 }
                 notes={
                     <>
-                        <strong>What's on each panel:</strong>
+                        <strong>The three panels:</strong>
                         <ul style={styles.notesList}>
                             <li>
-                                <strong>Today</strong>: production playground —
-                                borderless textarea per input, no chips, no
-                                output rendering until Run. Long-form / markdown
-                                inputs use the production Lexical editor with the
+                                <strong>Today</strong>: production playground.
+                                Borderless textarea per input. No chips, no
+                                output rendering until Run. Long-form fields
+                                use the production Lexical editor with the
                                 visible <code>MarkdownToggleButton</code>.
                             </li>
                             <li>
                                 <strong>Proposed (embedded)</strong>: inputs
-                                body is <code>ProposedDrillIn</code>, so every
-                                gap-01..06 decision propagates from the drawer
-                                surface. Type chips, type-switching popover,
-                                long-form editor mode toggle, chat cards for
-                                messages — all the same code path. Output area
-                                also has a clickable chip for read-only mode
-                                switching.
+                                body is <code>ProposedDrillIn</code>, so the
+                                gap-01..06 decisions land here directly. Type
+                                chips, type-switching popover, long-form
+                                editor toggle, chat cards for messages, and a
+                                clickable output chip in read-only mode.
+                                Tradeoff: 6+ inputs scroll.
                             </li>
                             <li>
                                 <strong>Alt (compact)</strong>: one ~26px row
                                 per input. Click primitives → row morphs to
                                 inline editor. Click structured rows → expand
                                 inline. Long-form fields hydrate to{" "}
-                                <code>[long-str]</code> mode automatically.
+                                <code>[long-str]</code> automatically.
+                                Tradeoff: deep nesting still mounts a drill-in
+                                mid-list, breaking the density story.
                             </li>
                         </ul>
-                        <br />
-                        <strong>Honest trade-offs across the three columns:</strong>
-                        <ul style={styles.notesList}>
-                            <li>
-                                <strong>Today</strong>: simplest, most familiar.
-                                Loses on type-aware editing.
-                            </li>
-                            <li>
-                                <strong>Proposed (embedded)</strong>: best
-                                ergonomics for power users — every primitive's
-                                editor is always-mounted. Loses on density: 6+
-                                inputs scroll.
-                            </li>
-                            <li>
-                                <strong>Alt (compact)</strong>: best density —
-                                typed table aesthetic, full input shape visible
-                                at a glance. Loses on click-to-edit friction.
-                                Deep nesting breaks the density argument when
-                                inline expansion mounts an embedded drill-in
-                                mid-list.
-                            </li>
-                        </ul>
-                        <br />
-                        <strong>Open question:</strong> playground rows are
-                        read more than edited — chip density matters more here
-                        than in the drawer. Argues for{" "}
-                        <code>ambiguous-only</code> as the default chip mode in
-                        the playground, even if <code>all</code> stays the
-                        default in the drawer. A user-level "compact mode"
-                        toggle is the obvious shipping shape if Compact proves
-                        valuable.
-                    </>
-                }
-                competitiveNotes={
-                    <>
-                        Braintrust's playground keeps everything inline; Langfuse
-                        separates Tools / Schema / Variables into top dropdowns.
-                        Neither surfaces type chips on input rows. Our chips
-                        compose with both layouts. See{" "}
-                        <a
-                            href="../../../docs/designs/json-string-ux/competitive-analysis.md"
-                            style={styles.link}
-                        >
-                            competitive-analysis.md
-                        </a>{" "}
-                        §13.
                     </>
                 }
             >

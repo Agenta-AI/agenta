@@ -90,14 +90,12 @@ export default function Gap09Concept() {
                         testsets with many columns and chain configs.
                         <br />
                         <br />
-                        <strong>Why gap-07 raises the ceiling:</strong> when
-                        a per-testset schema entity exists, "authored vs
-                        draft" disambiguates without inference (the schema
-                        is the source of truth for what's on the testcase).
-                        Without gap-07, the draft state is best-effort
-                        ("prompt references this name but the row doesn't
-                        have it") and can mis-classify legitimate optional
-                        columns.
+                        <strong>How gap-07 changes this:</strong> when a
+                        per-testset schema entity exists, "authored vs
+                        draft" comes from the schema directly, not from
+                        inference. Without gap-07, "draft" is a best-effort
+                        guess (prompt references this name, row doesn't have
+                        it) and may mis-classify legitimate optional columns.
                         <br />
                         <br />
                         <strong>Visual budget:</strong> the playground
@@ -107,26 +105,6 @@ export default function Gap09Concept() {
                         used by every prompt gets no badge), draft border
                         only on draft rows. The "Show unused" toggle gives
                         power users full visibility on demand.
-                    </>
-                }
-                competitiveNotes={
-                    <>
-                        Neither Braintrust nor Langfuse surfaces variable
-                        provenance + chain scope on the execution item.
-                        Braintrust's playground stays out of chain mode
-                        entirely; Langfuse separates Tools / Schema /
-                        Variables into top dropdowns but doesn't mark
-                        per-prompt usage. This is greenfield — agent-style
-                        chain prompts are increasingly common and the
-                        provenance question gets sharper with each prompt
-                        added. Shipping this puts us ahead of both. See{" "}
-                        <a
-                            href="../../../docs/designs/json-string-ux/competitive-analysis.md"
-                            style={styles.link}
-                        >
-                            competitive-analysis.md
-                        </a>{" "}
-                        §13.
                     </>
                 }
             >

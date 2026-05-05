@@ -28,7 +28,7 @@ export default function Gap05Concept() {
             <MockupPageShell
                 title="Gap 05 — Dot-key vs nested path disambiguation"
                 blurb={
-                    "A testcase can store the same conceptual key two ways: literal `{ \"geo.region\": ... }` (a flat top-level key) versus nested `{ geo: { region: ... } }` (an object with a property). Both are valid JSON, both are stored faithfully, but `{{geo.region}}` resolves to the literal first under the RFC's literal-key-first rule. The UI doesn't currently mark which one templates resolve. This is a chip-application problem (gap-01 vocabulary) plus collision detection logic — small in scope, large in correctness impact."
+                    "A testcase can store the same conceptual key two ways: literal `{ \"geo.region\": ... }` (a flat top-level key) versus nested `{ geo: { region: ... } }` (an object with a property). Both are valid JSON, both are stored faithfully, but `{{geo.region}}` resolves to the literal first under the RFC's literal-key-first rule. The UI doesn't currently mark which one templates resolve. The fix is a chip from gap-01 vocabulary plus a small collision-detection function."
                 }
                 notes={
                     <>
@@ -45,16 +45,13 @@ export default function Gap05Concept() {
                         <strong>What's missing is labeling.</strong>
                         <br />
                         <br />
-                        <strong>Relationship to gap-01:</strong> the chip
-                        variants this gap relies on (<code>[dotted-key]</code>,{" "}
+                        <strong>Relationship to gap-01:</strong> the chips
+                        this gap uses (<code>[dotted-key]</code>,{" "}
                         <code>[⚠ collision]</code>, <code>[shadowed]</code>)
-                        are all part of the gap-01 chip vocabulary. Whether
-                        gap-05 stays as its own gap or folds into gap-01 is a
-                        framing call: the chips ARE gap-01, but the{" "}
-                        <em>collision detection logic</em> + the{" "}
-                        <em>runtime correctness conversation</em> (literal
-                        wins over nested at template time) are what gap-05
-                        uniquely owns.
+                        live in the gap-01 vocabulary. What gap-05 owns
+                        independently: the collision-detection function, and
+                        the runtime rule that literal-key wins over nested at
+                        template time.
                         <br />
                         <br />
                         <strong>What gap-05 actually proposes:</strong>
@@ -98,25 +95,6 @@ export default function Gap05Concept() {
                         </ul>
                         Marking the structural difference in the UI is what
                         prevents authoring bugs.
-                    </>
-                }
-                competitiveNotes={
-                    <>
-                        Braintrust's drill-in form lists literal{" "}
-                        <code>&quot;a.b&quot;</code> as one input and nested{" "}
-                        <code>a.b</code> as a separate indented input under{" "}
-                        <code>a</code> — visually distinct rows, no chip
-                        needed because the form shape does the disambiguation
-                        structurally. Langfuse renders both shapes in one JSON
-                        blob with no marker. Our chip + form structure
-                        (gap-07) combined = best-in-class. See{" "}
-                        <a
-                            href="../../../docs/designs/json-string-ux/competitive-analysis.md"
-                            style={styles.link}
-                        >
-                            competitive-analysis.md
-                        </a>{" "}
-                        §5.
                     </>
                 }
             >

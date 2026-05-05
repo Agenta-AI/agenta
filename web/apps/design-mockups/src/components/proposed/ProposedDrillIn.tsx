@@ -18,10 +18,11 @@ import type {ChipVariant} from "@/mockups/components/proposed/TypeChip"
 import {TypeChip} from "@/mockups/components/proposed/TypeChip"
 import {ChipConversionPopover} from "@/mockups/components/proposed/ChipConversionPopover"
 import {CaretDown, CaretRight, Copy} from "@phosphor-icons/react"
-import {Button, Input, InputNumber, Select, Switch, Tooltip} from "antd"
+import {Button, Input, InputNumber, Segmented, Select, Switch, Tooltip} from "antd"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {MarkdownToggleButton} from "@agenta/ui"
+import yaml from "js-yaml"
 
 /**
  * Chip rendering mode — added 2026-05-04 from team feedback. The default
@@ -835,10 +836,41 @@ export function ProposedDrillIn({
         return knownColumns.filter((k) => !(k in draft))
     }, [knownColumns, draft])
 
+    // Top-level view mode for the whole row. "fields" is the default
+    // structured view (per-field cards). "json" / "yaml" render the entire
+    // draft as a single serialized blob in a code editor — paste a row's
+    // worth of JSON/YAML once, switch back to "fields" to see the parsed
+    // structure. Useful when adding a new testcase from an existing payload
+    // instead of typing field-by-field.
+    const [rootViewMode, setRootViewMode] = useState<"fields" | "json" | "yaml">("fields")
+
     return (
         <div style={shellStyle}>
-            <div style={rootLabel}>{rootTitle}</div>
-            {Object.entries(draft).map(([key, value]) => {
+            <div style={rootHeaderStyle}>
+                <div style={rootLabel}>{rootTitle}</div>
+                <Segmented
+                    size="small"
+                    value={rootViewMode}
+                    options={[
+                        {label: "Fields", value: "fields"},
+                        {label: "JSON", value: "json"},
+                        {label: "YAML", value: "yaml"},
+                    ]}
+                    onChange={(v) =>
+                        setRootViewMode(v as "fields" | "json" | "yaml")
+                    }
+                />
+            </div>
+            {rootViewMode !== "fields" ? (
+                <RootSerializedView
+                    draft={draft}
+                    mode={rootViewMode}
+                    editable={editable}
+                    onApply={(next) => setDraft(next)}
+                />
+            ) : null}
+            {rootViewMode === "fields" &&
+                Object.entries(draft).map(([key, value]) => {
                 const kind = keyKind.get(key)
                 const nameChips: ChipVariant[] = []
                 if (kind === "dotted-collision") {
@@ -870,9 +902,110 @@ export function ProposedDrillIn({
                 that's the parent's responsibility. The chip + muted styling
                 signal that the field exists in the testset's union but isn't
                 stored on this row. */}
-            {notAuthoredKeys.map((key) => (
-                <NotAuthoredGhostRow key={key} name={key} chipMode={chipMode} />
-            ))}
+            {rootViewMode === "fields" &&
+                notAuthoredKeys.map((key) => (
+                    <NotAuthoredGhostRow key={key} name={key} chipMode={chipMode} />
+                ))}
+        </div>
+    )
+}
+
+/**
+ * Root-level serialized view (JSON or YAML) for the entire draft. Used by
+ * ProposedDrillIn when the user toggles to "JSON" or "YAML". Auto-applies
+ * parsed edits back to the draft on every keystroke; shows an inline parse
+ * error when the text isn't valid. The fields-view picks back up wherever
+ * the parsed structure lands.
+ *
+ * Practical use: paste a JSON or YAML payload to populate a new testcase
+ * row in one shot, instead of typing field-by-field.
+ */
+function RootSerializedView({
+    draft,
+    mode,
+    editable,
+    onApply,
+}: {
+    draft: Record<string, unknown>
+    mode: "json" | "yaml"
+    editable: boolean
+    onApply: (next: Record<string, unknown>) => void
+}) {
+    const editorId = useId()
+    // Serialize the current draft once at mount-of-this-mode. We don't
+    // re-serialize on every parent re-render because that would clobber
+    // the user's in-progress edits when the parsed text round-trips back
+    // to draft (different whitespace/key-order).
+    const initialText = useMemo(
+        () =>
+            mode === "json"
+                ? JSON.stringify(draft, null, 2)
+                : yaml.dump(draft, {lineWidth: 120}),
+        // Intentionally only depends on `mode` — switching modes re-serializes
+        // from current draft, but typing inside one mode doesn't.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [mode],
+    )
+    const [text, setText] = useState(initialText)
+    const [parseError, setParseError] = useState<string | null>(null)
+
+    const handleChange = useCallback(
+        (next: string) => {
+            setText(next)
+            try {
+                const parsed = mode === "json" ? JSON.parse(next) : yaml.load(next)
+                if (
+                    parsed === null ||
+                    typeof parsed !== "object" ||
+                    Array.isArray(parsed)
+                ) {
+                    setParseError(
+                        `Top-level value must be an object, got ${
+                            Array.isArray(parsed) ? "array" : typeof parsed
+                        }.`,
+                    )
+                    return
+                }
+                setParseError(null)
+                onApply(parsed as Record<string, unknown>)
+            } catch (err) {
+                setParseError(err instanceof Error ? err.message : String(err))
+            }
+        },
+        [mode, onApply],
+    )
+
+    return (
+        <div style={rootSerializedBody}>
+            <EditorProvider
+                key={`${editorId}-${mode}-provider`}
+                codeOnly
+                language={mode === "json" ? "json" : "yaml"}
+                showToolbar={false}
+                enableTokens={false}
+            >
+                <SharedEditor
+                    id={`${editorId}-${mode}`}
+                    initialValue={text}
+                    editorType="border"
+                    className="overflow-visible"
+                    disableDebounce
+                    noProvider
+                    disabled={!editable}
+                    state={editable ? undefined : "readOnly"}
+                    handleChange={editable ? handleChange : undefined}
+                />
+            </EditorProvider>
+            {parseError ? (
+                <div style={rootParseError}>
+                    <strong>Parse error:</strong> {parseError}
+                </div>
+            ) : (
+                <div style={rootParseHint}>
+                    Edits apply to the draft as you type. Switch back to{" "}
+                    <strong>Fields</strong> to see the parsed structure.
+                </div>
+            )}
         </div>
     )
 }
@@ -916,7 +1049,40 @@ const rootLabel = {
     fontSize: 13,
     fontWeight: 700,
     color: "#051729",
+}
+
+const rootHeaderStyle = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between" as const,
+    gap: 12,
     marginBottom: 4,
+}
+
+const rootSerializedBody = {
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: 8,
+    padding: 8,
+    background: "#fafafa",
+    border: "1px solid rgba(5, 23, 41, 0.08)",
+    borderRadius: 6,
+}
+
+const rootParseHint = {
+    fontSize: 11,
+    color: "rgba(5, 23, 41, 0.55)",
+    fontStyle: "italic" as const,
+}
+
+const rootParseError = {
+    fontSize: 11,
+    color: "#cf1322",
+    background: "#fff2f0",
+    border: "1px solid rgba(207, 19, 34, 0.3)",
+    borderRadius: 4,
+    padding: "6px 10px",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
 }
 
 const rowStyle = {

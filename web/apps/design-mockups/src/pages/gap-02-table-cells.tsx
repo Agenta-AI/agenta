@@ -117,24 +117,6 @@ export default function Gap02Concept() {
                         density.
                     </>
                 }
-                competitiveNotes={
-                    <>
-                        Braintrust renders cells as multi-line YAML preview
-                        with a row-height toggle (Compact / Comfortable /
-                        Tall) on the table toolbar — direct precedent for our
-                        density toggle. Langfuse renders multi-line JSON
-                        inline with no density control. Both share the
-                        stringified-JSON blind spot — they show the raw quoted
-                        string. See{" "}
-                        <a
-                            href="../../../docs/designs/json-string-ux/competitive-analysis.md"
-                            style={styles.link}
-                        >
-                            competitive-analysis.md
-                        </a>{" "}
-                        §2.
-                    </>
-                }
             >
                 <Link href="/solutions-tables" style={styles.cta}>
                     <span style={styles.ctaTag}>Solution</span>
