@@ -85,6 +85,12 @@ async def process_testset_source_run(
     evaluations_service: EvaluationsService,
 ):
     """Resolve testset rows, then process them through the unified source loop."""
+    log.info(
+        "[WORKER] process_testset_source_run: start",
+        run_id=str(run_id),
+        project_id=str(project_id),
+    )
+
     run = await evaluations_service.fetch_run(
         project_id=project_id,
         run_id=run_id,
@@ -94,12 +100,39 @@ async def process_testset_source_run(
     if not run.data or not run.data.steps:
         raise ValueError(f"Evaluation run with id {run_id} has no data steps!")
 
+    log.info(
+        "[WORKER] process_testset_source_run: run fetched",
+        run_id=str(run_id),
+        run_name=run.name,
+        run_status=str(run.status),
+        steps=[
+            {"key": s.key, "type": s.type, "origin": s.origin} for s in run.data.steps
+        ],
+        repeats=run.data.repeats,
+        concurrency=run.data.concurrency.model_dump() if run.data.concurrency else None,
+    )
+
     input_steps = [step for step in run.data.steps if step.type == "input"]
     input_specs = await _resolve_testset_input_specs(
         project_id=project_id,
         input_steps=input_steps,
         testsets_service=testsets_service,
     )
+
+    log.info(
+        "[WORKER] process_testset_source_run: input specs resolved",
+        run_id=str(run_id),
+        input_specs=[
+            {
+                "step_key": spec["step_key"],
+                "testset_id": str(spec["testset"].id),
+                "testset_revision_id": str(spec["testset_revision"].id),
+                "testcase_count": len(spec["testcases"]),
+            }
+            for spec in input_specs
+        ],
+    )
+
     source_items = [
         ResolvedSourceItem(
             kind="testcase",
@@ -159,6 +192,17 @@ async def process_evaluation_source_slice(
     evaluations_service: EvaluationsService,
 ):
     """Resolve backend adapters, then delegate execution to the SDK runtime."""
+    log.info(
+        "[WORKER] process_evaluation_source_slice: start",
+        run_id=str(run_id),
+        project_id=str(project_id),
+        source_items_count=len(source_items) if source_items else 0,
+        testcase_ids_count=len(testcase_ids) if testcase_ids else 0,
+        trace_ids_count=len(trace_ids) if trace_ids else 0,
+        require_queue=require_queue,
+        update_run_status=update_run_status,
+    )
+
     run: Optional[EvaluationRun] = None
     run_status = EvaluationStatus.SUCCESS
 
@@ -180,6 +224,51 @@ async def process_evaluation_source_slice(
         input_steps = [step for step in steps if step.type == "input"]
         invocation_steps = [step for step in steps if step.type == "invocation"]
         annotation_steps = [step for step in steps if step.type == "annotation"]
+
+        log.info(
+            "[WORKER] process_evaluation_source_slice: run fetched",
+            run_id=str(run_id),
+            run_name=run.name,
+            run_status=str(run.status),
+            total_steps=len(steps),
+            input_steps=[
+                {
+                    "key": s.key,
+                    "references": {
+                        k: (v.id if hasattr(v, "id") else v)
+                        for k, v in (s.references or {}).items()
+                    },
+                }
+                for s in input_steps
+            ],
+            invocation_steps=[
+                {
+                    "key": s.key,
+                    "references": {
+                        k: str(v.id) if hasattr(v, "id") else v
+                        for k, v in (s.references or {}).items()
+                    },
+                }
+                for s in invocation_steps
+            ],
+            annotation_steps=[
+                {
+                    "key": s.key,
+                    "origin": s.origin,
+                    "references": {
+                        k: str(v.id) if hasattr(v, "id") else v
+                        for k, v in (s.references or {}).items()
+                    },
+                }
+                for s in annotation_steps
+            ],
+            repeats=run.data.repeats,
+            concurrency=run.data.concurrency.model_dump()
+            if run.data.concurrency
+            else None,
+            flags=run.flags.model_dump() if run.flags else None,
+        )
+
         if len(invocation_steps) > 1:
             raise ValueError(
                 f"Evaluation run with id {run_id} has more than one invocation step."
@@ -322,6 +411,15 @@ async def process_evaluation_source_slice(
             )
             revisions[annotation_step.key] = evaluator_revision
 
+        log.info(
+            "[WORKER] process_evaluation_source_slice: runners/revisions resolved",
+            run_id=str(run_id),
+            runner_keys=list(runners.keys()),
+            revision_keys=list(revisions.keys()),
+            sdk_source_items_count=len(sdk_source_items),
+            sdk_steps=[{"key": s.key, "type": s.type} for s in sdk_steps],
+        )
+
         processed = await sdk_process_evaluation_source_slice(
             run_id=run_id,
             source_items=sdk_source_items,
@@ -365,9 +463,27 @@ async def process_evaluation_source_slice(
             ),
             log_pending=False,
             refresh_metrics_without_auto_results=refresh_metrics_without_auto_results,
-            batch_size=run.data.concurrency.batch_size if run.data.concurrency else None,
-            max_retries=run.data.concurrency.max_retries if run.data.concurrency else None,
-            retry_delay=run.data.concurrency.retry_delay if run.data.concurrency else None,
+            batch_size=run.data.concurrency.batch_size
+            if run.data.concurrency
+            else None,
+            max_retries=run.data.concurrency.max_retries
+            if run.data.concurrency
+            else None,
+            retry_delay=run.data.concurrency.retry_delay
+            if run.data.concurrency
+            else None,
+        )
+
+        log.info(
+            "[WORKER] process_evaluation_source_slice: SDK complete",
+            run_id=str(run_id),
+            processed_count=len(processed),
+            scenarios_with_errors=sum(1 for i in processed if i.has_errors),
+            scenarios_with_pending=sum(1 for i in processed if i.has_pending),
+            scenarios_with_auto_results=sum(
+                1 for i in processed if i.auto_results_created
+            ),
+            result_step_keys=[list(i.results.keys()) for i in processed],
         )
 
         for item in processed:
