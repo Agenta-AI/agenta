@@ -82,7 +82,7 @@ export default function Gap02Concept() {
                             </li>
                             <li>
                                 Stringified-JSON: distinct{" "}
-                                <code>[json-str]</code> chip, parse-on-detect
+                                <code>[stringified]</code> chip, parse-on-detect
                                 affordance, popover shows the <em>parsed</em>{" "}
                                 structure (production shows the raw escaped
                                 string).

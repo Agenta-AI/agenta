@@ -9,7 +9,7 @@
  * cell (no chip, ambiguous-only rule).
  * For null: dimmed [null] chip, no preview.
  * For missing keys: em-dash (the only legitimate em-dash use).
- * For messages arrays: [msgs] chip + count + first role label.
+ * For messages arrays: [messages] chip + count + first role label.
  */
 
 import type {ChipRenderMode} from "./ProposedDrillIn"
@@ -45,6 +45,19 @@ function isMessagesArray(value: unknown[]): boolean {
                 typeof item === "object" &&
                 "role" in (item as object) &&
                 ("content" in (item as object) || "tool_calls" in (item as object)),
+        )
+    )
+}
+
+function isToolCallsArray(value: unknown[]): boolean {
+    return (
+        value.length > 0 &&
+        value.every(
+            (item) =>
+                item != null &&
+                typeof item === "object" &&
+                (item as {type?: unknown}).type === "function" &&
+                "function" in (item as object),
         )
     )
 }
@@ -90,10 +103,10 @@ export function ProposedTableCell({
 
     // primitives — string/number/boolean — no chip per gap-02 ambiguous-only rule
     if (typeof value === "string") {
-        // Detect stringified JSON for the chip — render the new dashed-blue
-        // [stringified] chip (added 2026-05-04 from competitive analysis §13)
-        // and surface a small "parse?" affordance so the user can opt into the
-        // structured preview without losing the "stored as a string" signal.
+        // Stringified-JSON: emit type chip + render-hint chip (separate axes
+        // per JP feedback 2026-05-05). [str] says "value is a string", and
+        // [stringified] says "and it parses as JSON". The "parse?" button
+        // lets the user opt into the structured preview.
         const parsed = tryParseStringifiedJson(value)
         if (parsed !== null) {
             const shape = Array.isArray(parsed)
@@ -104,6 +117,7 @@ export function ProposedTableCell({
             return (
                 <span style={styles.cell}>
                     <span style={styles.line}>
+                        {showTypeChip && <TypeChip variant="string" />}
                         {showTypeChip && <TypeChip variant="stringified" />}
                         <span style={styles.muted}>{shape}</span>
                         <button type="button" style={styles.parseAffordance}>
@@ -178,21 +192,39 @@ export function ProposedTableCell({
         )
     }
 
-    // array — could be messages
+    // array — could be messages or tool-calls
     if (Array.isArray(value)) {
         if (isMessagesArray(value)) {
             const firstRole = (value[0] as {role?: string}).role ?? "?"
             return (
                 <span style={styles.cell}>
                     <span style={styles.line}>
+                        {showTypeChip && <TypeChip variant="json-array" />}
                         {showTypeChip && <TypeChip variant="messages" />}
                         <span
                             style={chipMode === "none" ? styles.styledMessages : styles.muted}
                         >
-                            {value.length} msgs
+                            {value.length} messages
                         </span>
                     </span>
                     <span style={styles.preview}>starts with {firstRole}…</span>
+                </span>
+            )
+        }
+        if (isToolCallsArray(value)) {
+            const firstName =
+                (value[0] as {function?: {name?: string}}).function?.name ?? "?"
+            return (
+                <span style={styles.cell}>
+                    <span style={styles.line}>
+                        {showTypeChip && <TypeChip variant="json-array" />}
+                        {showTypeChip && <TypeChip variant="tool-calls" />}
+                        <span style={styles.muted}>
+                            {value.length} call
+                            {value.length === 1 ? "" : "s"}
+                        </span>
+                    </span>
+                    <span style={styles.preview}>first: {firstName}…</span>
                 </span>
             )
         }

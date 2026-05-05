@@ -70,25 +70,46 @@ function isLongFormString(v: string): boolean {
     return v.length > 100 || v.includes("\n")
 }
 
-function classifyKind(v: unknown): {kind: Kind; chip: ChipVariant; parsed?: unknown} {
-    if (v === null) return {kind: "null", chip: "null"}
+function classifyKind(v: unknown): {
+    kind: Kind
+    chip: ChipVariant
+    hint: ChipVariant | null
+    parsed?: unknown
+} {
+    if (v === null) return {kind: "null", chip: "null", hint: null}
     if (Array.isArray(v)) {
         const isMsgs =
             v.length > 0 &&
             v.every((x) => x && typeof x === "object" && "role" in (x as object))
+        const isToolCalls =
+            v.length > 0 &&
+            v.every(
+                (x) =>
+                    x &&
+                    typeof x === "object" &&
+                    (x as {type?: unknown}).type === "function" &&
+                    "function" in (x as object),
+            )
         return isMsgs
-            ? {kind: "messages", chip: "messages"}
-            : {kind: "array", chip: "json-array"}
+            ? {kind: "messages", chip: "json-array", hint: "messages"}
+            : isToolCalls
+              ? {kind: "array", chip: "json-array", hint: "tool-calls"}
+              : {kind: "array", chip: "json-array", hint: null}
     }
-    if (typeof v === "object") return {kind: "object", chip: "json-object"}
-    if (typeof v === "number") return {kind: "number", chip: "number"}
-    if (typeof v === "boolean") return {kind: "boolean", chip: "boolean"}
+    if (typeof v === "object") return {kind: "object", chip: "json-object", hint: null}
+    if (typeof v === "number") return {kind: "number", chip: "number", hint: null}
+    if (typeof v === "boolean") return {kind: "boolean", chip: "boolean", hint: null}
     if (typeof v === "string") {
         if (v[0] === "{" || v[0] === "[") {
             try {
                 const parsed = JSON.parse(v)
                 if (parsed && typeof parsed === "object") {
-                    return {kind: "stringified", chip: "stringified", parsed}
+                    return {
+                        kind: "stringified",
+                        chip: "string",
+                        hint: "stringified",
+                        parsed,
+                    }
                 }
             } catch {
                 // not JSON
@@ -100,9 +121,9 @@ function classifyKind(v: unknown): {kind: Kind; chip: ChipVariant; parsed?: unkn
         // editor" flips it. Length-based auto-detection conflated length
         // with user intent (markdown can be 30 chars; plain text can be
         // 5000), so we drop it.
-        return {kind: "string", chip: "string"}
+        return {kind: "string", chip: "string", hint: null}
     }
-    return {kind: "string", chip: "string"}
+    return {kind: "string", chip: "string", hint: null}
 }
 
 function renderPreview(v: unknown, kind: Kind, parsed?: unknown): string {
@@ -241,11 +262,14 @@ function CompactRow({
     // hydration (forcedMode init via lazy useState) does NOT set this; we
     // only autofocus on user-driven transitions.
     const [autoFocusEditor, setAutoFocusEditor] = useState(false)
-    // Resolve chip from classified kind + mode preference. Strings flip to
-    // `[long-str]` when mode=long; non-string types are unaffected by mode.
+    // Resolve chips from classified kind + mode preference. Type primitive
+    // is always one of {str, num, bool, null, obj, arr}. Render hint stacks
+    // alongside when the value's render mode is non-default — markdown
+    // (long-form string), stringified-JSON, messages, tool-calls.
     const isStringContent = classified.kind === "string"
-    const chip: ChipVariant =
-        isStringContent && mode === "long" ? "long-str" : classified.chip
+    const chip: ChipVariant = classified.chip
+    const renderHint: ChipVariant | null =
+        isStringContent && mode === "long" ? "markdown" : classified.hint
     const kind = classified.kind
     const parsed = classified.parsed
     // Inline-morph-to-Input pattern only applies to *short* primitives in
@@ -332,6 +356,13 @@ function CompactRow({
                 ) : (
                     <span style={{width: 0}} />
                 )}
+                {/* Render-hint chip (axis 2). Stacks alongside the type chip
+                    when the render mode is non-default. */}
+                {showChip && renderHint ? (
+                    <span onClick={(e) => e.stopPropagation()}>
+                        <TypeChip variant={renderHint} />
+                    </span>
+                ) : null}
                 <span style={styles.name}>{name}</span>
                 <span
                     style={styles.valueSlot}
@@ -489,8 +520,9 @@ export function PlaygroundExecutionItemCompact({
     const [outputMode, setOutputMode] = useState<"short" | "long">(() =>
         typeof output === "string" && isLongFormString(output) ? "long" : "short",
     )
-    const outputChip: ChipVariant =
-        outputIsString && outputMode === "long" ? "long-str" : outputClass.chip
+    const outputChip: ChipVariant = outputClass.chip
+    const outputRenderHint: ChipVariant | null =
+        outputIsString && outputMode === "long" ? "markdown" : outputClass.hint
     const outputEditorId = useId()
 
     return (
@@ -545,6 +577,9 @@ export function PlaygroundExecutionItemCompact({
                                 onClick={() => {}}
                             />
                         </ChipConversionPopover>
+                    ) : null}
+                    {chipMode !== "none" && outputRenderHint ? (
+                        <TypeChip variant={outputRenderHint} />
                     ) : null}
                 </div>
                 <div style={styles.outputBody}>
