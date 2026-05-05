@@ -167,7 +167,7 @@ export default function SolutionsPlayground() {
                                 per input. Click primitives → row morphs to
                                 inline editor. Click structured rows → expand
                                 inline. Long-form fields hydrate to{" "}
-                                <code>[long-str]</code> automatically.
+                                <code>[markdown]</code> automatically.
                                 Tradeoff: deep nesting still mounts a drill-in
                                 mid-list, breaking the density story.
                             </li>

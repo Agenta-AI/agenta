@@ -41,7 +41,8 @@ import {
     detectStringifiedExpandableColumns,
     flattenRow,
     getNestedValue,
-    type ColumnTypeChip,
+    type ColumnTypePrimitive,
+    type ColumnRenderHint,
     type FlatRow,
     type StubRow,
 } from "@/mockups/components/proposed/testsetTableHelpers"
@@ -75,7 +76,7 @@ const TESTSETS: {
             label: tc.label,
             data: tc.data,
         })),
-        note: "Single testset that exercises every table-side gap. Vanuatu (row 1) authors every column — nested `inputs`/`outputs`/`geo` expand into sub-column groups (production behavior); `metadata` is stringified-JSON ([json-str] chip + parsed popover); literal `\"geo.region\"` collides with nested `geo > region` ([dotted-key] + [⚠ collision]); `messages` includes a tool_calls turn ([msgs] + [tool] chips). Tuvalu (row 2) and Kiribati (row 3) miss some of those columns — em-dash on the cell. The `notes` column varies in type across rows (null / string / object) → [mixed] chip on the column header.",
+        note: "Single testset that exercises every table-side gap. Vanuatu (row 1) authors every column — nested `inputs`/`outputs`/`geo` expand into sub-column groups (production behavior); `metadata` is stringified-JSON ([stringified] chip + parsed popover); literal `\"geo.region\"` collides with nested `geo > region` ([dotted-key] + [⚠ collision]); `messages` includes a tool_calls turn ([messages] + [tool-calls] chips). Tuvalu (row 2) and Kiribati (row 3) miss some of those columns — em-dash on the cell. The `notes` column varies in type across rows (null / string / object) → [mixed] chip on the column header.",
     },
     {
         id: "02-nested",
@@ -105,7 +106,7 @@ const TESTSETS: {
             label: tc.label,
             data: tc.data,
         })),
-        note: "Each row has a `messages` array and an `outputs` object with `tool_calls`. Today: `ChatMessagesCellContent` renders chat preview already. Proposed: adds `[msgs]` chip + count.",
+        note: "Each row has a `messages` array and an `outputs` object with `tool_calls`. Today: `ChatMessagesCellContent` renders chat preview already. Proposed: adds `[messages]` chip + count.",
     },
 ]
 
@@ -120,8 +121,8 @@ export default function SolutionsTables() {
         () => new Set(),
     )
     // gap-02 parse-on-detect — top-level stringified-JSON columns the user
-    // has opted to expand. A column starts here as a flat [json-str] cell;
-    // clicking the [json-str] chip on the header adds it to this set,
+    // has opted to expand. A column starts here as a flat [stringified] cell;
+    // clicking the [stringified] chip on the header adds it to this set,
     // which makes computeColumns parse the string and emit sub-columns.
     // Clicking the caret on the resulting group removes it again.
     const [parsedStringifiedColumns, setParsedStringifiedColumns] = useState<
@@ -200,7 +201,7 @@ export default function SolutionsTables() {
     // Group header renderer — shared between Today and Proposed so both
     // panels show the same caret affordance + click-to-toggle. Mirrors
     // production's TestcasesTableShell.tsx:449. When the group corresponds
-    // to a parsed-stringified column, an extra [json-str] chip stacks
+    // to a parsed-stringified column, an extra [stringified] chip stacks
     // alongside the name so the user can see the column came from a
     // string (not a real nested object) and can click the caret to fold.
     const renderGroupHeader = (
@@ -314,7 +315,7 @@ export default function SolutionsTables() {
     // correctness chips (mixed / dotted-key) when applicable. Group
     // headers are click-to-collapse via shared `collapsedGroups` state.
     // When a column is a stringified-JSON-eligible top-level column, the
-    // [json-str] chip is clickable — clicking it parses the column and
+    // [stringified] chip is clickable — clicking it parses the column and
     // re-emits as a sub-column group (gap-02 parse-on-detect).
     const proposedColumns = useMemo(
         () =>
@@ -323,18 +324,22 @@ export default function SolutionsTables() {
                 (col, displayName) => {
                     const isMixed = mixedColumns.has(col.key)
                     const isDottedKey = dottedKeyColumns.has(col.key)
-                    const colType = columnTypes.get(col.key)
+                    const colInfo = columnTypes.get(col.key)
+                    const colType: ColumnTypePrimitive | undefined =
+                        colInfo?.type
+                    const colHint: ColumnRenderHint | null =
+                        colInfo?.hint ?? null
                     const showColumnTypeChip =
                         chipMode === "all" && colType !== undefined && !isMixed
-                    // The [json-str] chip on a top-level stringified column
-                    // is interactive — click parses the column. Other type
-                    // chips are static.
+                    // The [stringified] render-hint chip on a top-level
+                    // stringified column is interactive — click parses the
+                    // column. Other chips are static.
                     const isStringifiedExpandable =
                         col.parentKey === undefined &&
                         stringifiedExpandableColumns.has(col.key)
                     const isStringifiedClickable =
                         showColumnTypeChip &&
-                        colType === "stringified" &&
+                        colHint === "stringified" &&
                         isStringifiedExpandable
                     return {
                         key: col.key,
@@ -344,9 +349,12 @@ export default function SolutionsTables() {
                                 <span style={styles.proposedHeaderName}>
                                     {displayName}
                                 </span>
-                                {showColumnTypeChip ? (
+                                {showColumnTypeChip && colType ? (
+                                    <TypeChip variant={colType} />
+                                ) : null}
+                                {showColumnTypeChip && colHint ? (
                                     <TypeChip
-                                        variant={colType as ColumnTypeChip}
+                                        variant={colHint}
                                         onClick={
                                             isStringifiedClickable
                                                 ? () =>
@@ -537,7 +545,7 @@ export default function SolutionsTables() {
                             <li>
                                 <strong>gap-06</strong>: production already
                                 has <code>ChatMessagesCellContent</code>; the
-                                Proposed cell adds the <code>[msgs]</code>{" "}
+                                Proposed cell adds the <code>[messages]</code>{" "}
                                 chip + count summary.
                             </li>
                         </ul>

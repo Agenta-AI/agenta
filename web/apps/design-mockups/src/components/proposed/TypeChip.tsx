@@ -4,63 +4,78 @@
  * production today; it's the gap-01 proposal made real here so design
  * iterations and team discussion can use real React markup.
  *
- * Vocabulary mirrors `docs/designs/json-string-ux/variants/gap-01-type-chips.html`:
- *   [str] grey · [obj] blue · [arr] cyan · [num] grey · [bool] grey ·
- *   [null] dimmed · [msgs] purple · [dotted-key] amber · [mixed] amber ·
- *   [⚠ collision] red · [tool] green · [stringified] dashed-blue
+ * Three orthogonal axes (revised 2026-05-05 per JP feedback to separate
+ * type from render hint from state):
  *
- * The `stringified` variant (added 2026-05-04 from competitive analysis §13)
- * marks fields *stored as JSON strings* — the gap-02/04 fault line that
- * Braintrust shares. Distinct from `[obj]` / `[arr]` which mark *parsed*
- * values, even when the source was a string. The chip's italic label + dashed
- * border carry the "this is technically a string" signal.
+ * 1. Type primitive (always one — what the value IS):
+ *      string, number, boolean, null, json-object, json-array
+ *      Solid background, no border. Display labels: str / num / bool /
+ *      null / obj / arr.
  *
- * Props can override the detected type for "ambiguous-only" placement (gap-01
- * Variant C: hide chip when rendering already disambiguates the type).
+ * 2. Render hint (optional — how it's rendered, stacks alongside type):
+ *      markdown, stringified, messages, tool-calls
+ *      Dashed border + italic so the user reads them as meta about
+ *      rendering, not about the value type itself.
+ *
+ * 3. State / correctness (optional — domain-specific signals, stacks):
+ *      dotted-key, mixed, collision, not-authored, shadowed, path,
+ *      unused, draft, chain, optional
+ *      Solid amber/red/blue palettes per category.
+ *
+ * Examples:
+ *   markdown content  → [str] [markdown]
+ *   stringified JSON  → [str] [stringified]
+ *   chat messages     → [arr] [messages]
+ *   OpenAI tool calls → [arr] [tool-calls]
+ *   schema-optional   → [str] [optional]
+ *
+ * Props can override the detected type for "ambiguous-only" placement
+ * (gap-01 Variant C: hide chip when rendering already disambiguates).
  */
 
 import {detectDataType, type DataType} from "@agenta/ui/drill-in"
 
-export type ChipVariant =
-    | DataType
+/**
+ * Type primitive — what the value IS. Always one of these per chip
+ * emission. Mirrors JSON's primitive types.
+ */
+export type TypePrimitive = DataType // string|number|boolean|null|json-object|json-array
+
+/**
+ * Render hint — how a value is rendered. Optional; stacks alongside the
+ * type chip. Visually distinct (dashed border + italic) so the user reads
+ * "render mode" rather than "type".
+ */
+export type RenderHint = "markdown" | "stringified" | "messages" | "tool-calls"
+
+/**
+ * State / correctness chips. Domain-specific signals that stack alongside
+ * the type + render-hint chips. `optional` (added per JP feedback) marks
+ * a schema-defined-but-not-required field.
+ */
+export type StateChip =
     | "dotted-key"
     | "mixed"
-    | "tool"
     | "collision"
     | "not-authored"
     | "shadowed"
     | "path"
-    | "stringified"
-    | "long-str"
-    // Variable-state chips for gap-09 (playground execution item provenance).
-    // `unused`  — variable on the testcase but not referenced by any prompt
-    //             in the chain. Default-collapsed in the UI; the chip surfaces
-    //             when the user clicks "Show unused".
-    // `draft`   — variable referenced in a prompt template (`{{x}}`) that
-    //             doesn't exist on the testcase yet. Lives only in the local
-    //             draft until the user explicitly syncs to the testset.
-    // `chain`   — variable used by some prompts in the chain but not all.
-    //             The chip carries which prompts via the `label` override
-    //             (e.g. "prompt 1, 3 of 4").
     | "unused"
     | "draft"
     | "chain"
+    | "optional"
+
+export type ChipVariant = TypePrimitive | RenderHint | StateChip
 
 interface TypeChipProps {
     /** Force a specific chip; otherwise inferred from value */
     variant?: ChipVariant
     /** Value used to infer the chip when `variant` is not set */
     value?: unknown
-    /** Optional label override (e.g. "msgs" → "5 msgs") */
+    /** Optional label override (e.g. "messages" → "5 messages") */
     label?: string
     /** Hide chip when the type is "ambiguous-only" — strings/numbers/booleans */
     ambiguousOnly?: boolean
-    /**
-     * When true and `value` is a string that parses as JSON, render the
-     * `stringified` chip instead of `[obj]` / `[arr]`. Used in the table-cell
-     * context where preserving "this is stored as a string" is meaningful.
-     */
-    preferStringified?: boolean
     /**
      * When provided, the chip becomes interactive — renders as a button with
      * cursor pointer + hover lift, gets a focus ring, and fires onClick. Used
@@ -86,46 +101,67 @@ const STYLES: Record<
     ChipVariant,
     {bg: string; fg: string; label: string; border?: string; italic?: boolean}
 > = {
+    // — Type primitives (axis 1). Solid background, no border, abbreviated
+    //   labels for chip-density reasons. Variant keys stay full-name for
+    //   TS-identifier precision when grepping.
     string: {bg: "rgba(5, 23, 41, 0.06)", fg: "#051729", label: "str"},
-    "json-object": {bg: "#e6f4ff", fg: "#1677ff", label: "obj"},
-    "json-array": {bg: "#e6fffb", fg: "#13c2c2", label: "arr"},
     number: {bg: "rgba(5, 23, 41, 0.06)", fg: "#051729", label: "num"},
     boolean: {bg: "rgba(5, 23, 41, 0.06)", fg: "#051729", label: "bool"},
     null: {bg: "rgba(5, 23, 41, 0.06)", fg: "rgba(5, 23, 41, 0.45)", label: "null"},
-    messages: {bg: "#f9f0ff", fg: "#722ed1", label: "msgs"},
-    "dotted-key": {bg: "#fff7e6", fg: "#d46b08", label: "dotted-key"},
-    mixed: {bg: "#fff7e6", fg: "#d46b08", label: "mixed"},
-    tool: {bg: "#f6ffed", fg: "#389e0d", label: "tool"},
-    collision: {bg: "#fff2f0", fg: "#f5222d", label: "⚠ collision"},
-    "not-authored": {bg: "rgba(5, 23, 41, 0.04)", fg: "rgba(5, 23, 41, 0.55)", label: "not authored"},
-    shadowed: {bg: "#fff2f0", fg: "#f5222d", label: "⚠ shadowed"},
-    path: {bg: "rgba(5, 23, 41, 0.06)", fg: "#051729", label: "path"},
+    "json-object": {bg: "#e6f4ff", fg: "#1677ff", label: "obj"},
+    "json-array": {bg: "#e6fffb", fg: "#13c2c2", label: "arr"},
+
+    // — Render hints (axis 2). Dashed border + italic so the user reads
+    //   "render mode" not "type". Each one stacks alongside the type chip.
+    markdown: {
+        bg: "#f9f0ff",
+        fg: "#722ed1",
+        label: "markdown",
+        border: "1px dashed #722ed1",
+        italic: true,
+    },
     stringified: {
         bg: "#e6f4ff",
         fg: "#1677ff",
-        // `json-str` reads as "JSON value, stored as a string" — the conflict
-        // spelled out instead of carried by italic + quotes + dashed border
-        // alone. Styling stays as a bonus signal but the label survives if
-        // it gets stripped (e.g. in copy-paste, accessibility tree readouts).
-        label: "json-str",
+        label: "stringified",
         border: "1px dashed #1677ff",
         italic: true,
     },
-    "long-str": {
-        // `long-str` is the editor-mode chip for string content rendered with
-        // the production Lexical editor (markdown preview toggle + multi-line).
-        // Distinct from `[str]` (inline single-line antd Input) — clicking the
-        // chip toggles between the two modes via ChipConversionPopover. Used
-        // when content is multi-paragraph, contains markdown, or the user
-        // explicitly opts into the long-form editor for shorter content.
+    messages: {
         bg: "#f9f0ff",
         fg: "#722ed1",
-        label: "long-str",
+        label: "messages",
+        border: "1px dashed #722ed1",
+        italic: true,
     },
-    // gap-09 — variable provenance / usage chips. Muted neutral palette
-    // because these are *meta* about the variable's role in the run, not
-    // about its value type — they sit alongside the type chip rather than
-    // replacing it.
+    "tool-calls": {
+        bg: "#f6ffed",
+        fg: "#389e0d",
+        label: "tool-calls",
+        border: "1px dashed #389e0d",
+        italic: true,
+    },
+
+    // — State / correctness chips (axis 3). Solid backgrounds in semantic
+    //   palettes: amber for "watch out", red for "error", blue/grey for
+    //   variable provenance.
+    "dotted-key": {bg: "#fff7e6", fg: "#d46b08", label: "dotted-key"},
+    mixed: {bg: "#fff7e6", fg: "#d46b08", label: "mixed"},
+    collision: {bg: "#fff2f0", fg: "#f5222d", label: "⚠ collision"},
+    shadowed: {bg: "#fff2f0", fg: "#f5222d", label: "⚠ shadowed"},
+    "not-authored": {
+        bg: "rgba(5, 23, 41, 0.04)",
+        fg: "rgba(5, 23, 41, 0.55)",
+        label: "not authored",
+    },
+    optional: {
+        bg: "rgba(5, 23, 41, 0.04)",
+        fg: "rgba(5, 23, 41, 0.55)",
+        label: "optional",
+    },
+    path: {bg: "rgba(5, 23, 41, 0.06)", fg: "#051729", label: "path"},
+    // gap-09 — variable provenance / usage. Muted palettes; meta about
+    // the variable's role in the run, not its value type.
     unused: {
         bg: "rgba(5, 23, 41, 0.04)",
         fg: "rgba(5, 23, 41, 0.55)",
@@ -146,24 +182,63 @@ const STYLES: Record<
 
 const AMBIGUOUS_HIDE = new Set<ChipVariant>(["string", "number", "boolean"])
 
-function inferVariant(value: unknown, preferStringified = false): ChipVariant {
+/**
+ * Infer the type-primitive chip from a value. Returns one of
+ * `string` / `number` / `boolean` / `null` / `json-object` / `json-array`
+ * — never a render-hint variant. Use `inferRenderHint` separately when
+ * the caller wants to show render-hint chips alongside the type chip.
+ */
+function inferVariant(value: unknown): TypePrimitive {
     if (value === null) return "null"
     if (Array.isArray(value)) return "json-array"
     if (typeof value === "object") return "json-object"
     if (typeof value === "boolean") return "boolean"
     if (typeof value === "number") return "number"
-    if (typeof value === "string") {
-        // Use detectDataType for stringified-JSON detection
-        const detected = detectDataType(value)
-        if (
-            preferStringified &&
-            (detected === "json-object" || detected === "json-array")
-        ) {
-            return "stringified"
-        }
-        return detected
-    }
     return "string"
+}
+
+/**
+ * Infer the optional render-hint chip for a value. Returns:
+ *   - `messages` if the value is an array of chat-message-shaped objects
+ *   - `tool-calls` if the value is an array of OpenAI tool-call-shaped objects
+ *   - `stringified` if the value is a string that parses as JSON object/array
+ *   - `markdown` if the value is a long / multi-line / markdown string
+ *   - null otherwise
+ *
+ * Render hints are orthogonal to type primitives — caller emits both chips
+ * (type + hint) when this returns non-null.
+ */
+export function inferRenderHint(value: unknown): RenderHint | null {
+    if (Array.isArray(value)) {
+        if (value.length === 0) return null
+        const first = value[0]
+        if (first && typeof first === "object") {
+            if ("role" in first) return "messages"
+            if (
+                "type" in first &&
+                (first as {type?: unknown}).type === "function" &&
+                "function" in first
+            ) {
+                return "tool-calls"
+            }
+        }
+        return null
+    }
+    if (typeof value === "string") {
+        if (value.length >= 2 && (value[0] === "{" || value[0] === "[")) {
+            try {
+                const parsed = JSON.parse(value)
+                if (parsed && typeof parsed === "object") return "stringified"
+            } catch {
+                /* not parseable, fall through */
+            }
+        }
+        // Markdown / multi-line heuristic — same threshold the editor uses
+        // when picking between the inline antd Input and the Lexical editor.
+        if (value.length > 100 || value.includes("\n")) return "markdown"
+        return null
+    }
+    return null
 }
 
 export function TypeChip({
@@ -171,15 +246,14 @@ export function TypeChip({
     value,
     label,
     ambiguousOnly,
-    preferStringified,
     onClick,
     ariaLabel,
     notificationBadge,
     badgeTooltip,
 }: TypeChipProps) {
-    const resolved =
+    const resolved: ChipVariant =
         variant ??
-        (value !== undefined ? inferVariant(value, preferStringified) : "string")
+        (value !== undefined ? inferVariant(value) : "string")
     if (ambiguousOnly && AMBIGUOUS_HIDE.has(resolved)) {
         return null
     }
