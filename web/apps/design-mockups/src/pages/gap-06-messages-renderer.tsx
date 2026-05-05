@@ -63,8 +63,8 @@ export default function Gap06Concept() {
                                 <code>
                                     get_weather({'{"city": "NYC"}'})
                                 </code>
-                                . Functional but not visually distinct from
-                                regular content.
+                                . Readable, but it sits in the message body
+                                with no visual separation from prose content.
                             </li>
                             <li>
                                 Table cells: <code>ChatMessagesCellContent</code>{" "}
@@ -81,11 +81,12 @@ export default function Gap06Concept() {
                                 Render assistant <code>tool_calls</code> as a
                                 card below the message body: function name as
                                 a heading, arguments JSON pretty-printed
-                                (parsed from the string). The genuinely new
-                                rendering. Production formats them as text
-                                because the original chat-message contract
-                                inherited from OpenAI uses string-encoded
-                                arguments.
+                                (parsed from the string). This is the new
+                                rendering. The OpenAI chat-message contract
+                                stores <code>arguments</code> as a JSON
+                                string, which is why production currently
+                                shows it inline as text rather than as
+                                structured fields.
                             </li>
                             <li>
                                 <strong>
@@ -114,24 +115,6 @@ export default function Gap06Concept() {
                         Calling it out as its own gap because the tool-call
                         card has its own design surface that doesn't fit
                         cleanly under gap-01 or gap-03.
-                    </>
-                }
-                competitiveNotes={
-                    <>
-                        Braintrust renders messages as YAML; Langfuse renders
-                        as JSON. Neither has a dedicated tool-call card; both
-                        leave <code>arguments</code> as a stringified-JSON
-                        string with no parse step. Lifting{" "}
-                        <code>ChatMessageList</code> at root + adding the
-                        tool-call card puts us past both competitors. One of
-                        three places we go further than the field. See{" "}
-                        <a
-                            href="../../../docs/designs/json-string-ux/competitive-analysis.md"
-                            style={styles.link}
-                        >
-                            competitive-analysis.md
-                        </a>{" "}
-                        §6.
                     </>
                 }
             >

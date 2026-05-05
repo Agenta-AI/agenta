@@ -33,7 +33,7 @@ const FIXTURES = [
         testcase: fixture06_deeply_nested.find((tc) => tc.id === "tc-06-tuvalu")!,
         autoExpand: true,
         detectDotKeyCollisions: false,
-        note: "Depth-5 nested structure. The strongest case for two-pane — card-stack scrolls, tree gives a one-glance overview.",
+        note: "Depth-5 nested structure. Card-stack requires scrolling between cards to see the whole shape; tree shows the whole shape at once on the left.",
     },
     {
         id: "07-messages",
@@ -49,7 +49,7 @@ const FIXTURES = [
         testcase: fixture08_dot_key_collision.find((tc) => tc.id === "tc-08-vanuatu")!,
         autoExpand: true,
         detectDotKeyCollisions: true,
-        note: "Literal `\"geo.region\"` and nested `geo` sit two rows apart in the tree, both with chips. Spatial separation reads as cleanly as side-by-side cards.",
+        note: "Literal `\"geo.region\"` and nested `geo` sit two rows apart in the tree, both with chips. Spatial separation distinguishes them without an extra warning chip.",
     },
     {
         id: "02-nested",
@@ -57,7 +57,7 @@ const FIXTURES = [
         testcase: fixture02_capitals_with_geo.find((tc) => tc.id === "tc-02-tuvalu")!,
         autoExpand: true,
         detectDotKeyCollisions: false,
-        note: "Moderate nesting. Tree shape readable in one glance vs scrolling between cards.",
+        note: "Moderate nesting. Tree shape is visible without scrolling; card-stack still works fine here.",
     },
     {
         id: "01-flat",
@@ -65,7 +65,7 @@ const FIXTURES = [
         testcase: fixture_chip_showcase[0],
         autoExpand: false,
         detectDotKeyCollisions: false,
-        note: "The fixture where two-pane LOSES — short flat keys against a tree column is overkill. Included to demonstrate the threshold case.",
+        note: "The fixture where two-pane stops being useful — short flat keys don't need a tree column. Included as the threshold case.",
     },
 ] as const
 
@@ -84,45 +84,30 @@ export default function AltTreePane() {
                 <title>Alt — Two-pane tree+detail · Design mockups</title>
             </Head>
             <MockupPageShell
-                title="Alt — Two-pane tree + detail (alternative paradigm)"
+                title="Alt — Two-pane tree + detail"
                 blurb={
-                    "Side-by-side: card-stack (Today, left, ProposedDrillIn) vs two-pane tree+detail (Right, TreeDrillIn). Pick a fixture below to see how each paradigm handles different testcase shapes. The argument isn't that two-pane wins everywhere — it's that the card-stack paradigm has a specific failure mode (06 deeply nested, 07 messages-and-tools) that two-pane resolves cleanly."
+                    "Side-by-side: card-stack (Today, left, ProposedDrillIn) vs two-pane tree + detail (right, TreeDrillIn). Pick a fixture below to see how each handles different testcase shapes. Two-pane isn't a universal replacement; it addresses a specific failure mode the card-stack has at depth ≥ 4 and on messages fixtures."
                 }
                 notes={
                     <>
-                        <strong>Why this exists:</strong> the card-stack we proposed in
-                        gap-03 still scrolls badly at depth ≥ 4. Three alternative
-                        paradigms were sketched (outliner, two-pane, tabbed) — two-pane
-                        had the strongest cross-fixture story so it was built. See
-                        agent-comparison notes in <code>00-overview.md</code>.
+                        <strong>Why this exists:</strong> the gap-03 card-stack
+                        scrolls badly at depth ≥ 4. Three alternative
+                        approaches were sketched (outliner, two-pane,
+                        tabbed); two-pane handled the most fixtures cleanly,
+                        so it got built. See agent-comparison notes in{" "}
+                        <code>00-overview.md</code>.
                         <br />
                         <br />
-                        <strong>Threshold-fallback hybrid is the real shipping shape.</strong>{" "}
-                        Below ~6 leaves OR depth &lt; 2 OR no messages array, the
-                        production card-stack is still the better default. Two-pane
-                        kicks in above that threshold. The 01-flat fixture is here to
-                        demonstrate where two-pane stops being useful.
+                        <strong>Threshold fallback is the realistic shipping shape.</strong>{" "}
+                        Below ~6 leaves, or depth &lt; 2, or no messages
+                        array — the card-stack is still the better default.
+                        Two-pane kicks in above that threshold. The 01-flat
+                        fixture is here to show where two-pane stops being
+                        useful.
                         <br />
                         <br />
                         <strong>Keyboard:</strong> click into the tree, then ↑/↓ to
                         move, →/← to expand/collapse.
-                    </>
-                }
-                competitiveNotes={
-                    <>
-                        Closest to Braintrust's right-rail pattern (see{" "}
-                        <a
-                            href="../../../docs/designs/json-string-ux/competitive-analysis.md"
-                            style={{color: "#1677ff"}}
-                        >
-                            competitive-analysis.md
-                        </a>{" "}
-                        §3) but flips it — Braintrust uses the right rail for the form;
-                        here the left side is a navigator and the right side is the
-                        editor. Combined with gap-07's schema-aware form, the two
-                        compose into "this is what schema-aware editing looks like with
-                        navigation". Outliner and tabbed alternatives were considered;
-                        notes-only entries kept in the design exploration.
                     </>
                 }
             >

@@ -20,7 +20,7 @@ export default function Gap07Concept() {
             <MockupPageShell
                 title="Gap 07 — Schema-aware Edit form"
                 blurb={
-                    "Surfaced 2026-05-04 by competitive analysis. Per-testset field schema becomes a first-class entity; drill-in renders as a labelled form with type-aware inputs per known column when a schema exists; falls back to existing detection-driven view otherwise. Cross-cutting: subsumes gap-03 + chunks of gap-04 / gap-05 / gap-01 in one investment."
+                    "Surfaced 2026-05-04 by competitive analysis. Per-testset field schema becomes a first-class entity; drill-in renders as a labelled form with type-aware inputs per known column when a schema exists; falls back to the existing detection-driven view otherwise. The same schema entity also feeds gap-08 validation and reshapes how gap-03 / gap-04 / gap-05 land."
                 }
                 notes={
                     <>
@@ -40,42 +40,22 @@ export default function Gap07Concept() {
                         JSON-blob replay).
                         <br />
                         <br />
-                        <strong>Why this is cross-cutting:</strong> the same
-                        schema entity drives gap-08 (playground variable
-                        validation), sidesteps gap-04 (no projection because we
-                        never serialize a union JSON blob), structurally
-                        resolves 70% of gap-05 (literal{" "}
+                        <strong>Why this is cross-cutting:</strong> one
+                        schema entity feeds gap-08 (playground variable
+                        validation), sidesteps gap-04 (per-field PATCH save
+                        means no union-JSON-blob replay), and gives gap-05 a
+                        structural answer (literal{" "}
                         <code>&quot;a.b&quot;</code> and nested{" "}
-                        <code>a.b</code> become two visually distinct fields),
-                        and subsumes gap-03 (auto-expand falls out of "render
-                        the schema").
+                        <code>a.b</code> become two distinct labelled fields,
+                        no chip needed). Gap-03 auto-expand is a simpler form
+                        of the same idea.
                         <br />
                         <br />
-                        <strong>Decision (Round 0 of the team call):</strong>{" "}
-                        adopt schema-as-entity (Braintrust's moat) or stay
-                        schema-less (Langfuse pattern, current Agenta).
-                        Schema-as-entity is the single biggest UX investment
-                        on the table — one investment, four payoffs.
-                    </>
-                }
-                competitiveNotes={
-                    <>
-                        <strong>This is Braintrust's moat.</strong> Their
-                        per-testset field schemas tab exposes the inferred
-                        schema explicitly; users can edit types, mark fields
-                        required, set default values. The form rendering,
-                        edit-time validation, and playground variable resolution
-                        all read from the same store. <strong>One investment,
-                        four payoffs.</strong> Langfuse skips schema entirely —
-                        JSON-blob editor in a modal — and consequently has no
-                        form, no validation, no autocomplete from schema. See{" "}
-                        <a
-                            href="../../../docs/designs/json-string-ux/competitive-analysis.md"
-                            style={styles.link}
-                        >
-                            competitive-analysis.md
-                        </a>{" "}
-                        §4 + §13.
+                        <strong>Decision for the team call:</strong>{" "}
+                        adopt schema-as-entity (Braintrust's pattern) or stay
+                        schema-less (Langfuse pattern, current Agenta). One
+                        schema entity has the most downstream reuse of any
+                        decision on the table.
                     </>
                 }
             >
@@ -95,8 +75,8 @@ export default function Gap07Concept() {
                 <div style={styles.crossLinks}>
                     <strong>Related concept pages:</strong>{" "}
                     <Link href="/gap-03-drill-in-root-view" style={styles.link}>
-                        gap-03 (auto-expand — schema-aware form is the higher
-                        ceiling)
+                        gap-03 (auto-expand — schema-aware form is the bigger
+                        version of the same idea)
                     </Link>{" "}
                     ·{" "}
                     <Link href="/gap-04-shape-preservation" style={styles.link}>
@@ -105,8 +85,8 @@ export default function Gap07Concept() {
                     </Link>{" "}
                     ·{" "}
                     <Link href="/gap-05-dot-key-disambiguation" style={styles.link}>
-                        gap-05 (form structure does 70% of the disambiguation
-                        work)
+                        gap-05 (form structure handles literal-vs-nested
+                        disambiguation directly)
                     </Link>{" "}
                     ·{" "}
                     <Link

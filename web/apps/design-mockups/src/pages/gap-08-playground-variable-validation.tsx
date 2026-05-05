@@ -57,39 +57,21 @@ export default function Gap08Concept() {
                             </li>
                         </ul>
                         <br />
-                        <strong>Why this is gap-07's downstream:</strong> the
-                        validation reads from the same per-testset schema entity
-                        gap-07 establishes. Without gap-07's schema, the
-                        tooltip can only do generic template-syntax checks; with
-                        it, the tooltip says <em>"this path isn't in your
-                        dataset"</em> — exactly the specificity that makes
-                        Braintrust's pattern work.
+                        <strong>Why this depends on gap-07:</strong> the
+                        validation reads from the per-testset schema entity
+                        gap-07 establishes. Without that schema the tooltip
+                        can only check template syntax. With it, the tooltip
+                        can say <em>"this path isn't in your dataset"</em>{" "}
+                        with the actual path the user typed.
                         <br />
                         <br />
-                        <strong>Stringified-JSON fault line (gap-04 echo):</strong>{" "}
+                        <strong>Stringified-JSON fault line:</strong>{" "}
                         Braintrust's variable validator false-warns on{" "}
-                        <code>{"{{metadata.source}}"}</code> when the column is
-                        a stringified JSON string (their schema treats it as a
-                        string, not a parsed object). Same fault line as
-                        gap-04. Our gap-02 parse-on-detect feeds gap-08's
-                        correctness — without parsing, even Braintrust gets it
-                        wrong.
-                    </>
-                }
-                competitiveNotes={
-                    <>
-                        Closest pattern in the field. Braintrust validates both{" "}
-                        <code>{"{{a.b}}"}</code> flat-mustache and{" "}
-                        <code>{"{{$.a.b}}"}</code> JSONPath against the
-                        dataset's actual schema — same mechanism, two syntaxes.
-                        Langfuse has no edit-time validation. See{" "}
-                        <a
-                            href="../../../docs/designs/json-string-ux/competitive-analysis.md"
-                            style={styles.link}
-                        >
-                            competitive-analysis.md
-                        </a>{" "}
-                        §13.
+                        <code>{"{{metadata.source}}"}</code> when the column
+                        is a stringified JSON string (their schema treats it
+                        as a string, not a parsed object). Same fault line
+                        as gap-04. Gap-02's parse-on-detect, applied at
+                        validation time here, avoids that false warning.
                     </>
                 }
             >

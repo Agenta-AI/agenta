@@ -45,7 +45,7 @@ const gaps = [
         slug: "gap-07-schema-aware-form",
         title: "Gap 07 — Schema-aware Edit form",
         blurb:
-            "Surfaced 2026-05-04 by competitive analysis. Per-testset field schema becomes a first-class entity; drill-in renders as a labelled form with type-aware inputs per column. Cross-cutting: subsumes gap-03 + chunks of gap-04 / gap-05 / gap-01.",
+            "Surfaced 2026-05-04 by competitive analysis. Per-testset field schema becomes a first-class entity; drill-in renders as a labelled form with type-aware inputs per column. The same schema feeds gap-08 validation and changes how gap-03 / gap-04 / gap-05 land.",
         status: "competitive",
     },
     {
@@ -87,14 +87,14 @@ const gaps = [
         slug: "alt-tree-pane",
         title: "Alt — Two-pane tree + detail",
         blurb:
-            "Paradigmatically different alternative to the card-stack drill-in. Compact tree on the left, editor on the right. Wins on deeply-nested + messages fixtures; threshold-fallback hybrid is the real shipping shape. Surfaced 2026-05-04 by alternative-design exploration.",
+            "Alternative to the card-stack drill-in: compact tree on the left, editor on the right. Useful at depth ≥ 4 and on messages fixtures where the card stack scrolls. A threshold fallback (cards for shallow rows, tree for deep) is the realistic shipping shape.",
         status: "alternative",
     },
     {
         slug: "already-shipped",
         title: "Already shipped — RFC pieces that landed before this work",
         blurb:
-            "Inventory of the prompt-editor token typeahead (flat + JSONPath), envelope-aware suggestion sources, chain-context-aware routing, and template-variable validation utilities. Most of WP-F3 is live; gap-08 + gap-09 build on this surface. Listed so new proposals don't accidentally re-specify what already exists.",
+            "Inventory of what's already in production: prompt-editor token typeahead (flat + JSONPath), envelope-aware suggestion sources (inputs / outputs / parameters / testcase), chain-context routing, and template-variable validation utilities. Gap-08 and gap-09 both build on top of these.",
         status: "ready",
     },
     {
@@ -116,12 +116,9 @@ export default function Index() {
                 <header style={styles.header}>
                     <h1 style={styles.h1}>JSON ↔ String UX — Design Mockups</h1>
                     <p style={styles.lead}>
-                        Real React mockups using the actual drill-in components from
-                        <code style={styles.code}> @agenta/oss</code>,{" "}
-                        <code style={styles.code}>@agenta/ui</code>, and{" "}
-                        <code style={styles.code}>@agenta/entity-ui</code>. Each page below
-                        mounts the same component the production app uses, against stub
-                        data, so we can iterate the design with full fidelity.
+                        Each page mounts the same components the production app uses
+                        against stub data, so the side-by-side comparisons read
+                        like the real app.
                     </p>
                     <p style={styles.lead}>
                         Companion HTML wireframes:{" "}
@@ -131,53 +128,17 @@ export default function Index() {
                         >
                             docs/designs/json-string-ux/variants/index.html
                         </a>
-                    </p>
-                </header>
-
-                <section style={styles.competitive}>
-                    <div style={styles.competitiveHeader}>
-                        <span style={styles.competitiveTag}>Competitive</span>
-                        <strong style={styles.competitiveTitle}>
-                            2026-05-04 audit: Braintrust + Langfuse running our 8 fixtures
-                        </strong>
-                    </div>
-                    <p style={styles.lead}>
-                        50 screenshots, both products exercised against
-                        <code style={styles.code}>01-flat-strings.json</code> through{" "}
-                        <code style={styles.code}>08-dot-key-collision.json</code>. Surfaced
-                        candidate gaps 07 + 08 (and later 09, 2026-05-05) and revised the
-                        priority order. Read the full analysis at{" "}
+                        . Competitive analysis (Braintrust + Langfuse, 50 screenshots
+                        across 8 fixtures):{" "}
                         <a
                             href="../../../docs/designs/json-string-ux/competitive-analysis.md"
                             style={styles.link}
                         >
-                            docs/designs/json-string-ux/competitive-analysis.md
+                            competitive-analysis.md
                         </a>
                         .
                     </p>
-                    <ul style={styles.compList}>
-                        <li>
-                            <strong>Schema-as-entity is the moat</strong> (Braintrust). Per-testset
-                            field schema reused across drill-in form, edit-time validation, and
-                            playground variable resolution. One investment, four payoffs.
-                        </li>
-                        <li>
-                            <strong>JSON-as-opaque is the floor</strong> (Langfuse). Polished JSON
-                            editor in a modal; no form, no validation, no schema. Lower complexity,
-                            lower ceiling.
-                        </li>
-                        <li>
-                            <strong>We go past both on three dimensions</strong>: gap-02 stringified-JSON
-                            detection, gap-04 projection toggle, gap-06 chat / tool-call cards. Don't
-                            deprioritize these.
-                        </li>
-                        <li>
-                            <strong>Near-zero-cost stop-gap</strong>: full-row pretty-JSON popover
-                            on row click (Braintrust's Mode 3). Buys 80% of "let me see the whole
-                            thing" while gap-07 schema-aware form is being built.
-                        </li>
-                    </ul>
-                </section>
+                </header>
 
                 <ol style={styles.list}>
                     {gaps.map((gap) => (
