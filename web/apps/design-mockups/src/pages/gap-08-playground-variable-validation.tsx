@@ -125,6 +125,10 @@ export default function Gap08Concept() {
                     ·{" "}
                     <Link href="/gap-07-schema-aware-form" style={styles.link}>
                         gap-07 (schema entity — same source of truth)
+                    </Link>{" "}
+                    ·{" "}
+                    <Link href="/gap-09-variable-provenance" style={styles.link}>
+                        gap-09 (symmetric check on the execution-item surface)
                     </Link>
                 </div>
             </MockupPageShell>

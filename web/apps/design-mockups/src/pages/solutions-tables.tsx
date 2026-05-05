@@ -20,7 +20,7 @@
  *     the entity does for real.
  */
 
-import {useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import Head from "next/head"
 import Link from "next/link"
@@ -35,9 +35,13 @@ import {TypeChip} from "@/mockups/components/proposed/TypeChip"
 import {
     computeColumns,
     detectCollisionColumns,
+    detectColumnTypes,
     detectDottedKeyColumns,
     detectMixedColumns,
+    detectStringifiedExpandableColumns,
     flattenRow,
+    getNestedValue,
+    type ColumnTypeChip,
     type FlatRow,
     type StubRow,
 } from "@/mockups/components/proposed/testsetTableHelpers"
@@ -109,12 +113,69 @@ export default function SolutionsTables() {
     const [testsetId, setTestsetId] =
         useState<(typeof TESTSETS)[number]["id"]>("kitchen-sink")
     const [chipMode, setChipMode] = useState<ChipRenderMode>("all")
+    // Shared collapsed-group state across both panels so the demo shows the
+    // same column layout on each side (production parity). Defaults to
+    // empty (everything expanded); user clicks group headers to collapse.
+    const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+        () => new Set(),
+    )
+    // gap-02 parse-on-detect — top-level stringified-JSON columns the user
+    // has opted to expand. A column starts here as a flat [json-str] cell;
+    // clicking the [json-str] chip on the header adds it to this set,
+    // which makes computeColumns parse the string and emit sub-columns.
+    // Clicking the caret on the resulting group removes it again.
+    const [parsedStringifiedColumns, setParsedStringifiedColumns] = useState<
+        Set<string>
+    >(() => new Set())
 
     const active = TESTSETS.find((t) => t.id === testsetId) ?? TESTSETS[0]
 
+    // Reset collapsed-group state when the testset changes — fresh testsets
+    // have different group paths, so stale entries would silently persist.
+    useEffect(() => {
+        setCollapsedGroups(new Set())
+        setParsedStringifiedColumns(new Set())
+    }, [testsetId])
+
+    const toggleGroupCollapse = (groupPath: string) => {
+        // If this is a parsed-stringified column at the root, "collapse"
+        // means un-parse it (remove from the parsed set). Otherwise it's
+        // a normal nested-object group → toggle in collapsedGroups.
+        if (parsedStringifiedColumns.has(groupPath)) {
+            setParsedStringifiedColumns((prev) => {
+                const next = new Set(prev)
+                next.delete(groupPath)
+                return next
+            })
+            return
+        }
+        setCollapsedGroups((prev) => {
+            const next = new Set(prev)
+            if (next.has(groupPath)) next.delete(groupPath)
+            else next.add(groupPath)
+            return next
+        })
+    }
+
+    const expandStringifiedColumn = (key: string) => {
+        setParsedStringifiedColumns((prev) => {
+            if (prev.has(key)) return prev
+            const next = new Set(prev)
+            next.add(key)
+            return next
+        })
+    }
+
     // Column union + nested expansion. Same logic the production entity
     // layer does, just running off stub data instead of atoms.
-    const columns = useMemo(() => computeColumns(active.rows), [active.rows])
+    const columns = useMemo(
+        () => computeColumns(active.rows, parsedStringifiedColumns),
+        [active.rows, parsedStringifiedColumns],
+    )
+    const stringifiedExpandableColumns = useMemo(
+        () => detectStringifiedExpandableColumns(active.rows),
+        [active.rows],
+    )
     const flatRows = useMemo(
         () => active.rows.map((r) => flattenRow(r, columns)),
         [active.rows, columns],
@@ -131,60 +192,257 @@ export default function SolutionsTables() {
         () => detectDottedKeyColumns(columns),
         [columns],
     )
+    const columnTypes = useMemo(
+        () => detectColumnTypes(flatRows, columns, mixedColumns),
+        [flatRows, columns, mixedColumns],
+    )
+
+    // Group header renderer — shared between Today and Proposed so both
+    // panels show the same caret affordance + click-to-toggle. Mirrors
+    // production's TestcasesTableShell.tsx:449. When the group corresponds
+    // to a parsed-stringified column, an extra [json-str] chip stacks
+    // alongside the name so the user can see the column came from a
+    // string (not a real nested object) and can click the caret to fold.
+    const renderGroupHeader = (
+        groupPath: string,
+        isCollapsed: boolean,
+        childCount: number,
+    ) => {
+        const displayName = groupPath.includes(".")
+            ? groupPath.substring(groupPath.lastIndexOf(".") + 1)
+            : groupPath
+        const isParsedStringified = parsedStringifiedColumns.has(groupPath)
+        return (
+            <span style={styles.proposedHeader}>
+                <span
+                    style={styles.groupHeader}
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        toggleGroupCollapse(groupPath)
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            toggleGroupCollapse(groupPath)
+                        }
+                    }}
+                >
+                    <span style={styles.groupCaret}>
+                        {isCollapsed ? "▸" : "▾"}
+                    </span>
+                    <span style={styles.groupName}>{displayName}</span>
+                    <span style={styles.groupCount}>({childCount})</span>
+                </span>
+                {isParsedStringified && chipMode !== "none" ? (
+                    <TypeChip variant="stringified" />
+                ) : null}
+            </span>
+        )
+    }
 
     // Today's column defs — render via production's TestcaseCellContent.
     const todayColumns = useMemo(
         () =>
-            groupColumns<FlatRow>(columns, (col, displayName) => ({
-                key: col.key,
-                dataIndex: col.key,
-                title: <span style={styles.todayHeader}>{displayName}</span>,
-                width: 220,
-                render: (value: unknown) => (
-                    <TestcaseCellContent value={value} maxLines={6} />
-                ),
-            })),
-        [columns],
+            groupColumns<FlatRow>(
+                columns,
+                (col, displayName) => ({
+                    key: col.key,
+                    dataIndex: col.key,
+                    title: <span style={styles.todayHeader}>{displayName}</span>,
+                    width: 220,
+                    render: (value: unknown) => (
+                        <TestcaseCellContent value={value} maxLines={6} />
+                    ),
+                }),
+                {
+                    // maxDepth=5 lets groupColumns expand all the way down
+                    // through `geo > coordinates > lat / lng / altitude_m` by
+                    // default. Production's default is 1 (depth-limited
+                    // groups collapse on render); for the demo we want full
+                    // visibility so chips appear on every leaf.
+                    maxDepth: 5,
+                    collapsedGroups,
+                    onGroupHeaderClick: toggleGroupCollapse,
+                    renderGroupHeader,
+                    createCollapsedColumnDef: (groupPath) => ({
+                        key: groupPath,
+                        dataIndex: groupPath,
+                        title: (
+                            <span
+                                style={styles.collapsedHeader}
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    toggleGroupCollapse(groupPath)
+                                }}
+                                role="button"
+                                tabIndex={0}
+                            >
+                                <span style={styles.groupCaret}>▸</span>
+                                <span style={styles.groupName}>
+                                    {groupPath.includes(".")
+                                        ? groupPath.substring(
+                                              groupPath.lastIndexOf(".") + 1,
+                                          )
+                                        : groupPath}
+                                </span>
+                            </span>
+                        ),
+                        width: 220,
+                        // When collapsed, render the parent object's full
+                        // value for that row — walk the nested path on
+                        // `record._data` since collapsed groups can be
+                        // multiple levels deep (e.g. `geo.coordinates`).
+                        render: (_value: unknown, record: FlatRow) => (
+                            <TestcaseCellContent
+                                value={getNestedValue(
+                                    record._data,
+                                    groupPath.split("."),
+                                )}
+                                maxLines={6}
+                            />
+                        ),
+                    }),
+                },
+            ),
+        [columns, collapsedGroups, parsedStringifiedColumns],
     )
 
     // Proposed column defs — same data, ProposedTableCell renderer.
-    // Column header gets correctness chips ([dotted-key] / [mixed]) when
-    // applicable. Per-cell chip rendering happens inside ProposedTableCell.
+    // Column header gets a per-column type chip (gap-01, all mode) plus
+    // correctness chips (mixed / dotted-key) when applicable. Group
+    // headers are click-to-collapse via shared `collapsedGroups` state.
+    // When a column is a stringified-JSON-eligible top-level column, the
+    // [json-str] chip is clickable — clicking it parses the column and
+    // re-emits as a sub-column group (gap-02 parse-on-detect).
     const proposedColumns = useMemo(
         () =>
-            groupColumns<FlatRow>(columns, (col, displayName) => {
-                const isMixed = mixedColumns.has(col.key)
-                const isDottedKey = dottedKeyColumns.has(col.key)
-                return {
-                    key: col.key,
-                    dataIndex: col.key,
-                    title: (
-                        <div style={styles.proposedHeader}>
-                            <span style={styles.proposedHeaderName}>
-                                {displayName}
-                            </span>
-                            {isDottedKey && chipMode !== "none" ? (
-                                <TypeChip variant="dotted-key" />
-                            ) : null}
-                            {isMixed && chipMode !== "none" ? (
-                                <TypeChip variant="mixed" />
-                            ) : null}
-                        </div>
-                    ),
-                    width: 220,
-                    render: (value: unknown) => (
-                        <ProposedTableCell
-                            value={value}
-                            isMixedColumn={isMixed}
-                            isDottedKey={isDottedKey}
-                            isCollision={collisionColumns.has(col.key)}
-                            treatUndefinedAsMissing
-                            chipMode={chipMode}
-                        />
-                    ),
-                }
-            }) as ColumnType<FlatRow>[],
-        [columns, mixedColumns, dottedKeyColumns, collisionColumns, chipMode],
+            groupColumns<FlatRow>(
+                columns,
+                (col, displayName) => {
+                    const isMixed = mixedColumns.has(col.key)
+                    const isDottedKey = dottedKeyColumns.has(col.key)
+                    const colType = columnTypes.get(col.key)
+                    const showColumnTypeChip =
+                        chipMode === "all" && colType !== undefined && !isMixed
+                    // The [json-str] chip on a top-level stringified column
+                    // is interactive — click parses the column. Other type
+                    // chips are static.
+                    const isStringifiedExpandable =
+                        col.parentKey === undefined &&
+                        stringifiedExpandableColumns.has(col.key)
+                    const isStringifiedClickable =
+                        showColumnTypeChip &&
+                        colType === "stringified" &&
+                        isStringifiedExpandable
+                    return {
+                        key: col.key,
+                        dataIndex: col.key,
+                        title: (
+                            <div style={styles.proposedHeader}>
+                                <span style={styles.proposedHeaderName}>
+                                    {displayName}
+                                </span>
+                                {showColumnTypeChip ? (
+                                    <TypeChip
+                                        variant={colType as ColumnTypeChip}
+                                        onClick={
+                                            isStringifiedClickable
+                                                ? () =>
+                                                      expandStringifiedColumn(
+                                                          col.key,
+                                                      )
+                                                : undefined
+                                        }
+                                        ariaLabel={
+                                            isStringifiedClickable
+                                                ? `Parse ${col.key} into sub-columns`
+                                                : undefined
+                                        }
+                                    />
+                                ) : null}
+                                {isDottedKey && chipMode !== "none" ? (
+                                    <TypeChip variant="dotted-key" />
+                                ) : null}
+                                {isMixed && chipMode !== "none" ? (
+                                    <TypeChip variant="mixed" />
+                                ) : null}
+                            </div>
+                        ),
+                        width: 220,
+                        render: (value: unknown) => (
+                            <ProposedTableCell
+                                value={value}
+                                isMixedColumn={isMixed}
+                                isDottedKey={isDottedKey}
+                                isCollision={collisionColumns.has(col.key)}
+                                treatUndefinedAsMissing
+                                chipMode={chipMode}
+                            />
+                        ),
+                    }
+                },
+                {
+                    // Same maxDepth as the today panel so both render the
+                    // full geo > coordinates > lat/lng/altitude_m hierarchy.
+                    maxDepth: 5,
+                    collapsedGroups,
+                    onGroupHeaderClick: toggleGroupCollapse,
+                    renderGroupHeader,
+                    createCollapsedColumnDef: (groupPath) => ({
+                        key: groupPath,
+                        dataIndex: groupPath,
+                        title: (
+                            <div style={styles.proposedHeader}>
+                                <span
+                                    style={styles.collapsedHeader}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        toggleGroupCollapse(groupPath)
+                                    }}
+                                    role="button"
+                                    tabIndex={0}
+                                >
+                                    <span style={styles.groupCaret}>▸</span>
+                                    <span style={styles.groupName}>
+                                        {groupPath.includes(".")
+                                            ? groupPath.substring(
+                                                  groupPath.lastIndexOf(".") + 1,
+                                              )
+                                            : groupPath}
+                                    </span>
+                                </span>
+                                {chipMode !== "none" && (
+                                    <TypeChip variant="json-object" />
+                                )}
+                            </div>
+                        ),
+                        width: 220,
+                        render: (_value: unknown, record: FlatRow) => (
+                            <ProposedTableCell
+                                value={getNestedValue(
+                                    record._data,
+                                    groupPath.split("."),
+                                )}
+                                treatUndefinedAsMissing
+                                chipMode={chipMode}
+                            />
+                        ),
+                    }),
+                },
+            ) as ColumnType<FlatRow>[],
+        [
+            columns,
+            mixedColumns,
+            dottedKeyColumns,
+            collisionColumns,
+            columnTypes,
+            chipMode,
+            collapsedGroups,
+            parsedStringifiedColumns,
+            stringifiedExpandableColumns,
+        ],
     )
 
     return (
@@ -498,6 +756,36 @@ const styles = {
         fontSize: 12,
         fontWeight: 600,
         color: "#051729",
+    },
+    groupHeader: {
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        cursor: "pointer",
+        userSelect: "none" as const,
+    },
+    collapsedHeader: {
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        cursor: "pointer",
+        userSelect: "none" as const,
+    },
+    groupCaret: {
+        display: "inline-block",
+        width: 10,
+        textAlign: "center" as const,
+        fontSize: 11,
+        color: "rgba(5, 23, 41, 0.55)",
+    },
+    groupName: {
+        fontSize: 12,
+        fontWeight: 600,
+        color: "#051729",
+    },
+    groupCount: {
+        fontSize: 11,
+        color: "rgba(5, 23, 41, 0.45)",
     },
     crossLinks: {
         marginTop: 24,

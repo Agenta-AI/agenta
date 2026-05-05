@@ -115,6 +115,14 @@ export default function Gap07Concept() {
                     >
                         gap-08 (variable validation — same schema entity drives
                         it)
+                    </Link>{" "}
+                    ·{" "}
+                    <Link
+                        href="/gap-09-variable-provenance"
+                        style={styles.link}
+                    >
+                        gap-09 (schema disambiguates draft vs authored on the
+                        execution item)
                     </Link>
                 </div>
             </MockupPageShell>
