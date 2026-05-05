@@ -80,13 +80,16 @@ The capital is **Port Vila**, on the southern coast of *Efate Island*. It is the
             metadata:
                 '{"source":"trace","trace_id":"vu-001","latency_ms":520,"confidence":"high"}',
 
-            // gap-05 — dot-key collision: BOTH shapes on the same row
-            "geo.region":
-                "LITERAL_DOT_VALUE — flat key (templates resolve here first under literal-key-first)",
+            // gap-05 — dot-key collision: BOTH shapes on the same row.
+            // Literal flat key holds "Melanesia" (what `{{geo.region}}`
+            // resolves to under literal-key-first); nested geo.region
+            // holds "Pacific Islands" (what `{{$.geo.region}}` JSONPath
+            // resolves to). Two real values so the collision is visible
+            // by inspection, not via AI-meta placeholder labels.
+            "geo.region": "Melanesia",
             geo: {
-                region:
-                    "NESTED_PATH_VALUE — reached via nested traversal of geo.region",
-                subregion: "Melanesia",
+                region: "Pacific Islands",
+                subregion: "Western Melanesia",
                 coordinates: {lat: -15.376, lng: 166.959},
             },
 
@@ -389,12 +392,13 @@ export const fixture08_dot_key_collision: StubTestcase[] = [
         label: "Vanuatu (collision)",
         data: {
             country: "Vanuatu",
-            "geo.region":
-                "LITERAL_DOT_VALUE — flat key for vanuatu region, stored as a single string",
+            // Literal-dot key = what `{{geo.region}}` resolves to.
+            // Nested geo.region = what `{{$.geo.region}}` resolves to.
+            // Different values so the collision is concrete, not abstract.
+            "geo.region": "Melanesia",
             geo: {
-                region:
-                    "NESTED_PATH_VALUE — value reached via nested traversal of geo.region",
-                subregion: "Melanesia",
+                region: "Pacific Islands",
+                subregion: "Western Melanesia",
                 coordinates: {lat: -15.376, lng: 166.959},
             },
             correct_answer:
