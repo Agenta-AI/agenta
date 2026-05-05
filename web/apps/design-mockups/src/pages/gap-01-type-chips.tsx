@@ -165,10 +165,12 @@ export default function Gap01Concept() {
                                 Solutions · Drill-in →
                             </span>
                             <span style={styles.subPageBlurb}>
-                                Drawer with gap-01 chips, gap-03 auto-expand,
-                                gap-05 collision detection, gap-06 chat cards,
-                                long-form / markdown editor mode. Pick a
-                                fixture to exercise different proposals.
+                                Drawer mounted on the kitchen-sink Vanuatu
+                                row — every chip variant on a single row,
+                                plus gap-03 auto-expand, gap-05 collision
+                                detection, gap-06 chat cards, and the
+                                long-form / markdown editor on{" "}
+                                <code>correct_answer</code>.
                             </span>
                         </Link>
                         <Link
@@ -180,10 +182,12 @@ export default function Gap01Concept() {
                                 Solutions · Playground →
                             </span>
                             <span style={styles.subPageBlurb}>
-                                Three-way compare grid: Today / Proposed
-                                embedded / Alt compact. Three fixture rows
-                                including the markdown article (long-form
-                                mode). Output mode-switching too.
+                                Three-way compare grid (Today / Proposed
+                                embedded / Alt compact) on the kitchen-sink
+                                Vanuatu row. Every chip variant on inputs,
+                                long-form mode on{" "}
+                                <code>correct_answer</code>, output
+                                mode-switching on the response.
                             </span>
                         </Link>
                         <Link
@@ -195,10 +199,11 @@ export default function Gap01Concept() {
                                 Solutions · Tables →
                             </span>
                             <span style={styles.subPageBlurb}>
-                                Cell-by-cell comparison covering gap-01 chips,
-                                gap-02 cell rendering, gap-04 missing keys,
-                                gap-05 collisions, gap-06 messages preview.
-                                Each row labelled with its gap.
+                                Three-row kitchen-sink testset (Vanuatu /
+                                Tuvalu / Kiribati). Covers gap-01 chips on
+                                every column header, gap-02 cell rendering,
+                                gap-04 em-dash for missing keys, gap-05
+                                collisions, gap-06 messages preview.
                             </span>
                         </Link>
                     </div>

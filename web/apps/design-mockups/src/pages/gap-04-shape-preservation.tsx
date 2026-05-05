@@ -78,10 +78,12 @@ export default function Gap04Concept() {
                         union-projected keys →
                     </span>
                     <span style={styles.ctaBlurb}>
-                        Pick the "08 dot-key collision" fixture and look at the
-                        Kiribati row — keys authored by other rows show with the
-                        muted <code>[not authored]</code> chip. Save-side filter
-                        is conceptual (no save loop in the mockup).
+                        The kitchen-sink testset's known-column union
+                        includes literal <code>&quot;geo.subregion&quot;</code>{" "}
+                        (Tuvalu authors it). Vanuatu's row doesn't, so a
+                        muted <code>[not authored]</code> ghost row appears
+                        at the bottom of the drill-in. Save-side filter is
+                        conceptual (no save loop in the mockup).
                     </span>
                 </Link>
                 <Link href="/solutions-tables" style={styles.cta}>
@@ -90,9 +92,10 @@ export default function Gap04Concept() {
                         Solutions · Tables — see em-dash for missing keys →
                     </span>
                     <span style={styles.ctaBlurb}>
-                        The "missing key" row in the fixture grid demonstrates
-                        the table-side rendering: <code>—</code> when the column
-                        exists in other rows but not this one. Distinct from
+                        The kitchen-sink testset has 3 rows: Vanuatu authors
+                        every column, Tuvalu and Kiribati each miss several.
+                        Their cells render as <code>—</code> on the proposed
+                        side (production renders the same). Distinct from
                         null (which has its own chip).
                     </span>
                 </Link>

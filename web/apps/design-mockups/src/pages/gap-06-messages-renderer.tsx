@@ -124,24 +124,27 @@ export default function Gap06Concept() {
                         Solutions · Drill-in — full demo →
                     </span>
                     <span style={styles.ctaBlurb}>
-                        Pick the "07 messages + tools" fixture from the
-                        toolbar. <code>ChatMessageList</code> renders inline at
-                        root (via gap-03 auto-expand); the assistant message's{" "}
+                        The kitchen-sink Vanuatu row's <code>messages</code>{" "}
+                        array includes a 5-turn conversation with a tool call
+                        (<code>lookup_country</code>) and a{" "}
+                        <code>role: &quot;tool&quot;</code> response.{" "}
+                        <code>ChatMessageList</code> renders inline at root
+                        via gap-03 auto-expand; the assistant message's{" "}
                         <code>tool_calls</code> shows as a parsed-arguments
-                        card (the gap-06 unique contribution).
+                        card (gap-06's unique contribution).
                     </span>
                 </Link>
                 <Link href="/solutions-playground" style={styles.cta}>
                     <span style={styles.ctaTag}>Solution</span>
                     <span style={styles.ctaTitle}>
-                        Solutions · Playground — Row 2 (messages trace) →
+                        Solutions · Playground — kitchen-sink row →
                     </span>
                     <span style={styles.ctaBlurb}>
-                        The messages trace fixture in the playground three-way
-                        compare grid. Today renders messages as a textarea
-                        placeholder; Proposed renders chat cards inline; Alt
-                        compact summarizes (
-                        <code>3 messages · system + user + assistant</code>)
+                        Same Vanuatu messages array on the three-way compare
+                        grid. Today renders messages as a borderless textarea
+                        placeholder; Proposed (embedded) renders chat cards
+                        inline; Alt (compact) summarizes (
+                        <code>5 messages · system + user + assistant…</code>)
                         and expands on click.
                     </span>
                 </Link>
