@@ -1,6 +1,10 @@
 # Gap docs — JSON ↔ String UX
 
-Six focused gap docs, each with a prose argument (`.md`) and a visual mockup (`.html`). Two more candidate gaps (07, 08) are surfaced in [`../competitive-analysis.md`](../competitive-analysis.md) — schema-aware Edit form and playground variable validation. Those don't have HTML mockups yet; they're written up in the analysis doc.
+Six focused gap docs, each with a prose argument (`.md`) and a visual mockup (`.html`). Three more candidate gaps (07, 08, 09) live as `.md` only, with live demos in the mockup app:
+
+- **gap-07** — Schema-aware Edit form (surfaced 2026-05-04 by competitive analysis).
+- **gap-08** — Playground variable validation (surfaced 2026-05-04 by competitive analysis).
+- **gap-09** — Variable provenance + usage state in the playground execution item (surfaced 2026-05-05).
 
 **Backend is correct.** Verified against `backend-response data/`. Every gap below is a frontend issue.
 
@@ -11,8 +15,9 @@ Six focused gap docs, each with a prose argument (`.md`) and a visual mockup (`.
 | Solution route | What it shows |
 | --- | --- |
 | `/solutions-drill-in` | Production drawer (`DrillInContent`) on the left vs `ProposedDrillIn` on the right, with a fixture toolbar to switch between fixtures 02-08. Use this for gap-01, gap-03, gap-04, gap-05, gap-06. |
-| `/solutions-playground` | Three-way compare grid per fixture (Today = production-style hand-mock, Embedded = full drill-in, Compact = click-to-edit row). Use this for the playground side of gap-01, gap-03, gap-06. |
+| `/solutions-playground` | Three-way compare grid per fixture (Today = production-style hand-mock, Embedded = full drill-in, Compact = click-to-edit row). Use this for the playground side of gap-01, gap-03, gap-06, gap-09. |
 | `/solutions-tables` | Production `groupColumns` + `TestcaseCellContent` on the left vs `ProposedTableCell` (chip-and-shape) on the right, both in real antd `<Table>`s with stub rows simulating the entity layer. Use this for gap-02. |
+| `/already-shipped` | Inventory of RFC pieces that landed ad-hoc before this design work (WP-F3 prompt-editor typeahead with flat + JSONPath modes, envelope-aware suggestion sources, chain-context routing, template-variable validation). Read first if proposing playground prompt-editor work. |
 
 The **concept** pages (`/gap-NN-*` in the mockup app) document **what production already does** vs **what each gap actually proposes**. Several gap framings shifted as a result of that audit — see "Production audit (2026-05-04)" below.
 
@@ -84,6 +89,10 @@ The order below tells the story: vocabulary first, then where it's applied, then
 
 - **gap-07** (schema-aware Edit form). Full Braintrust-style form with per-field types, or thinner "auto-expand top-level keys" affordance from gap-03 with no schema entity. See competitive analysis Sections 4 and 13.
 - **gap-08** (playground variable validation). Banner on dataset-attach + per-variable tooltip when references don't resolve in the attached testset. Inherits the schema entity. See competitive analysis Section 13.
+
+**Round 6 — playground execution-item provenance:**
+
+- **gap-09** (variable provenance + usage state). 2-axis state per variable (authoring × usage). Variable map section above the inputs body collapses unused variables, marks drafts with a dashed border, shows chain scope per row. Composes with gap-04 (same shape at testcase level), gap-07 (schema raises correctness ceiling), gap-08 (symmetric edit-time check on the prompt surface). Live demo on `/solutions-playground` above the kitchen-sink compare grid.
 
 ## Cross-fixture index
 

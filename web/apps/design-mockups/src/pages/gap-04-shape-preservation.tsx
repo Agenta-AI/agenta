@@ -125,6 +125,10 @@ export default function Gap04Concept() {
                     ·{" "}
                     <Link href="/gap-05-dot-key-disambiguation" style={styles.link}>
                         gap-05 (dot-key collision compounds the issue)
+                    </Link>{" "}
+                    ·{" "}
+                    <Link href="/gap-09-variable-provenance" style={styles.link}>
+                        gap-09 (same shape applied at the execution-item surface)
                     </Link>
                 </div>
             </MockupPageShell>

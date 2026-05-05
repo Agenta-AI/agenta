@@ -30,6 +30,10 @@ import {
 } from "@/mockups/components/proposed/PromptVariableValidation"
 import {type ChipRenderMode} from "@/mockups/components/proposed/ProposedDrillIn"
 import {
+    PlaygroundVariableMap,
+    type PlaygroundVariable,
+} from "@/mockups/components/proposed/PlaygroundVariableMap"
+import {
     fixture07_messages_and_tools,
     fixture_chip_showcase,
     fixture_kitchen_sink,
@@ -42,6 +46,80 @@ const messagesTrace = fixture07_messages_and_tools.find(
     (tc) => tc.id === "tc-07-kiribati-tool",
 )!
 const markdownArticle = fixture_markdown_article[0]
+
+// gap-09 — variable provenance + usage map for the Vanuatu kitchen-sink
+// playground row. Demonstrates the four states described in
+// /gap-09-variable-provenance:
+//   used   — referenced by every prompt + on the testcase
+//   chain  — used by some prompts in the chain but not all
+//   draft  — referenced in a prompt but NOT on the testcase yet
+//   unused — on the testcase but not referenced by any prompt (collapsed
+//            by default behind a "Show unused" toggle)
+const KITCHEN_SINK_VARIABLE_MAP: PlaygroundVariable[] = [
+    // Used by every prompt — default rendering
+    {
+        name: "country",
+        value: kitchenSinkTestcase.data.country,
+        state: "used",
+    },
+    {
+        name: "messages",
+        value: kitchenSinkTestcase.data.messages,
+        state: "used",
+    },
+    // Chain-scoped — different prompts use different variables in a 4-step chain
+    {
+        name: "geo",
+        value: kitchenSinkTestcase.data.geo,
+        state: "chain",
+        usedByPrompts: [2, 3],
+    },
+    {
+        name: "languages",
+        value: kitchenSinkTestcase.data.languages,
+        state: "chain",
+        usedByPrompts: [1],
+    },
+    // Draft — referenced in a prompt template but doesn't exist on the
+    // testcase yet. The user typed `{{iso_code}}` somewhere; it'll be
+    // synced to the testset when they save.
+    {
+        name: "iso_code",
+        value: undefined,
+        state: "draft",
+    },
+    // Unused — on the testcase but no prompt in the chain references them
+    {
+        name: "population_thousands",
+        value: kitchenSinkTestcase.data.population_thousands,
+        state: "unused",
+    },
+    {
+        name: "is_island_nation",
+        value: kitchenSinkTestcase.data.is_island_nation,
+        state: "unused",
+    },
+    {
+        name: "notes",
+        value: kitchenSinkTestcase.data.notes,
+        state: "unused",
+    },
+    {
+        name: "correct_answer",
+        value: kitchenSinkTestcase.data.correct_answer,
+        state: "unused",
+    },
+    {
+        name: "metadata",
+        value: kitchenSinkTestcase.data.metadata,
+        state: "unused",
+    },
+    {
+        name: "geo.region",
+        value: kitchenSinkTestcase.data["geo.region"],
+        state: "unused",
+    },
+]
 
 // Toggle to bring back the focused-fixture rows (chip-showcase, messages
 // trace, markdown article). Kept as a flag (rather than deleting them) so
@@ -232,6 +310,30 @@ export default function SolutionsPlayground() {
                             />
                         </div>
                     </div>
+                </section>
+
+                <section style={styles.gap09Section}>
+                    <header style={styles.gap09Header}>
+                        <span style={styles.gap09Tag}>gap-09</span>
+                        <h2 style={styles.gap09Title}>
+                            Variable provenance + usage map
+                        </h2>
+                    </header>
+                    <p style={styles.gap09Lead}>
+                        Each variable in the execution item carries a 2-axis
+                        state: <em>authoring side</em> (on the testcase, or a
+                        draft from prompt typing not yet synced) and{" "}
+                        <em>usage side</em> (referenced by every prompt, by
+                        some prompts in a chain, or by none). Today's
+                        playground renders all variables identically; the
+                        proposed map below collapses the unused ones, marks
+                        drafts with a dashed border, and shows chain scope
+                        per row.
+                    </p>
+                    <PlaygroundVariableMap
+                        variables={KITCHEN_SINK_VARIABLE_MAP}
+                        chainLength={4}
+                    />
                 </section>
 
                 <h2 style={styles.executionItemsTitle}>
@@ -541,6 +643,10 @@ export default function SolutionsPlayground() {
                     ·{" "}
                     <Link href="/gap-08-playground-variable-validation" style={styles.link}>
                         gap-08 (variable validation, prompt surface)
+                    </Link>{" "}
+                    ·{" "}
+                    <Link href="/gap-09-variable-provenance" style={styles.link}>
+                        gap-09 (variable provenance, execution-item surface)
                     </Link>
                 </div>
             </MockupPageShell>
@@ -653,6 +759,42 @@ const styles = {
         color: "#051729",
     },
     promptLead: {
+        fontSize: 12,
+        color: "rgba(5, 23, 41, 0.65)",
+        lineHeight: 1.6,
+        margin: "0 0 12px",
+    },
+    gap09Section: {
+        padding: 16,
+        background: "white",
+        border: "1px solid rgba(5, 23, 41, 0.08)",
+        borderRadius: 8,
+        marginBottom: 24,
+    },
+    gap09Header: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        marginBottom: 6,
+    },
+    gap09Tag: {
+        fontSize: 10,
+        fontWeight: 600,
+        padding: "2px 8px",
+        borderRadius: 4,
+        background: "#d6e4ff",
+        color: "#1d39c4",
+        textTransform: "uppercase" as const,
+        letterSpacing: "0.04em",
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+    },
+    gap09Title: {
+        fontSize: 14,
+        fontWeight: 700,
+        margin: 0,
+        color: "#051729",
+    },
+    gap09Lead: {
         fontSize: 12,
         color: "rgba(5, 23, 41, 0.65)",
         lineHeight: 1.6,

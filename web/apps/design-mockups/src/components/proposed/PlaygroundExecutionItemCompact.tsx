@@ -337,12 +337,26 @@ function CompactRow({
                     style={styles.valueSlot}
                     onClick={(e) => editing && e.stopPropagation()}
                 >
-                    {editing && kind === "string" && mode === "short" ? (
+                    {/* String + null share one branch: typing into a null
+                        field initializes it as a string immediately. The
+                        controlled `value` (always coerced to "") plus the
+                        `onChange` writing setDraft(e.target.value) means
+                        the first keystroke flips draft from `null` → "x"
+                        (string). Re-render keeps this same branch (still
+                        string-or-null), so the input doesn't unmount and
+                        focus is preserved. Without this, the previous
+                        null branch was uncontrolled (defaultValue="" + no
+                        onChange) — typing showed in the DOM but never
+                        reached state, and blur lost the value. */}
+                    {editing &&
+                    (kind === "string" || kind === "null") &&
+                    mode === "short" ? (
                         <Input
                             size="small"
                             autoFocus
                             variant="borderless"
-                            value={String(draft ?? "")}
+                            value={typeof draft === "string" ? draft : ""}
+                            placeholder={kind === "null" ? "null" : undefined}
                             onChange={(e) => setDraft(e.target.value)}
                             onBlur={() => setEditing(false)}
                             onPressEnter={() => setEditing(false)}
@@ -368,17 +382,6 @@ function CompactRow({
                                 setDraft(b)
                                 setEditing(false)
                             }}
-                        />
-                    ) : editing && kind === "null" ? (
-                        <Input
-                            size="small"
-                            autoFocus
-                            variant="borderless"
-                            placeholder="null"
-                            defaultValue=""
-                            onBlur={() => setEditing(false)}
-                            onPressEnter={() => setEditing(false)}
-                            style={styles.inlineInput}
                         />
                     ) : (
                         <span

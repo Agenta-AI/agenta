@@ -32,6 +32,19 @@ export type ChipVariant =
     | "path"
     | "stringified"
     | "long-str"
+    // Variable-state chips for gap-09 (playground execution item provenance).
+    // `unused`  — variable on the testcase but not referenced by any prompt
+    //             in the chain. Default-collapsed in the UI; the chip surfaces
+    //             when the user clicks "Show unused".
+    // `draft`   — variable referenced in a prompt template (`{{x}}`) that
+    //             doesn't exist on the testcase yet. Lives only in the local
+    //             draft until the user explicitly syncs to the testset.
+    // `chain`   — variable used by some prompts in the chain but not all.
+    //             The chip carries which prompts via the `label` override
+    //             (e.g. "prompt 1, 3 of 4").
+    | "unused"
+    | "draft"
+    | "chain"
 
 interface TypeChipProps {
     /** Force a specific chip; otherwise inferred from value */
@@ -108,6 +121,26 @@ const STYLES: Record<
         bg: "#f9f0ff",
         fg: "#722ed1",
         label: "long-str",
+    },
+    // gap-09 — variable provenance / usage chips. Muted neutral palette
+    // because these are *meta* about the variable's role in the run, not
+    // about its value type — they sit alongside the type chip rather than
+    // replacing it.
+    unused: {
+        bg: "rgba(5, 23, 41, 0.04)",
+        fg: "rgba(5, 23, 41, 0.55)",
+        label: "unused",
+    },
+    draft: {
+        bg: "#fff0f6",
+        fg: "#c41d7f",
+        label: "draft",
+        border: "1px dashed #c41d7f",
+    },
+    chain: {
+        bg: "#f0f5ff",
+        fg: "#1d39c4",
+        label: "chain",
     },
 }
 

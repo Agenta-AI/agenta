@@ -56,6 +56,13 @@ const gaps = [
         status: "competitive",
     },
     {
+        slug: "gap-09-variable-provenance",
+        title: "Gap 09 — Variable provenance + usage state",
+        blurb:
+            "Surfaced 2026-05-05. 2-axis state per variable in the playground execution item (authoring × usage). Variable map collapses unused variables, marks drafts with dashed border, shows chain scope per row. Composes with gap-04 (testcase-side), gap-07 (schema), gap-08 (prompt-side).",
+        status: "ready",
+    },
+    {
         slug: "solutions-drill-in",
         title: "Solutions · Drill-in",
         blurb:
@@ -66,7 +73,7 @@ const gaps = [
         slug: "solutions-playground",
         title: "Solutions · Playground",
         blurb:
-            "Unified execution-item demo. Three-way compare across Today / Proposed embedded / Alt compact, with three fixture rows covering chip-showcase, messages + tools, and the markdown article (long-form mode).",
+            "Unified execution-item demo. Three-way compare across Today / Proposed embedded / Alt compact on the kitchen-sink Vanuatu fixture (every gap on one row). Includes the gap-09 Variable map section above the grid (used / chain / draft / unused state per variable) and the gap-08 prompt-validation section.",
         status: "solution",
     },
     {
@@ -82,6 +89,13 @@ const gaps = [
         blurb:
             "Paradigmatically different alternative to the card-stack drill-in. Compact tree on the left, editor on the right. Wins on deeply-nested + messages fixtures; threshold-fallback hybrid is the real shipping shape. Surfaced 2026-05-04 by alternative-design exploration.",
         status: "alternative",
+    },
+    {
+        slug: "already-shipped",
+        title: "Already shipped — RFC pieces that landed before this work",
+        blurb:
+            "Inventory of the prompt-editor token typeahead (flat + JSONPath), envelope-aware suggestion sources, chain-context-aware routing, and template-variable validation utilities. Most of WP-F3 is live; gap-08 + gap-09 build on this surface. Listed so new proposals don't accidentally re-specify what already exists.",
+        status: "ready",
     },
     {
         slug: "molecule-drill-in",
@@ -131,8 +145,8 @@ export default function Index() {
                         50 screenshots, both products exercised against
                         <code style={styles.code}>01-flat-strings.json</code> through{" "}
                         <code style={styles.code}>08-dot-key-collision.json</code>. Surfaced
-                        two new candidate gaps (07, 08 below) and revised the priority
-                        order. Read the full analysis at{" "}
+                        candidate gaps 07 + 08 (and later 09, 2026-05-05) and revised the
+                        priority order. Read the full analysis at{" "}
                         <a
                             href="../../../docs/designs/json-string-ux/competitive-analysis.md"
                             style={styles.link}
