@@ -295,3 +295,87 @@ export const FIXTURE02_INFERRED_SCHEMA: SchemaField[] = [
         description: "Long-form ground-truth answer used for eval",
     },
 ]
+
+// Schema for the kitchen-sink Vanuatu testcase. Mirrors the shape of every
+// column the testset's known-union has, so the schema-aware form renders
+// every field whether or not this specific row authors it.
+export const FIXTURE_KITCHEN_SINK_INFERRED_SCHEMA: SchemaField[] = [
+    {key: "country", type: "string", required: true},
+    {key: "population_thousands", type: "number"},
+    {key: "is_island_nation", type: "boolean"},
+    {
+        key: "notes",
+        type: "string",
+        description: "Free-form notes (mixed shape across rows in this testset)",
+    },
+    {key: "languages", type: "array", description: "ISO language codes"},
+    {
+        key: "correct_answer",
+        type: "string",
+        description: "Long-form markdown ground-truth answer",
+    },
+    {
+        key: "inputs",
+        type: "object",
+        nested: [
+            {key: "country", type: "string"},
+            {key: "region", type: "string"},
+            {key: "population_thousands", type: "number"},
+            {key: "is_island_nation", type: "boolean"},
+        ],
+    },
+    {
+        key: "outputs",
+        type: "object",
+        nested: [
+            {key: "countryName", type: "string"},
+            {key: "capital", type: "string"},
+            {
+                key: "coordinates",
+                type: "object",
+                nested: [
+                    {key: "lat", type: "number"},
+                    {key: "lng", type: "number"},
+                    {key: "altitude_m", type: "number"},
+                ],
+            },
+            {key: "verified", type: "boolean"},
+        ],
+    },
+    {
+        key: "metadata",
+        type: "string",
+        description: "Stringified-JSON metadata blob (gap-04 fault line)",
+    },
+    {
+        key: "geo.region",
+        type: "string",
+        description: "Literal-dotted key — collides with nested `geo.region`",
+    },
+    {
+        key: "geo.subregion",
+        type: "string",
+        description: "Literal-dotted key (Tuvalu authors this; Vanuatu doesn't)",
+    },
+    {
+        key: "geo",
+        type: "object",
+        nested: [
+            {key: "region", type: "string"},
+            {key: "subregion", type: "string"},
+            {
+                key: "coordinates",
+                type: "object",
+                nested: [
+                    {key: "lat", type: "number"},
+                    {key: "lng", type: "number"},
+                ],
+            },
+        ],
+    },
+    {
+        key: "messages",
+        type: "array",
+        description: "Chat history (system + user + assistant + tool turns)",
+    },
+]
