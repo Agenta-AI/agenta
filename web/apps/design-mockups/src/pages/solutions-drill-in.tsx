@@ -34,6 +34,7 @@ import {
 } from "@/mockups/components/proposed/ProposedDrillIn"
 import {
     FIXTURE02_INFERRED_SCHEMA,
+    FIXTURE_KITCHEN_SINK_INFERRED_SCHEMA,
     SchemaForm,
     countSchemaFields,
 } from "@/mockups/components/proposed/SchemaForm"
@@ -278,38 +279,41 @@ export default function SolutionsDrillIn() {
                     }
                 />
 
-                {/* gap-07 — schema-aware form alternative on the 02 baseline
-                    fixture. When a per-testset schema exists, the drawer can
-                    render a labelled form instead of detection-driven cards.
-                    Same testcase, different paradigm — the team can see both
-                    side-by-side. */}
-                {active.id === "02-nested" ? (
-                    <section style={styles.schemaSection}>
-                        <header style={styles.schemaHeader}>
-                            <span style={styles.schemaTag}>gap-07</span>
-                            <h2 style={styles.schemaTitle}>
-                                Alternative — schema-aware form
-                            </h2>
-                            <span style={styles.schemaCount}>
-                                schema · {countSchemaFields(FIXTURE02_INFERRED_SCHEMA)}{" "}
-                                fields
-                            </span>
-                        </header>
-                        <p style={styles.schemaLead}>
-                            When a per-testset schema exists, the drawer renders a
-                            labelled form with type-aware inputs per known column.
-                            Required fields flagged. Per-field PATCH on save (no
-                            JSON-blob replay). Subsumes gap-03 auto-expand and
-                            sidesteps gap-04 union projection.
-                        </p>
-                        <div style={styles.schemaFrame}>
-                            <SchemaForm
-                                schema={FIXTURE02_INFERRED_SCHEMA}
-                                data={tc.data}
-                            />
-                        </div>
-                    </section>
-                ) : null}
+                {/* gap-07 — schema-aware form alternative. When a per-testset
+                    schema exists, the drawer renders a labelled form instead
+                    of detection-driven cards. Same row data, different render.
+                    Always shown so the team can compare side-by-side; the
+                    schema picked matches the active fixture. */}
+                {(() => {
+                    const schema =
+                        active.id === "02-nested"
+                            ? FIXTURE02_INFERRED_SCHEMA
+                            : FIXTURE_KITCHEN_SINK_INFERRED_SCHEMA
+                    return (
+                        <section style={styles.schemaSection}>
+                            <header style={styles.schemaHeader}>
+                                <span style={styles.schemaTag}>gap-07</span>
+                                <h2 style={styles.schemaTitle}>
+                                    Alternative — schema-aware form
+                                </h2>
+                                <span style={styles.schemaCount}>
+                                    schema · {countSchemaFields(schema)} fields
+                                </span>
+                            </header>
+                            <p style={styles.schemaLead}>
+                                When a per-testset schema exists, the drawer
+                                renders a labelled form with type-aware inputs
+                                per known column. Required fields flagged.
+                                Per-field PATCH on save (no JSON-blob replay).
+                                Same row data as the panels above, different
+                                render paradigm.
+                            </p>
+                            <div style={styles.schemaFrame}>
+                                <SchemaForm schema={schema} data={tc.data} />
+                            </div>
+                        </section>
+                    )
+                })()}
 
                 <div style={styles.crossLinks}>
                     <strong>Other surfaces:</strong>{" "}
