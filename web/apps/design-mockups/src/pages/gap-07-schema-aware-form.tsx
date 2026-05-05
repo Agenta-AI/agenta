@@ -62,13 +62,15 @@ export default function Gap07Concept() {
                 <Link href="/solutions-drill-in" style={styles.cta}>
                     <span style={styles.ctaTag}>Solution</span>
                     <span style={styles.ctaTitle}>
-                        Solutions · Drill-in — toggle the schema-aware form →
+                        Solutions · Drill-in — schema-aware form rendering →
                     </span>
                     <span style={styles.ctaBlurb}>
-                        Pick the "Schema-aware form" alternative on the drill-in
-                        solution page to see the labelled form rendering on the
-                        Tuvalu fixture (fixture 02). Side-by-side with
-                        production's detection-driven view.
+                        The schema-aware form section sits below the
+                        side-by-side drill-in comparison and renders the same
+                        kitchen-sink Vanuatu row through a labelled form
+                        driven by an inferred per-testset schema. Required
+                        fields flagged, type-aware inputs per column, no
+                        JSON-blob replay on save.
                     </span>
                 </Link>
 
