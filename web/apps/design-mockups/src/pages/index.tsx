@@ -42,20 +42,6 @@ const gaps = [
         status: "ready",
     },
     {
-        slug: "gap-07-schema-aware-form",
-        title: "Gap 07 — Schema-aware Edit form",
-        blurb:
-            "Surfaced 2026-05-04 by competitive analysis. Per-testset field schema becomes a first-class entity; drill-in renders as a labelled form with type-aware inputs per column. The same schema feeds gap-08 validation and changes how gap-03 / gap-04 / gap-05 land.",
-        status: "competitive",
-    },
-    {
-        slug: "gap-08-playground-variable-validation",
-        title: "Gap 08 — Playground variable validation",
-        blurb:
-            "Surfaced 2026-05-04 by competitive analysis. Banner on dataset-attach naming canonical references; per-variable tooltip when a referenced path doesn't resolve in the attached testset's schema. Edit-time check, not runtime.",
-        status: "competitive",
-    },
-    {
         slug: "gap-09-variable-provenance",
         title: "Gap 09 — Variable provenance + usage state",
         blurb:
