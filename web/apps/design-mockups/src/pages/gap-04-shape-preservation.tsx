@@ -30,8 +30,8 @@ export default function Gap04Concept() {
                         injected keys.
                         <br />
                         <br />
-                        <strong>What the FE does:</strong> the column union is{" "}
-                        <em>a feature</em>, not a bug.{" "}
+                        <strong>What the FE does:</strong> the column union
+                        is intentional.{" "}
                         <code>currentColumnsAtom</code> in{" "}
                         <code>molecule.ts:210-244</code> walks every testcase's{" "}
                         <code>data</code> and unions the keys into one column
@@ -65,25 +65,9 @@ export default function Gap04Concept() {
                             </li>
                         </ul>
                         <br />
-                        Either layer addresses the runtime risk. Both compose
-                        cleanly: the marker tells the user what's happening, the
-                        save-side filter prevents the pollution.
-                    </>
-                }
-                competitiveNotes={
-                    <>
-                        This is the one gap neither competitor exposes —
-                        Braintrust sidesteps it by editing per-field with
-                        per-field PATCH saves; Langfuse almost certainly has
-                        this exact bug on the edit side but ships no marker.
-                        Our proposal stays distinct. See{" "}
-                        <a
-                            href="../../../docs/designs/json-string-ux/competitive-analysis.md"
-                            style={styles.link}
-                        >
-                            competitive-analysis.md
-                        </a>{" "}
-                        §8.
+                        Either layer addresses the runtime risk on its own.
+                        Together: the marker tells the user what's happening,
+                        the save-side filter keeps storage clean.
                     </>
                 }
             >

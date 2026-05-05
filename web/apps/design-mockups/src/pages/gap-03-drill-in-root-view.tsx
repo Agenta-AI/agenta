@@ -55,11 +55,12 @@ export default function Gap03Concept() {
                         <code>autoExpand</code> prop on the drill-in component.
                         When true, the first level of every object/array
                         renders inline as nested cards. Deeper levels still
-                        drill in (we don't render a 5-level tree at once). The
-                        existing collapse machinery still works — the user can
-                        collapse a card they don't care about. Schema-aware
-                        form (gap-07) is the higher ceiling: when a per-testset
-                        schema exists, render as a labelled form instead of
+                        drill in (rendering a 5-level tree at once would be
+                        worse, not better). The existing collapse machinery
+                        still works — the user can collapse a card they don't
+                        care about. Gap-07's schema-aware form is the bigger
+                        version of the same idea: when a per-testset schema
+                        exists, render as a labelled form instead of
                         detection-driven cards.
                         <br />
                         <br />
@@ -79,22 +80,6 @@ export default function Gap03Concept() {
                                 render instead of being hidden behind a click.
                             </li>
                         </ul>
-                    </>
-                }
-                competitiveNotes={
-                    <>
-                        Braintrust validates the auto-expand direction — their
-                        drill-in opens to a labelled form (schema-aware,
-                        gap-07's territory). Langfuse opens a modal with three
-                        side-by-side JSON code editors (the bailout we're
-                        explicitly avoiding). See{" "}
-                        <a
-                            href="../../../docs/designs/json-string-ux/competitive-analysis.md"
-                            style={styles.link}
-                        >
-                            competitive-analysis.md
-                        </a>{" "}
-                        §3.
                     </>
                 }
             >
@@ -127,7 +112,7 @@ export default function Gap03Concept() {
                     </Link>{" "}
                     ·{" "}
                     <Link href="/gap-07-schema-aware-form" style={styles.link}>
-                        gap-07 (schema-aware form — higher ceiling, replaces
+                        gap-07 (schema-aware form — the bigger version, replaces
                         detection-driven cards)
                     </Link>
                 </div>

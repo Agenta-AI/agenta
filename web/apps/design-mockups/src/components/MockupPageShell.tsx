@@ -6,7 +6,6 @@ interface MockupPageShellProps {
     title: string
     blurb: string
     notes?: ReactNode
-    competitiveNotes?: ReactNode
     children: ReactNode
 }
 
@@ -14,7 +13,6 @@ export function MockupPageShell({
     title,
     blurb,
     notes,
-    competitiveNotes,
     children,
 }: MockupPageShellProps) {
     return (
@@ -29,12 +27,6 @@ export function MockupPageShell({
                 <h1 style={styles.h1}>{title}</h1>
                 <p style={styles.blurb}>{blurb}</p>
                 {notes ? <div style={styles.notes}>{notes}</div> : null}
-                {competitiveNotes ? (
-                    <div style={styles.competitiveNotes}>
-                        <span style={styles.competitiveTag}>Competitive</span>
-                        <div>{competitiveNotes}</div>
-                    </div>
-                ) : null}
             </header>
 
             <section style={styles.canvas}>{children}</section>
@@ -71,31 +63,6 @@ const styles = {
         lineHeight: 1.6,
         color: "#051729",
         borderRadius: "0 4px 4px 0",
-    },
-    competitiveNotes: {
-        marginTop: 8,
-        padding: "10px 14px",
-        background: "#fffbe6",
-        borderLeft: "3px solid #faad14",
-        fontSize: 12,
-        lineHeight: 1.6,
-        color: "#051729",
-        borderRadius: "0 4px 4px 0",
-        display: "flex",
-        gap: 12,
-        alignItems: "flex-start",
-    },
-    competitiveTag: {
-        flexShrink: 0,
-        fontSize: 10,
-        fontWeight: 600,
-        padding: "2px 8px",
-        borderRadius: 4,
-        textTransform: "uppercase" as const,
-        letterSpacing: "0.04em",
-        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-        background: "#fff1b8",
-        color: "#874d00",
     },
     canvas: {
         background: "white",

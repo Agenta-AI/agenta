@@ -195,25 +195,6 @@ export default function SolutionsDrillIn() {
                         </ul>
                     </>
                 }
-                competitiveNotes={
-                    <>
-                        Closest to Braintrust's drill-in form, but they imply type
-                        via control choice instead of a chip primitive. Langfuse
-                        opens a modal with three JSON code editors — the bailout
-                        we're explicitly trying to avoid. See{" "}
-                        <a
-                            href="../../../docs/designs/json-string-ux/competitive-analysis.md"
-                            style={styles.link}
-                        >
-                            competitive-analysis.md
-                        </a>{" "}
-                        §3 + §4. Two-pane tree alternative also explored — see{" "}
-                        <Link href="/alt-tree-pane" style={styles.link}>
-                            /alt-tree-pane
-                        </Link>
-                        .
-                    </>
-                }
             >
                 <div style={styles.toolbar}>
                     {/* Fixture switcher hidden — kitchen-sink covers every gap on
