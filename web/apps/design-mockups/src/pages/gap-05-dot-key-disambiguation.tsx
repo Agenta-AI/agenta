@@ -104,12 +104,13 @@ export default function Gap05Concept() {
                         Solutions · Drill-in — full demo →
                     </span>
                     <span style={styles.ctaBlurb}>
-                        Pick the "08 dot-key collision" fixture from the
-                        toolbar. Vanuatu has both literal{" "}
+                        The kitchen-sink Vanuatu row has both literal{" "}
                         <code>&quot;geo.region&quot;</code> and nested{" "}
                         <code>geo</code>; the literal field shows{" "}
                         <code>[dotted-key]</code> + <code>[⚠ collision]</code>;
                         the nested sibling shows <code>[⚠ collision]</code>.
+                        Detection runs automatically on any row with this
+                        shape.
                     </span>
                 </Link>
 
