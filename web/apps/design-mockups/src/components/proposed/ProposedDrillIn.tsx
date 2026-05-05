@@ -1181,6 +1181,13 @@ const headerStyle = {
 const headerLeft = {
     display: "flex",
     alignItems: "center",
+    // flexWrap allows the chip stack (type chip + render-hint chip + name
+    // chips like dotted-key / collision / shadowed) to drop to a second
+    // line when the field card is narrow. Without it, trailing chips were
+    // clipped by `rowStyle.overflow: hidden` and disappeared silently —
+    // exactly the regression that hid `[dotted-key]` / `[⚠ collision]`
+    // on the geo.region row in narrow side-by-side panels.
+    flexWrap: "wrap" as const,
     gap: 8,
     flex: 1,
     minWidth: 0,
