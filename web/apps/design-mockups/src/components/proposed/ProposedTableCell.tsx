@@ -73,6 +73,15 @@ function tryParseStringifiedJson(s: string): unknown | null {
     }
 }
 
+/**
+ * Markdown / multi-line heuristic — same threshold the drill-in uses for
+ * picking the long-form Lexical editor. Used to decide whether a cell
+ * should emit the [markdown] render-hint chip alongside [str].
+ */
+function isMarkdownString(s: string): boolean {
+    return s.length > 100 || s.includes("\n")
+}
+
 export function ProposedTableCell({
     value,
     isMixedColumn,
@@ -90,7 +99,7 @@ export function ProposedTableCell({
     // null
     if (value === null) {
         return (
-            <span style={styles.cell}>
+            <span style={styles.cellInline}>
                 {showTypeChip ? (
                     <TypeChip variant="null" />
                 ) : (
@@ -101,12 +110,12 @@ export function ProposedTableCell({
         )
     }
 
-    // primitives — string/number/boolean — no chip per gap-02 ambiguous-only rule
+    // primitives — string/number/boolean — no chip per gap-02 ambiguous-only
+    // rule. Exceptions: stringified-JSON and markdown content emit chips
+    // because their rendering isn't unambiguous from the inline value alone.
     if (typeof value === "string") {
-        // Stringified-JSON: emit type chip + render-hint chip (separate axes
-        // per JP feedback 2026-05-05). [str] says "value is a string", and
-        // [stringified] says "and it parses as JSON". The "parse?" button
-        // lets the user opt into the structured preview.
+        // Stringified-JSON: [str] + [stringified] chip pair, parse-on-detect
+        // affordance, parsed-shape preview.
         const parsed = tryParseStringifiedJson(value)
         if (parsed !== null) {
             const shape = Array.isArray(parsed)
@@ -133,6 +142,33 @@ export function ProposedTableCell({
                     >
                         {value.slice(0, 60)}…
                     </span>
+                </span>
+            )
+        }
+        // Markdown / multi-line: [str] + [markdown] chip pair so the user
+        // can spot markdown cells at a glance. Falls back to a one-line
+        // preview because the full content would blow up cell height.
+        if (isMarkdownString(value)) {
+            const firstLine = value.split("\n").find((l) => l.trim()) ?? value
+            const stripped = firstLine
+                .replace(/^#+\s*/, "")
+                .replace(/[*_`]/g, "")
+                .trim()
+            const head =
+                stripped.length > 60 ? stripped.slice(0, 57) + "…" : stripped
+            const charCount = value.length
+            const lineCount = value.split("\n").length
+            return (
+                <span style={styles.cell}>
+                    <span style={styles.line}>
+                        {showTypeChip && <TypeChip variant="string" />}
+                        {showTypeChip && <TypeChip variant="markdown" />}
+                        <span style={styles.muted}>
+                            {charCount} chars · {lineCount} line
+                            {lineCount === 1 ? "" : "s"}
+                        </span>
+                    </span>
+                    <span style={styles.preview}>{head}</span>
                 </span>
             )
         }
@@ -257,6 +293,11 @@ const styles = {
     cell: {
         display: "flex",
         flexDirection: "column" as const,
+        // alignItems: flex-start prevents inline-flex children (TypeChip) from
+        // stretching to full cell width on the cross axis. Without this, a
+        // single chip in a tall cell (e.g. null cell next to a markdown cell)
+        // becomes a full-width pill.
+        alignItems: "flex-start" as const,
         gap: 4,
         fontSize: 11,
         lineHeight: 1.4,
