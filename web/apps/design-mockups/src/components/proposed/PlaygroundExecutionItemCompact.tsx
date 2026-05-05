@@ -321,24 +321,26 @@ function CompactRow({
                             value={draft}
                             editable={editable}
                             onConvert={(next) => setDraft(next)}
-                            onModeSwitch={(next) => {
-                                setForcedMode(next)
-                                // When switching to long mode, expand the row
-                                // immediately so the editor mounts AND set
-                                // autoFocus so focus jumps from wherever the
-                                // user was (likely the inline Input) into the
-                                // Lexical editor — they can keep typing without
-                                // clicking. When switching to short, exit edit
-                                // + collapse.
-                                if (next === "long") {
-                                    setEditing(false)
-                                    setExpanded(true)
-                                    setAutoFocusEditor(true)
-                                } else {
-                                    setExpanded(false)
-                                    setAutoFocusEditor(false)
-                                }
-                            }}
+                            // Editor-mode toggle moves to the [markdown]
+                            // chip when one is visible (per JP feedback
+                            // 2026-05-05). The type chip keeps mode-switching
+                            // as a fallback when no render hint exists.
+                            onModeSwitch={
+                                isStringContent && renderHint !== "markdown"
+                                    ? (next) => {
+                                          setForcedMode(next)
+                                          if (next === "long") {
+                                              setEditing(false)
+                                              setExpanded(true)
+                                              setAutoFocusEditor(true)
+                                          } else {
+                                              setExpanded(false)
+                                              setAutoFocusEditor(false)
+                                          }
+                                      }
+                                    : undefined
+                            }
+                            currentMode={isStringContent ? mode : undefined}
                         >
                             <TypeChip
                                 variant={chip}
@@ -356,9 +358,37 @@ function CompactRow({
                 ) : (
                     <span style={{width: 0}} />
                 )}
-                {/* Render-hint chip (axis 2). Stacks alongside the type chip
-                    when the render mode is non-default. */}
-                {showChip && renderHint ? (
+                {/* Render-hint chip (axis 2). The [markdown] chip is the
+                    entry point for the editor-mode toggle (lives on the
+                    render-type chip per JP feedback). Other render hints
+                    are informational. */}
+                {showChip && renderHint === "markdown" ? (
+                    <span onClick={(e) => e.stopPropagation()}>
+                        <ChipConversionPopover
+                            variant="markdown"
+                            value={draft}
+                            editable={editable}
+                            onConvert={undefined}
+                            onModeSwitch={(next) => {
+                                setForcedMode(next)
+                                if (next === "long") {
+                                    setEditing(false)
+                                    setExpanded(true)
+                                    setAutoFocusEditor(true)
+                                } else {
+                                    setExpanded(false)
+                                    setAutoFocusEditor(false)
+                                }
+                            }}
+                            currentMode={mode}
+                        >
+                            <TypeChip
+                                variant="markdown"
+                                onClick={editable ? () => {} : undefined}
+                            />
+                        </ChipConversionPopover>
+                    </span>
+                ) : showChip && renderHint ? (
                     <span onClick={(e) => e.stopPropagation()}>
                         <TypeChip variant={renderHint} />
                     </span>
@@ -562,15 +592,17 @@ export function PlaygroundExecutionItemCompact({
                             variant={outputChip}
                             value={output}
                             editable={true}
-                            // Output is read-only — no type conversions. Only
-                            // the viewer-mode toggle (plain ↔ markdown render)
-                            // makes sense here.
+                            // Output is read-only — no type conversions. The
+                            // viewer-mode toggle lives on the render-hint
+                            // chip when one is visible (per JP feedback);
+                            // type chip is fallback when no render hint.
                             onConvert={undefined}
                             onModeSwitch={
-                                outputIsString
+                                outputIsString && outputRenderHint !== "markdown"
                                     ? (next) => setOutputMode(next)
                                     : undefined
                             }
+                            currentMode={outputIsString ? outputMode : undefined}
                         >
                             <TypeChip
                                 variant={outputChip}
@@ -578,7 +610,18 @@ export function PlaygroundExecutionItemCompact({
                             />
                         </ChipConversionPopover>
                     ) : null}
-                    {chipMode !== "none" && outputRenderHint ? (
+                    {chipMode !== "none" && outputRenderHint === "markdown" ? (
+                        <ChipConversionPopover
+                            variant="markdown"
+                            value={output}
+                            editable={true}
+                            onConvert={undefined}
+                            onModeSwitch={(next) => setOutputMode(next)}
+                            currentMode={outputMode}
+                        >
+                            <TypeChip variant="markdown" onClick={() => {}} />
+                        </ChipConversionPopover>
+                    ) : chipMode !== "none" && outputRenderHint ? (
                         <TypeChip variant={outputRenderHint} />
                     ) : null}
                 </div>

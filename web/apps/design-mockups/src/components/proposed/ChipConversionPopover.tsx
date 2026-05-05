@@ -45,11 +45,19 @@ interface ChipConversionPopoverProps {
     onConvert?: (next: unknown) => void
     /**
      * Optional editor/viewer-mode toggle. When provided AND the chip is a
-     * `string` type, the popover offers "Render as plain string (inline)"
-     * and "Render as markdown (long-form editor)" options that call this
-     * callback. The value isn't mutated — only the per-row render-mode pref.
+     * string-related variant (`string` or `markdown`), the popover offers
+     * "Render as plain string (inline)" and "Render as markdown (long-form
+     * editor)" options that call this callback. The value isn't mutated —
+     * only the per-row render-mode pref. Pass `currentMode` so the
+     * matching option renders disabled.
      */
     onModeSwitch?: (next: "short" | "long") => void
+    /**
+     * Current editor mode. Used to disable the matching option in the
+     * EDITOR MODE section so the user can see both states but only the
+     * inverse is clickable.
+     */
+    currentMode?: "short" | "long"
     /** Trigger element (the TypeChip itself) */
     children: React.ReactNode
 }
@@ -71,6 +79,8 @@ interface ModeSwitchOption {
     target: "short" | "long"
     targetChip: ChipVariant
     hint?: string
+    /** True when this option matches the current mode (rendered disabled) */
+    isCurrent?: boolean
 }
 
 function isNumericString(s: string): boolean {
@@ -332,11 +342,23 @@ function getConversions(
 }
 
 function targetLabel(target: ConversionOption["target"] | ChipVariant): string {
+    // Mirrors the chip-pill labels in TypeChip's STYLES map so the popover
+    // header ("Current chip:") and conversion arrows match what the user
+    // sees on the chip itself. Abbreviations for type primitives,
+    // full names for render hints + state chips.
     switch (target) {
+        case "string":
+            return "str"
+        case "number":
+            return "num"
+        case "boolean":
+            return "bool"
         case "json-object":
             return "obj"
         case "json-array":
             return "arr"
+        case "null":
+            return "null"
         case "stringified":
             return "stringified"
         case "messages":
@@ -353,13 +375,14 @@ function targetLabel(target: ConversionOption["target"] | ChipVariant): string {
 function getModeSwitches(
     variant: ChipVariant,
     onModeSwitch: ((next: "short" | "long") => void) | undefined,
+    currentMode: "short" | "long" | undefined,
 ): ModeSwitchOption[] {
     if (!onModeSwitch) return []
-    // Mode switching only applies to string content. Both options are
-    // shown — the user picks the destination mode (the popover doesn't
-    // need to track which one is current; clicking the same one again
-    // is a no-op via the parent's setForcedMode).
-    if (variant === "string") {
+    // Mode switching applies to string content. Available on the type chip
+    // (`string`) AND on the render-hint chip (`markdown`) so the user can
+    // toggle from whichever chip is visible. Both options always show; the
+    // current one renders disabled.
+    if (variant === "string" || variant === "markdown") {
         return [
             {
                 kind: "modeSwitch",
@@ -367,6 +390,7 @@ function getModeSwitches(
                 target: "short",
                 targetChip: "string",
                 hint: "Single-line antd Input, edits in the row",
+                isCurrent: currentMode === "short",
             },
             {
                 kind: "modeSwitch",
@@ -374,6 +398,7 @@ function getModeSwitches(
                 target: "long",
                 targetChip: "markdown",
                 hint: "Lexical editor with markdown preview toggle",
+                isCurrent: currentMode === "long",
             },
         ]
     }
@@ -386,6 +411,7 @@ export function ChipConversionPopover({
     editable = true,
     onConvert,
     onModeSwitch,
+    currentMode,
     children,
 }: ChipConversionPopoverProps) {
     // Type conversions only computed when onConvert is wired — read-only
@@ -395,8 +421,8 @@ export function ChipConversionPopover({
         [variant, value, onConvert],
     )
     const modeSwitches = useMemo(
-        () => getModeSwitches(variant, onModeSwitch),
-        [variant, onModeSwitch],
+        () => getModeSwitches(variant, onModeSwitch, currentMode),
+        [variant, onModeSwitch, currentMode],
     )
 
     if (!editable || (conversions.length === 0 && modeSwitches.length === 0)) {
@@ -453,10 +479,27 @@ export function ChipConversionPopover({
                             <button
                                 key={i}
                                 type="button"
-                                style={popoverStyles.option}
-                                onClick={() => onModeSwitch?.(opt.target)}
+                                disabled={opt.isCurrent}
+                                style={{
+                                    ...popoverStyles.option,
+                                    ...(opt.isCurrent
+                                        ? popoverStyles.optionCurrent
+                                        : null),
+                                }}
+                                onClick={() =>
+                                    !opt.isCurrent && onModeSwitch?.(opt.target)
+                                }
                             >
-                                <span style={popoverStyles.optionLabel}>{opt.label}</span>
+                                <span style={popoverStyles.optionLabel}>
+                                    {opt.label}
+                                    {opt.isCurrent ? (
+                                        <span
+                                            style={popoverStyles.optionCurrentBadge}
+                                        >
+                                            current
+                                        </span>
+                                    ) : null}
+                                </span>
                                 <span style={popoverStyles.optionTarget}>
                                     → {targetLabel(opt.targetChip)}
                                 </span>
@@ -566,7 +609,21 @@ const popoverStyles = {
         marginTop: 2,
     },
     optionCurrent: {
-        opacity: 0.65,
+        opacity: 0.55,
+        cursor: "not-allowed" as const,
+    },
+    optionCurrentBadge: {
+        display: "inline-block",
+        marginLeft: 8,
+        padding: "0 6px",
+        borderRadius: 3,
+        fontSize: 9,
+        fontWeight: 600,
+        background: "rgba(5, 23, 41, 0.06)",
+        color: "rgba(5, 23, 41, 0.55)",
+        textTransform: "uppercase" as const,
+        letterSpacing: "0.04em",
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
     },
     optionHint: {
         fontSize: 10,
