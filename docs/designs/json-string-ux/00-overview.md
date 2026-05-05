@@ -11,6 +11,7 @@
 - `/solutions-drill-in` — full drill-in proposal (production drawer left, `ProposedDrillIn` right, per-fixture toolbar)
 - `/solutions-playground` — three-way compare grid (Today / Embedded / Compact) per fixture
 - `/solutions-tables` — mid-fidelity table comparison: production `groupColumns` + production `TestcaseCellContent` on the left vs `ProposedTableCell` (chip-and-shape) on the right, both mounted in real antd `<Table>`s with stub data simulating the entity layer
+- `/already-shipped` — inventory of RFC pieces that landed ad-hoc before this design work (token typeahead, JSONPath envelope routing, chain context, template-variable validation). Code anchors so engineers extend instead of reinventing.
 - `/gap-NN-*` — concept pages per gap, blurb + audit notes + CTA to the relevant solution page
 
 The concept pages document **what production already does** vs **what each gap actually proposes**. Several gap framings shifted as a result of that audit (see "Production audit (2026-05-04)" below).
@@ -72,6 +73,7 @@ See [`variants/index.html`](variants/index.html) (or [`variants/README.md`](vari
 | 06 | ChatMessageEditor only kicks in after Drill In; tool_calls never get rich view | `07` |
 | **07** | **Surfaced 2026-05-04 by competitive analysis.** Schema-aware Edit form on the testcase drill-in. Per-testset field schema becomes a first-class entity; drill-in renders as a labelled form with type-aware inputs per column when a schema exists; falls back to existing detection-driven view otherwise. **Cross-cutting**: addresses gap-03 + chunks of gap-04 / gap-05 / gap-01 in one investment. | all |
 | **08** | **Surfaced 2026-05-04 by competitive analysis.** Playground variable validation. (a) Banner on dataset-attach naming the canonical references (`{{(input)}}`, `{{(expected)}}`, `{{(metadata)}}`). (b) Per-variable tooltip when a referenced path doesn't exist in the attached testset's schema, with a `Remove variable` quick-action. Edit-time check, not runtime. **Inherits the schema entity from gap-07.** | `04`, `06`, `08` |
+| **09** | **Surfaced 2026-05-05.** Variable provenance + usage state in the playground execution item. Each variable resolves to one of four states (`used` / `chain` / `draft` / `unused`) based on authoring × prompt-usage. Today's playground renders all variables identically; proposed Variable map collapses unused, marks drafts with dashed border, shows chain scope per row. **Symmetric to gap-08 (prompt-side) and gap-04 (testcase-side); applies both at the execution-item surface.** | `kitchen-sink` |
 
 Plus the runtime concern (RFC WP-F2):
 
@@ -88,6 +90,7 @@ The active gap docs live in [`variants/`](variants/). The interactive Next.js mo
 | `/solutions-drill-in` (mockup app) | Full drill-in proposal: production drawer left, `ProposedDrillIn` right, per-fixture toolbar |
 | `/solutions-playground` (mockup app) | Three-way compare grid (Today / Embedded / Compact) per fixture |
 | `/solutions-tables` (mockup app) | Mid-fidelity table comparison: production `groupColumns` + `TestcaseCellContent` vs `ProposedTableCell` (chip-and-shape), both in real antd `<Table>`s |
+| `/already-shipped` (mockup app) | Inventory of RFC pieces already in production (WP-F3 token typeahead, JSONPath envelope routing, chain context, template-variable validation). Read first if proposing playground prompt-editor work. |
 | [`variants/index.html`](variants/index.html) | Landing page · component map · drift findings · reading order |
 | [`variants/gap-01-type-chips.html`](variants/gap-01-type-chips.html) | Type chips — the shared visual vocabulary |
 | [`variants/gap-02-table-cells.html`](variants/gap-02-table-cells.html) | Testset table cells (the view-only entry point) |
@@ -110,6 +113,7 @@ Detail in each gap doc's "Recommendation" section. Open questions for the team c
 6. Messages renderer — lift `ChatMessageEditor` detection into a shared renderer that `BeautifiedJsonView` + `JsonEditorWithLocalState` delegate to, or accept divergence — gap-06.
 7. **Schema-aware Edit form scope** (gap-07) — full Braintrust-style form with per-field types and per-field PATCH save, or thinner "auto-expand top-level keys" affordance from gap-03 with no schema entity. The full form is the higher ceiling; the thinner option is the cheaper first delivery.
 8. **Playground variable validation surface** (gap-08) — inline banner only, banner + tooltip, or banner + tooltip + autocomplete from schema. Each step adds complexity; the banner alone is high-leverage and cheap.
+9. **Variable map surface in the execution item** (gap-09) — `unused` collapse on by default + chain-scope badge + draft border, or a thinner version that ships only the draft state and the unused-collapse without the chain-scope badge. The full version is best for chain-config users; the thinner version handles the most common single-prompt case.
 
 ## What this doc set does NOT cover
 
