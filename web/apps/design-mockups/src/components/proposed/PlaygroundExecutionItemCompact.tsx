@@ -45,6 +45,12 @@ interface InputField {
 interface PlaygroundExecutionItemCompactProps {
     testcaseLabel: string
     inputs: InputField[]
+    /**
+     * Names of testcase columns the prompt chain doesn't reference. Rendered
+     * as a peekable footer below the inputs body. See PlaygroundExecutionItem
+     * for the rationale (Mahmoud SME-complexity feedback 2026-05-05).
+     */
+    unusedTestcaseColumns?: string[]
     output: unknown
     evaluators?: {name: string; score: number; passed: boolean}[]
     durationMs?: number
@@ -529,6 +535,7 @@ function CompactRow({
 export function PlaygroundExecutionItemCompact({
     testcaseLabel,
     inputs,
+    unusedTestcaseColumns,
     output,
     evaluators,
     durationMs = 1240,
@@ -582,6 +589,9 @@ export function PlaygroundExecutionItemCompact({
                         />
                     ))}
                 </div>
+                {unusedTestcaseColumns && unusedTestcaseColumns.length > 0 ? (
+                    <UnusedColumnsFooterCompact columns={unusedTestcaseColumns} />
+                ) : null}
             </section>
 
             <section style={styles.section}>
@@ -693,6 +703,39 @@ export function PlaygroundExecutionItemCompact({
                         </span>
                     ))}
                 </section>
+            ) : null}
+        </div>
+    )
+}
+
+/**
+ * Peekable footer below the Compact inputs body listing testcase columns
+ * the prompt chain doesn't reference. Default closed; click to reveal.
+ * See PlaygroundExecutionItem's `UnusedColumnsFooter` for the rationale.
+ */
+function UnusedColumnsFooterCompact({columns}: {columns: string[]}) {
+    const [open, setOpen] = useState(false)
+    return (
+        <div style={styles.unusedFooter}>
+            <button
+                type="button"
+                style={styles.unusedToggle}
+                onClick={() => setOpen((v) => !v)}
+            >
+                <span style={styles.unusedCaret}>{open ? "▾" : "▸"}</span>
+                <span>
+                    {open ? "Hide" : "Show"} {columns.length} unused testcase
+                    column{columns.length === 1 ? "" : "s"}
+                </span>
+            </button>
+            {open ? (
+                <ul style={styles.unusedList}>
+                    {columns.map((c) => (
+                        <li key={c} style={styles.unusedItem}>
+                            <code style={styles.unusedItemName}>{c}</code>
+                        </li>
+                    ))}
+                </ul>
             ) : null}
         </div>
     )
@@ -892,6 +935,46 @@ const styles = {
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
         textTransform: "uppercase" as const,
         letterSpacing: "0.04em",
+    },
+    unusedFooter: {
+        marginTop: 8,
+        paddingTop: 8,
+        borderTop: "1px dashed rgba(5, 23, 41, 0.08)",
+    },
+    unusedToggle: {
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        background: "transparent",
+        border: "none",
+        cursor: "pointer",
+        padding: "2px 0",
+        fontSize: 11,
+        color: "rgba(5, 23, 41, 0.65)",
+        textAlign: "left" as const,
+    },
+    unusedCaret: {
+        fontSize: 10,
+        color: "rgba(5, 23, 41, 0.45)",
+    },
+    unusedList: {
+        listStyle: "none" as const,
+        margin: "6px 0 0",
+        padding: 0,
+        display: "flex",
+        flexWrap: "wrap" as const,
+        gap: 6,
+    },
+    unusedItem: {
+        opacity: 0.65,
+    },
+    unusedItemName: {
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+        fontSize: 11,
+        background: "rgba(5, 23, 41, 0.04)",
+        padding: "1px 6px",
+        borderRadius: 3,
+        color: "rgba(5, 23, 41, 0.65)",
     },
 }
 
