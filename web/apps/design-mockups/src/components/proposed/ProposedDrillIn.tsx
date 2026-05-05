@@ -269,6 +269,12 @@ function StringField({
     // component) reads/writes the markdownViewAtom keyed by editorId, which
     // SharedEditor responds to. Same id between toggle + editor = they share
     // the atom so the visible button drives the rendered view.
+    // The [markdown] chip on the field header already labels the mode, so
+    // we don't need a second "Markdown" label inside a toolbar. The render
+    // toggle (M↓: rendered preview ↔ raw text) lives as an absolutely
+    // positioned button at the editor's top-right corner — keeps the
+    // Lexical context for MarkdownToggleButton without adding a horizontal
+    // bar that reads as a collapsible section header.
     return (
         <EditorProvider
             key={`${editorId}-text-provider`}
@@ -277,11 +283,7 @@ function StringField({
             showToolbar={false}
             enableTokens={false}
         >
-            <div style={longFormWrapStyle}>
-                <div style={longFormToolbarStyle}>
-                    <span style={longFormHintStyle}>Markdown</span>
-                    <MarkdownToggleButton id={editorId} />
-                </div>
+            <div style={longFormSurfaceStyle}>
                 <SharedEditor
                     id={editorId}
                     initialValue={value}
@@ -294,6 +296,9 @@ function StringField({
                     handleChange={editable ? onChange : undefined}
                     autoFocus={autoFocus}
                 />
+                <div style={longFormToggleStyle}>
+                    <MarkdownToggleButton id={editorId} />
+                </div>
             </div>
         </EditorProvider>
     )
@@ -414,8 +419,14 @@ function ProposedField({
                                 value={value}
                                 editable={editable}
                                 onConvert={(next) => onChange?.(path, next)}
+                                // Editor-mode toggle lives on the render-hint
+                                // chip when one is visible (per JP feedback
+                                // 2026-05-05). When no render hint exists
+                                // (plain string), the type chip is the only
+                                // chip available, so it owns the mode toggle
+                                // as a fallback.
                                 onModeSwitch={
-                                    kind.kind === "string"
+                                    kind.kind === "string" && !renderHint
                                         ? (next) => {
                                               setStringMode(next)
                                               if (next === "long") {
@@ -424,6 +435,11 @@ function ProposedField({
                                                   setAutoFocusLongEditor(false)
                                               }
                                           }
+                                        : undefined
+                                }
+                                currentMode={
+                                    kind.kind === "string"
+                                        ? stringMode
                                         : undefined
                                 }
                             >
@@ -439,14 +455,41 @@ function ProposedField({
                                 />
                             </ChipConversionPopover>
                         )}
-                    {/* Render-hint chip (axis 2). Stacks alongside the type
-                        chip when the value's render mode is non-default —
-                        markdown content, stringified-JSON, chat messages,
-                        OpenAI tool calls. The type chip above stays the
-                        popover trigger; this chip is informational. */}
-                    {chipMode !== "none" && renderHint && (
-                        <TypeChip variant={renderHint} />
+                    {/* Render-hint chip (axis 2). When `markdown`, the chip
+                        is the entry point for the editor-mode toggle so the
+                        action lives on the chip that represents the current
+                        render state. Other render hints (stringified,
+                        messages, tool-calls) are still informational. */}
+                    {chipMode !== "none" && renderHint === "markdown" && (
+                        <ChipConversionPopover
+                            variant="markdown"
+                            value={value}
+                            editable={editable}
+                            // Markdown chip's popover offers ONLY editor-mode
+                            // switching — type conversions stay on the [str]
+                            // chip's popover so each chip owns one concern.
+                            onConvert={undefined}
+                            onModeSwitch={(next) => {
+                                setStringMode(next)
+                                if (next === "long") {
+                                    setAutoFocusLongEditor(true)
+                                } else {
+                                    setAutoFocusLongEditor(false)
+                                }
+                            }}
+                            currentMode={stringMode}
+                        >
+                            <TypeChip
+                                variant="markdown"
+                                onClick={editable ? () => {} : undefined}
+                            />
+                        </ChipConversionPopover>
                     )}
+                    {chipMode !== "none" &&
+                        renderHint &&
+                        renderHint !== "markdown" && (
+                            <TypeChip variant={renderHint} />
+                        )}
                     {/* nameChips (collision / dotted-key / shadowed) ALWAYS render
                         — they're correctness signals, not type vocabulary. They
                         get their own action menus in a Phase 2 (resolve
@@ -1217,35 +1260,21 @@ const serializedTextareaStyle = {
     lineHeight: 1.5,
 }
 
-// Long-form / markdown editor wrapper — visible toolbar with the production
-// MarkdownToggleButton so non-technical users have an obvious "Preview" /
-// "Edit raw" affordance instead of relying on Lexical defaults.
-const longFormWrapStyle = {
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: 4,
-    border: "1px solid rgba(5, 23, 41, 0.12)",
-    borderRadius: 6,
-    background: "white",
-    overflow: "hidden" as const,
+// Long-form string editor — the SharedEditor (Lexical) sits inside a
+// relatively positioned wrapper so the M↓ render-toggle can float at the
+// top-right corner without occupying a separate horizontal toolbar (which
+// otherwise reads as a collapsible section header).
+const longFormSurfaceStyle = {
+    position: "relative" as const,
 }
 
-const longFormToolbarStyle = {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between" as const,
-    padding: "4px 8px",
-    background: "#fafafa",
-    borderBottom: "1px solid rgba(5, 23, 41, 0.06)",
-}
-
-const longFormHintStyle = {
-    fontSize: 10,
-    fontWeight: 600,
-    color: "rgba(5, 23, 41, 0.55)",
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-    textTransform: "uppercase" as const,
-    letterSpacing: "0.04em",
+const longFormToggleStyle = {
+    position: "absolute" as const,
+    top: 4,
+    right: 4,
+    // Keep the toggle above the editor's text but click-through-able to the
+    // editor on the surrounding area.
+    zIndex: 2,
 }
 
 const parsedHintStyle = {
