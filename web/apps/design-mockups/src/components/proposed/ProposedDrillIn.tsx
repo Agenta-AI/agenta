@@ -14,7 +14,7 @@
 
 import {useCallback, useId, useMemo, useState} from "react"
 
-import type {ChipVariant} from "@/mockups/components/proposed/TypeChip"
+import type {ChipVariant, RenderHint} from "@/mockups/components/proposed/TypeChip"
 import {TypeChip} from "@/mockups/components/proposed/TypeChip"
 import {ChipConversionPopover} from "@/mockups/components/proposed/ChipConversionPopover"
 import {CaretDown, CaretRight, Copy} from "@phosphor-icons/react"
@@ -176,6 +176,12 @@ function classify(value: unknown): FieldKind {
     return {kind: "string", value: String(value)}
 }
 
+/**
+ * Type primitive for a field — what the value IS (one of JSON's primitive
+ * types). Render hints (`messages`, `stringified`, `markdown`) are
+ * orthogonal and emitted separately via `renderHintFor`. Chip refactor
+ * 2026-05-05 per JP feedback.
+ */
 function variantFor(kind: FieldKind["kind"]): ChipVariant {
     switch (kind) {
         case "object":
@@ -183,18 +189,37 @@ function variantFor(kind: FieldKind["kind"]): ChipVariant {
         case "array":
             return "json-array"
         case "messages":
-            return "messages"
+            // Type primitive is `json-array`; the [messages] render hint
+            // stacks alongside via renderHintFor below.
+            return "json-array"
         case "null":
             return "null"
         case "string":
             return "string"
         case "stringified":
-            return "stringified"
+            // Type primitive is `string`; the [stringified] render hint
+            // stacks alongside via renderHintFor below.
+            return "string"
         case "number":
             return "number"
         case "boolean":
             return "boolean"
     }
+}
+
+/**
+ * Optional render hint for a field — orthogonal to the type primitive.
+ * Returns the hint that should stack alongside the type chip, or null
+ * if the value's render is unambiguous from its primitive.
+ */
+function renderHintFor(
+    kind: FieldKind["kind"],
+    stringMode: "short" | "long",
+): RenderHint | null {
+    if (kind === "messages") return "messages"
+    if (kind === "stringified") return "stringified"
+    if (kind === "string" && stringMode === "long") return "markdown"
+    return null
 }
 
 /**
@@ -338,10 +363,10 @@ function ProposedField({
     // the SharedEditor to autofocus on mount so focus jumps from the inline
     // input into the Lexical editor and the user can keep typing.
     const [autoFocusLongEditor, setAutoFocusLongEditor] = useState(false)
-    const baseVariant = variantFor(kind.kind)
-    // String chip flips to long-str when mode=long; other variants unchanged.
-    const variant: ChipVariant =
-        kind.kind === "string" && stringMode === "long" ? "long-str" : baseVariant
+    // Type primitive (axis 1, always one). Render hint (axis 2, optional)
+    // stacks alongside if non-null. Refactor 2026-05-05 per JP feedback.
+    const variant: ChipVariant = variantFor(kind.kind)
+    const renderHint: RenderHint | null = renderHintFor(kind.kind, stringMode)
 
     return (
         <div
@@ -414,6 +439,14 @@ function ProposedField({
                                 />
                             </ChipConversionPopover>
                         )}
+                    {/* Render-hint chip (axis 2). Stacks alongside the type
+                        chip when the value's render mode is non-default —
+                        markdown content, stringified-JSON, chat messages,
+                        OpenAI tool calls. The type chip above stays the
+                        popover trigger; this chip is informational. */}
+                    {chipMode !== "none" && renderHint && (
+                        <TypeChip variant={renderHint} />
+                    )}
                     {/* nameChips (collision / dotted-key / shadowed) ALWAYS render
                         — they're correctness signals, not type vocabulary. They
                         get their own action menus in a Phase 2 (resolve
@@ -724,7 +757,7 @@ function ProposedField({
                                     <div style={toolCallsBlock}>
                                         <div style={toolCallsHeader}>
                                             <span style={toolCallsLabel}>tool_calls</span>
-                                            <TypeChip variant="tool" label="tool" />
+                                            <TypeChip variant="tool-calls" />
                                             <span style={countText}>
                                                 {m.tool_calls.length} call
                                                 {m.tool_calls.length === 1 ? "" : "s"}

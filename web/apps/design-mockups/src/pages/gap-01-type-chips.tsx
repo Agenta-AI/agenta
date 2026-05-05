@@ -42,25 +42,27 @@ const CHIP_LEGEND: {
     },
     {
         variant: "messages",
-        meaning: "Messages-shaped array (role/content)",
-        example: "[3 msgs]",
+        meaning:
+            "Render hint — value is an array shaped like a chat history (role + content per item). Stacks alongside [arr]. Triggers the chat-card renderer.",
+        example: "[arr] [messages]",
     },
     {
-        variant: "tool",
-        meaning: "Tool-call object",
-        example: "{ name, arguments }",
+        variant: "tool-calls",
+        meaning:
+            "Render hint — value is an array shaped like OpenAI tool calls (id + type:function + function). Stacks alongside [arr]. Triggers the dedicated tool-call card with parsed arguments.",
+        example: "[arr] [tool-calls]",
     },
     {
         variant: "stringified",
         meaning:
-            "JSON value stored as a string — `json-str` spells out the conflict (JSON shape, string storage). Distinct from [obj] / [arr] which mark *parsed* values. Surfaces the gap-02/04 fault line.",
-        example: '\'{"source":"trace",...}\'',
+            "Render hint — value is a string that parses as JSON. Stacks alongside [str]. Surfaces the gap-02/04 fault line: stored as a string, but structurally a JSON object/array.",
+        example: '[str] [stringified]',
     },
     {
-        variant: "long-str",
+        variant: "markdown",
         meaning:
-            "Editor-mode chip for long-form / markdown string content (Lexical SharedEditor with markdown preview toggle). Distinct from [str] (single-line antd Input). Default chosen at hydration via length heuristic; user toggles via the chip popover.",
-        example: "626 chars · 24 lines",
+            "Render hint — string content is multi-line / markdown, rendered with the Lexical editor + markdown preview toggle. Stacks alongside [str]. Default chosen at hydration via length heuristic; user toggles via the chip popover.",
+        example: "[str] [markdown]",
     },
     {
         variant: "dotted-key",
@@ -80,6 +82,12 @@ const CHIP_LEGEND: {
     {
         variant: "not-authored",
         meaning: "Union-projected key (gap-04)",
+        example: "—",
+    },
+    {
+        variant: "optional",
+        meaning:
+            "Schema-defined field that's not required. Distinct from [not authored] — the schema entity (gap-07) knows about this column; the row may legitimately omit it.",
         example: "—",
     },
     {
@@ -122,7 +130,7 @@ export default function Gap01Concept() {
                         <code>[str]</code> · <code>[num]</code> ·{" "}
                         <code>[obj]</code> · <code>[arr]</code> ·{" "}
                         <code>[bool]</code> · <code>[null]</code> ·{" "}
-                        <code>[msgs]</code> · <code>[json-str]</code> · …) that
+                        <code>[messages]</code> · <code>[stringified]</code> · …) that
                         appears next to the field name on every surface that
                         renders user-authored data: testcase drawer, playground
                         execution items, testset table cells, observability /

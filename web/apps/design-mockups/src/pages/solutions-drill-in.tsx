@@ -77,7 +77,7 @@ const FIXTURES = [
         detectCollisions: true,
         knownColumns: fixture_kitchen_sink_known_columns,
         gapNote:
-            "All gaps on one row. Vanuatu has every chip variant (gap-01), nested inputs/outputs auto-expand (gap-03), `metadata` is stringified-JSON with parse-on-detect (gap-04), `geo.region` collides between literal and nested shapes (gap-05), `messages` includes a tool_call + role:\"tool\" response (gap-06), and `correct_answer` is markdown-heavy → hydrates as [long-str] (gap-01 long-form). The other rows in this testset (Tuvalu, Kiribati) miss columns Vanuatu authors → ghost rows render as [not authored] (gap-04).",
+            "All gaps on one row. Vanuatu has every chip variant (gap-01), nested inputs/outputs auto-expand (gap-03), `metadata` is stringified-JSON with parse-on-detect (gap-04), `geo.region` collides between literal and nested shapes (gap-05), `messages` includes a tool_call + role:\"tool\" response (gap-06), and `correct_answer` is markdown-heavy → hydrates as [markdown] (gap-01 long-form). The other rows in this testset (Tuvalu, Kiribati) miss columns Vanuatu authors → ghost rows render as [not authored] (gap-04).",
     },
     {
         id: "chip-showcase",
@@ -125,7 +125,7 @@ const FIXTURES = [
         autoExpand: false,
         detectCollisions: false,
         gapNote:
-            "Long-form / markdown content. The chip hydrates as `[long-str]` so the field opens in the Lexical editor with markdown preview by default.",
+            "Long-form / markdown content. The chip hydrates as `[markdown]` so the field opens in the Lexical editor with markdown preview by default.",
     },
     {
         id: "02-nested",
@@ -188,7 +188,7 @@ export default function SolutionsDrillIn() {
                             </li>
                             <li>
                                 <strong>gap-01 long-form</strong>: long strings
-                                hydrate in <code>[long-str]</code> mode (Lexical
+                                hydrate in <code>[markdown]</code> mode (Lexical
                                 editor with markdown preview toggle). User can
                                 switch back to <code>[str]</code> via the chip
                                 popover.

@@ -49,28 +49,50 @@ interface PlaygroundExecutionItemProps {
     editable?: boolean
 }
 
-function classify(value: unknown): ChipVariant {
-    if (value === null) return "null"
+/**
+ * Classify a value into {type primitive, optional render hint}. The two
+ * axes (per JP feedback 2026-05-05) — type chip says what it IS, render
+ * hint chip says how it renders. Caller emits both.
+ */
+function classify(value: unknown): {type: ChipVariant; hint: ChipVariant | null} {
+    if (value === null) return {type: "null", hint: null}
     if (Array.isArray(value)) {
         const isMessages =
             value.length > 0 &&
             value.every((x) => x && typeof x === "object" && "role" in (x as object))
-        return isMessages ? "messages" : "json-array"
+        const isToolCalls =
+            value.length > 0 &&
+            value.every(
+                (x) =>
+                    x &&
+                    typeof x === "object" &&
+                    (x as {type?: unknown}).type === "function" &&
+                    "function" in (x as object),
+            )
+        return {
+            type: "json-array",
+            hint: isMessages ? "messages" : isToolCalls ? "tool-calls" : null,
+        }
     }
-    if (typeof value === "object") return "json-object"
-    if (typeof value === "number") return "number"
-    if (typeof value === "boolean") return "boolean"
+    if (typeof value === "object") return {type: "json-object", hint: null}
+    if (typeof value === "number") return {type: "number", hint: null}
+    if (typeof value === "boolean") return {type: "boolean", hint: null}
     if (typeof value === "string") {
         if (value[0] === "{" || value[0] === "[") {
             try {
                 const p = JSON.parse(value)
-                if (Array.isArray(p) || (p && typeof p === "object")) return "stringified"
+                if (Array.isArray(p) || (p && typeof p === "object")) {
+                    return {type: "string", hint: "stringified"}
+                }
             } catch {
                 // not stringified JSON
             }
         }
+        if (value.length > 100 || value.includes("\n")) {
+            return {type: "string", hint: "markdown"}
+        }
     }
-    return "string"
+    return {type: "string", hint: null}
 }
 
 export function PlaygroundExecutionItem({
@@ -89,7 +111,9 @@ export function PlaygroundExecutionItem({
         return acc
     }, {})
 
-    const outputChip = classify(output)
+    const outputClassified = classify(output)
+    const outputType = outputClassified.type
+    const outputHint = outputClassified.hint
     const showOutputChip = chipMode !== "none"
 
     return (
@@ -122,19 +146,22 @@ export function PlaygroundExecutionItem({
             <section style={styles.section}>
                 <div style={styles.outputHeader}>
                     <div style={styles.sectionLabel}>Output</div>
-                    {showOutputChip && <TypeChip variant={outputChip} />}
+                    {showOutputChip && <TypeChip variant={outputType} />}
+                    {showOutputChip && outputHint && (
+                        <TypeChip variant={outputHint} />
+                    )}
                 </div>
                 <div style={styles.outputBody}>
                     {/* Output is the model response. Editable here = "is the
                         playground in a state where the user could re-run after
                         editing inputs?" The output itself is a result, so it
                         renders read-only via ProposedDrillIn either way. */}
-                    {outputChip === "string" || outputChip === "number" || outputChip === "boolean" || outputChip === "null" ? (
+                    {outputType === "string" || outputType === "number" || outputType === "boolean" || outputType === "null" ? (
                         <span style={styles.outputText}>{String(output)}</span>
                     ) : (
                         <ProposedDrillIn
                             data={
-                                outputChip === "json-object"
+                                outputType === "json-object"
                                     ? (output as Record<string, unknown>)
                                     : {result: output}
                             }

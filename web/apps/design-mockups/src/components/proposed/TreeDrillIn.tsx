@@ -48,18 +48,33 @@ interface Node {
     children?: Node[]
 }
 
-function classifyVariant(v: unknown): ChipVariant {
-    if (v === null) return "null"
+function classifyVariant(v: unknown): {
+    type: ChipVariant
+    hint: ChipVariant | null
+} {
+    if (v === null) return {type: "null", hint: null}
     if (Array.isArray(v)) {
         const isMessages =
             v.length > 0 &&
             v.every((x) => x && typeof x === "object" && "role" in (x as object))
-        return isMessages ? "messages" : "json-array"
+        const isToolCalls =
+            v.length > 0 &&
+            v.every(
+                (x) =>
+                    x &&
+                    typeof x === "object" &&
+                    (x as {type?: unknown}).type === "function" &&
+                    "function" in (x as object),
+            )
+        return {
+            type: "json-array",
+            hint: isMessages ? "messages" : isToolCalls ? "tool-calls" : null,
+        }
     }
-    if (typeof v === "object") return "json-object"
-    if (typeof v === "number") return "number"
-    if (typeof v === "boolean") return "boolean"
-    return "string"
+    if (typeof v === "object") return {type: "json-object", hint: null}
+    if (typeof v === "number") return {type: "number", hint: null}
+    if (typeof v === "boolean") return {type: "boolean", hint: null}
+    return {type: "string", hint: null}
 }
 
 function setAtPath(root: unknown, path: Path, next: unknown): unknown {
@@ -81,8 +96,9 @@ function buildTree(
     path: Path,
     rootChips: Map<string, ChipVariant[]>,
 ): Node {
-    const variant = classifyVariant(value)
+    const {type: variant, hint} = classifyVariant(value)
     const chips: ChipVariant[] = [variant]
+    if (hint) chips.push(hint)
     if (path.length === 1) {
         const extra = rootChips.get(String(path[0]))
         if (extra) chips.push(...extra)
@@ -365,7 +381,7 @@ function Detail({
                                 {Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0 && (
                                     <div style={detailStyles.toolCallsBlock}>
                                         <div style={detailStyles.toolCallsHeader}>
-                                            <TypeChip variant="tool" />
+                                            <TypeChip variant="tool-calls" />
                                             <span style={detailStyles.count}>
                                                 {msg.tool_calls.length} call
                                                 {msg.tool_calls.length === 1 ? "" : "s"}

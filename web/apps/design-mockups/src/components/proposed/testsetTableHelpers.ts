@@ -478,24 +478,29 @@ export function detectDottedKeyColumns(columns: ExpandedColumn[]): Set<string> {
  * shares one type, return that type. If a column is heterogeneous (mixed),
  * the caller already has `detectMixedColumns` for that — return null here.
  *
- * `messages` and `tool_calls` arrays are special-cased so the column header
- * can read `[msgs]` or `[tool]` instead of generic `[arr]`.
+ * Returns BOTH axes per column (refactor 2026-05-05 per JP feedback):
+ *   - `type` — the JSON primitive (str / num / bool / null / obj / arr)
+ *   - `hint` — optional render hint (messages / tool-calls / stringified)
  *
- * Stringified-JSON: when every observed value is a string and at least one
- * parses as JSON (`{` or `[` first char), return `"stringified"` so the
- * header chip matches the per-cell chip.
+ * Caller emits both chips: `[arr] [messages]`, `[str] [stringified]`, etc.
  */
-export type ColumnTypeChip =
+export type ColumnTypePrimitive =
     | "string"
     | "number"
     | "boolean"
     | "null"
     | "json-object"
     | "json-array"
-    | "messages"
-    | "tool"
-    | "stringified"
-    | "long-str"
+
+export type ColumnRenderHint = "messages" | "tool-calls" | "stringified"
+
+export interface ColumnTypeInfo {
+    type: ColumnTypePrimitive
+    hint: ColumnRenderHint | null
+}
+
+/** @deprecated Use ColumnTypePrimitive | ColumnRenderHint instead. */
+export type ColumnTypeChip = ColumnTypePrimitive
 
 const TOOL_CALL_KEYS = new Set(["id", "type", "function"])
 
@@ -542,11 +547,12 @@ export function detectColumnTypes(
     rows: FlatRow[],
     columns: ExpandedColumn[],
     mixed: Set<string>,
-): Map<string, ColumnTypeChip> {
-    const result = new Map<string, ColumnTypeChip>()
+): Map<string, ColumnTypeInfo> {
+    const result = new Map<string, ColumnTypeInfo>()
     for (const col of columns) {
         if (mixed.has(col.key)) continue
-        let observed: ColumnTypeChip | null = null
+        let observedType: ColumnTypePrimitive | null = null
+        let observedHint: ColumnRenderHint | null = null
         let sawAnyValue = false
         let allStringsAreStringified = true
         let sawAnyString = false
@@ -554,50 +560,62 @@ export function detectColumnTypes(
             const v = row[col.key]
             if (v === undefined) continue
             sawAnyValue = true
-            let chip: ColumnTypeChip
+            let nextType: ColumnTypePrimitive
+            let nextHint: ColumnRenderHint | null = null
             if (v === null) {
-                chip = "null"
+                nextType = "null"
             } else if (Array.isArray(v)) {
-                if (isMessagesArrayValue(v)) chip = "messages"
-                else if (isToolCallArrayValue(v)) chip = "tool"
-                else chip = "json-array"
+                nextType = "json-array"
+                if (isMessagesArrayValue(v)) nextHint = "messages"
+                else if (isToolCallArrayValue(v)) nextHint = "tool-calls"
             } else if (typeof v === "object") {
-                chip = "json-object"
+                nextType = "json-object"
             } else if (typeof v === "string") {
                 sawAnyString = true
+                nextType = "string"
                 if (!looksLikeStringifiedJson(v)) {
                     allStringsAreStringified = false
                 }
-                chip = "string"
             } else if (typeof v === "number") {
-                chip = "number"
+                nextType = "number"
             } else if (typeof v === "boolean") {
-                chip = "boolean"
+                nextType = "boolean"
             } else {
                 continue
             }
-            if (observed === null) {
-                observed = chip
-            } else if (observed === "null" && chip !== "null") {
-                // Nulls are noise — let the first concrete type win
-                observed = chip
-            } else if (observed !== chip && chip !== "null") {
+            if (observedType === null) {
+                observedType = nextType
+                observedHint = nextHint
+            } else if (observedType === "null" && nextType !== "null") {
+                // Nulls are noise — let the first concrete type win.
+                observedType = nextType
+                observedHint = nextHint
+            } else if (observedType !== nextType && nextType !== "null") {
                 // Multi-type but not in `mixed` — should not happen since
                 // mixed detection already excluded these; bail out.
-                observed = null
+                observedType = null
+                observedHint = null
                 break
+            } else if (observedHint !== nextHint && nextType !== "null") {
+                // Same type but inconsistent render hints across rows
+                // (e.g. one row's array is messages, another isn't) — drop
+                // the hint to avoid claiming uniformity that doesn't hold.
+                observedHint = null
             }
         }
-        // Promote `string` → `stringified` if every observed string parses.
+        // Promote `string` → `string + stringified` if every observed string
+        // parses as JSON. The render hint stacks alongside the type chip.
         if (
             sawAnyValue &&
-            observed === "string" &&
+            observedType === "string" &&
             sawAnyString &&
             allStringsAreStringified
         ) {
-            observed = "stringified"
+            observedHint = "stringified"
         }
-        if (observed) result.set(col.key, observed)
+        if (observedType) {
+            result.set(col.key, {type: observedType, hint: observedHint})
+        }
     }
     return result
 }

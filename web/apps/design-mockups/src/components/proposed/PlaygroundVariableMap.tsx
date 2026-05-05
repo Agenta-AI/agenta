@@ -56,9 +56,12 @@ interface PlaygroundVariableMapProps {
     defaultUnusedCollapsed?: boolean
 }
 
-function inferTypeChip(value: unknown): ChipVariant {
-    if (value === undefined) return "string"
-    if (value === null) return "null"
+function inferTypeChip(value: unknown): {
+    type: ChipVariant
+    hint: ChipVariant | null
+} {
+    if (value === undefined) return {type: "string", hint: null}
+    if (value === null) return {type: "null", hint: null}
     if (Array.isArray(value)) {
         if (
             value.length > 0 &&
@@ -69,26 +72,42 @@ function inferTypeChip(value: unknown): ChipVariant {
                     "role" in (x as object),
             )
         ) {
-            return "messages"
+            return {type: "json-array", hint: "messages"}
         }
-        return "json-array"
+        if (
+            value.length > 0 &&
+            value.every(
+                (x) =>
+                    x &&
+                    typeof x === "object" &&
+                    (x as {type?: unknown}).type === "function" &&
+                    "function" in (x as object),
+            )
+        ) {
+            return {type: "json-array", hint: "tool-calls"}
+        }
+        return {type: "json-array", hint: null}
     }
-    if (typeof value === "object") return "json-object"
-    if (typeof value === "number") return "number"
-    if (typeof value === "boolean") return "boolean"
+    if (typeof value === "object") return {type: "json-object", hint: null}
+    if (typeof value === "number") return {type: "number", hint: null}
+    if (typeof value === "boolean") return {type: "boolean", hint: null}
     if (typeof value === "string") {
         if (value[0] === "{" || value[0] === "[") {
             try {
                 const parsed = JSON.parse(value)
-                if (parsed && typeof parsed === "object") return "stringified"
+                if (parsed && typeof parsed === "object") {
+                    return {type: "string", hint: "stringified"}
+                }
             } catch {
                 /* not stringified */
             }
         }
-        if (value.length > 100 || value.includes("\n")) return "long-str"
-        return "string"
+        if (value.length > 100 || value.includes("\n")) {
+            return {type: "string", hint: "markdown"}
+        }
+        return {type: "string", hint: null}
     }
-    return "string"
+    return {type: "string", hint: null}
 }
 
 function previewValue(value: unknown): string {
@@ -189,7 +208,7 @@ interface VariableRowProps {
 
 function VariableRow({variable, chainLength}: VariableRowProps) {
     const {name, value, state, usedByPrompts} = variable
-    const typeChip = inferTypeChip(value)
+    const {type: typeChip, hint: renderHint} = inferTypeChip(value)
     const preview = previewValue(value)
 
     const isDraft = state === "draft"
@@ -211,6 +230,7 @@ function VariableRow({variable, chainLength}: VariableRowProps) {
         >
             <div style={styles.rowMain}>
                 <TypeChip variant={typeChip} />
+                {renderHint ? <TypeChip variant={renderHint} /> : null}
                 <span style={styles.name}>{name}</span>
                 {isChain ? <TypeChip variant="chain" label={chainLabel} /> : null}
                 {isDraft ? <TypeChip variant="draft" /> : null}

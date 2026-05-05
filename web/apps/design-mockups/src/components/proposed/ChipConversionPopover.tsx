@@ -44,10 +44,10 @@ interface ChipConversionPopoverProps {
      */
     onConvert?: (next: unknown) => void
     /**
-     * Optional editor/viewer-mode toggle. When provided AND the chip is
-     * string-like (`string` or `long-str`), the popover offers a "Switch to
-     * long-form editor/viewer" / "Switch to short-form (inline)" option that
-     * calls this callback. Value isn't mutated — only the per-row mode pref.
+     * Optional editor/viewer-mode toggle. When provided AND the chip is a
+     * `string` type, the popover offers "Render as plain string (inline)"
+     * and "Render as markdown (long-form editor)" options that call this
+     * callback. The value isn't mutated — only the per-row render-mode pref.
      */
     onModeSwitch?: (next: "short" | "long") => void
     /** Trigger element (the TypeChip itself) */
@@ -129,11 +129,10 @@ function getConversions(
     const opts: ConversionOption[] = []
 
     switch (variant) {
-        case "string":
-        case "long-str": {
-            // long-str is a *mode* chip (Lexical editor preference) on string
-            // content — the type conversions are identical to plain string.
-            // Mode switching is handled by ModeSwitchOption, not here.
+        case "string": {
+            // String content — type conversions are independent of editor
+            // mode (markdown / plain). Mode switching lives in
+            // ModeSwitchOption, not here.
             const s = String(value ?? "")
             const parsed = tryParseJson(s)
             if (parsed) {
@@ -322,8 +321,10 @@ function getConversions(
 
         default:
             // Correctness chips (dotted-key, collision, mixed, shadowed,
-            // not-authored, path, tool) don't drive type conversion. They
-            // need their own action menus — Phase 2.
+            // not-authored, path), state chips (unused, draft, chain,
+            // optional), and render-hint chips not handled above
+            // (markdown, tool-calls) don't drive type conversion. They
+            // get their own action menus — Phase 2.
             break
     }
 
@@ -337,9 +338,13 @@ function targetLabel(target: ConversionOption["target"] | ChipVariant): string {
         case "json-array":
             return "arr"
         case "stringified":
-            return "json-str"
+            return "stringified"
         case "messages":
-            return "msgs"
+            return "messages"
+        case "tool-calls":
+            return "tool-calls"
+        case "markdown":
+            return "markdown"
         default:
             return target
     }
@@ -350,25 +355,25 @@ function getModeSwitches(
     onModeSwitch: ((next: "short" | "long") => void) | undefined,
 ): ModeSwitchOption[] {
     if (!onModeSwitch) return []
+    // Mode switching only applies to string content. Both options are
+    // shown — the user picks the destination mode (the popover doesn't
+    // need to track which one is current; clicking the same one again
+    // is a no-op via the parent's setForcedMode).
     if (variant === "string") {
         return [
             {
                 kind: "modeSwitch",
-                label: "Switch to long-form editor",
-                target: "long",
-                targetChip: "long-str",
-                hint: "Lexical editor with markdown preview toggle",
-            },
-        ]
-    }
-    if (variant === "long-str") {
-        return [
-            {
-                kind: "modeSwitch",
-                label: "Switch to short-form (inline)",
+                label: "Render as plain string (inline)",
                 target: "short",
                 targetChip: "string",
                 hint: "Single-line antd Input, edits in the row",
+            },
+            {
+                kind: "modeSwitch",
+                label: "Render as markdown (long-form editor)",
+                target: "long",
+                targetChip: "markdown",
+                hint: "Lexical editor with markdown preview toggle",
             },
         ]
     }

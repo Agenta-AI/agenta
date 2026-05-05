@@ -12,7 +12,7 @@
  * What's NOT in production:
  *   - Auto-rendering at root (subset of gap-03 — fixed when auto-expand lands).
  *   - Tool-call CARD UI (production renders tool calls as inline text).
- *   - [tool] chip in table cells (subset of gap-01 chip vocabulary).
+ *   - [tool-calls] chip in table cells (subset of gap-01 chip vocabulary).
  *
  * So gap-06's unique contribution is just the tool-call card. The rest is
  * gap-03 + gap-01 applied to a specific case.
@@ -32,7 +32,7 @@ export default function Gap06Concept() {
             <MockupPageShell
                 title="Gap 06 — Messages + tool-call card"
                 blurb={
-                    "ChatMessageList already renders messages-shaped arrays in production. ToolMessageHeader handles role: \"tool\" responses. What's missing: a dedicated card for assistant tool_calls (today they render as inline text via extractDisplayTextFromMessage), and the [tool] chip in table cells (gap-01 vocabulary applied here). Auto-rendering at root is gap-03's job — once auto-expand lands, messages render at root for free."
+                    "ChatMessageList already renders messages-shaped arrays in production. ToolMessageHeader handles role: \"tool\" responses. What's missing: a dedicated card for assistant tool_calls (today they render as inline text via extractDisplayTextFromMessage), and the [tool-calls] chip in table cells (gap-01 vocabulary applied here). Auto-rendering at root is gap-03's job — once auto-expand lands, messages render at root for free."
                 }
                 notes={
                     <>
@@ -90,7 +90,7 @@ export default function Gap06Concept() {
                             </li>
                             <li>
                                 <strong>
-                                    <code>[tool]</code> chip in table cells
+                                    <code>[tool-calls]</code> chip in table cells
                                 </strong>{" "}
                                 — part of gap-01 chip vocabulary applied to
                                 tool-call columns. Lets the user see
@@ -152,7 +152,7 @@ export default function Gap06Concept() {
                 <div style={styles.crossLinks}>
                     <strong>Related concept pages:</strong>{" "}
                     <Link href="/gap-01-type-chips" style={styles.link}>
-                        gap-01 ([msgs] + [tool] chips, both in vocabulary)
+                        gap-01 ([messages] + [tool-calls] chips, both in vocabulary)
                     </Link>{" "}
                     ·{" "}
                     <Link href="/gap-02-table-cells" style={styles.link}>
