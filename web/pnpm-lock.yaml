@@ -119,15 +119,6 @@ importers:
         specifier: ^8.58.0
         version: 8.58.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)
 
-  ../clients/typescript:
-    devDependencies:
-      '@types/node':
-        specifier: ^20.19.20
-        version: 20.19.39
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-
   ee:
     dependencies:
       '@agenta/annotation':
@@ -1179,9 +1170,9 @@ importers:
 
   packages/agenta-sdk:
     dependencies:
-      '@agenta/client':
-        specifier: workspace:*
-        version: link:../../../clients/typescript
+      '@agenta/api-client':
+        specifier: workspace:../api-client
+        version: link:../api-client
     devDependencies:
       '@types/node':
         specifier: ^20.8.10
@@ -1389,6 +1380,15 @@ importers:
       typescript:
         specifier: 5.8.3
         version: 5.8.3
+
+  packages/api-client:
+    devDependencies:
+      '@types/node':
+        specifier: ^20.19.20
+        version: 20.19.39
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
   tests:
     dependencies:

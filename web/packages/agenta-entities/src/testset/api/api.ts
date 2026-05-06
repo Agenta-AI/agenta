@@ -215,7 +215,7 @@ export async function fetchRevisionsBatch(
 /**
  * Fetch testsets list (metadata only).
  *
- * Migrated to consume the Fern-generated `@agenta/client` via `@agenta/sdk`
+ * Migrated to consume the Fern-generated `@agenta/api-client` via `@agenta/sdk`
  * (v3 PoC). Zod validation stays at the boundary because Fern's compile-time
  * types under-declare backend `extra="allow"` fields — drift detection still
  * has independent value.

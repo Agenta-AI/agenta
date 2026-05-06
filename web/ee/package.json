@@ -9,7 +9,7 @@
         "dev": "next dev --turbopack",
         "dev:local": "ENV_FILE=.local.env next dev",
         "dev:turbo": "ENV_FILE=.local.env next dev --turbo",
-        "build": "next build && cp -r public/. ./.next/standalone/web/ee/public && cp -r .next/static/. ./.next/standalone/web/ee/.next/static",
+        "build": "next build && cp -r public/. ./.next/standalone/ee/public && cp -r .next/static/. ./.next/standalone/ee/.next/static",
         "start": "next start",
         "lint": "next lint",
         "lint-fix": "next lint --fix",

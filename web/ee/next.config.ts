@@ -11,13 +11,9 @@ const reduxToolkitCjsEntry = path.join(
 
 const config = {
     ...ossConfig,
-    // Match turbopack.root: repo root (not just `web/`).
-    outputFileTracingRoot: path.resolve(__dirname, "../.."),
+    outputFileTracingRoot: path.resolve(__dirname, ".."),
     turbopack: {
-        // Repo root, not `web/`. The `@agenta/client` workspace package lives
-        // at `clients/typescript/` (outside `web/`); Turbopack refuses to resolve
-        // symlinks pointing outside its `root`. See web/oss/next.config.ts.
-        root: path.resolve(__dirname, "../.."),
+        root: path.resolve(__dirname, ".."),
         resolveAlias: {
             "@/oss/*": ["@/agenta-oss-common/*"],
         },

@@ -3,4 +3,3 @@ packages:
   - 'ee'
   - 'tests'
   - 'packages/*'
-  - '../clients/typescript'

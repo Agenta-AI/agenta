@@ -1,5 +1,5 @@
 /**
- * Agenta TypeScript SDK — thin convenience wrapper over `@agenta/client`.
+ * Agenta TypeScript SDK — thin convenience wrapper over `@agenta/api-client`.
  *
  * Mirrors the Python SDK's pattern: the generated Fern client owns transport,
  * retries, errors, and resource shapes. This package re-exports it with a
@@ -16,10 +16,10 @@ import {
     AgentaApiEnvironment,
     AgentaApiError,
     AgentaApiTimeoutError,
-} from "@agenta/client"
+} from "@agenta/api-client"
 
 export {AgentaApiClient, AgentaApiEnvironment, AgentaApiError, AgentaApiTimeoutError}
-export type * as AgentaApi from "@agenta/client"
+export type * as AgentaApi from "@agenta/api-client"
 
 export interface AgentaInitOptions {
     /** Agenta backend host. Defaults to `AGENTA_HOST` env var or production. */
@@ -41,7 +41,7 @@ const env = (key: string): string | undefined =>
  *   const apps = await ag.applications.queryApplications({});
  *
  * Header sanitization, withCredentials, and Node-built-in stubbing are now
- * baked into `@agenta/client` via the Fern generator config (see
+ * baked into `@agenta/api-client` via the Fern generator config (see
  * `clients/scripts/generate.sh`) — this wrapper only carries the auth
  * empty-string workaround because Fern's HeaderAuthProvider can't be
  * disabled per-call.

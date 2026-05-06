@@ -1,5 +1,5 @@
 {
-  "name": "@agenta/client",
+  "name": "@agenta/api-client",
   "version": "0.0.0-dev",
   "private": true,
   "type": "module",
@@ -23,7 +23,7 @@
     "src"
   ],
   "scripts": {
-    "generate": "bash ../scripts/generate.sh --language typescript",
+    "generate": "bash ../../../clients/scripts/generate.sh --language typescript",
     "build": "tsc -p tsconfig.json"
   },
   "devDependencies": {

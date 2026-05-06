@@ -16,9 +16,7 @@ const COMMON_CONFIG: NextConfig = {
     reactStrictMode: true,
     pageExtensions: ["ts", "tsx", "js", "jsx"],
     productionBrowserSourceMaps: true,
-    // Match turbopack.root: repo root (not just `web/`) so file tracing reaches
-    // `clients/typescript/` and any other workspace members outside `web/`.
-    outputFileTracingRoot: path.resolve(__dirname, "../.."),
+    outputFileTracingRoot: path.resolve(__dirname, ".."),
     images: {
         remotePatterns: [{hostname: "fps.cdnpk.net"}],
     },
@@ -77,7 +75,7 @@ const COMMON_CONFIG: NextConfig = {
     // Always transpile workspace packages to ensure proper module resolution
     transpilePackages: [
         "@agenta/sdk",
-        "@agenta/client",
+        "@agenta/api-client",
         "@agenta/shared",
         "@agenta/ui",
         "@agenta/entities",
@@ -149,12 +147,7 @@ const COMMON_CONFIG: NextConfig = {
           }
         : {
               turbopack: {
-                  // Repo root, not `web/`. The `@agenta/client` workspace package
-                  // lives at `clients/typescript/` (outside `web/`); pnpm symlinks
-                  // it via `../../clients/typescript`. Turbopack refuses to
-                  // resolve symlinks pointing outside its `root`, so the root has
-                  // to span both `web/` and `clients/`.
-                  root: path.resolve(__dirname, "../.."),
+                  root: path.resolve(__dirname, ".."),
               },
           }),
 }
