@@ -2,9 +2,10 @@
  * Gap 08 — Playground variable validation (concept page).
  *
  * Problem statement + proposed solution. Live demo on /solutions-playground
- * (variable-validation prompt section). The PromptVariableValidation
- * component lives at src/components/proposed/PromptVariableValidation.tsx
- * and is shared across pages.
+ * (variable-validation prompt section). Today and Proposed both render via
+ * ProductionPromptTemplate from ProductionPlaygroundShell.tsx — Proposed
+ * only adds the inline banner + InvalidVariable tooltip on top of the same
+ * production prompt rendering.
  */
 
 import Head from "next/head"
