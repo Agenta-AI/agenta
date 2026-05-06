@@ -2564,12 +2564,6 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/create-accounts",
-          label: "Create Accounts",
-          className: "api-method post",
-        },
-        {
-          type: "doc",
           id: "reference/api/create-account",
           label: "Create Account",
           className: "api-method post",
