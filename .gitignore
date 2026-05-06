@@ -10,7 +10,7 @@
 **/*.vscode
 **/*.pem
 **/*dont_commit_me*
-web/packages/api-client/dist/
+clients/typescript/dist/
 
 __pycache__/
 **/__pycache__/

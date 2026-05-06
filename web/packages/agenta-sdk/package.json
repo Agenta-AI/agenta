@@ -15,7 +15,7 @@
         ".": "./src/index.ts"
     },
     "dependencies": {
-        "@agenta/api-client": "workspace:../api-client"
+        "@agenta/client": "workspace:*"
     },
     "devDependencies": {
         "@types/node": "^20.8.10",

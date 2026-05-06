@@ -310,7 +310,7 @@ EOF
 
   cat > "${client_root}/package.json" <<'EOF'
 {
-  "name": "@agenta/api-client",
+  "name": "@agenta/client",
   "version": "0.0.0-dev",
   "private": true,
   "type": "module",
@@ -334,7 +334,7 @@ EOF
     "src"
   ],
   "scripts": {
-    "generate": "bash ../../../clients/scripts/generate.sh --language typescript",
+    "generate": "bash ../scripts/generate.sh --language typescript",
     "build": "tsc -p tsconfig.json"
   },
   "devDependencies": {
@@ -523,10 +523,7 @@ PY
 }
 
 generate_typescript() {
-  # The TypeScript client lives inside the web monorepo so the existing pnpm
-  # workspace, turbo task graph, and Next.js build pipeline can pick it up
-  # without cross-`web/` boundary workarounds.
-  local client_root="${REPO_ROOT}/web/packages/api-client"
+  local client_root="${CLIENTS_ROOT}/typescript"
   local target_dir="${client_root}/src/generated"
   local fern_dir="${client_root}/fern"
   local fern_output_dir="${fern_dir}/src/generated"
