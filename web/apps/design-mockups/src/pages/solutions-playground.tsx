@@ -23,11 +23,6 @@ import {MockupPageShell} from "@/mockups/components/MockupPageShell"
 import {PlaygroundExecutionItem} from "@/mockups/components/proposed/PlaygroundExecutionItem"
 import {PlaygroundExecutionItemCompact} from "@/mockups/components/proposed/PlaygroundExecutionItemCompact"
 import {PlaygroundExecutionItemToday} from "@/mockups/components/proposed/PlaygroundExecutionItemToday"
-import {
-    InvalidVariable,
-    PromptVariableValidation,
-    ValidVariable,
-} from "@/mockups/components/proposed/PromptVariableValidation"
 import {type ChipRenderMode} from "@/mockups/components/proposed/ProposedDrillIn"
 import {
     PlaygroundVariableMap,
@@ -37,6 +32,12 @@ import {
     PromptConfigView,
     type PromptConfig,
 } from "@/mockups/components/proposed/PromptConfigView"
+import {
+    InvalidVariable,
+    ProductionPlaygroundShell,
+    ProductionPromptTemplate,
+    ValidVariable,
+} from "@/mockups/components/proposed/ProductionPlaygroundShell"
 import {
     fixture07_messages_and_tools,
     fixture_chip_showcase,
@@ -212,6 +213,21 @@ const KITCHEN_SINK_IN_USE_INPUTS = KITCHEN_SINK_VARIABLE_MAP.filter(
             : (kitchenSinkTestcase.data as Record<string, unknown>)[v.name],
 }))
 
+// Single prompt template that exercises every in-use variable. Rendered in
+// the [config] column of each row in the three-way compare, so the reader
+// sees the prompt that defines these variables next to the execution item
+// that fills them.
+const KITCHEN_SINK_PROMPT_MESSAGES = [
+    {
+        role: "System" as const,
+        body: "You are a geography research assistant. Cite ISO codes when available and ground claims in the provided messages and metadata.",
+    },
+    {
+        role: "User" as const,
+        body: "Country in scope: {{country}}.\n\nConversation so far: {{messages}}\n\nRegion context: {{geo}}\nSpoken languages: {{languages}}\nKnown ISO code (if any): {{iso_code}}\n\nReturn the capital and confirm the ISO 3166-1 alpha-2 code.",
+    },
+]
+
 export default function SolutionsPlayground() {
     const [editMode, setEditMode] = useState<"editable" | "read-only">("editable")
     const [chipMode, setChipMode] = useState<ChipRenderMode>("all")
@@ -260,6 +276,25 @@ export default function SolutionsPlayground() {
                     </>
                 }
             >
+                <section style={styles.productionShellSection}>
+                    <header style={styles.productionShellHeader}>
+                        <span style={styles.productionShellTag}>production</span>
+                        <h2 style={styles.productionShellTitle}>
+                            What the playground looks like today
+                        </h2>
+                    </header>
+                    <p style={styles.productionShellLead}>
+                        The live Agenta playground: Prompt Template panel
+                        on the left (variant + view-mode + Commit), Generations
+                        panel on the right (testcase variable inputs + Run
+                        all). The proposals below extend this surface — chips
+                        in the variable inputs, a Variable map above the
+                        Generations panel, optional Prompt config breakdown
+                        for chain configs.
+                    </p>
+                    <ProductionPlaygroundShell />
+                </section>
+
                 <div style={styles.toolbar}>
                     <span style={styles.label}>Edit mode:</span>
                     <Segmented
@@ -300,54 +335,62 @@ export default function SolutionsPlayground() {
                         catches them at edit time via the attached testset's
                         schema.
                     </p>
+                    <p style={styles.promptLeadAside}>
+                        Same prompt rendering on both sides — the proposed
+                        change adds the inline banner above the messages and
+                        the red tooltip on the unresolved variable, nothing
+                        else.
+                    </p>
                     <div style={styles.promptGrid}>
                         <div>
                             <div style={styles.promptColLabel}>Today</div>
-                            <PromptVariableValidation
-                                datasetName="04 Stringfied Nested"
-                                messages={[
-                                    {
-                                        role: "user",
-                                        body: (
-                                            <>
-                                                hello{" "}
-                                                <ValidVariable>
-                                                    {"{{metadata.source}}"}
-                                                </ValidVariable>
-                                            </>
-                                        ),
-                                    },
-                                ]}
-                            />
+                            <div style={styles.promptShellWrap}>
+                                <ProductionPromptTemplate
+                                    messages={[
+                                        {
+                                            role: "User",
+                                            body: (
+                                                <>
+                                                    hello{" "}
+                                                    <ValidVariable>
+                                                        {"{{metadata.source}}"}
+                                                    </ValidVariable>
+                                                </>
+                                            ),
+                                        },
+                                    ]}
+                                />
+                            </div>
                         </div>
                         <div>
                             <div style={styles.promptColLabel}>
                                 Proposed (banner + tooltip)
                             </div>
-                            <PromptVariableValidation
-                                datasetName="04 Stringfied Nested"
-                                banner={
-                                    <>
-                                        Try inserting dataset variables from{" "}
-                                        <code>{"{{(input)}}"}</code>,{" "}
-                                        <code>{"{{(expected)}}"}</code>, or{" "}
-                                        <code>{"{{(metadata)}}"}</code>.
-                                    </>
-                                }
-                                messages={[
-                                    {
-                                        role: "user",
-                                        body: (
-                                            <>
-                                                hello{" "}
-                                                <InvalidVariable variable="metadata.source">
-                                                    {"{{metadata.source}}"}
-                                                </InvalidVariable>
-                                            </>
-                                        ),
-                                    },
-                                ]}
-                            />
+                            <div style={styles.promptShellWrap}>
+                                <ProductionPromptTemplate
+                                    banner={
+                                        <>
+                                            Try inserting dataset variables
+                                            from <code>{"{{(input)}}"}</code>,{" "}
+                                            <code>{"{{(expected)}}"}</code>,
+                                            or <code>{"{{(metadata)}}"}</code>.
+                                        </>
+                                    }
+                                    messages={[
+                                        {
+                                            role: "User",
+                                            body: (
+                                                <>
+                                                    hello{" "}
+                                                    <InvalidVariable variable="metadata.source">
+                                                        {"{{metadata.source}}"}
+                                                    </InvalidVariable>
+                                                </>
+                                            ),
+                                        },
+                                    ]}
+                                />
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -397,89 +440,132 @@ export default function SolutionsPlayground() {
                 <h2 style={styles.executionItemsTitle}>
                     Execution items — three-way compare
                 </h2>
+                <p style={styles.executionItemsLead}>
+                    Each row pairs the prompt config with the execution item
+                    that resolves its variables. Same config in every row
+                    (we&apos;re not changing how prompts are rendered) — the
+                    proposed change is only on the right side. Reading the
+                    pair side-by-side makes the contract visible:{" "}
+                    <em>this prompt needs these variables, and here&apos;s
+                    where the testcase fills them</em>.
+                </p>
 
-                <div style={styles.compareGrid3}>
-                    <div style={styles.colHeader}>
-                        <span style={styles.tagToday}>Today</span>
-                        <span style={styles.colSub}>
-                            Production · borderless textarea per input
-                        </span>
-                    </div>
-                    <div style={styles.colHeader}>
-                        <span style={styles.tagProposed}>Proposed · embedded</span>
-                        <span style={styles.colSub}>
-                            ProposedDrillIn as inputs body
-                        </span>
-                    </div>
-                    <div style={styles.colHeader}>
-                        <span style={styles.tagAlt}>Alt · compact</span>
-                        <span style={styles.colSub}>
-                            One row per field · click to edit
-                        </span>
-                    </div>
-
-                    {/* Row 1 — Kitchen sink Vanuatu (every gap on one row).
+                <div style={styles.compareRows}>
+                    {/* Row 1 — Today
                         Today panel shows the full testcase dump (production
-                        behavior — no filtering). Embedded + Compact filter
-                        to in-use variables only so the proposed surfaces
-                        actually demonstrate what they're proposing: a
-                        focused inputs body, not a column dump. The unused
-                        columns stay reachable via the Variable map above. */}
-                    <PlaygroundExecutionItemToday
-                        testcaseLabel="testcase 1 — kitchen sink"
-                        inputs={[
-                            {name: "country", value: kitchenSinkTestcase.data.country as string},
-                            {
-                                name: "population_thousands",
-                                value: String(kitchenSinkTestcase.data.population_thousands),
-                            },
-                            {
-                                name: "is_island_nation",
-                                value: String(kitchenSinkTestcase.data.is_island_nation),
-                            },
-                            {name: "languages"},
-                            {name: "inputs"},
-                            {name: "geo"},
-                            {name: "metadata", value: kitchenSinkTestcase.data.metadata as string},
-                            {name: "messages"},
-                        ]}
-                    />
-                    <PlaygroundExecutionItem
-                        testcaseLabel={`Testcase · ${kitchenSinkTestcase.label}`}
-                        inputs={KITCHEN_SINK_IN_USE_INPUTS}
-                        unusedTestcaseColumns={UNUSED_VARIABLE_NAMES}
-                        output={{
-                            role: "assistant",
-                            content:
-                                "The capital of Vanuatu is Port Vila (ISO code: VU), on the southern coast of Efate Island.",
-                        }}
-                        evaluators={[
-                            {name: "exact_match", score: 1.0, passed: true},
-                            {name: "factual", score: 0.95, passed: true},
-                            {name: "tool_calls_correct", score: 1.0, passed: true},
-                        ]}
-                        durationMs={2410}
-                        chipMode={chipMode}
-                        editable={editable}
-                    />
-                    <PlaygroundExecutionItemCompact
-                        testcaseLabel={`Testcase · ${kitchenSinkTestcase.label}`}
-                        inputs={KITCHEN_SINK_IN_USE_INPUTS}
-                        unusedTestcaseColumns={UNUSED_VARIABLE_NAMES}
-                        output={{
-                            role: "assistant",
-                            content:
-                                "The capital of Vanuatu is Port Vila (ISO code: VU), on the southern coast of Efate Island.",
-                        }}
-                        evaluators={[
-                            {name: "exact_match", score: 1.0, passed: true},
-                            {name: "factual", score: 0.95, passed: true},
-                            {name: "tool_calls_correct", score: 1.0, passed: true},
-                        ]}
-                        durationMs={2410}
-                        chipMode={chipMode}
-                        editable={editable}
-                    />
+                        behavior — no filtering). The config column is the
+                        same prompt template the user already authors. */}
+                    <section style={styles.compareRow}>
+                        <header style={styles.rowHeader}>
+                            <span style={styles.tagToday}>Today</span>
+                            <span style={styles.rowSub}>
+                                Production · borderless textarea per input
+                            </span>
+                        </header>
+                        <div style={styles.rowGrid}>
+                            <div style={styles.configWrap}>
+                                <ProductionPromptTemplate
+                                    messages={KITCHEN_SINK_PROMPT_MESSAGES}
+                                />
+                            </div>
+                            <PlaygroundExecutionItemToday
+                                testcaseLabel="testcase 1 — kitchen sink"
+                                inputs={[
+                                    {name: "country", value: kitchenSinkTestcase.data.country as string},
+                                    {
+                                        name: "population_thousands",
+                                        value: String(kitchenSinkTestcase.data.population_thousands),
+                                    },
+                                    {
+                                        name: "is_island_nation",
+                                        value: String(kitchenSinkTestcase.data.is_island_nation),
+                                    },
+                                    {name: "languages"},
+                                    {name: "inputs"},
+                                    {name: "geo"},
+                                    {name: "metadata", value: kitchenSinkTestcase.data.metadata as string},
+                                    {name: "messages"},
+                                ]}
+                            />
+                        </div>
+                    </section>
+
+                    {/* Row 2 — Proposed embedded
+                        Embedded ProposedDrillIn as the inputs body. Filtered
+                        to in-use variables only — unused columns reachable
+                        via the peekable footer + Variable map above. */}
+                    <section style={styles.compareRow}>
+                        <header style={styles.rowHeader}>
+                            <span style={styles.tagProposed}>
+                                Proposed · embedded
+                            </span>
+                            <span style={styles.rowSub}>
+                                ProposedDrillIn as inputs body
+                            </span>
+                        </header>
+                        <div style={styles.rowGrid}>
+                            <div style={styles.configWrap}>
+                                <ProductionPromptTemplate
+                                    messages={KITCHEN_SINK_PROMPT_MESSAGES}
+                                />
+                            </div>
+                            <PlaygroundExecutionItem
+                                testcaseLabel={`Testcase · ${kitchenSinkTestcase.label}`}
+                                inputs={KITCHEN_SINK_IN_USE_INPUTS}
+                                unusedTestcaseColumns={UNUSED_VARIABLE_NAMES}
+                                output={{
+                                    role: "assistant",
+                                    content:
+                                        "The capital of Vanuatu is Port Vila (ISO code: VU), on the southern coast of Efate Island.",
+                                }}
+                                evaluators={[
+                                    {name: "exact_match", score: 1.0, passed: true},
+                                    {name: "factual", score: 0.95, passed: true},
+                                    {name: "tool_calls_correct", score: 1.0, passed: true},
+                                ]}
+                                durationMs={2410}
+                                chipMode={chipMode}
+                                editable={editable}
+                            />
+                        </div>
+                    </section>
+
+                    {/* Row 3 — Alt compact
+                        One row per field, click to edit. Same input filter
+                        as Row 2. */}
+                    <section style={styles.compareRow}>
+                        <header style={styles.rowHeader}>
+                            <span style={styles.tagAlt}>Alt · compact</span>
+                            <span style={styles.rowSub}>
+                                One row per field · click to edit
+                            </span>
+                        </header>
+                        <div style={styles.rowGrid}>
+                            <div style={styles.configWrap}>
+                                <ProductionPromptTemplate
+                                    messages={KITCHEN_SINK_PROMPT_MESSAGES}
+                                />
+                            </div>
+                            <PlaygroundExecutionItemCompact
+                                testcaseLabel={`Testcase · ${kitchenSinkTestcase.label}`}
+                                inputs={KITCHEN_SINK_IN_USE_INPUTS}
+                                unusedTestcaseColumns={UNUSED_VARIABLE_NAMES}
+                                output={{
+                                    role: "assistant",
+                                    content:
+                                        "The capital of Vanuatu is Port Vila (ISO code: VU), on the southern coast of Efate Island.",
+                                }}
+                                evaluators={[
+                                    {name: "exact_match", score: 1.0, passed: true},
+                                    {name: "factual", score: 0.95, passed: true},
+                                    {name: "tool_calls_correct", score: 1.0, passed: true},
+                                ]}
+                                durationMs={2410}
+                                chipMode={chipMode}
+                                editable={editable}
+                            />
+                        </div>
+                    </section>
 
                     {SHOW_EXTRA_ROWS ? (
                         <>
@@ -698,19 +784,42 @@ const styles = {
     divider: {width: 1, height: 20, background: "rgba(5, 23, 41, 0.12)"},
     link: {color: "#1677ff", fontWeight: 500},
     notesList: {margin: "8px 0", paddingLeft: 20, lineHeight: 1.7},
-    compareGrid3: {
-        display: "grid",
-        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gap: 12,
+    compareRows: {
+        display: "flex",
+        flexDirection: "column" as const,
+        gap: 24,
         marginTop: 12,
-        rowGap: 24,
     },
-    colHeader: {
+    compareRow: {
+        background: "white",
+        border: "1px solid rgba(5, 23, 41, 0.08)",
+        borderRadius: 10,
+        padding: 16,
+        display: "flex",
+        flexDirection: "column" as const,
+        gap: 12,
+    },
+    rowHeader: {
         display: "flex",
         alignItems: "center",
         gap: 10,
-        paddingBottom: 4,
-        borderBottom: "1px solid rgba(5, 23, 41, 0.08)",
+        paddingBottom: 8,
+        borderBottom: "1px solid rgba(5, 23, 41, 0.06)",
+    },
+    rowSub: {fontSize: 12, color: "rgba(5, 23, 41, 0.55)"},
+    rowGrid: {
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+        gap: 16,
+        alignItems: "start" as const,
+    },
+    configWrap: {
+        background: "white",
+        border: "1px solid rgba(5, 23, 41, 0.08)",
+        borderRadius: 8,
+        overflow: "hidden" as const,
+        position: "sticky" as const,
+        top: 12,
     },
     tagToday: {
         fontSize: 10,
@@ -745,7 +854,6 @@ const styles = {
         background: "#f9f0ff",
         color: "#722ed1",
     },
-    colSub: {fontSize: 11, color: "rgba(5, 23, 41, 0.55)"},
     crossLinks: {
         marginTop: 24,
         padding: "10px 14px",
@@ -792,6 +900,19 @@ const styles = {
         lineHeight: 1.6,
         margin: "0 0 12px",
     },
+    promptLeadAside: {
+        fontSize: 12,
+        color: "rgba(5, 23, 41, 0.55)",
+        lineHeight: 1.6,
+        margin: "0 0 12px",
+        fontStyle: "italic" as const,
+    },
+    promptShellWrap: {
+        background: "white",
+        border: "1px solid rgba(5, 23, 41, 0.08)",
+        borderRadius: 8,
+        overflow: "visible" as const,
+    },
     gap09Section: {
         padding: 16,
         background: "white",
@@ -823,6 +944,42 @@ const styles = {
         color: "#051729",
     },
     gap09Lead: {
+        fontSize: 12,
+        color: "rgba(5, 23, 41, 0.65)",
+        lineHeight: 1.6,
+        margin: "0 0 12px",
+    },
+    productionShellSection: {
+        padding: 16,
+        background: "white",
+        border: "1px solid rgba(5, 23, 41, 0.08)",
+        borderRadius: 8,
+        marginBottom: 24,
+    },
+    productionShellHeader: {
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        marginBottom: 6,
+    },
+    productionShellTag: {
+        fontSize: 10,
+        fontWeight: 600,
+        padding: "2px 8px",
+        borderRadius: 4,
+        background: "rgba(5, 23, 41, 0.06)",
+        color: "rgba(5, 23, 41, 0.65)",
+        textTransform: "uppercase" as const,
+        letterSpacing: "0.04em",
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+    },
+    productionShellTitle: {
+        fontSize: 14,
+        fontWeight: 700,
+        margin: 0,
+        color: "#051729",
+    },
+    productionShellLead: {
         fontSize: 12,
         color: "rgba(5, 23, 41, 0.65)",
         lineHeight: 1.6,
@@ -883,5 +1040,12 @@ const styles = {
         fontWeight: 700,
         margin: "0 0 4px",
         color: "#051729",
+    },
+    executionItemsLead: {
+        fontSize: 12,
+        color: "rgba(5, 23, 41, 0.65)",
+        lineHeight: 1.6,
+        margin: "0 0 12px",
+        maxWidth: 800,
     },
 }
