@@ -84,11 +84,7 @@ function tryParseAsObject(s: string): Record<string, unknown> | null {
     if (first !== "{") return null
     try {
         const parsed = JSON.parse(s)
-        if (
-            parsed !== null &&
-            typeof parsed === "object" &&
-            !Array.isArray(parsed)
-        ) {
+        if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
             return parsed as Record<string, unknown>
         }
     } catch {
@@ -108,9 +104,7 @@ function tryParseAsObject(s: string): Record<string, unknown> | null {
  * rows must have parseable values, and every parsed value must share at
  * least one sub-key with the first one.
  */
-export function detectStringifiedExpandableColumns(
-    rows: StubRow[],
-): Set<string> {
+export function detectStringifiedExpandableColumns(rows: StubRow[]): Set<string> {
     const result = new Set<string>()
     const topLevelKeys = new Set<string>()
     for (const row of rows) {
@@ -136,9 +130,7 @@ export function detectStringifiedExpandableColumns(
         }
         if (!allParseable || parsedObjects.length < 2) continue
         const firstKeys = new Set(Object.keys(parsedObjects[0]))
-        const homogeneous = parsedObjects.every((p) =>
-            Object.keys(p).some((k) => firstKeys.has(k)),
-        )
+        const homogeneous = parsedObjects.every((p) => Object.keys(p).some((k) => firstKeys.has(k)))
         if (homogeneous) result.add(key)
     }
     return result
@@ -154,10 +146,7 @@ export function detectStringifiedExpandableColumns(
  * / `geo` / `geo.coordinates` get expanded; `metadata` (mixed shapes per
  * row) doesn't.
  */
-function shouldExpandValueAcrossRows(
-    rows: StubRow[],
-    segments: string[],
-): boolean {
+function shouldExpandValueAcrossRows(rows: StubRow[], segments: string[]): boolean {
     const objectValues = rows
         .map((r) => getNestedValue(r.data, segments))
         .filter(
@@ -171,9 +160,7 @@ function shouldExpandValueAcrossRows(
     // Cheap homogeneity check: every row's object shares at least one key
     // with the first row's object.
     const firstKeys = new Set(Object.keys(objectValues[0]))
-    return objectValues.every((v) =>
-        Object.keys(v).some((k) => firstKeys.has(k)),
-    )
+    return objectValues.every((v) => Object.keys(v).some((k) => firstKeys.has(k)))
 }
 
 /** Cap on dotted-path depth — beyond this, leaves render as JSON in cells. */
@@ -186,15 +173,8 @@ const MAX_EXPAND_DEPTH = 5
  * expanded column so production's groupColumns recognizes it as expanded
  * (not a literal-dot key).
  */
-function expandRecursive(
-    rows: StubRow[],
-    segments: string[],
-    rootKey: string,
-): ExpandedColumn[] {
-    if (
-        segments.length >= MAX_EXPAND_DEPTH ||
-        !shouldExpandValueAcrossRows(rows, segments)
-    ) {
+function expandRecursive(rows: StubRow[], segments: string[], rootKey: string): ExpandedColumn[] {
+    if (segments.length >= MAX_EXPAND_DEPTH || !shouldExpandValueAcrossRows(rows, segments)) {
         return [
             {
                 key: segments.join("."),
@@ -237,10 +217,7 @@ function expandRecursive(
  * `getNestedValue`'s mid-traversal string parsing makes the value lookup
  * work transparently in `flattenRow` — no restructuring of source data.
  */
-export function computeColumns(
-    rows: StubRow[],
-    parsedStringified?: Set<string>,
-): ExpandedColumn[] {
+export function computeColumns(rows: StubRow[], parsedStringified?: Set<string>): ExpandedColumn[] {
     const topLevelKeys = new Set<string>()
     for (const row of rows) {
         for (const k of Object.keys(row.data)) {
@@ -252,10 +229,7 @@ export function computeColumns(
     for (const key of topLevelKeys) {
         if (shouldExpandValueAcrossRows(rows, [key])) {
             columns.push(...expandRecursive(rows, [key], key))
-        } else if (
-            parsedStringified?.has(key) &&
-            shouldExpandStringifiedAcrossRows(rows, [key])
-        ) {
+        } else if (parsedStringified?.has(key) && shouldExpandStringifiedAcrossRows(rows, [key])) {
             // Parsed stringified column — first level is a one-shot parse
             // (the row's value is a string, not an object, so the normal
             // `shouldExpandValueAcrossRows` gate would say "no expand" at
@@ -287,11 +261,7 @@ function expandStringifiedFirstLevel(
         // Walk to the string leaf without auto-parse (raw lookup).
         let v: unknown = row.data
         for (const seg of segments) {
-            if (
-                v &&
-                typeof v === "object" &&
-                !Array.isArray(v)
-            ) {
+            if (v && typeof v === "object" && !Array.isArray(v)) {
                 v = (v as Record<string, unknown>)[seg]
             } else {
                 v = undefined
@@ -335,21 +305,14 @@ function expandStringifiedFirstLevel(
  * `computeColumns` so we don't accidentally recurse into a column the
  * user opted-in to but whose payload turns out to be heterogeneous.
  */
-function shouldExpandStringifiedAcrossRows(
-    rows: StubRow[],
-    segments: string[],
-): boolean {
+function shouldExpandStringifiedAcrossRows(rows: StubRow[], segments: string[]): boolean {
     const parsedObjects: Record<string, unknown>[] = []
     for (const row of rows) {
         // Walk the path manually (without auto-parse) to find the string at
         // the leaf, then parse it.
         let v: unknown = row.data
         for (const seg of segments) {
-            if (
-                v &&
-                typeof v === "object" &&
-                !Array.isArray(v)
-            ) {
+            if (v && typeof v === "object" && !Array.isArray(v)) {
                 v = (v as Record<string, unknown>)[seg]
             } else {
                 v = undefined
@@ -364,9 +327,7 @@ function shouldExpandStringifiedAcrossRows(
     }
     if (parsedObjects.length < 2) return false
     const firstKeys = new Set(Object.keys(parsedObjects[0]))
-    return parsedObjects.every((p) =>
-        Object.keys(p).some((k) => firstKeys.has(k)),
-    )
+    return parsedObjects.every((p) => Object.keys(p).some((k) => firstKeys.has(k)))
 }
 
 /**
@@ -397,10 +358,7 @@ export function flattenRow(row: StubRow, columns: ExpandedColumn[]): FlatRow {
  * (e.g. string in one row, object in another). Used for the gap-02 [mixed]
  * chip on the column header.
  */
-export function detectMixedColumns(
-    rows: FlatRow[],
-    columns: ExpandedColumn[],
-): Set<string> {
+export function detectMixedColumns(rows: FlatRow[], columns: ExpandedColumn[]): Set<string> {
     const mixed = new Set<string>()
     for (const col of columns) {
         const types = new Set<string>()
@@ -424,10 +382,7 @@ export function detectMixedColumns(
  * (e.g. `geo.region` via the `geo` object's `region` property). Returns
  * the set of column keys involved (both the literal and the nested side).
  */
-export function detectCollisionColumns(
-    rows: StubRow[],
-    columns: ExpandedColumn[],
-): Set<string> {
+export function detectCollisionColumns(rows: StubRow[], columns: ExpandedColumn[]): Set<string> {
     const collisions = new Set<string>()
     for (const row of rows) {
         // Top-level keys with a dot in the name (literal-dotted).
@@ -435,11 +390,7 @@ export function detectCollisionColumns(
         for (const literal of dotted) {
             const head = literal.split(".")[0]
             const headValue = row.data[head]
-            if (
-                headValue !== null &&
-                typeof headValue === "object" &&
-                !Array.isArray(headValue)
-            ) {
+            if (headValue !== null && typeof headValue === "object" && !Array.isArray(headValue)) {
                 // The first segment is also an object key — collision possible.
                 collisions.add(literal)
                 // Also flag any expanded sub-column under that head.
@@ -492,11 +443,7 @@ export type ColumnTypePrimitive =
     | "json-object"
     | "json-array"
 
-export type ColumnRenderHint =
-    | "messages"
-    | "tool-calls"
-    | "stringified"
-    | "markdown"
+export type ColumnRenderHint = "messages" | "tool-calls" | "stringified" | "markdown"
 
 export interface ColumnTypeInfo {
     type: ColumnTypePrimitive
@@ -516,8 +463,7 @@ function isMessagesArrayValue(arr: unknown[]): boolean {
                 item != null &&
                 typeof item === "object" &&
                 "role" in (item as object) &&
-                ("content" in (item as object) ||
-                    "tool_calls" in (item as object)),
+                ("content" in (item as object) || "tool_calls" in (item as object)),
         )
     )
 }

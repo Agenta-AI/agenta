@@ -1,26 +1,40 @@
 /**
  * ProductionPlaygroundShell — visual replica of the live Agenta playground.
  *
- * The mockup pages historically used a hand-rolled "Today" panel that drifted
- * from production over time. This component pins the design conversation to
- * what the user actually sees today: page header (Playground · New Evaluation
- * · Evaluator · Test set · Compare), Prompt Template panel on the left with
- * variant selector + view-mode dropdown + Commit, system + user message cards
- * with variable tokens highlighted, bottom toolbar (+ Message / + Tool /
- * Output type / Prompt Syntax), and Generations panel on the right with
- * testcase variable inputs and a Run button.
+ * Pins the design conversation to what the user actually sees today: variant
+ * selector with revision tag and "Last modified" badge, prompt template card
+ * with role-dropdown message cards, generations panel with variable-input
+ * rows (blue mono label + hover-revealed action icons) and a response card.
  *
- * Static visual — no interactive state. Structural reference for design
- * proposals so the team's response to "extremely complex" lands on the
- * actual surface they use, not a generic mock.
+ * Static visual replica — no business logic, no state. The mockup pages
+ * compose this shell with custom inputs/messages/output/testcaseBody to
+ * exercise specific design proposals.
  */
 
-import type {ReactNode} from "react"
+import {useMemo, useState, type ReactNode} from "react"
 
-import {MagicWand} from "@phosphor-icons/react"
+import {
+    CaretDown,
+    CaretUpDown,
+    Cloud,
+    Copy,
+    Database,
+    DotsThreeVertical,
+    Flask,
+    Lightning,
+    ListBullets,
+    MagicWand,
+    MinusCircle,
+    Plus,
+    Play,
+    Sparkle,
+    TestTube,
+    TreeStructure,
+} from "@phosphor-icons/react"
+import {Dropdown} from "antd"
 
 interface PromptMessage {
-    role: "System" | "User" | "Assistant"
+    role: "System" | "User" | "Assistant" | "Tool"
     /**
      * Either a plain string (with `{{var}}` tokens detected and highlighted)
      * or a ReactNode for rich rendering (e.g. invalid-variable tooltips).
@@ -28,19 +42,47 @@ interface PromptMessage {
     body: string | ReactNode
 }
 
+type VariableType = "string" | "number" | "boolean" | "object" | "array"
+type VariableFormat = "string" | "markdown" | "json" | "yaml" | "form"
+
 interface VariableInput {
     name: string
+    value?: unknown
+    /** Override the inferred top-level type. */
+    type?: VariableType
+    /** Initial format selection. Defaults to "form" for object/array, "string" otherwise. */
+    format?: VariableFormat
+}
+
+interface OutputDescriptor {
+    /** The displayed assistant response. */
+    body?: ReactNode
+    /** Score chips shown in the response footer. */
+    metrics?: {label: string; value: string; tone?: "ok" | "warn"}[]
+    /** Latency in ms, formatted as "N ms" / "N.NN s". */
+    latencyMs?: number
+    /** Token count chip. */
+    tokens?: number
+    /** Model label. */
+    model?: string
 }
 
 interface ProductionPlaygroundShellProps {
     promptVariantLabel?: string
-    promptVariantStatus?: string
+    promptVariantStatus?: "Draft" | "Last modified" | "Latest"
     modelLabel?: string
     promptSyntax?: "Curly" | "Mustache" | "JSONPath"
     outputType?: "Text" | "JSON" | "Markdown"
     messages?: PromptMessage[]
     testcaseLabel?: string
     inputs?: VariableInput[]
+    /** Optional override for the body of the testcase row. */
+    testcaseBody?: ReactNode
+    /** Optional output card rendered after the inputs. */
+    output?: OutputDescriptor
+    showAddTestcase?: boolean
+    /** Hide the page-level top bar (Playground / +Compare). */
+    hideTopBar?: boolean
 }
 
 interface ProductionPromptTemplateProps {
@@ -83,21 +125,14 @@ export function ValidVariable({children}: {children: ReactNode}) {
  * Inline `{{var}}` token in error state, with a red-bordered tooltip below.
  * Use inside a message body ReactNode for gap-08 Proposed rendering.
  */
-export function InvalidVariable({
-    variable,
-    children,
-}: {
-    /** The unresolved variable path (e.g., "metadata.source") */
-    variable: string
-    children: ReactNode
-}) {
+export function InvalidVariable({variable, children}: {variable: string; children: ReactNode}) {
     return (
         <span style={styles.invalidToken}>
             {children}
             <span style={styles.invalidTooltip}>
                 <span style={styles.invalidTooltipTitle}>
-                    Variable <code>{variable}</code> is not defined in your
-                    dataset. You may encounter unexpected results.
+                    Variable <code>{variable}</code> is not defined in your dataset. You may
+                    encounter unexpected results.
                 </span>
                 <span style={styles.invalidTooltipActions}>
                     <button type="button" style={styles.invalidTooltipAction}>
@@ -106,6 +141,38 @@ export function InvalidVariable({
                 </span>
             </span>
         </span>
+    )
+}
+
+/**
+ * Production message card — system/user/assistant role dropdown header with
+ * hover-revealed action icons (Copy, Trash) on the right. Body shows the
+ * template with token highlighting.
+ */
+function MessageCard({msg}: {msg: PromptMessage}) {
+    return (
+        <div className="group/msg relative flex flex-col rounded-lg border border-solid border-[#BDC7D1] bg-white overflow-hidden">
+            <header className="flex items-center justify-between gap-2 px-3 pt-2 pb-1.5">
+                <button
+                    type="button"
+                    className="inline-flex items-center gap-1 text-[13px] font-medium capitalize px-1.5 py-0.5 rounded hover:bg-[rgba(0,0,0,0.04)] border-none bg-transparent cursor-pointer"
+                >
+                    {msg.role.toLowerCase()}
+                    <CaretUpDown size={12} className="opacity-60" />
+                </button>
+                <div className="flex items-center gap-0.5 opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                    <button type="button" style={styles.iconBtn} title="Copy">
+                        <Copy size={14} />
+                    </button>
+                    <button type="button" style={styles.iconBtn} title="Remove">
+                        <MinusCircle size={14} />
+                    </button>
+                </div>
+            </header>
+            <div className="px-3 pb-3 pt-0 text-[13px] leading-[1.55] text-[#051729]">
+                {typeof msg.body === "string" ? renderTemplate(msg.body) : msg.body}
+            </div>
+        </div>
     )
 }
 
@@ -122,57 +189,480 @@ export function ProductionPromptTemplate({
         {role: "System", body: "You are an expert in geography."},
         {
             role: "User",
-            body: "What is the capital of {{inputs.country}} ? {{test}}",
+            body: "What is the capital of {{country}} ?",
         },
     ],
     banner,
 }: ProductionPromptTemplateProps) {
     return (
-        <div style={styles.promptTemplate}>
-            <header style={styles.promptHeader}>
-                <span style={styles.promptHeaderTitleRow}>
-                    <span style={styles.promptCaret}>▾</span>
-                    <span style={styles.promptHeaderTitle}>Prompt Template</span>
+        <div className="flex flex-col gap-2.5 px-3.5 py-3 bg-white">
+            <header className="flex items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1.5">
+                    <CaretDown size={10} className="text-[rgba(5,23,41,0.55)]" />
+                    <span className="text-[13px] font-semibold text-[#051729]">Prompt</span>
                 </span>
-                <span style={styles.promptHeaderRight}>
-                    <button type="button" style={styles.iconButton}>
+                <span className="inline-flex items-center gap-1.5">
+                    <button type="button" style={styles.iconBtn} title="Suggest">
                         <MagicWand size={14} />
                     </button>
-                    <button type="button" style={styles.modelSelector}>
-                        {modelLabel} ▾
+                    <button
+                        type="button"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-solid border-[rgba(5,23,41,0.12)] rounded-md text-[12px] cursor-pointer hover:bg-[rgba(5,23,41,0.02)]"
+                    >
+                        <Sparkle size={12} className="text-[#1677FF]" />
+                        {modelLabel}
+                        <CaretDown size={10} className="opacity-60" />
                     </button>
                 </span>
             </header>
 
             {banner ? <div style={styles.banner}>{banner}</div> : null}
 
-            {messages.map((msg, i) => (
-                <div key={i} style={styles.messageCard}>
-                    <header style={styles.messageHeader}>
-                        <span style={styles.messageRole}>{msg.role}</span>
-                        <span style={styles.messageRoleCaret}>↕</span>
-                    </header>
-                    <div style={styles.messageBody}>
-                        {typeof msg.body === "string"
-                            ? renderTemplate(msg.body)
-                            : msg.body}
-                    </div>
-                </div>
-            ))}
+            <div className="flex flex-col gap-2">
+                {messages.map((msg, i) => (
+                    <MessageCard key={i} msg={msg} />
+                ))}
+            </div>
 
-            <footer style={styles.messageToolbar}>
-                <button type="button" style={styles.toolbarButton}>
-                    + Message
+            <footer className="flex items-center flex-wrap gap-1.5 mt-1">
+                <button
+                    type="button"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-solid border-[rgba(5,23,41,0.12)] rounded-md text-[12px] cursor-pointer hover:bg-[rgba(5,23,41,0.02)]"
+                >
+                    <Plus size={12} /> Message
                 </button>
-                <button type="button" style={styles.toolbarButton}>
-                    + Tool
+                <button
+                    type="button"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-solid border-[rgba(5,23,41,0.12)] rounded-md text-[12px] cursor-pointer hover:bg-[rgba(5,23,41,0.02)]"
+                >
+                    <Plus size={12} /> Tool
                 </button>
-                <button type="button" style={styles.toolbarSelect}>
-                    Output type: {outputType} ▾
-                </button>
-                <button type="button" style={styles.toolbarSelect}>
-                    Prompt Syntax: {promptSyntax} ▾
-                </button>
+                <span className="ml-auto inline-flex items-center gap-1.5">
+                    <button
+                        type="button"
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-transparent border-none rounded text-[12px] text-[rgba(5,23,41,0.65)] cursor-pointer hover:bg-[rgba(0,0,0,0.04)]"
+                    >
+                        Output: {outputType}
+                        <CaretDown size={10} />
+                    </button>
+                    <button
+                        type="button"
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-transparent border-none rounded text-[12px] text-[rgba(5,23,41,0.65)] cursor-pointer hover:bg-[rgba(0,0,0,0.04)]"
+                    >
+                        Syntax: {promptSyntax}
+                        <CaretDown size={10} />
+                    </button>
+                </span>
+            </footer>
+        </div>
+    )
+}
+
+function inferType(value: unknown): VariableType {
+    if (Array.isArray(value)) return "array"
+    if (value === null || value === undefined) return "string"
+    if (typeof value === "number") return "number"
+    if (typeof value === "boolean") return "boolean"
+    if (typeof value === "object") return "object"
+    return "string"
+}
+
+function isJsonFirst(type: VariableType): boolean {
+    return type === "object" || type === "array"
+}
+
+function defaultFormatFor(type: VariableType): VariableFormat {
+    return isJsonFirst(type) ? "form" : "string"
+}
+
+const FORMAT_LABELS: Record<VariableFormat, string> = {
+    string: "String",
+    markdown: "Markdown",
+    json: "JSON",
+    yaml: "YAML",
+    form: "Form",
+}
+
+function getFormatOptions(type: VariableType): VariableFormat[] {
+    // All variables: json + yaml. Non-json-first add string + markdown.
+    // Json-first (object/array) add form.
+    return isJsonFirst(type) ? ["form", "json", "yaml"] : ["string", "markdown", "json", "yaml"]
+}
+
+/** Type chip — production-ish small uppercase tag shown next to the variable name. */
+function TypeChip({type}: {type: VariableType}) {
+    return (
+        <span
+            className="text-[10px] leading-[16px] uppercase tracking-wide px-1.5 rounded font-mono"
+            style={{
+                background: "rgba(5,23,41,0.06)",
+                color: "rgba(5,23,41,0.65)",
+            }}
+        >
+            {type}
+        </span>
+    )
+}
+
+/** Render an unknown value as YAML. Naive — enough for static mockup. */
+function toYaml(value: unknown, indent = 0): string {
+    const pad = "  ".repeat(indent)
+    if (value === null || value === undefined) return `${pad}~`
+    if (typeof value === "string") {
+        if (value.includes("\n")) {
+            return `|\n${value
+                .split("\n")
+                .map((l) => `${pad}  ${l}`)
+                .join("\n")}`
+        }
+        return value
+    }
+    if (typeof value === "number" || typeof value === "boolean") return String(value)
+    if (Array.isArray(value)) {
+        if (value.length === 0) return "[]"
+        return value
+            .map((v) => {
+                const rendered = toYaml(v, indent + 1)
+                if (rendered.includes("\n")) return `${pad}-\n${rendered}`
+                return `${pad}- ${rendered}`
+            })
+            .join("\n")
+    }
+    if (typeof value === "object") {
+        const entries = Object.entries(value as Record<string, unknown>)
+        if (entries.length === 0) return "{}"
+        return entries
+            .map(([k, v]) => {
+                const rendered = toYaml(v, indent + 1)
+                if (rendered.includes("\n")) return `${pad}${k}:\n${rendered}`
+                return `${pad}${k}: ${rendered}`
+            })
+            .join("\n")
+    }
+    return String(value)
+}
+
+/**
+ * Recursive form view — rail-based pattern from solutions-drill-in
+ * (`ProposalV2FormView`). Each field has a bold label on top and a body
+ * below; nested objects/arrays render their children behind a thin 2px
+ * gray vertical rail instead of another card. Drops the card-inside-card
+ * pattern that the original FormRow used.
+ */
+function FormView({obj, depth = 0}: {obj: Record<string, unknown>; depth?: number}) {
+    const entries = Object.entries(obj)
+    if (entries.length === 0) {
+        return (
+            <span className="text-[12px] italic" style={{color: "#9ca3af"}}>
+                (empty object)
+            </span>
+        )
+    }
+    return (
+        <div className="flex flex-col" style={{gap: depth === 0 ? 16 : 12}}>
+            {entries.map(([k, v]) => (
+                <FormField key={k} label={k} value={v} depth={depth} />
+            ))}
+        </div>
+    )
+}
+
+function FormArray({arr, depth = 0}: {arr: unknown[]; depth?: number}) {
+    if (arr.length === 0) {
+        return (
+            <span className="text-[12px] italic" style={{color: "#9ca3af"}}>
+                (empty list)
+            </span>
+        )
+    }
+    return (
+        <div className="flex flex-col" style={{gap: 12}}>
+            {arr.map((item, i) => (
+                <FormField key={i} label={String(i)} value={item} depth={depth + 1} />
+            ))}
+        </div>
+    )
+}
+
+function FormField({label, value, depth}: {label: string; value: unknown; depth: number}) {
+    const subType = inferType(value)
+    const labelSize = depth === 0 ? "text-[13px]" : "text-[12px]"
+    return (
+        <div className="flex flex-col gap-1.5">
+            <label
+                className={`${labelSize} font-semibold flex items-center gap-1.5`}
+                style={{color: "#1f2937"}}
+            >
+                <span className="font-mono">{label}</span>
+                <TypeChip type={subType} />
+            </label>
+            <FormFieldBody value={value} depth={depth} subType={subType} />
+        </div>
+    )
+}
+
+function FormFieldBody({
+    value,
+    depth,
+    subType,
+}: {
+    value: unknown
+    depth: number
+    subType: VariableType
+}) {
+    if (subType === "object") {
+        return (
+            <div className="ml-1 pl-4" style={{borderLeft: "2px solid #e5e7eb"}}>
+                <FormView obj={value as Record<string, unknown>} depth={depth + 1} />
+            </div>
+        )
+    }
+    if (subType === "array") {
+        return (
+            <div className="ml-1 pl-4" style={{borderLeft: "2px solid #e5e7eb"}}>
+                <FormArray arr={value as unknown[]} depth={depth} />
+            </div>
+        )
+    }
+    if (subType === "boolean") {
+        return (
+            <span
+                className="inline-flex items-center text-[12px] px-2 py-0.5 rounded font-mono w-fit"
+                style={{
+                    background: value ? "#f6ffed" : "rgba(5,23,41,0.04)",
+                    color: value ? "#389e0d" : "rgba(5,23,41,0.55)",
+                    border: `1px solid ${value ? "#b7eb8f" : "rgba(5,23,41,0.08)"}`,
+                }}
+            >
+                {String(value)}
+            </span>
+        )
+    }
+    if (subType === "number") {
+        return (
+            <span className="text-[13px] font-mono" style={{color: "#051729"}}>
+                {String(value)}
+            </span>
+        )
+    }
+    // string (or null / primitive)
+    const display = renderPrimitive(value)
+    return (
+        <div
+            className="text-[13px] leading-[1.5] whitespace-pre-wrap break-words rounded-md px-2.5 py-1.5"
+            style={{
+                color: display === "Enter a value" ? "rgba(5,23,41,0.35)" : "#051729",
+                background: "white",
+                border: "1px solid #e5e7eb",
+            }}
+        >
+            {display}
+        </div>
+    )
+}
+
+function renderPrimitive(value: unknown): string {
+    if (value === undefined || value === "") return "Enter a value"
+    if (value === null) return "null"
+    if (typeof value === "string") return value
+    if (typeof value === "number" || typeof value === "boolean") return String(value)
+    return JSON.stringify(value, null, 2)
+}
+
+/** Body renderer — switches representation based on selected format. */
+function VariableBody({
+    value,
+    format,
+    type,
+}: {
+    value: unknown
+    format: VariableFormat
+    type: VariableType
+}) {
+    if (value === undefined || value === "") {
+        return (
+            <div className="text-[13px]" style={{color: "rgba(5,23,41,0.35)", minHeight: 18}}>
+                Enter a value
+            </div>
+        )
+    }
+    if (format === "string") {
+        return (
+            <div
+                className="text-[13px] leading-[1.5] whitespace-pre-wrap break-words"
+                style={{color: "#051729"}}
+            >
+                {renderPrimitive(value)}
+            </div>
+        )
+    }
+    if (format === "markdown") {
+        return (
+            <div
+                className="text-[13px] leading-[1.55] whitespace-pre-wrap break-words"
+                style={{color: "#051729", fontStyle: "italic"}}
+                title="Markdown preview"
+            >
+                {renderPrimitive(value)}
+            </div>
+        )
+    }
+    if (format === "json") {
+        return (
+            <pre
+                className="text-[12px] leading-[1.45] whitespace-pre-wrap break-words font-mono m-0"
+                style={{color: "#051729"}}
+            >
+                {JSON.stringify(value, null, 2)}
+            </pre>
+        )
+    }
+    if (format === "yaml") {
+        return (
+            <pre
+                className="text-[12px] leading-[1.45] whitespace-pre-wrap break-words font-mono m-0"
+                style={{color: "#051729"}}
+            >
+                {toYaml(value)}
+            </pre>
+        )
+    }
+    // form
+    if (type === "object" && value && typeof value === "object" && !Array.isArray(value)) {
+        return <FormView obj={value as Record<string, unknown>} />
+    }
+    if (type === "array" && Array.isArray(value)) {
+        return <FormArray arr={value} depth={-1} />
+    }
+    return (
+        <div
+            className="text-[13px] leading-[1.5] whitespace-pre-wrap break-words"
+            style={{color: "#051729"}}
+        >
+            {renderPrimitive(value)}
+        </div>
+    )
+}
+
+/**
+ * Variable input row — production look. Blue monospace label, type chip, and
+ * a format dropdown (String / Markdown / JSON / YAML / Form) replacing the
+ * old markdown-toggle icon. The Database (pick from testset) and Copy icons
+ * remain hover-revealed.
+ */
+function VariableInputRow({input}: {input: VariableInput}) {
+    const inferredType = useMemo<VariableType>(
+        () => input.type ?? inferType(input.value),
+        [input.type, input.value],
+    )
+    const [format, setFormat] = useState<VariableFormat>(
+        input.format ?? defaultFormatFor(inferredType),
+    )
+    const options = useMemo(() => getFormatOptions(inferredType), [inferredType])
+    // Keep the selection valid if the type changes the available options.
+    const safeFormat = options.includes(format) ? format : defaultFormatFor(inferredType)
+
+    return (
+        <div className="group/item relative flex flex-col gap-1.5 p-[11px] rounded-lg border border-solid border-[#BDC7D1] bg-white">
+            <div className="w-full flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="font-mono text-[12px] leading-[20px] font-medium text-[#1677FF] truncate">
+                        {input.name}
+                    </span>
+                    <TypeChip type={inferredType} />
+                </div>
+                <div className="flex items-center gap-0.5 shrink-0">
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                        <button type="button" style={styles.iconBtn} title="Pick from testset">
+                            <Database size={14} />
+                        </button>
+                        <button type="button" style={styles.iconBtn} title="Copy">
+                            <Copy size={14} />
+                        </button>
+                    </div>
+                    <Dropdown
+                        trigger={["click"]}
+                        menu={{
+                            items: options.map((opt) => ({
+                                key: opt,
+                                label: FORMAT_LABELS[opt],
+                            })),
+                            selectedKeys: [safeFormat],
+                            onClick: ({key}) => setFormat(key as VariableFormat),
+                        }}
+                    >
+                        <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-[12px] px-1.5 py-0.5 rounded hover:bg-[rgba(0,0,0,0.04)] border-none bg-transparent cursor-pointer"
+                            style={{color: "rgba(5,23,41,0.65)"}}
+                        >
+                            {FORMAT_LABELS[safeFormat]}
+                            <CaretUpDown size={12} className="opacity-60" />
+                        </button>
+                    </Dropdown>
+                </div>
+            </div>
+            <VariableBody value={input.value} format={safeFormat} type={inferredType} />
+        </div>
+    )
+}
+
+/**
+ * Output card — production NodeResultCard look: name + version + status
+ * header, body with response text, and a footer row with latency / tokens /
+ * model chips. Score chips render inline with the header.
+ */
+function OutputCard({output, variantLabel}: {output: OutputDescriptor; variantLabel: string}) {
+    return (
+        <div className="flex flex-col gap-2 pt-3 border-0 border-t border-solid border-[rgba(5,23,41,0.06)]">
+            <header className="flex items-center justify-between gap-2">
+                <div className="inline-flex items-center gap-1.5 min-w-0">
+                    <span className="text-[13px] font-semibold text-[#051729] truncate">
+                        {variantLabel}
+                    </span>
+                    <span
+                        className="text-[11px] px-1.5 rounded"
+                        style={{
+                            background: "rgba(5,23,41,0.06)",
+                            color: "rgba(5,23,41,0.65)",
+                        }}
+                    >
+                        v2
+                    </span>
+                </div>
+                <div className="inline-flex items-center gap-1">
+                    {(output.metrics ?? []).map((m) => (
+                        <span
+                            key={m.label}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px]"
+                            style={{
+                                background: m.tone === "warn" ? "#fff7e6" : "#f6ffed",
+                                color: m.tone === "warn" ? "#d46b08" : "#389e0d",
+                                border:
+                                    m.tone === "warn" ? "1px solid #ffd591" : "1px solid #b7eb8f",
+                            }}
+                        >
+                            {m.label} {m.value}
+                        </span>
+                    ))}
+                </div>
+            </header>
+            <div className="text-[13px] leading-[1.55] text-[#051729] whitespace-pre-wrap">
+                {output.body}
+            </div>
+            <footer className="flex items-center gap-2 mt-1">
+                {output.latencyMs !== undefined ? (
+                    <span style={styles.metaChip}>
+                        <Lightning size={11} />
+                        {output.latencyMs >= 1000
+                            ? `${(output.latencyMs / 1000).toFixed(2)} s`
+                            : `${output.latencyMs} ms`}
+                    </span>
+                ) : null}
+                {output.tokens !== undefined ? (
+                    <span style={styles.metaChip}>{output.tokens} tokens</span>
+                ) : null}
+                {output.model ? <span style={styles.metaChip}>{output.model}</span> : null}
             </footer>
         </div>
     )
@@ -180,7 +670,7 @@ export function ProductionPromptTemplate({
 
 export function ProductionPlaygroundShell({
     promptVariantLabel = "default",
-    promptVariantStatus = "Draft",
+    promptVariantStatus = "Last modified",
     modelLabel = "gpt-4o-mini",
     promptSyntax = "Curly",
     outputType = "Text",
@@ -188,58 +678,99 @@ export function ProductionPlaygroundShell({
         {role: "System", body: "You are an expert in geography."},
         {
             role: "User",
-            body: "What is the capital of {{inputs.country}} ? {{test}}",
+            body: "What is the capital of {{country}} ?",
         },
     ],
     testcaseLabel = "testcase 1",
-    inputs = [{name: "country"}, {name: "test"}],
+    inputs = [{name: "country"}, {name: "messages"}],
+    testcaseBody,
+    output,
+    showAddTestcase = true,
+    hideTopBar,
 }: ProductionPlaygroundShellProps) {
+    const statusTone = promptVariantStatus === "Draft" ? "draft" : "latest"
     return (
         <div style={styles.shell}>
-            <header style={styles.topBar}>
-                <h1 style={styles.title}>Playground</h1>
-                <div style={styles.topActions}>
-                    <button type="button" style={styles.linkAction}>
-                        <span style={styles.flaskIcon}>🧪</span>
-                        New Evaluation
-                    </button>
-                    <button type="button" style={styles.dropdown}>
-                        Evaluator ▾
-                    </button>
-                    <button type="button" style={styles.dropdown}>
-                        Test set ▾
-                    </button>
-                    <button type="button" style={styles.primaryAction}>
-                        + Compare
-                    </button>
-                </div>
-            </header>
+            {!hideTopBar ? (
+                <header style={styles.topBar}>
+                    <h1 style={styles.title}>Playground</h1>
+                    <div style={styles.topActions}>
+                        <button type="button" style={styles.linkAction}>
+                            <Flask size={14} className="text-[rgba(5,23,41,0.55)]" />
+                            New Evaluation
+                        </button>
+                        <button type="button" style={styles.dropdown}>
+                            <TestTube size={12} />
+                            Evaluator
+                            <CaretDown size={10} />
+                        </button>
+                        <button type="button" style={styles.dropdown}>
+                            <Database size={12} />
+                            Test set
+                            <CaretDown size={10} />
+                        </button>
+                        <button type="button" style={styles.compareAction}>
+                            <Plus size={12} />
+                            Compare
+                        </button>
+                    </div>
+                </header>
+            ) : null}
 
             <div style={styles.split}>
+                {/* LEFT panel — Prompt template config */}
                 <section style={styles.leftPanel}>
                     <header style={styles.panelHeader}>
-                        <div style={styles.variantSelector}>
-                            <span style={styles.variantName}>
-                                {promptVariantLabel}
+                        <div className="flex items-center gap-2 grow min-w-0 overflow-hidden">
+                            <button
+                                type="button"
+                                className="inline-flex items-center justify-between gap-1 px-2 py-1 bg-white border border-solid border-[rgba(5,23,41,0.12)] rounded-md text-[12px] cursor-pointer min-w-[110px]"
+                                title="Switch variant"
+                            >
+                                <span className="truncate">{promptVariantLabel}</span>
+                                <CaretDown size={10} className="opacity-60" />
+                            </button>
+                            <span
+                                className="text-[11px] px-1.5 py-px rounded"
+                                style={{
+                                    background: "rgba(5,23,41,0.06)",
+                                    color: "rgba(5,23,41,0.65)",
+                                }}
+                            >
+                                v2
                             </span>
-                            <span style={styles.variantVersion}>v2</span>
-                            <span style={styles.variantStatus}>
-                                ✏ {promptVariantStatus}
+                            <span
+                                className="text-[11px] px-2 py-px rounded"
+                                style={
+                                    statusTone === "draft"
+                                        ? {background: "#fff7e6", color: "#d46b08"}
+                                        : {background: "#E6F4FF", color: "#1677FF"}
+                                }
+                            >
+                                {promptVariantStatus}
                             </span>
-                            <span style={styles.variantDot} />
                         </div>
-                        <div style={styles.panelHeaderRight}>
-                            <button type="button" style={styles.viewToggle}>
-                                Form ▾
+                        <div className="inline-flex items-center gap-1.5 shrink-0">
+                            <button
+                                type="button"
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-transparent border-none rounded text-[12px] cursor-pointer hover:bg-[rgba(0,0,0,0.04)]"
+                                title="View mode"
+                            >
+                                Form
+                                <CaretDown size={10} />
                             </button>
-                            <button type="button" style={styles.iconButton}>
-                                ☁
+                            <button type="button" style={styles.iconBtn} title="Deploy">
+                                <Cloud size={14} />
                             </button>
-                            <button type="button" style={styles.commitButton}>
-                                ⌘ Commit
+                            <button
+                                type="button"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium cursor-pointer border-none"
+                                style={{background: "#051729", color: "white"}}
+                            >
+                                Commit
                             </button>
-                            <button type="button" style={styles.iconButton}>
-                                ⋮
+                            <button type="button" style={styles.iconBtn} title="More">
+                                <DotsThreeVertical size={14} />
                             </button>
                         </div>
                     </header>
@@ -252,53 +783,96 @@ export function ProductionPlaygroundShell({
                     />
                 </section>
 
+                {/* RIGHT panel — Generations */}
                 <section style={styles.rightPanel}>
                     <header style={styles.panelHeader}>
-                        <div style={styles.generationsTitle}>
-                            <span style={styles.generationsIcon}>≡</span>
-                            <span style={styles.generationsName}>Generations</span>
+                        <div className="inline-flex items-center gap-2">
+                            <ListBullets size={14} className="text-[rgba(5,23,41,0.55)]" />
+                            <span className="text-[14px] font-semibold text-[#051729]">
+                                Generations
+                            </span>
                         </div>
-                        <div style={styles.panelHeaderRight}>
-                            <button type="button" style={styles.linkAction}>
+                        <div className="inline-flex items-center gap-1.5">
+                            <button
+                                type="button"
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-transparent border-none rounded text-[12px] text-[rgba(5,23,41,0.65)] cursor-pointer hover:bg-[rgba(0,0,0,0.04)]"
+                            >
                                 Clear
                             </button>
-                            <button type="button" style={styles.runAllButton}>
-                                ▶ Run all
+                            <button
+                                type="button"
+                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[12px] font-medium cursor-pointer border-none"
+                                style={{background: "#051729", color: "white"}}
+                            >
+                                <Play size={12} weight="fill" />
+                                Run all
                             </button>
                         </div>
                     </header>
 
-                    <div style={styles.testcase}>
-                        <header style={styles.testcaseHeader}>
-                            <span style={styles.testcaseLabelRow}>
-                                <span style={styles.promptCaret}>▾</span>
-                                <span style={styles.testcaseLabelChip}>
-                                    🗐 {testcaseLabel}
+                    <div className="flex flex-col gap-2.5 px-3.5 py-3">
+                        <div className="flex flex-col gap-2 rounded-lg border border-solid border-[rgba(5,23,41,0.06)] bg-white p-3">
+                            <header className="flex items-center justify-between gap-2">
+                                <span className="inline-flex items-center gap-1.5 min-w-0">
+                                    <CaretDown size={10} className="text-[rgba(5,23,41,0.55)]" />
+                                    <span
+                                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[12px]"
+                                        style={{
+                                            background: "rgba(5,23,41,0.04)",
+                                            border: "1px solid rgba(5,23,41,0.08)",
+                                        }}
+                                    >
+                                        <Database size={12} className="opacity-60" />
+                                        {testcaseLabel}
+                                    </span>
                                 </span>
-                            </span>
-                            <button type="button" style={styles.runButton}>
-                                ▶ Run
-                            </button>
-                        </header>
-
-                        {inputs.map((input) => (
-                            <div key={input.name} style={styles.inputField}>
-                                <label style={styles.inputLabel}>
-                                    {input.name}
-                                </label>
-                                <div style={styles.inputPlaceholder}>
-                                    Enter a value
+                                <div className="inline-flex items-center gap-0.5">
+                                    <button type="button" style={styles.iconBtn} title="Open">
+                                        <TreeStructure size={14} />
+                                    </button>
+                                    <button type="button" style={styles.iconBtn} title="Duplicate">
+                                        <Copy size={14} />
+                                    </button>
+                                    <button type="button" style={styles.iconBtn} title="Remove">
+                                        <MinusCircle size={14} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 ml-1 rounded-md text-[12px] font-medium cursor-pointer border-none"
+                                        style={{background: "#051729", color: "white"}}
+                                    >
+                                        <Play size={11} weight="fill" />
+                                        Run
+                                    </button>
                                 </div>
-                            </div>
-                        ))}
+                            </header>
 
-                        <footer style={styles.testcaseFooter}>
-                            <span style={styles.variantBadge}>
-                                {promptVariantLabel}
-                            </span>
-                            <span style={styles.variantVersion}>v2</span>
-                            <span style={styles.draftBadge}>draft</span>
-                        </footer>
+                            {testcaseBody ?? (
+                                <div className="flex flex-col gap-2">
+                                    {inputs.map((input) => (
+                                        <VariableInputRow key={input.name} input={input} />
+                                    ))}
+                                </div>
+                            )}
+
+                            {output ? (
+                                <OutputCard output={output} variantLabel={promptVariantLabel} />
+                            ) : null}
+                        </div>
+
+                        {showAddTestcase ? (
+                            <button
+                                type="button"
+                                className="inline-flex items-center gap-1.5 self-start px-3 py-1.5 bg-white rounded-md text-[12px] cursor-pointer hover:bg-[rgba(5,23,41,0.02)]"
+                                style={{
+                                    border: "1px solid rgba(5,23,41,0.12)",
+                                    color: "#051729",
+                                }}
+                            >
+                                <Plus size={12} />
+                                Test case
+                            </button>
+                        ) : null}
                     </div>
                 </section>
             </div>
@@ -310,7 +884,7 @@ const styles = {
     shell: {
         display: "flex",
         flexDirection: "column" as const,
-        background: "#f5f7fa",
+        background: "white",
         border: "1px solid rgba(5, 23, 41, 0.08)",
         borderRadius: 8,
         overflow: "hidden" as const,
@@ -334,7 +908,7 @@ const styles = {
     topActions: {
         display: "flex",
         alignItems: "center",
-        gap: 8,
+        gap: 6,
     },
     linkAction: {
         display: "inline-flex",
@@ -347,10 +921,6 @@ const styles = {
         color: "#051729",
         padding: "4px 8px",
     },
-    flaskIcon: {
-        fontSize: 14,
-        opacity: 0.65,
-    },
     dropdown: {
         display: "inline-flex",
         alignItems: "center",
@@ -359,11 +929,11 @@ const styles = {
         border: "1px solid rgba(5, 23, 41, 0.12)",
         borderRadius: 6,
         cursor: "pointer",
-        fontSize: 13,
+        fontSize: 12,
         color: "#051729",
-        padding: "5px 10px",
+        padding: "4px 10px",
     },
-    primaryAction: {
+    compareAction: {
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
@@ -371,117 +941,52 @@ const styles = {
         border: "1px solid rgba(5, 23, 41, 0.12)",
         borderRadius: 6,
         cursor: "pointer",
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: 500,
         color: "#051729",
-        padding: "5px 12px",
+        padding: "4px 12px",
     },
     split: {
         display: "grid",
         gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
         gap: 0,
-        background: "white",
+        background: "#f5f7fa",
     },
     leftPanel: {
         display: "flex",
         flexDirection: "column" as const,
         borderRight: "1px solid rgba(5, 23, 41, 0.08)",
         background: "white",
+        minWidth: 0,
     },
     rightPanel: {
         display: "flex",
         flexDirection: "column" as const,
         background: "white",
+        minWidth: 0,
     },
     panelHeader: {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between" as const,
-        padding: "8px 14px",
+        padding: "8px 12px",
         borderBottom: "1px solid rgba(5, 23, 41, 0.06)",
         background: "white",
         gap: 8,
+        height: 48,
+        boxSizing: "border-box" as const,
     },
-    variantSelector: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 8,
-        padding: "3px 10px",
-        background: "rgba(5, 23, 41, 0.04)",
-        border: "1px solid rgba(5, 23, 41, 0.08)",
-        borderRadius: 6,
-        fontSize: 13,
-    },
-    variantName: {
-        fontWeight: 500,
-    },
-    variantVersion: {
-        fontSize: 11,
-        padding: "1px 6px",
-        background: "rgba(5, 23, 41, 0.06)",
-        borderRadius: 3,
-        color: "rgba(5, 23, 41, 0.65)",
-    },
-    variantStatus: {
-        fontSize: 11,
-        padding: "1px 6px",
-        background: "#fff7e6",
-        color: "#d46b08",
-        borderRadius: 3,
-    },
-    variantDot: {
-        width: 6,
-        height: 6,
-        borderRadius: "50%",
-        background: "#722ed1",
-    },
-    panelHeaderRight: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-    },
-    viewToggle: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 4,
-        padding: "3px 10px",
-        background: "white",
-        border: "1px solid rgba(5, 23, 41, 0.12)",
-        borderRadius: 6,
-        fontSize: 13,
-        cursor: "pointer",
-    },
-    iconButton: {
+    iconBtn: {
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center" as const,
-        width: 28,
-        height: 28,
+        width: 26,
+        height: 26,
         background: "transparent",
         border: "1px solid transparent",
         borderRadius: 6,
         cursor: "pointer",
-        fontSize: 13,
-        color: "rgba(5, 23, 41, 0.65)",
-    },
-    commitButton: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "4px 12px",
-        background: "#051729",
-        color: "white",
-        border: "none",
-        borderRadius: 6,
-        fontSize: 13,
-        fontWeight: 500,
-        cursor: "pointer",
-    },
-    promptTemplate: {
-        display: "flex",
-        flexDirection: "column" as const,
-        gap: 10,
-        padding: "12px 14px",
+        color: "rgba(5, 23, 41, 0.55)",
     },
     banner: {
         padding: "8px 12px",
@@ -541,69 +1046,6 @@ const styles = {
         border: "1px solid #cf1322",
         cursor: "pointer" as const,
     },
-    promptHeader: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between" as const,
-        gap: 8,
-    },
-    promptHeaderTitleRow: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-    },
-    promptCaret: {
-        fontSize: 10,
-        color: "rgba(5, 23, 41, 0.55)",
-    },
-    promptHeaderTitle: {
-        fontSize: 14,
-        fontWeight: 600,
-    },
-    promptHeaderRight: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-    },
-    modelSelector: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 4,
-        padding: "3px 10px",
-        background: "white",
-        border: "1px solid rgba(5, 23, 41, 0.12)",
-        borderRadius: 6,
-        fontSize: 12,
-        cursor: "pointer",
-    },
-    messageCard: {
-        display: "flex",
-        flexDirection: "column" as const,
-        gap: 6,
-        padding: "10px 12px",
-        background: "white",
-        border: "1px solid rgba(5, 23, 41, 0.12)",
-        borderRadius: 6,
-    },
-    messageHeader: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-    },
-    messageRole: {
-        fontSize: 12,
-        fontWeight: 600,
-        color: "#051729",
-    },
-    messageRoleCaret: {
-        fontSize: 10,
-        color: "rgba(5, 23, 41, 0.45)",
-    },
-    messageBody: {
-        fontSize: 13,
-        lineHeight: 1.5,
-        color: "#051729",
-    },
     token: {
         display: "inline-block",
         padding: "0 6px",
@@ -613,136 +1055,15 @@ const styles = {
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
         fontSize: 12,
     },
-    messageToolbar: {
-        display: "flex",
-        alignItems: "center",
-        flexWrap: "wrap" as const,
-        gap: 6,
-        marginTop: 2,
-    },
-    toolbarButton: {
+    metaChip: {
         display: "inline-flex",
         alignItems: "center",
         gap: 4,
-        padding: "4px 10px",
-        background: "white",
-        border: "1px solid rgba(5, 23, 41, 0.12)",
-        borderRadius: 6,
-        fontSize: 12,
-        cursor: "pointer",
-    },
-    toolbarSelect: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 4,
-        padding: "4px 10px",
-        background: "white",
-        border: "1px solid rgba(5, 23, 41, 0.12)",
-        borderRadius: 6,
-        fontSize: 12,
-        cursor: "pointer",
-    },
-    generationsTitle: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 8,
-    },
-    generationsIcon: {
-        fontSize: 14,
-        color: "rgba(5, 23, 41, 0.55)",
-    },
-    generationsName: {
-        fontSize: 14,
-        fontWeight: 600,
-    },
-    runAllButton: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "5px 14px",
-        background: "#051729",
-        color: "white",
-        border: "none",
-        borderRadius: 6,
-        fontSize: 13,
-        fontWeight: 500,
-        cursor: "pointer",
-    },
-    testcase: {
-        display: "flex",
-        flexDirection: "column" as const,
-        gap: 10,
-        padding: "12px 14px",
-    },
-    testcaseHeader: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between" as const,
-        gap: 8,
-    },
-    testcaseLabelRow: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-    },
-    testcaseLabelChip: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 4,
-        padding: "3px 10px",
+        padding: "2px 8px",
         background: "rgba(5, 23, 41, 0.04)",
         border: "1px solid rgba(5, 23, 41, 0.08)",
-        borderRadius: 6,
-        fontSize: 12,
-    },
-    runButton: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "3px 12px",
-        background: "white",
-        border: "1px solid rgba(5, 23, 41, 0.12)",
-        borderRadius: 6,
-        fontSize: 12,
-        cursor: "pointer",
-    },
-    inputField: {
-        display: "flex",
-        flexDirection: "column" as const,
-        gap: 6,
-        padding: "10px 12px",
-        background: "white",
-        border: "1px solid rgba(5, 23, 41, 0.12)",
-        borderRadius: 6,
-    },
-    inputLabel: {
-        fontSize: 12,
-        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-        color: "#1677ff",
-    },
-    inputPlaceholder: {
-        fontSize: 13,
-        color: "rgba(5, 23, 41, 0.35)",
-    },
-    testcaseFooter: {
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 8,
-        padding: "8px 12px",
-        background: "rgba(5, 23, 41, 0.02)",
-        border: "1px solid rgba(5, 23, 41, 0.06)",
-        borderRadius: 6,
-    },
-    variantBadge: {
-        fontSize: 12,
-        fontWeight: 500,
-        color: "#051729",
-    },
-    draftBadge: {
+        borderRadius: 4,
         fontSize: 11,
-        padding: "1px 8px",
-        background: "#fff7e6",
-        color: "#d46b08",
-        borderRadius: 3,
+        color: "rgba(5, 23, 41, 0.65)",
     },
 }

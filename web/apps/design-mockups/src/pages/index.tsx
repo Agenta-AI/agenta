@@ -5,8 +5,7 @@ const gaps = [
     {
         slug: "gap-01-type-chips",
         title: "Gap 01 — Type chip system",
-        blurb:
-            "Concept: problem statement, chip vocabulary legend, type-switching mechanism (RFC WP-F1). Integrated experience lives on the three solution pages.",
+        blurb: "Concept: problem statement, chip vocabulary legend, type-switching mechanism (RFC WP-F1). Integrated experience lives on the three solution pages.",
         status: "ready",
     },
     {
@@ -24,8 +23,7 @@ const gaps = [
     {
         slug: "gap-04-shape-preservation",
         title: "Gap 04 — Shape preservation",
-        blurb:
-            "Mark union-projected fields visually distinct. Bound the JSON-edit save path.",
+        blurb: "Mark union-projected fields visually distinct. Bound the JSON-edit save path.",
         status: "ready",
     },
     {
@@ -37,57 +35,49 @@ const gaps = [
     {
         slug: "gap-06-messages-renderer",
         title: "Gap 06 — Messages renderer",
-        blurb:
-            "Lift ChatMessageEditor auto-detection so BeautifiedJsonView + JsonEditorWithLocalState render messages consistently.",
+        blurb: "Lift ChatMessageEditor auto-detection so BeautifiedJsonView + JsonEditorWithLocalState render messages consistently.",
         status: "ready",
     },
     {
         slug: "gap-09-variable-provenance",
         title: "Gap 09 — Variable provenance + usage state",
-        blurb:
-            "Surfaced 2026-05-05. 2-axis state per variable in the playground execution item (authoring × usage). Variable map collapses unused variables, marks drafts with dashed border, shows chain scope per row. Composes with gap-04 (testcase-side), gap-07 (schema), gap-08 (prompt-side).",
+        blurb: "Surfaced 2026-05-05. 2-axis state per variable in the playground execution item (authoring × usage). Variable map collapses unused variables, marks drafts with dashed border, shows chain scope per row. Composes with gap-04 (testcase-side), gap-07 (schema), gap-08 (prompt-side).",
         status: "ready",
     },
     {
         slug: "solutions-drill-in",
         title: "Solutions · Drill-in",
-        blurb:
-            "Unified drawer demo. Production DrillInContent vs ProposedDrillIn with every drawer-related proposal applied (gap-01 chips, gap-03 auto-expand, gap-05 collision, gap-06 chat cards, long-form / markdown). Fixture switcher exercises each gap.",
+        blurb: "Unified drawer demo. Production DrillInContent vs ProposedDrillIn with every drawer-related proposal applied (gap-01 chips, gap-03 auto-expand, gap-05 collision, gap-06 chat cards, long-form / markdown). Fixture switcher exercises each gap.",
         status: "solution",
     },
     {
         slug: "solutions-playground",
         title: "Solutions · Playground",
-        blurb:
-            "Unified execution-item demo. Three-way compare across Today / Proposed embedded / Alt compact on the kitchen-sink Vanuatu fixture (every gap on one row). Includes the gap-09 Variable map section above the grid (used / chain / draft / unused state per variable) and the gap-08 prompt-validation section.",
+        blurb: "Unified execution-item demo. Three-way compare across Today / Proposed embedded / Alt compact on the kitchen-sink Vanuatu fixture (every gap on one row). Includes the gap-09 Variable map section above the grid (used / chain / draft / unused state per variable) and the gap-08 prompt-validation section.",
         status: "solution",
     },
     {
         slug: "solutions-tables",
         title: "Solutions · Tables",
-        blurb:
-            "Unified testset cell demo. Production TestcaseCellContent vs ProposedTableCell on a fixture grid covering gap-01 chips, gap-02 cell rendering, gap-04 missing keys, gap-05 collisions, gap-06 messages preview. Each row tagged with its gap.",
+        blurb: "Unified testset cell demo. Production TestcaseCellContent vs ProposedTableCell on a fixture grid covering gap-01 chips, gap-02 cell rendering, gap-04 missing keys, gap-05 collisions, gap-06 messages preview. Each row tagged with its gap.",
         status: "solution",
     },
     {
         slug: "alt-tree-pane",
         title: "Alt — Two-pane tree + detail",
-        blurb:
-            "Alternative to the card-stack drill-in: compact tree on the left, editor on the right. Useful at depth ≥ 4 and on messages fixtures where the card stack scrolls. A threshold fallback (cards for shallow rows, tree for deep) is the realistic shipping shape.",
+        blurb: "Alternative to the card-stack drill-in: compact tree on the left, editor on the right. Useful at depth ≥ 4 and on messages fixtures where the card stack scrolls. A threshold fallback (cards for shallow rows, tree for deep) is the realistic shipping shape.",
         status: "alternative",
     },
     {
         slug: "already-shipped",
         title: "Already shipped — RFC pieces that landed before this work",
-        blurb:
-            "Inventory of what's already in production: prompt-editor token typeahead (flat + JSONPath), envelope-aware suggestion sources (inputs / outputs / parameters / testcase), chain-context routing, and template-variable validation utilities. Gap-08 and gap-09 both build on top of these.",
+        blurb: "Inventory of what's already in production: prompt-editor token typeahead (flat + JSONPath), envelope-aware suggestion sources (inputs / outputs / parameters / testcase), chain-context routing, and template-variable validation utilities. Gap-08 and gap-09 both build on top of these.",
         status: "ready",
     },
     {
         slug: "molecule-drill-in",
         title: "Appendix — Tier comparison",
-        blurb:
-            "OSS DrillInContent (1581 lines, monolithic) vs package MoleculeDrillInView (Tier 1+2, DI + slots + schema-aware). Same testcase, side by side, with a props-divergence breakdown.",
+        blurb: "OSS DrillInContent (1581 lines, monolithic) vs package MoleculeDrillInView (Tier 1+2, DI + slots + schema-aware). Same testcase, side by side, with a props-divergence breakdown.",
         status: "ready",
     },
 ] as const
@@ -102,9 +92,8 @@ export default function Index() {
                 <header style={styles.header}>
                     <h1 style={styles.h1}>JSON ↔ String UX — Design Mockups</h1>
                     <p style={styles.lead}>
-                        Each page mounts the same components the production app uses
-                        against stub data, so the side-by-side comparisons read
-                        like the real app.
+                        Each page mounts the same components the production app uses against stub
+                        data, so the side-by-side comparisons read like the real app.
                     </p>
                     <p style={styles.lead}>
                         Companion HTML wireframes:{" "}
@@ -114,8 +103,8 @@ export default function Index() {
                         >
                             docs/designs/json-string-ux/variants/index.html
                         </a>
-                        . Competitive analysis (Braintrust + Langfuse, 50 screenshots
-                        across 8 fixtures):{" "}
+                        . Competitive analysis (Braintrust + Langfuse, 50 screenshots across 8
+                        fixtures):{" "}
                         <a
                             href="../../../docs/designs/json-string-ux/competitive-analysis.md"
                             style={styles.link}
@@ -166,22 +155,21 @@ export default function Index() {
                             (web/oss/src/components/DrillInView/DrillInContent.tsx:178)
                         </li>
                         <li>
-                            <code style={styles.code}>DrillInFieldHeader</code> — per-field
-                            row, type chip, view-mode selector, copy, collapse
+                            <code style={styles.code}>DrillInFieldHeader</code> — per-field row,
+                            type chip, view-mode selector, copy, collapse
                             (DrillInFieldHeader.tsx:209)
                         </li>
                         <li>
-                            <code style={styles.code}>EntityDualViewEditor</code> — Fields ↔
-                            JSON toggle wrapper (EntityDualViewEditor.tsx:71)
+                            <code style={styles.code}>EntityDualViewEditor</code> — Fields ↔ JSON
+                            toggle wrapper (EntityDualViewEditor.tsx:71)
                         </li>
                         <li>
                             <code style={styles.code}>TestcaseDrillInView</code> — testcase
                             specializer (TestcaseDrillInView.tsx:47)
                         </li>
                         <li>
-                            <code style={styles.code}>TraceSpanDrillInView</code> — trace
-                            span specializer with two render paths
-                            (TraceSpanDrillInView.tsx:279)
+                            <code style={styles.code}>TraceSpanDrillInView</code> — trace span
+                            specializer with two render paths (TraceSpanDrillInView.tsx:279)
                         </li>
                     </ul>
                 </section>

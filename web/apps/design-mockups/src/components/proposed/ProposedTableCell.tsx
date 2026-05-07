@@ -154,8 +154,7 @@ export function ProposedTableCell({
                 .replace(/^#+\s*/, "")
                 .replace(/[*_`]/g, "")
                 .trim()
-            const head =
-                stripped.length > 60 ? stripped.slice(0, 57) + "…" : stripped
+            const head = stripped.length > 60 ? stripped.slice(0, 57) + "…" : stripped
             const charCount = value.length
             const lineCount = value.split("\n").length
             return (
@@ -183,9 +182,7 @@ export function ProposedTableCell({
     if (typeof value === "number") {
         return (
             <span style={styles.cellInline}>
-                <span
-                    style={chipMode === "none" ? styles.styledNumber : styles.monoValue}
-                >
+                <span style={chipMode === "none" ? styles.styledNumber : styles.monoValue}>
                     {String(value)}
                 </span>
                 {isMixedColumn && <TypeChip variant="mixed" />}
@@ -195,13 +192,7 @@ export function ProposedTableCell({
     if (typeof value === "boolean") {
         return (
             <span style={styles.cellInline}>
-                <span
-                    style={
-                        chipMode === "none"
-                            ? styles.styledBoolean(value)
-                            : styles.monoValue
-                    }
-                >
+                <span style={chipMode === "none" ? styles.styledBoolean(value) : styles.monoValue}>
                     {String(value)}
                 </span>
                 {isMixedColumn && <TypeChip variant="mixed" />}
@@ -237,9 +228,7 @@ export function ProposedTableCell({
                     <span style={styles.line}>
                         {showTypeChip && <TypeChip variant="json-array" />}
                         {showTypeChip && <TypeChip variant="messages" />}
-                        <span
-                            style={chipMode === "none" ? styles.styledMessages : styles.muted}
-                        >
+                        <span style={chipMode === "none" ? styles.styledMessages : styles.muted}>
                             {value.length} messages
                         </span>
                     </span>
@@ -248,8 +237,7 @@ export function ProposedTableCell({
             )
         }
         if (isToolCallsArray(value)) {
-            const firstName =
-                (value[0] as {function?: {name?: string}}).function?.name ?? "?"
+            const firstName = (value[0] as {function?: {name?: string}}).function?.name ?? "?"
             return (
                 <span style={styles.cell}>
                     <span style={styles.line}>
@@ -267,16 +255,18 @@ export function ProposedTableCell({
         const sample = value
             .slice(0, 3)
             .map((v) =>
-                typeof v === "string" ? `"${v.slice(0, 16)}"` : typeof v === "object" ? "{…}" : String(v),
+                typeof v === "string"
+                    ? `"${v.slice(0, 16)}"`
+                    : typeof v === "object"
+                      ? "{…}"
+                      : String(v),
             )
             .join(", ")
         return (
             <span style={styles.cell}>
                 <span style={styles.line}>
                     {showTypeChip && <TypeChip variant="json-array" />}
-                    <span
-                        style={chipMode === "none" ? styles.styledArray : styles.muted}
-                    >
+                    <span style={chipMode === "none" ? styles.styledArray : styles.muted}>
                         {`[ ${value.length} items ]`}
                     </span>
                     {isMixedColumn && <TypeChip variant="mixed" />}

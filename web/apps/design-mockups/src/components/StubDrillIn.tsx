@@ -17,6 +17,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import type {PathItem} from "@/oss/components/DrillInView/DrillInContent"
 import {DrillInContent} from "@/oss/components/DrillInView/DrillInContent"
+import type {PropertyType} from "@/oss/components/DrillInView/DrillInControls"
 
 interface StubDrillInProps {
     initialData: Record<string, unknown>
@@ -36,6 +37,33 @@ interface StubDrillInProps {
     rootIsColumn?: boolean
     columnOptions?: {value: string; label: string}[]
     onChange?: (data: Record<string, unknown>) => void
+    /** Render the Add Property button at the root (production testcase pattern). */
+    showAddControls?: boolean
+    /** Render per-field delete buttons (production testcase pattern). */
+    showDeleteControls?: boolean
+    /**
+     * Provide default values when a field's type is added/changed. Mirrors the
+     * helper used by `TestcaseEditDrawer` so primitives, objects, and arrays
+     * hydrate with sensible blanks.
+     */
+    getDefaultValueForType?: (type: PropertyType) => unknown
+}
+
+const DEFAULT_DEFAULT_VALUE_FOR_TYPE = (type: PropertyType): unknown => {
+    switch (type) {
+        case "string":
+            return ""
+        case "number":
+            return 0
+        case "boolean":
+            return false
+        case "object":
+            return {}
+        case "array":
+            return []
+        default:
+            return ""
+    }
 }
 
 function getAtPath(value: unknown, path: string[]): unknown {
@@ -53,11 +81,7 @@ function getAtPath(value: unknown, path: string[]): unknown {
     return cursor
 }
 
-function setAtPath(
-    root: unknown,
-    path: string[],
-    nextValue: unknown,
-): unknown {
+function setAtPath(root: unknown, path: string[], nextValue: unknown): unknown {
     if (path.length === 0) return nextValue
     const [head, ...tail] = path
     if (Array.isArray(root)) {
@@ -66,10 +90,7 @@ function setAtPath(
         copy[idx] = setAtPath(copy[idx], tail, nextValue)
         return copy
     }
-    const obj = (root && typeof root === "object" ? root : {}) as Record<
-        string,
-        unknown
-    >
+    const obj = (root && typeof root === "object" ? root : {}) as Record<string, unknown>
     return {
         ...obj,
         [head]: setAtPath(obj[head], tail, nextValue),
@@ -86,6 +107,9 @@ export function StubDrillIn({
     rootIsColumn = true,
     columnOptions,
     onChange,
+    showAddControls = false,
+    showDeleteControls = false,
+    getDefaultValueForType = DEFAULT_DEFAULT_VALUE_FOR_TYPE,
 }: StubDrillInProps) {
     const [data, setData] = useState<Record<string, unknown>>(initialData)
 
@@ -100,10 +124,7 @@ export function StubDrillIn({
     const setValue = useCallback(
         (path: string[], next: unknown) => {
             setData((prev) => {
-                const updated = setAtPath(prev, path, next) as Record<
-                    string,
-                    unknown
-                >
+                const updated = setAtPath(prev, path, next) as Record<string, unknown>
                 onChange?.(updated)
                 return updated
             })
@@ -121,9 +142,7 @@ export function StubDrillIn({
     }, [data, rootIsColumn])
 
     const computedColumnOptions = useMemo(
-        () =>
-            columnOptions ??
-            Object.keys(data).map((key) => ({value: key, label: key})),
+        () => columnOptions ?? Object.keys(data).map((key) => ({value: key, label: key})),
         [columnOptions, data],
     )
 
@@ -139,6 +158,9 @@ export function StubDrillIn({
             enableFieldViewModes={enableFieldViewModes}
             columnOptions={computedColumnOptions}
             valueMode="native"
+            showAddControls={showAddControls}
+            showDeleteControls={showDeleteControls}
+            getDefaultValueForType={getDefaultValueForType}
         />
     )
 }

@@ -24,10 +24,7 @@ import {useState} from "react"
 
 import {ArrowClockwise} from "@phosphor-icons/react"
 
-import {
-    ProposedDrillIn,
-    type ChipRenderMode,
-} from "./ProposedDrillIn"
+import {ProposedDrillIn, type ChipRenderMode} from "./ProposedDrillIn"
 import {TypeChip, type ChipVariant} from "./TypeChip"
 
 interface InputField {
@@ -161,16 +158,17 @@ export function PlaygroundExecutionItem({
                 <div style={styles.outputHeader}>
                     <div style={styles.sectionLabel}>Output</div>
                     {showOutputChip && <TypeChip variant={outputType} />}
-                    {showOutputChip && outputHint && (
-                        <TypeChip variant={outputHint} />
-                    )}
+                    {showOutputChip && outputHint && <TypeChip variant={outputHint} />}
                 </div>
                 <div style={styles.outputBody}>
                     {/* Output is the model response. Editable here = "is the
                         playground in a state where the user could re-run after
                         editing inputs?" The output itself is a result, so it
                         renders read-only via ProposedDrillIn either way. */}
-                    {outputType === "string" || outputType === "number" || outputType === "boolean" || outputType === "null" ? (
+                    {outputType === "string" ||
+                    outputType === "number" ||
+                    outputType === "boolean" ||
+                    outputType === "null" ? (
                         <span style={styles.outputText}>{String(output)}</span>
                     ) : (
                         <ProposedDrillIn
@@ -223,15 +221,11 @@ function UnusedColumnsFooter({columns}: {columns: string[]}) {
     const [open, setOpen] = useState(false)
     return (
         <div style={styles.unusedFooter}>
-            <button
-                type="button"
-                style={styles.unusedToggle}
-                onClick={() => setOpen((v) => !v)}
-            >
+            <button type="button" style={styles.unusedToggle} onClick={() => setOpen((v) => !v)}>
                 <span style={styles.unusedCaret}>{open ? "▾" : "▸"}</span>
                 <span>
-                    {open ? "Hide" : "Show"} {columns.length} unused testcase
-                    column{columns.length === 1 ? "" : "s"}
+                    {open ? "Hide" : "Show"} {columns.length} unused testcase column
+                    {columns.length === 1 ? "" : "s"}
                 </span>
                 <span style={styles.unusedHint}>
                     on the testcase but not referenced by any prompt

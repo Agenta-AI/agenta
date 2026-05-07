@@ -9,12 +9,7 @@ interface MockupPageShellProps {
     children: ReactNode
 }
 
-export function MockupPageShell({
-    title,
-    blurb,
-    notes,
-    children,
-}: MockupPageShellProps) {
+export function MockupPageShell({title, blurb, notes, children}: MockupPageShellProps) {
     return (
         <main style={styles.main}>
             <nav style={styles.nav}>

@@ -34,77 +34,61 @@ export default function Gap09Concept() {
                 }
                 notes={
                     <>
-                        <strong>What's broken today:</strong> the playground
-                        execution item shows every variable on the testcase
-                        identically, regardless of whether any prompt
-                        references it, and shows nothing for variables typed
-                        into prompts that aren't on the testcase yet. In
-                        chain/multi-prompt configs, the user can't tell which
-                        prompts use which variables. Result: the inputs panel
-                        gets crowded with unused testcase columns,
-                        prompt-typed variables disappear into the void until
-                        the next save, and chain debugging requires reading
-                        every prompt template to figure out which variable
-                        feeds where.
+                        <strong>What's broken today:</strong> the playground execution item shows
+                        every variable on the testcase identically, regardless of whether any prompt
+                        references it, and shows nothing for variables typed into prompts that
+                        aren't on the testcase yet. In chain/multi-prompt configs, the user can't
+                        tell which prompts use which variables. Result: the inputs panel gets
+                        crowded with unused testcase columns, prompt-typed variables disappear into
+                        the void until the next save, and chain debugging requires reading every
+                        prompt template to figure out which variable feeds where.
                         <br />
                         <br />
                         <strong>The four states:</strong>
                         <ul style={styles.list}>
                             <li>
-                                <code>used</code> — referenced by ≥1 prompt +
-                                on the testcase. Default rendering, no extra
-                                chip.
+                                <code>used</code> — referenced by ≥1 prompt + on the testcase.
+                                Default rendering, no extra chip.
                             </li>
                             <li>
-                                <code>chain</code> — used by some prompts in
-                                the chain but not all. Carries a{" "}
-                                <code>prompt 1, 3 of 4</code> badge so the
-                                user sees where it lands without reading
-                                every template.
+                                <code>chain</code> — used by some prompts in the chain but not all.
+                                Carries a <code>prompt 1, 3 of 4</code> badge so the user sees where
+                                it lands without reading every template.
                             </li>
                             <li>
-                                <code>draft</code> — referenced by ≥1 prompt
-                                but NOT on the testcase yet. Lives in the
-                                local draft until explicit sync. Dashed
-                                pink-border + <code>[draft]</code> chip; an
-                                inline hint reads <em>"not on testcase yet ·
-                                syncs on save"</em>.
+                                <code>draft</code> — referenced by ≥1 prompt but NOT on the testcase
+                                yet. Lives in the local draft until explicit sync. Dashed
+                                pink-border + <code>[draft]</code> chip; an inline hint reads{" "}
+                                <em>"not on testcase yet · syncs on save"</em>.
                             </li>
                             <li>
-                                <code>unused</code> — on the testcase but no
-                                prompt in the chain references it. Collapsed
-                                under a "Show N unused variables" toggle by
-                                default — visible if you want them, out of
-                                the way when you don't.
+                                <code>unused</code> — on the testcase but no prompt in the chain
+                                references it. Collapsed under a "Show N unused variables" toggle by
+                                default — visible if you want them, out of the way when you don't.
                             </li>
                         </ul>
                         <br />
-                        <strong>Why this is its own gap:</strong> gap-08
-                        catches "referenced and missing" at edit time on the
-                        prompt surface. Gap-04 surfaces the testcase-level
-                        union of authored vs not. <em>This</em> gap composes
-                        both at the playground execution-item level — the
-                        symmetric "authored and unused" case + per-prompt
-                        chain scope are unique to this surface. Without it,
-                        the playground inputs panel scales poorly to
-                        testsets with many columns and chain configs.
+                        <strong>Why this is its own gap:</strong> gap-08 catches "referenced and
+                        missing" at edit time on the prompt surface. Gap-04 surfaces the
+                        testcase-level union of authored vs not. <em>This</em> gap composes both at
+                        the playground execution-item level — the symmetric "authored and unused"
+                        case + per-prompt chain scope are unique to this surface. Without it, the
+                        playground inputs panel scales poorly to testsets with many columns and
+                        chain configs.
                         <br />
                         <br />
-                        <strong>How gap-07 changes this:</strong> when a
-                        per-testset schema entity exists, "authored vs
-                        draft" comes from the schema directly, not from
-                        inference. Without gap-07, "draft" is a best-effort
-                        guess (prompt references this name, row doesn't have
-                        it) and may mis-classify legitimate optional columns.
+                        <strong>How gap-07 changes this:</strong> when a per-testset schema entity
+                        exists, "authored vs draft" comes from the schema directly, not from
+                        inference. Without gap-07, "draft" is a best-effort guess (prompt references
+                        this name, row doesn't have it) and may mis-classify legitimate optional
+                        columns.
                         <br />
                         <br />
-                        <strong>Visual budget:</strong> the playground
-                        execution item is already busy. Default settings
-                        keep the noise low — unused variables collapsed,
-                        chain badges only when scope is partial (a variable
-                        used by every prompt gets no badge), draft border
-                        only on draft rows. The "Show unused" toggle gives
-                        power users full visibility on demand.
+                        <strong>Visual budget:</strong> the playground execution item is already
+                        busy. Default settings keep the noise low — unused variables collapsed,
+                        chain badges only when scope is partial (a variable used by every prompt
+                        gets no badge), draft border only on draft rows. The "Show unused" toggle
+                        gives power users full visibility on demand.
                     </>
                 }
             >
@@ -114,13 +98,11 @@ export default function Gap09Concept() {
                         Solutions · Playground — Variable map demo →
                     </span>
                     <span style={styles.ctaBlurb}>
-                        Above the kitchen-sink compare grid. Demonstrates the
-                        four states on Vanuatu's variables: country +
-                        messages as <code>used</code>, geo + languages as{" "}
-                        <code>chain</code> (with prompt-scope badges),{" "}
-                        <code>iso_code</code> as <code>draft</code> (typed
-                        into a prompt but not on the testcase), and 6
-                        testcase columns as <code>unused</code> (collapsed
+                        Above the kitchen-sink compare grid. Demonstrates the four states on
+                        Vanuatu's variables: country + messages as <code>used</code>, geo +
+                        languages as <code>chain</code> (with prompt-scope badges),{" "}
+                        <code>iso_code</code> as <code>draft</code> (typed into a prompt but not on
+                        the testcase), and 6 testcase columns as <code>unused</code> (collapsed
                         behind a toggle).
                     </span>
                 </Link>
@@ -128,21 +110,15 @@ export default function Gap09Concept() {
                 <div style={styles.crossLinks}>
                     <strong>Related concept pages:</strong>{" "}
                     <Link href="/gap-04-shape-preservation" style={styles.link}>
-                        gap-04 (union projection — same shape at the
-                        testcase level)
+                        gap-04 (union projection — same shape at the testcase level)
                     </Link>{" "}
                     ·{" "}
                     <Link href="/gap-07-schema-aware-form" style={styles.link}>
-                        gap-07 (schema entity disambiguates authored vs
-                        draft)
+                        gap-07 (schema entity disambiguates authored vs draft)
                     </Link>{" "}
                     ·{" "}
-                    <Link
-                        href="/gap-08-playground-variable-validation"
-                        style={styles.link}
-                    >
-                        gap-08 (symmetric edit-time check on the prompt
-                        surface)
+                    <Link href="/gap-08-playground-variable-validation" style={styles.link}>
+                        gap-08 (symmetric edit-time check on the prompt surface)
                     </Link>
                 </div>
             </MockupPageShell>

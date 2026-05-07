@@ -65,12 +65,7 @@ function inferTypeChip(value: unknown): {
     if (Array.isArray(value)) {
         if (
             value.length > 0 &&
-            value.every(
-                (x) =>
-                    x &&
-                    typeof x === "object" &&
-                    "role" in (x as object),
-            )
+            value.every((x) => x && typeof x === "object" && "role" in (x as object))
         ) {
             return {type: "json-array", hint: "messages"}
         }
@@ -157,11 +152,7 @@ export function PlaygroundVariableMap({
             {/* Active variables (used + chain + draft) — always visible */}
             <ul style={styles.list}>
                 {[...used, ...chain, ...draft].map((v) => (
-                    <VariableRow
-                        key={v.name}
-                        variable={v}
-                        chainLength={chainLength}
-                    />
+                    <VariableRow key={v.name} variable={v} chainLength={chainLength} />
                 ))}
             </ul>
 
@@ -173,12 +164,10 @@ export function PlaygroundVariableMap({
                         style={styles.toggleButton}
                         onClick={() => setShowUnused((s) => !s)}
                     >
-                        <span style={styles.toggleCaret}>
-                            {showUnused ? "▾" : "▸"}
-                        </span>
+                        <span style={styles.toggleCaret}>{showUnused ? "▾" : "▸"}</span>
                         <span>
-                            {showUnused ? "Hide" : "Show"} {unused.length} unused
-                            variable{unused.length === 1 ? "" : "s"}
+                            {showUnused ? "Hide" : "Show"} {unused.length} unused variable
+                            {unused.length === 1 ? "" : "s"}
                         </span>
                         <span style={styles.toggleHint}>
                             on testcase but not referenced by any prompt
@@ -187,11 +176,7 @@ export function PlaygroundVariableMap({
                     {showUnused ? (
                         <ul style={styles.list}>
                             {unused.map((v) => (
-                                <VariableRow
-                                    key={v.name}
-                                    variable={v}
-                                    chainLength={chainLength}
-                                />
+                                <VariableRow key={v.name} variable={v} chainLength={chainLength} />
                             ))}
                         </ul>
                     ) : null}
@@ -238,9 +223,7 @@ function VariableRow({variable, chainLength}: VariableRowProps) {
             </div>
             <div style={styles.rowPreview}>
                 {isDraft ? (
-                    <span style={styles.draftHint}>
-                        not on testcase yet · syncs on save
-                    </span>
+                    <span style={styles.draftHint}>not on testcase yet · syncs on save</span>
                 ) : (
                     <span style={styles.previewText}>{preview}</span>
                 )}

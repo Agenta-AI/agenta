@@ -93,9 +93,7 @@ export function StubDualView({
                                 },
                             ]}
                             value={projection}
-                            onChange={(value) =>
-                                setProjection(value as JsonProjection)
-                            }
+                            onChange={(value) => setProjection(value as JsonProjection)}
                             size="small"
                         />
                         <span style={styles.toolbarHint}>

@@ -73,8 +73,8 @@ export function RowDetailPopover({
                         </div>
                         <footer style={styles.footer}>
                             <span style={styles.footerNote}>
-                                Read-only. Edit via the drill-in (gap-03) or the
-                                schema-aware form (gap-07).
+                                Read-only. Edit via the drill-in (gap-03) or the schema-aware form
+                                (gap-07).
                             </span>
                         </footer>
                     </div>
@@ -137,10 +137,7 @@ function Line({text}: {text: string}) {
             const next = text[end + 1]
             const isKey = next === ":"
             elements.push(
-                <span
-                    key={cursor}
-                    style={isKey ? syntax.key : syntax.string}
-                >
+                <span key={cursor} style={isKey ? syntax.key : syntax.string}>
                     {literal}
                 </span>,
             )

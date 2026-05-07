@@ -55,8 +55,7 @@ function classifyVariant(v: unknown): {
     if (v === null) return {type: "null", hint: null}
     if (Array.isArray(v)) {
         const isMessages =
-            v.length > 0 &&
-            v.every((x) => x && typeof x === "object" && "role" in (x as object))
+            v.length > 0 && v.every((x) => x && typeof x === "object" && "role" in (x as object))
         const isToolCalls =
             v.length > 0 &&
             v.every(
@@ -158,9 +157,7 @@ function toYaml(value: unknown, indent = 0): string {
     const pad = "  ".repeat(indent)
     if (value === null) return `${pad}null`
     if (typeof value === "string") {
-        return /[:#\n]/.test(value)
-            ? `${pad}"${value.replace(/"/g, '\\"')}"`
-            : `${pad}${value}`
+        return /[:#\n]/.test(value) ? `${pad}"${value.replace(/"/g, '\\"')}"` : `${pad}${value}`
     }
     if (typeof value === "number" || typeof value === "boolean") return `${pad}${String(value)}`
     if (Array.isArray(value)) {
@@ -247,11 +244,7 @@ function TreeRow({
                 {extraChips.map((c, i) => (
                     <TypeChip key={`${c}-${i}`} variant={c} />
                 ))}
-                {hasChildren ? (
-                    <span style={rowStyles.count}>
-                        {node.children!.length}
-                    </span>
-                ) : null}
+                {hasChildren ? <span style={rowStyles.count}>{node.children!.length}</span> : null}
             </div>
             {isOpen &&
                 node.children?.map((c) => (
@@ -329,9 +322,7 @@ function Detail({
     if (variant === "null") {
         return (
             <DetailFrame node={node} variant={variant} editable={editable} onChange={onChange}>
-                <span style={{...detailStyles.leafText, color: "rgba(5, 23, 41, 0.4)"}}>
-                    null
-                </span>
+                <span style={{...detailStyles.leafText, color: "rgba(5, 23, 41, 0.4)"}}>null</span>
             </DetailFrame>
         )
     }
@@ -418,9 +409,9 @@ function Detail({
             )}
             {view === "form" && variant !== "messages" && (
                 <div style={detailStyles.subtreeHint}>
-                    Pick a child in the tree to edit it. The Form view at this depth is
-                    for navigation; <code>JSON</code> / <code>YAML</code> swap to a
-                    serialized view of this whole subtree.
+                    Pick a child in the tree to edit it. The Form view at this depth is for
+                    navigation; <code>JSON</code> / <code>YAML</code> swap to a serialized view of
+                    this whole subtree.
                 </div>
             )}
         </DetailFrame>
@@ -456,11 +447,7 @@ function DetailFrame({
                     >
                         <TypeChip
                             variant={variant}
-                            onClick={
-                                editable && node.path.length > 0
-                                    ? () => {}
-                                    : undefined
-                            }
+                            onClick={editable && node.path.length > 0 ? () => {} : undefined}
                         />
                     </ChipConversionPopover>
                 </div>
@@ -529,9 +516,7 @@ export function TreeDrillIn({
             path: [],
             value: draft,
             chips: ["json-object"],
-            children: Object.entries(draft).map(([k, v]) =>
-                buildTree(v, k, [k], rootChips),
-            ),
+            children: Object.entries(draft).map(([k, v]) => buildTree(v, k, [k], rootChips)),
         }),
         [draft, rootTitle, rootChips],
     )

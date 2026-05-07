@@ -26,68 +26,55 @@ export default function Gap08Concept() {
                 }
                 notes={
                     <>
-                        <strong>What's broken today:</strong> Agenta's playground
-                        resolves <code>{"{{variable}}"}</code> references at run
-                        time only. If the user references{" "}
-                        <code>{"{{metadata.source}}"}</code> and the attached
-                        testset doesn't have that path, they discover it via a
-                        confusing run output (empty string substitution or a
-                        stringified-JSON literal depending on resolution).
+                        <strong>What's broken today:</strong> Agenta's playground resolves{" "}
+                        <code>{"{{variable}}"}</code> references at run time only. If the user
+                        references <code>{"{{metadata.source}}"}</code> and the attached testset
+                        doesn't have that path, they discover it via a confusing run output (empty
+                        string substitution or a stringified-JSON literal depending on resolution).
                         <br />
                         <br />
-                        <strong>Proposed (Braintrust pattern):</strong> two
-                        surfaces:
+                        <strong>Proposed (Braintrust pattern):</strong> two surfaces:
                         <ul style={styles.list}>
                             <li>
-                                <strong>Dataset-attach banner.</strong> The
-                                moment a testset is wired in, surface a blue
-                                inline banner naming the canonical references{" "}
-                                <code>{"{{(input)}}"}</code>,{" "}
-                                <code>{"{{(expected)}}"}</code>,{" "}
-                                <code>{"{{(metadata)}}"}</code>. Templating
-                                newcomers get a working starting point without
-                                hunting.
+                                <strong>Dataset-attach banner.</strong> The moment a testset is
+                                wired in, surface a blue inline banner naming the canonical
+                                references <code>{"{{(input)}}"}</code>,{" "}
+                                <code>{"{{(expected)}}"}</code>, <code>{"{{(metadata)}}"}</code>.
+                                Templating newcomers get a working starting point without hunting.
                             </li>
                             <li>
-                                <strong>Per-variable tooltip.</strong> Each
-                                variable reference is validated against the
-                                attached testset's schema. Mismatches render an
-                                inline red-bordered tooltip with the specific
-                                variable name + a Remove-variable
-                                quick-action. Edit-time, not runtime.
+                                <strong>Per-variable tooltip.</strong> Each variable reference is
+                                validated against the attached testset's schema. Mismatches render
+                                an inline red-bordered tooltip with the specific variable name + a
+                                Remove-variable quick-action. Edit-time, not runtime.
                             </li>
                         </ul>
                         <br />
-                        <strong>Why this depends on gap-07:</strong> the
-                        validation reads from the per-testset schema entity
-                        gap-07 establishes. Without that schema the tooltip
-                        can only check template syntax. With it, the tooltip
-                        can say <em>"this path isn't in your dataset"</em>{" "}
-                        with the actual path the user typed.
+                        <strong>Why this depends on gap-07:</strong> the validation reads from the
+                        per-testset schema entity gap-07 establishes. Without that schema the
+                        tooltip can only check template syntax. With it, the tooltip can say{" "}
+                        <em>"this path isn't in your dataset"</em> with the actual path the user
+                        typed.
                         <br />
                         <br />
-                        <strong>Stringified-JSON fault line:</strong>{" "}
-                        Braintrust's variable validator false-warns on{" "}
-                        <code>{"{{metadata.source}}"}</code> when the column
-                        is a stringified JSON string (their schema treats it
-                        as a string, not a parsed object). Same fault line
-                        as gap-04. Gap-02's parse-on-detect, applied at
-                        validation time here, avoids that false warning.
+                        <strong>Stringified-JSON fault line:</strong> Braintrust's variable
+                        validator false-warns on <code>{"{{metadata.source}}"}</code> when the
+                        column is a stringified JSON string (their schema treats it as a string, not
+                        a parsed object). Same fault line as gap-04. Gap-02's parse-on-detect,
+                        applied at validation time here, avoids that false warning.
                     </>
                 }
             >
                 <Link href="/solutions-playground" style={styles.cta}>
                     <span style={styles.ctaTag}>Solution</span>
                     <span style={styles.ctaTitle}>
-                        Solutions · Playground — variable-validation prompt
-                        section →
+                        Solutions · Playground — variable-validation prompt section →
                     </span>
                     <span style={styles.ctaBlurb}>
-                        See the dataset-attach banner + per-variable tooltip in
-                        action. Today (no validation, runtime-only) next to
-                        Proposed (banner + tooltip). The execution-item
-                        comparison grid below covers the input/output side of
-                        the playground surface.
+                        See the dataset-attach banner + per-variable tooltip in action. Today (no
+                        validation, runtime-only) next to Proposed (banner + tooltip). The
+                        execution-item comparison grid below covers the input/output side of the
+                        playground surface.
                     </span>
                 </Link>
 
@@ -102,8 +89,8 @@ export default function Gap08Concept() {
                     </Link>{" "}
                     ·{" "}
                     <Link href="/gap-05-dot-key-disambiguation" style={styles.link}>
-                        gap-05 (the {"{{a.b}}"} disambiguation also applies to
-                        playground references)
+                        gap-05 (the {"{{a.b}}"} disambiguation also applies to playground
+                        references)
                     </Link>{" "}
                     ·{" "}
                     <Link href="/gap-07-schema-aware-form" style={styles.link}>
