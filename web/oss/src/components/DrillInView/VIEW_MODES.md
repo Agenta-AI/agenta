@@ -107,6 +107,19 @@ Both panels use the same default-selection logic:
 - Otherwise the first available mode wins (in practice `text` for plain
   strings that do not parse as JSON).
 
+## Large value guard
+
+All display targets must respect the shared render budget in
+[renderBudget.ts](./renderBudget.ts). Large strings, objects, arrays, and
+decoded/serialized outputs are previewed first instead of being formatted and
+mounted in full. The user can still explicitly choose `Render full`, and can
+copy the full value from the preview.
+
+This guard is intentionally generic. Do not special-case Gmail, tool calls,
+provider payloads, or any other schema when deciding whether a value is safe to
+render. Budget by value size, key count, item count, and depth so the behavior
+works for arbitrary trace data.
+
 ## Availability matrix
 
 | Source                                              | Available modes                                                           |

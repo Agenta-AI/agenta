@@ -47,6 +47,13 @@ import {
 } from "./decodedJsonHelpers"
 import type {DrillInContentProps} from "./DrillInContent"
 import {EntityDrillInView} from "./EntityDrillInView"
+import LargeValuePreview from "./LargeValuePreview"
+import {
+    getRenderStats,
+    previewValueString,
+    shouldUsePreview,
+    type RenderBudgetMode,
+} from "./renderBudget"
 import {getDefaultJsonViewMode} from "./viewModes"
 const ImagePreview = dynamic(() => import("@agenta/ui").then((mod) => mod.ImagePreview), {
     ssr: false,
@@ -309,6 +316,7 @@ export const TraceSpanDrillInView = memo(
         const [searchTerm, setSearchTerm] = useState("")
         const [currentResultIndex, setCurrentResultIndex] = useState(0)
         const [resultCount, setResultCount] = useState(0)
+        const [renderFullModes, setRenderFullModes] = useState<Record<string, boolean>>({})
 
         const isStringValue = typeof sanitizedSpanData === "string"
         const isObjectOrArrayValue =
@@ -316,39 +324,6 @@ export const TraceSpanDrillInView = memo(
         const parsedStructuredString = useMemo(
             () => (isStringValue ? parseStructuredJson(sanitizedSpanData) : null),
             [isStringValue, sanitizedSpanData],
-        )
-
-        const jsonOutput = useMemo(
-            () =>
-                isStringValue
-                    ? parsedStructuredString !== null
-                        ? sanitizedSpanData
-                        : (JSON.stringify(sanitizedSpanData) ?? "")
-                    : getStringOrJson(sanitizedSpanData),
-            [isStringValue, parsedStructuredString, sanitizedSpanData],
-        )
-        const yamlOutput = useMemo(() => {
-            const yamlSource = isStringValue ? parsedStructuredString : sanitizedSpanData
-            if (yamlSource === null || yamlSource === undefined) return ""
-            try {
-                return yaml.dump(yamlSource, {lineWidth: 120})
-            } catch {
-                return ""
-            }
-        }, [isStringValue, parsedStructuredString, sanitizedSpanData])
-
-        const textOutput = useMemo(() => {
-            if (typeof sanitizedSpanData === "string") {
-                return parsedStructuredString !== null
-                    ? normalizeEscapedLineBreaks(sanitizedSpanData)
-                    : sanitizedSpanData
-            }
-            return getStringOrJson(sanitizedSpanData)
-        }, [parsedStructuredString, sanitizedSpanData])
-
-        const decodedJsonOutput = useMemo(
-            () => buildDecodedJsonOutput(sanitizedSpanData, parsedStructuredString),
-            [sanitizedSpanData, parsedStructuredString],
         )
 
         const beautifiedJsonSource = useMemo(() => {
@@ -391,17 +366,63 @@ export const TraceSpanDrillInView = memo(
 
         const isCodeMode = viewMode === "json" || viewMode === "yaml" || viewMode === "decoded-json"
         const isBeautifiedJson = viewMode === "beautified-json"
+        const activeStatsSource =
+            viewMode === "json" || viewMode === "text" || viewMode === "markdown"
+                ? sanitizedSpanData
+                : beautifiedJsonSource
+        const activeRenderStats = useMemo(
+            () => getRenderStats(activeStatsSource),
+            [activeStatsSource],
+        )
+        const shouldPreviewActiveMode =
+            !renderFullModes[viewMode] &&
+            shouldUsePreview(activeRenderStats, viewMode as RenderBudgetMode)
 
-        const activeOutput =
-            viewMode === "yaml"
-                ? yamlOutput
-                : viewMode === "json"
-                  ? jsonOutput
-                  : viewMode === "decoded-json"
-                    ? decodedJsonOutput
-                    : viewMode === "beautified-json"
-                      ? JSON.stringify(beautifiedJsonSource, null, 2)
-                      : textOutput
+        const activeOutput = useMemo(() => {
+            if (shouldPreviewActiveMode) return previewValueString(activeStatsSource)
+
+            if (viewMode === "yaml") {
+                const yamlSource = isStringValue ? parsedStructuredString : sanitizedSpanData
+                if (yamlSource === null || yamlSource === undefined) return ""
+                try {
+                    return yaml.dump(yamlSource, {lineWidth: 120})
+                } catch {
+                    return ""
+                }
+            }
+
+            if (viewMode === "json") {
+                return isStringValue
+                    ? parsedStructuredString !== null
+                        ? sanitizedSpanData
+                        : (JSON.stringify(sanitizedSpanData) ?? "")
+                    : getStringOrJson(sanitizedSpanData)
+            }
+
+            if (viewMode === "decoded-json") {
+                return buildDecodedJsonOutput(sanitizedSpanData, parsedStructuredString)
+            }
+
+            if (viewMode === "beautified-json") {
+                return JSON.stringify(beautifiedJsonSource, null, 2)
+            }
+
+            if (typeof sanitizedSpanData === "string") {
+                return parsedStructuredString !== null
+                    ? normalizeEscapedLineBreaks(sanitizedSpanData)
+                    : sanitizedSpanData
+            }
+
+            return getStringOrJson(sanitizedSpanData)
+        }, [
+            activeStatsSource,
+            beautifiedJsonSource,
+            isStringValue,
+            parsedStructuredString,
+            sanitizedSpanData,
+            shouldPreviewActiveMode,
+            viewMode,
+        ])
 
         const closeSearch = useCallback(() => {
             setIsSearchOpen(false)
@@ -440,10 +461,14 @@ export const TraceSpanDrillInView = memo(
         }, [activeOutput, closeSearch])
 
         useEffect(() => {
-            if (!isCodeMode) {
+            if (!isCodeMode || shouldPreviewActiveMode) {
                 closeSearch()
             }
-        }, [isCodeMode, closeSearch])
+        }, [isCodeMode, shouldPreviewActiveMode, closeSearch])
+
+        useEffect(() => {
+            setRenderFullModes({})
+        }, [sanitizedSpanData])
 
         const downloadFile = useCallback((url: string) => {
             const link = document.createElement("a")
@@ -478,7 +503,7 @@ export const TraceSpanDrillInView = memo(
                                 className={`${isSearchOpen ? "!bg-[#17324D] !border-[#17324D]" : "text-gray-500"} !px-1 !h-6 text-xs`}
                                 icon={<MagnifyingGlassIcon size={14} />}
                                 onClick={() => setIsSearchOpen((prev) => !prev)}
-                                disabled={!isCodeMode}
+                                disabled={!isCodeMode || shouldPreviewActiveMode}
                             />
                             <Select
                                 size="small"
@@ -537,7 +562,16 @@ export const TraceSpanDrillInView = memo(
                                     />
                                 </div>
                             )}
-                            {isCodeMode ? (
+                            {shouldPreviewActiveMode ? (
+                                <LargeValuePreview
+                                    value={activeStatsSource}
+                                    mode={viewMode as RenderBudgetMode}
+                                    stats={activeRenderStats}
+                                    onRenderFull={() =>
+                                        setRenderFullModes((prev) => ({...prev, [viewMode]: true}))
+                                    }
+                                />
+                            ) : isCodeMode ? (
                                 <DrillInProvider
                                     value={{
                                         enabled: false,
@@ -578,7 +612,7 @@ export const TraceSpanDrillInView = memo(
                                 <div className="mx-1 my-2 rounded-md bg-[#F6F8FB]">
                                     <TextModeViewer
                                         editorId={`trace-span-${textViewerId}`}
-                                        value={textOutput}
+                                        value={activeOutput}
                                         mode={viewMode as "text" | "markdown"}
                                     />
                                 </div>
