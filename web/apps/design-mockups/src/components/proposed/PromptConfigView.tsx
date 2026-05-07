@@ -66,9 +66,7 @@ export function PromptConfigView({prompts}: PromptConfigViewProps) {
             <header style={styles.header}>
                 <span style={styles.label}>Prompt config</span>
                 <span style={styles.summary}>
-                    {chainLength === 1
-                        ? "single prompt"
-                        : `${chainLength}-step chain`}
+                    {chainLength === 1 ? "single prompt" : `${chainLength}-step chain`}
                 </span>
             </header>
             <ol style={styles.list}>
@@ -80,9 +78,7 @@ export function PromptConfigView({prompts}: PromptConfigViewProps) {
                             </span>
                             <span style={styles.cardName}>{p.name}</span>
                         </header>
-                        <pre style={styles.template}>
-                            {renderTemplate(p.template)}
-                        </pre>
+                        <pre style={styles.template}>{renderTemplate(p.template)}</pre>
                         <footer style={styles.cardFooter}>
                             <span style={styles.varsLabel}>Variables:</span>
                             {p.variables.length === 0 ? (
@@ -91,9 +87,7 @@ export function PromptConfigView({prompts}: PromptConfigViewProps) {
                                 p.variables.map((v, i) => (
                                     <Fragment key={v.name}>
                                         <span style={styles.varToken}>
-                                            <span style={styles.varName}>
-                                                {`{{${v.name}}}`}
-                                            </span>
+                                            <span style={styles.varName}>{`{{${v.name}}}`}</span>
                                             {v.state === "draft" ? (
                                                 <TypeChip variant="draft" />
                                             ) : null}

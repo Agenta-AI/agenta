@@ -39,113 +39,92 @@ export default function Gap06Concept() {
                         <strong>What production already does:</strong>
                         <ul style={styles.list}>
                             <li>
-                                <code>DrillInContent.tsx</code> line 1284-1298:
-                                ANY field where{" "}
-                                <code>dataType === &quot;messages&quot;</code>{" "}
-                                renders via <code>ChatMessageList</code>{" "}
-                                unconditionally — comment says "regardless of
-                                editability". So messages DO render with chat
-                                cards, just only at the depth the user has
-                                drilled to.
+                                <code>DrillInContent.tsx</code> line 1284-1298: ANY field where{" "}
+                                <code>dataType === &quot;messages&quot;</code> renders via{" "}
+                                <code>ChatMessageList</code> unconditionally — comment says
+                                "regardless of editability". So messages DO render with chat cards,
+                                just only at the depth the user has drilled to.
                             </li>
                             <li>
                                 <code>ChatMessageList</code> (
-                                <code>web/packages/agenta-ui/src/ChatMessage/</code>
-                                ) renders role badges + content + handles{" "}
-                                <code>role: &quot;tool&quot;</code> responses
-                                via <code>ToolMessageHeader</code>.
+                                <code>web/packages/agenta-ui/src/ChatMessage/</code>) renders role
+                                badges + content + handles <code>role: &quot;tool&quot;</code>{" "}
+                                responses via <code>ToolMessageHeader</code>.
                             </li>
                             <li>
-                                Assistant messages with <code>tool_calls</code>{" "}
-                                use{" "}
-                                <code>extractDisplayTextFromMessage</code>{" "}
-                                which formats them as inline text like{" "}
-                                <code>
-                                    get_weather({'{"city": "NYC"}'})
-                                </code>
-                                . Readable, but it sits in the message body
-                                with no visual separation from prose content.
+                                Assistant messages with <code>tool_calls</code> use{" "}
+                                <code>extractDisplayTextFromMessage</code> which formats them as
+                                inline text like <code>get_weather({'{"city": "NYC"}'})</code>.
+                                Readable, but it sits in the message body with no visual separation
+                                from prose content.
                             </li>
                             <li>
-                                Table cells: <code>ChatMessagesCellContent</code>{" "}
-                                shows a chat preview already. Same renderer
-                                pipeline.
+                                Table cells: <code>ChatMessagesCellContent</code> shows a chat
+                                preview already. Same renderer pipeline.
                             </li>
                         </ul>
                         <br />
-                        <strong>What gap-06 actually proposes (after
-                        accounting for what already ships):</strong>
+                        <strong>
+                            What gap-06 actually proposes (after accounting for what already ships):
+                        </strong>
                         <ul style={styles.list}>
                             <li>
-                                <strong>Dedicated tool-call card.</strong>{" "}
-                                Render assistant <code>tool_calls</code> as a
-                                card below the message body: function name as
-                                a heading, arguments JSON pretty-printed
-                                (parsed from the string). This is the new
-                                rendering. The OpenAI chat-message contract
-                                stores <code>arguments</code> as a JSON
-                                string, which is why production currently
-                                shows it inline as text rather than as
+                                <strong>Dedicated tool-call card.</strong> Render assistant{" "}
+                                <code>tool_calls</code> as a card below the message body: function
+                                name as a heading, arguments JSON pretty-printed (parsed from the
+                                string). This is the new rendering. The OpenAI chat-message contract
+                                stores <code>arguments</code> as a JSON string, which is why
+                                production currently shows it inline as text rather than as
                                 structured fields.
                             </li>
                             <li>
                                 <strong>
                                     <code>[tool-calls]</code> chip in table cells
                                 </strong>{" "}
-                                — part of gap-01 chip vocabulary applied to
-                                tool-call columns. Lets the user see
-                                tool-call columns at a glance.
+                                — part of gap-01 chip vocabulary applied to tool-call columns. Lets
+                                the user see tool-call columns at a glance.
                             </li>
                             <li>
-                                <strong>Root-level rendering</strong> — falls
-                                out of gap-03 (auto-expand). When auto-expand
-                                lands, the user sees{" "}
-                                <code>inputs.messages</code> rendered with
-                                chat cards at root without the drill-in click.
-                                <em> Not a unique gap-06 contribution; the
-                                lift comes from gap-03.</em>
+                                <strong>Root-level rendering</strong> — falls out of gap-03
+                                (auto-expand). When auto-expand lands, the user sees{" "}
+                                <code>inputs.messages</code> rendered with chat cards at root
+                                without the drill-in click.
+                                <em>
+                                    {" "}
+                                    Not a unique gap-06 contribution; the lift comes from gap-03.
+                                </em>
                             </li>
                         </ul>
                         <br />
-                        <strong>Subset relationship:</strong> the unique
-                        gap-06 piece is the tool-call card. Everything else is
-                        either already in production (
-                        <code>ChatMessageList</code> + chat preview) or comes
-                        from another gap (gap-03 auto-expand, gap-01 chip).
-                        Calling it out as its own gap because the tool-call
-                        card has its own design surface that doesn't fit
-                        cleanly under gap-01 or gap-03.
+                        <strong>Subset relationship:</strong> the unique gap-06 piece is the
+                        tool-call card. Everything else is either already in production (
+                        <code>ChatMessageList</code> + chat preview) or comes from another gap
+                        (gap-03 auto-expand, gap-01 chip). Calling it out as its own gap because the
+                        tool-call card has its own design surface that doesn't fit cleanly under
+                        gap-01 or gap-03.
                     </>
                 }
             >
                 <Link href="/solutions-drill-in" style={styles.cta}>
                     <span style={styles.ctaTag}>Solution</span>
-                    <span style={styles.ctaTitle}>
-                        Solutions · Drill-in — full demo →
-                    </span>
+                    <span style={styles.ctaTitle}>Solutions · Drill-in — full demo →</span>
                     <span style={styles.ctaBlurb}>
-                        The kitchen-sink Vanuatu row's <code>messages</code>{" "}
-                        array includes a 5-turn conversation with a tool call
-                        (<code>lookup_country</code>) and a{" "}
-                        <code>role: &quot;tool&quot;</code> response.{" "}
-                        <code>ChatMessageList</code> renders inline at root
-                        via gap-03 auto-expand; the assistant message's{" "}
-                        <code>tool_calls</code> shows as a parsed-arguments
-                        card (gap-06's unique contribution).
+                        The kitchen-sink Vanuatu row's <code>messages</code> array includes a 5-turn
+                        conversation with a tool call (<code>lookup_country</code>) and a{" "}
+                        <code>role: &quot;tool&quot;</code> response. <code>ChatMessageList</code>{" "}
+                        renders inline at root via gap-03 auto-expand; the assistant message's{" "}
+                        <code>tool_calls</code> shows as a parsed-arguments card (gap-06's unique
+                        contribution).
                     </span>
                 </Link>
                 <Link href="/solutions-playground" style={styles.cta}>
                     <span style={styles.ctaTag}>Solution</span>
-                    <span style={styles.ctaTitle}>
-                        Solutions · Playground — kitchen-sink row →
-                    </span>
+                    <span style={styles.ctaTitle}>Solutions · Playground — kitchen-sink row →</span>
                     <span style={styles.ctaBlurb}>
-                        Same Vanuatu messages array on the three-way compare
-                        grid. Today renders messages as a borderless textarea
-                        placeholder; Proposed (embedded) renders chat cards
-                        inline; Alt (compact) summarizes (
-                        <code>5 messages · system + user + assistant…</code>)
-                        and expands on click.
+                        Same Vanuatu messages array on the three-way compare grid. Today renders
+                        messages as a borderless textarea placeholder; Proposed (embedded) renders
+                        chat cards inline; Alt (compact) summarizes (
+                        <code>5 messages · system + user + assistant…</code>) and expands on click.
                     </span>
                 </Link>
 
@@ -156,13 +135,13 @@ export default function Gap06Concept() {
                     </Link>{" "}
                     ·{" "}
                     <Link href="/gap-02-table-cells" style={styles.link}>
-                        gap-02 (messages preview in table cells — already in
-                        production via <code>ChatMessagesCellContent</code>)
+                        gap-02 (messages preview in table cells — already in production via{" "}
+                        <code>ChatMessagesCellContent</code>)
                     </Link>{" "}
                     ·{" "}
                     <Link href="/gap-03-drill-in-root-view" style={styles.link}>
-                        gap-03 (auto-expand surfaces messages at root — root
-                        rendering is gap-03's job, not gap-06's)
+                        gap-03 (auto-expand surfaces messages at root — root rendering is gap-03's
+                        job, not gap-06's)
                     </Link>
                 </div>
             </MockupPageShell>

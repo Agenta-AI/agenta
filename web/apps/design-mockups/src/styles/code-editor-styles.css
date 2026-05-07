@@ -582,3 +582,19 @@
         transform: rotate(360deg);
     }
 }
+
+/* ── Proposal v2 — JSON / YAML gutter override ─────────────────────────
+   The default code-editor uses #f8f9fb (a soft grey) for the editor
+   background and the line-number gutter. The v2 proposal panel wants the
+   gutter (and the editor surface) to read as white, so the drill-in feels
+   lighter and closer to a regular form. Scoped to `.proposal-v2-editor`
+   so other surfaces are untouched. */
+.proposal-v2-editor .code-editor .editor-code {
+    --editor-bg: #ffffff;
+    --editor-line-number: rgba(5, 23, 41, 0.35);
+    --editor-gutter-border: rgba(5, 23, 41, 0.08);
+}
+
+.proposal-v2-editor .code-editor {
+    background: white;
+}

@@ -125,17 +125,11 @@ function isUniformObjectOfScalars(value: unknown): boolean {
     if (!value || typeof value !== "object" || Array.isArray(value)) return false
     return Object.values(value as Record<string, unknown>).every(
         (v) =>
-            v === null ||
-            typeof v === "string" ||
-            typeof v === "number" ||
-            typeof v === "boolean",
+            v === null || typeof v === "string" || typeof v === "number" || typeof v === "boolean",
     )
 }
 
-function getConversions(
-    variant: ChipVariant,
-    value: unknown,
-): ConversionOption[] {
+function getConversions(variant: ChipVariant, value: unknown): ConversionOption[] {
     const opts: ConversionOption[] = []
 
     switch (variant) {
@@ -249,9 +243,10 @@ function getConversions(
                     label: "Convert to array of {key, value} pairs",
                     target: "json-array",
                     apply: () =>
-                        Object.entries(value as Record<string, unknown>).map(
-                            ([key, v]) => ({key, value: v}),
-                        ),
+                        Object.entries(value as Record<string, unknown>).map(([key, v]) => ({
+                            key,
+                            value: v,
+                        })),
                     warning: "Restructures the object",
                 })
             }
@@ -312,10 +307,7 @@ function getConversions(
             const parsed = tryParseJson(String(value ?? ""))
             if (parsed) {
                 opts.push({
-                    label:
-                        parsed.kind === "object"
-                            ? "Parse to object"
-                            : "Parse to array",
+                    label: parsed.kind === "object" ? "Parse to object" : "Parse to array",
                     target: parsed.kind === "object" ? "json-object" : "json-array",
                     apply: () => parsed.parsed,
                 })
@@ -448,9 +440,7 @@ export function ChipConversionPopover({
                                 style={{
                                     ...popoverStyles.option,
                                     ...(opt.warning ? popoverStyles.optionWarning : null),
-                                    ...(opt.isCurrentBehavior
-                                        ? popoverStyles.optionCurrent
-                                        : null),
+                                    ...(opt.isCurrentBehavior ? popoverStyles.optionCurrent : null),
                                 }}
                                 onClick={() => onConvert?.(opt.apply())}
                             >
@@ -470,9 +460,7 @@ export function ChipConversionPopover({
             ) : null}
             {modeSwitches.length > 0 ? (
                 <>
-                    {conversions.length > 0 ? (
-                        <div style={popoverStyles.divider} />
-                    ) : null}
+                    {conversions.length > 0 ? <div style={popoverStyles.divider} /> : null}
                     <div style={popoverStyles.sectionLabel}>Editor mode:</div>
                     <div style={popoverStyles.menu}>
                         {modeSwitches.map((opt, i) => (
@@ -482,20 +470,14 @@ export function ChipConversionPopover({
                                 disabled={opt.isCurrent}
                                 style={{
                                     ...popoverStyles.option,
-                                    ...(opt.isCurrent
-                                        ? popoverStyles.optionCurrent
-                                        : null),
+                                    ...(opt.isCurrent ? popoverStyles.optionCurrent : null),
                                 }}
-                                onClick={() =>
-                                    !opt.isCurrent && onModeSwitch?.(opt.target)
-                                }
+                                onClick={() => !opt.isCurrent && onModeSwitch?.(opt.target)}
                             >
                                 <span style={popoverStyles.optionLabel}>
                                     {opt.label}
                                     {opt.isCurrent ? (
-                                        <span
-                                            style={popoverStyles.optionCurrentBadge}
-                                        >
+                                        <span style={popoverStyles.optionCurrentBadge}>
                                             current
                                         </span>
                                     ) : null}
@@ -504,9 +486,7 @@ export function ChipConversionPopover({
                                     → {targetLabel(opt.targetChip)}
                                 </span>
                                 {opt.hint ? (
-                                    <span style={popoverStyles.optionHint}>
-                                        {opt.hint}
-                                    </span>
+                                    <span style={popoverStyles.optionHint}>{opt.hint}</span>
                                 ) : null}
                             </button>
                         ))}

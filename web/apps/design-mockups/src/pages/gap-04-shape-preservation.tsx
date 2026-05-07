@@ -25,65 +25,51 @@ export default function Gap04Concept() {
                     <>
                         <strong>Backend is fine (verified):</strong> per{" "}
                         <code>backend-response data/02-response.json</code> and{" "}
-                        <code>08-response.json</code>, the BE returns each
-                        testcase's <code>data</code> exactly as uploaded. No
-                        injected keys.
+                        <code>08-response.json</code>, the BE returns each testcase's{" "}
+                        <code>data</code> exactly as uploaded. No injected keys.
                         <br />
                         <br />
-                        <strong>What the FE does:</strong> the column union
-                        is intentional.{" "}
-                        <code>currentColumnsAtom</code> in{" "}
-                        <code>molecule.ts:210-244</code> walks every testcase's{" "}
-                        <code>data</code> and unions the keys into one column
-                        set so every cell has a position in the table grid.
-                        Where the empties appear at render time:{" "}
-                        <code>EntityDualViewEditor.tsx:144-155</code> walks
-                        every column and writes{" "}
-                        <code>values[col.key] = entityData[col.key] ?? ""</code>.
-                        For Kiribati on fixture 08, that materializes the
-                        literal-dotted keys{" "}
-                        <code>&quot;geo.region&quot;</code> /{" "}
-                        <code>&quot;geo.subregion&quot;</code> as empty strings
-                        even though the row only authored nested <code>geo</code>.
+                        <strong>What the FE does:</strong> the column union is intentional.{" "}
+                        <code>currentColumnsAtom</code> in <code>molecule.ts:210-244</code> walks
+                        every testcase's <code>data</code> and unions the keys into one column set
+                        so every cell has a position in the table grid. Where the empties appear at
+                        render time: <code>EntityDualViewEditor.tsx:144-155</code> walks every
+                        column and writes <code>values[col.key] = entityData[col.key] ?? ""</code>.
+                        For Kiribati on fixture 08, that materializes the literal-dotted keys{" "}
+                        <code>&quot;geo.region&quot;</code> / <code>&quot;geo.subregion&quot;</code>{" "}
+                        as empty strings even though the row only authored nested <code>geo</code>.
                         <br />
                         <br />
                         <strong>Proposed (two layers):</strong>
                         <ul style={styles.list}>
                             <li>
-                                <strong>Render-only marker.</strong> The
-                                drill-in shows union-projected keys with the{" "}
-                                <code>[not authored]</code> chip so the user
-                                knows the field isn't part of this row's stored
-                                shape.
+                                <strong>Render-only marker.</strong> The drill-in shows
+                                union-projected keys with the <code>[not authored]</code> chip so
+                                the user knows the field isn't part of this row's stored shape.
                             </li>
                             <li>
-                                <strong>Save-side filter.</strong> Before
-                                dispatching a JSON-edit save, diff against the
-                                row's actual <code>data</code> and drop empty
-                                strings for keys the row doesn't author. State
-                                stays clean.
+                                <strong>Save-side filter.</strong> Before dispatching a JSON-edit
+                                save, diff against the row's actual <code>data</code> and drop empty
+                                strings for keys the row doesn't author. State stays clean.
                             </li>
                         </ul>
                         <br />
-                        Either layer addresses the runtime risk on its own.
-                        Together: the marker tells the user what's happening,
-                        the save-side filter keeps storage clean.
+                        Either layer addresses the runtime risk on its own. Together: the marker
+                        tells the user what's happening, the save-side filter keeps storage clean.
                     </>
                 }
             >
                 <Link href="/solutions-drill-in" style={styles.cta}>
                     <span style={styles.ctaTag}>Solution</span>
                     <span style={styles.ctaTitle}>
-                        Solutions · Drill-in — see [not authored] chip on
-                        union-projected keys →
+                        Solutions · Drill-in — see [not authored] chip on union-projected keys →
                     </span>
                     <span style={styles.ctaBlurb}>
-                        The kitchen-sink testset's known-column union
-                        includes literal <code>&quot;geo.subregion&quot;</code>{" "}
-                        (Tuvalu authors it). Vanuatu's row doesn't, so a
-                        muted <code>[not authored]</code> ghost row appears
-                        at the bottom of the drill-in. Save-side filter is
-                        conceptual (no save loop in the mockup).
+                        The kitchen-sink testset's known-column union includes literal{" "}
+                        <code>&quot;geo.subregion&quot;</code> (Tuvalu authors it). Vanuatu's row
+                        doesn't, so a muted <code>[not authored]</code> ghost row appears at the
+                        bottom of the drill-in. Save-side filter is conceptual (no save loop in the
+                        mockup).
                     </span>
                 </Link>
                 <Link href="/solutions-tables" style={styles.cta}>
@@ -92,11 +78,10 @@ export default function Gap04Concept() {
                         Solutions · Tables — see em-dash for missing keys →
                     </span>
                     <span style={styles.ctaBlurb}>
-                        The kitchen-sink testset has 3 rows: Vanuatu authors
-                        every column, Tuvalu and Kiribati each miss several.
-                        Their cells render as <code>—</code> on the proposed
-                        side (production renders the same). Distinct from
-                        null (which has its own chip).
+                        The kitchen-sink testset has 3 rows: Vanuatu authors every column, Tuvalu
+                        and Kiribati each miss several. Their cells render as <code>—</code> on the
+                        proposed side (production renders the same). Distinct from null (which has
+                        its own chip).
                     </span>
                 </Link>
 

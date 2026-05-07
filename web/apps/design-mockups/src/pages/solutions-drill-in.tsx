@@ -1,224 +1,98 @@
 /**
- * Solutions · Drill-in — unified demo combining every drawer-related proposal.
+ * Solutions · Drill-in — testcase drawer experiments.
  *
- * Each gap page (gap-01..06) discusses ONE problem + proposed solution. This
- * page mounts the proposed solutions together on the testcase drawer surface
- * so the team can see the integrated experience instead of one feature at a
- * time. Pick a fixture from the toolbar to exercise different proposals:
+ * Three side-by-side comparisons stacked vertically, each comparing the
+ * production testcase drawer (Status quo, left) with a different design
+ * candidate (Proposal, right). All three rows use the same testcase data,
+ * so the only thing that changes between rows is the right-hand candidate.
  *
- *   - chip-showcase  → gap-01 (chips on every row)
- *   - 06 deeply nested → gap-03 (auto-expand)
- *   - 08 collision   → gap-05 (dot-key + collision chips)
- *   - 07 messages    → gap-06 (chat cards + tool-call cards inline)
- *   - markdown art   → gap-01 long-form mode + markdown editor
+ *   Row 1 — Original proposal: ProposedDrillIn with every drawer-related
+ *           change applied (type chips, auto-expand, dotted-key handling,
+ *           inline messages/tool-call rendering).
  *
- * Today (production DrillInContent) on the left, Proposed (ProposedDrillIn
- * with all features enabled) on the right. Toggles for chip-mode, drawer
- * mode (editable/read-only), and auto-expand drive the proposed panel.
+ *   Row 2 — New proposal (you are here): empty starting point. Copy of
+ *           the status quo so the design conversation can move forward
+ *           with a clean column.
+ *
+ *   Row 3 — Schema-aware form alternative: when a per-testset schema is
+ *           authored, the drawer renders a labelled form instead of
+ *           detection-driven cards.
+ *
+ * Each row sits below a yellow lead paragraph that explains the proposal
+ * in plain English. Drawer width matches the production `size="large"`
+ * antd Drawer (~736px); the row scrolls horizontally if the viewport is
+ * narrower than two drawers side-by-side.
  */
 
-import {useState} from "react"
+import {useState, type ReactNode} from "react"
 
 import Head from "next/head"
 import Link from "next/link"
 
 import {Segmented} from "antd"
 
-import {DrawerSurface} from "@/mockups/components/DrawerSurface"
 import {MockupPageShell} from "@/mockups/components/MockupPageShell"
-import {SideBySide} from "@/mockups/components/SideBySide"
+import {ProdTestcaseDrawerSurface} from "@/mockups/components/ProdTestcaseDrawerSurface"
 import {StubDrillIn} from "@/mockups/components/StubDrillIn"
+import {ProposalV2DrillIn} from "@/mockups/components/proposed/ProposalV2DrillIn"
+import {ProposedDrillIn, type ChipRenderMode} from "@/mockups/components/proposed/ProposedDrillIn"
 import {
-    ProposedDrillIn,
-    type ChipRenderMode,
-} from "@/mockups/components/proposed/ProposedDrillIn"
-import {
-    FIXTURE02_INFERRED_SCHEMA,
     FIXTURE_KITCHEN_SINK_INFERRED_SCHEMA,
     SchemaForm,
-    countSchemaFields,
 } from "@/mockups/components/proposed/SchemaForm"
 import {
-    fixture02_capitals_with_geo,
-    fixture06_deeply_nested,
-    fixture07_messages_and_tools,
-    fixture08_dot_key_collision,
-    fixture_chip_showcase,
     fixture_kitchen_sink,
     fixture_kitchen_sink_known_columns,
-    fixture_markdown_article,
 } from "@/mockups/data/stubTestcases"
 
-// Toggle to bring back the multi-fixture switcher. Kept as a flag (rather
-// than deleting the FIXTURES array) so individual gap fixtures stay one
-// edit away if a focused review is needed.
-const SHOW_FIXTURE_SWITCHER = false
-
-// gap-04 — union of all column keys across fixture08 rows. Kiribati only
-// authors a subset of these, so the ghost-row machinery on ProposedDrillIn
-// has something to render.
-const FIXTURE08_KNOWN_COLUMNS = [
-    "country",
-    "geo.region",
-    "geo.subregion",
-    "geo",
-    "correct_answer",
-    "outputs",
-    "user.profile.email",
-    "user.profile.role",
-]
-
-const FIXTURES = [
-    {
-        id: "kitchen-sink",
-        label: "Kitchen sink — every gap on one row",
-        testcase: fixture_kitchen_sink[0],
-        autoExpand: true,
-        detectCollisions: true,
-        knownColumns: fixture_kitchen_sink_known_columns,
-        gapNote:
-            "All gaps on one row. Vanuatu has every chip variant (gap-01), nested inputs/outputs auto-expand (gap-03), `metadata` is stringified-JSON with parse-on-detect (gap-04), `geo.region` collides between literal and nested shapes (gap-05), `messages` includes a tool_call + role:\"tool\" response (gap-06), and `correct_answer` is markdown-heavy → hydrates as [markdown] (gap-01 long-form). The other rows in this testset (Tuvalu, Kiribati) miss columns Vanuatu authors → ghost rows render as [not authored] (gap-04).",
-    },
-    {
-        id: "chip-showcase",
-        label: "Chip showcase (gap-01)",
-        testcase: fixture_chip_showcase[0],
-        autoExpand: true,
-        detectCollisions: false,
-        gapNote:
-            "gap-01 — every primitive type variant on one row, exercising the full chip vocabulary.",
-    },
-    {
-        id: "06-deep",
-        label: "06 deeply nested (gap-03)",
-        testcase: fixture06_deeply_nested.find((tc) => tc.id === "tc-06-tuvalu")!,
-        autoExpand: true,
-        detectCollisions: false,
-        gapNote:
-            "gap-03 — auto-expand top-level keys avoids the bailout-to-code-editor problem at depth 5.",
-    },
-    {
-        id: "08-collision",
-        label: "08 dot-key collision (gap-05 + gap-04)",
-        testcase: fixture08_dot_key_collision.find((tc) => tc.id === "tc-08-kiribati")!,
-        autoExpand: true,
-        detectCollisions: true,
-        knownColumns: FIXTURE08_KNOWN_COLUMNS,
-        gapNote:
-            "gap-05 — literal `\"geo.region\"` and nested `geo.region` both visible with [dotted-key] + [⚠ collision] chips. gap-04 — keys authored by *other* rows (e.g. user.profile.*) render as ghost rows with [not authored] chip; they're in the testset's union but not stored on this row.",
-    },
-    {
-        id: "07-messages",
-        label: "07 messages + tools (gap-06)",
-        testcase: fixture07_messages_and_tools.find(
-            (tc) => tc.id === "tc-07-kiribati-tool",
-        )!,
-        autoExpand: true,
-        detectCollisions: false,
-        gapNote:
-            "gap-06 — ChatMessageEditor renders inline at root + tool-call card with parsed arguments.",
-    },
-    {
-        id: "markdown",
-        label: "Markdown article (long-form)",
-        testcase: fixture_markdown_article[0],
-        autoExpand: false,
-        detectCollisions: false,
-        gapNote:
-            "Long-form / markdown content. The chip hydrates as `[markdown]` so the field opens in the Lexical editor with markdown preview by default.",
-    },
-    {
-        id: "02-nested",
-        label: "02 nested (baseline)",
-        testcase: fixture02_capitals_with_geo.find((tc) => tc.id === "tc-02-tuvalu")!,
-        autoExpand: true,
-        detectCollisions: false,
-        gapNote:
-            "Moderate nesting. Useful baseline — shows how the chip + auto-expand combo reads on a normal testcase.",
-    },
-] as const
-
 export default function SolutionsDrillIn() {
-    const [fixtureId, setFixtureId] =
-        useState<(typeof FIXTURES)[number]["id"]>("kitchen-sink")
     const [editMode, setEditMode] = useState<"editable" | "read-only">("editable")
     const [chipMode, setChipMode] = useState<ChipRenderMode>("all")
     const editable = editMode === "editable"
 
-    const active = FIXTURES.find((f) => f.id === fixtureId) ?? FIXTURES[0]
-    const tc = active.testcase
+    const tc = fixture_kitchen_sink[0]
+    const schema = FIXTURE_KITCHEN_SINK_INFERRED_SCHEMA
+
+    const statusQuoColumn = (key: string) => (
+        <ComparisonColumn label="Status quo" tone="today">
+            <ProdTestcaseDrawerSurface>
+                {/* Production-faithful wrapper — mirrors
+                    web/oss/.../TestcaseEditDrawer/index.tsx so padding and
+                    add/delete affordances match the real testcase drawer. */}
+                <div className="flex flex-col h-full overflow-hidden w-full [&_.drill-in-breadcrumb]:pl-4 [&_.drill-in-field-content]:px-4 [&_.drill-in-field-content]:pt-2">
+                    <StubDrillIn
+                        key={`${key}-today`}
+                        initialData={tc.data}
+                        rootTitle="Root"
+                        editable={editable}
+                        showFieldDrillIn
+                        showFieldCollapse
+                        showAddControls
+                        showDeleteControls
+                    />
+                </div>
+            </ProdTestcaseDrawerSurface>
+        </ComparisonColumn>
+    )
 
     return (
         <>
             <Head>
-                <title>Solutions · Drill-in — unified drawer demo</title>
+                <title>Solutions · Drill-in — testcase drawer experiments</title>
             </Head>
             <MockupPageShell
                 title="Solutions · Drill-in (testcase drawer)"
                 blurb={
-                    "Production DrillInContent (Today, left) next to ProposedDrillIn (Proposed, right) with every drawer-related proposal applied: gap-01 chips, gap-03 auto-expand, gap-05 dot-key collision detection, gap-06 chat-message rendering, gap-01 long-form / markdown editor toggle, type-switching via chips. Pick a fixture below to exercise different combinations."
-                }
-                notes={
-                    <>
-                        <strong>What's proposed on the right panel:</strong>
-                        <ul style={styles.notesList}>
-                            <li>
-                                <strong>gap-01</strong>: TypeChip on every field row.
-                                Click any chip → conversion popover (Convert type +
-                                Editor mode). See{" "}
-                                <Link href="/gap-01-type-chips" style={styles.link}>
-                                    gap-01 (concept)
-                                </Link>{" "}
-                                for the chip vocabulary.
-                            </li>
-                            <li>
-                                <strong>gap-03</strong>: top-level keys auto-expand
-                                inline as nested cards. No more wall of JSON at
-                                root.
-                            </li>
-                            <li>
-                                <strong>gap-05</strong>: literal-dot keys get{" "}
-                                <code>[dotted-key]</code> chip; collisions stack{" "}
-                                <code>[⚠ collision]</code>.
-                            </li>
-                            <li>
-                                <strong>gap-06</strong>: messages-shaped arrays
-                                render as chat cards inline; tool-call cards parse
-                                the <code>arguments</code> JSON automatically.
-                            </li>
-                            <li>
-                                <strong>gap-01 long-form</strong>: long strings
-                                hydrate in <code>[markdown]</code> mode (Lexical
-                                editor with markdown preview toggle). User can
-                                switch back to <code>[str]</code> via the chip
-                                popover.
-                            </li>
-                        </ul>
-                    </>
+                    "Three rows. Each row pairs the production testcase drawer (Status " +
+                    "quo, left) with a different design proposal (Proposal, right). All " +
+                    "rows render the same testcase data, so the only thing that changes " +
+                    "between rows is the proposal on the right. Drawer width matches the " +
+                    'production `size="large"` antd Drawer (~736px) so the comparison ' +
+                    "reads at production fidelity; horizontal scroll inside the row if your " +
+                    "viewport is narrower than two drawers side-by-side."
                 }
             >
                 <div style={styles.toolbar}>
-                    {/* Fixture switcher hidden — kitchen-sink covers every gap on
-                        one row. Re-enable by setting SHOW_FIXTURE_SWITCHER=true. */}
-                    {SHOW_FIXTURE_SWITCHER ? (
-                        <>
-                            <span style={styles.label}>Fixture:</span>
-                            <Segmented
-                                size="small"
-                                value={fixtureId}
-                                options={FIXTURES.map((f) => ({
-                                    label: f.label,
-                                    value: f.id,
-                                }))}
-                                onChange={(v) =>
-                                    setFixtureId(
-                                        v as (typeof FIXTURES)[number]["id"],
-                                    )
-                                }
-                            />
-                            <span style={styles.divider} />
-                        </>
-                    ) : null}
                     <span style={styles.label}>Drawer mode:</span>
                     <Segmented
                         size="small"
@@ -230,7 +104,7 @@ export default function SolutionsDrillIn() {
                         onChange={(v) => setEditMode(v as "editable" | "read-only")}
                     />
                     <span style={styles.divider} />
-                    <span style={styles.label}>Chip mode:</span>
+                    <span style={styles.label}>Type chip visibility:</span>
                     <Segmented
                         size="small"
                         value={chipMode}
@@ -242,78 +116,114 @@ export default function SolutionsDrillIn() {
                         onChange={(v) => setChipMode(v as ChipRenderMode)}
                     />
                 </div>
-                <div style={styles.fixtureNote}>{active.gapNote}</div>
 
-                <SideBySide
-                    todaySub="Production DrillInContent — no chip, no auto-expand"
-                    today={
-                        <DrawerSurface title={`Testcase · ${tc.label}`}>
-                            <StubDrillIn
-                                key={`${active.id}-today`}
-                                initialData={tc.data}
-                                rootTitle={tc.label}
-                                editable={editable}
-                                showFieldDrillIn
-                                showFieldCollapse
-                            />
-                        </DrawerSurface>
+                {/* Row 1 — original proposal that was already on this page
+                    when we started. Bundles every drawer-related change
+                    (chips, auto-expand, dotted-key handling, inline
+                    messages/tool-call rendering) on a single fixture so
+                    reviewers can see them composed. */}
+                <ExperimentRow
+                    title="Proposal · Original (chips + auto-expand + inline messages)"
+                    lead={
+                        "The first design we drafted. Adds a small type chip beside every " +
+                        "field name (click to change type / editor mode), auto-expands " +
+                        "nested objects inline so the drawer doesn't open on a wall of " +
+                        "JSON, renders chat messages and tool calls as cards instead of " +
+                        "raw arrays, and flags fields whose name contains a literal dot " +
+                        "(so users can tell `geo.region` the literal key apart from " +
+                        "`geo` → `region` the nested path). One fixture row triggers all of " +
+                        "these at once so you can see the full effect."
                     }
-                    proposedSub="ProposedDrillIn — all gap-01..06 proposals applied"
-                    proposed={
-                        <DrawerSurface title={`Testcase · ${tc.label}`}>
-                            <ProposedDrillIn
-                                key={`${active.id}-proposed`}
-                                data={tc.data}
-                                rootTitle={tc.label}
-                                autoExpand={active.autoExpand}
-                                detectDotKeyCollisions={active.detectCollisions}
-                                editable={editable}
-                                chipMode={chipMode}
-                                knownColumns={
-                                    "knownColumns" in active
-                                        ? (active.knownColumns as string[])
-                                        : undefined
-                                }
-                            />
-                        </DrawerSurface>
+                    statusQuo={statusQuoColumn("row-1")}
+                    proposal={
+                        <ComparisonColumn label="Proposal" tone="proposed">
+                            <ProdTestcaseDrawerSurface>
+                                <div className="flex flex-col h-full overflow-hidden w-full">
+                                    <ProposedDrillIn
+                                        key="row-1-proposed"
+                                        data={tc.data}
+                                        rootTitle={tc.label}
+                                        autoExpand
+                                        detectDotKeyCollisions
+                                        editable={editable}
+                                        chipMode={chipMode}
+                                        knownColumns={fixture_kitchen_sink_known_columns}
+                                    />
+                                </div>
+                            </ProdTestcaseDrawerSurface>
+                        </ComparisonColumn>
                     }
                 />
 
-                {/* gap-07 — schema-aware form alternative. When a per-testset
-                    schema exists, the drawer renders a labelled form instead
-                    of detection-driven cards. Same row data, different render.
-                    Always shown so the team can compare side-by-side; the
-                    schema picked matches the active fixture. */}
-                {(() => {
-                    const schema =
-                        active.id === "02-nested"
-                            ? FIXTURE02_INFERRED_SCHEMA
-                            : FIXTURE_KITCHEN_SINK_INFERRED_SCHEMA
-                    return (
-                        <section style={styles.schemaSection}>
-                            <header style={styles.schemaHeader}>
-                                <span style={styles.schemaTag}>gap-07</span>
-                                <h2 style={styles.schemaTitle}>
-                                    Alternative — schema-aware form
-                                </h2>
-                                <span style={styles.schemaCount}>
-                                    schema · {countSchemaFields(schema)} fields
-                                </span>
-                            </header>
-                            <p style={styles.schemaLead}>
-                                When a per-testset schema exists, the drawer
-                                renders a labelled form with type-aware inputs
-                                per known column. Required fields flagged.
-                                Per-field PATCH on save (no JSON-blob replay).
-                                Same row data as the panels above, different
-                                render paradigm.
-                            </p>
-                            <div style={styles.schemaFrame}>
-                                <SchemaForm schema={schema} data={tc.data} />
-                            </div>
-                        </section>
-                    )
-                })()}
+                {/* Row 2 — empty starting point for the next round of design
+                    work. Renders the same status-quo drawer on the right so
+                    we can iteratively replace bits of it with new proposals.
+                    Edit this column directly when you have something to try. */}
+                <ExperimentRow
+                    title="Proposal · New (per-field view-type dropdown)"
+                    lead={
+                        "Each field in the drawer becomes its own section. The header " +
+                        "shows just the field name and a single “View as ▾” " +
+                        "dropdown on the right — no more row of icons (drill-in " +
+                        "chevron, copy, raw toggle, view-mode select). The dropdown lets " +
+                        "the user pick how the value is rendered: Text or Markdown for " +
+                        "strings; Chat for messages-shaped arrays; Form for objects; JSON " +
+                        "and YAML are always available. The Form view drops the " +
+                        "card-inside-card pattern — nesting is shown as an indent " +
+                        "with a thin vertical rail instead of another card. The JSON / " +
+                        "YAML editors render with a white gutter so the drawer reads as " +
+                        "one continuous surface."
+                    }
+                    statusQuo={statusQuoColumn("row-2")}
+                    proposal={
+                        <ComparisonColumn
+                            label="Proposal"
+                            tone="proposed"
+                            sub="Per-field view-type dropdown"
+                        >
+                            <ProdTestcaseDrawerSurface>
+                                <ProposalV2DrillIn
+                                    key="row-2-proposed-v2"
+                                    data={tc.data}
+                                    editable={editable}
+                                />
+                            </ProdTestcaseDrawerSurface>
+                        </ComparisonColumn>
+                    }
+                />
+
+                {/* Row 3 — the schema-aware form direction. Was the last
+                    proposal sitting on this page before we started this
+                    iteration. Kept here so the team can compare the
+                    detection-driven cards approach against an explicit
+                    per-testset schema form. */}
+                <ExperimentRow
+                    title="Proposal · Schema-aware form (alternative direction)"
+                    lead={
+                        "A different direction. If a testset has a saved schema, the " +
+                        "drawer renders a labelled form per known column instead of " +
+                        "inferring field types from data. Required fields are flagged. " +
+                        "Saving sends a per-field PATCH instead of replaying the whole " +
+                        "row. The user gets a predictable, repeatable form per testset; " +
+                        "the trade-off is that the schema becomes another thing to " +
+                        "author and maintain. Same testcase data as the rows above, " +
+                        "different render paradigm."
+                    }
+                    statusQuo={statusQuoColumn("row-3")}
+                    proposal={
+                        <ComparisonColumn
+                            label="Proposal"
+                            tone="proposed"
+                            sub="Schema-derived form"
+                        >
+                            <ProdTestcaseDrawerSurface>
+                                <div style={styles.schemaFormBody}>
+                                    <SchemaForm schema={schema} data={tc.data} />
+                                </div>
+                            </ProdTestcaseDrawerSurface>
+                        </ComparisonColumn>
+                    }
+                />
 
                 <div style={styles.crossLinks}>
                     <strong>Other surfaces:</strong>{" "}
@@ -323,31 +233,58 @@ export default function SolutionsDrillIn() {
                     ·{" "}
                     <Link href="/solutions-tables" style={styles.link}>
                         Solutions · Tables →
-                    </Link>{" "}
-                    <br />
-                    <strong>Related concept pages:</strong>{" "}
-                    <Link href="/gap-01-type-chips" style={styles.link}>
-                        gap-01
-                    </Link>{" "}
-                    ·{" "}
-                    <Link href="/gap-03-drill-in-root-view" style={styles.link}>
-                        gap-03
-                    </Link>{" "}
-                    ·{" "}
-                    <Link href="/gap-05-dot-key-disambiguation" style={styles.link}>
-                        gap-05
-                    </Link>{" "}
-                    ·{" "}
-                    <Link href="/gap-06-messages-renderer" style={styles.link}>
-                        gap-06
-                    </Link>{" "}
-                    ·{" "}
-                    <Link href="/gap-07-schema-aware-form" style={styles.link}>
-                        gap-07 (schema-aware form)
                     </Link>
                 </div>
             </MockupPageShell>
         </>
+    )
+}
+
+interface ExperimentRowProps {
+    title: string
+    lead: string
+    statusQuo: ReactNode
+    proposal: ReactNode
+}
+
+function ExperimentRow({title, lead, statusQuo, proposal}: ExperimentRowProps) {
+    return (
+        <section style={styles.experiment}>
+            <header style={styles.experimentHeader}>
+                <h2 style={styles.experimentTitle}>{title}</h2>
+            </header>
+            <p style={styles.experimentLead}>{lead}</p>
+            <div style={styles.compareRow}>
+                {statusQuo}
+                {proposal}
+            </div>
+        </section>
+    )
+}
+
+interface ComparisonColumnProps {
+    label: string
+    sub?: string
+    tone: "today" | "proposed"
+    children: ReactNode
+}
+
+function ComparisonColumn({label, sub, tone, children}: ComparisonColumnProps) {
+    return (
+        <div style={styles.column}>
+            <header style={styles.columnHeader}>
+                <span
+                    style={{
+                        ...styles.columnTag,
+                        ...(tone === "today" ? styles.columnTagToday : styles.columnTagProposed),
+                    }}
+                >
+                    {label}
+                </span>
+                {sub ? <span style={styles.columnSub}>{sub}</span> : null}
+            </header>
+            {children}
+        </div>
     )
 }
 
@@ -358,10 +295,13 @@ const styles = {
         flexWrap: "wrap" as const,
         gap: 12,
         padding: "10px 14px",
-        marginBottom: 12,
+        marginBottom: 16,
         background: "white",
         border: "1px solid rgba(5, 23, 41, 0.08)",
         borderRadius: 8,
+        position: "sticky" as const,
+        top: 0,
+        zIndex: 5,
     },
     label: {
         fontSize: 12,
@@ -374,20 +314,76 @@ const styles = {
         background: "rgba(5, 23, 41, 0.12)",
     },
     link: {color: "#1677ff", fontWeight: 500},
-    fixtureNote: {
-        marginBottom: 12,
-        padding: "10px 14px",
+    experiment: {
+        marginBottom: 32,
+    },
+    experimentHeader: {
+        marginBottom: 4,
+    },
+    experimentTitle: {
+        fontSize: 16,
+        fontWeight: 700,
+        color: "#051729",
+        margin: 0,
+    },
+    experimentLead: {
+        marginTop: 0,
+        marginBottom: 16,
+        padding: "12px 16px",
         background: "#fffbe6",
         borderLeft: "3px solid #faad14",
-        fontSize: 12,
+        fontSize: 13,
         color: "#051729",
         lineHeight: 1.6,
-        borderRadius: "0 4px 4px 0",
+        borderRadius: "0 6px 6px 0",
     },
-    notesList: {
-        margin: "8px 0",
-        paddingLeft: 20,
-        lineHeight: 1.7,
+    compareRow: {
+        display: "flex",
+        flexDirection: "row" as const,
+        alignItems: "stretch",
+        gap: 16,
+        // Allow horizontal scroll inside this row when the two production-
+        // sized drawers don't fit; the parent page handles vertical flow.
+        overflowX: "auto" as const,
+        paddingBottom: 4,
+    },
+    column: {
+        display: "flex",
+        flexDirection: "column" as const,
+        gap: 8,
+        flexShrink: 0,
+    },
+    columnHeader: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        paddingLeft: 4,
+    },
+    columnTag: {
+        fontSize: 10,
+        fontWeight: 600,
+        padding: "2px 8px",
+        borderRadius: 4,
+        textTransform: "uppercase" as const,
+        letterSpacing: "0.04em",
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+    },
+    columnTagToday: {
+        background: "rgba(5, 23, 41, 0.06)",
+        color: "rgba(5, 23, 41, 0.65)",
+    },
+    columnTagProposed: {
+        background: "#f0f9ff",
+        color: "#1677ff",
+    },
+    columnSub: {
+        fontSize: 11,
+        color: "rgba(5, 23, 41, 0.55)",
+    },
+    schemaFormBody: {
+        padding: 16,
+        background: "#fafafa",
+        minHeight: 480,
     },
     crossLinks: {
         marginTop: 24,
@@ -398,53 +394,5 @@ const styles = {
         fontSize: 12,
         color: "#051729",
         lineHeight: 1.8,
-    },
-    schemaSection: {
-        marginTop: 24,
-        padding: 16,
-        background: "white",
-        border: "1px solid rgba(5, 23, 41, 0.08)",
-        borderRadius: 8,
-    },
-    schemaHeader: {
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        marginBottom: 8,
-    },
-    schemaTag: {
-        fontSize: 10,
-        fontWeight: 600,
-        padding: "2px 8px",
-        borderRadius: 4,
-        background: "#fff1b8",
-        color: "#874d00",
-        textTransform: "uppercase" as const,
-        letterSpacing: "0.04em",
-        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-    },
-    schemaTitle: {
-        fontSize: 14,
-        fontWeight: 700,
-        margin: 0,
-        color: "#051729",
-    },
-    schemaCount: {
-        marginLeft: "auto" as const,
-        fontSize: 11,
-        color: "rgba(5, 23, 41, 0.55)",
-        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-    },
-    schemaLead: {
-        fontSize: 12,
-        color: "rgba(5, 23, 41, 0.65)",
-        lineHeight: 1.6,
-        margin: "0 0 12px",
-    },
-    schemaFrame: {
-        background: "#fafafa",
-        border: "1px solid rgba(5, 23, 41, 0.08)",
-        borderRadius: 8,
-        padding: 16,
     },
 }

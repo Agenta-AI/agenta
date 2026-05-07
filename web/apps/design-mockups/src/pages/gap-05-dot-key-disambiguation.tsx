@@ -32,85 +32,68 @@ export default function Gap05Concept() {
                 }
                 notes={
                     <>
-                        <strong>What production already does:</strong> the
-                        column-grouping logic in{" "}
-                        <code>currentColumnsAtom</code> /{" "}
-                        <code>groupColumns</code> shows literal{" "}
-                        <code>&quot;geo.region&quot;</code> as one flat column
-                        and nested <code>geo</code> as another column that
-                        expands via <code>&gt;</code> into{" "}
-                        <code>region</code> / <code>subregion</code>{" "}
-                        sub-columns. Structural separation works today — the
-                        user can see both shapes in the table.{" "}
+                        <strong>What production already does:</strong> the column-grouping logic in{" "}
+                        <code>currentColumnsAtom</code> / <code>groupColumns</code> shows literal{" "}
+                        <code>&quot;geo.region&quot;</code> as one flat column and nested{" "}
+                        <code>geo</code> as another column that expands via <code>&gt;</code> into{" "}
+                        <code>region</code> / <code>subregion</code> sub-columns. Structural
+                        separation works today — the user can see both shapes in the table.{" "}
                         <strong>What's missing is labeling.</strong>
                         <br />
                         <br />
-                        <strong>Relationship to gap-01:</strong> the chips
-                        this gap uses (<code>[dotted-key]</code>,{" "}
-                        <code>[⚠ collision]</code>, <code>[shadowed]</code>)
-                        live in the gap-01 vocabulary. What gap-05 owns
-                        independently: the collision-detection function, and
-                        the runtime rule that literal-key wins over nested at
-                        template time.
+                        <strong>Relationship to gap-01:</strong> the chips this gap uses (
+                        <code>[dotted-key]</code>, <code>[⚠ collision]</code>,{" "}
+                        <code>[shadowed]</code>) live in the gap-01 vocabulary. What gap-05 owns
+                        independently: the collision-detection function, and the runtime rule that
+                        literal-key wins over nested at template time.
                         <br />
                         <br />
                         <strong>What gap-05 actually proposes:</strong>
                         <ul style={styles.list}>
                             <li>
-                                <strong>Detection logic.</strong> When loading
-                                a row, walk the keys: any key containing a dot
-                                gets <code>[dotted-key]</code>; if its first
-                                segment is also a key with an object value,
-                                stack <code>[⚠ collision]</code> on both
-                                sides; if literal-first templating would
-                                shadow the nested traversal, also stack{" "}
+                                <strong>Detection logic.</strong> When loading a row, walk the keys:
+                                any key containing a dot gets <code>[dotted-key]</code>; if its
+                                first segment is also a key with an object value, stack{" "}
+                                <code>[⚠ collision]</code> on both sides; if literal-first
+                                templating would shadow the nested traversal, also stack{" "}
                                 <code>[shadowed]</code> on the nested side.
                             </li>
                             <li>
-                                <strong>Chip application.</strong> Surface
-                                those chips on the drill-in field row + the
-                                column header in the table. Already part of
+                                <strong>Chip application.</strong> Surface those chips on the
+                                drill-in field row + the column header in the table. Already part of
                                 gap-01 vocabulary.
                             </li>
                             <li>
-                                <strong>Variables panel hint</strong>{" "}
-                                (gap-08-adjacent): when a user types{" "}
-                                <code>{"{{geo.region}}"}</code>, autocomplete
-                                shows both candidates with the chip
-                                distinguishing them.
+                                <strong>Variables panel hint</strong> (gap-08-adjacent): when a user
+                                types <code>{"{{geo.region}}"}</code>, autocomplete shows both
+                                candidates with the chip distinguishing them.
                             </li>
                         </ul>
                         <br />
                         <strong>Two shapes resolve differently:</strong>
                         <ul style={styles.list}>
                             <li>
-                                <code>{"{{geo.region}}"}</code> returns the
-                                literal key first, falls back to nested
-                                traversal.
+                                <code>{"{{geo.region}}"}</code> returns the literal key first, falls
+                                back to nested traversal.
                             </li>
                             <li>
-                                <code>{"{{$.geo.region}}"}</code> JSONPath
-                                always traverses (ignores literal keys).
+                                <code>{"{{$.geo.region}}"}</code> JSONPath always traverses (ignores
+                                literal keys).
                             </li>
                         </ul>
-                        Marking the structural difference in the UI is what
-                        prevents authoring bugs.
+                        Marking the structural difference in the UI is what prevents authoring bugs.
                     </>
                 }
             >
                 <Link href="/solutions-drill-in" style={styles.cta}>
                     <span style={styles.ctaTag}>Solution</span>
-                    <span style={styles.ctaTitle}>
-                        Solutions · Drill-in — full demo →
-                    </span>
+                    <span style={styles.ctaTitle}>Solutions · Drill-in — full demo →</span>
                     <span style={styles.ctaBlurb}>
                         The kitchen-sink Vanuatu row has both literal{" "}
-                        <code>&quot;geo.region&quot;</code> and nested{" "}
-                        <code>geo</code>; the literal field shows{" "}
-                        <code>[dotted-key]</code> + <code>[⚠ collision]</code>;
-                        the nested sibling shows <code>[⚠ collision]</code>.
-                        Detection runs automatically on any row with this
-                        shape.
+                        <code>&quot;geo.region&quot;</code> and nested <code>geo</code>; the literal
+                        field shows <code>[dotted-key]</code> + <code>[⚠ collision]</code>; the
+                        nested sibling shows <code>[⚠ collision]</code>. Detection runs
+                        automatically on any row with this shape.
                     </span>
                 </Link>
 
@@ -125,16 +108,13 @@ export default function Gap05Concept() {
                     </Link>{" "}
                     ·{" "}
                     <Link href="/gap-07-schema-aware-form" style={styles.link}>
-                        gap-07 (schema-aware form does most of the
-                        disambiguation work structurally — Braintrust pattern)
+                        gap-07 (schema-aware form does most of the disambiguation work structurally
+                        — Braintrust pattern)
                     </Link>{" "}
                     ·{" "}
-                    <Link
-                        href="/gap-08-playground-variable-validation"
-                        style={styles.link}
-                    >
-                        gap-08 (variable validation — the autocomplete needs
-                        the same dot-key disambiguation)
+                    <Link href="/gap-08-playground-variable-validation" style={styles.link}>
+                        gap-08 (variable validation — the autocomplete needs the same dot-key
+                        disambiguation)
                     </Link>
                 </div>
             </MockupPageShell>
