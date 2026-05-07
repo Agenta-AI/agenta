@@ -251,9 +251,7 @@ export function TypeChip({
     notificationBadge,
     badgeTooltip,
 }: TypeChipProps) {
-    const resolved: ChipVariant =
-        variant ??
-        (value !== undefined ? inferVariant(value) : "string")
+    const resolved: ChipVariant = variant ?? (value !== undefined ? inferVariant(value) : "string")
     if (ambiguousOnly && AMBIGUOUS_HIDE.has(resolved)) {
         return null
     }
@@ -317,8 +315,7 @@ export function TypeChip({
                     }}
                     onMouseEnter={(e) => {
                         e.currentTarget.style.transform = "translateY(-1px)"
-                        e.currentTarget.style.boxShadow =
-                            "0 1px 3px rgba(5, 23, 41, 0.12)"
+                        e.currentTarget.style.boxShadow = "0 1px 3px rgba(5, 23, 41, 0.12)"
                     }}
                     onMouseLeave={(e) => {
                         e.currentTarget.style.transform = "translateY(0)"

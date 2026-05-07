@@ -24,38 +24,31 @@ export default function Gap07Concept() {
                 }
                 notes={
                     <>
-                        <strong>What's broken today:</strong> the production
-                        drill-in detects the type of each value in <em>this row</em>.
-                        Widgets are picked per row. If a row has only 3 of the
-                        testset's 5 known columns, the user sees only 3 fields —
-                        no signal that 2 more exist. Type changes across rows
-                        are silently absorbed.
+                        <strong>What's broken today:</strong> the production drill-in detects the
+                        type of each value in <em>this row</em>. Widgets are picked per row. If a
+                        row has only 3 of the testset's 5 known columns, the user sees only 3 fields
+                        — no signal that 2 more exist. Type changes across rows are silently
+                        absorbed.
                         <br />
                         <br />
-                        <strong>Proposed:</strong> a per-testset schema (inferred
-                        on first import or authored explicitly) drives the form.
-                        Every known column shows up regardless of whether{" "}
-                        <em>this row</em> has it. Required fields are flagged.
-                        Type-aware inputs per column. Per-field PATCH on save (no
-                        JSON-blob replay).
+                        <strong>Proposed:</strong> a per-testset schema (inferred on first import or
+                        authored explicitly) drives the form. Every known column shows up regardless
+                        of whether <em>this row</em> has it. Required fields are flagged. Type-aware
+                        inputs per column. Per-field PATCH on save (no JSON-blob replay).
                         <br />
                         <br />
-                        <strong>Why this is cross-cutting:</strong> one
-                        schema entity feeds gap-08 (playground variable
-                        validation), sidesteps gap-04 (per-field PATCH save
-                        means no union-JSON-blob replay), and gives gap-05 a
-                        structural answer (literal{" "}
-                        <code>&quot;a.b&quot;</code> and nested{" "}
-                        <code>a.b</code> become two distinct labelled fields,
-                        no chip needed). Gap-03 auto-expand is a simpler form
-                        of the same idea.
+                        <strong>Why this is cross-cutting:</strong> one schema entity feeds gap-08
+                        (playground variable validation), sidesteps gap-04 (per-field PATCH save
+                        means no union-JSON-blob replay), and gives gap-05 a structural answer
+                        (literal <code>&quot;a.b&quot;</code> and nested <code>a.b</code> become two
+                        distinct labelled fields, no chip needed). Gap-03 auto-expand is a simpler
+                        form of the same idea.
                         <br />
                         <br />
-                        <strong>Decision for the team call:</strong>{" "}
-                        adopt schema-as-entity (Braintrust's pattern) or stay
-                        schema-less (Langfuse pattern, current Agenta). One
-                        schema entity has the most downstream reuse of any
-                        decision on the table.
+                        <strong>Decision for the team call:</strong> adopt schema-as-entity
+                        (Braintrust's pattern) or stay schema-less (Langfuse pattern, current
+                        Agenta). One schema entity has the most downstream reuse of any decision on
+                        the table.
                     </>
                 }
             >
@@ -65,46 +58,34 @@ export default function Gap07Concept() {
                         Solutions · Drill-in — schema-aware form rendering →
                     </span>
                     <span style={styles.ctaBlurb}>
-                        The schema-aware form section sits below the
-                        side-by-side drill-in comparison and renders the same
-                        kitchen-sink Vanuatu row through a labelled form
-                        driven by an inferred per-testset schema. Required
-                        fields flagged, type-aware inputs per column, no
-                        JSON-blob replay on save.
+                        The schema-aware form section sits below the side-by-side drill-in
+                        comparison and renders the same kitchen-sink Vanuatu row through a labelled
+                        form driven by an inferred per-testset schema. Required fields flagged,
+                        type-aware inputs per column, no JSON-blob replay on save.
                     </span>
                 </Link>
 
                 <div style={styles.crossLinks}>
                     <strong>Related concept pages:</strong>{" "}
                     <Link href="/gap-03-drill-in-root-view" style={styles.link}>
-                        gap-03 (auto-expand — schema-aware form is the bigger
-                        version of the same idea)
+                        gap-03 (auto-expand — schema-aware form is the bigger version of the same
+                        idea)
                     </Link>{" "}
                     ·{" "}
                     <Link href="/gap-04-shape-preservation" style={styles.link}>
-                        gap-04 (per-field PATCH save sidesteps the union-projection
-                        replay issue)
+                        gap-04 (per-field PATCH save sidesteps the union-projection replay issue)
                     </Link>{" "}
                     ·{" "}
                     <Link href="/gap-05-dot-key-disambiguation" style={styles.link}>
-                        gap-05 (form structure handles literal-vs-nested
-                        disambiguation directly)
+                        gap-05 (form structure handles literal-vs-nested disambiguation directly)
                     </Link>{" "}
                     ·{" "}
-                    <Link
-                        href="/gap-08-playground-variable-validation"
-                        style={styles.link}
-                    >
-                        gap-08 (variable validation — same schema entity drives
-                        it)
+                    <Link href="/gap-08-playground-variable-validation" style={styles.link}>
+                        gap-08 (variable validation — same schema entity drives it)
                     </Link>{" "}
                     ·{" "}
-                    <Link
-                        href="/gap-09-variable-provenance"
-                        style={styles.link}
-                    >
-                        gap-09 (schema disambiguates draft vs authored on the
-                        execution item)
+                    <Link href="/gap-09-variable-provenance" style={styles.link}>
+                        gap-09 (schema disambiguates draft vs authored on the execution item)
                     </Link>
                 </div>
             </MockupPageShell>

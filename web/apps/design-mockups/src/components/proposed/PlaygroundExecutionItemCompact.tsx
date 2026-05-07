@@ -85,8 +85,7 @@ function classifyKind(v: unknown): {
     if (v === null) return {kind: "null", chip: "null", hint: null}
     if (Array.isArray(v)) {
         const isMsgs =
-            v.length > 0 &&
-            v.every((x) => x && typeof x === "object" && "role" in (x as object))
+            v.length > 0 && v.every((x) => x && typeof x === "object" && "role" in (x as object))
         const isToolCalls =
             v.length > 0 &&
             v.every(
@@ -147,8 +146,7 @@ function renderPreview(v: unknown, kind: Kind, parsed?: unknown): string {
             // the chip signal but it IS the preview-format signal — a
             // 600-char paragraph shouldn't try to fit on a 26px row's tail.
             if (isLongFormString(s)) {
-                const firstLine =
-                    s.split("\n").find((l) => l.trim().length > 0) ?? s
+                const firstLine = s.split("\n").find((l) => l.trim().length > 0) ?? s
                 const stripped = firstLine
                     .replace(/^#+\s*/, "")
                     .replace(/[*_`]/g, "")
@@ -156,8 +154,7 @@ function renderPreview(v: unknown, kind: Kind, parsed?: unknown): string {
                 const charCount = s.length
                 const lineCount = s.split("\n").length
                 const summary = `${charCount} chars · ${lineCount} line${lineCount === 1 ? "" : "s"}`
-                const head =
-                    stripped.length > 60 ? stripped.slice(0, 57) + "…" : stripped
+                const head = stripped.length > 60 ? stripped.slice(0, 57) + "…" : stripped
                 return `${summary} · ${head}`
             }
             return s.length > 80 ? s.slice(0, 77) + "…" : s
@@ -173,7 +170,7 @@ function renderPreview(v: unknown, kind: Kind, parsed?: unknown): string {
         case "array":
             return `[ ${((v as unknown[]) ?? []).length} items ]`
         case "messages": {
-            const arr = ((v as {role: string}[]) ?? [])
+            const arr = (v as {role: string}[]) ?? []
             const roles = arr
                 .slice(0, 3)
                 .map((m) => m.role)
@@ -214,12 +211,9 @@ function styledPreview(kind: Kind, value: unknown): CSSProperties {
             borderRadius: 3,
             border: "1px dashed #1677ff",
         }
-    if (kind === "object")
-        return {fontFamily: mono, color: "#1677ff"}
-    if (kind === "array")
-        return {fontFamily: mono, color: "#13c2c2"}
-    if (kind === "messages")
-        return {fontFamily: mono, color: "#722ed1", fontWeight: 500}
+    if (kind === "object") return {fontFamily: mono, color: "#1677ff"}
+    if (kind === "array") return {fontFamily: mono, color: "#13c2c2"}
+    if (kind === "messages") return {fontFamily: mono, color: "#722ed1", fontWeight: 500}
     return {fontFamily: mono, color: "rgba(5, 23, 41, 0.75)"}
 }
 
@@ -291,8 +285,7 @@ function CompactRow({
     const isExpandable = !isShortPrimitive || expanded
 
     const showChip = shouldShowChip(chipMode, kind)
-    const previewStyle =
-        chipMode === "none" ? styledPreview(kind, draft) : styles.preview
+    const previewStyle = chipMode === "none" ? styledPreview(kind, draft) : styles.preview
 
     const onRowClick = () => {
         if (!editable) return
@@ -400,10 +393,7 @@ function CompactRow({
                     </span>
                 ) : null}
                 <span style={styles.name}>{name}</span>
-                <span
-                    style={styles.valueSlot}
-                    onClick={(e) => editing && e.stopPropagation()}
-                >
+                <span style={styles.valueSlot} onClick={(e) => editing && e.stopPropagation()}>
                     {/* String + null share one branch: typing into a null
                         field initializes it as a string immediately. The
                         controlled `value` (always coerced to "") plus the
@@ -415,9 +405,7 @@ function CompactRow({
                         null branch was uncontrolled (defaultValue="" + no
                         onChange) — typing showed in the DOM but never
                         reached state, and blur lost the value. */}
-                    {editing &&
-                    (kind === "string" || kind === "null") &&
-                    mode === "short" ? (
+                    {editing && (kind === "string" || kind === "null") && mode === "short" ? (
                         <Input
                             size="small"
                             autoFocus
@@ -501,9 +489,7 @@ function CompactRow({
                                 disabled={!editable}
                                 state={editable ? undefined : "readOnly"}
                                 handleChange={
-                                    editable
-                                        ? (next: string) => setDraft(next)
-                                        : undefined
+                                    editable ? (next: string) => setDraft(next) : undefined
                                 }
                                 autoFocus={autoFocusEditor}
                             />
@@ -614,10 +600,7 @@ export function PlaygroundExecutionItemCompact({
                             }
                             currentMode={outputIsString ? outputMode : undefined}
                         >
-                            <TypeChip
-                                variant={outputChip}
-                                onClick={() => {}}
-                            />
+                            <TypeChip variant={outputChip} onClick={() => {}} />
                         </ChipConversionPopover>
                     ) : null}
                     {chipMode !== "none" && outputRenderHint === "markdown" ? (
@@ -649,9 +632,7 @@ export function PlaygroundExecutionItemCompact({
                         >
                             <div style={styles.longFormWrap}>
                                 <div style={styles.longFormToolbar}>
-                                    <span style={styles.longFormHint}>
-                                        Markdown
-                                    </span>
+                                    <span style={styles.longFormHint}>Markdown</span>
                                     <MarkdownToggleButton id={outputEditorId} />
                                 </div>
                                 <SharedEditor
@@ -717,15 +698,11 @@ function UnusedColumnsFooterCompact({columns}: {columns: string[]}) {
     const [open, setOpen] = useState(false)
     return (
         <div style={styles.unusedFooter}>
-            <button
-                type="button"
-                style={styles.unusedToggle}
-                onClick={() => setOpen((v) => !v)}
-            >
+            <button type="button" style={styles.unusedToggle} onClick={() => setOpen((v) => !v)}>
                 <span style={styles.unusedCaret}>{open ? "▾" : "▸"}</span>
                 <span>
-                    {open ? "Hide" : "Show"} {columns.length} unused testcase
-                    column{columns.length === 1 ? "" : "s"}
+                    {open ? "Hide" : "Show"} {columns.length} unused testcase column
+                    {columns.length === 1 ? "" : "s"}
                 </span>
             </button>
             {open ? (

@@ -16,10 +16,7 @@ import Head from "next/head"
 import Link from "next/link"
 
 import {MockupPageShell} from "@/mockups/components/MockupPageShell"
-import {
-    TypeChip,
-    type ChipVariant,
-} from "@/mockups/components/proposed/TypeChip"
+import {TypeChip, type ChipVariant} from "@/mockups/components/proposed/TypeChip"
 
 const CHIP_LEGEND: {
     variant: ChipVariant
@@ -56,7 +53,7 @@ const CHIP_LEGEND: {
         variant: "stringified",
         meaning:
             "Render hint — value is a string that parses as JSON. Stacks alongside [str]. Surfaces the gap-02/04 fault line: stored as a string, but structurally a JSON object/array.",
-        example: '[str] [stringified]',
+        example: "[str] [stringified]",
     },
     {
         variant: "markdown",
@@ -115,103 +112,73 @@ export default function Gap01Concept() {
                 }
                 notes={
                     <>
-                        <strong>Problem:</strong> users can't tell what TYPE a
-                        value is by looking at the rendered editor or table cell.
-                        A short string and a number both render as text. An empty
-                        string and null both render as nothing. A stringified
-                        JSON blob renders identically to a regular long string.
-                        Production today doesn't surface a type indicator
-                        anywhere — the user has to read the value carefully or
-                        infer from context.
+                        <strong>Problem:</strong> users can't tell what TYPE a value is by looking
+                        at the rendered editor or table cell. A short string and a number both
+                        render as text. An empty string and null both render as nothing. A
+                        stringified JSON blob renders identically to a regular long string.
+                        Production today doesn't surface a type indicator anywhere — the user has to
+                        read the value carefully or infer from context.
                         <br />
                         <br />
-                        <strong>Proposal:</strong> a small monospace chip per
-                        field (
-                        <code>[str]</code> · <code>[num]</code> ·{" "}
-                        <code>[obj]</code> · <code>[arr]</code> ·{" "}
-                        <code>[bool]</code> · <code>[null]</code> ·{" "}
-                        <code>[messages]</code> · <code>[stringified]</code> · …) that
-                        appears next to the field name on every surface that
-                        renders user-authored data: testcase drawer, playground
-                        execution items, testset table cells, observability /
-                        eval result views. Same primitive (
-                        <code>TypeChip</code>) everywhere. Same vocabulary. Same
-                        rendering modes (All / Ambiguous-only / None) so the
-                        team can dial the visibility per project.
+                        <strong>Proposal:</strong> a small monospace chip per field (
+                        <code>[str]</code> · <code>[num]</code> · <code>[obj]</code> ·{" "}
+                        <code>[arr]</code> · <code>[bool]</code> · <code>[null]</code> ·{" "}
+                        <code>[messages]</code> · <code>[stringified]</code> · …) that appears next
+                        to the field name on every surface that renders user-authored data: testcase
+                        drawer, playground execution items, testset table cells, observability /
+                        eval result views. Same primitive (<code>TypeChip</code>) everywhere. Same
+                        vocabulary. Same rendering modes (All / Ambiguous-only / None) so the team
+                        can dial the visibility per project.
                         <br />
                         <br />
-                        <strong>The chip is also the convert action.</strong>{" "}
-                        Clicking a chip opens a popover with the contextually
-                        valid type conversions (RFC WP-F1: "type indicator next
-                        to each value" + "convert action between string and
-                        JSON" — collapsed into one affordance). For string-like
-                        chips, the popover also offers an editor-mode toggle
-                        between short-form (inline antd Input) and long-form
-                        (Lexical SharedEditor with markdown preview), making
-                        the markdown affordance discoverable without the user
-                        having to know it exists. See the surface-specific
-                        sub-pages for live demos.
+                        <strong>The chip is also the convert action.</strong> Clicking a chip opens
+                        a popover with the contextually valid type conversions (RFC WP-F1: "type
+                        indicator next to each value" + "convert action between string and JSON" —
+                        collapsed into one affordance). For string-like chips, the popover also
+                        offers an editor-mode toggle between short-form (inline antd Input) and
+                        long-form (Lexical SharedEditor with markdown preview), making the markdown
+                        affordance discoverable without the user having to know it exists. See the
+                        surface-specific sub-pages for live demos.
                     </>
                 }
             >
                 <section style={styles.subPagesSection}>
                     <h2 style={styles.h2}>See it in action — solution pages</h2>
                     <p style={styles.lead}>
-                        The chip vocabulary is one of several proposals (gap-01
-                        through gap-08). Each gap page is conceptual — problem
-                        statement + proposed solution. The integrated
-                        experience lives on three <strong>solution pages</strong>{" "}
-                        that mount every relevant proposal together per surface.
+                        The chip vocabulary is one of several proposals (gap-01 through gap-08).
+                        Each gap page is conceptual — problem statement + proposed solution. The
+                        integrated experience lives on three <strong>solution pages</strong> that
+                        mount every relevant proposal together per surface.
                     </p>
                     <div style={styles.subPagesGrid}>
-                        <Link
-                            href="/solutions-drill-in"
-                            style={styles.subPageCard}
-                        >
+                        <Link href="/solutions-drill-in" style={styles.subPageCard}>
                             <span style={styles.subPageTag}>Solution</span>
-                            <span style={styles.subPageTitle}>
-                                Solutions · Drill-in →
-                            </span>
+                            <span style={styles.subPageTitle}>Solutions · Drill-in →</span>
                             <span style={styles.subPageBlurb}>
-                                Drawer mounted on the kitchen-sink Vanuatu
-                                row — every chip variant on a single row,
-                                plus gap-03 auto-expand, gap-05 collision
-                                detection, gap-06 chat cards, and the
-                                long-form / markdown editor on{" "}
+                                Drawer mounted on the kitchen-sink Vanuatu row — every chip variant
+                                on a single row, plus gap-03 auto-expand, gap-05 collision
+                                detection, gap-06 chat cards, and the long-form / markdown editor on{" "}
                                 <code>correct_answer</code>.
                             </span>
                         </Link>
-                        <Link
-                            href="/solutions-playground"
-                            style={styles.subPageCard}
-                        >
+                        <Link href="/solutions-playground" style={styles.subPageCard}>
                             <span style={styles.subPageTag}>Solution</span>
-                            <span style={styles.subPageTitle}>
-                                Solutions · Playground →
-                            </span>
+                            <span style={styles.subPageTitle}>Solutions · Playground →</span>
                             <span style={styles.subPageBlurb}>
-                                Three-way compare grid (Today / Proposed
-                                embedded / Alt compact) on the kitchen-sink
-                                Vanuatu row. Every chip variant on inputs,
-                                long-form mode on{" "}
-                                <code>correct_answer</code>, output
-                                mode-switching on the response.
+                                Three-way compare grid (Today / Proposed embedded / Alt compact) on
+                                the kitchen-sink Vanuatu row. Every chip variant on inputs,
+                                long-form mode on <code>correct_answer</code>, output mode-switching
+                                on the response.
                             </span>
                         </Link>
-                        <Link
-                            href="/solutions-tables"
-                            style={styles.subPageCard}
-                        >
+                        <Link href="/solutions-tables" style={styles.subPageCard}>
                             <span style={styles.subPageTag}>Solution</span>
-                            <span style={styles.subPageTitle}>
-                                Solutions · Tables →
-                            </span>
+                            <span style={styles.subPageTitle}>Solutions · Tables →</span>
                             <span style={styles.subPageBlurb}>
-                                Three-row kitchen-sink testset (Vanuatu /
-                                Tuvalu / Kiribati). Covers gap-01 chips on
-                                every column header, gap-02 cell rendering,
-                                gap-04 em-dash for missing keys, gap-05
-                                collisions, gap-06 messages preview.
+                                Three-row kitchen-sink testset (Vanuatu / Tuvalu / Kiribati). Covers
+                                gap-01 chips on every column header, gap-02 cell rendering, gap-04
+                                em-dash for missing keys, gap-05 collisions, gap-06 messages
+                                preview.
                             </span>
                         </Link>
                     </div>
@@ -221,10 +188,9 @@ export default function Gap01Concept() {
                     <header style={styles.legendHeader}>
                         <h2 style={styles.h2}>Chip vocabulary</h2>
                         <p style={styles.lead}>
-                            Full set of variants the <code>TypeChip</code>{" "}
-                            primitive supports. Used across gap-01 (drill-in /
-                            playground / tables) plus gap-02 / gap-03 / gap-05 /
-                            gap-06.
+                            Full set of variants the <code>TypeChip</code> primitive supports. Used
+                            across gap-01 (drill-in / playground / tables) plus gap-02 / gap-03 /
+                            gap-05 / gap-06.
                         </p>
                     </header>
                     <ul style={styles.legendList}>
@@ -233,12 +199,8 @@ export default function Gap01Concept() {
                                 <span style={styles.chipCol}>
                                     <TypeChip variant={row.variant} />
                                 </span>
-                                <span style={styles.meaningCol}>
-                                    {row.meaning}
-                                </span>
-                                <code style={styles.exampleCol}>
-                                    {row.example}
-                                </code>
+                                <span style={styles.meaningCol}>{row.meaning}</span>
+                                <code style={styles.exampleCol}>{row.example}</code>
                             </li>
                         ))}
                     </ul>
@@ -246,39 +208,32 @@ export default function Gap01Concept() {
 
                 <section style={styles.mechanismSection}>
                     <header style={styles.legendHeader}>
-                        <h2 style={styles.h2}>
-                            Type switching via chips (RFC WP-F1 mechanism)
-                        </h2>
+                        <h2 style={styles.h2}>Type switching via chips (RFC WP-F1 mechanism)</h2>
                         <p style={styles.lead}>
-                            Clicking a chip opens a popover with two sections.
-                            Both are real, working features — try them on any
-                            sub-page demo.
+                            Clicking a chip opens a popover with two sections. Both are real,
+                            working features — try them on any sub-page demo.
                         </p>
                     </header>
                     <div style={styles.mechanismGrid}>
                         <div style={styles.mechanismCol}>
-                            <div style={styles.mechanismTitle}>
-                                Convert type
-                            </div>
+                            <div style={styles.mechanismTitle}>Convert type</div>
                             <ul style={styles.mechanismList}>
                                 <li>
-                                    <strong>string → obj/arr</strong>: parse
-                                    when JSON-shaped. <strong>number/bool</strong>
-                                    : convert when value matches.
+                                    <strong>string → obj/arr</strong>: parse when JSON-shaped.{" "}
+                                    <strong>number/bool</strong>: convert when value matches.
                                 </li>
                                 <li>
                                     <strong>number → string</strong>: stringify.
-                                    <strong> obj/arr → string</strong>: serialize
-                                    via JSON.stringify.
+                                    <strong> obj/arr → string</strong>: serialize via
+                                    JSON.stringify.
                                 </li>
                                 <li>
-                                    <strong>null → anything</strong>: initialize
-                                    as the chosen type with a sensible default.
+                                    <strong>null → anything</strong>: initialize as the chosen type
+                                    with a sensible default.
                                 </li>
                                 <li>
-                                    Lossy / destructive conversions surface a{" "}
-                                    <em>warning row</em> in the menu before
-                                    they execute, so the user can see what
+                                    Lossy / destructive conversions surface a <em>warning row</em>{" "}
+                                    in the menu before they execute, so the user can see what
                                     they'll lose before clicking.
                                 </li>
                             </ul>
@@ -287,52 +242,41 @@ export default function Gap01Concept() {
                             <div style={styles.mechanismTitle}>Editor mode</div>
                             <ul style={styles.mechanismList}>
                                 <li>
-                                    <strong>string fields</strong>: switch
-                                    between short-form (inline antd Input) and
-                                    long-form (Lexical SharedEditor with
-                                    markdown preview). Value doesn't change —
-                                    only how it's displayed/edited.
+                                    <strong>string fields</strong>: switch between short-form
+                                    (inline antd Input) and long-form (Lexical SharedEditor with
+                                    markdown preview). Value doesn't change — only how it's
+                                    displayed/edited.
                                 </li>
                                 <li>
-                                    Initial mode chosen at <em>hydration only</em>{" "}
-                                    via length heuristic (
-                                    <code>&gt; 100 chars</code> or contains
-                                    newlines → <code>long</code>). After mount,
-                                    only the chip popover changes mode — typing
-                                    doesn't auto-flip.
+                                    Initial mode chosen at <em>hydration only</em> via length
+                                    heuristic (<code>&gt; 100 chars</code> or contains newlines →{" "}
+                                    <code>long</code>). After mount, only the chip popover changes
+                                    mode — typing doesn't auto-flip.
                                 </li>
                                 <li>
-                                    <strong>Notification badge</strong>: when
-                                    typing crosses the threshold while in{" "}
-                                    <code>short</code> mode, a small purple dot
+                                    <strong>Notification badge</strong>: when typing crosses the
+                                    threshold while in <code>short</code> mode, a small purple dot
                                     pulses on the chip suggesting the switch.
                                 </li>
                                 <li>
-                                    Clicking "Switch to long-form editor"
-                                    auto-focuses the Lexical editor on mount —
-                                    no focus break.
+                                    Clicking "Switch to long-form editor" auto-focuses the Lexical
+                                    editor on mount — no focus break.
                                 </li>
                             </ul>
                         </div>
                     </div>
                     <div style={styles.notes}>
-                        <strong>Implementation:</strong>{" "}
-                        <code>ChipConversionPopover.tsx</code> wraps any{" "}
-                        <code>TypeChip</code>. <code>getConversions()</code>{" "}
-                        computes contextually-valid type conversions from the
-                        current variant + value;{" "}
-                        <code>getModeSwitches()</code> adds the editor-mode
-                        toggle for string-like chips. The popover renders both
-                        sections under labels (
-                        <code>Convert type:</code> /{" "}
-                        <code>Editor mode:</code>) so the two concerns stay
-                        distinct visually.{" "}
-                        <strong>Phase 2 (not built yet):</strong> correctness
-                        chips (<code>[⚠ collision]</code>,{" "}
-                        <code>[⚠ shadowed]</code>, <code>[mixed]</code>,{" "}
-                        <code>[dotted-key]</code>) get their own action menus —
-                        "resolve to literal", "lock column type", etc. Same
-                        primitive, different menu.
+                        <strong>Implementation:</strong> <code>ChipConversionPopover.tsx</code>{" "}
+                        wraps any <code>TypeChip</code>. <code>getConversions()</code> computes
+                        contextually-valid type conversions from the current variant + value;{" "}
+                        <code>getModeSwitches()</code> adds the editor-mode toggle for string-like
+                        chips. The popover renders both sections under labels (
+                        <code>Convert type:</code> / <code>Editor mode:</code>) so the two concerns
+                        stay distinct visually. <strong>Phase 2 (not built yet):</strong>{" "}
+                        correctness chips (<code>[⚠ collision]</code>, <code>[⚠ shadowed]</code>,{" "}
+                        <code>[mixed]</code>, <code>[dotted-key]</code>) get their own action menus
+                        — "resolve to literal", "lock column type", etc. Same primitive, different
+                        menu.
                     </div>
                 </section>
             </MockupPageShell>

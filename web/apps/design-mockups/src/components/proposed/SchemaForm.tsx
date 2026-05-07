@@ -41,9 +41,7 @@ export function SchemaForm({schema, data, depth = 0}: SchemaFormProps) {
                         <div style={styles.fieldHeader}>
                             <label style={styles.fieldLabel}>
                                 {field.key}
-                                {field.required ? (
-                                    <span style={styles.required}>*</span>
-                                ) : null}
+                                {field.required ? <span style={styles.required}>*</span> : null}
                             </label>
                             <span style={styles.typeChip}>{field.type}</span>
                             {field.description ? (
@@ -105,20 +103,10 @@ function FieldInput({field, value, depth}: FieldInputProps) {
         return (
             <div style={styles.booleanGroup}>
                 <label style={styles.boolOption}>
-                    <input
-                        type="radio"
-                        defaultChecked={value === true}
-                        name={field.key}
-                    />{" "}
-                    true
+                    <input type="radio" defaultChecked={value === true} name={field.key} /> true
                 </label>
                 <label style={styles.boolOption}>
-                    <input
-                        type="radio"
-                        defaultChecked={value === false}
-                        name={field.key}
-                    />{" "}
-                    false
+                    <input type="radio" defaultChecked={value === false} name={field.key} /> false
                 </label>
                 <label style={styles.boolOption}>
                     <input
@@ -133,11 +121,7 @@ function FieldInput({field, value, depth}: FieldInputProps) {
     }
     if (field.type === "number") {
         return (
-            <input
-                type="number"
-                defaultValue={value as number | undefined}
-                style={styles.input}
-            />
+            <input type="number" defaultValue={value as number | undefined} style={styles.input} />
         )
     }
     return (
@@ -150,10 +134,7 @@ function FieldInput({field, value, depth}: FieldInputProps) {
 }
 
 export function countSchemaFields(schema: SchemaField[]): number {
-    return schema.reduce(
-        (count, f) => count + 1 + (f.nested ? countSchemaFields(f.nested) : 0),
-        0,
-    )
+    return schema.reduce((count, f) => count + 1 + (f.nested ? countSchemaFields(f.nested) : 0), 0)
 }
 
 const styles = {

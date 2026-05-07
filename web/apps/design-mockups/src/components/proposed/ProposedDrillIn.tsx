@@ -212,10 +212,7 @@ function variantFor(kind: FieldKind["kind"]): ChipVariant {
  * Returns the hint that should stack alongside the type chip, or null
  * if the value's render is unambiguous from its primitive.
  */
-function renderHintFor(
-    kind: FieldKind["kind"],
-    stringMode: "short" | "long",
-): RenderHint | null {
+function renderHintFor(kind: FieldKind["kind"], stringMode: "short" | "long"): RenderHint | null {
     if (kind === "messages") return "messages"
     if (kind === "stringified") return "stringified"
     if (kind === "string" && stringMode === "long") return "markdown"
@@ -410,9 +407,7 @@ function ProposedField({
                     {chipMode !== "none" &&
                         !(
                             chipMode === "ambiguous-only" &&
-                            (variant === "string" ||
-                                variant === "number" ||
-                                variant === "boolean")
+                            (variant === "string" || variant === "number" || variant === "boolean")
                         ) && (
                             <ChipConversionPopover
                                 variant={variant}
@@ -437,11 +432,7 @@ function ProposedField({
                                           }
                                         : undefined
                                 }
-                                currentMode={
-                                    kind.kind === "string"
-                                        ? stringMode
-                                        : undefined
-                                }
+                                currentMode={kind.kind === "string" ? stringMode : undefined}
                             >
                                 <TypeChip
                                     variant={variant}
@@ -485,11 +476,9 @@ function ProposedField({
                             />
                         </ChipConversionPopover>
                     )}
-                    {chipMode !== "none" &&
-                        renderHint &&
-                        renderHint !== "markdown" && (
-                            <TypeChip variant={renderHint} />
-                        )}
+                    {chipMode !== "none" && renderHint && renderHint !== "markdown" && (
+                        <TypeChip variant={renderHint} />
+                    )}
                     {/* nameChips (collision / dotted-key / shadowed) ALWAYS render
                         — they're correctness signals, not type vocabulary. They
                         get their own action menus in a Phase 2 (resolve
@@ -500,9 +489,7 @@ function ProposedField({
                     {kind.kind === "object" && (
                         <span style={countText}>{kind.count} properties</span>
                     )}
-                    {kind.kind === "array" && (
-                        <span style={countText}>{kind.count} items</span>
-                    )}
+                    {kind.kind === "array" && <span style={countText}>{kind.count} items</span>}
                     {kind.kind === "messages" && (
                         <span style={countText}>{kind.count} messages</span>
                     )}
@@ -573,7 +560,9 @@ function ProposedField({
                                     onChange={(checked) => onChange?.(path, checked)}
                                 />
                                 <span
-                                    style={chipMode === "none" ? styledBoolean(kind.value) : leafText}
+                                    style={
+                                        chipMode === "none" ? styledBoolean(kind.value) : leafText
+                                    }
                                 >
                                     {String(kind.value)}
                                 </span>
@@ -586,7 +575,13 @@ function ProposedField({
                             </span>
                         ))}
                     {kind.kind === "null" && (
-                        <span style={chipMode === "none" ? styledNull : {...leafText, color: "rgba(5, 23, 41, 0.4)"}}>
+                        <span
+                            style={
+                                chipMode === "none"
+                                    ? styledNull
+                                    : {...leafText, color: "rgba(5, 23, 41, 0.4)"}
+                            }
+                        >
                             null
                         </span>
                     )}
@@ -661,9 +656,7 @@ function ProposedField({
                     >
                         <SharedEditor
                             id={`${editorId}-yaml`}
-                            initialValue={toYaml(
-                                kind.kind === "stringified" ? kind.parsed : value,
-                            )}
+                            initialValue={toYaml(kind.kind === "stringified" ? kind.parsed : value)}
                             editorType="border"
                             className="overflow-visible"
                             disableDebounce
@@ -680,23 +673,27 @@ function ProposedField({
                     </EditorProvider>
                 </div>
             )}
-            {!isCollapsed && expandable && open && viewMode === "form" && kind.kind === "object" && (
-                <div style={nestedBody}>
-                    {Object.entries(kind.value).map(([k, v]) => (
-                        <ProposedField
-                            key={k}
-                            name={k}
-                            value={v}
-                            depth={depth + 1}
-                            autoExpand={autoExpand}
-                            path={[...path, k]}
-                            editable={editable}
-                            onChange={onChange}
-                            chipMode={chipMode}
-                        />
-                    ))}
-                </div>
-            )}
+            {!isCollapsed &&
+                expandable &&
+                open &&
+                viewMode === "form" &&
+                kind.kind === "object" && (
+                    <div style={nestedBody}>
+                        {Object.entries(kind.value).map(([k, v]) => (
+                            <ProposedField
+                                key={k}
+                                name={k}
+                                value={v}
+                                depth={depth + 1}
+                                autoExpand={autoExpand}
+                                path={[...path, k]}
+                                editable={editable}
+                                onChange={onChange}
+                                chipMode={chipMode}
+                            />
+                        ))}
+                    </div>
+                )}
             {!isCollapsed && expandable && open && viewMode === "form" && kind.kind === "array" && (
                 <div style={nestedBody}>
                     {kind.value.map((v, i) => (
@@ -721,41 +718,34 @@ function ProposedField({
                 kind.kind === "stringified" && (
                     <div style={nestedBody}>
                         <div style={parsedHintStyle}>
-                            Stored as a JSON string. Edits round-trip through the
-                            stringified storage — the parsed object updates, the
-                            string is re-serialized, and the chip stays{" "}
-                            <code>[stringified]</code>. Switch to <code>JSON</code>{" "}
+                            Stored as a JSON string. Edits round-trip through the stringified
+                            storage — the parsed object updates, the string is re-serialized, and
+                            the chip stays <code>[stringified]</code>. Switch to <code>JSON</code>{" "}
                             to edit the raw string directly.
                         </div>
                         {kind.parsedKind === "object" &&
-                            Object.entries(kind.parsed as Record<string, unknown>).map(
-                                ([k, v]) => (
-                                    <ProposedField
-                                        key={k}
-                                        name={k}
-                                        value={v}
-                                        depth={depth + 1}
-                                        autoExpand={autoExpand}
-                                        path={[...path, k]}
-                                        editable={editable}
-                                        onChange={(absPath, next) => {
-                                            // Translate the absolute path back into a
-                                            // relative path inside the parsed object,
-                                            // apply the change, re-stringify, write the
-                                            // new string at THIS field's path. Round-trip
-                                            // preserves the [stringified] storage shape.
-                                            const relPath = absPath.slice(path.length)
-                                            const newParsed = setAtPath(
-                                                kind.parsed,
-                                                relPath,
-                                                next,
-                                            )
-                                            onChange?.(path, JSON.stringify(newParsed))
-                                        }}
-                                        chipMode={chipMode}
-                                    />
-                                ),
-                            )}
+                            Object.entries(kind.parsed as Record<string, unknown>).map(([k, v]) => (
+                                <ProposedField
+                                    key={k}
+                                    name={k}
+                                    value={v}
+                                    depth={depth + 1}
+                                    autoExpand={autoExpand}
+                                    path={[...path, k]}
+                                    editable={editable}
+                                    onChange={(absPath, next) => {
+                                        // Translate the absolute path back into a
+                                        // relative path inside the parsed object,
+                                        // apply the change, re-stringify, write the
+                                        // new string at THIS field's path. Round-trip
+                                        // preserves the [stringified] storage shape.
+                                        const relPath = absPath.slice(path.length)
+                                        const newParsed = setAtPath(kind.parsed, relPath, next)
+                                        onChange?.(path, JSON.stringify(newParsed))
+                                    }}
+                                    chipMode={chipMode}
+                                />
+                            ))}
                         {kind.parsedKind === "array" &&
                             (kind.parsed as unknown[]).map((v, i) => (
                                 <ProposedField
@@ -768,11 +758,7 @@ function ProposedField({
                                     editable={editable}
                                     onChange={(absPath, next) => {
                                         const relPath = absPath.slice(path.length)
-                                        const newParsed = setAtPath(
-                                            kind.parsed,
-                                            relPath,
-                                            next,
-                                        )
+                                        const newParsed = setAtPath(kind.parsed, relPath, next)
                                         onChange?.(path, JSON.stringify(newParsed))
                                     }}
                                     chipMode={chipMode}
@@ -780,75 +766,84 @@ function ProposedField({
                             ))}
                     </div>
                 )}
-            {!isCollapsed && expandable && open && viewMode === "form" && kind.kind === "messages" && (
-                <div style={messagesBody}>
-                    {kind.value.map((msg, i) => {
-                        const m = msg as {role?: string; content?: string; tool_calls?: unknown[]}
-                        return (
-                            <div key={i} style={messageCard}>
-                                <div style={messageRole(m.role)}>{m.role ?? "?"}</div>
-                                {m.content !== undefined && (
-                                    <div style={messageContent}>
-                                        {String(m.content) || (
-                                            <em style={{color: "rgba(5,23,41,0.45)"}}>
-                                                (empty content)
-                                            </em>
-                                        )}
-                                    </div>
-                                )}
-                                {m.tool_calls && Array.isArray(m.tool_calls) && (
-                                    <div style={toolCallsBlock}>
-                                        <div style={toolCallsHeader}>
-                                            <span style={toolCallsLabel}>tool_calls</span>
-                                            <TypeChip variant="tool-calls" />
-                                            <span style={countText}>
-                                                {m.tool_calls.length} call
-                                                {m.tool_calls.length === 1 ? "" : "s"}
-                                            </span>
+            {!isCollapsed &&
+                expandable &&
+                open &&
+                viewMode === "form" &&
+                kind.kind === "messages" && (
+                    <div style={messagesBody}>
+                        {kind.value.map((msg, i) => {
+                            const m = msg as {
+                                role?: string
+                                content?: string
+                                tool_calls?: unknown[]
+                            }
+                            return (
+                                <div key={i} style={messageCard}>
+                                    <div style={messageRole(m.role)}>{m.role ?? "?"}</div>
+                                    {m.content !== undefined && (
+                                        <div style={messageContent}>
+                                            {String(m.content) || (
+                                                <em style={{color: "rgba(5,23,41,0.45)"}}>
+                                                    (empty content)
+                                                </em>
+                                            )}
                                         </div>
-                                        {m.tool_calls.map((tc, j) => {
-                                            const call = tc as {
-                                                id?: string
-                                                function?: {
-                                                    name?: string
-                                                    arguments?: string
+                                    )}
+                                    {m.tool_calls && Array.isArray(m.tool_calls) && (
+                                        <div style={toolCallsBlock}>
+                                            <div style={toolCallsHeader}>
+                                                <span style={toolCallsLabel}>tool_calls</span>
+                                                <TypeChip variant="tool-calls" />
+                                                <span style={countText}>
+                                                    {m.tool_calls.length} call
+                                                    {m.tool_calls.length === 1 ? "" : "s"}
+                                                </span>
+                                            </div>
+                                            {m.tool_calls.map((tc, j) => {
+                                                const call = tc as {
+                                                    id?: string
+                                                    function?: {
+                                                        name?: string
+                                                        arguments?: string
+                                                    }
                                                 }
-                                            }
-                                            let parsedArgs: unknown = null
-                                            if (typeof call.function?.arguments === "string") {
-                                                try {
-                                                    parsedArgs = JSON.parse(
-                                                        call.function.arguments,
-                                                    )
-                                                } catch {
-                                                    parsedArgs = call.function.arguments
+                                                let parsedArgs: unknown = null
+                                                if (typeof call.function?.arguments === "string") {
+                                                    try {
+                                                        parsedArgs = JSON.parse(
+                                                            call.function.arguments,
+                                                        )
+                                                    } catch {
+                                                        parsedArgs = call.function.arguments
+                                                    }
                                                 }
-                                            }
-                                            return (
-                                                <div key={j} style={toolCallCard}>
-                                                    <div style={toolCallTitle}>
-                                                        <strong>
-                                                            {call.function?.name ?? "?"}
-                                                        </strong>
-                                                        {call.id && (
-                                                            <span style={countText}>
-                                                                {" "}· {call.id}
-                                                            </span>
-                                                        )}
+                                                return (
+                                                    <div key={j} style={toolCallCard}>
+                                                        <div style={toolCallTitle}>
+                                                            <strong>
+                                                                {call.function?.name ?? "?"}
+                                                            </strong>
+                                                            {call.id && (
+                                                                <span style={countText}>
+                                                                    {" "}
+                                                                    · {call.id}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <pre style={toolCallArgs}>
+                                                            {JSON.stringify(parsedArgs, null, 2)}
+                                                        </pre>
                                                     </div>
-                                                    <pre style={toolCallArgs}>
-                                                        {JSON.stringify(parsedArgs, null, 2)}
-                                                    </pre>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        )
-                    })}
-                </div>
-            )}
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
         </div>
     )
 }
@@ -875,12 +870,9 @@ export function ProposedDrillIn({
         setDraft(data)
     }
 
-    const handleChange = useCallback(
-        (path: (string | number)[], next: unknown) => {
-            setDraft((prev) => setAtPath(prev, path, next) as Record<string, unknown>)
-        },
-        [],
-    )
+    const handleChange = useCallback((path: (string | number)[], next: unknown) => {
+        setDraft((prev) => setAtPath(prev, path, next) as Record<string, unknown>)
+    }, [])
 
     const keyKind = useMemo(() => {
         // Per-key categorization: 'dotted-collision' (literal-dot key with a
@@ -932,9 +924,7 @@ export function ProposedDrillIn({
                         {label: "JSON", value: "json"},
                         {label: "YAML", value: "yaml"},
                     ]}
-                    onChange={(v) =>
-                        setRootViewMode(v as "fields" | "json" | "yaml")
-                    }
+                    onChange={(v) => setRootViewMode(v as "fields" | "json" | "yaml")}
                 />
             </div>
             {rootViewMode !== "fields" ? (
@@ -947,32 +937,32 @@ export function ProposedDrillIn({
             ) : null}
             {rootViewMode === "fields" &&
                 Object.entries(draft).map(([key, value]) => {
-                const kind = keyKind.get(key)
-                const nameChips: ChipVariant[] = []
-                if (kind === "dotted-collision") {
-                    // Both chips on the literal-dot row so the user sees what
-                    // the key IS (literal) AND what's at risk (collision).
-                    nameChips.push("dotted-key", "collision")
-                } else if (kind === "nested-collision") {
-                    nameChips.push("collision")
-                } else if (kind === "dotted") {
-                    nameChips.push("dotted-key")
-                }
-                return (
-                    <ProposedField
-                        key={key}
-                        name={key}
-                        value={value}
-                        nameChips={nameChips}
-                        autoExpand={autoExpand}
-                        depth={0}
-                        path={[key]}
-                        editable={editable}
-                        onChange={handleChange}
-                        chipMode={chipMode}
-                    />
-                )
-            })}
+                    const kind = keyKind.get(key)
+                    const nameChips: ChipVariant[] = []
+                    if (kind === "dotted-collision") {
+                        // Both chips on the literal-dot row so the user sees what
+                        // the key IS (literal) AND what's at risk (collision).
+                        nameChips.push("dotted-key", "collision")
+                    } else if (kind === "nested-collision") {
+                        nameChips.push("collision")
+                    } else if (kind === "dotted") {
+                        nameChips.push("dotted-key")
+                    }
+                    return (
+                        <ProposedField
+                            key={key}
+                            name={key}
+                            value={value}
+                            nameChips={nameChips}
+                            autoExpand={autoExpand}
+                            depth={0}
+                            path={[key]}
+                            editable={editable}
+                            onChange={handleChange}
+                            chipMode={chipMode}
+                        />
+                    )
+                })}
             {/* Union-projected ghost rows (gap-04). Read-only — clicking
                 "author this column" would create the key on this row, but
                 that's the parent's responsibility. The chip + muted styling
@@ -1014,9 +1004,7 @@ function RootSerializedView({
     // to draft (different whitespace/key-order).
     const initialText = useMemo(
         () =>
-            mode === "json"
-                ? JSON.stringify(draft, null, 2)
-                : yaml.dump(draft, {lineWidth: 120}),
+            mode === "json" ? JSON.stringify(draft, null, 2) : yaml.dump(draft, {lineWidth: 120}),
         // Intentionally only depends on `mode` — switching modes re-serializes
         // from current draft, but typing inside one mode doesn't.
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1030,11 +1018,7 @@ function RootSerializedView({
             setText(next)
             try {
                 const parsed = mode === "json" ? JSON.parse(next) : yaml.load(next)
-                if (
-                    parsed === null ||
-                    typeof parsed !== "object" ||
-                    Array.isArray(parsed)
-                ) {
+                if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
                     setParseError(
                         `Top-level value must be an object, got ${
                             Array.isArray(parsed) ? "array" : typeof parsed
@@ -1078,8 +1062,8 @@ function RootSerializedView({
                 </div>
             ) : (
                 <div style={rootParseHint}>
-                    Edits apply to the draft as you type. Switch back to{" "}
-                    <strong>Fields</strong> to see the parsed structure.
+                    Edits apply to the draft as you type. Switch back to <strong>Fields</strong> to
+                    see the parsed structure.
                 </div>
             )}
         </div>
@@ -1090,13 +1074,7 @@ function RootSerializedView({
  * Ghost row for a column present in the testset's union but not in this
  * row's data. Visually muted, [not authored] chip, no editor body.
  */
-function NotAuthoredGhostRow({
-    name,
-    chipMode,
-}: {
-    name: string
-    chipMode: ChipRenderMode
-}) {
+function NotAuthoredGhostRow({name, chipMode}: {name: string; chipMode: ChipRenderMode}) {
     return (
         <div style={{...rowStyle, opacity: 0.5}}>
             <div style={headerStyle}>

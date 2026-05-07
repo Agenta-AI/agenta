@@ -49,7 +49,7 @@ const FIXTURES = [
         testcase: fixture08_dot_key_collision.find((tc) => tc.id === "tc-08-vanuatu")!,
         autoExpand: true,
         detectDotKeyCollisions: true,
-        note: "Literal `\"geo.region\"` and nested `geo` sit two rows apart in the tree, both with chips. Spatial separation distinguishes them without an extra warning chip.",
+        note: 'Literal `"geo.region"` and nested `geo` sit two rows apart in the tree, both with chips. Spatial separation distinguishes them without an extra warning chip.',
     },
     {
         id: "02-nested",
@@ -70,8 +70,7 @@ const FIXTURES = [
 ] as const
 
 export default function AltTreePane() {
-    const [fixtureId, setFixtureId] =
-        useState<(typeof FIXTURES)[number]["id"]>("06-deep")
+    const [fixtureId, setFixtureId] = useState<(typeof FIXTURES)[number]["id"]>("06-deep")
     const [editMode, setEditMode] = useState<"editable" | "read-only">("editable")
     const editable = editMode === "editable"
 
@@ -90,24 +89,20 @@ export default function AltTreePane() {
                 }
                 notes={
                     <>
-                        <strong>Why this exists:</strong> the gap-03 card-stack
-                        scrolls badly at depth ≥ 4. Three alternative
-                        approaches were sketched (outliner, two-pane,
-                        tabbed); two-pane handled the most fixtures cleanly,
-                        so it got built. See agent-comparison notes in{" "}
-                        <code>00-overview.md</code>.
+                        <strong>Why this exists:</strong> the gap-03 card-stack scrolls badly at
+                        depth ≥ 4. Three alternative approaches were sketched (outliner, two-pane,
+                        tabbed); two-pane handled the most fixtures cleanly, so it got built. See
+                        agent-comparison notes in <code>00-overview.md</code>.
                         <br />
                         <br />
-                        <strong>Threshold fallback is the realistic shipping shape.</strong>{" "}
-                        Below ~6 leaves, or depth &lt; 2, or no messages
-                        array — the card-stack is still the better default.
-                        Two-pane kicks in above that threshold. The 01-flat
-                        fixture is here to show where two-pane stops being
-                        useful.
+                        <strong>Threshold fallback is the realistic shipping shape.</strong> Below
+                        ~6 leaves, or depth &lt; 2, or no messages array — the card-stack is still
+                        the better default. Two-pane kicks in above that threshold. The 01-flat
+                        fixture is here to show where two-pane stops being useful.
                         <br />
                         <br />
-                        <strong>Keyboard:</strong> click into the tree, then ↑/↓ to
-                        move, →/← to expand/collapse.
+                        <strong>Keyboard:</strong> click into the tree, then ↑/↓ to move, →/← to
+                        expand/collapse.
                     </>
                 }
             >
@@ -117,9 +112,7 @@ export default function AltTreePane() {
                         size="small"
                         value={fixtureId}
                         options={FIXTURES.map((f) => ({label: f.label, value: f.id}))}
-                        onChange={(v) =>
-                            setFixtureId(v as (typeof FIXTURES)[number]["id"])
-                        }
+                        onChange={(v) => setFixtureId(v as (typeof FIXTURES)[number]["id"])}
                     />
                     <span style={styles.spacer} />
                     <span style={styles.label}>Mode:</span>

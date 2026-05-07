@@ -69,9 +69,7 @@ export function StubMoleculeDrillIn({
         initialState.set(entityId, {data: {...initialData}})
         const stateAtom = atom(initialState)
 
-        const dataFamily = atomFamily((id: string) =>
-            atom((get) => get(stateAtom).get(id) ?? null),
-        )
+        const dataFamily = atomFamily((id: string) => atom((get) => get(stateAtom).get(id) ?? null))
         const draftFamily = atomFamily((id: string) =>
             atom<Partial<Entity> | null>((get) => {
                 const entity = get(stateAtom).get(id)
@@ -80,19 +78,16 @@ export function StubMoleculeDrillIn({
         )
         const isDirtyFamily = atomFamily(() => atom(false))
 
-        const updateAtom = atom(
-            null,
-            (get, set, id: string, changes: Partial<Entity>) => {
-                const next = new Map(get(stateAtom))
-                const prev = next.get(id)
-                if (changes.data && prev) {
-                    next.set(id, {...prev, data: {...prev.data, ...changes.data}})
-                } else if (changes.data) {
-                    next.set(id, {data: {...changes.data}})
-                }
-                set(stateAtom, next)
-            },
-        ) as WritableAtom<unknown, [string, Partial<Entity>], void>
+        const updateAtom = atom(null, (get, set, id: string, changes: Partial<Entity>) => {
+            const next = new Map(get(stateAtom))
+            const prev = next.get(id)
+            if (changes.data && prev) {
+                next.set(id, {...prev, data: {...prev.data, ...changes.data}})
+            } else if (changes.data) {
+                next.set(id, {data: {...changes.data}})
+            }
+            set(stateAtom, next)
+        }) as WritableAtom<unknown, [string, Partial<Entity>], void>
 
         const discardAtom = atom(null, () => {
             // No-op for the stub — there's no draft layer separate from data.

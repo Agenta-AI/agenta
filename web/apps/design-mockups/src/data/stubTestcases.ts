@@ -77,8 +77,7 @@ The capital is **Port Vila**, on the southern coast of *Efate Island*. It is the
             },
 
             // gap-04 — stringified-JSON metadata: [json-str] chip + parse-on-detect popover
-            metadata:
-                '{"source":"trace","trace_id":"vu-001","latency_ms":520,"confidence":"high"}',
+            metadata: '{"source":"trace","trace_id":"vu-001","latency_ms":520,"confidence":"high"}',
 
             // gap-05 — dot-key collision: BOTH shapes on the same row.
             // Literal flat key holds "Melanesia" (what `{{geo.region}}`
@@ -102,8 +101,7 @@ The capital is **Port Vila**, on the southern coast of *Efate Island*. It is the
                 },
                 {
                     role: "user",
-                    content:
-                        "What is the capital of Vanuatu and its ISO 3166-1 alpha-2 code?",
+                    content: "What is the capital of Vanuatu and its ISO 3166-1 alpha-2 code?",
                 },
                 {
                     role: "assistant",
@@ -114,8 +112,7 @@ The capital is **Port Vila**, on the southern coast of *Efate Island*. It is the
                             type: "function",
                             function: {
                                 name: "lookup_country",
-                                arguments:
-                                    '{"country":"Vanuatu","include_iso":true}',
+                                arguments: '{"country":"Vanuatu","include_iso":true}',
                             },
                         },
                     ],
@@ -123,8 +120,7 @@ The capital is **Port Vila**, on the southern coast of *Efate Island*. It is the
                 {
                     role: "tool",
                     tool_call_id: "call_vu_lookup",
-                    content:
-                        '{"capital":"Port Vila","iso_alpha2":"VU","region":"Oceania"}',
+                    content: '{"capital":"Port Vila","iso_alpha2":"VU","region":"Oceania"}',
                 },
                 {
                     role: "assistant",
@@ -197,8 +193,7 @@ The capital is **Port Vila**, on the southern coast of *Efate Island*. It is the
                 coordinates: {lat: 1.328, lng: 172.977, altitude_m: 3.0},
                 verified: null,
             },
-            metadata:
-                '{"source":"manual","confidence":"high","reviewed_by":"editorial-team"}',
+            metadata: '{"source":"manual","confidence":"high","reviewed_by":"editorial-team"}',
             // Nested geo only — no literal "geo.region"
             geo: {
                 region: "Micronesia",
@@ -266,8 +261,7 @@ export const fixture_chip_showcase: StubTestcase[] = [
                     content: "The capital of Kiribati is South Tarawa.",
                 },
             ],
-            metadata:
-                '{"source":"trace","trace_id":"abc123","latency_ms":420}',
+            metadata: '{"source":"trace","trace_id":"abc123","latency_ms":420}',
         },
     },
 ]
@@ -453,8 +447,7 @@ export const fixture07_messages_and_tools: StubTestcase[] = [
                     },
                     {
                         role: "user",
-                        content:
-                            "What is the capital of Kiribati and its ISO 3166-1 alpha-2 code?",
+                        content: "What is the capital of Kiribati and its ISO 3166-1 alpha-2 code?",
                     },
                     {
                         role: "assistant",
@@ -465,8 +458,7 @@ export const fixture07_messages_and_tools: StubTestcase[] = [
                                 type: "function",
                                 function: {
                                     name: "lookup_country",
-                                    arguments:
-                                        '{"country":"Kiribati","include_iso":true}',
+                                    arguments: '{"country":"Kiribati","include_iso":true}',
                                 },
                             },
                         ],
@@ -474,8 +466,7 @@ export const fixture07_messages_and_tools: StubTestcase[] = [
                     {
                         role: "tool",
                         tool_call_id: "call_abc123",
-                        content:
-                            '{"capital":"South Tarawa","iso_alpha2":"KI","region":"Oceania"}',
+                        content: '{"capital":"South Tarawa","iso_alpha2":"KI","region":"Oceania"}',
                     },
                     {
                         role: "assistant",

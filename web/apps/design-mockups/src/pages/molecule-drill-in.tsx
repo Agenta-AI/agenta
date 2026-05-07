@@ -25,28 +25,26 @@ export default function MoleculeDrillInPage() {
                         <br />
                         <strong>Left (Tier 3, OSS):</strong> the 1581-line{" "}
                         <code>DrillInContent</code> from{" "}
-                        <code>web/oss/src/components/DrillInView/</code>. Fixed
-                        rendering pipeline (no DI), bakes in <code>ChatMessageEditor</code>,{" "}
-                        <code>SharedEditor</code>, view-mode selector. Used by 6+ OSS
-                        surfaces today.
+                        <code>web/oss/src/components/DrillInView/</code>. Fixed rendering pipeline
+                        (no DI), bakes in <code>ChatMessageEditor</code>, <code>SharedEditor</code>,
+                        view-mode selector. Used by 6+ OSS surfaces today.
                         <br />
                         <strong>Right (Tier 1+2, package):</strong> the 798-line{" "}
                         <code>DrillInContent</code> from{" "}
                         <code>web/packages/agenta-ui/src/drill-in/core/</code>, mounted via{" "}
                         <code>MoleculeDrillInView</code> from{" "}
-                        <code>@agenta/entity-ui/drill-in</code>. Dependency-injected
-                        renderers, slot-based composition, schema-aware. The default{" "}
-                        <code>FieldRenderer</code> is a simple JSON <code>&lt;pre&gt;</code> —
-                        you'll see plainer output because we haven't injected richer
-                        renderers (intentional, to demonstrate the framework's bare API).
+                        <code>@agenta/entity-ui/drill-in</code>. Dependency-injected renderers,
+                        slot-based composition, schema-aware. The default <code>FieldRenderer</code>{" "}
+                        is a simple JSON <code>&lt;pre&gt;</code> — you'll see plainer output
+                        because we haven't injected richer renderers (intentional, to demonstrate
+                        the framework's bare API).
                         <br />
                         <br />
-                        <strong>Where the chip system from gap-01 lands:</strong> on the
-                        package side, as a slot override on{" "}
-                        <code>DrillInSlots.fieldHeader</code> (
-                        <code>FieldHeaderSlotProps</code>). On the OSS side, as a direct
-                        patch to <code>DrillInFieldHeader.tsx:209</code>. Both are needed
-                        until the OSS app migrates to the package pipeline.
+                        <strong>Where the chip system from gap-01 lands:</strong> on the package
+                        side, as a slot override on <code>DrillInSlots.fieldHeader</code> (
+                        <code>FieldHeaderSlotProps</code>). On the OSS side, as a direct patch to{" "}
+                        <code>DrillInFieldHeader.tsx:209</code>. Both are needed until the OSS app
+                        migrates to the package pipeline.
                     </>
                 }
             >
@@ -60,9 +58,7 @@ export default function MoleculeDrillInPage() {
                                 1581 lines · monolithic · no DI
                             </span>
                         </header>
-                        <DrawerSurface
-                            title={`Testcase · ${vanuatu.label}`}
-                        >
+                        <DrawerSurface title={`Testcase · ${vanuatu.label}`}>
                             <StubDrillIn
                                 initialData={vanuatu.data}
                                 rootTitle={vanuatu.label}
@@ -83,9 +79,7 @@ export default function MoleculeDrillInPage() {
                                 798 lines · DI · slot-based · schema-aware
                             </span>
                         </header>
-                        <DrawerSurface
-                            title={`Testcase · ${vanuatu.label}`}
-                        >
+                        <DrawerSurface title={`Testcase · ${vanuatu.label}`}>
                             <StubMoleculeDrillIn
                                 entityId={vanuatu.id}
                                 initialData={vanuatu.data}
@@ -103,21 +97,19 @@ export default function MoleculeDrillInPage() {
                             <h3 style={styles.diffH3}>OSS-only props</h3>
                             <p style={styles.diffNote}>
                                 Declared and wired into render — but{" "}
-                                <strong>no external callers</strong> in the OSS codebase
-                                today. Likely future-feature scaffolding or in-flight
-                                refactor.
+                                <strong>no external callers</strong> in the OSS codebase today.
+                                Likely future-feature scaffolding or in-flight refactor.
                             </p>
                             <ul style={styles.diffList}>
                                 <li>
                                     <code>toolbarContent</code> — slot in breadcrumb toolbar
                                 </li>
                                 <li>
-                                    <code>hideRootBreadcrumb</code> — hide breadcrumb when at
-                                    root
+                                    <code>hideRootBreadcrumb</code> — hide breadcrumb when at root
                                 </li>
                                 <li>
-                                    <code>renderExternalControls</code> — render
-                                    breadcrumb/add controls externally
+                                    <code>renderExternalControls</code> — render breadcrumb/add
+                                    controls externally
                                 </li>
                             </ul>
                         </div>
@@ -125,46 +117,43 @@ export default function MoleculeDrillInPage() {
                         <div style={styles.diffCol}>
                             <h3 style={styles.diffH3}>Package-only props</h3>
                             <p style={styles.diffNote}>
-                                Real capability the OSS copy lacks. These are the
-                                features that argue for migrating consumers to the package
-                                tier eventually.
+                                Real capability the OSS copy lacks. These are the features that
+                                argue for migrating consumers to the package tier eventually.
                             </p>
                             <ul style={styles.diffList}>
                                 <li>
-                                    <code>getSchemaAtPath</code> — schema-aware drilling
-                                    (used by molecule controllers in{" "}
+                                    <code>getSchemaAtPath</code> — schema-aware drilling (used by
+                                    molecule controllers in{" "}
                                     <code>createEntityController.ts:305</code>)
                                 </li>
                                 <li>
                                     <code>currentPath</code> — controlled-mode path state
                                 </li>
                                 <li>
-                                    <code>getFieldViewModeOptions</code> — schema-driven view
-                                    mode options
+                                    <code>getFieldViewModeOptions</code> — schema-driven view mode
+                                    options
                                 </li>
                                 <li>
-                                    <code>getDefaultFieldViewMode</code> — schema-driven
-                                    default mode
+                                    <code>getDefaultFieldViewMode</code> — schema-driven default
+                                    mode
                                 </li>
                                 <li>
                                     <code>FieldRenderer</code> / <code>SchemaRenderer</code> /{" "}
-                                    <code>showMessage</code> / <code>ContextProvider</code> —
-                                    DI hooks
+                                    <code>showMessage</code> / <code>ContextProvider</code> — DI
+                                    hooks
                                 </li>
                             </ul>
                         </div>
                     </div>
 
                     <div style={styles.diffNoteRow}>
-                        <strong>Visible label divergence:</strong> the OSS panel
-                        renders raw key names (<code>country</code>,{" "}
-                        <code>geo.region</code>); the package panel applies a
-                        title-case transform (<code>Country</code>, <code>Geo.region</code>).
-                        Cosmetic but worth noting for any UX proposal that depends on
-                        verbatim key labelling — gap-05's literal-vs-nested
-                        disambiguation, for instance, depends on the user seeing
-                        quoted vs. unquoted keys, and a title-case transform
-                        muddies that signal.
+                        <strong>Visible label divergence:</strong> the OSS panel renders raw key
+                        names (<code>country</code>, <code>geo.region</code>); the package panel
+                        applies a title-case transform (<code>Country</code>,{" "}
+                        <code>Geo.region</code>). Cosmetic but worth noting for any UX proposal that
+                        depends on verbatim key labelling — gap-05's literal-vs-nested
+                        disambiguation, for instance, depends on the user seeing quoted vs. unquoted
+                        keys, and a title-case transform muddies that signal.
                     </div>
                 </section>
             </MockupPageShell>

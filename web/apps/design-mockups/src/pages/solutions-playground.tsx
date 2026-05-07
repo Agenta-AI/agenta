@@ -14,30 +14,26 @@
 
 import {useState} from "react"
 
+import {Segmented} from "antd"
 import Head from "next/head"
 import Link from "next/link"
-
-import {Segmented} from "antd"
 
 import {MockupPageShell} from "@/mockups/components/MockupPageShell"
 import {PlaygroundExecutionItem} from "@/mockups/components/proposed/PlaygroundExecutionItem"
 import {PlaygroundExecutionItemCompact} from "@/mockups/components/proposed/PlaygroundExecutionItemCompact"
 import {PlaygroundExecutionItemToday} from "@/mockups/components/proposed/PlaygroundExecutionItemToday"
-import {type ChipRenderMode} from "@/mockups/components/proposed/ProposedDrillIn"
 import {
     PlaygroundVariableMap,
     type PlaygroundVariable,
 } from "@/mockups/components/proposed/PlaygroundVariableMap"
-import {
-    PromptConfigView,
-    type PromptConfig,
-} from "@/mockups/components/proposed/PromptConfigView"
 import {
     InvalidVariable,
     ProductionPlaygroundShell,
     ProductionPromptTemplate,
     ValidVariable,
 } from "@/mockups/components/proposed/ProductionPlaygroundShell"
+import {PromptConfigView, type PromptConfig} from "@/mockups/components/proposed/PromptConfigView"
+import {ProposedDrillIn, type ChipRenderMode} from "@/mockups/components/proposed/ProposedDrillIn"
 import {
     fixture07_messages_and_tools,
     fixture_chip_showcase,
@@ -47,9 +43,7 @@ import {
 
 const kitchenSinkTestcase = fixture_kitchen_sink[0]
 const kiribatiTestcase = fixture_chip_showcase[0]
-const messagesTrace = fixture07_messages_and_tools.find(
-    (tc) => tc.id === "tc-07-kiribati-tool",
-)!
+const messagesTrace = fixture07_messages_and_tools.find((tc) => tc.id === "tc-07-kiribati-tool")!
 const markdownArticle = fixture_markdown_article[0]
 
 // gap-09 — variable provenance + usage map for the Vanuatu kitchen-sink
@@ -142,8 +136,7 @@ const KITCHEN_SINK_PROMPT_CHAIN: PromptConfig[] = [
     {
         step: 1,
         name: "Languages briefing",
-        template:
-            "Brief the user on languages spoken in {{country}}. Reference: {{languages}}.",
+        template: "Brief the user on languages spoken in {{country}}. Reference: {{languages}}.",
         variables: [
             {name: "country", state: "resolved"},
             {name: "languages", state: "resolved"},
@@ -175,8 +168,7 @@ const KITCHEN_SINK_PROMPT_CHAIN: PromptConfig[] = [
     {
         step: 4,
         name: "Final response",
-        template:
-            "Format the final answer for {{country}}. Conversation so far: {{messages}}.",
+        template: "Format the final answer for {{country}}. Conversation so far: {{messages}}.",
         variables: [
             {name: "country", state: "resolved"},
             {name: "messages", state: "resolved"},
@@ -195,9 +187,9 @@ const IN_USE_VARIABLE_NAMES = new Set(
     ).map((v) => v.name),
 )
 
-const UNUSED_VARIABLE_NAMES = KITCHEN_SINK_VARIABLE_MAP.filter(
-    (v) => v.state === "unused",
-).map((v) => v.name)
+const UNUSED_VARIABLE_NAMES = KITCHEN_SINK_VARIABLE_MAP.filter((v) => v.state === "unused").map(
+    (v) => v.name,
+)
 
 // In-use inputs passed to the proposed (Embedded + Compact) execution items.
 // Built from KITCHEN_SINK_VARIABLE_MAP — only `used` / `chain` / `draft`
@@ -248,28 +240,23 @@ export default function SolutionsPlayground() {
                         <strong>The three panels:</strong>
                         <ul style={styles.notesList}>
                             <li>
-                                <strong>Today</strong>: production playground.
-                                Borderless textarea per input. No chips, no
-                                output rendering until Run. Long-form fields
-                                use the production Lexical editor with the
-                                visible <code>MarkdownToggleButton</code>.
+                                <strong>Today</strong>: production playground. Borderless textarea
+                                per input. No chips, no output rendering until Run. Long-form fields
+                                use the production Lexical editor with the visible{" "}
+                                <code>MarkdownToggleButton</code>.
                             </li>
                             <li>
-                                <strong>Proposed (embedded)</strong>: inputs
-                                body is <code>ProposedDrillIn</code>, so the
-                                gap-01..06 decisions land here directly. Type
-                                chips, type-switching popover, long-form
-                                editor toggle, chat cards for messages, and a
-                                clickable output chip in read-only mode.
-                                Tradeoff: 6+ inputs scroll.
+                                <strong>Proposed (embedded)</strong>: inputs body is{" "}
+                                <code>ProposedDrillIn</code>, so the gap-01..06 decisions land here
+                                directly. Type chips, type-switching popover, long-form editor
+                                toggle, chat cards for messages, and a clickable output chip in
+                                read-only mode. Tradeoff: 6+ inputs scroll.
                             </li>
                             <li>
-                                <strong>Alt (compact)</strong>: one ~26px row
-                                per input. Click primitives → row morphs to
-                                inline editor. Click structured rows → expand
-                                inline. Long-form fields hydrate to{" "}
-                                <code>[markdown]</code> automatically.
-                                Tradeoff: deep nesting still mounts a drill-in
+                                <strong>Alt (compact)</strong>: one ~26px row per input. Click
+                                primitives → row morphs to inline editor. Click structured rows →
+                                expand inline. Long-form fields hydrate to <code>[markdown]</code>{" "}
+                                automatically. Tradeoff: deep nesting still mounts a drill-in
                                 mid-list, breaking the density story.
                             </li>
                         </ul>
@@ -284,13 +271,11 @@ export default function SolutionsPlayground() {
                         </h2>
                     </header>
                     <p style={styles.productionShellLead}>
-                        The live Agenta playground: Prompt Template panel
-                        on the left (variant + view-mode + Commit), Generations
-                        panel on the right (testcase variable inputs + Run
-                        all). The proposals below extend this surface — chips
-                        in the variable inputs, a Variable map above the
-                        Generations panel, optional Prompt config breakdown
-                        for chain configs.
+                        The live Agenta playground: Prompt Template panel on the left (variant +
+                        view-mode + Commit), Generations panel on the right (testcase variable
+                        inputs + Run all). The proposals below extend this surface — chips in the
+                        variable inputs, a Variable map above the Generations panel, optional Prompt
+                        config breakdown for chain configs.
                     </p>
                     <ProductionPlaygroundShell />
                 </section>
@@ -323,23 +308,18 @@ export default function SolutionsPlayground() {
                 <section style={styles.promptSection}>
                     <header style={styles.promptHeader}>
                         <span style={styles.promptTag}>gap-08</span>
-                        <h2 style={styles.promptTitle}>
-                            Prompt surface — variable validation
-                        </h2>
+                        <h2 style={styles.promptTitle}>Prompt surface — variable validation</h2>
                     </header>
                     <p style={styles.promptLead}>
-                        This is the prompt-side of the playground (where
-                        variables are typed). The execution items below are
-                        where they get resolved. Today's playground catches
-                        bad variable references at run time only; Proposed
-                        catches them at edit time via the attached testset's
-                        schema.
+                        This is the prompt-side of the playground (where variables are typed). The
+                        execution items below are where they get resolved. Today's playground
+                        catches bad variable references at run time only; Proposed catches them at
+                        edit time via the attached testset's schema.
                     </p>
                     <p style={styles.promptLeadAside}>
-                        Same prompt rendering on both sides — the proposed
-                        change adds the inline banner above the messages and
-                        the red tooltip on the unresolved variable, nothing
-                        else.
+                        Same prompt rendering on both sides — the proposed change adds the inline
+                        banner above the messages and the red tooltip on the unresolved variable,
+                        nothing else.
                     </p>
                     <div style={styles.promptGrid}>
                         <div>
@@ -363,17 +343,15 @@ export default function SolutionsPlayground() {
                             </div>
                         </div>
                         <div>
-                            <div style={styles.promptColLabel}>
-                                Proposed (banner + tooltip)
-                            </div>
+                            <div style={styles.promptColLabel}>Proposed (banner + tooltip)</div>
                             <div style={styles.promptShellWrap}>
                                 <ProductionPromptTemplate
                                     banner={
                                         <>
-                                            Try inserting dataset variables
-                                            from <code>{"{{(input)}}"}</code>,{" "}
-                                            <code>{"{{(expected)}}"}</code>,
-                                            or <code>{"{{(metadata)}}"}</code>.
+                                            Try inserting dataset variables from{" "}
+                                            <code>{"{{(input)}}"}</code>,{" "}
+                                            <code>{"{{(expected)}}"}</code>, or{" "}
+                                            <code>{"{{(metadata)}}"}</code>.
                                         </>
                                     }
                                     messages={[
@@ -398,25 +376,17 @@ export default function SolutionsPlayground() {
                 <section style={styles.gap09Section}>
                     <header style={styles.gap09Header}>
                         <span style={styles.gap09Tag}>gap-09</span>
-                        <h2 style={styles.gap09Title}>
-                            Variable provenance + usage map
-                        </h2>
+                        <h2 style={styles.gap09Title}>Variable provenance + usage map</h2>
                     </header>
                     <p style={styles.gap09Lead}>
-                        Each variable in the execution item carries a 2-axis
-                        state: <em>authoring side</em> (on the testcase, or a
-                        draft from prompt typing not yet synced) and{" "}
-                        <em>usage side</em> (referenced by every prompt, by
-                        some prompts in a chain, or by none). Today's
-                        playground renders all variables identically; the
-                        proposed map below collapses the unused ones, marks
-                        drafts with a dashed border, and shows chain scope
-                        per row.
+                        Each variable in the execution item carries a 2-axis state:{" "}
+                        <em>authoring side</em> (on the testcase, or a draft from prompt typing not
+                        yet synced) and <em>usage side</em> (referenced by every prompt, by some
+                        prompts in a chain, or by none). Today's playground renders all variables
+                        identically; the proposed map below collapses the unused ones, marks drafts
+                        with a dashed border, and shows chain scope per row.
                     </p>
-                    <PlaygroundVariableMap
-                        variables={KITCHEN_SINK_VARIABLE_MAP}
-                        chainLength={4}
-                    />
+                    <PlaygroundVariableMap variables={KITCHEN_SINK_VARIABLE_MAP} chainLength={4} />
                 </section>
 
                 <section style={styles.promptConfigSection}>
@@ -427,27 +397,25 @@ export default function SolutionsPlayground() {
                         </h2>
                     </header>
                     <p style={styles.promptConfigLead}>
-                        The 4-prompt chain. Every <code>{`{{var}}`}</code>{" "}
-                        token below is what the execution-item inputs (in
-                        the grid further down) need to resolve. Showing the
-                        config here means the user reads "what the prompt
-                        needs" before "what the testcase has" — addresses
-                        the SME-complexity feedback (2026-05-05).
+                        The 4-prompt chain. Every <code>{`{{var}}`}</code> token below is what the
+                        execution-item inputs (in the grid further down) need to resolve. Showing
+                        the config here means the user reads "what the prompt needs" before "what
+                        the testcase has" — addresses the SME-complexity feedback (2026-05-05).
                     </p>
                     <PromptConfigView prompts={KITCHEN_SINK_PROMPT_CHAIN} />
                 </section>
 
-                <h2 style={styles.executionItemsTitle}>
-                    Execution items — three-way compare
-                </h2>
+                <h2 style={styles.executionItemsTitle}>Execution items — three-way compare</h2>
                 <p style={styles.executionItemsLead}>
-                    Each row pairs the prompt config with the execution item
-                    that resolves its variables. Same config in every row
-                    (we&apos;re not changing how prompts are rendered) — the
-                    proposed change is only on the right side. Reading the
-                    pair side-by-side makes the contract visible:{" "}
-                    <em>this prompt needs these variables, and here&apos;s
-                    where the testcase fills them</em>.
+                    Each row pairs the prompt config with the execution item that resolves its
+                    variables. Same config in every row (we&apos;re not changing how prompts are
+                    rendered) — the proposed change is only on the right side. Reading the pair
+                    side-by-side makes the contract visible:{" "}
+                    <em>
+                        this prompt needs these variables, and here&apos;s where the testcase fills
+                        them
+                    </em>
+                    .
                 </p>
 
                 <div style={styles.compareRows}>
@@ -463,29 +431,40 @@ export default function SolutionsPlayground() {
                             </span>
                         </header>
                         <div style={styles.rowGrid}>
-                            <div style={styles.configWrap}>
-                                <ProductionPromptTemplate
-                                    messages={KITCHEN_SINK_PROMPT_MESSAGES}
-                                />
-                            </div>
-                            <PlaygroundExecutionItemToday
-                                testcaseLabel="testcase 1 — kitchen sink"
+                            <ProductionPlaygroundShell
+                                messages={KITCHEN_SINK_PROMPT_MESSAGES}
+                                testcaseLabel="testcase 1"
                                 inputs={[
-                                    {name: "country", value: kitchenSinkTestcase.data.country as string},
+                                    {name: "country", value: kitchenSinkTestcase.data.country},
                                     {
                                         name: "population_thousands",
-                                        value: String(kitchenSinkTestcase.data.population_thousands),
+                                        value: kitchenSinkTestcase.data.population_thousands,
                                     },
                                     {
                                         name: "is_island_nation",
-                                        value: String(kitchenSinkTestcase.data.is_island_nation),
+                                        value: kitchenSinkTestcase.data.is_island_nation,
                                     },
-                                    {name: "languages"},
-                                    {name: "inputs"},
-                                    {name: "geo"},
-                                    {name: "metadata", value: kitchenSinkTestcase.data.metadata as string},
-                                    {name: "messages"},
+                                    // Object — exercises Form / JSON / YAML formats
+                                    {name: "geo", value: kitchenSinkTestcase.data.geo},
+                                    // Object — different shape, demonstrates Form view
+                                    {name: "inputs", value: kitchenSinkTestcase.data.inputs},
+                                    // Array of strings — exercises Form (indexed list) / JSON
+                                    {name: "languages", value: kitchenSinkTestcase.data.languages},
+                                    // Stringified JSON — stays a string (gap-04 case)
+                                    {name: "metadata", value: kitchenSinkTestcase.data.metadata},
+                                    // Array of message objects — Form view shows nested rails
+                                    {name: "messages", value: kitchenSinkTestcase.data.messages},
                                 ]}
+                                output={{
+                                    body: "The capital of Vanuatu is Port Vila (ISO code: VU), on the southern coast of Efate Island.",
+                                    metrics: [
+                                        {label: "exact_match", value: "1.00"},
+                                        {label: "factual", value: "0.95"},
+                                    ],
+                                    latencyMs: 2410,
+                                    tokens: 184,
+                                    model: "gpt-4o-mini",
+                                }}
                             />
                         </div>
                     </section>
@@ -496,36 +475,43 @@ export default function SolutionsPlayground() {
                         via the peekable footer + Variable map above. */}
                     <section style={styles.compareRow}>
                         <header style={styles.rowHeader}>
-                            <span style={styles.tagProposed}>
-                                Proposed · embedded
-                            </span>
-                            <span style={styles.rowSub}>
-                                ProposedDrillIn as inputs body
-                            </span>
+                            <span style={styles.tagProposed}>Proposed · embedded</span>
+                            <span style={styles.rowSub}>ProposedDrillIn as inputs body</span>
                         </header>
                         <div style={styles.rowGrid}>
-                            <div style={styles.configWrap}>
-                                <ProductionPromptTemplate
-                                    messages={KITCHEN_SINK_PROMPT_MESSAGES}
-                                />
-                            </div>
-                            <PlaygroundExecutionItem
-                                testcaseLabel={`Testcase · ${kitchenSinkTestcase.label}`}
-                                inputs={KITCHEN_SINK_IN_USE_INPUTS}
-                                unusedTestcaseColumns={UNUSED_VARIABLE_NAMES}
+                            <ProductionPlaygroundShell
+                                messages={KITCHEN_SINK_PROMPT_MESSAGES}
+                                testcaseLabel="testcase 1"
+                                testcaseBody={
+                                    <>
+                                        <ProposedDrillIn
+                                            data={KITCHEN_SINK_IN_USE_INPUTS.reduce<
+                                                Record<string, unknown>
+                                            >((acc, field) => {
+                                                acc[field.name] = field.value
+                                                return acc
+                                            }, {})}
+                                            rootTitle="testcase 1"
+                                            chipMode={chipMode}
+                                            editable={editable}
+                                            autoExpand={false}
+                                        />
+                                        <div style={styles.unusedColumnsNote}>
+                                            {UNUSED_VARIABLE_NAMES.length} unused testcase columns
+                                            hidden because the prompt does not reference them.
+                                        </div>
+                                    </>
+                                }
                                 output={{
-                                    role: "assistant",
-                                    content:
-                                        "The capital of Vanuatu is Port Vila (ISO code: VU), on the southern coast of Efate Island.",
+                                    body: "The capital of Vanuatu is Port Vila (ISO code: VU), on the southern coast of Efate Island.",
+                                    metrics: [
+                                        {label: "exact_match", value: "1.00"},
+                                        {label: "factual", value: "0.95"},
+                                    ],
+                                    latencyMs: 2410,
+                                    tokens: 184,
+                                    model: "gpt-4o-mini",
                                 }}
-                                evaluators={[
-                                    {name: "exact_match", score: 1.0, passed: true},
-                                    {name: "factual", score: 0.95, passed: true},
-                                    {name: "tool_calls_correct", score: 1.0, passed: true},
-                                ]}
-                                durationMs={2410}
-                                chipMode={chipMode}
-                                editable={editable}
                             />
                         </div>
                     </section>
@@ -536,202 +522,207 @@ export default function SolutionsPlayground() {
                     <section style={styles.compareRow}>
                         <header style={styles.rowHeader}>
                             <span style={styles.tagAlt}>Alt · compact</span>
-                            <span style={styles.rowSub}>
-                                One row per field · click to edit
-                            </span>
+                            <span style={styles.rowSub}>One row per field · click to edit</span>
                         </header>
                         <div style={styles.rowGrid}>
-                            <div style={styles.configWrap}>
-                                <ProductionPromptTemplate
-                                    messages={KITCHEN_SINK_PROMPT_MESSAGES}
-                                />
-                            </div>
-                            <PlaygroundExecutionItemCompact
-                                testcaseLabel={`Testcase · ${kitchenSinkTestcase.label}`}
-                                inputs={KITCHEN_SINK_IN_USE_INPUTS}
-                                unusedTestcaseColumns={UNUSED_VARIABLE_NAMES}
-                                output={{
-                                    role: "assistant",
-                                    content:
-                                        "The capital of Vanuatu is Port Vila (ISO code: VU), on the southern coast of Efate Island.",
-                                }}
-                                evaluators={[
-                                    {name: "exact_match", score: 1.0, passed: true},
-                                    {name: "factual", score: 0.95, passed: true},
-                                    {name: "tool_calls_correct", score: 1.0, passed: true},
-                                ]}
-                                durationMs={2410}
-                                chipMode={chipMode}
-                                editable={editable}
+                            <ProductionPlaygroundShell
+                                messages={KITCHEN_SINK_PROMPT_MESSAGES}
+                                testcaseLabel="testcase 1"
+                                testcaseBody={
+                                    <PlaygroundExecutionItemCompact
+                                        testcaseLabel={`Testcase · ${kitchenSinkTestcase.label}`}
+                                        inputs={KITCHEN_SINK_IN_USE_INPUTS}
+                                        unusedTestcaseColumns={UNUSED_VARIABLE_NAMES}
+                                        output={{
+                                            role: "assistant",
+                                            content:
+                                                "The capital of Vanuatu is Port Vila (ISO code: VU), on the southern coast of Efate Island.",
+                                        }}
+                                        evaluators={[
+                                            {name: "exact_match", score: 1.0, passed: true},
+                                            {name: "factual", score: 0.95, passed: true},
+                                            {name: "tool_calls_correct", score: 1.0, passed: true},
+                                        ]}
+                                        durationMs={2410}
+                                        chipMode={chipMode}
+                                        editable={editable}
+                                    />
+                                }
                             />
                         </div>
                     </section>
 
                     {SHOW_EXTRA_ROWS ? (
                         <>
-                    {/* Row 2 — Kiribati chip-showcase (focused gap-01) */}
-                    <PlaygroundExecutionItemToday
-                        testcaseLabel="testcase 2 — chip-showcase"
-                        inputs={[
-                            {name: "country", value: kiribatiTestcase.data.country as string},
-                            {name: "age", value: String(kiribatiTestcase.data.age)},
-                            {name: "verified", value: String(kiribatiTestcase.data.verified)},
-                        ]}
-                    />
-                    <PlaygroundExecutionItem
-                        testcaseLabel={`Testcase · ${kiribatiTestcase.label}`}
-                        inputs={[
-                            {name: "country", value: kiribatiTestcase.data.country},
-                            {name: "age", value: kiribatiTestcase.data.age},
-                            {name: "verified", value: kiribatiTestcase.data.verified},
-                            {name: "languages", value: kiribatiTestcase.data.languages},
-                            {name: "geo", value: kiribatiTestcase.data.geo},
-                            {name: "metadata", value: kiribatiTestcase.data.metadata},
-                        ]}
-                        output="Kiribati's capital is South Tarawa, a small atoll in the central Pacific."
-                        evaluators={[
-                            {name: "exact_match", score: 1.0, passed: true},
-                            {name: "factual", score: 0.92, passed: true},
-                        ]}
-                        chipMode={chipMode}
-                        editable={editable}
-                    />
-                    <PlaygroundExecutionItemCompact
-                        testcaseLabel={`Testcase · ${kiribatiTestcase.label}`}
-                        inputs={[
-                            {name: "country", value: kiribatiTestcase.data.country},
-                            {name: "age", value: kiribatiTestcase.data.age},
-                            {name: "verified", value: kiribatiTestcase.data.verified},
-                            {name: "languages", value: kiribatiTestcase.data.languages},
-                            {name: "geo", value: kiribatiTestcase.data.geo},
-                            {name: "metadata", value: kiribatiTestcase.data.metadata},
-                        ]}
-                        output="Kiribati's capital is South Tarawa, a small atoll in the central Pacific."
-                        evaluators={[
-                            {name: "exact_match", score: 1.0, passed: true},
-                            {name: "factual", score: 0.92, passed: true},
-                        ]}
-                        chipMode={chipMode}
-                        editable={editable}
-                    />
+                            {/* Row 2 — Kiribati chip-showcase (focused gap-01) */}
+                            <PlaygroundExecutionItemToday
+                                testcaseLabel="testcase 2 — chip-showcase"
+                                inputs={[
+                                    {
+                                        name: "country",
+                                        value: kiribatiTestcase.data.country as string,
+                                    },
+                                    {name: "age", value: String(kiribatiTestcase.data.age)},
+                                    {
+                                        name: "verified",
+                                        value: String(kiribatiTestcase.data.verified),
+                                    },
+                                ]}
+                            />
+                            <PlaygroundExecutionItem
+                                testcaseLabel={`Testcase · ${kiribatiTestcase.label}`}
+                                inputs={[
+                                    {name: "country", value: kiribatiTestcase.data.country},
+                                    {name: "age", value: kiribatiTestcase.data.age},
+                                    {name: "verified", value: kiribatiTestcase.data.verified},
+                                    {name: "languages", value: kiribatiTestcase.data.languages},
+                                    {name: "geo", value: kiribatiTestcase.data.geo},
+                                    {name: "metadata", value: kiribatiTestcase.data.metadata},
+                                ]}
+                                output="Kiribati's capital is South Tarawa, a small atoll in the central Pacific."
+                                evaluators={[
+                                    {name: "exact_match", score: 1.0, passed: true},
+                                    {name: "factual", score: 0.92, passed: true},
+                                ]}
+                                chipMode={chipMode}
+                                editable={editable}
+                            />
+                            <PlaygroundExecutionItemCompact
+                                testcaseLabel={`Testcase · ${kiribatiTestcase.label}`}
+                                inputs={[
+                                    {name: "country", value: kiribatiTestcase.data.country},
+                                    {name: "age", value: kiribatiTestcase.data.age},
+                                    {name: "verified", value: kiribatiTestcase.data.verified},
+                                    {name: "languages", value: kiribatiTestcase.data.languages},
+                                    {name: "geo", value: kiribatiTestcase.data.geo},
+                                    {name: "metadata", value: kiribatiTestcase.data.metadata},
+                                ]}
+                                output="Kiribati's capital is South Tarawa, a small atoll in the central Pacific."
+                                evaluators={[
+                                    {name: "exact_match", score: 1.0, passed: true},
+                                    {name: "factual", score: 0.92, passed: true},
+                                ]}
+                                chipMode={chipMode}
+                                editable={editable}
+                            />
 
-                    {/* Row 3 — Messages trace (gap-06) */}
-                    <PlaygroundExecutionItemToday
-                        testcaseLabel="testcase 2"
-                        inputs={[
-                            {name: "messages"},
-                            {
-                                name: "country",
-                                value: (messagesTrace.data as Record<string, unknown>)
-                                    .country as string,
-                            },
-                        ]}
-                    />
-                    <PlaygroundExecutionItem
-                        testcaseLabel={`Trace · ${messagesTrace.label}`}
-                        inputs={[
-                            {
-                                name: "messages",
-                                value: (messagesTrace.data as Record<string, unknown>)
-                                    .messages,
-                            },
-                            {
-                                name: "country",
-                                value: (messagesTrace.data as Record<string, unknown>)
-                                    .country,
-                            },
-                        ]}
-                        output={{
-                            role: "assistant",
-                            content:
-                                "The capital of Kiribati is South Tarawa, on the atoll of Tarawa in the central Pacific.",
-                        }}
-                        evaluators={[
-                            {name: "tool_calls_correct", score: 1.0, passed: true},
-                        ]}
-                        durationMs={2310}
-                        chipMode={chipMode}
-                        editable={editable}
-                    />
-                    <PlaygroundExecutionItemCompact
-                        testcaseLabel={`Trace · ${messagesTrace.label}`}
-                        inputs={[
-                            {
-                                name: "messages",
-                                value: (messagesTrace.data as Record<string, unknown>)
-                                    .messages,
-                            },
-                            {
-                                name: "country",
-                                value: (messagesTrace.data as Record<string, unknown>)
-                                    .country,
-                            },
-                        ]}
-                        output={{
-                            role: "assistant",
-                            content:
-                                "The capital of Kiribati is South Tarawa, on the atoll of Tarawa in the central Pacific.",
-                        }}
-                        evaluators={[
-                            {name: "tool_calls_correct", score: 1.0, passed: true},
-                        ]}
-                        durationMs={2310}
-                        chipMode={chipMode}
-                        editable={editable}
-                    />
+                            {/* Row 3 — Messages trace (gap-06) */}
+                            <PlaygroundExecutionItemToday
+                                testcaseLabel="testcase 2"
+                                inputs={[
+                                    {name: "messages"},
+                                    {
+                                        name: "country",
+                                        value: (messagesTrace.data as Record<string, unknown>)
+                                            .country as string,
+                                    },
+                                ]}
+                            />
+                            <PlaygroundExecutionItem
+                                testcaseLabel={`Trace · ${messagesTrace.label}`}
+                                inputs={[
+                                    {
+                                        name: "messages",
+                                        value: (messagesTrace.data as Record<string, unknown>)
+                                            .messages,
+                                    },
+                                    {
+                                        name: "country",
+                                        value: (messagesTrace.data as Record<string, unknown>)
+                                            .country,
+                                    },
+                                ]}
+                                output={{
+                                    role: "assistant",
+                                    content:
+                                        "The capital of Kiribati is South Tarawa, on the atoll of Tarawa in the central Pacific.",
+                                }}
+                                evaluators={[
+                                    {name: "tool_calls_correct", score: 1.0, passed: true},
+                                ]}
+                                durationMs={2310}
+                                chipMode={chipMode}
+                                editable={editable}
+                            />
+                            <PlaygroundExecutionItemCompact
+                                testcaseLabel={`Trace · ${messagesTrace.label}`}
+                                inputs={[
+                                    {
+                                        name: "messages",
+                                        value: (messagesTrace.data as Record<string, unknown>)
+                                            .messages,
+                                    },
+                                    {
+                                        name: "country",
+                                        value: (messagesTrace.data as Record<string, unknown>)
+                                            .country,
+                                    },
+                                ]}
+                                output={{
+                                    role: "assistant",
+                                    content:
+                                        "The capital of Kiribati is South Tarawa, on the atoll of Tarawa in the central Pacific.",
+                                }}
+                                evaluators={[
+                                    {name: "tool_calls_correct", score: 1.0, passed: true},
+                                ]}
+                                durationMs={2310}
+                                chipMode={chipMode}
+                                editable={editable}
+                            />
 
-                    {/* Row 3 — Markdown article (gap-01 long-form mode) */}
-                    <PlaygroundExecutionItemToday
-                        testcaseLabel="testcase 3"
-                        inputs={[
-                            {name: "title", value: markdownArticle.data.title as string},
-                            {name: "prompt", value: markdownArticle.data.prompt as string},
-                            {
-                                name: "system_persona",
-                                value: markdownArticle.data.system_persona as string,
-                            },
-                        ]}
-                    />
-                    <PlaygroundExecutionItem
-                        testcaseLabel={`Testcase · ${markdownArticle.label}`}
-                        inputs={[
-                            {name: "title", value: markdownArticle.data.title},
-                            {name: "prompt", value: markdownArticle.data.prompt},
-                            {
-                                name: "system_persona",
-                                value: markdownArticle.data.system_persona,
-                            },
-                            {name: "temperature", value: markdownArticle.data.temperature},
-                        ]}
-                        output={`# Capital of Kiribati\n\nThe capital is **South Tarawa**, an atoll in the central Pacific.`}
-                        evaluators={[
-                            {name: "factual", score: 1.0, passed: true},
-                            {name: "format_md", score: 0.95, passed: true},
-                        ]}
-                        durationMs={1820}
-                        chipMode={chipMode}
-                        editable={editable}
-                    />
-                    <PlaygroundExecutionItemCompact
-                        testcaseLabel={`Testcase · ${markdownArticle.label}`}
-                        inputs={[
-                            {name: "title", value: markdownArticle.data.title},
-                            {name: "prompt", value: markdownArticle.data.prompt},
-                            {
-                                name: "system_persona",
-                                value: markdownArticle.data.system_persona,
-                            },
-                            {name: "temperature", value: markdownArticle.data.temperature},
-                        ]}
-                        output={`# Capital of Kiribati\n\nThe capital is **South Tarawa**, an atoll in the central Pacific.`}
-                        evaluators={[
-                            {name: "factual", score: 1.0, passed: true},
-                            {name: "format_md", score: 0.95, passed: true},
-                        ]}
-                        durationMs={1820}
-                        chipMode={chipMode}
-                        editable={editable}
-                    />
+                            {/* Row 3 — Markdown article (gap-01 long-form mode) */}
+                            <PlaygroundExecutionItemToday
+                                testcaseLabel="testcase 3"
+                                inputs={[
+                                    {name: "title", value: markdownArticle.data.title as string},
+                                    {name: "prompt", value: markdownArticle.data.prompt as string},
+                                    {
+                                        name: "system_persona",
+                                        value: markdownArticle.data.system_persona as string,
+                                    },
+                                ]}
+                            />
+                            <PlaygroundExecutionItem
+                                testcaseLabel={`Testcase · ${markdownArticle.label}`}
+                                inputs={[
+                                    {name: "title", value: markdownArticle.data.title},
+                                    {name: "prompt", value: markdownArticle.data.prompt},
+                                    {
+                                        name: "system_persona",
+                                        value: markdownArticle.data.system_persona,
+                                    },
+                                    {name: "temperature", value: markdownArticle.data.temperature},
+                                ]}
+                                output={`# Capital of Kiribati\n\nThe capital is **South Tarawa**, an atoll in the central Pacific.`}
+                                evaluators={[
+                                    {name: "factual", score: 1.0, passed: true},
+                                    {name: "format_md", score: 0.95, passed: true},
+                                ]}
+                                durationMs={1820}
+                                chipMode={chipMode}
+                                editable={editable}
+                            />
+                            <PlaygroundExecutionItemCompact
+                                testcaseLabel={`Testcase · ${markdownArticle.label}`}
+                                inputs={[
+                                    {name: "title", value: markdownArticle.data.title},
+                                    {name: "prompt", value: markdownArticle.data.prompt},
+                                    {
+                                        name: "system_persona",
+                                        value: markdownArticle.data.system_persona,
+                                    },
+                                    {name: "temperature", value: markdownArticle.data.temperature},
+                                ]}
+                                output={`# Capital of Kiribati\n\nThe capital is **South Tarawa**, an atoll in the central Pacific.`}
+                                evaluators={[
+                                    {name: "factual", score: 1.0, passed: true},
+                                    {name: "format_md", score: 0.95, passed: true},
+                                ]}
+                                durationMs={1820}
+                                chipMode={chipMode}
+                                editable={editable}
+                            />
                         </>
                     ) : null}
                 </div>
@@ -808,10 +799,7 @@ const styles = {
     },
     rowSub: {fontSize: 12, color: "rgba(5, 23, 41, 0.55)"},
     rowGrid: {
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
-        gap: 16,
-        alignItems: "start" as const,
+        display: "block",
     },
     configWrap: {
         background: "white",
@@ -820,6 +808,15 @@ const styles = {
         overflow: "hidden" as const,
         position: "sticky" as const,
         top: 12,
+    },
+    unusedColumnsNote: {
+        marginTop: 8,
+        padding: "8px 10px",
+        border: "1px solid rgba(5, 23, 41, 0.08)",
+        borderRadius: 6,
+        background: "rgba(5, 23, 41, 0.02)",
+        fontSize: 12,
+        color: "rgba(5, 23, 41, 0.55)",
     },
     tagToday: {
         fontSize: 10,
