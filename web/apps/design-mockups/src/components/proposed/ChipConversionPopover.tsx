@@ -336,19 +336,18 @@ function getConversions(variant: ChipVariant, value: unknown): ConversionOption[
 function targetLabel(target: ConversionOption["target"] | ChipVariant): string {
     // Mirrors the chip-pill labels in TypeChip's STYLES map so the popover
     // header ("Current chip:") and conversion arrows match what the user
-    // sees on the chip itself. Abbreviations for type primitives,
-    // full names for render hints + state chips.
+    // sees on the chip itself. Full type names everywhere — no abbreviations.
     switch (target) {
         case "string":
-            return "str"
+            return "string"
         case "number":
-            return "num"
+            return "number"
         case "boolean":
-            return "bool"
+            return "boolean"
         case "json-object":
-            return "obj"
+            return "object"
         case "json-array":
-            return "arr"
+            return "array"
         case "null":
             return "null"
         case "stringified":
