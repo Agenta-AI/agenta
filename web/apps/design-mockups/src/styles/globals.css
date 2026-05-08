@@ -90,3 +90,22 @@ body {
 .proposed-drill-in-field-list > :first-child {
     border-top: none;
 }
+
+/*
+ * Field-row header — hover affordance + focus outline so the row reads as
+ * clickable. The whole header row toggles collapse on click; the inline
+ * style sets `cursor: pointer`, but inline can't do :hover/:focus, so we
+ * tag the header with data-drill-in-header and rely on these rules.
+ */
+[data-drill-in-header] {
+    transition: background-color 0.08s ease;
+}
+[data-drill-in-header]:hover {
+    /* Stays distinct against every depth tint
+       (#FAFAFA, #F2F4F7, #E9ECF1, #E2E6ED). */
+    background-color: #d9dee8 !important;
+}
+[data-drill-in-header]:focus-visible {
+    outline: 2px solid rgba(22, 119, 255, 0.4);
+    outline-offset: -2px;
+}

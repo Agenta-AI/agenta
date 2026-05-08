@@ -24,6 +24,7 @@ import {
     CaretRight,
     Copy,
     Funnel,
+    Info,
     Warning,
 } from "@phosphor-icons/react"
 import {Button, Input, InputNumber, Select, Switch, Tooltip} from "antd"
@@ -324,6 +325,17 @@ const WARNING_CHIPS: ReadonlySet<ChipVariant> = new Set<ChipVariant>([
     "mixed",
 ])
 
+/**
+ * Depth-aware header background. Each nesting level shifts the header
+ * tint slightly so depth reads at a glance even when you're scanning
+ * the structure quickly. Capped at depth 3 so very deep nesting doesn't
+ * keep darkening into illegibility.
+ */
+const DEPTH_HEADER_BG = ["#FAFAFA", "#F2F4F7", "#E9ECF1", "#E2E6ED"]
+function depthHeaderBg(depth: number): string {
+    return DEPTH_HEADER_BG[Math.min(depth, DEPTH_HEADER_BG.length - 1)]
+}
+
 function describeWarning(chip: ChipVariant, fieldName: string): string {
     switch (chip) {
         case "dotted-key":
@@ -386,6 +398,52 @@ function FieldWarningsIndicator({
                 style={fieldWarningButton}
             >
                 <Warning size={14} weight="fill" />
+            </button>
+        </Tooltip>
+    )
+}
+
+/**
+ * Info-icon indicator for fields that need a small explanation that doesn't
+ * belong in the body. Mirrors the Warning indicator: small icon button in
+ * the header, tooltip carries the prose. Stringified strings use it to
+ * explain the round-trip behavior; future kinds (e.g. schema-projected
+ * fields) can reuse this component with their own copy.
+ */
+const INFO_BY_KIND: Record<string, {title: string; body: string}> = {
+    stringified: {
+        title: "Stored as a JSON string",
+        body: "Edits round-trip through the stringified storage — the parsed object updates and the string is re-serialized on save. Switch the render to JSON to edit the raw escaped string directly.",
+    },
+}
+
+function FieldInfoIndicator({kind}: {kind: keyof typeof INFO_BY_KIND}) {
+    const info = INFO_BY_KIND[kind]
+    if (!info) return null
+    return (
+        <Tooltip
+            title={
+                <div style={{display: "flex", flexDirection: "column", gap: 4, lineHeight: 1.45}}>
+                    <strong>{info.title}</strong>
+                    <span>{info.body}</span>
+                </div>
+            }
+            color="#fff"
+            styles={{
+                body: {
+                    color: "#051729",
+                    border: "1px solid rgba(5, 23, 41, 0.12)",
+                    fontSize: 12,
+                    maxWidth: 320,
+                },
+            }}
+        >
+            <button
+                type="button"
+                aria-label={info.title}
+                style={fieldInfoButton}
+            >
+                <Info size={14} />
             </button>
         </Tooltip>
     )
@@ -466,6 +524,18 @@ function ProposedField({
     // input into the Lexical editor and the user can keep typing.
     const [autoFocusLongEditor, setAutoFocusLongEditor] = useState(false)
 
+    // Per-level expand/collapse-all for THIS field's children (mirror of the
+    // top-level toolbar so every level acts the same). When the user clicks
+    // the button in this field's header, the signal increments and propagates
+    // to nested ProposedFields via the same `forceCollapsed` / `collapseSignal`
+    // props the top-level uses.
+    const [childrenAllCollapsed, setChildrenAllCollapsed] = useState(false)
+    const [childrenCollapseSignal, setChildrenCollapseSignal] = useState(0)
+    const toggleChildren = () => {
+        setChildrenAllCollapsed((prev) => !prev)
+        setChildrenCollapseSignal((s) => s + 1)
+    }
+
     // React to the parent's expand-all / collapse-all signal. The effect
     // re-runs only when the signal increments, so the caret button still
     // owns local state between global toggles.
@@ -511,7 +581,12 @@ function ProposedField({
             }}
         >
             <div
-                style={{...headerStyle, cursor: "pointer"}}
+                data-drill-in-header
+                style={{
+                    ...headerStyle,
+                    cursor: "pointer",
+                    background: depthHeaderBg(depth),
+                }}
                 onClick={toggleField}
                 role="button"
                 tabIndex={0}
@@ -574,6 +649,15 @@ function ProposedField({
                     <span onClick={stopBubble}>
                         <FieldWarningsIndicator chips={nameChips} fieldName={name} />
                     </span>
+                    {/* Stringified-string explainer — was a wordy italic
+                        paragraph below the body; now an Info icon + tooltip
+                        in the header so the body stays clean. Mirrors the
+                        Warning-icon pattern. */}
+                    {kind.kind === "stringified" ? (
+                        <span onClick={stopBubble}>
+                            <FieldInfoIndicator kind="stringified" />
+                        </span>
+                    ) : null}
                     {nameChips
                         .filter((chip) => !WARNING_CHIPS.has(chip))
                         .map((chip) => (
@@ -595,6 +679,34 @@ function ProposedField({
                     )}
                 </div>
                 <div style={headerRight} onClick={stopBubble}>
+                    {expandable ? (
+                        <Tooltip
+                            title={
+                                childrenAllCollapsed
+                                    ? "Expand all children"
+                                    : "Collapse all children"
+                            }
+                        >
+                            <Button
+                                type="text"
+                                size="small"
+                                onClick={toggleChildren}
+                                icon={
+                                    childrenAllCollapsed ? (
+                                        <ArrowsOutLineVertical size={12} />
+                                    ) : (
+                                        <ArrowsInLineVertical size={12} />
+                                    )
+                                }
+                                aria-label={
+                                    childrenAllCollapsed
+                                        ? "Expand all children"
+                                        : "Collapse all children"
+                                }
+                                aria-pressed={childrenAllCollapsed}
+                            />
+                        </Tooltip>
+                    ) : null}
                     {kind.kind === "string" ? (
                         <Select
                             size="small"
@@ -809,6 +921,8 @@ function ProposedField({
                                 editable={editable}
                                 onChange={onChange}
                                 chipMode={chipMode}
+                                forceCollapsed={childrenAllCollapsed}
+                                collapseSignal={childrenCollapseSignal}
                             />
                         ))}
                     </div>
@@ -826,6 +940,8 @@ function ProposedField({
                             editable={editable}
                             onChange={onChange}
                             chipMode={chipMode}
+                            forceCollapsed={childrenAllCollapsed}
+                            collapseSignal={childrenCollapseSignal}
                         />
                     ))}
                 </div>
@@ -836,12 +952,10 @@ function ProposedField({
                 viewMode === "form" &&
                 kind.kind === "stringified" && (
                     <div style={nestedBody}>
-                        <div style={parsedHintStyle}>
-                            Stored as a JSON string. Edits round-trip through the stringified
-                            storage — the parsed object updates, the string is re-serialized, and
-                            the chip stays <code>[stringified]</code>. Switch to <code>JSON</code>{" "}
-                            to edit the raw string directly.
-                        </div>
+                        {/* Round-trip explainer used to render here as a long
+                            italic paragraph. It's now an Info-icon tooltip in
+                            the field header (see FieldInfoIndicator above) so
+                            the body stays focused on the parsed children. */}
                         {kind.parsedKind === "object" &&
                             Object.entries(kind.parsed as Record<string, unknown>).map(([k, v]) => (
                                 <ProposedField
@@ -863,6 +977,8 @@ function ProposedField({
                                         onChange?.(path, JSON.stringify(newParsed))
                                     }}
                                     chipMode={chipMode}
+                                    forceCollapsed={childrenAllCollapsed}
+                                    collapseSignal={childrenCollapseSignal}
                                 />
                             ))}
                         {kind.parsedKind === "array" &&
@@ -881,6 +997,8 @@ function ProposedField({
                                         onChange?.(path, JSON.stringify(newParsed))
                                     }}
                                     chipMode={chipMode}
+                                    forceCollapsed={childrenAllCollapsed}
+                                    collapseSignal={childrenCollapseSignal}
                                 />
                             ))}
                     </div>
@@ -1148,6 +1266,18 @@ export function ProposedDrillIn({
                             popupMatchSelectWidth={false}
                         />
                     )}
+                    {/* Copy action mirrors the per-field Copy button so the
+                        top-level toolbar's right edge aligns with each row's
+                        right edge. Same vocabulary across levels. */}
+                    <Tooltip title="Copy">
+                        <Button
+                            type="text"
+                            size="small"
+                            icon={<Copy size={12} />}
+                            style={{padding: "0 4px"}}
+                            aria-label={`Copy ${rootTitle}`}
+                        />
+                    </Tooltip>
                 </div>
             </div>
             {rootViewMode !== "form" ? (
@@ -1375,11 +1505,15 @@ const rootLabel = {
     color: "#051729",
 }
 
+// Padding mirrors the field-row offset (1px container border + 10px header
+// padding = 11px) so the top toolbar's title aligns with the field carets
+// below and the right actions align with each row's right actions.
 const rootHeaderStyle = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between" as const,
     gap: 12,
+    padding: "0 11px",
     marginBottom: 4,
 }
 
@@ -1525,15 +1659,31 @@ const caretButton = {
     color: "rgba(5, 23, 41, 0.65)",
 }
 
-const fieldWarningButton = {
+// Indicator buttons — explicit height + alignment so the SVG icon shares the
+// same vertical center as the type chip + field name in the row. `lineHeight:0`
+// alone wasn't enough because the SVG's `display:inline-block` baseline
+// rendered slightly above the chip's text baseline.
+const fieldIndicatorButton = {
     background: "transparent",
     border: "none",
-    cursor: "pointer",
+    cursor: "pointer" as const,
     padding: 0,
     display: "inline-flex",
-    alignItems: "center",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    height: 20,
+    width: 20,
+    verticalAlign: "middle" as const,
+}
+
+const fieldWarningButton = {
+    ...fieldIndicatorButton,
     color: "#cf1322",
-    lineHeight: 0,
+}
+
+const fieldInfoButton = {
+    ...fieldIndicatorButton,
+    color: "rgba(5, 23, 41, 0.45)",
 }
 
 const fieldName = {
@@ -1548,7 +1698,8 @@ const countText = {
 }
 
 const leafBody = {
-    padding: "8px 12px",
+    padding: "4px 12px 6px",
+    background: "white",
 }
 
 const inputStyle = {
@@ -1611,15 +1762,6 @@ const longFormToggleStyle = {
     zIndex: 2,
 }
 
-const parsedHintStyle = {
-    fontSize: 11,
-    color: "rgba(5, 23, 41, 0.55)",
-    fontStyle: "italic" as const,
-    padding: "0 4px 6px",
-    borderBottom: "1px dashed rgba(5, 23, 41, 0.08)",
-    marginBottom: 6,
-}
-
 // Type-driven value styles for chipMode="none". The signal moves from a
 // labelled chip ([num], [bool], [null]) into the value's own visual treatment.
 const styledNumber = {
@@ -1649,14 +1791,20 @@ const styledNull = {
 // A thin vertical rail on the left reinforces nesting without adding a
 // nested card-inside-card border. Each child's own borderTop provides the
 // separator between siblings AND between the parent header and first child.
+//
+// `marginLeft: 17` aligns the rail roughly under the parent's caret center
+// (header padding 10 + caret midpoint 7), so the rail visually "descends"
+// from the parent toggle rather than floating arbitrary distance from the
+// edge. Stronger alpha (0.12) makes the rail readable at depth ≥ 2 where
+// two rails sit near each other.
 const nestedBody = {
     paddingLeft: 14,
-    marginLeft: 12,
+    marginLeft: 17,
     display: "flex",
     flexDirection: "column" as const,
     gap: 0,
     background: "white",
-    borderLeft: "2px solid rgba(5, 23, 41, 0.06)",
+    borderLeft: "2px solid rgba(5, 23, 41, 0.12)",
 }
 
 const messagesBody = {
