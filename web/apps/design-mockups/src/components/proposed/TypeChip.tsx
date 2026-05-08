@@ -101,15 +101,16 @@ const STYLES: Record<
     ChipVariant,
     {bg: string; fg: string; label: string; border?: string; italic?: boolean}
 > = {
-    // — Type primitives (axis 1). Solid background, no border, abbreviated
-    //   labels for chip-density reasons. Variant keys stay full-name for
-    //   TS-identifier precision when grepping.
-    string: {bg: "rgba(5, 23, 41, 0.06)", fg: "#051729", label: "str"},
-    number: {bg: "rgba(5, 23, 41, 0.06)", fg: "#051729", label: "num"},
-    boolean: {bg: "rgba(5, 23, 41, 0.06)", fg: "#051729", label: "bool"},
+    // — Type primitives (axis 1). Solid background, no border, full type
+    //   names so SMEs reading the chip don't have to translate `obj` → object.
+    //   The "json-" prefix on the variant key stays for TS precision when
+    //   grepping; the visible label drops it for legibility.
+    string: {bg: "rgba(5, 23, 41, 0.06)", fg: "#051729", label: "string"},
+    number: {bg: "rgba(5, 23, 41, 0.06)", fg: "#051729", label: "number"},
+    boolean: {bg: "rgba(5, 23, 41, 0.06)", fg: "#051729", label: "boolean"},
     null: {bg: "rgba(5, 23, 41, 0.06)", fg: "rgba(5, 23, 41, 0.45)", label: "null"},
-    "json-object": {bg: "#e6f4ff", fg: "#1677ff", label: "obj"},
-    "json-array": {bg: "#e6fffb", fg: "#13c2c2", label: "arr"},
+    "json-object": {bg: "#e6f4ff", fg: "#1677ff", label: "object"},
+    "json-array": {bg: "#e6fffb", fg: "#13c2c2", label: "array"},
 
     // — Render hints (axis 2). Dashed border + italic so the user reads
     //   "render mode" not "type". Each one stacks alongside the type chip.
