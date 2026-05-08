@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {useVaultSecret} from "@agenta/entities/secret"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import type {LlmProvider} from "@agenta/shared/types"
 import {PageLayout} from "@agenta/ui"
 import type {
     InfiniteVirtualTableRowSelection,
@@ -17,9 +19,7 @@ import {timeout} from "@/oss/components/pages/app-management/assets/helpers"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import useURL from "@/oss/hooks/useURL"
-import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {waitForAppToStart} from "@/oss/services/api"

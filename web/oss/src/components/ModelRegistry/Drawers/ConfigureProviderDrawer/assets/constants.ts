@@ -1,5 +1,5 @@
-import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
-import {SecretDTOProvider} from "@/oss/lib/Types"
+import {SecretDTOProvider} from "@agenta/entities/secret"
+import type {LlmProvider} from "@agenta/shared/types"
 
 export const PROVIDER_FIELDS: {
     key: keyof LlmProvider

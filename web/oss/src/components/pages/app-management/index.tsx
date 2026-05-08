@@ -1,6 +1,8 @@
 import {useEffect, useState} from "react"
 
+import {useVaultSecret} from "@agenta/entities/secret"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import type {LlmProvider} from "@agenta/shared/types"
 import {PageLayout} from "@agenta/ui"
 import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -9,9 +11,7 @@ import dynamic from "next/dynamic"
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import {welcomeCardsDismissedAtom} from "@/oss/components/pages/app-management/components/WelcomeCardsSection/assets/store/welcomeCards"
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
-import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-import {type LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {
     onboardingWidgetActivationAtom,

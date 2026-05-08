@@ -1,15 +1,19 @@
 import React, {useEffect, useMemo, useState} from "react"
 
+import {
+    PROVIDER_KINDS,
+    PROVIDER_LABELS,
+    SecretDTOProvider,
+    useVaultSecret,
+} from "@agenta/entities/secret"
+import type {LlmProvider} from "@agenta/shared/types"
 import {SelectLLMProviderBase, type ProviderGroup} from "@agenta/ui/select-llm-provider"
 import {capitalize} from "@agenta/ui/select-llm-provider"
 import {Plus, WarningCircle} from "@phosphor-icons/react"
 import {Button, Form, Input, Typography} from "antd"
 import {useWatch} from "antd/lib/form/Form"
 
-import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
-import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
-import {PROVIDER_KINDS, PROVIDER_LABELS, SecretDTOProvider} from "@/oss/lib/Types"
 
 import LabelInput from "../../../assets/LabelInput"
 
