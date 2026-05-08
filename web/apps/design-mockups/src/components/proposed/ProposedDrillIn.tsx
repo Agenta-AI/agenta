@@ -12,13 +12,21 @@
  * with the production drill-in on each gap page so the team can compare.
  */
 
-import {useCallback, useId, useMemo, useState} from "react"
+import {Fragment, useCallback, useEffect, useId, useMemo, useState} from "react"
 
-import type {ChipVariant, RenderHint} from "@/mockups/components/proposed/TypeChip"
+import type {ChipVariant} from "@/mockups/components/proposed/TypeChip"
 import {TypeChip} from "@/mockups/components/proposed/TypeChip"
 import {ChipConversionPopover} from "@/mockups/components/proposed/ChipConversionPopover"
-import {CaretDown, CaretRight, Copy} from "@phosphor-icons/react"
-import {Button, Input, InputNumber, Segmented, Select, Switch, Tooltip} from "antd"
+import {
+    ArrowsInLineVertical,
+    ArrowsOutLineVertical,
+    CaretDown,
+    CaretRight,
+    Copy,
+    Funnel,
+    Warning,
+} from "@phosphor-icons/react"
+import {Button, Input, InputNumber, Select, Switch, Tooltip} from "antd"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {MarkdownToggleButton} from "@agenta/ui"
@@ -61,6 +69,20 @@ interface ProposedDrillInProps {
      * save-side filter belongs in the parent (drop empties before dispatch).
      */
     knownColumns?: string[]
+    /**
+     * When provided, the root view-mode is controlled by the parent.
+     * Vocabulary matches per-field controls (`form` / `json` / `yaml`) so
+     * top-level and nested view-mode dropdowns share a single language.
+     * Pair with `hideRootViewMode` to drop the body-level dropdown and let
+     * the parent own the control.
+     */
+    rootViewMode?: "form" | "json" | "yaml"
+    onRootViewModeChange?: (mode: "form" | "json" | "yaml") => void
+    /**
+     * Hide the body-level view-mode dropdown next to the root title. Set
+     * when the parent owns the view-mode toggle (drawer chrome, page header).
+     */
+    hideRootViewMode?: boolean
 }
 
 function setAtPath(root: unknown, path: (string | number)[], next: unknown): unknown {
@@ -208,18 +230,6 @@ function variantFor(kind: FieldKind["kind"]): ChipVariant {
 }
 
 /**
- * Optional render hint for a field — orthogonal to the type primitive.
- * Returns the hint that should stack alongside the type chip, or null
- * if the value's render is unambiguous from its primitive.
- */
-function renderHintFor(kind: FieldKind["kind"], stringMode: "short" | "long"): RenderHint | null {
-    if (kind === "messages") return "messages"
-    if (kind === "stringified") return "stringified"
-    if (kind === "string" && stringMode === "long") return "markdown"
-    return null
-}
-
-/**
  * StringField picks its editor by per-field `mode` preference, NOT by
  * content length at edit-time. `mode === "short"` → antd `<Input>`
  * (single-line). `mode === "long"` → production Lexical `SharedEditor` with
@@ -301,6 +311,86 @@ function StringField({
     )
 }
 
+/**
+ * Chips that represent correctness warnings, not value vocabulary. Multiple
+ * of these on the same row collapse into a single Warning-icon button (see
+ * FieldWarningsIndicator) so the row stays readable. The popover/tooltip is
+ * where the user actually reads what's wrong and decides what to do.
+ */
+const WARNING_CHIPS: ReadonlySet<ChipVariant> = new Set<ChipVariant>([
+    "dotted-key",
+    "collision",
+    "shadowed",
+    "mixed",
+])
+
+function describeWarning(chip: ChipVariant, fieldName: string): string {
+    switch (chip) {
+        case "dotted-key":
+            return `"${fieldName}" is a literal key containing a dot. Templates resolve literal keys before nested paths, so {{${fieldName}}} reaches THIS value, not a nested traversal.`
+        case "collision":
+            return `Another field on this row collides with "${fieldName}" — a literal "a.b" key and a nested "a.b" path coexist. The literal-key wins at template resolution time, but the nested form is silently shadowed.`
+        case "shadowed":
+            return `"${fieldName}" is shadowed by a sibling literal-dot key. The nested path won't be reachable via templates as long as the literal key exists.`
+        case "mixed":
+            return `"${fieldName}" mixes types across rows in this column. Pick one and lock it via the schema, or accept that the column is intentionally heterogeneous.`
+        default:
+            return ""
+    }
+}
+
+/**
+ * Single Warning-icon button + Tooltip aggregating every warning chip on a
+ * field row. Renders nothing when the row has no warning-class chips. The
+ * tooltip lists each warning with its specific message — one per bullet so
+ * users can read them independently. Click target is the icon; hover also
+ * surfaces the tooltip via antd's default Tooltip behavior.
+ */
+function FieldWarningsIndicator({
+    chips,
+    fieldName,
+}: {
+    chips: ChipVariant[]
+    fieldName: string
+}) {
+    const warnings = chips.filter((c) => WARNING_CHIPS.has(c))
+    if (warnings.length === 0) return null
+    const messages = warnings.map((chip) => ({chip, message: describeWarning(chip, fieldName)}))
+    return (
+        <Tooltip
+            title={
+                <div style={{display: "flex", flexDirection: "column", gap: 6}}>
+                    {messages.map(({chip, message}) => (
+                        <div key={chip} style={{lineHeight: 1.4}}>
+                            <strong style={{textTransform: "capitalize"}}>
+                                {chip.replace("-", " ")}
+                            </strong>
+                            <span> — {message}</span>
+                        </div>
+                    ))}
+                </div>
+            }
+            color="#fff"
+            styles={{
+                body: {
+                    color: "#051729",
+                    border: "1px solid rgba(207, 19, 34, 0.35)",
+                    fontSize: 12,
+                    maxWidth: 360,
+                },
+            }}
+        >
+            <button
+                type="button"
+                aria-label={`${warnings.length} warning${warnings.length > 1 ? "s" : ""} on ${fieldName}`}
+                style={fieldWarningButton}
+            >
+                <Warning size={14} weight="fill" />
+            </button>
+        </Tooltip>
+    )
+}
+
 function ProposedField({
     name,
     value,
@@ -311,6 +401,8 @@ function ProposedField({
     editable = true,
     onChange,
     chipMode = "all",
+    forceCollapsed,
+    collapseSignal,
 }: {
     name: string
     value: unknown
@@ -321,6 +413,14 @@ function ProposedField({
     editable?: boolean
     onChange?: (path: (string | number)[], next: unknown) => void
     chipMode?: ChipRenderMode
+    /**
+     * When the parent emits an "expand all" / "collapse all" event, it bumps
+     * `collapseSignal` and sets `forceCollapsed` to the desired state. We
+     * reset our local collapse + open state to match. Between signals, the
+     * caret button drives local state as usual.
+     */
+    forceCollapsed?: boolean
+    collapseSignal?: number
 }) {
     const editorId = useId()
     const kind = classify(value)
@@ -365,10 +465,43 @@ function ProposedField({
     // the SharedEditor to autofocus on mount so focus jumps from the inline
     // input into the Lexical editor and the user can keep typing.
     const [autoFocusLongEditor, setAutoFocusLongEditor] = useState(false)
-    // Type primitive (axis 1, always one). Render hint (axis 2, optional)
-    // stacks alongside if non-null. Refactor 2026-05-05 per JP feedback.
+
+    // React to the parent's expand-all / collapse-all signal. The effect
+    // re-runs only when the signal increments, so the caret button still
+    // owns local state between global toggles.
+    useEffect(() => {
+        if (collapseSignal === undefined || forceCollapsed === undefined) return
+        setIsCollapsed(forceCollapsed)
+        if (expandable) {
+            setOpen(!forceCollapsed)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [collapseSignal])
+    // Type primitive (axis 1, always one). Render hints (markdown /
+    // stringified / messages / tool-calls) used to render as a second chip
+    // here; they're now exposed via the right-side Select instead so the
+    // chip area stays clean and only carries native types + warnings.
     const variant: ChipVariant = variantFor(kind.kind)
-    const renderHint: RenderHint | null = renderHintFor(kind.kind, stringMode)
+
+    // Toggle handler — runs on caret click AND on bubbled clicks from the
+    // rest of the header so clicking anywhere on the row (name, empty
+    // space, count text) collapses/expands. Interactive children inside
+    // the header (chip popover, render Select, action buttons, warning
+    // indicator) stop propagation so they don't accidentally toggle.
+    const toggleField = () => {
+        if (expandable) {
+            if (isCollapsed) {
+                setIsCollapsed(false)
+                if (!open) setOpen(true)
+            } else {
+                setIsCollapsed(true)
+                setOpen(false)
+            }
+        } else {
+            setIsCollapsed((prev) => !prev)
+        }
+    }
+    const stopBubble = (e: React.MouseEvent | React.KeyboardEvent) => e.stopPropagation()
 
     return (
         <div
@@ -377,29 +510,29 @@ function ProposedField({
                 paddingLeft: depth > 0 ? 0 : undefined,
             }}
         >
-            <div style={headerStyle}>
+            <div
+                style={{...headerStyle, cursor: "pointer"}}
+                onClick={toggleField}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        toggleField()
+                    }
+                }}
+                aria-expanded={!isCollapsed}
+                aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${name}`}
+            >
                 <div style={headerLeft}>
                     <button
                         type="button"
-                        onClick={() => {
-                            // For expandable kinds, the caret toggles BOTH
-                            // collapse-the-field AND expand-nested-cards in
-                            // sync — production has one chevron driving both.
-                            // For primitives, it just toggles the body.
-                            if (expandable) {
-                                if (isCollapsed) {
-                                    setIsCollapsed(false)
-                                    if (!open) setOpen(true)
-                                } else {
-                                    setIsCollapsed(true)
-                                    setOpen(false)
-                                }
-                            } else {
-                                setIsCollapsed((prev) => !prev)
-                            }
-                        }}
+                        // The caret stays as a focusable button for keyboard
+                        // affordance, but its onClick is delegated to the
+                        // bubble — header.onClick handles the toggle.
+                        tabIndex={-1}
                         style={caretButton}
-                        aria-label={isCollapsed ? "Expand" : "Collapse"}
+                        aria-hidden
                     >
                         {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
                     </button>
@@ -409,83 +542,43 @@ function ProposedField({
                             chipMode === "ambiguous-only" &&
                             (variant === "string" || variant === "number" || variant === "boolean")
                         ) && (
-                            <ChipConversionPopover
-                                variant={variant}
-                                value={value}
-                                editable={editable}
-                                onConvert={(next) => onChange?.(path, next)}
-                                // Editor-mode toggle lives on the render-hint
-                                // chip when one is visible (per JP feedback
-                                // 2026-05-05). When no render hint exists
-                                // (plain string), the type chip is the only
-                                // chip available, so it owns the mode toggle
-                                // as a fallback.
-                                onModeSwitch={
-                                    kind.kind === "string" && !renderHint
-                                        ? (next) => {
-                                              setStringMode(next)
-                                              if (next === "long") {
-                                                  setAutoFocusLongEditor(true)
-                                              } else {
-                                                  setAutoFocusLongEditor(false)
-                                              }
-                                          }
-                                        : undefined
-                                }
-                                currentMode={kind.kind === "string" ? stringMode : undefined}
-                            >
-                                <TypeChip
+                            <span onClick={stopBubble}>
+                                <ChipConversionPopover
                                     variant={variant}
-                                    onClick={editable ? () => {} : undefined}
-                                    notificationBadge={
-                                        kind.kind === "string" &&
-                                        stringMode === "short" &&
-                                        isLongFormString(kind.value)
-                                    }
-                                    badgeTooltip="Long content detected — click to switch to long-form editor"
-                                />
-                            </ChipConversionPopover>
+                                    value={value}
+                                    editable={editable}
+                                    onConvert={(next) => onChange?.(path, next)}
+                                >
+                                    <TypeChip
+                                        variant={variant}
+                                        onClick={editable ? () => {} : undefined}
+                                    />
+                                </ChipConversionPopover>
+                            </span>
                         )}
-                    {/* Render-hint chip (axis 2). When `markdown`, the chip
-                        is the entry point for the editor-mode toggle so the
-                        action lives on the chip that represents the current
-                        render state. Other render hints (stringified,
-                        messages, tool-calls) are still informational. */}
-                    {chipMode !== "none" && renderHint === "markdown" && (
-                        <ChipConversionPopover
-                            variant="markdown"
-                            value={value}
-                            editable={editable}
-                            // Markdown chip's popover offers ONLY editor-mode
-                            // switching — type conversions stay on the [str]
-                            // chip's popover so each chip owns one concern.
-                            onConvert={undefined}
-                            onModeSwitch={(next) => {
-                                setStringMode(next)
-                                if (next === "long") {
-                                    setAutoFocusLongEditor(true)
-                                } else {
-                                    setAutoFocusLongEditor(false)
-                                }
-                            }}
-                            currentMode={stringMode}
-                        >
-                            <TypeChip
-                                variant="markdown"
-                                onClick={editable ? () => {} : undefined}
-                            />
-                        </ChipConversionPopover>
-                    )}
-                    {chipMode !== "none" && renderHint && renderHint !== "markdown" && (
-                        <TypeChip variant={renderHint} />
-                    )}
-                    {/* nameChips (collision / dotted-key / shadowed) ALWAYS render
-                        — they're correctness signals, not type vocabulary. They
-                        get their own action menus in a Phase 2 (resolve
-                        collision, lock column type, etc.). */}
-                    {nameChips.map((chip) => (
-                        <TypeChip key={chip} variant={chip} />
-                    ))}
+                    {/* Render hints (markdown / stringified / messages /
+                        tool-calls) used to render here as italic dashed
+                        chips. They were display-level information conflated
+                        with the type-vocabulary chips. They've moved into
+                        the right-side render-type Select below — same
+                        interaction model as the per-object Form/JSON/YAML
+                        select, so the chip area only carries native types
+                        and warnings. */}
+                    {/* nameChips covers two concerns: warnings (dotted-key,
+                        collision, shadowed, mixed — render-time correctness
+                        signals) and informational chips (path, unused, etc.).
+                        Warnings get consolidated into a single Warning-icon
+                        button with an aggregated tooltip so the row stays
+                        readable; informationals still render as regular
+                        chips. */}
+                    <span onClick={stopBubble}>
+                        <FieldWarningsIndicator chips={nameChips} fieldName={name} />
+                    </span>
+                    {nameChips
+                        .filter((chip) => !WARNING_CHIPS.has(chip))
+                        .map((chip) => (
+                            <TypeChip key={chip} variant={chip} />
+                        ))}
                     {kind.kind === "object" && (
                         <span style={countText}>{kind.count} properties</span>
                     )}
@@ -496,18 +589,44 @@ function ProposedField({
                     {kind.kind === "stringified" && (
                         <span style={countText}>
                             {kind.parsedKind === "array"
-                                ? `[ ${(kind.parsed as unknown[]).length} items ]`
-                                : `{ ${Object.keys(kind.parsed as object).length} props }`}
+                                ? `${(kind.parsed as unknown[]).length} items`
+                                : `${Object.keys(kind.parsed as object).length} properties`}
                         </span>
                     )}
                 </div>
-                <div style={headerRight}>
+                <div style={headerRight} onClick={stopBubble}>
+                    {kind.kind === "string" ? (
+                        <Select
+                            size="small"
+                            value={stringMode === "long" ? "markdown" : "text"}
+                            options={[
+                                {value: "text", label: "Text"},
+                                {value: "markdown", label: "Markdown"},
+                            ]}
+                            onChange={(v) => {
+                                const next: "short" | "long" =
+                                    v === "markdown" ? "long" : "short"
+                                setStringMode(next)
+                                setAutoFocusLongEditor(next === "long")
+                            }}
+                            style={{minWidth: 96}}
+                            popupMatchSelectWidth={false}
+                        />
+                    ) : null}
                     {expandable && (
                         <Select
                             size="small"
                             value={viewMode}
+                            // Messages-arrays relabel "Form" → "Chat" because
+                            // the per-message-card render IS chat-shaped; the
+                            // user reads "view as Chat" rather than "view as
+                            // Form" of role objects. Same underlying state
+                            // value ("form") drives the cards render.
                             options={[
-                                {value: "form", label: "Form"},
+                                {
+                                    value: "form",
+                                    label: kind.kind === "messages" ? "Chat" : "Form",
+                                },
                                 {value: "json", label: "JSON"},
                                 {value: "yaml", label: "YAML"},
                             ]}
@@ -856,6 +975,9 @@ export function ProposedDrillIn({
     editable = true,
     chipMode = "all",
     knownColumns,
+    rootViewMode: controlledRootViewMode,
+    onRootViewModeChange,
+    hideRootViewMode = false,
 }: ProposedDrillInProps) {
     const [draft, setDraft] = useState<Record<string, unknown>>(data)
 
@@ -904,30 +1026,131 @@ export function ProposedDrillIn({
         return knownColumns.filter((k) => !(k in draft))
     }, [knownColumns, draft])
 
-    // Top-level view mode for the whole row. "fields" is the default
-    // structured view (per-field cards). "json" / "yaml" render the entire
-    // draft as a single serialized blob in a code editor — paste a row's
-    // worth of JSON/YAML once, switch back to "fields" to see the parsed
+    // Top-level view mode for the whole row. "form" is the default
+    // structured view (per-field cards — vocabulary unified with per-field
+    // dropdowns so "Form" means the same thing at every depth). "json" /
+    // "yaml" render the entire draft as a single serialized blob — paste a
+    // row's worth of JSON/YAML once, switch back to "form" to see the parsed
     // structure. Useful when adding a new testcase from an existing payload
     // instead of typing field-by-field.
-    const [rootViewMode, setRootViewMode] = useState<"fields" | "json" | "yaml">("fields")
+    //
+    // Controllable from the parent: when `rootViewMode` is provided, the
+    // drawer chrome (or page) owns the toggle and we surrender our local
+    // state. Pair with `hideRootViewMode` to drop the body-level dropdown
+    // entirely so there's no duplicate control next to the title.
+    const [internalRootViewMode, setInternalRootViewMode] = useState<
+        "form" | "json" | "yaml"
+    >("form")
+    const rootViewMode = controlledRootViewMode ?? internalRootViewMode
+    const setRootViewMode = (mode: "form" | "json" | "yaml") => {
+        if (controlledRootViewMode === undefined) {
+            setInternalRootViewMode(mode)
+        }
+        onRootViewModeChange?.(mode)
+    }
+
+    // Expand / collapse all top-level fields. The signal increments on each
+    // click and is forwarded to every ProposedField; ProposedField resets its
+    // local collapsed state to match `forceCollapsed` when the signal changes.
+    // After the reset, individual carets re-take local control until the next
+    // global toggle. Default: everything expanded (matches autoExpand intent).
+    const [allCollapsed, setAllCollapsed] = useState(false)
+    const [collapseSignal, setCollapseSignal] = useState(0)
+    const toggleAll = () => {
+        setAllCollapsed((prev) => !prev)
+        setCollapseSignal((s) => s + 1)
+    }
+
+    // gap-04 schema-mismatch ghost rows hide by default — they're a "this
+    // column exists in the testset's schema but not on this row" signal,
+    // not the row's actual content. The user surfaces them with the toggle
+    // below the field list when they care to see what's missing.
+    const [showNotAuthored, setShowNotAuthored] = useState(false)
+
+    // Optional view: stack rows with correctness warnings (dotted-key /
+    // collision) at the bottom of the field list with a divider in between.
+    // Off by default — preserves the user's authored shape (e.g. `geo` and
+    // `geo.region` stay adjacent, which is part of *why* they collide).
+    // Useful for triage when there are many fields.
+    const [groupIssues, setGroupIssues] = useState(false)
+    const orderedEntries = useMemo(() => {
+        const entries = Object.entries(draft).map(([key, value]) => ({
+            key,
+            value,
+            isWarning: keyKind.has(key),
+        }))
+        if (!groupIssues) return entries
+        const ok = entries.filter((e) => !e.isWarning)
+        const warn = entries.filter((e) => e.isWarning)
+        return [...ok, ...warn]
+    }, [draft, keyKind, groupIssues])
+    const firstWarningIndex = orderedEntries.findIndex((e) => e.isWarning)
+    const warningCount = orderedEntries.length - (firstWarningIndex === -1 ? orderedEntries.length : firstWarningIndex)
+    const hasWarnings = warningCount > 0
 
     return (
         <div style={shellStyle}>
             <div style={rootHeaderStyle}>
                 <div style={rootLabel}>{rootTitle}</div>
-                <Segmented
-                    size="small"
-                    value={rootViewMode}
-                    options={[
-                        {label: "Fields", value: "fields"},
-                        {label: "JSON", value: "json"},
-                        {label: "YAML", value: "yaml"},
-                    ]}
-                    onChange={(v) => setRootViewMode(v as "fields" | "json" | "yaml")}
-                />
+                <div style={rootHeaderActions}>
+                    {hasWarnings ? (
+                        <Tooltip
+                            title={
+                                groupIssues ? "Show issues in place" : "Group issues at bottom"
+                            }
+                        >
+                            <Button
+                                type="text"
+                                size="small"
+                                onClick={() => setGroupIssues((v) => !v)}
+                                icon={
+                                    <Funnel
+                                        size={14}
+                                        weight={groupIssues ? "fill" : "regular"}
+                                    />
+                                }
+                                style={{
+                                    color: groupIssues ? "#cf1322" : undefined,
+                                }}
+                                aria-label={
+                                    groupIssues ? "Show issues in place" : "Group issues at bottom"
+                                }
+                                aria-pressed={groupIssues}
+                            />
+                        </Tooltip>
+                    ) : null}
+                    <Tooltip title={allCollapsed ? "Expand all" : "Collapse all"}>
+                        <Button
+                            type="text"
+                            size="small"
+                            onClick={toggleAll}
+                            icon={
+                                allCollapsed ? (
+                                    <ArrowsOutLineVertical size={14} />
+                                ) : (
+                                    <ArrowsInLineVertical size={14} />
+                                )
+                            }
+                            aria-label={allCollapsed ? "Expand all" : "Collapse all"}
+                        />
+                    </Tooltip>
+                    {hideRootViewMode ? null : (
+                        <Select
+                            size="small"
+                            value={rootViewMode}
+                            options={[
+                                {value: "form", label: "Form"},
+                                {value: "json", label: "JSON"},
+                                {value: "yaml", label: "YAML"},
+                            ]}
+                            onChange={(v) => setRootViewMode(v as "form" | "json" | "yaml")}
+                            style={{minWidth: 96}}
+                            popupMatchSelectWidth={false}
+                        />
+                    )}
+                </div>
             </div>
-            {rootViewMode !== "fields" ? (
+            {rootViewMode !== "form" ? (
                 <RootSerializedView
                     draft={draft}
                     mode={rootViewMode}
@@ -935,43 +1158,90 @@ export function ProposedDrillIn({
                     onApply={(next) => setDraft(next)}
                 />
             ) : null}
-            {rootViewMode === "fields" &&
-                Object.entries(draft).map(([key, value]) => {
-                    const kind = keyKind.get(key)
-                    const nameChips: ChipVariant[] = []
-                    if (kind === "dotted-collision") {
-                        // Both chips on the literal-dot row so the user sees what
-                        // the key IS (literal) AND what's at risk (collision).
-                        nameChips.push("dotted-key", "collision")
-                    } else if (kind === "nested-collision") {
-                        nameChips.push("collision")
-                    } else if (kind === "dotted") {
-                        nameChips.push("dotted-key")
-                    }
-                    return (
-                        <ProposedField
-                            key={key}
-                            name={key}
-                            value={value}
-                            nameChips={nameChips}
-                            autoExpand={autoExpand}
-                            depth={0}
-                            path={[key]}
-                            editable={editable}
-                            onChange={handleChange}
-                            chipMode={chipMode}
-                        />
-                    )
-                })}
-            {/* Union-projected ghost rows (gap-04). Read-only — clicking
-                "author this column" would create the key on this row, but
-                that's the parent's responsibility. The chip + muted styling
-                signal that the field exists in the testset's union but isn't
-                stored on this row. */}
-            {rootViewMode === "fields" &&
-                notAuthoredKeys.map((key) => (
-                    <NotAuthoredGhostRow key={key} name={key} chipMode={chipMode} />
-                ))}
+            {rootViewMode === "form" && (
+                <div className="proposed-drill-in-field-list" style={fieldListStyle}>
+                    {orderedEntries.map((entry, i) => {
+                        const {key, value} = entry
+                        const kind = keyKind.get(key)
+                        const nameChips: ChipVariant[] = []
+                        if (kind === "dotted-collision") {
+                            // Both chips on the literal-dot row so the user
+                            // sees what the key IS (literal) AND what's at
+                            // risk (collision).
+                            nameChips.push("dotted-key", "collision")
+                        } else if (kind === "nested-collision") {
+                            nameChips.push("collision")
+                        } else if (kind === "dotted") {
+                            nameChips.push("dotted-key")
+                        }
+                        const isFirstWarning =
+                            groupIssues && hasWarnings && i === firstWarningIndex
+                        return (
+                            <Fragment key={key}>
+                                {isFirstWarning ? (
+                                    <div style={issuesDivider}>
+                                        <Warning size={12} weight="fill" />
+                                        <span>
+                                            Issues ({warningCount})
+                                        </span>
+                                    </div>
+                                ) : null}
+                                <ProposedField
+                                    name={key}
+                                    value={value}
+                                    nameChips={nameChips}
+                                    autoExpand={autoExpand}
+                                    depth={0}
+                                    path={[key]}
+                                    editable={editable}
+                                    onChange={handleChange}
+                                    chipMode={chipMode}
+                                    forceCollapsed={allCollapsed}
+                                    collapseSignal={collapseSignal}
+                                />
+                            </Fragment>
+                        )
+                    })}
+                    {/* gap-04 schema-mismatch footer. Read-only ghost rows
+                        for keys present in the testset's schema/union but
+                        absent from this row. Hidden by default; the user
+                        opts in to see them. Clicking "author" would create
+                        the key here — that's parent territory. */}
+                    {notAuthoredKeys.length > 0 ? (
+                        <div style={schemaMismatchFooter}>
+                            <button
+                                type="button"
+                                style={schemaMismatchToggle}
+                                onClick={() => setShowNotAuthored((v) => !v)}
+                                aria-expanded={showNotAuthored}
+                            >
+                                {showNotAuthored ? (
+                                    <CaretDown size={12} />
+                                ) : (
+                                    <CaretRight size={12} />
+                                )}
+                                <span>
+                                    {showNotAuthored ? "Hide" : "Show"}{" "}
+                                    {notAuthoredKeys.length} unauthored{" "}
+                                    {notAuthoredKeys.length === 1 ? "column" : "columns"}{" "}
+                                    from schema
+                                </span>
+                            </button>
+                            {showNotAuthored ? (
+                                <div style={schemaMismatchList}>
+                                    {notAuthoredKeys.map((key) => (
+                                        <NotAuthoredGhostRow
+                                            key={key}
+                                            name={key}
+                                            chipMode={chipMode}
+                                        />
+                                    ))}
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : null}
+                </div>
+            )}
         </div>
     )
 }
@@ -1062,7 +1332,7 @@ function RootSerializedView({
                 </div>
             ) : (
                 <div style={rootParseHint}>
-                    Edits apply to the draft as you type. Switch back to <strong>Fields</strong> to
+                    Edits apply to the draft as you type. Switch back to <strong>Form</strong> to
                     see the parsed structure.
                 </div>
             )}
@@ -1113,6 +1383,70 @@ const rootHeaderStyle = {
     marginBottom: 4,
 }
 
+const rootHeaderActions = {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+}
+
+// Shared frame for the field list — one border around the whole stack so
+// adjacent rows look like sections of a single surface, not separately
+// floating cards. Internal dividers come from each row's `borderTop`.
+const fieldListStyle = {
+    display: "flex",
+    flexDirection: "column" as const,
+    background: "white",
+    border: "1px solid rgba(5, 23, 41, 0.08)",
+    borderRadius: 6,
+    overflow: "hidden" as const,
+}
+
+const schemaMismatchFooter = {
+    display: "flex",
+    flexDirection: "column" as const,
+    borderTop: "1px solid rgba(5, 23, 41, 0.06)",
+    background: "#fafafa",
+}
+
+const schemaMismatchToggle = {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "6px 10px",
+    background: "transparent",
+    border: "none",
+    cursor: "pointer",
+    fontSize: 11,
+    color: "rgba(5, 23, 41, 0.55)",
+    fontFamily: "inherit",
+    textAlign: "left" as const,
+    width: "100%",
+}
+
+const schemaMismatchList = {
+    display: "flex",
+    flexDirection: "column" as const,
+    borderTop: "1px solid rgba(5, 23, 41, 0.06)",
+}
+
+// Divider between the in-place rows and the grouped warning rows. Picks up
+// the same red as the warning indicator so the visual handoff is obvious
+// (top half of the list = clean, below the divider = needs attention).
+const issuesDivider = {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "5px 10px",
+    fontSize: 11,
+    fontWeight: 600,
+    color: "#cf1322",
+    background: "rgba(207, 19, 34, 0.04)",
+    borderTop: "1px solid rgba(207, 19, 34, 0.18)",
+    borderBottom: "1px solid rgba(207, 19, 34, 0.18)",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.04em",
+}
+
 const rootSerializedBody = {
     display: "flex",
     flexDirection: "column" as const,
@@ -1140,9 +1474,11 @@ const rootParseError = {
 }
 
 const rowStyle = {
-    border: "1px solid rgba(5, 23, 41, 0.08)",
-    borderRadius: 6,
     background: "white",
+    // No own border / radius — the parent fieldListStyle owns the outer
+    // shape and borders. Adjacent rows get a top divider via the selector
+    // below in headerStyle (firstRow override removes it on the first row).
+    borderTop: "1px solid rgba(5, 23, 41, 0.06)",
     overflow: "hidden" as const,
 }
 
@@ -1151,9 +1487,11 @@ const headerStyle = {
     alignItems: "center",
     justifyContent: "space-between" as const,
     gap: 8,
-    padding: "8px 12px",
+    padding: "2px 10px",
+    minHeight: 28,
     background: "#FAFAFA",
-    borderBottom: "1px solid rgba(5, 23, 41, 0.06)",
+    fontSize: 12,
+    lineHeight: "20px",
 }
 
 const headerLeft = {
@@ -1185,6 +1523,17 @@ const caretButton = {
     display: "inline-flex",
     alignItems: "center",
     color: "rgba(5, 23, 41, 0.65)",
+}
+
+const fieldWarningButton = {
+    background: "transparent",
+    border: "none",
+    cursor: "pointer",
+    padding: 0,
+    display: "inline-flex",
+    alignItems: "center",
+    color: "#cf1322",
+    lineHeight: 0,
 }
 
 const fieldName = {
@@ -1295,12 +1644,19 @@ const styledNull = {
     fontStyle: "italic" as const,
 }
 
+// Nested body: children are flush against each other (no gap) and indented
+// from the left so the user reads "this group lives inside the parent".
+// A thin vertical rail on the left reinforces nesting without adding a
+// nested card-inside-card border. Each child's own borderTop provides the
+// separator between siblings AND between the parent header and first child.
 const nestedBody = {
-    padding: "10px 12px",
+    paddingLeft: 14,
+    marginLeft: 12,
     display: "flex",
     flexDirection: "column" as const,
-    gap: 8,
+    gap: 0,
     background: "white",
+    borderLeft: "2px solid rgba(5, 23, 41, 0.06)",
 }
 
 const messagesBody = {
