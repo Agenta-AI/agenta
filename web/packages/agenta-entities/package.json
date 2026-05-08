@@ -32,6 +32,7 @@
         "./trace": "./src/trace/index.ts",
         "./testset": "./src/testset/index.ts",
         "./testcase": "./src/testcase/index.ts",
+        "./secret": "./src/secret/index.ts",
         "./environment": "./src/environment/index.ts",
         "./simpleQueue": "./src/simpleQueue/index.ts",
         "./evaluationQueue": "./src/evaluationQueue/index.ts",
