@@ -1,6 +1,6 @@
 {
   "name": "@agenta/api-client",
-  "version": "0.0.0-dev",
+  "version": "0.99.4",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
