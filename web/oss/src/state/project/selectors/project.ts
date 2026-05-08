@@ -1,10 +1,10 @@
 import {logAtom, projectIdAtom} from "@agenta/shared/state"
+import type {User} from "@agenta/shared/types"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {queryClient} from "@/oss/lib/api/queryClient"
-import {User} from "@/oss/lib/Types"
 import {fetchAllProjects} from "@/oss/services/project"
 import {ProjectsResponse} from "@/oss/services/project/types"
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"

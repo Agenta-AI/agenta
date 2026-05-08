@@ -1,10 +1,10 @@
 import {logAtom} from "@agenta/shared/state"
+import type {User} from "@agenta/shared/types"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {Org, OrgDetails} from "@/oss/lib/Types"
-import type {User} from "@/oss/lib/Types"
 import {fetchAllOrgsList, fetchSingleOrg} from "@/oss/services/organization/api"
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {userAtom} from "@/oss/state/profile/selectors/user"

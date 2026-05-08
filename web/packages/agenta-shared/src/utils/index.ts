@@ -202,3 +202,9 @@ export {removeTrailingSlash} from "./uriUtils"
 
 // Trace ID conversion utilities (UUID ↔ OpenTelemetry)
 export {uuidToSpanId, uuidToTraceId} from "./traceIds"
+
+// LLM provider catalog (cross-cutting between secret entity and provider UI)
+export {llmAvailableProviders, llmAvailableProvidersToken} from "./llmProviders"
+
+// Object cleanup utilities
+export {removeEmptyFromObjects} from "./objectUtils"
