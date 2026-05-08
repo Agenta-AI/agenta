@@ -9,7 +9,12 @@
  *   - Left:  close (»), up/down nav, "Testcase N" title, "edited" badge,
  *            copy ID button
  *   - Right: "Add to queue" button (purely visual here — no popover wiring),
- *            "Fields / JSON" Segmented toggle
+ *            "Fields / JSON" Segmented toggle (production-faithful).
+ *
+ * The proposal columns can hide the chrome's edit-mode toggle via
+ * `hideEditMode` — the design statement is that view-mode responsibility
+ * moves *into* the drill-in (which exposes Fields / JSON / YAML on its own
+ * root header), so a duplicate toggle in the chrome would be redundant.
  *
  * The body holds the drill-in content. The footer mirrors the production
  * drawer footer ("Cancel" + "Apply and Continue Editing" + dropdown caret).
@@ -33,6 +38,12 @@ interface ProdTestcaseDrawerSurfaceProps {
     /** Controlled Fields / JSON toggle. When omitted the surface manages it locally. */
     editMode?: ProdDrawerEditMode
     onEditModeChange?: (mode: ProdDrawerEditMode) => void
+    /**
+     * Hide the chrome's Fields / JSON Segmented. Use in proposal columns
+     * where the drill-in itself owns the view-mode toggle, so we don't
+     * render two competing controls.
+     */
+    hideEditMode?: boolean
     children: ReactNode
 }
 
@@ -41,6 +52,7 @@ export function ProdTestcaseDrawerSurface({
     edited = false,
     editMode: controlledMode,
     onEditModeChange,
+    hideEditMode = false,
     children,
 }: ProdTestcaseDrawerSurfaceProps) {
     const [internalMode, setInternalMode] = useState<ProdDrawerEditMode>("fields")
@@ -73,15 +85,17 @@ export function ProdTestcaseDrawerSurface({
                     <Button size="small" icon={<ListChecks size={14} />}>
                         Add to queue
                     </Button>
-                    <Segmented
-                        size="small"
-                        value={editMode}
-                        onChange={(value) => handleModeChange(value as ProdDrawerEditMode)}
-                        options={[
-                            {label: "Fields", value: "fields"},
-                            {label: "JSON", value: "json"},
-                        ]}
-                    />
+                    {hideEditMode ? null : (
+                        <Segmented
+                            size="small"
+                            value={editMode}
+                            onChange={(value) => handleModeChange(value as ProdDrawerEditMode)}
+                            options={[
+                                {label: "Fields", value: "fields"},
+                                {label: "JSON", value: "json"},
+                            ]}
+                        />
+                    )}
                 </div>
             </header>
 

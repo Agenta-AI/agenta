@@ -137,7 +137,12 @@ export default function SolutionsDrillIn() {
                     statusQuo={statusQuoColumn("row-1")}
                     proposal={
                         <ComparisonColumn label="Proposal" tone="proposed">
-                            <ProdTestcaseDrawerSurface>
+                            {/* Hide the chrome's Fields / JSON toggle —
+                                ProposedDrillIn owns view-mode (Fields / JSON
+                                / YAML) on its own root header. The proposal
+                                statement: view-mode is drill-in territory,
+                                not chrome territory. */}
+                            <ProdTestcaseDrawerSurface hideEditMode>
                                 <div className="flex flex-col h-full overflow-hidden w-full">
                                     <ProposedDrillIn
                                         key="row-1-proposed"

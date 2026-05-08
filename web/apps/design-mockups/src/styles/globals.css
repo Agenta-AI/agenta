@@ -81,3 +81,12 @@ body {
 .agenta-testcase-table .ant-table-thead th:hover .group .opacity-0 {
     opacity: 1;
 }
+
+/*
+ * ProposedDrillIn field list — first child shouldn't have a top divider
+ * because it sits flush against the container's top edge. Inline styles
+ * can't do `:first-child`, so we tag the list and rely on this rule.
+ */
+.proposed-drill-in-field-list > :first-child {
+    border-top: none;
+}
