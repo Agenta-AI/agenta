@@ -393,9 +393,15 @@ export function detectCollisionColumns(rows: StubRow[], columns: ExpandedColumn[
             if (headValue !== null && typeof headValue === "object" && !Array.isArray(headValue)) {
                 // The first segment is also an object key — collision possible.
                 collisions.add(literal)
-                // Also flag any expanded sub-column under that head.
+                // Flag the expanded sub-column at exactly the literal's
+                // dotted path. NOT every descendant of `head` — `parentKey`
+                // is set to the root key for the entire subtree (see
+                // expandRecursive), so `parentKey === head` matches every
+                // leaf under `head`, including unrelated branches like
+                // geo.coordinates.lat when the literal is "geo.region".
+                // Matching by full key isolates the actual colliding leaf.
                 for (const col of columns) {
-                    if (col.parentKey === head) {
+                    if (col.parentKey && col.key === literal) {
                         collisions.add(col.key)
                     }
                 }

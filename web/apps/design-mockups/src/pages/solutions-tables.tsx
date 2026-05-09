@@ -25,12 +25,15 @@ import {useEffect, useMemo, useState} from "react"
 import Head from "next/head"
 import Link from "next/link"
 
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
-import {Segmented, Table, Typography} from "antd"
+import {CaretDown, CaretRight, Info} from "@phosphor-icons/react"
+import {Segmented, Table, Tooltip, Typography} from "antd"
 import type {ColumnType} from "antd/es/table"
 
 import {MockupPageShell} from "@/mockups/components/MockupPageShell"
-import {ProposedTableCell} from "@/mockups/components/proposed/ProposedTableCell"
+import {
+    CellWarningsIndicator,
+    ProposedTableCell,
+} from "@/mockups/components/proposed/ProposedTableCell"
 import {type ChipRenderMode} from "@/mockups/components/proposed/ProposedDrillIn"
 import {TypeChip} from "@/mockups/components/proposed/TypeChip"
 import {
@@ -55,6 +58,58 @@ import {
 } from "@/mockups/data/stubTestcases"
 import {groupColumns} from "@/oss/components/TestcasesTableNew/utils/groupColumns"
 import TestcaseCellContent from "@/oss/components/TestcasesTableNew/components/TestcaseCellContent"
+
+/**
+ * Info indicator for a parsed-stringified group header. The expanded
+ * group reads the same as a real nested-object group — same caret + name
+ * + sub-columns — but the underlying storage is a JSON string the user
+ * opted to parse. Tooltip explains the round-trip so they remember why
+ * the [json-object] chip is on a column whose raw cells were strings.
+ */
+function ParsedStringifiedGroupInfo() {
+    return (
+        <Tooltip
+            title={
+                <div style={{display: "flex", flexDirection: "column", gap: 4, lineHeight: 1.45}}>
+                    <strong>Parsed from a JSON string</strong>
+                    <span>
+                        This column is stored as a string but was parsed into sub-columns. Edits
+                        round-trip back into the stringified storage on save. Click the caret to
+                        fold it back into a single string cell.
+                    </span>
+                </div>
+            }
+            color="#fff"
+            styles={{
+                body: {
+                    color: "#051729",
+                    border: "1px solid rgba(5, 23, 41, 0.12)",
+                    fontSize: 12,
+                    maxWidth: 320,
+                },
+            }}
+        >
+            <button
+                type="button"
+                aria-label="Parsed from a JSON string"
+                style={{
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: 18,
+                    width: 18,
+                    color: "rgba(5, 23, 41, 0.45)",
+                }}
+            >
+                <Info size={12} />
+            </button>
+        </Tooltip>
+    )
+}
 
 // Toggle to bring back the multi-testset switcher. Kept as a flag (rather
 // than deleting the focused testsets) so they're one edit away if a
@@ -111,30 +166,47 @@ const TESTSETS: {
     },
 ]
 
+// Row-height vocabulary — mirrors production's DEFAULT_ROW_HEIGHT_CONFIG
+// in `useRowHeight.tsx` (small / medium / large with 4 / 10 / 18 maxLines).
+// Same labels + line caps so this mockup behaves the way the production
+// IVT does. Pixel heights aren't used here — antd Table grows row height
+// to fit clamped content rather than enforcing a fixed pixel cell.
+type RowHeightSize = "small" | "medium" | "large"
+const ROW_HEIGHT_MAX_LINES: Record<RowHeightSize, number> = {
+    small: 4,
+    medium: 10,
+    large: 18,
+}
+
 export default function SolutionsTables() {
     const [testsetId, setTestsetId] = useState<(typeof TESTSETS)[number]["id"]>("kitchen-sink")
     const [chipMode, setChipMode] = useState<ChipRenderMode>("all")
+    const [rowHeight, setRowHeight] = useState<RowHeightSize>("medium")
     // Shared collapsed-group state across both panels so the demo shows the
     // same column layout on each side (production parity). Defaults to
     // empty (everything expanded); user clicks group headers to collapse.
     const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set())
-    // gap-02 parse-on-detect — top-level stringified-JSON columns the user
-    // has opted to expand. A column starts here as a flat [stringified] cell;
-    // clicking the [stringified] chip on the header adds it to this set,
-    // which makes computeColumns parse the string and emit sub-columns.
-    // Clicking the caret on the resulting group removes it again.
-    const [parsedStringifiedColumns, setParsedStringifiedColumns] = useState<Set<string>>(
-        () => new Set(),
+    // gap-02 parse-on-detect — top-level stringified-JSON columns expanded
+    // into sub-columns. Defaults to every uniformly-stringified column so
+    // payloads like `metadata` open as parsed groups out of the box; the
+    // caret on each group's header folds it back into a single string
+    // column when the user wants the raw view.
+    const [parsedStringifiedColumns, setParsedStringifiedColumns] = useState<Set<string>>(() =>
+        detectStringifiedExpandableColumns(
+            (TESTSETS.find((t) => t.id === "kitchen-sink") ?? TESTSETS[0]).rows,
+        ),
     )
 
     const active = TESTSETS.find((t) => t.id === testsetId) ?? TESTSETS[0]
 
     // Reset collapsed-group state when the testset changes — fresh testsets
     // have different group paths, so stale entries would silently persist.
+    // Stringified-expandable columns auto-parse for the new testset too;
+    // user can fold them back individually via the group caret.
     useEffect(() => {
         setCollapsedGroups(new Set())
-        setParsedStringifiedColumns(new Set())
-    }, [testsetId])
+        setParsedStringifiedColumns(detectStringifiedExpandableColumns(active.rows))
+    }, [testsetId, active.rows])
 
     const toggleGroupCollapse = (groupPath: string) => {
         // If this is a parsed-stringified column at the root, "collapse"
@@ -201,6 +273,37 @@ export default function SolutionsTables() {
     // to a parsed-stringified column, an extra [stringified] chip stacks
     // alongside the name so the user can see the column came from a
     // string (not a real nested object) and can click the caret to fold.
+    // Bordered ±-toggle button — same pattern as Mahmoud's group header,
+    // adopted for the proposed table after team feedback that the small
+    // ▸/▾ text caret was hard to see / hard to find. The button reads as
+    // a clickable affordance on every group at every nesting level so the
+    // user doesn't have to hover to discover it. Used for both expanded
+    // (−) and collapsed (+) group states.
+    const renderGroupToggleButton = (groupPath: string, isCollapsed: boolean) => (
+        <button
+            type="button"
+            onClick={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+                toggleGroupCollapse(groupPath)
+            }}
+            aria-label={isCollapsed ? `Expand ${groupPath} group` : `Collapse ${groupPath} group`}
+            style={styles.groupToggleButton}
+            onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#e6f4ff"
+                e.currentTarget.style.borderColor = "#1677ff"
+                e.currentTarget.style.color = "#1677ff"
+            }}
+            onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#f5f5f5"
+                e.currentTarget.style.borderColor = "rgba(5, 23, 41, 0.18)"
+                e.currentTarget.style.color = "#051729"
+            }}
+        >
+            {isCollapsed ? "+" : "−"}
+        </button>
+    )
+
     const renderGroupHeader = (groupPath: string, isCollapsed: boolean, childCount: number) => {
         const displayName = groupPath.includes(".")
             ? groupPath.substring(groupPath.lastIndexOf(".") + 1)
@@ -208,28 +311,24 @@ export default function SolutionsTables() {
         const isParsedStringified = parsedStringifiedColumns.has(groupPath)
         return (
             <span style={styles.proposedHeader}>
-                <span
-                    style={styles.groupHeader}
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        toggleGroupCollapse(groupPath)
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault()
-                            toggleGroupCollapse(groupPath)
-                        }
-                    }}
-                >
-                    <span style={styles.groupCaret}>{isCollapsed ? "▸" : "▾"}</span>
-                    <span style={styles.groupName}>{displayName}</span>
-                    <span style={styles.groupCount}>({childCount})</span>
-                </span>
-                {isParsedStringified && chipMode !== "none" ? (
-                    <TypeChip variant="stringified" />
-                ) : null}
+                {renderGroupToggleButton(groupPath, isCollapsed)}
+                <span style={styles.groupName}>{displayName}</span>
+                <span style={styles.groupCount}>({childCount})</span>
+                {/* Object parent groups carry the same [json-object] chip
+                    leaf columns get for their declared type. Without it,
+                    parents read as untyped containers when they're as
+                    much "this column is an object" as `metadata` is "this
+                    column is a string". Arrays don't expand into named
+                    sub-columns in the production grouping, so the chip is
+                    safely json-object regardless of source. */}
+                {chipMode !== "none" ? <TypeChip variant="json-object" /> : null}
+                {/* Parsed-stringified groups: the [json-object] chip
+                    above describes the rendered shape; this Info icon
+                    explains the storage round-trip (string → parsed
+                    object → string on save). Mirrors CellStringifiedInfo
+                    in the cell so storage signals read identically across
+                    surfaces. */}
+                {isParsedStringified ? <ParsedStringifiedGroupInfo /> : null}
             </span>
         )
     }
@@ -290,7 +389,7 @@ export default function SolutionsTables() {
                         </span>
                     ),
                     width: 200,
-                    render: (value: unknown) => <TestcaseCellContent value={value} maxLines={10} />,
+                    render: (value: unknown) => <TestcaseCellContent value={value} maxLines={ROW_HEIGHT_MAX_LINES[rowHeight]} />,
                 }),
                 {
                     // maxDepth=5 lets groupColumns expand all the way down
@@ -336,14 +435,14 @@ export default function SolutionsTables() {
                             render: (_value: unknown, record: FlatRow) => (
                                 <TestcaseCellContent
                                     value={getNestedValue(record._data, groupPath.split("."))}
-                                    maxLines={10}
+                                    maxLines={ROW_HEIGHT_MAX_LINES[rowHeight]}
                                 />
                             ),
                         }
                     },
                 },
             ),
-        [columns, collapsedGroups, parsedStringifiedColumns],
+        [columns, collapsedGroups, parsedStringifiedColumns, rowHeight],
     )
 
     // ─── Mahmoud-Proposed panel ─────────────────────────────────────────────
@@ -443,7 +542,7 @@ export default function SolutionsTables() {
                         ),
                         width: 200,
                         render: (value: unknown) => (
-                            <TestcaseCellContent value={value} maxLines={10} />
+                            <TestcaseCellContent value={value} maxLines={ROW_HEIGHT_MAX_LINES[rowHeight]} />
                         ),
                     }
                 },
@@ -470,14 +569,14 @@ export default function SolutionsTables() {
                             render: (_value: unknown, record: FlatRow) => (
                                 <TestcaseCellContent
                                     value={getNestedValue(record._data, groupPath.split("."))}
-                                    maxLines={10}
+                                    maxLines={ROW_HEIGHT_MAX_LINES[rowHeight]}
                                 />
                             ),
                         }
                     },
                 },
             ) as ColumnType<FlatRow>[],
-        [columns, columnTypes, collapsedGroups],
+        [columns, columnTypes, collapsedGroups, rowHeight],
     )
 
     // Proposed column defs — same data, ProposedTableCell renderer.
@@ -499,13 +598,28 @@ export default function SolutionsTables() {
                     const colHint: ColumnRenderHint | null = colInfo?.hint ?? null
                     const showColumnTypeChip =
                         chipMode === "all" && colType !== undefined && !isMixed
-                    // The [stringified] render-hint chip on a top-level
-                    // stringified column is interactive — click parses the
-                    // column. Other chips are static.
+                    // Stringified-JSON columns at the top level expose a
+                    // dedicated parse affordance instead of a render-hint
+                    // chip. Same vocabulary as the cell-level "parse?"
+                    // button — header reads as the column-wide action,
+                    // cells read as the per-row preview.
                     const isStringifiedExpandable =
                         col.parentKey === undefined && stringifiedExpandableColumns.has(col.key)
-                    const isStringifiedClickable =
-                        showColumnTypeChip && colHint === "stringified" && isStringifiedExpandable
+                    const showParseButton =
+                        chipMode !== "none" &&
+                        colHint === "stringified" &&
+                        isStringifiedExpandable
+                    // Warnings consolidate into a single Warning-icon +
+                    // tooltip — same shape ProposedDrillIn settled on for
+                    // its field rows. Always shown regardless of chipMode;
+                    // they're correctness signals, not type vocabulary.
+                    // Cells no longer carry these — they were column-level
+                    // signals being repeated on every row.
+                    const headerWarnings: import("@/mockups/components/proposed/TypeChip").ChipVariant[] =
+                        []
+                    if (isDottedKey) headerWarnings.push("dotted-key")
+                    if (isMixed) headerWarnings.push("mixed")
+                    if (collisionColumns.has(col.key)) headerWarnings.push("collision")
                     return {
                         key: col.key,
                         dataIndex: col.key,
@@ -515,38 +629,28 @@ export default function SolutionsTables() {
                                 {showColumnTypeChip && colType ? (
                                     <TypeChip variant={colType} />
                                 ) : null}
-                                {showColumnTypeChip && colHint ? (
-                                    <TypeChip
-                                        variant={colHint}
-                                        onClick={
-                                            isStringifiedClickable
-                                                ? () => expandStringifiedColumn(col.key)
-                                                : undefined
-                                        }
-                                        ariaLabel={
-                                            isStringifiedClickable
-                                                ? `Parse ${col.key} into sub-columns`
-                                                : undefined
-                                        }
-                                    />
+                                {showParseButton ? (
+                                    <button
+                                        type="button"
+                                        style={styles.headerParseButton}
+                                        onClick={() => expandStringifiedColumn(col.key)}
+                                        aria-label={`Parse ${col.key} into sub-columns`}
+                                    >
+                                        parse?
+                                    </button>
                                 ) : null}
-                                {isDottedKey && chipMode !== "none" ? (
-                                    <TypeChip variant="dotted-key" />
-                                ) : null}
-                                {isMixed && chipMode !== "none" ? (
-                                    <TypeChip variant="mixed" />
-                                ) : null}
+                                <CellWarningsIndicator variants={headerWarnings} />
                             </div>
                         ),
                         width: 220,
                         render: (value: unknown) => (
                             <ProposedTableCell
                                 value={value}
-                                isMixedColumn={isMixed}
-                                isDottedKey={isDottedKey}
-                                isCollision={collisionColumns.has(col.key)}
+                                columnType={isMixed ? undefined : colType}
+                                omitParseAffordance={showParseButton}
                                 treatUndefinedAsMissing
                                 chipMode={chipMode}
+                                maxLines={ROW_HEIGHT_MAX_LINES[rowHeight]}
                             />
                         ),
                     }
@@ -563,21 +667,11 @@ export default function SolutionsTables() {
                         dataIndex: groupPath,
                         title: (
                             <div style={styles.proposedHeader}>
-                                <span
-                                    style={styles.collapsedHeader}
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        toggleGroupCollapse(groupPath)
-                                    }}
-                                    role="button"
-                                    tabIndex={0}
-                                >
-                                    <span style={styles.groupCaret}>▸</span>
-                                    <span style={styles.groupName}>
-                                        {groupPath.includes(".")
-                                            ? groupPath.substring(groupPath.lastIndexOf(".") + 1)
-                                            : groupPath}
-                                    </span>
+                                {renderGroupToggleButton(groupPath, true)}
+                                <span style={styles.groupName}>
+                                    {groupPath.includes(".")
+                                        ? groupPath.substring(groupPath.lastIndexOf(".") + 1)
+                                        : groupPath}
                                 </span>
                                 {chipMode !== "none" && <TypeChip variant="json-object" />}
                             </div>
@@ -586,8 +680,10 @@ export default function SolutionsTables() {
                         render: (_value: unknown, record: FlatRow) => (
                             <ProposedTableCell
                                 value={getNestedValue(record._data, groupPath.split("."))}
+                                columnType="json-object"
                                 treatUndefinedAsMissing
                                 chipMode={chipMode}
+                                maxLines={ROW_HEIGHT_MAX_LINES[rowHeight]}
                             />
                         ),
                     }),
@@ -600,6 +696,7 @@ export default function SolutionsTables() {
             collisionColumns,
             columnTypes,
             chipMode,
+            rowHeight,
             collapsedGroups,
             parsedStringifiedColumns,
             stringifiedExpandableColumns,
@@ -714,6 +811,18 @@ export default function SolutionsTables() {
                             {label: "None", value: "none"},
                         ]}
                         onChange={(v) => setChipMode(v as ChipRenderMode)}
+                    />
+                    <span style={styles.divider} />
+                    <span style={styles.label}>Row height:</span>
+                    <Segmented
+                        size="small"
+                        value={rowHeight}
+                        options={[
+                            {label: "Small", value: "small"},
+                            {label: "Medium", value: "medium"},
+                            {label: "Large", value: "large"},
+                        ]}
+                        onChange={(v) => setRowHeight(v as RowHeightSize)}
                     />
                 </div>
                 <div style={styles.note}>{active.note}</div>
@@ -942,6 +1051,42 @@ const styles = {
         fontSize: 12,
         fontWeight: 600,
         color: "#051729",
+    },
+    // Bordered ±-button group toggle. Replaces the small ▸/▾ text caret —
+    // the bordered pill reads as a clickable affordance at table-scan
+    // distance, addressing team feedback that the caret was easy to miss.
+    // Same dimensions / states / hover treatment as Mahmoud's variant so
+    // both panels behave identically when the user scans for groups.
+    groupToggleButton: {
+        display: "inline-flex",
+        alignItems: "center" as const,
+        justifyContent: "center" as const,
+        width: 20,
+        height: 20,
+        padding: 0,
+        borderRadius: 4,
+        border: "1px solid rgba(5, 23, 41, 0.18)",
+        background: "#f5f5f5",
+        color: "#051729",
+        fontSize: 14,
+        fontWeight: 700,
+        lineHeight: 1,
+        cursor: "pointer" as const,
+        userSelect: "none" as const,
+        transition: "background 0.12s ease, border-color 0.12s ease, color 0.12s ease",
+    },
+    // Same vocabulary as ProposedTableCell.styles.parseAffordance — header
+    // and cell read identically when the user scans for "parse this" cues.
+    headerParseButton: {
+        fontSize: 10,
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+        padding: "0px 6px",
+        borderRadius: 3,
+        background: "white",
+        color: "#1677ff",
+        border: "1px solid rgba(22, 119, 255, 0.4)",
+        cursor: "pointer" as const,
+        lineHeight: "16px",
     },
     groupHeader: {
         display: "inline-flex",
