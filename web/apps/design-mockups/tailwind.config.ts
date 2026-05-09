@@ -1,5 +1,7 @@
 import type {Config} from "tailwindcss"
 
+import antdTailwind from "../../oss/src/styles/tokens/antd-tailwind.json"
+
 const config: Config = {
     content: [
         "./src/**/*.{js,ts,jsx,tsx}",
@@ -14,7 +16,18 @@ const config: Config = {
         "../../oss/src/**/*.{js,ts,jsx,tsx}",
     ],
     theme: {
-        extend: {},
+        // Antd-derived color palette (blue-6, gold-6, magenta-6, etc.) —
+        // matches the production OSS tailwind config so utility classes
+        // emitted by shared components (e.g. ChatMessagesCellContent's
+        // role-coloured role labels) actually resolve to colors instead of
+        // inheriting body text. Without this, the cell renderer's gold
+        // "system" / blue "user" / green "assistant" / magenta "tool"
+        // labels render as plain dark text.
+        extend: {
+            colors: {
+                ...antdTailwind,
+            },
+        },
     },
     plugins: [
         require("tailwind-scrollbar")({
