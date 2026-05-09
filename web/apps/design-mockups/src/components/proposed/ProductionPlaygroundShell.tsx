@@ -11,7 +11,7 @@
  * exercise specific design proposals.
  */
 
-import {useMemo, useState, type ReactNode} from "react"
+import {useLayoutEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {
     CaretDown,
@@ -20,6 +20,7 @@ import {
     Copy,
     Database,
     DotsThreeVertical,
+    Files,
     Flask,
     Lightning,
     ListBullets,
@@ -31,7 +32,7 @@ import {
     TestTube,
     TreeStructure,
 } from "@phosphor-icons/react"
-import {Dropdown} from "antd"
+import {Dropdown, Popover} from "antd"
 
 interface PromptMessage {
     role: "System" | "User" | "Assistant" | "Tool"
@@ -74,10 +75,32 @@ interface ProductionPlaygroundShellProps {
     promptSyntax?: "Curly" | "Mustache" | "JSONPath"
     outputType?: "Text" | "JSON" | "Markdown"
     messages?: PromptMessage[]
+    /**
+     * Lifted-state callback for prompt-template message edits. When the
+     * page passes both `messages` and `onMessagesChange`, the prompt
+     * template runs in controlled mode — body edits in any card flow up
+     * here, so the page can derive referenced variables and feed them
+     * into the execution-item drill-in.
+     */
+    onMessagesChange?: (next: PromptMessage[]) => void
+    /**
+     * Variables list shown in the per-message "+ Variable" popover.
+     * Defaults to a canonical set when omitted.
+     */
+    promptVariables?: string[]
     testcaseLabel?: string
     inputs?: VariableInput[]
     /** Optional override for the body of the testcase row. */
     testcaseBody?: ReactNode
+    /**
+     * Extra controls injected into the testcase header, between the testcase
+     * chip on the left and the existing right-side actions (TreeStructure /
+     * Copy / Remove / Run). Use this to surface scoped controls — e.g. when
+     * the testcaseBody is a ProposedDrillIn with `hideRootHeader`, the page
+     * passes the drill-in's view-mode + collapse-all + copy buttons here so
+     * they sit inline with the chrome instead of as an orphaned second row.
+     */
+    testcaseExtras?: ReactNode
     /** Optional output card rendered after the inputs. */
     output?: OutputDescriptor
     showAddTestcase?: boolean
@@ -90,9 +113,33 @@ interface ProductionPromptTemplateProps {
     promptSyntax?: "Curly" | "Mustache" | "JSONPath"
     outputType?: "Text" | "JSON" | "Markdown"
     messages?: PromptMessage[]
+    /**
+     * Controlled mode for message edits. When provided, body changes in any
+     * card dispatch via this callback so the parent page can derive
+     * referenced variables, drive the execution item, etc. Without this,
+     * each MessageCard maintains its own internal state (uncontrolled).
+     */
+    onMessagesChange?: (next: PromptMessage[]) => void
     /** Optional banner rendered above the message cards (gap-08). */
     banner?: ReactNode
+    /**
+     * Available variable names a user can insert via the per-message
+     * "+ Variable" popover. Defaults to a small canonical set so the
+     * mockup feels useful without requiring callers to wire it up.
+     */
+    variables?: string[]
 }
+
+const DEFAULT_VARIABLES = [
+    "country",
+    "messages",
+    "geo",
+    "languages",
+    "iso_code",
+    "input",
+    "expected",
+    "metadata",
+]
 
 const TEMPLATE_TOKEN_RE = /\{\{([^}]+)\}\}/g
 
@@ -145,11 +192,189 @@ export function InvalidVariable({variable, children}: {variable: string; childre
 }
 
 /**
- * Production message card — system/user/assistant role dropdown header with
- * hover-revealed action icons (Copy, Trash) on the right. Body shows the
- * template with token highlighting.
+ * Variable-insert popover content. Lists available variable names; clicking
+ * one calls `onPick` which inserts `{{name}}` at the cursor in the parent
+ * MessageCard's textarea.
  */
-function MessageCard({msg}: {msg: PromptMessage}) {
+function VariablePicker({
+    variables,
+    onPick,
+}: {
+    variables: string[]
+    onPick: (name: string) => void
+}) {
+    return (
+        <div className="flex flex-col gap-0.5 min-w-[180px] max-h-[280px] overflow-auto">
+            <div className="text-[11px] uppercase tracking-wide text-[rgba(5,23,41,0.55)] px-2 py-1">
+                Insert variable
+            </div>
+            {variables.map((name) => (
+                <button
+                    key={name}
+                    type="button"
+                    onClick={() => onPick(name)}
+                    className="text-left px-2 py-1 rounded hover:bg-[rgba(22,119,255,0.08)] border-none bg-transparent cursor-pointer"
+                    style={{
+                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+                        fontSize: 12,
+                        color: "#1677FF",
+                    }}
+                >
+                    {`{{${name}}}`}
+                </button>
+            ))}
+        </div>
+    )
+}
+
+/**
+ * Body → HTML with `{{var}}` tokens wrapped in styled spans. Tokens are
+ * marked `contenteditable="false"` so the browser treats them as atomic —
+ * the cursor can sit before / after them but not inside, which avoids the
+ * "user types in the middle of a token and breaks the regex match" failure.
+ */
+function escapeHtml(s: string): string {
+    return s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+}
+
+function bodyToHtml(body: string): string {
+    if (!body) return ""
+    let html = ""
+    let last = 0
+    const re = new RegExp(TEMPLATE_TOKEN_RE.source, "g")
+    let m: RegExpExecArray | null
+    while ((m = re.exec(body))) {
+        if (m.index > last) html += escapeHtml(body.slice(last, m.index))
+        html += `<span class="msg-token" contenteditable="false" data-token="${escapeHtml(m[1])}">${escapeHtml(m[0])}</span>`
+        last = m.index + m[0].length
+    }
+    if (last < body.length) html += escapeHtml(body.slice(last))
+    return html
+}
+
+/** Char-offset of the caret inside an editable element. */
+function getCaretOffset(el: HTMLElement): number {
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0) return 0
+    const range = sel.getRangeAt(0)
+    if (!el.contains(range.endContainer)) return 0
+    const pre = range.cloneRange()
+    pre.selectNodeContents(el)
+    pre.setEnd(range.endContainer, range.endOffset)
+    return pre.toString().length
+}
+
+/** Place the caret at the given char-offset inside an editable element. */
+function setCaretOffset(el: HTMLElement, offset: number): void {
+    let remaining = offset
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+    let node: Node | null = walker.nextNode()
+    while (node) {
+        const len = node.textContent?.length ?? 0
+        if (remaining <= len) {
+            const range = document.createRange()
+            range.setStart(node, remaining)
+            range.collapse(true)
+            const sel = window.getSelection()
+            sel?.removeAllRanges()
+            sel?.addRange(range)
+            return
+        }
+        remaining -= len
+        node = walker.nextNode()
+    }
+    // Fallback: place at end
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    range.collapse(false)
+    const sel = window.getSelection()
+    sel?.removeAllRanges()
+    sel?.addRange(range)
+}
+
+/**
+ * Production message card — role header + always-editable contenteditable
+ * body. `{{var}}` tokens render as styled inline spans (atomic via
+ * `contenteditable="false"`), so they stay visible AND non-breakable while
+ * the user types around them. The "+ Variable" popover inserts a token at
+ * the caret. Body state can be lifted to the parent via `body` +
+ * `onBodyChange`; otherwise internal state is used.
+ */
+function MessageCard({
+    msg,
+    variables,
+    body: controlledBody,
+    onBodyChange,
+}: {
+    msg: PromptMessage
+    variables: string[]
+    body?: string
+    onBodyChange?: (next: string) => void
+}) {
+    const initial = typeof msg.body === "string" ? msg.body : ""
+    const [internalBody, setInternalBody] = useState(initial)
+    const body = controlledBody ?? internalBody
+    const setBody = (next: string) => {
+        if (controlledBody === undefined) setInternalBody(next)
+        onBodyChange?.(next)
+    }
+
+    const ref = useRef<HTMLDivElement>(null)
+    // Caret offset to restore after a programmatic rerender (variable
+    // insertion or re-tokenization on user typing). Always restored to
+    // wherever the caret was before the re-render, so users don't jump
+    // when typing turns `{{name}}` into a chip span.
+    const restoreOffsetRef = useRef<number | null>(null)
+
+    // Always keep the DOM in sync with `bodyToHtml(body)`. When the user
+    // types `{{var}}`, the input handler updates `body` → this effect
+    // re-renders the DOM with the new token chip and restores the caret
+    // to the same character offset. The expected-HTML check avoids
+    // unnecessary innerHTML writes when nothing changed.
+    useLayoutEffect(() => {
+        const el = ref.current
+        if (!el) return
+        const expected = bodyToHtml(body)
+        if (el.innerHTML === expected) return
+        const wasFocused = document.activeElement === el
+        const liveOffset = wasFocused ? getCaretOffset(el) : null
+        el.innerHTML = expected
+        if (wasFocused) {
+            const explicit = restoreOffsetRef.current
+            restoreOffsetRef.current = null
+            setCaretOffset(el, explicit ?? liveOffset ?? body.length)
+        }
+    }, [body])
+
+    const onInput = () => {
+        const el = ref.current
+        if (!el) return
+        // textContent gives us the canonical body — token spans contribute
+        // their literal `{{name}}` text, plain segments contribute as-is.
+        setBody(el.textContent ?? "")
+    }
+
+    const insertVariable = (name: string) => {
+        const token = `{{${name}}}`
+        const el = ref.current
+        let next: string
+        let cursorAfter: number
+        if (el && document.activeElement === el) {
+            const offset = getCaretOffset(el)
+            next = body.slice(0, offset) + token + body.slice(offset)
+            cursorAfter = offset + token.length
+        } else {
+            const sep = !body || body.endsWith(" ") || body.endsWith("\n") ? "" : " "
+            next = body + sep + token
+            cursorAfter = next.length
+        }
+        restoreOffsetRef.current = cursorAfter
+        setBody(next)
+    }
+
     return (
         <div className="group/msg relative flex flex-col rounded-lg border border-solid border-[#BDC7D1] bg-white overflow-hidden">
             <header className="flex items-center justify-between gap-2 px-3 pt-2 pb-1.5">
@@ -161,6 +386,15 @@ function MessageCard({msg}: {msg: PromptMessage}) {
                     <CaretUpDown size={12} className="opacity-60" />
                 </button>
                 <div className="flex items-center gap-0.5 opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                    <Popover
+                        trigger="click"
+                        placement="bottomLeft"
+                        content={<VariablePicker variables={variables} onPick={insertVariable} />}
+                    >
+                        <button type="button" style={styles.iconBtn} title="Insert variable">
+                            <Plus size={14} />
+                        </button>
+                    </Popover>
                     <button type="button" style={styles.iconBtn} title="Copy">
                         <Copy size={14} />
                     </button>
@@ -169,9 +403,14 @@ function MessageCard({msg}: {msg: PromptMessage}) {
                     </button>
                 </div>
             </header>
-            <div className="px-3 pb-3 pt-0 text-[13px] leading-[1.55] text-[#051729]">
-                {typeof msg.body === "string" ? renderTemplate(msg.body) : msg.body}
-            </div>
+            <div
+                ref={ref}
+                contentEditable
+                suppressContentEditableWarning
+                onInput={onInput}
+                className="px-3 pb-3 pt-0 text-[13px] leading-[1.55] text-[#051729] outline-none whitespace-pre-wrap break-words cursor-text"
+                style={{minHeight: 24, fontFamily: "inherit"}}
+            />
         </div>
     )
 }
@@ -193,6 +432,8 @@ export function ProductionPromptTemplate({
         },
     ],
     banner,
+    variables = DEFAULT_VARIABLES,
+    onMessagesChange,
 }: ProductionPromptTemplateProps) {
     return (
         <div className="flex flex-col gap-2.5 px-3.5 py-3 bg-white">
@@ -220,7 +461,26 @@ export function ProductionPromptTemplate({
 
             <div className="flex flex-col gap-2">
                 {messages.map((msg, i) => (
-                    <MessageCard key={i} msg={msg} />
+                    <MessageCard
+                        key={i}
+                        msg={msg}
+                        variables={variables}
+                        body={
+                            onMessagesChange && typeof msg.body === "string"
+                                ? msg.body
+                                : undefined
+                        }
+                        onBodyChange={
+                            onMessagesChange
+                                ? (next) => {
+                                      const updated = messages.map((m, j) =>
+                                          j === i ? {...m, body: next} : m,
+                                      )
+                                      onMessagesChange(updated)
+                                  }
+                                : undefined
+                        }
+                    />
                 ))}
             </div>
 
@@ -681,9 +941,12 @@ export function ProductionPlaygroundShell({
             body: "What is the capital of {{country}} ?",
         },
     ],
+    onMessagesChange,
+    promptVariables,
     testcaseLabel = "testcase 1",
     inputs = [{name: "country"}, {name: "messages"}],
     testcaseBody,
+    testcaseExtras,
     output,
     showAddTestcase = true,
     hideTopBar,
@@ -780,6 +1043,8 @@ export function ProductionPlaygroundShell({
                         promptSyntax={promptSyntax}
                         outputType={outputType}
                         messages={messages}
+                        onMessagesChange={onMessagesChange}
+                        variables={promptVariables}
                     />
                 </section>
 
@@ -827,11 +1092,16 @@ export function ProductionPlaygroundShell({
                                     </span>
                                 </span>
                                 <div className="inline-flex items-center gap-0.5">
+                                    {testcaseExtras ? (
+                                        <span className="inline-flex items-center gap-1 mr-2 pr-2 border-0 border-r border-solid border-[rgba(5,23,41,0.08)]">
+                                            {testcaseExtras}
+                                        </span>
+                                    ) : null}
                                     <button type="button" style={styles.iconBtn} title="Open">
                                         <TreeStructure size={14} />
                                     </button>
                                     <button type="button" style={styles.iconBtn} title="Duplicate">
-                                        <Copy size={14} />
+                                        <Files size={14} />
                                     </button>
                                     <button type="button" style={styles.iconBtn} title="Remove">
                                         <MinusCircle size={14} />

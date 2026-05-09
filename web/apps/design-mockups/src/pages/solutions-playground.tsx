@@ -12,9 +12,10 @@
  * itself. Cross-link below.
  */
 
-import {useState} from "react"
+import {useMemo, useState} from "react"
 
-import {Segmented} from "antd"
+import {ArrowsInLineVertical, Copy} from "@phosphor-icons/react"
+import {Button, Segmented, Select, Tooltip} from "antd"
 import Head from "next/head"
 import Link from "next/link"
 
@@ -223,6 +224,73 @@ const KITCHEN_SINK_PROMPT_MESSAGES = [
 export default function SolutionsPlayground() {
     const [editMode, setEditMode] = useState<"editable" | "read-only">("editable")
     const [chipMode, setChipMode] = useState<ChipRenderMode>("all")
+    // Embedded row state lift: the drill-in's root toolbar is hidden so its
+    // controls live in the parent shell's testcase header (testcaseExtras
+    // slot). Wire view mode + collapse-all through the controlled props so
+    // the Form/JSON/YAML select and Collapse-all button in the header
+    // actually drive the drill-in body below.
+    const [embeddedViewMode, setEmbeddedViewMode] = useState<"form" | "json" | "yaml">(
+        "form",
+    )
+    const [embeddedAllCollapsed, setEmbeddedAllCollapsed] = useState(false)
+    const [embeddedCollapseSignal, setEmbeddedCollapseSignal] = useState(0)
+    const toggleEmbeddedAllCollapsed = () => {
+        setEmbeddedAllCollapsed((prev) => !prev)
+        setEmbeddedCollapseSignal((s) => s + 1)
+    }
+    // Lifted prompt messages — required for the provenance demo. As the
+    // user edits a message body or inserts a variable via the popover, the
+    // page derives the set of referenced variables and uses it to build
+    // the drill-in's input list. New variables show up as draft rows
+    // (no value in the testcase yet); removed references vanish.
+    const [embeddedMessages, setEmbeddedMessages] = useState(KITCHEN_SINK_PROMPT_MESSAGES)
+    const embeddedReferencedVars = useMemo(() => {
+        const seen = new Set<string>()
+        const ordered: string[] = []
+        for (const msg of embeddedMessages) {
+            if (typeof msg.body !== "string") continue
+            // Fresh regex per message — sharing one across messages
+            // carries `lastIndex` over and silently skips matches in the
+            // next string.
+            const re = /\{\{([^}]+)\}\}/g
+            let m: RegExpExecArray | null
+            while ((m = re.exec(msg.body))) {
+                const name = m[1].trim()
+                if (!seen.has(name)) {
+                    seen.add(name)
+                    ordered.push(name)
+                }
+            }
+        }
+        return ordered
+    }, [embeddedMessages])
+    // Build the drill-in inputs object: every referenced variable gets a
+    // row. If the testcase has a value for it, use that; otherwise leave
+    // it `undefined` so ProposedDrillIn renders the field as an empty
+    // (draft) input the user can fill in.
+    const embeddedInputsData = useMemo(() => {
+        const fromTestcase = KITCHEN_SINK_IN_USE_INPUTS.reduce<Record<string, unknown>>(
+            (acc, f) => {
+                acc[f.name] = f.value
+                return acc
+            },
+            {},
+        )
+        const out: Record<string, unknown> = {}
+        for (const name of embeddedReferencedVars) {
+            out[name] = fromTestcase[name]
+        }
+        return out
+    }, [embeddedReferencedVars])
+    // gap-09 — referenced variables that aren't authored on the testcase
+    // yet. ProposedDrillIn renders these with the draft treatment (dashed
+    // pink rail + [draft] chip + "not on testcase yet · syncs on save"
+    // hint) so the user sees the provenance instead of an identically-
+    // styled row that lies about being part of the testcase.
+    const embeddedDraftKeys = useMemo(() => {
+        const authored = new Set(Object.keys(kitchenSinkTestcase.data))
+        return embeddedReferencedVars.filter((name) => !authored.has(name))
+    }, [embeddedReferencedVars])
     const editable = editMode === "editable"
 
     return (
@@ -480,21 +548,79 @@ export default function SolutionsPlayground() {
                         </header>
                         <div style={styles.rowGrid}>
                             <ProductionPlaygroundShell
-                                messages={KITCHEN_SINK_PROMPT_MESSAGES}
+                                messages={embeddedMessages}
+                                onMessagesChange={setEmbeddedMessages}
+                                promptVariables={embeddedReferencedVars}
                                 testcaseLabel="testcase 1"
+                                testcaseExtras={
+                                    <>
+                                        {/* Drill-in's root toolbar is hidden
+                                            below; its controls live here so
+                                            the row stays single-line. */}
+                                        <Tooltip
+                                            title={
+                                                embeddedAllCollapsed
+                                                    ? "Expand all"
+                                                    : "Collapse all"
+                                            }
+                                        >
+                                            <Button
+                                                type="text"
+                                                size="small"
+                                                icon={<ArrowsInLineVertical size={12} />}
+                                                onClick={toggleEmbeddedAllCollapsed}
+                                                aria-label={
+                                                    embeddedAllCollapsed
+                                                        ? "Expand all"
+                                                        : "Collapse all"
+                                                }
+                                                aria-pressed={embeddedAllCollapsed}
+                                            />
+                                        </Tooltip>
+                                        <Select
+                                            size="small"
+                                            value={embeddedViewMode}
+                                            options={[
+                                                {value: "form", label: "Form"},
+                                                {value: "json", label: "JSON"},
+                                                {value: "yaml", label: "YAML"},
+                                            ]}
+                                            onChange={(v) =>
+                                                setEmbeddedViewMode(
+                                                    v as "form" | "json" | "yaml",
+                                                )
+                                            }
+                                            style={{minWidth: 92}}
+                                            popupMatchSelectWidth={false}
+                                        />
+                                        <Tooltip title="Copy testcase">
+                                            <Button
+                                                type="text"
+                                                size="small"
+                                                icon={<Copy size={12} />}
+                                                aria-label="Copy testcase"
+                                            />
+                                        </Tooltip>
+                                    </>
+                                }
                                 testcaseBody={
                                     <>
+                                        {/* hideRootHeader drops the drill-in's
+                                            entire top toolbar — its controls
+                                            now live in the shell's testcase
+                                            header via testcaseExtras above. */}
                                         <ProposedDrillIn
-                                            data={KITCHEN_SINK_IN_USE_INPUTS.reduce<
-                                                Record<string, unknown>
-                                            >((acc, field) => {
-                                                acc[field.name] = field.value
-                                                return acc
-                                            }, {})}
+                                            data={embeddedInputsData}
                                             rootTitle="testcase 1"
+                                            hideRootHeader
                                             chipMode={chipMode}
                                             editable={editable}
                                             autoExpand={false}
+                                            rootViewMode={embeddedViewMode}
+                                            onRootViewModeChange={setEmbeddedViewMode}
+                                            allCollapsed={embeddedAllCollapsed}
+                                            collapseAllSignal={embeddedCollapseSignal}
+                                            draftKeys={embeddedDraftKeys}
                                         />
                                         <div style={styles.unusedColumnsNote}>
                                             {UNUSED_VARIABLE_NAMES.length} unused testcase columns
