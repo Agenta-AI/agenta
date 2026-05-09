@@ -28,6 +28,8 @@ import {
     Warning,
 } from "@phosphor-icons/react"
 import {Button, Input, InputNumber, Select, Switch, Tooltip} from "antd"
+import {ChatMessageList} from "@agenta/ui/chat-message"
+import type {SimpleChatMessage} from "@agenta/shared/types"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {MarkdownToggleButton} from "@agenta/ui"
@@ -84,6 +86,44 @@ interface ProposedDrillInProps {
      * when the parent owns the view-mode toggle (drawer chrome, page header).
      */
     hideRootViewMode?: boolean
+    /**
+     * Hide the rootTitle text. Set when the parent already shows the
+     * testcase / variable name in its own chrome (e.g. playground execution
+     * item header carries the testcase chip), so the drill-in shouldn't
+     * duplicate it. The toolbar (collapse-all + view-mode + Copy) still
+     * renders, right-aligned.
+     */
+    hideRootTitle?: boolean
+    /**
+     * Hide the entire root toolbar (title AND the action stack:
+     * filter / collapse-all / view-mode / copy). Use when the parent's
+     * chrome already carries those controls — avoids the orphaned-toolbar
+     * row beneath the parent's header. Per-row controls inside the field
+     * list still work.
+     */
+    hideRootHeader?: boolean
+    /**
+     * Controlled collapse-all state. Pair with `collapseAllSignal` so the
+     * drill-in's children re-apply the new state when the parent clicks a
+     * lifted "Collapse all" button (e.g. inside ProductionPlaygroundShell's
+     * testcase header). When omitted, internal state is used.
+     */
+    allCollapsed?: boolean
+    /**
+     * Increments each time the parent fires a collapse-all event. The
+     * drill-in forwards this as the cascade signal to top-level
+     * ProposedFields' `useEffect`, so they re-apply `allCollapsed` to
+     * their local state.
+     */
+    collapseAllSignal?: number
+    /**
+     * gap-09 — top-level keys referenced by a prompt template but NOT
+     * authored on the testcase yet. These rows render with the draft
+     * treatment (dashed pink border + `[draft]` chip + "not on testcase
+     * yet · syncs on save" hint) so the user sees that the input is
+     * coming from prompt typing and will only persist on save.
+     */
+    draftKeys?: string[]
 }
 
 function setAtPath(root: unknown, path: (string | number)[], next: unknown): unknown {
@@ -461,6 +501,7 @@ function ProposedField({
     chipMode = "all",
     forceCollapsed,
     collapseSignal,
+    isDraft = false,
 }: {
     name: string
     value: unknown
@@ -479,6 +520,14 @@ function ProposedField({
      */
     forceCollapsed?: boolean
     collapseSignal?: number
+    /**
+     * gap-09 — true when this top-level key is referenced by a prompt
+     * template but NOT yet authored on the testcase. Renders the row with
+     * a dashed pink left rail, a `[draft]` chip in the header, and an
+     * inline hint reading "not on testcase yet · syncs on save". The user
+     * can fill the value here; it persists when they save the testcase.
+     */
+    isDraft?: boolean
 }) {
     const editorId = useId()
     const kind = classify(value)
@@ -578,6 +627,7 @@ function ProposedField({
             style={{
                 ...rowStyle,
                 paddingLeft: depth > 0 ? 0 : undefined,
+                ...(isDraft ? rowDraftStyle : null),
             }}
         >
             <div
@@ -585,7 +635,7 @@ function ProposedField({
                 style={{
                     ...headerStyle,
                     cursor: "pointer",
-                    background: depthHeaderBg(depth),
+                    background: isDraft ? "#fff0f6" : depthHeaderBg(depth),
                 }}
                 onClick={toggleField}
                 role="button"
@@ -631,6 +681,43 @@ function ProposedField({
                                 </ChipConversionPopover>
                             </span>
                         )}
+                    {isDraft ? (
+                        <span onClick={stopBubble}>
+                            <Tooltip
+                                title={
+                                    <div
+                                        style={{
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            gap: 4,
+                                            lineHeight: 1.45,
+                                        }}
+                                    >
+                                        <strong>Draft variable</strong>
+                                        <span>
+                                            Referenced by the prompt but not on the testcase yet.
+                                            Anything you type here lives in the playground draft
+                                            until you save the testcase — at which point this
+                                            column is added to the testset.
+                                        </span>
+                                    </div>
+                                }
+                                color="#fff"
+                                styles={{
+                                    body: {
+                                        color: "#051729",
+                                        border: "1px solid rgba(196, 29, 127, 0.35)",
+                                        fontSize: 12,
+                                        maxWidth: 320,
+                                    },
+                                }}
+                            >
+                                <span>
+                                    <TypeChip variant="draft" />
+                                </span>
+                            </Tooltip>
+                        </span>
+                    ) : null}
                     {/* Render hints (markdown / stringified / messages /
                         tool-calls) used to render here as italic dashed
                         chips. They were display-level information conflated
@@ -1009,76 +1096,21 @@ function ProposedField({
                 viewMode === "form" &&
                 kind.kind === "messages" && (
                     <div style={messagesBody}>
-                        {kind.value.map((msg, i) => {
-                            const m = msg as {
-                                role?: string
-                                content?: string
-                                tool_calls?: unknown[]
-                            }
-                            return (
-                                <div key={i} style={messageCard}>
-                                    <div style={messageRole(m.role)}>{m.role ?? "?"}</div>
-                                    {m.content !== undefined && (
-                                        <div style={messageContent}>
-                                            {String(m.content) || (
-                                                <em style={{color: "rgba(5,23,41,0.45)"}}>
-                                                    (empty content)
-                                                </em>
-                                            )}
-                                        </div>
-                                    )}
-                                    {m.tool_calls && Array.isArray(m.tool_calls) && (
-                                        <div style={toolCallsBlock}>
-                                            <div style={toolCallsHeader}>
-                                                <span style={toolCallsLabel}>tool_calls</span>
-                                                <TypeChip variant="tool-calls" />
-                                                <span style={countText}>
-                                                    {m.tool_calls.length} call
-                                                    {m.tool_calls.length === 1 ? "" : "s"}
-                                                </span>
-                                            </div>
-                                            {m.tool_calls.map((tc, j) => {
-                                                const call = tc as {
-                                                    id?: string
-                                                    function?: {
-                                                        name?: string
-                                                        arguments?: string
-                                                    }
-                                                }
-                                                let parsedArgs: unknown = null
-                                                if (typeof call.function?.arguments === "string") {
-                                                    try {
-                                                        parsedArgs = JSON.parse(
-                                                            call.function.arguments,
-                                                        )
-                                                    } catch {
-                                                        parsedArgs = call.function.arguments
-                                                    }
-                                                }
-                                                return (
-                                                    <div key={j} style={toolCallCard}>
-                                                        <div style={toolCallTitle}>
-                                                            <strong>
-                                                                {call.function?.name ?? "?"}
-                                                            </strong>
-                                                            {call.id && (
-                                                                <span style={countText}>
-                                                                    {" "}
-                                                                    · {call.id}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <pre style={toolCallArgs}>
-                                                            {JSON.stringify(parsedArgs, null, 2)}
-                                                        </pre>
-                                                    </div>
-                                                )
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            )
-                        })}
+                        {/* Production chat list — handles role selection,
+                            markdown view, tool-call cards, copy buttons,
+                            add/remove messages, and the same editor stack
+                            (Lexical) the live playground uses. Replaces the
+                            old hand-rolled messageCard layout that had no
+                            controls. */}
+                        <ChatMessageList
+                            messages={kind.value as SimpleChatMessage[]}
+                            onChange={(next) => onChange?.(path, next)}
+                            disabled={!editable}
+                            showControls={editable}
+                            showCopyButton
+                            allowFileUpload={false}
+                            loadingFallback="static"
+                        />
                     </div>
                 )}
         </div>
@@ -1096,12 +1128,21 @@ export function ProposedDrillIn({
     rootViewMode: controlledRootViewMode,
     onRootViewModeChange,
     hideRootViewMode = false,
+    hideRootTitle = false,
+    hideRootHeader = false,
+    allCollapsed: controlledAllCollapsed,
+    collapseAllSignal: controlledCollapseAllSignal,
+    draftKeys,
 }: ProposedDrillInProps) {
+    const draftKeySet = useMemo(() => new Set(draftKeys ?? []), [draftKeys])
     const [draft, setDraft] = useState<Record<string, unknown>>(data)
 
-    // Reset draft when the source data identity changes (e.g. switching pages).
-    // Cheap heuristic via JSON.stringify since data is small and shallow here.
-    const dataKey = useMemo(() => JSON.stringify(data), [data])
+    // Reset draft when the source data identity changes (e.g. switching pages,
+    // or the prompt template referencing a new `{{var}}` that doesn't exist in
+    // the testcase yet). Key set is included explicitly because JSON.stringify
+    // drops `undefined` values — without it, adding a new variable whose value
+    // is `undefined` (draft state) would not update the rendered field list.
+    const dataKey = useMemo(() => `${Object.keys(data).join("|")}::${JSON.stringify(data)}`, [data])
     const lastKeyRef = useMemo(() => ({current: dataKey}), [])
     if (lastKeyRef.current !== dataKey) {
         lastKeyRef.current = dataKey
@@ -1172,11 +1213,23 @@ export function ProposedDrillIn({
     // local collapsed state to match `forceCollapsed` when the signal changes.
     // After the reset, individual carets re-take local control until the next
     // global toggle. Default: everything expanded (matches autoExpand intent).
-    const [allCollapsed, setAllCollapsed] = useState(false)
-    const [collapseSignal, setCollapseSignal] = useState(0)
+    //
+    // Controllable from the parent: when the parent owns the toggle (e.g.
+    // a button lifted into ProductionPlaygroundShell's testcase header),
+    // it passes `allCollapsed` + `collapseAllSignal` and bumps both on each
+    // click. We forward those to ProposedField regardless.
+    const [internalAllCollapsed, setInternalAllCollapsed] = useState(false)
+    const [internalCollapseSignal, setInternalCollapseSignal] = useState(0)
+    const allCollapsed = controlledAllCollapsed ?? internalAllCollapsed
+    const collapseSignal = controlledCollapseAllSignal ?? internalCollapseSignal
     const toggleAll = () => {
-        setAllCollapsed((prev) => !prev)
-        setCollapseSignal((s) => s + 1)
+        if (controlledAllCollapsed === undefined) {
+            setInternalAllCollapsed((prev) => !prev)
+            setInternalCollapseSignal((s) => s + 1)
+        }
+        // When controlled, the parent's onClick handler is what bumps state
+        // — toggleAll only runs on the in-toolbar button which is hidden
+        // anyway (hideRootHeader). Defensive no-op for the controlled case.
     }
 
     // gap-04 schema-mismatch ghost rows hide by default — they're a "this
@@ -1206,80 +1259,75 @@ export function ProposedDrillIn({
     const warningCount = orderedEntries.length - (firstWarningIndex === -1 ? orderedEntries.length : firstWarningIndex)
     const hasWarnings = warningCount > 0
 
-    return (
-        <div style={shellStyle}>
-            <div style={rootHeaderStyle}>
-                <div style={rootLabel}>{rootTitle}</div>
-                <div style={rootHeaderActions}>
-                    {hasWarnings ? (
-                        <Tooltip
-                            title={
+    const rootHeaderJsx = (
+        <div style={rootHeaderStyle}>
+            {hideRootTitle ? <span /> : <div style={rootLabel}>{rootTitle}</div>}
+            <div style={rootHeaderActions}>
+                {hasWarnings ? (
+                    <Tooltip
+                        title={groupIssues ? "Show issues in place" : "Group issues at bottom"}
+                    >
+                        <Button
+                            type="text"
+                            size="small"
+                            onClick={() => setGroupIssues((v) => !v)}
+                            icon={<Funnel size={14} weight={groupIssues ? "fill" : "regular"} />}
+                            style={{color: groupIssues ? "#cf1322" : undefined}}
+                            aria-label={
                                 groupIssues ? "Show issues in place" : "Group issues at bottom"
                             }
-                        >
-                            <Button
-                                type="text"
-                                size="small"
-                                onClick={() => setGroupIssues((v) => !v)}
-                                icon={
-                                    <Funnel
-                                        size={14}
-                                        weight={groupIssues ? "fill" : "regular"}
-                                    />
-                                }
-                                style={{
-                                    color: groupIssues ? "#cf1322" : undefined,
-                                }}
-                                aria-label={
-                                    groupIssues ? "Show issues in place" : "Group issues at bottom"
-                                }
-                                aria-pressed={groupIssues}
-                            />
-                        </Tooltip>
-                    ) : null}
-                    <Tooltip title={allCollapsed ? "Expand all" : "Collapse all"}>
-                        <Button
-                            type="text"
-                            size="small"
-                            onClick={toggleAll}
-                            icon={
-                                allCollapsed ? (
-                                    <ArrowsOutLineVertical size={14} />
-                                ) : (
-                                    <ArrowsInLineVertical size={14} />
-                                )
-                            }
-                            aria-label={allCollapsed ? "Expand all" : "Collapse all"}
+                            aria-pressed={groupIssues}
                         />
                     </Tooltip>
-                    {hideRootViewMode ? null : (
-                        <Select
-                            size="small"
-                            value={rootViewMode}
-                            options={[
-                                {value: "form", label: "Form"},
-                                {value: "json", label: "JSON"},
-                                {value: "yaml", label: "YAML"},
-                            ]}
-                            onChange={(v) => setRootViewMode(v as "form" | "json" | "yaml")}
-                            style={{minWidth: 96}}
-                            popupMatchSelectWidth={false}
-                        />
-                    )}
-                    {/* Copy action mirrors the per-field Copy button so the
-                        top-level toolbar's right edge aligns with each row's
-                        right edge. Same vocabulary across levels. */}
-                    <Tooltip title="Copy">
-                        <Button
-                            type="text"
-                            size="small"
-                            icon={<Copy size={12} />}
-                            style={{padding: "0 4px"}}
-                            aria-label={`Copy ${rootTitle}`}
-                        />
-                    </Tooltip>
-                </div>
+                ) : null}
+                <Tooltip title={allCollapsed ? "Expand all" : "Collapse all"}>
+                    <Button
+                        type="text"
+                        size="small"
+                        onClick={toggleAll}
+                        icon={
+                            allCollapsed ? (
+                                <ArrowsOutLineVertical size={14} />
+                            ) : (
+                                <ArrowsInLineVertical size={14} />
+                            )
+                        }
+                        aria-label={allCollapsed ? "Expand all" : "Collapse all"}
+                    />
+                </Tooltip>
+                {hideRootViewMode ? null : (
+                    <Select
+                        size="small"
+                        value={rootViewMode}
+                        options={[
+                            {value: "form", label: "Form"},
+                            {value: "json", label: "JSON"},
+                            {value: "yaml", label: "YAML"},
+                        ]}
+                        onChange={(v) => setRootViewMode(v as "form" | "json" | "yaml")}
+                        style={{minWidth: 96}}
+                        popupMatchSelectWidth={false}
+                    />
+                )}
+                {/* Copy action mirrors the per-field Copy button so the
+                    top-level toolbar's right edge aligns with each row's
+                    right edge. Same vocabulary across levels. */}
+                <Tooltip title="Copy">
+                    <Button
+                        type="text"
+                        size="small"
+                        icon={<Copy size={12} />}
+                        style={{padding: "0 4px"}}
+                        aria-label={`Copy ${rootTitle}`}
+                    />
+                </Tooltip>
             </div>
+        </div>
+    )
+
+    return (
+        <div style={shellStyle}>
+            {hideRootHeader ? null : rootHeaderJsx}
             {rootViewMode !== "form" ? (
                 <RootSerializedView
                     draft={draft}
@@ -1328,6 +1376,7 @@ export function ProposedDrillIn({
                                     chipMode={chipMode}
                                     forceCollapsed={allCollapsed}
                                     collapseSignal={collapseSignal}
+                                    isDraft={draftKeySet.has(key)}
                                 />
                             </Fragment>
                         )
@@ -1616,6 +1665,14 @@ const rowStyle = {
     overflow: "hidden" as const,
 }
 
+// gap-09 — draft row treatment: dashed pink left rail + matching tinted
+// header (set inline on the header element). Mirrors PlaygroundVariableMap's
+// `rowDraft` so the drill-in row reads the same as the variable map above.
+const rowDraftStyle = {
+    borderLeft: "2px dashed #c41d7f",
+    background: "#fff0f6",
+}
+
 const headerStyle = {
     display: "flex",
     alignItems: "center",
@@ -1815,75 +1872,10 @@ const messagesBody = {
     background: "white",
 }
 
-const messageCard = {
-    border: "1px solid rgba(5, 23, 41, 0.08)",
-    borderRadius: 6,
-    padding: "8px 10px",
-}
-
-const messageRole = (role?: string): React.CSSProperties => {
-    const colorMap: Record<string, string> = {
-        system: "#d46b08",
-        user: "#1677ff",
-        assistant: "#13c2c2",
-        tool: "#389e0d",
-    }
-    return {
-        fontSize: 10,
-        fontWeight: 600,
-        textTransform: "uppercase" as const,
-        letterSpacing: "0.04em",
-        color: colorMap[role ?? ""] ?? "rgba(5, 23, 41, 0.55)",
-        marginBottom: 4,
-    }
-}
-
-const messageContent = {
-    fontSize: 12,
-    color: "#051729",
-    lineHeight: 1.5,
-}
-
-const toolCallsBlock = {
-    marginTop: 6,
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: 6,
-}
-
-const toolCallsHeader = {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-}
-
-const toolCallsLabel = {
-    fontSize: 11,
-    fontWeight: 500,
-    color: "#051729",
-}
-
-const toolCallCard = {
-    border: "1px solid rgba(5, 23, 41, 0.08)",
-    borderRadius: 4,
-    padding: "6px 10px",
-    background: "rgba(56, 158, 13, 0.04)",
-}
-
-const toolCallTitle = {
-    fontSize: 11,
-    color: "#051729",
-    marginBottom: 4,
-}
-
-const toolCallArgs = {
-    margin: 0,
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-    fontSize: 10,
-    lineHeight: 1.4,
-    color: "rgba(5, 23, 41, 0.75)",
-    whiteSpace: "pre-wrap" as const,
-    wordBreak: "break-all" as const,
-}
+// Hand-rolled messageCard / messageRole / messageContent / toolCalls* styles
+// used to live here for the messages render path. They're all gone now —
+// ChatMessageList from @agenta/ui/chat-message handles role chips, content
+// editing, markdown view, copy buttons, and tool-call cards in the same
+// shape as the production playground.
 
 export default ProposedDrillIn

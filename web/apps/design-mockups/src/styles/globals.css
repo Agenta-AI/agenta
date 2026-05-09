@@ -109,3 +109,26 @@ body {
     outline: 2px solid rgba(22, 119, 255, 0.4);
     outline-offset: -2px;
 }
+
+/*
+ * MessageCard `{{var}}` tokens — styled inline chips inside the
+ * contenteditable body. `contenteditable="false"` (set on the span itself)
+ * makes the browser treat them as atomic, so users can't type inside the
+ * span and break the regex. Click targets are still the spans, so future
+ * popover wiring (rename/remove via React portal) lands here.
+ */
+.msg-token {
+    display: inline-block;
+    padding: 0 6px;
+    background: #e6f4ff;
+    color: #1677ff;
+    border-radius: 3px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    user-select: all;
+    cursor: pointer;
+}
+.msg-token:hover {
+    background: #bae0ff;
+}
