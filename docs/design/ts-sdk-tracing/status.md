@@ -14,8 +14,8 @@
 | 0 | Foundation: scaffolding, `@agenta/spike-verify` package (uses `@agenta/sdk`), pnpm-workspace wiring, validation script | ✅ DONE |
 | 1a | App 1 (Node + AI SDK v6 + raw OTel) builds: instrumentation + app + 4 assertion scripts | ✅ DONE |
 | 1b | LOCK: 4 canonical assertions against live Agenta endpoint | ✅ 4/4 PASS |
-| 2a | Next.js App Router — raw OTel | 🔜 PENDING |
-| 2b | Next.js App Router — `@vercel/otel` | 🔜 PENDING |
+| 2a | Next.js App Router — raw OTel | ✅ 4/4 nodejs assertions PASS · edge route P-APP-RAW-01 captured |
+| 2b | Next.js App Router — `@vercel/otel` | 🔜 PENDING (in progress) |
 | 3a | Next.js Pages Router — raw OTel | 🔜 PENDING |
 | 3b | Next.js Pages Router — `@vercel/otel` | 🔜 PENDING |
 | 4 | React TanStack Start (20h hard cap) | 🔜 PENDING |

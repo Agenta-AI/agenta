@@ -233,7 +233,97 @@ const fullTrace = await ag.traces.fetchTrace({trace_id: parent.spans[0].trace_id
 
 ### Next.js App Router — raw OTel (P-APP-RAW-*)
 
-_No entries yet._
+## P-APP-RAW-01: Edge runtime route emits ZERO spans even with the documented setup
+
+**Framework:** app-router-raw
+**Severity:**
+  - User impact: high
+  - Self-recoverable: no
+  - Silent failure: yes
+
+**The friction (code that exists today):**
+
+The full documented incantation for edge-runtime tracing — fetch-based OTLP exporter, BasicTracerProvider, SimpleSpanProcessor, AND `waitUntil(forceFlush())` via Next 15's `after()` — produces ZERO spans in Agenta:
+
+```ts
+// app/api/edge-chat/route.ts
+export const runtime = "edge"
+
+import {trace} from "@opentelemetry/api"
+import {OTLPTraceExporter} from "@opentelemetry/exporter-trace-otlp-http"  // fetch-based
+import {BasicTracerProvider, SimpleSpanProcessor} from "@opentelemetry/sdk-trace-base"
+import {after} from "next/server"
+import {generateText} from "ai"
+import {openai} from "@ai-sdk/openai"
+
+let providerInitialized = false
+function ensureProvider() {
+    if (providerInitialized) return
+    providerInitialized = true
+    const exporter = new OTLPTraceExporter({
+        url: `${AGENTA_HOST}/api/otlp/v1/traces?project_id=${PROJECT_ID}`,
+        headers: {Authorization: `ApiKey ${AGENTA_API_KEY}`},
+        keepAlive: true,
+    })
+    const provider = new BasicTracerProvider({resource, spanProcessors: [new SimpleSpanProcessor(exporter)]})
+    trace.setGlobalTracerProvider(provider)  // OTel v2 dropped .register()
+}
+
+export async function POST(req: NextRequest) {
+    ensureProvider()
+    const result = await generateText({
+        model: openai("gpt-4o-mini"),
+        messages: [{role: "user", content: "hi"}],
+        experimental_telemetry: {isEnabled: true, metadata: {userId: "edge-test-1"}},
+    })
+    after(async () => {
+        const tp = trace.getTracerProvider() as {forceFlush?: () => Promise<void>}
+        if (typeof tp.forceFlush === "function") await tp.forceFlush()
+    })
+    return NextResponse.json({text: result.text, runtime: "edge"})
+}
+
+// Request returns 200 with the generated text. runtime:"edge" confirms it
+// actually ran on edge (not silently downgraded). But:
+//   curl /api/spans/query → 0 spans for user.id "edge-test-*" or
+//   service.name "vercel-ai-spike-app-router-raw" or functionId
+//   "app-router-edge-generate". Just gone.
+```
+
+**Verified isolation (2026-05-10):**
+- Same App Router app's nodejs `/api/chat` route → spans arrive (assertions 1-3 PASS)
+- Edge `/api/edge-chat` route → returns 200 with correct payload, runtime confirmed `"edge"` → ZERO spans ever arrive
+- No errors logged on the dev server side
+
+**What would be ideal (sketch of how the SDK would hide this):**
+
+```ts
+// SDK provides an edge-runtime instrumentation helper that handles
+// (a) the right exporter (fetch-based, not buffer-based)
+// (b) per-cold-start provider init
+// (c) waitUntil-based flush
+// (d) whatever else is silently blocking flush today
+//
+import {initEdgeInstrumentation} from "@agenta/sdk/edge"
+
+export const runtime = "edge"
+initEdgeInstrumentation()  // runs once per cold start
+
+export async function POST(req: NextRequest) {
+    const result = await generateText({...})
+    return NextResponse.json({text: result.text})  // SDK hooks the response to flush
+}
+```
+
+**Notes:** Discovered immediately on first edge route probe. The route's `runtime: "edge"` field in the response body confirms Next.js DID run it on edge runtime (not silently downgraded), so the issue is genuinely in OTel + edge + Agenta interaction. **Highest-severity finding from Phase 2a** because edge runtime is what Vercel pushes users toward by default for AI routes (lower latency, distributed). If the SDK doesn't fix this, every Vercel user with `runtime = "edge"` silently loses every trace.
+
+Possible root causes worth investigating in Phase 2b (where `@vercel/otel` may already solve this):
+1. `BasicTracerProvider` + edge runtime context propagation — maybe the active span context isn't being captured by the AI SDK's auto-instrumentation when there's no async_hooks
+2. `SimpleSpanProcessor` + edge `keepAlive: true` fetch — the request may complete and the route handler may return BEFORE the underlying fetch flushes
+3. `after()` callback timing — maybe Next 15 freezes the edge function before our forceFlush has time to complete the OTLP HTTP request
+4. Resource serialization — same as P-NODE-01 (service.name lost in adapter), edge ingest may strip more aggressively
+
+Phase 2b's `@vercel/otel` test is the natural A/B comparison — if it works there, root cause is in the raw-OTel + edge integration. If it doesn't work there either, root cause is Agenta-side or in AI SDK's edge support.
 
 ### Next.js App Router — `@vercel/otel` (P-APP-VERCEL-*)
 
