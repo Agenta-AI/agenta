@@ -317,17 +317,114 @@ export async function POST(req: NextRequest) {
 
 **Notes:** Discovered immediately on first edge route probe. The route's `runtime: "edge"` field in the response body confirms Next.js DID run it on edge runtime (not silently downgraded), so the issue is genuinely in OTel + edge + Agenta interaction. **Highest-severity finding from Phase 2a** because edge runtime is what Vercel pushes users toward by default for AI routes (lower latency, distributed). If the SDK doesn't fix this, every Vercel user with `runtime = "edge"` silently loses every trace.
 
-Possible root causes worth investigating in Phase 2b (where `@vercel/otel` may already solve this):
-1. `BasicTracerProvider` + edge runtime context propagation — maybe the active span context isn't being captured by the AI SDK's auto-instrumentation when there's no async_hooks
-2. `SimpleSpanProcessor` + edge `keepAlive: true` fetch — the request may complete and the route handler may return BEFORE the underlying fetch flushes
-3. `after()` callback timing — maybe Next 15 freezes the edge function before our forceFlush has time to complete the OTLP HTTP request
-4. Resource serialization — same as P-NODE-01 (service.name lost in adapter), edge ingest may strip more aggressively
+**Phase 2b A/B verdict (2026-05-10):** `@vercel/otel` (P-APP-VERCEL-02) DOES emit edge spans, just delayed. So the root cause of THIS entry (raw-OTel-on-edge emits ZERO spans EVER) is something specific to the manual `BasicTracerProvider` + `SimpleSpanProcessor` + `after()` setup, NOT a fundamental limitation of edge runtime + AI SDK + Agenta. Most likely culprits, narrowed:
 
-Phase 2b's `@vercel/otel` test is the natural A/B comparison — if it works there, root cause is in the raw-OTel + edge integration. If it doesn't work there either, root cause is Agenta-side or in AI SDK's edge support.
+1. `SimpleSpanProcessor` + edge `keepAlive: true` fetch — the request handler may complete and return BEFORE the underlying fetch's promise resolves, and the edge function freezes immediately on response
+2. `after()` callback executes too late — Next 15's `after()` runs the callback AFTER the response is sent but the edge function may freeze before the forceFlush completes
+3. `trace.setGlobalTracerProvider()` not registering the provider in the right way for the AI SDK's auto-instrumentation to pick it up — the AI SDK might use a tracer captured at module load time
+
+**`@vercel/otel` works because** it likely uses a `BatchSpanProcessor` plus a `waitUntil`-aware flush hook that's wired more deeply into the edge runtime lifecycle (runs as part of the edge function's outbound work queue, not after-the-fact). Source-diving `@vercel/otel` to understand how it does this is the next investigation.
 
 ### Next.js App Router — `@vercel/otel` (P-APP-VERCEL-*)
 
-_No entries yet._
+## P-APP-VERCEL-01: `@vercel/otel` defaults to BatchSpanProcessor → mid-stream abort flush still loses spans
+
+**Framework:** app-router-vercel
+**Severity:**
+  - User impact: high
+  - Self-recoverable: partially
+  - Silent failure: yes
+
+**The friction (code that exists today):**
+
+`@vercel/otel`'s opinionated `registerOTel()` call uses `BatchSpanProcessor` internally — same root cause as P-NODE-02. Mid-stream client abort on `streamText` doesn't ship the trace within the 5s assertion window:
+
+```ts
+// app/instrumentation.ts — the entire @vercel/otel setup is one call:
+import {registerOTel, OTLPHttpProtoTraceExporter} from "@vercel/otel"
+
+export function register() {
+    registerOTel({
+        serviceName: "vercel-ai-spike-app-router-vercel",
+        traceExporter: new OTLPHttpProtoTraceExporter({url: ..., headers: {...}}),
+    })
+}
+
+// Then in app/api/chat/route.ts the streamText route mid-aborts via the
+// test client's AbortController. assertion-2 polls Agenta for the
+// streamText span tagged with the abort run's userId — same as Node v6 +
+// Batch + streamText, the trace doesn't appear inside the 5s window.
+//
+// Confirmed by direct A/B against nextjs-app-router-raw which uses
+// SimpleSpanProcessor and PASSES the same assertion in the same test
+// fixture. Only variable: processor strategy.
+```
+
+**Verified isolation (2026-05-10):**
+- `nextjs-app-router-raw` (raw OTel + SimpleSpanProcessor): assertion-2 PASS
+- `nextjs-app-router-vercel` (`@vercel/otel` + default BatchSpanProcessor): assertion-2 FAIL
+- Same test fixture, same Agenta backend, same AI SDK v6 streamText path
+
+**What would be ideal (sketch of how the SDK would hide this):**
+
+```ts
+// Either: SDK forces SimpleSpanProcessor by default (slower per-call but
+// reliable), OR ships a "streaming-aware" Batch processor that flushes
+// on stream abort + close events.
+//
+// In the @vercel/otel ecosystem the workaround would be to pass a custom
+// spanProcessors array, but that defeats the purpose of using a one-line
+// registerOTel() helper.
+```
+
+**Notes:** Compounds with P-NODE-02 — they're the SAME underlying problem (BatchSpanProcessor + AI SDK v6 streamText flush ordering) manifested through two different setups. Neither raw OTel nor `@vercel/otel` solves it on its own. **Implication for `ts-sdk-tracing`:** the SDK MUST own the span processor choice and ship one that handles streamText's `endWhenDone: false` lifecycle. Letting users pick a "production-grade" processor (Batch) silently breaks streaming traces — and that's the dominant AI SDK use case.
+
+## P-APP-VERCEL-02: `@vercel/otel` edge route emits spans, but with significant delay (BatchSpanProcessor batch interval)
+
+**Framework:** app-router-vercel
+**Severity:**
+  - User impact: med
+  - Self-recoverable: yes
+  - Silent failure: no
+
+**The friction (code that exists today):**
+
+A/B counterpart to P-APP-RAW-01. With `@vercel/otel`, the edge runtime route's spans DO eventually arrive in Agenta — unlike raw OTel + manual edge setup which silently emits zero spans. But arrival takes longer than the assertion-2 5s polling window because of BatchSpanProcessor's default 5-second batch interval:
+
+```ts
+// app/api/edge-chat/route.ts — runtime = "edge"
+// No provider setup, just call the AI SDK:
+const result = await generateText({
+    model: openai("gpt-4o-mini"),
+    messages: [...],
+    experimental_telemetry: {isEnabled: true, metadata: {userId: runId}},
+})
+return NextResponse.json({text: result.text, runtime: "edge"})
+
+// Probe edge route → response 200 with runtime="edge" ✓
+// Query Agenta after 4s wait → 0 spans
+// Query Agenta after ~10-15s wait → 2 spans (parent + doGenerate)
+//
+// The latency is structural: BatchSpanProcessor + the edge function
+// freezing soon after response means the batch flush either races the
+// freeze (lost) or rides on the next cold-start unfreeze (delayed).
+```
+
+**Verified isolation (2026-05-10):**
+- `nextjs-app-router-raw` edge route: ZERO spans EVER (P-APP-RAW-01)
+- `nextjs-app-router-vercel` edge route: 2 spans appear within ~10-15s
+- Same Agenta backend, same network, same AI SDK call
+
+**What would be ideal (sketch of how the SDK would hide this):**
+
+```ts
+// SDK ships an edge-aware processor that flushes within the route's
+// response cycle (via waitUntil) — not on a 5s batch tick. End result:
+// trace arrives in Agenta within seconds of the request, not within tens
+// of seconds.
+```
+
+**Notes:** This is the GOOD news of Phase 2b: `@vercel/otel` does work on edge runtime where raw OTel doesn't, so users adopting Vercel's recommended path get observability eventually. The bad news is the latency. For "user closed tab mid-stream" scenarios, 10-15s is too long — the user's session record is already torn down before the trace lands. **Implication for `ts-sdk-tracing`:** if the SDK ships an edge-runtime helper, it must beat both raw OTel (zero spans) AND `@vercel/otel` (slow spans) — flush within the route response cycle.
 
 ### Next.js Pages Router — raw OTel (P-PAGES-RAW-*)
 
