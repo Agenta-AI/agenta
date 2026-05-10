@@ -1,5 +1,7 @@
 # Agenta Observability — Vercel AI SDK
 
+> **Note:** This example pins AI SDK **v4**. Newer spike apps targeting **AI SDK v6** (current GA) live under [`web/examples/`](../../../web/examples/) and exercise multiple frameworks (Node, Next.js App Router, Pages Router, TanStack Start) plus `@vercel/otel`. Those are research instruments for designing Agenta's first proper TypeScript SDK with tracing — not stable templates yet. See [`docs/design/ts-sdk-tracing/`](../../../docs/design/ts-sdk-tracing/) for context.
+
 This example shows how to send traces from the [Vercel AI SDK](https://sdk.vercel.ai/) to Agenta using its built-in OpenTelemetry support. No additional instrumentation library is needed.
 
 ## How it works
