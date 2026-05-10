@@ -3,6 +3,11 @@
     "compilerOptions": {
         "baseUrl": ".",
         "rootDir": "src",
+        "outDir": "dist",
+        "noEmit": false,
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true,
         "tsBuildInfoFile": ".tsbuildinfo"
     },
     "include": ["src/**/*.ts"],

@@ -11,6 +11,10 @@
 **/*.pem
 **/*dont_commit_me*
 web/packages/agenta-api-client/dist/
+web/packages/agenta-sdk/dist/
+
+# Lockfiles for example apps (each example installs independently; no shared lock)
+examples/**/package-lock.json
 
 __pycache__/
 **/__pycache__/
