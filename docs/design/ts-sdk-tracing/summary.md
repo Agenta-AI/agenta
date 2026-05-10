@@ -4,7 +4,7 @@
 
 **Goal:** measure real friction wiring AI SDK v6 + raw OpenTelemetry + Agenta across the runtime/framework patterns most TS users will hit, before we design `ts-sdk-tracing`.
 
-**Current status:** Phase 1 (Node) + Phase 2a (App Router raw OTel) + Phase 2b (App Router `@vercel/otel`) complete. **6 ecosystem pain entries** captured, 4 silent-failure-shaped. The Phase 2 A/B test isolated the dominant pattern: **`BatchSpanProcessor` + AI SDK v6 `streamText` is the universal flush failure**, regardless of whether you wire raw OTel or `@vercel/otel`. Edge runtime: raw OTel emits zero spans ever (P-APP-RAW-01); `@vercel/otel` emits spans with ~10-15s delay (P-APP-VERCEL-02 — too slow for assertion-2's 5s window but not silent loss). 3 self-inflicted SDK gaps separately tracked in [status.md](./status.md) as locked-in requirements.
+**Current status:** Phase 1 (Node) + Phase 2a/2b (App Router raw + vercel-otel) + Phase 3a (Pages Router raw) complete. **7 ecosystem pain entries** captured, 4 silent-failure-shaped. The Phase 2 A/B test isolated the dominant pattern: **`BatchSpanProcessor` + AI SDK v6 `streamText` is the universal flush failure**, regardless of whether you wire raw OTel or `@vercel/otel`. Edge runtime: raw OTel emits zero spans ever (P-APP-RAW-01); `@vercel/otel` emits spans with ~10-15s delay (P-APP-VERCEL-02); Pages Router raw OTel can't even BUILD an edge route (P-PAGES-RAW-01). 3 self-inflicted SDK gaps separately tracked in [status.md](./status.md) as locked-in requirements.
 
 ---
 
@@ -41,6 +41,13 @@
 - 3/4 nodejs-runtime canonical assertions GREEN. **assertion-2 FAIL** because `@vercel/otel` defaults to `BatchSpanProcessor`, which loses streamText spans on mid-stream abort (P-APP-VERCEL-01 — same root cause as P-NODE-02)
 - Edge runtime: spans DO arrive (unlike Phase 2a) but with significant delay due to BatchSpanProcessor batch interval (P-APP-VERCEL-02)
 
+### Phase 3a — Next.js 15 Pages Router + raw OTel
+- App: [`web/examples/nextjs-pages-router-raw/`](../../../web/examples/nextjs-pages-router-raw/)
+- Stack: same instrumentation hook + raw OTel + `SimpleSpanProcessor` as Phase 2a. Confirmed `instrumentation.ts` register hook works identically in Pages Router (Next 15 supports it on both routers)
+- Routes: `pages/api/chat.ts` streaming via `pipeUIMessageStreamToResponse` (the Pages-Router analog to App Router's `toUIMessageStreamResponse()`), `pages/api/sentinels.ts`, no Server Action (Pages Router doesn't support them), and **no edge route** — see P-PAGES-RAW-01 below
+- 4/4 nodejs-runtime canonical assertions GREEN
+- **Edge route DROPPED at build time:** Pages Router edge runtime rejects `@opentelemetry/exporter-trace-otlp-http` import via static dynamic-code-eval check, even though the same import compiles fine in App Router edge (P-PAGES-RAW-01)
+
 ### Canonical assertions (each spike app's `pnpm test` runs all four)
 1. **Cold-start trace completeness** — fresh process / fresh request produces a complete trace with model + tokens + metadata
 2. **Mid-stream client-abort flush** — streamed call aborted 500ms in still produces a queryable parent span within 5s
@@ -69,6 +76,7 @@
 | **P-APP-RAW-01** (silent) | Edge runtime route emits ZERO spans even with manual fetch-based exporter, `SimpleSpanProcessor`, `waitUntil(forceFlush())` | Phase 2b A/B isolated this to the manual setup itself, not the runtime/SDK/Agenta combination — `@vercel/otel` works on the same edge route. Most likely culprit: `SimpleSpanProcessor` + `keepAlive` fetch + edge function freeze ordering | SDK MUST not require users to hand-wire edge-runtime tracing. Either ship an edge helper or make `@vercel/otel` the documented path (and inherit its delays as in P-APP-VERCEL-02) |
 | **P-APP-VERCEL-01** (silent) | `@vercel/otel`'s default `BatchSpanProcessor` loses streamText spans on mid-stream client abort — same root cause as P-NODE-02, manifested through the wrapper | `@vercel/otel`'s opinionated wrapper picks `BatchSpanProcessor`. AI SDK v6 streamText's `endWhenDone: false` lifecycle interacts badly with batched flush across both raw and vercel-otel paths | Same as P-NODE-02: SDK MUST own the processor choice. Letting Vercel's wrapper pick the "production-grade" Batch silently breaks the dominant streaming use case |
 | **P-APP-VERCEL-02** | `@vercel/otel` edge route emits spans, but with ~10-15s delay (BatchSpanProcessor batch interval) | BatchSpanProcessor's default 5s flush interval + edge function freeze creates a race; `@vercel/otel`'s `waitUntil`-style wiring rescues most spans but not within an interactive window | SDK's edge-runtime helper must flush within the response cycle (under 1s end-to-end), not on the batch tick |
+| **P-PAGES-RAW-01** | Pages Router edge route fails at BUILD time on raw OTel exporter (App Router edge accepts the same import) | Pages Router's edge runtime applies stricter dynamic-code-eval static analysis than App Router's; `@opentelemetry/exporter-trace-otlp-http` contains code patterns Pages-edge rejects | SDK's edge bundle must be eval-free (or rely on `@vercel/otel`'s edge bundle which already passes the strict check). Pages Router users can't ship edge tracing on raw OTel today AT ALL — not even with the workarounds that App Router accepts |
 
 Full entries with code samples, severity tags, and ideal-API sketches in [`pain-log.md`](./pain-log.md).
 

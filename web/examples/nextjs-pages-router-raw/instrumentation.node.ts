@@ -1,0 +1,67 @@
+/**
+ * Node-runtime OTel setup for the Pages Router spike.
+ *
+ * Identical to nextjs-app-router-raw's instrumentation.node.ts —
+ * deliberately so. The point of this app is to test whether the SAME
+ * raw-OTel wiring that works in App Router also works in Pages Router.
+ * Any divergence we find belongs in the pain log.
+ *
+ * Per P-NODE-02: SimpleSpanProcessor (not BatchSpanProcessor) — Batch +
+ * AI SDK v6 streamText silently loses spans. Per SDK-REQ-03: project_id
+ * appended to OTLP URL as query param.
+ */
+
+import {trace} from "@opentelemetry/api"
+import {OTLPTraceExporter} from "@opentelemetry/exporter-trace-otlp-proto"
+import {resourceFromAttributes} from "@opentelemetry/resources"
+import {SimpleSpanProcessor} from "@opentelemetry/sdk-trace-base"
+import {NodeTracerProvider} from "@opentelemetry/sdk-trace-node"
+import {ATTR_SERVICE_NAME} from "@opentelemetry/semantic-conventions"
+
+const AGENTA_HOST = process.env.AGENTA_HOST || "https://cloud.agenta.ai"
+const AGENTA_API_KEY = process.env.AGENTA_API_KEY
+const AGENTA_PROJECT_ID = process.env.AGENTA_PROJECT_ID
+const AGENTA_OTLP_PATH = process.env.AGENTA_OTLP_PATH || "/api/otlp/v1/traces"
+const APP_NAME = process.env.AGENTA_SPIKE_APP_NAME
+
+if (!AGENTA_API_KEY) {
+    console.error("instrumentation.node: AGENTA_API_KEY is required")
+    process.exit(1)
+}
+if (!APP_NAME) {
+    console.error(
+        "instrumentation.node: AGENTA_SPIKE_APP_NAME is required (used by assertion-4 sentinel)",
+    )
+    process.exit(1)
+}
+
+const SERVICE_NAME = `vercel-ai-spike-${APP_NAME}`
+
+const otlpUrl = AGENTA_PROJECT_ID
+    ? `${AGENTA_HOST}${AGENTA_OTLP_PATH}?project_id=${encodeURIComponent(AGENTA_PROJECT_ID)}`
+    : `${AGENTA_HOST}${AGENTA_OTLP_PATH}`
+
+const exporter = new OTLPTraceExporter({
+    url: otlpUrl,
+    headers: {
+        Authorization: `ApiKey ${AGENTA_API_KEY}`,
+    },
+})
+
+const provider = new NodeTracerProvider({
+    resource: resourceFromAttributes({
+        [ATTR_SERVICE_NAME]: SERVICE_NAME,
+    }),
+    spanProcessors: [new SimpleSpanProcessor(exporter)],
+})
+
+provider.register()
+
+const instrKey = `__agenta_instr_${APP_NAME}` as const
+;(globalThis as Record<string, unknown>)[instrKey] = Date.now()
+;(globalThis as Record<string, unknown>).__agenta_flush_traces = async () => {
+    const tp = trace.getTracerProvider() as {forceFlush?: () => Promise<void>}
+    if (typeof tp.forceFlush === "function") await tp.forceFlush()
+}
+
+console.log(`instrumentation.node: registered service.name="${SERVICE_NAME}" → ${otlpUrl}`)

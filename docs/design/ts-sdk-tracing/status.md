@@ -16,8 +16,8 @@
 | 1b | LOCK: 4 canonical assertions against live Agenta endpoint | ✅ 4/4 PASS |
 | 2a | Next.js App Router — raw OTel | ✅ 4/4 nodejs assertions PASS · edge route P-APP-RAW-01 captured |
 | 2b | Next.js App Router — `@vercel/otel` | ✅ 3/4 nodejs assertions PASS · assertion-2 P-APP-VERCEL-01 (Batch+streamText flush) · edge P-APP-VERCEL-02 (delayed but works) |
-| 3a | Next.js Pages Router — raw OTel | 🔜 PENDING |
-| 3b | Next.js Pages Router — `@vercel/otel` | 🔜 PENDING |
+| 3a | Next.js Pages Router — raw OTel | ✅ 4/4 nodejs assertions PASS · edge route can't BUILD on raw OTel (P-PAGES-RAW-01) |
+| 3b | Next.js Pages Router — `@vercel/otel` | 🔜 PENDING (in progress) |
 | 4 | React TanStack Start (20h hard cap) | 🔜 PENDING |
 | 5 | Pain log de-dup + severity grouping → SDK design phase input | 🔜 PENDING |
 

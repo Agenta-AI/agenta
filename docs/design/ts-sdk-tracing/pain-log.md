@@ -428,7 +428,58 @@ return NextResponse.json({text: result.text, runtime: "edge"})
 
 ### Next.js Pages Router — raw OTel (P-PAGES-RAW-*)
 
-_No entries yet._
+## P-PAGES-RAW-01: Pages Router edge runtime fails at BUILD time on raw OTel exporter (App Router edge accepts the same import)
+
+**Framework:** pages-router-raw
+**Severity:**
+  - User impact: med
+  - Self-recoverable: partially
+  - Silent failure: no
+
+**The friction (code that exists today):**
+
+The same `@opentelemetry/exporter-trace-otlp-http` import that compiles fine in `nextjs-app-router-raw`'s edge route fails at `next build` time in Pages Router's edge route:
+
+```ts
+// pages/api/edge-chat.ts
+export const config = {runtime: "edge"}
+
+import {OTLPTraceExporter} from "@opentelemetry/exporter-trace-otlp-http"  // ← BOOM
+// ...
+
+// next build output:
+// ./pages/api/edge-chat.ts
+// Dynamic Code Evaluation (e.g. 'eval', 'new Function', 'WebAssembly.compile')
+// not allowed in Edge Runtime
+//
+// The error was caused by importing
+// '@opentelemetry/exporter-trace-otlp-http/build/esm/index.js' in
+// './pages/api/edge-chat.ts'.
+//
+// → Build fails. Cannot ship.
+```
+
+**Verified isolation (2026-05-11):**
+- `nextjs-app-router-raw` with the same import on `runtime = "edge"` route → builds fine, runs (though emits zero spans per P-APP-RAW-01)
+- `nextjs-pages-router-raw` with the same import on `config = {runtime: "edge"}` route → BUILD FAILS, app can't ship at all
+
+So Pages Router edge has stricter static analysis at build time than App Router edge.
+
+**What would be ideal (sketch of how the SDK would hide this):**
+
+```ts
+// SDK either:
+// (a) ships an edge bundle that's free of dynamic-code-eval patterns
+//     (so it passes Next's edge runtime static analysis), OR
+// (b) documents that edge routes must use a `serverExternalPackages`-equivalent
+//     pattern AND tests that the Pages Router strict path passes
+//
+// In the meantime, Pages Router users wanting edge-runtime tracing have
+// to skip raw OTel entirely — they have to use @vercel/otel which presumably
+// ships an edge-safe bundle.
+```
+
+**Notes:** Spike-time workaround was to drop the edge route from this app entirely; assertions 1-4 still pass for the nodejs path. Pages Router users on raw OTel cannot ship an edge route AT ALL today. **Implication for `ts-sdk-tracing`:** the SDK's edge helper must ship an edge-safe bundle (or rely on `@vercel/otel`'s edge-safe bundle) so users on either router can use it. Confirms the cross-cutting takeaway in summary.md: SDK has to own edge instrumentation; users wiring it themselves hit framework-specific build limits the AI SDK + Agenta ecosystem doesn't currently document.
 
 ### Next.js Pages Router — `@vercel/otel` (P-PAGES-VERCEL-*)
 
