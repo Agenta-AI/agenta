@@ -25,6 +25,12 @@ repos:
         language: system
         files: ^web/.*\.(js|jsx|cjs|mjs|ts|tsx|cts|mts|mdx)$
         pass_filenames: false
+      - id: validate-pain-log
+        name: validate ts-sdk-tracing pain log schema
+        entry: node docs/design/ts-sdk-tracing/scripts/validate-pain-log.mjs
+        language: system
+        files: ^docs/design/ts-sdk-tracing/pain-log\.md$
+        pass_filenames: false
       - id: gitleaks-pre-commit
         name: gitleaks git (staged only)
         entry: bash -c 'gitleaks --config .gitleaks.toml --exit-code 1 --verbose git --staged'
