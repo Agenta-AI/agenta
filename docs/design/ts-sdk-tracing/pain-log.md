@@ -818,9 +818,37 @@ So the failing variable is **Next.js's built-in OTel auto-instrumentation**, ind
 - Documented Next env knobs that DON'T solve this: `NEXT_OTEL_VERBOSE=0` (default — keeps the 5 wrapper spans, adds more if set to 1); `NEXT_OTEL_FETCH_DISABLED=1` (suppresses only the outbound `fetch` span). Neither removes the HTTP root or the `executing api route` wrapper
 
 **How other LLM observability SDKs handle the same symptom (2026-05-11):**
-- **Langfuse** (`@langfuse/otel` v5+): ships a `LangfuseSpanProcessor` whose `onStart`/`onEnd` filter drops every span whose `instrumentationScope.name` doesn't match a known LLM-library prefix (`ai`, `openinference`, `opentelemetry.instrumentation.anthropic`, `langsmith`, `litellm`, etc.) and that doesn't carry `gen_ai.*` attributes. Next.js's wrapper spans have scope `next.js` and no `gen_ai.*` → silently dropped at the processor BEFORE export. Langfuse's FAQ (`/faq/all/unwanted-http-database-spans`) explicitly addresses this exact symptom: *"The Langfuse Python SDK v4+ and JS/TS SDK v5+ apply a default span filter that automatically keeps only LLM-related spans... drops HTTP, database, and framework spans."* Pre-v5 Langfuse exported these too and they counted toward billing — i.e. they evolved to filter after running into the same pain
-- **Braintrust**: uses wrapper-based observability (`wrapAISDK`, `traced()`) rather than `instrumentation.ts` auto-instrumentation. The AI call is wrapped explicitly, so the Braintrust span IS the root. Different paradigm — no filtering needed because the wrappers don't sit downstream of Next's auto-instrumentation
-- **Neither** documents a user-side `instrumentation.ts` modification for the Next.js case — the filtering (Langfuse) or wrapping (Braintrust) is SDK-side, applied uniformly across all customer apps
+
+- **Langfuse** (`@langfuse/otel` v5+ for JS/TS, Python v4+): ships a `LangfuseSpanProcessor` that drops spans before export. Two verbatim quotes from their own FAQ at [langfuse.com/faq/all/unwanted-http-database-spans](https://langfuse.com/faq/all/unwanted-http-database-spans):
+
+  > "The Python v3 and JS/TS v4 SDKs have no automatic filtering — Langfuse exports all spans it receives, including HTTP requests, database queries, and framework internals."
+
+  > "The Langfuse Python SDK v4+ and JS/TS SDK v5+ apply a default span filter that automatically keeps only LLM-related spans and drops HTTP, database, and framework spans — no configuration needed."
+
+  Source code (verified at [unpkg.com/@langfuse/otel/dist/index.mjs](https://unpkg.com/@langfuse/otel/dist/index.mjs)): `LangfuseSpanProcessor` applies `isDefaultExportSpan(span)` which is the OR of three checks:
+
+  ```ts
+  function isDefaultExportSpan(span) {
+      return isLangfuseSpan(span) || isGenAISpan(span) || isKnownLLMInstrumentor(span)
+  }
+  function isGenAISpan(span) {
+      return Object.keys(span.attributes).some((k) => k.startsWith("gen_ai."))
+  }
+  function isKnownLLMInstrumentor(span) {
+      const scope = span.instrumentationScope.name
+      return KNOWN_LLM_INSTRUMENTATION_SCOPE_PREFIXES.some(
+          (prefix) => scope === prefix || scope.startsWith(`${prefix}.`),
+      )
+  }
+  ```
+
+  `KNOWN_LLM_INSTRUMENTATION_SCOPE_PREFIXES` (verbatim, 10 entries): `LANGFUSE_TRACER_NAME`, `"agent_framework"`, `"ai"`, `"haystack"`, `"langsmith"`, `"litellm"`, `"openinference"`, `"opentelemetry.instrumentation.anthropic"`, `"strands-agents"`, `"vllm"`. Next.js wrapper spans use scope `next.js` (not in the list) and lack `gen_ai.*` attrs → filtered out before export.
+
+  **Interpretive note (not a verbatim claim):** Langfuse explicitly documenting the pre-v5 vs v5 contrast AND maintaining a dedicated FAQ page titled "unwanted-http-database-spans" is strong evidence that their users hit this pain often enough to motivate (a) the v5 filter and (b) a public FAQ entry. The FAQ does NOT contain a direct quote saying "we built this because we ran into the problem ourselves" — that's an inference from the documented behavioral change and the existence of the FAQ.
+
+- **Braintrust**: uses wrapper-based observability (`wrapAISDK`, `traced()`) rather than `instrumentation.ts` auto-instrumentation. The AI call is wrapped explicitly, so the Braintrust span IS the root. Different paradigm — no filtering needed because the wrappers don't sit downstream of Next's auto-instrumentation. (Source: agent-research summary; not independently verified beyond the docs URL [braintrust.dev/docs/cookbook/recipes/AISDKObservabilityFeatures](https://www.braintrust.dev/docs/cookbook/recipes/AISDKObservabilityFeatures).)
+
+- **Neither** documents a user-side `instrumentation.ts` modification for the Next.js case — the filtering (Langfuse) or wrapping (Braintrust) is SDK-side, applied uniformly across all customer apps.
 
 **What would be ideal (sketch of how the SDK would hide this):**
 
