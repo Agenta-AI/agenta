@@ -4,7 +4,7 @@
 
 **Goal:** measure real friction wiring AI SDK v6 + raw OpenTelemetry + Agenta across the runtime/framework patterns most TS users will hit, before we design `ts-sdk-tracing`.
 
-**Current status:** Phase 1 (Node) + Phase 2a/2b (App Router raw + vercel-otel) + Phase 3a/3b (Pages Router raw + vercel-otel) complete. **8 ecosystem pain entries** captured, 5 silent-failure-shaped. The Phase 2 A/B test isolated the dominant pattern: **`BatchSpanProcessor` + AI SDK v6 `streamText` is the universal flush failure**, regardless of whether you wire raw OTel or `@vercel/otel`. Edge runtime: raw OTel emits zero spans ever (P-APP-RAW-01); `@vercel/otel` emits spans with ~10-15s delay (P-APP-VERCEL-02); Pages Router raw OTel can't even BUILD an edge route (P-PAGES-RAW-01) but `@vercel/otel` does build and run on Pages-edge. Phase 3b also surfaced a new silent-failure pattern: **Pages Router + `@vercel/otel` + `pipeUIMessageStreamToResponse` produces EMPTY `ag.metrics.tokens`** on the parent span (P-PAGES-VERCEL-01) — token counts disappear when wiring documented best-practice from both ecosystems. 3 self-inflicted SDK gaps separately tracked in [status.md](./status.md) as locked-in requirements.
+**Current status:** All 4 framework phases complete — Phase 1 (Node) + 2a/2b (App Router raw + vercel-otel) + 3a/3b (Pages Router raw + vercel-otel) + 4 (TanStack Start). **11 ecosystem pain entries** captured, 6 silent-failure-shaped. The Phase 2 A/B test isolated the dominant pattern: **`BatchSpanProcessor` + AI SDK v6 `streamText` is the universal flush failure**, regardless of whether you wire raw OTel or `@vercel/otel`. Edge runtime: raw OTel emits zero spans ever (P-APP-RAW-01); `@vercel/otel` emits spans with ~10-15s delay (P-APP-VERCEL-02); Pages Router raw OTel can't even BUILD an edge route (P-PAGES-RAW-01) but `@vercel/otel` does build and run on Pages-edge. Phase 3b surfaced a new silent-failure pattern: **Pages Router + `@vercel/otel` + `pipeUIMessageStreamToResponse` produces EMPTY `ag.metrics.tokens`** on the parent span (P-PAGES-VERCEL-01). Phase 4 surfaced TanStack Start's unique seam: **instrumentation is wired via `src/server.ts` import order with NO framework-level enforcement** (P-TANSTACK-01) — a single reorder by an auto-formatter silently disables tracing. 3 self-inflicted SDK gaps separately tracked in [status.md](./status.md) as locked-in requirements.
 
 ---
 
@@ -56,6 +56,17 @@
 - **Edge route compiles AND runs:** `@vercel/otel` ships an edge-safe bundle that passes Pages Router's strict static dynamic-code-eval check, where raw OTel hit a hard build failure (P-PAGES-RAW-01). Spans arrive on edge with the same ~10-15s delay seen in App Router + `@vercel/otel` (P-APP-VERCEL-02 behavior reproduces)
 - **New silent failure surfaced:** `streamText` parent span arrives with `ag.metrics.tokens = {}` (empty object, all token counts dropped) — but ONLY in this 4-way combination of Pages Router + `@vercel/otel` + `pipeUIMessageStreamToResponse` + AI SDK v6 streamText. Each isolated piece works alone (P-PAGES-VERCEL-01)
 
+### Phase 4 — React TanStack Start (Vite + Nitro) + raw OTel
+- App: [`web/examples/react-tanstack-start/`](../../../web/examples/react-tanstack-start/)
+- Stack: TanStack Start 1.167 (RC) + Vite 8 + AI SDK v6 + raw OTel + `SimpleSpanProcessor`. No Next.js-style auto-register hook — instrumentation fires by virtue of being the FIRST import in `src/server.ts`
+- Routes: `src/routes/api/chat.ts` streaming via `result.toUIMessageStreamResponse()` (same fetch Response sink as App Router), `src/routes/api/sentinels.ts` for assertion-4
+- 4/4 nodejs-runtime canonical assertions GREEN. All paths that worked on App Router raw OTel also work on TanStack Start raw OTel — the framework difference is mostly the entry shape, not the AI SDK surface
+- **No edge runtime probe:** TanStack Start has no per-route `runtime = "edge"` opt-in — runtime is selected at the Nitro preset level (Cloudflare, Vercel Edge, Deno Deploy) and applies to the whole server. Captured as P-TANSTACK-02 (coverage gap, not a silent failure)
+- **Three TanStack-specific pain entries:**
+  - P-TANSTACK-01: instrumentation seam is unenforced import order in `src/server.ts` — auto-formatter / refactor silently disables tracing with no warning
+  - P-TANSTACK-02: no per-route edge runtime opt-in — testing edge tracing requires a full preset swap, not a one-line flag
+  - P-TANSTACK-03: `createStartHandler()` return shape doesn't match what the dev plugin expects — official docs show `export default createStartHandler(...)` but dev plugin needs `{fetch}` wrapping. ~30min debug cost during scaffolding
+
 ### Canonical assertions (each spike app's `pnpm test` runs all four)
 1. **Cold-start trace completeness** — fresh process / fresh request produces a complete trace with model + tokens + metadata
 2. **Mid-stream client-abort flush** — streamed call aborted 500ms in still produces a queryable parent span within 5s
@@ -64,7 +75,7 @@
 
 ## What worked
 
-- 19/20 nodejs-runtime canonical assertions GREEN across the five v6 apps (Phase 1 Node + 2a App Router raw + 2b App Router vercel-otel + 3a Pages Router raw + 3b Pages Router vercel-otel)
+- 23/24 nodejs-runtime canonical assertions GREEN across the six v6 apps (Phase 1 Node + 2a App Router raw + 2b App Router vercel-otel + 3a Pages Router raw + 3b Pages Router vercel-otel + 4 TanStack Start)
 - `generateText` traces arrive with full attribute payload (`ag.{data,meta,metrics,type,user,session}`) under v4, v6, raw OTel and `@vercel/otel`
 - `streamText` traces arrive when using `SimpleSpanProcessor` — confirmed across Node + App Router raw. Including from `useChat` consumers
 - Tool-call output captured under the parent span's `ag.data.outputs.toolCalls`
@@ -86,19 +97,23 @@
 | **P-APP-VERCEL-02** | `@vercel/otel` edge route emits spans, but with ~10-15s delay (BatchSpanProcessor batch interval) | BatchSpanProcessor's default 5s flush interval + edge function freeze creates a race; `@vercel/otel`'s `waitUntil`-style wiring rescues most spans but not within an interactive window | SDK's edge-runtime helper must flush within the response cycle (under 1s end-to-end), not on the batch tick |
 | **P-PAGES-RAW-01** | Pages Router edge route fails at BUILD time on raw OTel exporter (App Router edge accepts the same import) | Pages Router's edge runtime applies stricter dynamic-code-eval static analysis than App Router's; `@opentelemetry/exporter-trace-otlp-http` contains code patterns Pages-edge rejects | SDK's edge bundle must be eval-free (or rely on `@vercel/otel`'s edge bundle which already passes the strict check). Pages Router users can't ship edge tracing on raw OTel today AT ALL — not even with the workarounds that App Router accepts |
 | **P-PAGES-VERCEL-01** (silent) | Pages Router + `@vercel/otel` + `pipeUIMessageStreamToResponse` + AI SDK v6 `streamText` produces EMPTY `ag.metrics.tokens` on the parent span (every other 3-way combo of these works) | The `pipeUIMessageStreamToResponse` sink writes UIMessageChunks straight to the Node `ServerResponse` and the Pages-Router-shaped span lifecycle ends before `@vercel/otel`'s span attribute population path runs (App Router's `toUIMessageStreamResponse()` keeps the span alive long enough; raw OTel's `SimpleSpanProcessor` flushes synchronously regardless) | SDK must wrap `streamText` itself and own span-attribute population independent of how the consumer drains the stream — OR ship its own `pipeUIMessageStreamToResponse` analog that hooks into the AI SDK's stream lifecycle. Solves this AND P-NODE-02 AND P-APP-VERCEL-01 in one shot |
+| **P-TANSTACK-01** (silent) | Instrumentation seam is unenforced import order in `src/server.ts` — a single refactor or auto-formatter reorder silently disables tracing with no warning | No Next.js-style auto-register hook in TanStack Start. The framework relies on `import "./instrumentation"` being the FIRST line of `src/server.ts`; any other ordering means AI SDK calls fire before the NodeTracerProvider registers, and spans never get captured | SDK ships a TanStack Start adapter (`withAgentaInstrumentation(handler, opts)`) that wraps the start handler — invariant-by-construction. Users never see "is my instrumentation import first?" as a question |
+| **P-TANSTACK-02** | No per-route edge runtime opt-in — runtime selection is global at the Nitro preset level (Cloudflare, Vercel Edge, Deno Deploy) | TanStack Start architecture choice. `export const runtime = "edge"` (Next.js per-route flag) has no equivalent — the entire server runs on one Nitro preset | SDK's TanStack Start adapter must ship preset-aware bundles (eval-free edge bundle + Node bundle), picked automatically by the active Nitro preset. Same edge-safe-bundle requirement as P-PAGES-RAW-01 |
+| **P-TANSTACK-03** | `createStartHandler()` return shape doesn't match what the dev plugin expects — official docs show `export default createStartHandler(...)` but dev server crashes on every request | TanStack Start dev plugin attempts `default.fetch(req)` on the server entry's default export; `createStartHandler` returns a callable handler, NOT a `{fetch}`-shaped object. Documented form fails at runtime; correct shape (`{fetch: createStartHandler(...)}`) requires inspecting the framework's own default-entry source | SDK's TanStack Start adapter returns the correct `{fetch}` shape regardless of what `createStartHandler` returns. Users follow our docs not Tanner's — combines with P-TANSTACK-01 into one ergonomic wrapper |
 
 Full entries with code samples, severity tags, and ideal-API sketches in [`pain-log.md`](./pain-log.md).
 
 ## Cross-cutting takeaways for `ts-sdk-tracing`
 
-The A/B tests between raw OTel and `@vercel/otel` on the SAME app shape (Phases 2a/2b for App Router, 3a/3b for Pages Router) isolated the dominant patterns the SDK has to design around. None of the pain entries is solved by simply picking the "right" wrapper; the SDK has to own the decisions:
+The A/B tests between raw OTel and `@vercel/otel` on the SAME app shape (Phases 2a/2b for App Router, 3a/3b for Pages Router) isolated the dominant patterns the SDK has to design around. Phase 4 (TanStack Start) added a fifth design priority: per-framework adapter wrappers. None of the pain entries is solved by simply picking the "right" OTel library; the SDK has to own the decisions:
 
 1. **The SDK must own the `streamText` span lifecycle, not just the processor choice.** Three separate Phase 2/3 pain entries (P-NODE-02, P-APP-VERCEL-01, P-PAGES-VERCEL-01) all stem from `streamText`'s `endWhenDone: false` parent span ending at an awkward moment relative to whatever ships next: `BatchSpanProcessor` flush window, mid-stream abort, or the response sink draining synchronously before attribute population runs. Letting users compose "AI SDK streamText + their favourite OTel processor + their favourite stream sink" silently breaks at least one of {trace arrival, mid-abort flush, token-metric population} for every combination tested. SDK should wrap `streamText` itself and own span end + flush + attribute population — OR ship sink-side helpers (`pipeUIMessageStreamToResponse` analog, `toUIMessageStreamResponse` analog) that hook the lifecycle.
 2. **The SDK must own edge runtime instrumentation.** Raw OTel + edge has two failure modes depending on router: zero spans ever (App Router, P-APP-RAW-01) or hard build failure (Pages Router, P-PAGES-RAW-01). `@vercel/otel` + edge works on both routers but with 10-15s delay (P-APP-VERCEL-02 + same on Pages-edge). SDK ships an edge helper with eval-free bundle (passes both routers' static checks) and flushes within the response cycle (waitUntil-aware, sub-second end-to-end).
 3. **Resource attributes need a designated path or first-class API.** `service.name` and other OTel Resource attrs are silently dropped by Agenta's adapter (P-NODE-01). Either backend adapter preserves them under a documented path OR SDK exposes typed service-tag helpers that map to whatever path Agenta does keep.
 4. **Per-trace metadata propagation is users' implicit assumption.** AI SDK only attaches `metadata.userId` to parent spans, not children like `ai.toolCall` (P-NODE-03). SDK should either propagate metadata or expose a "find the full trace by metadata" helper that hides the parent-only-filtering reality.
+5. **The SDK should ship per-framework adapters, not just primitives.** Each framework's instrumentation seam is different and unforgiving: Next.js `instrumentation.ts` + `NEXT_RUNTIME` dispatch, TanStack Start `src/server.ts` first-import convention with NO enforcement (P-TANSTACK-01), edge vs node split for App Router (Phase 2), Nitro preset selection for TanStack Start (P-TANSTACK-02). The SDK exposes `withAgentaInstrumentation(handler, opts)` style wrappers per framework so users never wire raw `NodeTracerProvider` + `register()` themselves — invariant-by-construction over "did you remember to import first?".
 
-These four are the design priorities. Phase 4 (TanStack Start) will likely surface variations on the same themes rather than fundamentally new categories.
+These five are the design priorities. The spike has enough material to start serious SDK API design.
 
 ## SDK requirements (locked, separate from pain log)
 
@@ -121,8 +136,10 @@ These were initially logged as pain entries but, on user review, are obvious fea
 
 ## Next steps
 
-- **Phase 4** — TanStack Start (highest unknown). Hour-budget capped per design doc. May surface new categories around Vite SSR + worker-style edge
-- **SDK design has enough input to start a serious draft.** 8 pain entries + 4 cross-cutting takeaways + 3 SDK requirements is enough material to sketch the SDK API surface. Phase 4 will tighten/extend rather than redirect
-- **Investigations deferred:**
-  - Root-cause why raw OTel + edge emits zero spans (P-APP-RAW-01) — likely worth a 1-2 hour source dive into how `@vercel/otel` wires its edge flush to inform the SDK's own edge helper design
+- **All 4 framework phases complete.** 6 spike apps cover the modern TS framework matrix (Node, App Router × 2, Pages Router × 2, TanStack Start) for AI SDK v6 + raw OTel + Agenta.
+- **SDK design phase can start now.** 11 pain entries + 5 cross-cutting takeaways + 3 SDK requirements is enough material to sketch the SDK API surface with confidence.
+- **Investigations deferred (each ~1-2 hour source dives):**
+  - Root-cause why raw OTel + edge emits zero spans (P-APP-RAW-01) — read `@vercel/otel`'s edge flush wiring to inform the SDK's own edge helper design
   - Root-cause why `pipeUIMessageStreamToResponse` + `@vercel/otel` drops `ag.metrics.tokens` (P-PAGES-VERCEL-01) — narrow down whether the parent span ends before AI SDK populates `usage` (likely) or whether `@vercel/otel`'s span attribute serializer drops the field. Either answer informs the SDK's `streamText` wrapper design
+- **Coverage gap acknowledged but not pursued:** TanStack Start edge runtime (P-TANSTACK-02) needs a full Cloudflare/Vercel-edge Nitro preset deploy — out of scope for local-only spike testing (Decision 4). Re-test during SDK implementation when we have a concrete edge bundle to validate.
+- **Per-app lifecycle decision** still pending per TODOS.md — which spike apps stay long-term (as regression fixtures for SDK CI), which get archived?

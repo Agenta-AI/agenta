@@ -552,4 +552,159 @@ pipeUIMessageStreamToResponse({response: res, stream: result.toUIMessageStream()
 
 ### React TanStack Start (P-TANSTACK-*)
 
-_No entries yet._
+## P-TANSTACK-01: Instrumentation seam is unenforced `src/server.ts` import order — silent failure on regression
+
+**Framework:** tanstack
+**Severity:**
+  - User impact: high
+  - Self-recoverable: partially
+  - Silent failure: yes
+
+**The friction (code that exists today):**
+
+TanStack Start has no Next.js-style `instrumentation.ts` register hook. Instrumentation fires by virtue of being the FIRST import in `src/server.ts`. Any refactor that reorders imports — or a tool that auto-formats imports alphabetically — silently disables tracing:
+
+```ts
+// src/server.ts — CORRECT (this is what we shipped):
+import "./instrumentation"
+
+import {createStartHandler, defaultStreamHandler} from "@tanstack/react-start/server"
+
+const fetch = createStartHandler({handler: defaultStreamHandler})
+export default {fetch}
+
+// src/server.ts — SILENTLY BROKEN: import-sorter alphabetizes,
+// puts the side-effect import second. AI SDK calls now fire BEFORE
+// the NodeTracerProvider is registered. Spans are never captured.
+// No error, no warning, no diagnostic. Just no traces.
+import {createStartHandler, defaultStreamHandler} from "@tanstack/react-start/server"
+
+import "./instrumentation"  // ← too late
+```
+
+**Verified behavior (2026-05-11):**
+- `src/instrumentation.ts` import as the first line of `src/server.ts`: 4/4 canonical assertions PASS, instrumentation registers before any handler runs (Δ ~ minutes)
+- ANY other line ordering: would silently lose spans. Tested by inspection of the framework wiring; no linter catches this.
+
+**What would be ideal (sketch of how the SDK would hide this):**
+
+```ts
+// SDK provides a TanStack Start adapter that wires instrumentation
+// via the start handler itself, not import order:
+import {createStartHandler, defaultStreamHandler} from "@tanstack/react-start/server"
+import {withAgentaInstrumentation} from "@agenta/sdk/tanstack-start"
+
+export default withAgentaInstrumentation(
+    createStartHandler({handler: defaultStreamHandler}),
+    {apiKey: process.env.AGENTA_API_KEY!, projectId: process.env.AGENTA_PROJECT_ID!},
+)
+// ↑ side-effect-free composition. SDK guarantees the provider is
+// registered BEFORE the wrapped handler accepts its first request,
+// regardless of import order anywhere else in the bundle.
+```
+
+**Notes:** Discovered while scaffolding Phase 4. The official TanStack Start observability docs DO call out "Initialize BEFORE importing your app" but rely entirely on a comment convention. **Implication for `ts-sdk-tracing`:** the SDK's framework adapter should accept the user's start handler as input and return a wrapped one — invariant-by-construction. Eliminates the entire class of "wait, why aren't there any spans?" debugging.
+
+## P-TANSTACK-02: No per-route edge runtime opt-in — runtime selection is global at the Nitro preset level
+
+**Framework:** tanstack
+**Severity:**
+  - User impact: med
+  - Self-recoverable: yes
+  - Silent failure: no
+
+**The friction (code that exists today):**
+
+Next.js (both App Router and Pages Router) lets users opt single routes into edge runtime via `export const runtime = "edge"`. TanStack Start has no equivalent — the runtime is selected at the Nitro preset level (Cloudflare Workers, Vercel Edge, Deno Deploy, etc.) and applies to the whole server. To test edge instrumentation, you have to deploy the entire app to that preset:
+
+```ts
+// Next.js: per-route opt-in
+// app/api/edge-chat/route.ts
+export const runtime = "edge"   // ← granular, single route
+export async function POST(req: Request) { ... }
+
+// TanStack Start: no equivalent. Either everything's Node or everything's edge,
+// at deploy time. No `export const runtime = "edge"` on a route file:
+// src/routes/api/chat.ts
+import {createFileRoute} from "@tanstack/react-router"
+export const Route = createFileRoute("/api/chat")({
+    server: {handlers: {POST: async ({request}) => {...}}},
+})
+// ↑ runs on whatever Nitro preset the build target is configured for.
+// To probe edge tracing for THIS route specifically, you'd need a
+// second deployment with a different Nitro preset.
+```
+
+**What would be ideal (sketch of how the SDK would hide this):**
+
+```ts
+// SDK's TanStack Start adapter exposes preset-aware instrumentation
+// that DTRT for both Node and edge presets without per-route config:
+import {withAgentaInstrumentation} from "@agenta/sdk/tanstack-start"
+
+// Single adapter, ships an eval-free edge bundle and a Node bundle,
+// selected automatically based on the active Nitro preset:
+export default withAgentaInstrumentation(handler, {apiKey, projectId})
+```
+
+**Notes:** This isn't a silent failure — it's a coverage gap in the spike. We could deploy this app to a Cloudflare/Vercel-edge preset to verify, but that's out of scope for local-only spike testing (Decision 4 in status.md). **Implication for `ts-sdk-tracing`:** the SDK's TanStack Start adapter must pick the right bundle (eval-free, edge-safe vs Node-rich) based on the deployment target — users won't be choosing per-route. Same edge-safe bundle requirement as P-PAGES-RAW-01.
+
+## P-TANSTACK-03: `createStartHandler()` return shape doesn't match what the dev plugin expects — docs lie
+
+**Framework:** tanstack
+**Severity:**
+  - User impact: med
+  - Self-recoverable: partially
+  - Silent failure: no
+
+**The friction (code that exists today):**
+
+The official TanStack Start docs show this as the server entry pattern:
+
+```ts
+// src/server.ts (per official docs)
+import {createStartHandler, defaultStreamHandler} from "@tanstack/react-start/server"
+export default createStartHandler({handler: defaultStreamHandler})
+```
+
+But Vite's dev plugin attempts `(await import(ENTRY_POINTS.server))["default"].fetch(webReq)` — i.e. it expects a `{fetch}` object on the default export, not a callable handler. With the documented form, every request fails:
+
+```
+TypeError: (intermediate value).default.fetch is not a function
+    at .../start-plugin-core/.../dev-server-plugin/plugin.js:71:106
+```
+
+Inspecting the framework's own default entry reveals the actual working shape:
+
+```ts
+// node_modules/@tanstack/react-start/dist/default-entry/esm/server.js
+var fetch = createStartHandler(defaultStreamHandler)
+function createServerEntry(entry) {
+    return {async fetch(...args) { return await entry.fetch(...args) }}
+}
+export default createServerEntry({fetch})
+// ↑ default export must have a .fetch method. createStartHandler returns
+// a callable that itself works as a fetch handler, so we either wrap as
+// `{fetch: createStartHandler(...)}` or use the SDK's helper.
+```
+
+**Verified isolation (2026-05-11):**
+- `export default createStartHandler({handler: defaultStreamHandler})`: dev server crashes on every request
+- `export default {fetch: createStartHandler({handler: defaultStreamHandler})}`: dev server works, 4/4 assertions PASS
+
+**What would be ideal (sketch of how the SDK would hide this):**
+
+```ts
+// SDK adapter returns the right shape so users never see the mismatch:
+import {createStartHandler, defaultStreamHandler} from "@tanstack/react-start/server"
+import {withAgentaInstrumentation} from "@agenta/sdk/tanstack-start"
+
+export default withAgentaInstrumentation(
+    createStartHandler({handler: defaultStreamHandler}),
+    {apiKey, projectId},
+)
+// ↑ withAgentaInstrumentation returns a `{fetch}` object regardless
+// of what `createStartHandler` returns; users follow our docs not Tanner's.
+```
+
+**Notes:** Cost us ~30 minutes of "why does every request 500?" debugging during Phase 4 scaffolding. Resolution required reading the framework's own default-entry source, not the docs. **Implication for `ts-sdk-tracing`:** combines with P-TANSTACK-01 — the SDK's TanStack Start adapter SHOULD own both the instrumentation wiring and the export-shape wrapping. Users never write `export default createStartHandler(...)` directly; they wrap it through our adapter. This is the cheapest possible value-add and dodges a documented framework foot-gun.

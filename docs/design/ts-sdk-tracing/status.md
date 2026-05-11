@@ -18,7 +18,7 @@
 | 2b | Next.js App Router — `@vercel/otel` | ✅ 3/4 nodejs assertions PASS · assertion-2 P-APP-VERCEL-01 (Batch+streamText flush) · edge P-APP-VERCEL-02 (delayed but works) |
 | 3a | Next.js Pages Router — raw OTel | ✅ 4/4 nodejs assertions PASS · edge route can't BUILD on raw OTel (P-PAGES-RAW-01) |
 | 3b | Next.js Pages Router — `@vercel/otel` | ✅ 4/4 nodejs assertions PASS (assertion-1 loosened — P-PAGES-VERCEL-01 empty token metrics) · edge route BUILDS + runs (`@vercel/otel` passes Pages-edge static check) with same ~10-15s delay as App Router edge |
-| 4 | React TanStack Start (20h hard cap) | 🔜 PENDING |
+| 4 | React TanStack Start (20h hard cap) | ✅ 4/4 nodejs assertions PASS · 3 TanStack-specific pain entries captured (P-TANSTACK-01/02/03) · edge probe deferred (no per-route opt-in, needs preset swap — P-TANSTACK-02) |
 | 5 | Pain log de-dup + severity grouping → SDK design phase input | 🔜 PENDING |
 
 ---
@@ -83,8 +83,8 @@ The SDK's `AgentaInitOptions` already accepts `projectId` but `init()` doesn't p
 
 ## Open Questions
 
-1. **TanStack Start instrumentation hook** — where does it live? `entry-server.tsx`? Vite plugin? `app.config.ts`? Resolves during Phase 4 discovery.
-2. **Edge runtime exporter that actually flushes** — App 2 builds will discover the working dependency tree. Pain log entry either way (works → "what we used"; doesn't → "what we tried").
+1. ~~**TanStack Start instrumentation hook** — where does it live? `entry-server.tsx`? Vite plugin? `app.config.ts`? Resolves during Phase 4 discovery.~~ **Resolved:** `src/instrumentation.ts` imported as FIRST line of `src/server.ts`. No framework-level enforcement — captured as P-TANSTACK-01.
+2. ~~**Edge runtime exporter that actually flushes** — App 2 builds will discover the working dependency tree. Pain log entry either way (works → "what we used"; doesn't → "what we tried").~~ **Resolved:** raw OTel emits zero spans on edge (P-APP-RAW-01); `@vercel/otel` emits spans with ~10-15s delay (P-APP-VERCEL-02); Pages Router raw OTel can't even BUILD on edge (P-PAGES-RAW-01); `@vercel/otel` works on Pages-edge. SDK has to own the edge bundle.
 3. **`@vercel/otel` Server Component context propagation** — does it correctly thread context across Suspense boundaries? Verified via App 2b's Server Action probe.
 
 ---
