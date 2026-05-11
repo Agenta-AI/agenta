@@ -3,7 +3,7 @@
 ## Current State
 
 **Branch:** `ts-sdk-chore/example-apps`
-**Last Updated:** 2026-05-11
+**Last Updated:** 2026-05-11 (deferred investigations resolved)
 
 ---
 

@@ -317,13 +317,21 @@ export async function POST(req: NextRequest) {
 
 **Notes:** Discovered immediately on first edge route probe. The route's `runtime: "edge"` field in the response body confirms Next.js DID run it on edge runtime (not silently downgraded), so the issue is genuinely in OTel + edge + Agenta interaction. **Highest-severity finding from Phase 2a** because edge runtime is what Vercel pushes users toward by default for AI routes (lower latency, distributed). If the SDK doesn't fix this, every Vercel user with `runtime = "edge"` silently loses every trace.
 
-**Phase 2b A/B verdict (2026-05-10):** `@vercel/otel` (P-APP-VERCEL-02) DOES emit edge spans, just delayed. So the root cause of THIS entry (raw-OTel-on-edge emits ZERO spans EVER) is something specific to the manual `BasicTracerProvider` + `SimpleSpanProcessor` + `after()` setup, NOT a fundamental limitation of edge runtime + AI SDK + Agenta. Most likely culprits, narrowed:
+**Phase 2b A/B verdict (2026-05-10):** `@vercel/otel` (P-APP-VERCEL-02) DOES emit edge spans, just delayed. So the root cause of THIS entry (raw-OTel-on-edge emits ZERO spans EVER) is something specific to the manual `BasicTracerProvider` + `SimpleSpanProcessor` + `after()` setup, NOT a fundamental limitation of edge runtime + AI SDK + Agenta. Three hypotheses were posed at the time:
 
 1. `SimpleSpanProcessor` + edge `keepAlive: true` fetch — the request handler may complete and return BEFORE the underlying fetch's promise resolves, and the edge function freezes immediately on response
 2. `after()` callback executes too late — Next 15's `after()` runs the callback AFTER the response is sent but the edge function may freeze before the forceFlush completes
 3. `trace.setGlobalTracerProvider()` not registering the provider in the right way for the AI SDK's auto-instrumentation to pick it up — the AI SDK might use a tracer captured at module load time
 
-**`@vercel/otel` works because** it likely uses a `BatchSpanProcessor` plus a `waitUntil`-aware flush hook that's wired more deeply into the edge runtime lifecycle (runs as part of the edge function's outbound work queue, not after-the-fact). Source-diving `@vercel/otel` to understand how it does this is the next investigation.
+**Root cause resolved (2026-05-11)** via source-dive of `@vercel/otel@2.1.2`'s edge bundle (`node_modules/@vercel/otel/dist/edge/index.js`). **None of the three hypotheses as originally written; hypothesis 2 is closest but mechanism-wrong.** The actual mechanism:
+
+- `@vercel/otel` wraps user-supplied span processors in a `CompositeSpanProcessor` whose `onStart` hook, **on every root span open**, reaches into `globalThis[Symbol.for("@vercel/request-context")].get()` and calls `requestContext.waitUntil(forceFlush)`. This is the same primitive backing Next.js `unstable_after()`, but reached directly at the OTel layer, the moment the span opens, before the route handler does anything.
+- `waitUntil(promise)` is how the Vercel edge runtime tracks unfulfilled work and defers freezing the isolate until that work completes. The export promise gets enrolled into the isolate's lifetime tracker.
+- Our raw setup uses `after(() => provider.forceFlush())`. `after()` runs the callback as Next.js drains its outbound queue, but **does not enroll the resulting promise into the runtime's lifetime tracker** — so the isolate freezes the moment `Response` returns and the OTLP `fetch` is killed mid-flight. Zero spans land.
+- `keepalive: true` is a red herring — `@vercel/otel`'s edge exporter doesn't set it either (`grep keepalive` on the edge bundle returns nothing). Protocol-level keepalive isn't the lever; runtime-level `waitUntil` is.
+- OTel global provider registration is fine. AI SDK does pick up the global provider; the AI SDK creating a span IS what fires `onStart` and gives `@vercel/otel` its hook in the first place.
+
+So the failure is structural to ANY manual edge OTel wiring that doesn't reach `requestContext.waitUntil`: the isolate freezes before the export `fetch` resolves. **What's still uncertain:** whether the `@vercel/request-context` symbol is populated in `next dev` (our local-only spike scope per Decision 4) or only on deployed Vercel infrastructure. We never confirmed our `@vercel/otel` edge spans actually came through `waitUntil` vs by some other path during local `next dev`; the 10-15s arrival could be incidental (e.g. BatchSpanProcessor's 5s scheduledDelay + retry timing) rather than the `waitUntil`-enrolled flush.
 
 ### Next.js App Router — `@vercel/otel` (P-APP-VERCEL-*)
 
@@ -548,7 +556,26 @@ pipeUIMessageStreamToResponse({response: res, stream: result.toUIMessageStream()
 
 **Notes:** Discovered during assertion-1 in Phase 3b. Initial assertion-1 (cloned from Phase 3a) checked `ag.metrics.tokens.incremental.prompt > 0` — passed in Phase 3a (raw OTel), failed in Phase 3b (`@vercel/otel`). Loosened the assertion to verify model + metadata only and captured this as the pain entry. **Why this matters:** token counts are the #1 metric users instrument LLM calls for — cost tracking, rate limiting, model selection. If they silently disappear when wiring `pipeUIMessageStreamToResponse` (the documented Pages Router pattern) on top of `@vercel/otel` (Vercel's recommended OTel wrapper), users have built a working observability pipeline that lies about cost. Both pieces are documented best-practice in their respective ecosystems. Their combination silently breaks the most commonly-checked metric. **Implication for `ts-sdk-tracing`:** the SDK either (a) wraps `streamText` itself and owns span-attribute population, OR (b) ships its own `pipeUIMessageStreamToResponse` analog that hooks the AI SDK's stream lifecycle to ensure tokens land on the span before it ends. Option (a) is the cleaner answer because it solves this AND P-NODE-02 AND P-APP-VERCEL-01 in one shot.
 
-### React TanStack Start (P-TANSTACK-*)
+**Root cause resolved (2026-05-11)** via source-dive of `@vercel/otel@2.1.2` (Node bundle) + `ai@6.0.177`'s `streamText` implementation. **Candidate (a) confirmed and sharpened — specifically a force-end race in `@vercel/otel`'s `CompositeSpanProcessor.onEnd`:**
+
+- `@vercel/otel` wraps user processors in a `CompositeSpanProcessor`. Its `onEnd` hook, when the Next.js **root SERVER span** ends, force-ends every still-open child span via `child.end()` (`node_modules/@vercel/otel/dist/node/index.js` — see the `rootSpanIds.delete(t)` + `for(let c of i.open)... c.end()` block, around line 23 of the bundled file).
+- AI SDK v6's `streamText` creates the parent span with `endWhenDone: false` (`ai/dist/index.mjs:~6972`). The parent span's token attributes (`ai.usage.inputTokens`, `gen_ai.usage.input_tokens`, etc.) are written inside the event processor's `flush()` (`ai/dist/index.mjs:~6862-6896`) via `rootSpan.setAttributes({...})`, immediately before `rootSpan.end()` runs in `finally`. So token attributes land **only when AI SDK's flush() runs to completion**.
+- `pipeUIMessageStreamToResponse` (Pages Router sink) calls `writeToServerResponse` (`ai/dist/index.mjs:~4969-5003`) which fires `read()` **without awaiting** and returns synchronously. The Pages handler returns to Next.js while the stream is still being drained on a microtask. `response.end()` and Next.js's SERVER-span end happen on the Node response lifecycle, **racing** AI SDK's flush().
+- When the SERVER span ends first (which it does, because the model takes hundreds of ms to seconds to finish streaming while the pipe sink returned immediately), `CompositeSpanProcessor.onEnd` force-ends `ai.streamText`. AI SDK's subsequent `rootSpan.setAttributes({ai.usage.*: ...})` then hits an already-ended span. Per OTel spec (`@opentelemetry/sdk-trace-base/Span.js:~83-103`), `setAttribute` silently returns early on an ended span. **Token attributes never reach the exporter.**
+- Everything written BEFORE the force-end (operation name, `ai.prompt`, `ai.meta.request.model`, user/session metadata) is preserved on the span — exactly matching what we see in Agenta. Only the token attributes (written last, in flush()) are dropped.
+- `@vercel/otel` does include a 50ms `waitUntil(...)` race in `onStart` before flushing, but typical model latency is orders of magnitude longer, so it always times out before AI SDK's flush() runs.
+
+**Why only this 4-way combo fails:**
+
+- **Node raw (no Next.js):** no Next.js SERVER span exists, so no `@vercel/otel` root-span tracking, no force-end. AI SDK's flush() runs at its own pace, token attrs land.
+- **App Router + `@vercel/otel`:** `toUIMessageStreamResponse()` returns a fetch `Response` whose body Next.js awaits to completion as part of its request lifecycle. The SERVER span stays open until the response body stream is fully drained — which is the same `baseStream` tee that AI SDK's flush() is feeding from. So flush() (and the `ai.usage.*` writes) lands BEFORE the SERVER span ends, BEFORE `CompositeSpanProcessor.onEnd` would force-end the streamText span. AI SDK ends `ai.streamText` cleanly itself.
+- **Pages Router + raw OTel:** the same synchronous-return pipe races flush(), but raw `SimpleSpanProcessor` has no root-span tracking and no force-end logic. The streamText span ends on its own clock via AI SDK's flush() → `rootSpan.end()`. `setAttributes` runs on a still-open span. Tokens recorded.
+- **Pages Router + `@vercel/otel` (the failing combo):** synchronous-return pipe (SERVER span ends fast) + CompositeSpanProcessor force-end (kills `ai.streamText` early) interact. Force-end fires before AI SDK's flush(). Tokens lost.
+
+**What's still uncertain:**
+
+- The mechanism is traced from source, not instrumented at runtime. A 1-line runtime probe to confirm: patch `@vercel/otel`'s `CompositeSpanProcessor.onEnd` to log `span.attributes` for spans named `ai.streamText` immediately before/after the force-end loop. If `ai.usage.inputTokens` is missing both times AND present on a subsequent (no-op) `setAttributes` call from AI SDK, the mechanism is empirically confirmed.
+- Untested whether AI SDK's `experimental_telemetry.tracer` injection (passing a custom tracer that wraps spans with deferred attribute application) would mask the symptom. Our spike didn't exercise that knob.
 
 ### React TanStack Start (P-TANSTACK-*)
 
