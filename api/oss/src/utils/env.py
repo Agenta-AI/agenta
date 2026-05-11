@@ -1,6 +1,8 @@
 import os
+import hashlib
 from uuid import getnode
 from json import loads
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict
 
@@ -22,6 +24,27 @@ class SuperTokensConfig(BaseModel):
 
     application: str = os.getenv("SUPERTOKENS_APPLICATION") or "default"
     tenant: str = os.getenv("SUPERTOKENS_TENANT") or "tenant"
+
+    # ---------------------------------------------------------------------------
+    # Password policy
+    #
+    # SUPERTOKENS_PASSWORD_MIN_LENGTH  — minimum password length (default: 8)
+    # SUPERTOKENS_PASSWORD_MAX_LENGTH  — maximum password length (default: no limit)
+    # SUPERTOKENS_PASSWORD_POLICY      — "none" | "basic" | "strong" (default: "basic")
+    #   none:   no validation beyond SuperTokens defaults
+    #   basic:  enforce min/max length only
+    #   strong: basic + at least one uppercase, one digit, one special character
+    # SUPERTOKENS_PASSWORD_REGEX       — custom regex that overrides policy checks
+    #                                    when set; the full password must match
+    # ---------------------------------------------------------------------------
+    password_min_length: int = int(os.getenv("SUPERTOKENS_PASSWORD_MIN_LENGTH") or "8")
+    password_max_length: int | None = (
+        int(os.getenv("SUPERTOKENS_PASSWORD_MAX_LENGTH"))
+        if os.getenv("SUPERTOKENS_PASSWORD_MAX_LENGTH")
+        else None
+    )
+    password_policy: str = os.getenv("SUPERTOKENS_PASSWORD_POLICY") or "strong"
+    password_regex: str | None = os.getenv("SUPERTOKENS_PASSWORD_REGEX") or None
 
     model_config = ConfigDict(extra="ignore")
 
@@ -107,6 +130,18 @@ class AuthConfig(BaseModel):
         "BOXY_SAML_OAUTH_CLIENT_SECRET"
     )
     boxy_saml_url: str | None = os.getenv("BOXY_SAML_URL")
+
+    # TEST: ENFORCE CHALLENGE
+    # turnstile_site_key: str | None = "3x00000000000000000000FF"
+    # TEST: BYPASS CHALLENGE
+    # turnstile_site_key: str | None = "1x00000000000000000000AA"
+    turnstile_site_key: str | None = os.getenv("CLOUDFLARE_TURNSTILE_SITE_KEY")
+    # TEST: ACCEPT CHALLENGE
+    # # turnstile_secret_key: str | None = "1x0000000000000000000000000000000AA"
+    turnstile_secret_key: str | None = os.getenv("CLOUDFLARE_TURNSTILE_SECRET_KEY")
+    turnstile_allowed_hostnames_raw: str = (
+        os.getenv("CLOUDFLARE_TURNSTILE_ALLOWED_HOSTNAMES") or ""
+    )
 
     model_config = ConfigDict(extra="ignore")
 
@@ -247,6 +282,39 @@ class AuthConfig(BaseModel):
         """At least one auth method enabled"""
         return self.email_enabled or self.oidc_enabled
 
+    @property
+    def turnstile_enabled(self) -> bool:
+        """Turnstile enabled if both site and secret keys are configured."""
+        return bool(self.turnstile_site_key and self.turnstile_secret_key)
+
+    @property
+    def turnstile_allowed_hostnames(self) -> set[str]:
+        """Expected hostnames for successful Turnstile verifications."""
+        configured_hostnames = {
+            hostname.strip().lower()
+            for hostname in self.turnstile_allowed_hostnames_raw.split(",")
+            if hostname.strip()
+        }
+        if configured_hostnames:
+            return configured_hostnames
+
+        derived_hostnames = set()
+        for candidate_url in (env.agenta.web_url, env.agenta.api_url):
+            try:
+                parsed = urlparse(
+                    candidate_url
+                    if "://" in candidate_url
+                    else f"https://{candidate_url}"
+                )
+            except Exception:
+                continue
+
+            hostname = (parsed.hostname or "").strip().lower()
+            if hostname and hostname not in {"localhost", "127.0.0.1", "::1"}:
+                derived_hostnames.add(hostname)
+
+        return derived_hostnames
+
     def validate_config(self) -> None:
         """Validate auth configuration"""
         # At least one auth method must be enabled
@@ -373,6 +441,7 @@ class LLMConfig(BaseModel):
     openrouter: str = os.getenv("OPENROUTER_API_KEY", "")
     perplexityai: str = os.getenv("PERPLEXITYAI_API_KEY", "")
     togetherai: str = os.getenv("TOGETHERAI_API_KEY", "")
+    minimax: str = os.getenv("MINIMAX_API_KEY", "")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -394,6 +463,7 @@ class LLMConfig(BaseModel):
                 "openrouter",
                 "perplexityai",
                 "togetherai",
+                "minimax",
             ]
             if getattr(self, name)
         ]
@@ -519,6 +589,14 @@ class AgentaConfig(BaseModel):
     ).lower() in _TRUTHY
 
     demos: str = os.getenv("AGENTA_DEMOS") or ""
+    default_plan: str | None = os.getenv("AGENTA_DEFAULT_PLAN") or None
+
+    # None when unset/empty = unrestricted; non-empty set = only these emails can create orgs
+    org_creation_allowlist: set | None = {
+        e.strip().lower()
+        for e in (os.getenv("AGENTA_ORG_CREATION_ALLOWLIST") or "").split(",")
+        if e.strip()
+    } or None
 
     blocked_emails: set = {
         e.strip().lower()
@@ -554,6 +632,28 @@ class PostgresConfig(BaseModel):
 
     username: str = os.getenv("POSTGRES_USER") or "username"
     password: str = os.getenv("POSTGRES_PASSWORD") or "password"
+
+    # Stable signed-64-bit advisory-lock key for this deployment. We mix
+    # AGENTA_AUTH_KEY with the core Postgres URI so two deployments that
+    # both forget to set AGENTA_AUTH_KEY (and thus share the literal
+    # "replace-me" fallback) still get distinct keys as long as they point
+    # at different databases.
+    advisory_lock: int = int.from_bytes(
+        hashlib.blake2b(
+            b"|".join(
+                (
+                    (os.getenv("AGENTA_AUTH_KEY") or "replace-me").encode(),
+                    (
+                        os.getenv("POSTGRES_URI_CORE")
+                        or f"postgresql+asyncpg://username:password@postgres:5432/agenta_{_LICENSE}_core"
+                    ).encode(),
+                )
+            ),
+            digest_size=8,
+        ).digest(),
+        "big",
+        signed=True,
+    )
 
     model_config = ConfigDict(extra="ignore")
 

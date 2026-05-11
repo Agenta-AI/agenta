@@ -23,3 +23,5 @@ export {
     VariantListItemLabel,
     type EntityListItemLabelProps,
 } from "./EntityListItemLabel"
+
+export {EntityTypeIcon, type EntityTypeIconProps} from "./EntityTypeIcon"

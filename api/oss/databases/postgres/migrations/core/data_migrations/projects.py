@@ -1,5 +1,6 @@
 import os
 import uuid
+import json
 import traceback
 from typing import Sequence
 
@@ -97,7 +98,15 @@ def add_completion_testset_to_project(session: Session, project_id: str):
             "completion_testset.json",
         )
         if os.path.exists(json_path):
-            csvdata = db_manager.get_json(json_path)
+            csvdata = None
+            with open(str(json_path)) as f:
+                try:
+                    csvdata = json.loads(f.read())
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"Could not parse JSON file: {json_path}") from e
+                except Exception as e:
+                    raise ValueError(f"Could not read JSON file: {json_path}") from e
+
             testset = {
                 "name": "completion_testset",
                 "csvdata": csvdata,

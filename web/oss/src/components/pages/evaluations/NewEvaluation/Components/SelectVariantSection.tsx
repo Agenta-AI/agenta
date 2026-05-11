@@ -1,19 +1,19 @@
-import {memo, useCallback, useMemo, useState} from "react"
+import {memo, useCallback, useMemo} from "react"
 
-import {Input} from "antd"
+import {
+    InfiniteVirtualTableFeatureShell,
+    useTableManager,
+    useGroupedTreeData,
+} from "@agenta/ui/table"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import {useVariants} from "@/oss/lib/hooks/useVariants"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {currentAppAtom} from "@/oss/state/app"
+import type {RegistryRevisionRow} from "@/oss/components/VariantsComponents/store/registryStore"
+import {registryPaginatedStore} from "@/oss/components/VariantsComponents/store/registryStore"
+import {createRegistryColumns} from "@/oss/components/VariantsComponents/Table/assets/registryColumns"
 
 import type {SelectVariantSectionProps} from "../types"
 
-const VariantsTable = dynamic(() => import("@/oss/components/VariantsComponents/Table"), {
-    ssr: false,
-})
 const NoResultsFound = dynamic(
     () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
     {
@@ -21,38 +21,47 @@ const NoResultsFound = dynamic(
     },
 )
 
+const EMPTY_ACTIONS = {}
+
+const getVariantGroupKey = (row: RegistryRevisionRow) => row.variantId
+const getVariantSelectableId = (row: RegistryRevisionRow) => row.revisionId
+
 const SelectVariantSection = ({
     selectedVariantRevisionIds,
     className,
     setSelectedVariantRevisionIds,
     handlePanelChange,
     evaluationType,
-    variants: propsVariants,
-    isVariantLoading: propsVariantLoading,
-    ...props
 }: SelectVariantSectionProps) => {
-    const currentApp = useAtomValue(currentAppAtom)
+    const table = useTableManager<RegistryRevisionRow>({
+        datasetStore: registryPaginatedStore.store as never,
+        scopeId: "evaluation-variant-selector",
+        pageSize: 50,
+        rowClassName: "variant-table-row",
+        search: {className: "w-[300px]"},
+    })
 
-    const {data, isLoading: fallbackLoading} = useVariants(currentApp)
-    const variants = useMemo(() => propsVariants || data, [propsVariants, data])
-    const isVariantLoading = propsVariantLoading ?? fallbackLoading
+    const paginationRows = table.shellProps.pagination?.rows ?? []
 
-    const [searchTerm, setSearchTerm] = useState("")
+    const {groupedDataSource, treeExpandable, resolveSelectableId, toDisplayKeys, expandState} =
+        useGroupedTreeData({
+            rows: paginationRows,
+            getGroupKey: getVariantGroupKey,
+            getSelectableId: getVariantSelectableId,
+            groupKeyPrefix: "variant-group-",
+        })
 
-    const filteredVariant = useMemo(() => {
-        if (!searchTerm) return variants
-        return variants?.filter((item: EnhancedVariant) =>
-            item.variantName.toLowerCase().includes(searchTerm.toLowerCase()),
-        )
-    }, [searchTerm, variants])
+    const columns = useMemo(() => createRegistryColumns(EMPTY_ACTIONS, expandState), [expandState])
 
     const onSelectVariant = useCallback(
         (selectedRowKeys: React.Key[]) => {
+            const revisionIds = (selectedRowKeys as string[]).map(resolveSelectableId)
+
             if (evaluationType === "auto") {
-                setSelectedVariantRevisionIds(selectedRowKeys as string[])
+                setSelectedVariantRevisionIds(revisionIds)
                 return
             }
-            const selectedId = selectedRowKeys[0] as string | undefined
+            const selectedId = revisionIds[0]
             if (selectedId) {
                 setSelectedVariantRevisionIds([selectedId])
                 handlePanelChange("testsetPanel")
@@ -60,76 +69,48 @@ const SelectVariantSection = ({
                 setSelectedVariantRevisionIds([])
             }
         },
-        [evaluationType, handlePanelChange, setSelectedVariantRevisionIds],
+        [evaluationType, handlePanelChange, setSelectedVariantRevisionIds, resolveSelectableId],
     )
 
-    const onRowClick = useCallback(
-        (record: EnhancedVariant) => {
-            const _record = record as EnhancedVariant & {
-                children: EnhancedVariant[]
-            }
-            if (evaluationType === "auto") {
-                const nextSelected = selectedVariantRevisionIds.includes(_record.id)
-                    ? selectedVariantRevisionIds.filter((id) => id !== _record.id)
-                    : [...selectedVariantRevisionIds, _record.id]
-                setSelectedVariantRevisionIds(nextSelected)
-                return
-            }
-            onSelectVariant([_record.id])
-        },
-        [
-            evaluationType,
-            onSelectVariant,
-            selectedVariantRevisionIds,
-            setSelectedVariantRevisionIds,
-        ],
+    const displaySelectedKeys = useMemo(
+        () => toDisplayKeys(selectedVariantRevisionIds),
+        [selectedVariantRevisionIds, toDisplayKeys],
     )
 
-    const variantsNonNull = (filteredVariant || []) as EnhancedVariant[]
+    const rowSelection = useMemo(
+        () => ({
+            type: "checkbox" as const,
+            selectedRowKeys: displaySelectedKeys,
+            onChange: (keys: React.Key[]) => onSelectVariant(keys),
+            selectOnRowClick: true,
+        }),
+        [displaySelectedKeys, onSelectVariant, evaluationType],
+    )
 
     return (
-        <div className={clsx(className)} {...props}>
-            <div className="flex items-start justify-between mb-2 gap-4">
-                <Input.Search
-                    placeholder="Search"
-                    className="w-[300px] [&_input]:!py-[3.1px]"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+        <div className={clsx(className)}>
+            <div className="h-[455px]">
+                <InfiniteVirtualTableFeatureShell<RegistryRevisionRow>
+                    {...table.shellProps}
+                    columns={columns}
+                    rowSelection={rowSelection}
+                    enableExport={false}
+                    autoHeight
+                    dataSource={groupedDataSource}
+                    tableProps={{
+                        ...table.shellProps.tableProps,
+                        expandable: treeExpandable,
+                    }}
+                    locale={{
+                        emptyText: (
+                            <NoResultsFound
+                                className="!py-10"
+                                description="No available revisions found to display"
+                            />
+                        ),
+                    }}
                 />
             </div>
-            <VariantsTable
-                showStableName
-                rowSelection={{
-                    type: evaluationType === "auto" ? "checkbox" : "radio",
-                    selectedRowKeys: selectedVariantRevisionIds,
-                    onChange: (selectedRowKeys) => {
-                        onSelectVariant(selectedRowKeys)
-                    },
-                }}
-                onRow={(record) => {
-                    return {
-                        style: {cursor: "pointer"},
-                        onClick: () => {
-                            onRowClick(record as EnhancedVariant)
-                        },
-                    }
-                }}
-                showActionsDropdown={false}
-                scroll={{x: "max-content", y: 455}}
-                isLoading={isVariantLoading}
-                variants={variantsNonNull}
-                onRowClick={() => {}}
-                className="ph-no-capture"
-                rowKey={"id"}
-                locale={{
-                    emptyText: (
-                        <NoResultsFound
-                            className="!py-10"
-                            description="No available variants found to display"
-                        />
-                    ),
-                }}
-            />
         </div>
     )
 }

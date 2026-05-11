@@ -1,15 +1,14 @@
-import {ComponentProps, ReactNode, useState} from "react"
+import {ComponentProps, ReactNode, useMemo, useState} from "react"
 
+import {environmentsListQueryAtomFamily} from "@agenta/entities/environment"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {Button, Divider, Drawer} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
-import {createUseStyles} from "react-jss"
 
-import {envRevisionsAtom} from "@/oss/components/DeploymentsDashboard/atoms"
+import {deploymentsDrawerStateAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentDrawerStore"
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import {JSSTheme} from "@/oss/lib/Types"
-import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
+import {currentAppAtom} from "@/oss/state/app"
 
 import UseApiContent from "../../assets/UseApiContent"
 import VariantUseApiContent from "../../assets/VariantUseApiContent"
@@ -20,10 +19,8 @@ import DrawerTitle from "./assets/DrawerTitle"
 
 type DeploymentsDrawerProps = {
     mainContent?: ReactNode
-    // Prefer passing envName to render title efficiently; headerContent kept for backward-compat
     envName?: string
     headerContent?: ReactNode
-    // Optional: pass a revision id to render details lazily
     selectedRevisionId?: string
     expandable?: boolean
     initialWidth?: number
@@ -31,15 +28,6 @@ type DeploymentsDrawerProps = {
     drawerVariantId?: string
     mode?: "deployment" | "variant"
 } & ComponentProps<typeof Drawer>
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    // Title and subtitle styles moved to DrawerTitle/DrawerDetails components
-    drawerContainer: {
-        "& .ant-drawer-body": {
-            padding: 0,
-        },
-    },
-}))
 
 interface DeploymentsDrawerTitleProps extends Pick<
     DeploymentsDrawerProps,
@@ -69,10 +57,10 @@ const DeploymentsDrawerTitle = ({
             {expandable && (
                 <Button
                     onClick={() => {
-                        if (drawerWidth === initialWidth) {
+                        if (drawerWidth === (initialWidth ?? 1200)) {
                             setDrawerWidth(1920)
                         } else {
-                            setDrawerWidth(initialWidth)
+                            setDrawerWidth(initialWidth ?? 1200)
                         }
                     }}
                     type="text"
@@ -99,11 +87,44 @@ const DeploymentsDrawerContent = ({
     drawerVariantId,
     mode = "deployment",
 }: DeploymentsDrawerProps) => {
-    const variants = useAtomValue(revisionListAtom) || []
-    const envRevisions = useAtomValue(envRevisionsAtom)
+    const drawerState = useAtomValue(deploymentsDrawerStateAtom)
+    const envName = drawerState.envName || ""
+
+    // Resolve deployed revision ID from environment entities, scoped to the current app
+    const currentApp = useAtomValue(currentAppAtom)
+    const entityEnvironments = useAtomValue(environmentsListQueryAtomFamily(false))
+    const deployedRevisionId = useMemo(() => {
+        if (!envName) return null
+        const envs = entityEnvironments.data?.environments ?? []
+        const env = envs.find(
+            (e) =>
+                e.name === envName ||
+                e.slug === envName ||
+                e.name?.toLowerCase() === envName.toLowerCase(),
+        )
+        if (!env) return null
+
+        const refs = env.data?.references ?? {}
+        const currentAppId = currentApp?.id
+        const currentAppSlug = currentApp?.name || currentApp?.slug
+
+        // Find the reference entry that belongs to the current app
+        for (const appRef of Object.values(refs)) {
+            const ref = appRef as Record<string, {id?: string; slug?: string; version?: string}>
+            const appEntry = ref?.application
+            if (
+                (currentAppId && appEntry?.id === currentAppId) ||
+                (currentAppSlug && appEntry?.slug === currentAppSlug)
+            ) {
+                return ref?.application_revision?.id ?? null
+            }
+        }
+
+        return null
+    }, [envName, entityEnvironments.data, currentApp?.id, currentApp?.name, currentApp?.slug])
+
     const openSelectDeployVariantModal = useSetAtom(openSelectDeployVariantModalAtom)
-    const handleOpenSelectDeployVariantModal = () =>
-        openSelectDeployVariantModal({variants, envRevisions: envRevisions})
+    const handleOpenSelectDeployVariantModal = () => openSelectDeployVariantModal({envName})
 
     const isVariantMode = mode === "variant"
     const initialVariantRevisionId = drawerVariantId || selectedRevisionId
@@ -113,23 +134,13 @@ const DeploymentsDrawerContent = ({
             return <VariantUseApiContent initialRevisionId={initialVariantRevisionId} />
         }
 
-        if (envRevisions) {
-            return (
-                <UseApiContent
-                    handleOpenSelectDeployVariantModal={handleOpenSelectDeployVariantModal}
-                    variants={variants}
-                    revisionId={drawerVariantId}
-                    selectedEnvironment={envRevisions}
-                />
-            )
-        }
-
         return (
-            <div className="p-4">
-                <div className="animate-pulse h-4 w-48 bg-gray-200 rounded mb-3" />
-                <div className="animate-pulse h-4 w-72 bg-gray-200 rounded mb-2" />
-                <div className="animate-pulse h-4 w-64 bg-gray-200 rounded" />
-            </div>
+            <UseApiContent
+                handleOpenSelectDeployVariantModal={handleOpenSelectDeployVariantModal}
+                revisionId={drawerVariantId}
+                deployedRevisionId={deployedRevisionId}
+                envName={envName}
+            />
         )
     }
 
@@ -156,7 +167,7 @@ const DeploymentsDrawerContent = ({
             </div>
             {drawerVariantId && (
                 <>
-                    <Divider type="vertical" className="h-full m-0" />
+                    <Divider orientation="vertical" className="h-full m-0" />
                     <DrawerDetails revisionId={drawerVariantId} />
                 </>
             )}
@@ -175,7 +186,6 @@ const DeploymentsDrawer = ({
     mode = "deployment",
     ...props
 }: DeploymentsDrawerProps) => {
-    const classes = useStyles()
     const [drawerWidth, setDrawerWidth] = useState(initialWidth)
 
     return (
@@ -183,7 +193,7 @@ const DeploymentsDrawer = ({
             closeIcon={null}
             destroyOnHidden
             width={drawerWidth}
-            className={classes.drawerContainer}
+            className="[&_.ant-drawer-body]:p-0"
             title={
                 <DeploymentsDrawerTitle
                     drawerWidth={drawerWidth}

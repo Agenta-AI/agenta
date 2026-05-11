@@ -27,6 +27,20 @@ export const shippedFeatures: ShippedFeature[] = [
   // Integration: FFA500
   // Security: 000000
   {
+    id: "deployment-webhooks",
+    title: "Webhooks and GitHub Automations for Prompt Deployments",
+    description:
+      "Trigger CI and repository workflows when you deploy a prompt. Send deployment events to your own HTTPS endpoint or call GitHub directly with repository dispatch and workflow dispatch.",
+    changelogPath: "/docs/changelog/deployment-webhooks-and-github-automations",
+    shippedAt: "2026-03-11",
+    labels: [
+      {
+        name: "Integration",
+        color: "FFA500",
+      },
+    ],
+  },
+  {
     id: "tool-integrations",
     title: "Tool Integrations in the Playground",
     description:
@@ -471,6 +485,32 @@ export const inProgressFeatures: PlannedFeature[] = [
       },
     ],
   },
+  {
+    id: "annotation-queues-traces",
+    title: "Annotation Queues for Traces",
+    description:
+      "Annotation queues let you define a set of traces to review, assign them to team members, and track annotation progress — all from within Agenta.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/4009",
+    labels: [
+      {
+        name: "Observability",
+        color: "DE74FF",
+      },
+    ],
+  },
+  {
+    id: "evaluator-playground-updates",
+    title: "Updates to the Evaluator Playground",
+    description:
+      "A richer editing experience for LLM-as-a-Judge and other evaluators, with inline test runs and the ability to evaluate evaluators against a labeled test set to measure agreement with ground truth.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/4011",
+    labels: [
+      {
+        name: "Evaluation",
+        color: "86B7FF",
+      },
+    ],
+  },
 
   {
     id: "agents-from-ui",
@@ -485,22 +525,26 @@ export const inProgressFeatures: PlannedFeature[] = [
       },
     ],
   },
-  {
-    id: "deployment-webhooks",
-    title: "Webhooks for Deployment Linked to CI",
-    description:
-      "Trigger CI/CD pipelines automatically when you deploy a prompt version. Connect Agenta deployments to your existing CI workflows so that deploying a new version kicks off automated tests, approval gates, or release processes.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3706",
-    labels: [
-      {
-        name: "Integration",
-        color: "FFA500",
-      },
-    ],
-  },
 ];
 
 export const plannedFeatures: PlannedFeature[] = [
+  {
+    id: "annotation-queue-label-testsets",
+    title: "Annotation Queue to Label Test Sets",
+    description:
+      "Turn annotated traces into labeled test cases directly from an annotation queue. Export reviewed traces with ground-truth labels as a new or existing test set in one action.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/4010",
+    labels: [
+      {
+        name: "Evaluation",
+        color: "86B7FF",
+      },
+      {
+        name: "Observability",
+        color: "DE74FF",
+      },
+    ],
+  },
   {
     id: "trace-usage-limits",
     title: "Usage Limits for Traces (Hard and Soft Caps)",

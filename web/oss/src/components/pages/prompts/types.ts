@@ -1,7 +1,8 @@
-import {InfiniteTableRowBase} from "@/oss/components/InfiniteVirtualTable"
+import type {InfiniteTableRowBase} from "@agenta/ui/table"
 
-import {FolderTreeItem} from "./assets/utils"
+import type {FolderTreeItem} from "./assets/utils"
 
-export type PromptsTableRow = (FolderTreeItem & InfiniteTableRowBase) & {
-    children?: PromptsTableRow[]
-}
+export type PromptsTableRow = FolderTreeItem &
+    InfiniteTableRowBase & {
+        children?: PromptsTableRow[]
+    }

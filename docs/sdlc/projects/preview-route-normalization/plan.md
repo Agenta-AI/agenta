@@ -23,7 +23,7 @@ Exit criteria:
 
 Scope:
 
-- Update web callers from `/preview/*` to canonical routes for migrated families.
+- Update web callers from `/*` to canonical routes for migrated families.
 - Prioritize highest-usage families first: evaluations, testsets, testcases, evaluators.
 
 Deliverables:
@@ -32,7 +32,7 @@ Deliverables:
 
 Exit criteria:
 
-- Search in `web/` shows zero matches for migrated `/preview/*` prefixes (excluding tests/fixtures where intentionally retained).
+- Search in `web/` shows zero matches for migrated `/*` prefixes (excluding tests/fixtures where intentionally retained).
 
 ## Phase 3 - SDK migration
 
@@ -47,7 +47,7 @@ Deliverables:
 
 Exit criteria:
 
-- Search in `sdk/` shows zero matches for migrated `/preview/*` prefixes.
+- Search in `sdk/` shows zero matches for migrated `/*` prefixes.
 
 ## Phase 4 - Environments decision
 

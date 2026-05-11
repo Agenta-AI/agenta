@@ -5,7 +5,7 @@
  * Uses EntityPicker from @agenta/entity-ui for hierarchical selection.
  *
  * Cascade levels:
- * - App Revision: App -> Variant -> Revision (via EntityPicker)
+ * - Workflow Revision: Workflow -> Variant -> Revision (via EntityPicker)
  * - Evaluator Revision: Evaluator -> Variant -> Revision (via EntityPicker)
  * - Testcase: ID input (testset integration coming)
  * - Span: ID input
@@ -19,7 +19,7 @@
  * import { useEntitySelector } from '@agenta/playground/entity-selector'
  *
  * const { open } = useEntitySelector()
- * const selection = await open({ allowedTypes: ['appRevision', 'evaluatorRevision'] })
+ * const selection = await open({ allowedTypes: ['workflow', 'evaluator'] })
  * ```
  */
 
@@ -36,8 +36,8 @@ import {
 import type {EntitySelectorConfig, EntitySelection, EntityType} from "@agenta/entities/runnable"
 import {
     EntityPicker,
-    type EvaluatorRevisionSelectionResult,
-    type AppRevisionSelectionResult,
+    type EvaluatorSelectionResult,
+    type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui"
 import {entitySelectorController} from "@agenta/playground"
 import {EnhancedModal} from "@agenta/ui/components/modal"
@@ -56,20 +56,20 @@ interface EntitySelectorContextType {
 }
 
 // ============================================================================
-// APP REVISION SELECTOR (Cascading Selects: App -> Variant -> Revision)
-// Uses AppRevisionSelectGroup from @agenta/entity-ui for unified selection
+// WORKFLOW REVISION SELECTOR (Cascading Selects: Workflow -> Variant -> Revision)
+// Uses EntityPicker from @agenta/entity-ui for unified selection
 // ============================================================================
 
-function AppRevisionSelector({onSelect}: {onSelect: (selection: EntitySelection) => void}) {
+function WorkflowRevisionSelector({onSelect}: {onSelect: (selection: EntitySelection) => void}) {
     const handleSelect = useCallback(
-        (selection: AppRevisionSelectionResult) => {
+        (selection: WorkflowRevisionSelectionResult) => {
             onSelect({
-                type: "appRevision",
+                type: "workflow",
                 id: selection.id,
                 label: selection.label,
                 metadata: {
-                    appId: selection.metadata.appId,
-                    appName: selection.metadata.appName,
+                    workflowId: selection.metadata.workflowId,
+                    workflowName: selection.metadata.workflowName,
                     variantId: selection.metadata.variantId,
                     variantName: selection.metadata.variantName,
                 },
@@ -79,31 +79,30 @@ function AppRevisionSelector({onSelect}: {onSelect: (selection: EntitySelection)
     )
 
     return (
-        <EntityPicker<AppRevisionSelectionResult>
+        <EntityPicker<WorkflowRevisionSelectionResult>
             variant="cascading"
-            adapter="appRevision"
+            adapter="workflowRevision"
             onSelect={handleSelect}
-            instanceId="entity-selector-app-revision"
+            instanceId="entity-selector-workflow-revision"
         />
     )
 }
 
 // ============================================================================
-// EVALUATOR REVISION SELECTOR (Evaluator -> Variant -> Revision)
+// EVALUATOR SELECTOR (Flat list)
 // ============================================================================
 
-function EvaluatorRevisionSelector({onSelect}: {onSelect: (selection: EntitySelection) => void}) {
+function EvaluatorSelector({onSelect}: {onSelect: (selection: EntitySelection) => void}) {
     const handleSelect = useCallback(
-        (selection: EvaluatorRevisionSelectionResult) => {
+        (selection: EvaluatorSelectionResult) => {
             onSelect({
-                type: "evaluatorRevision",
+                type: "workflow",
                 id: selection.id,
                 label: selection.label,
                 metadata: {
                     evaluatorId: selection.metadata.evaluatorId,
                     evaluatorName: selection.metadata.evaluatorName,
-                    evaluatorVariantId: selection.metadata.variantId,
-                    evaluatorVariantName: selection.metadata.variantName,
+                    isEvaluator: true,
                 },
             })
         },
@@ -111,19 +110,16 @@ function EvaluatorRevisionSelector({onSelect}: {onSelect: (selection: EntitySele
     )
 
     return (
-        <EntityPicker<EvaluatorRevisionSelectionResult>
+        <EntityPicker<EvaluatorSelectionResult>
             variant="breadcrumb"
-            adapter="evaluatorRevision"
+            adapter="evaluator"
             onSelect={handleSelect}
-            autoSelectSingle
             showSearch
-            showBreadcrumb
-            showBackButton
-            rootLabel="All Evaluators"
+            rootLabel="Evaluators"
             emptyMessage="No evaluators available"
             loadingMessage="Loading evaluators..."
             maxHeight={300}
-            instanceId="entity-selector-evaluator-revision"
+            instanceId="entity-selector-evaluator"
         />
     )
 }
@@ -213,20 +209,30 @@ function SpanSelector({onSelect}: {onSelect: (selection: EntitySelection) => voi
 // MODAL CONTENT
 // ============================================================================
 
-const ALL_ENTITY_TYPES: EntityType[] = [
-    "appRevision",
-    "legacyAppRevision",
-    "evaluatorRevision",
-    "testcase",
-    "span",
-]
+/**
+ * Tab keys for the entity selector UI.
+ * "evaluator" is a UI-only tab that produces workflow-typed selections with isEvaluator metadata.
+ */
+type SelectorTab = EntityType | "evaluator"
 
-const ENTITY_TYPE_LABELS: Record<EntityType, string> = {
-    appRevision: "App Revision",
-    legacyAppRevision: "OSS App Revision",
-    evaluatorRevision: "Evaluator Revision",
+const SELECTOR_TAB_LABELS: Record<SelectorTab, string> = {
+    workflow: "Workflow Revision",
+    evaluator: "Evaluator",
     testcase: "Testcase",
     span: "Span",
+}
+
+/** Map EntityType allowedTypes to selector tabs (workflow includes evaluator tab) */
+function entityTypesToTabs(allowedTypes: EntityType[]): SelectorTab[] {
+    const tabs: SelectorTab[] = []
+    for (const type of allowedTypes) {
+        tabs.push(type)
+        // When workflow is allowed, also show the evaluator tab
+        if (type === "workflow") {
+            tabs.push("evaluator")
+        }
+    }
+    return tabs
 }
 
 function EntitySelectorContent({
@@ -236,20 +242,21 @@ function EntitySelectorContent({
     config: EntitySelectorConfig
     onSelect: (selection: EntitySelection) => void
 }) {
-    const allowedTypes = config.allowedTypes ?? ALL_ENTITY_TYPES
-    const [entityType, setEntityType] = useState<EntityType>(
-        config.defaultType ?? allowedTypes[0] ?? "appRevision",
+    const allowedTypes = config.allowedTypes ?? (["workflow", "testcase", "span"] as EntityType[])
+    const selectorTabs = entityTypesToTabs(allowedTypes)
+    const [activeTab, setActiveTab] = useState<SelectorTab>(
+        config.defaultType ?? selectorTabs[0] ?? "workflow",
     )
 
-    const tabItems = allowedTypes.map((type) => ({
-        key: type,
-        label: ENTITY_TYPE_LABELS[type],
+    const tabItems = selectorTabs.map((tab) => ({
+        key: tab,
+        label: SELECTOR_TAB_LABELS[tab] ?? tab,
         children: (
             <div className="pt-2 min-h-[200px]">
-                {type === "appRevision" && <AppRevisionSelector onSelect={onSelect} />}
-                {type === "evaluatorRevision" && <EvaluatorRevisionSelector onSelect={onSelect} />}
-                {type === "testcase" && <TestcaseSelector onSelect={onSelect} />}
-                {type === "span" && <SpanSelector onSelect={onSelect} />}
+                {tab === "workflow" && <WorkflowRevisionSelector onSelect={onSelect} />}
+                {tab === "evaluator" && <EvaluatorSelector onSelect={onSelect} />}
+                {tab === "testcase" && <TestcaseSelector onSelect={onSelect} />}
+                {tab === "span" && <SpanSelector onSelect={onSelect} />}
             </div>
         ),
     }))
@@ -261,8 +268,8 @@ function EntitySelectorContent({
 
     return (
         <Tabs
-            activeKey={entityType}
-            onChange={(key) => setEntityType(key as EntityType)}
+            activeKey={activeTab}
+            onChange={(key) => setActiveTab(key as SelectorTab)}
             items={tabItems}
         />
     )
@@ -317,8 +324,8 @@ export function EntitySelectorProvider({children}: {children: ReactNode}) {
 
     // Use controller actions - but don't use the return value for Promises
     // (Jotai's useSetAtom doesn't properly forward Promise return values)
-    const setModalOpen = useSetAtom(useMemo(() => entitySelectorController.selectors.isOpen(), []))
-    const setConfig = useSetAtom(useMemo(() => entitySelectorController.selectors.config(), []))
+    const setModalOpen = useSetAtom(entitySelectorController.actions.setOpen)
+    const setConfig = useSetAtom(entitySelectorController.actions.setConfig)
 
     const open = useCallback(
         (config: EntitySelectorConfig = {}): Promise<EntitySelection | null> => {
@@ -375,7 +382,7 @@ export function EntitySelectorProvider({children}: {children: ReactNode}) {
  * const handleConnect = async () => {
  *     const selection = await open({
  *         title: "Connect Input",
- *         allowedTypes: ["appRevision", "testcase"],
+ *         allowedTypes: ["workflow", "testcase"],
  *     })
  *     if (selection) {
  *         // Use the selection

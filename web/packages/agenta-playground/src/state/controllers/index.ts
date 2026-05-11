@@ -4,10 +4,16 @@
  * Re-exports all playground state controllers.
  */
 
-export {playgroundController} from "./playgroundController"
+export {
+    playgroundController,
+    setOnSelectionChangeCallback,
+    getOnSelectionChangeCallback,
+} from "./playgroundController"
+export type {OpenFromTraceResult} from "./playgroundController"
 export {outputConnectionController} from "./outputConnectionController"
 export {entitySelectorController} from "./entitySelectorController"
 export {executionController} from "./executionController"
+export {executionItemController} from "./executionItemController"
 export {
     playgroundSnapshotController,
     applyPendingHydration,
@@ -22,11 +28,13 @@ export {
 export type {
     CreateSnapshotResult,
     HydrateSnapshotResult,
+    HydratedSnapshotEntity,
     SnapshotSelectionInput,
 } from "./playgroundSnapshotController"
 
 export {
     urlSnapshotController,
+    hasPendingHydrationAtomFamily,
     setRunnableTypeResolver,
     getRunnableTypeResolver,
     resetRunnableTypeResolver,

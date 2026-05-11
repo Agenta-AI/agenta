@@ -94,8 +94,8 @@ Source: `/Users/junaway/Agenta/github/agenta/web/tests/README.md` and `playwrigh
 Required environment variables for Web E2E:
 - `TESTMAIL_API_KEY`
 - `TESTMAIL_NAMESPACE`
-- `AGENTA_OSS_OWNER_PASSWORD` (OSS runs only)
-- `AGENTA_OSS_OWNER_EMAIL` (optional for OSS)
+- `AGENTA_TEST_OSS_OWNER_PASSWORD` (OSS runs only)
+- `AGENTA_TEST_OSS_OWNER_EMAIL` (optional for OSS)
 - `AGENTA_API_URL` (used for teardown and API flows)
 
 Notes:

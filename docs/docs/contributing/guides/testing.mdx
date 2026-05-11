@@ -1,0 +1,116 @@
+---
+title: "Testing"
+description: "What to run locally before you open a pull request"
+sidebar_position: 2
+---
+
+Run the checks that match the area you changed. Do not open a pull request without testing the part of the product you touched.
+
+## What To Record In The PR
+
+Your pull request should say:
+
+- what you verified locally
+- what tests you added or updated
+- what still needs QA
+
+## Loading Environment Variables
+
+The test commands below require environment variables. Use the same env file you used to start the stack locally — the one you passed to `docker compose` when deploying.
+
+Add this helper to your `~/.bashrc` or `~/.zshrc`:
+
+```bash
+load-env() {
+    local env_file="${1:-.env}"
+    if [[ ! -f "$env_file" ]]; then
+        echo "Error: File '$env_file' not found."
+        return 1
+    fi
+    set -o allexport && source "$env_file" && set +o allexport
+}
+```
+
+Then source it before running tests:
+
+```bash
+load-env hosting/docker-compose/ee/.env.ee.dev
+```
+
+If you use a different shell, the equivalent one-liner is:
+
+```bash
+export $(grep -v '^#' hosting/docker-compose/ee/.env.ee.dev | xargs)
+```
+
+## API Tests
+
+Install dependencies first (from `api/`):
+
+```bash
+uv sync
+uv pip install --editable ../sdk
+```
+
+Then run the acceptance suite or a smaller target:
+
+```bash
+python -m pytest oss/tests/pytest/ -v
+```
+
+```bash
+python -m pytest oss/tests/pytest/acceptance/workflows/ -v
+```
+
+## SDK Tests
+
+Install dependencies first (from `sdk/`):
+
+```bash
+uv sync
+```
+
+Then run the relevant pytest targets:
+
+```bash
+uv run pytest oss/tests/pytest/ -v
+```
+
+```bash
+uv run pytest oss/tests/pytest/unit/ -v
+```
+
+## Services Tests
+
+Install dependencies first (from `services/`):
+
+```bash
+uv sync
+uv pip install --editable ../sdk
+```
+
+## Web Tests
+
+Install dependencies first (from `web/`):
+
+```bash
+pnpm install
+```
+
+Then from `web/tests/`, run the full acceptance suite:
+
+```bash
+pnpm test:acceptance
+```
+
+Or the smoke suite for a smaller target:
+
+```bash
+pnpm test:smoke
+```
+
+Web tests may need Testmail credentials. Check [web/tests/README.md](https://github.com/Agenta-AI/agenta/blob/main/web/tests/README.md) if you need the full setup.
+
+## More Detail
+
+For the full testing reference, read [docs/designs/testing/README.md](https://github.com/Agenta-AI/agenta/blob/main/docs/designs/testing/README.md). That document covers the full test layout, filters, and runner details across the monorepo.

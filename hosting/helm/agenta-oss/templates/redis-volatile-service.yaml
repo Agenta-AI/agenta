@@ -1,0 +1,19 @@
+{{- if .Values.redisVolatile.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agenta.fullname" . }}-redis-volatile
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-volatile
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.redisVolatile.port }}
+      targetPort: redis
+      protocol: TCP
+      name: redis
+  selector:
+    {{- include "agenta.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-volatile
+{{- end }}

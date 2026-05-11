@@ -1,6 +1,9 @@
-from typing import Optional
+from typing import Any, Dict, Optional
+
+from agenta.sdk.engines.running.utils import retrieve_interface
 
 from oss.src.core.evaluators.dtos import SimpleEvaluatorData
+from oss.src.core.workflows.dtos import JsonSchemas
 
 
 # Evaluator keys that produce both score and success outputs
@@ -24,20 +27,16 @@ def build_evaluator_data(
 ) -> SimpleEvaluatorData:
     """Build complete SimpleEvaluatorData from an evaluator key and settings.
 
-    Computes all required fields (uri, schemas, service, script, etc.)
+    Computes all required fields (uri, schemas, script, etc.)
     based on the evaluator type.
     """
     settings_values = settings_values or {}
 
     uri = f"agenta:builtin:{evaluator_key}:v0"
 
-    url = (
-        settings_values.get("webhook_url", None)
-        if evaluator_key == "auto_webhook_test"
-        else None
-    )
+    url = None
 
-    outputs_schema = None
+    outputs_schema: Optional[dict[str, Any]] = None
 
     if evaluator_key == "auto_ai_critique":
         json_schema = settings_values.get("json_schema", None)
@@ -76,37 +75,23 @@ def build_evaluator_data(
             "additionalProperties": False,
         }
 
-    schemas = {"outputs": outputs_schema}
+    parameters_schema: Optional[Dict[str, Any]] = None
+    interface = retrieve_interface(uri)
+    if interface and interface.schemas:
+        interface_schemas = interface.schemas.model_dump(mode="json", exclude_none=True)
+        parameters_schema = interface_schemas.get("parameters")
 
-    script = (
-        {
-            "content": settings_values.get("code", None),
-            "runtime": "python",
-        }
-        if evaluator_key == "auto_custom_code_run"
-        else None
+    schemas = JsonSchemas(
+        outputs=outputs_schema,
+        parameters=parameters_schema,
     )
 
-    service = {
-        "agenta": "0.1.0",
-        "format": {
-            "type": "object",
-            "$schema": "http://json-schema.org/schema#",
-            "required": ["outputs"],
-            "properties": {
-                "outputs": schemas["outputs"],
-            },
-        },
-    }
-
     return SimpleEvaluatorData(
-        version=_DATA_VERSION,
         uri=uri,
         url=url,
         headers=None,
         schemas=schemas,
-        script=script,
+        script=None,
+        runtime=None,
         parameters=settings_values if settings_values else None,
-        service=service,
-        configuration=settings_values if settings_values else None,
     )

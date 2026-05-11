@@ -131,7 +131,7 @@ import { LoadableEntityPanel } from '@agenta/playground-ui/loadable'
        ↑
 @agenta/ui            ← UI primitives (EnhancedModal, styles)
        ↑
-@agenta/entities      ← Entity state (loadable, runnable bridges)
+@agenta/entities      ← Entity state (loadable bridge, workflow molecule)
        ↑
 @agenta/entity-ui     ← Entity UI (EntityPicker, SchemaPropertyRenderer)
        ↑
@@ -260,7 +260,6 @@ import { useAtomValue, useSetAtom } from 'jotai'
 
 // Read state via selectors
 const nodes = useAtomValue(playgroundController.selectors.nodes())
-const primaryNode = useAtomValue(playgroundController.selectors.primaryNode())
 const connections = useAtomValue(outputConnectionController.selectors.allConnections())
 
 // Write via compound actions (multi-step operations)
@@ -268,15 +267,16 @@ const addPrimaryNode = useSetAtom(playgroundController.actions.addPrimaryNode)
 const disconnectAndReset = useSetAtom(playgroundController.actions.disconnectAndResetToLocal)
 ```
 
-### Bridge-Based Entity Access
+### Entity Data Access
 
-Access entity data via bridges:
+Access entity data via bridges and molecules:
 
 ```typescript
-import { loadableBridge, runnableBridge } from '@agenta/entities'
+import { loadableBridge } from '@agenta/entities'
+import { workflowMolecule } from '@agenta/entities/workflow'
 
 const rows = useAtomValue(loadableBridge.selectors.rows(loadableId))
-const inputPorts = useAtomValue(runnableBridge.selectors.inputPorts(runnableId))
+const inputPorts = useAtomValue(workflowMolecule.selectors.inputPorts(revisionId))
 ```
 
 ### UI-Only Principle
@@ -324,10 +324,9 @@ export const ConfigPanel = memo(function ConfigPanel({ ... }) {
 ```typescript
 // ✅ GOOD: Fine-grained subscriptions
 const nodes = useAtomValue(playgroundController.selectors.nodes())
-const primaryNode = useAtomValue(playgroundController.selectors.primaryNode())
 
 // ❌ BAD: Consolidated object returns cause cascade re-renders
-const { nodes, primaryNode, connections } = usePlaygroundState() // Object ref changes on any update
+const { nodes, connections } = usePlaygroundState() // Object ref changes on any update
 ```
 
 **Rule:** Keep fine-grained atom subscriptions. Never consolidate subscriptions into a single hook that returns an object.
@@ -343,7 +342,7 @@ const { EntityDrillInView, CommitVariantChangesButton } = usePlaygroundUI()
 ## Dependencies
 
 - `@agenta/playground` - State management (controllers, hooks)
-- `@agenta/entities` - Entity state management (runnable, loadable, testset)
+- `@agenta/entities` - Entity state management (workflow molecule, loadable bridge, testset)
 - `@agenta/entity-ui` - Entity-specific UI components
 - `@agenta/ui` - Shared UI components and styling tokens
 - `@agenta/shared` - Shared utilities (formatters, API)

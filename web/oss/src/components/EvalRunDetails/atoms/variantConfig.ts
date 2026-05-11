@@ -1,10 +1,33 @@
+import {fetchWorkflowRevisionById} from "@agenta/entities/workflow"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {fetchVariantConfig, VariantConfigResponse} from "@/oss/services/variantConfigs/api"
-
 import {effectiveProjectIdAtom} from "./run"
 import {evaluationRunQueryAtomFamily} from "./table/run"
+
+/**
+ * Shape returned by the atom — compatible with the legacy `VariantConfigResponse`
+ * so that existing consumers (`InvocationSection`, `ConfigurationView`) keep working.
+ */
+export interface EvaluationVariantConfig {
+    params?: Record<string, any>
+    url?: string | null
+    application_ref?: {
+        id?: string
+        slug?: string
+    }
+    variant_ref?: {
+        id?: string
+        slug?: string
+        version?: number | null
+        name?: string | null
+    }
+    service_ref?: {
+        id?: string
+        slug?: string
+        version?: number | null
+    }
+}
 
 const pickInvocationReference = (runQuery: any) => {
     const runData = runQuery?.data
@@ -25,22 +48,12 @@ const pickInvocationReference = (runQuery: any) => {
     }
 }
 
-const normalizeVariantReference = (refs: Record<string, any> | undefined) => {
-    if (!refs) {
-        return {
-            application: undefined,
-            variant: undefined,
-        }
-    }
-
-    const application =
-        refs.application ||
-        refs.application_ref ||
-        refs.applicationRef ||
-        refs.app ||
-        refs.app_ref ||
-        refs.appRef ||
-        {}
+/**
+ * Extract the revision ID from run invocation references.
+ * The revision ID is used as the primary lookup key for `fetchWorkflowRevisionById`.
+ */
+const extractRevisionId = (refs: Record<string, any> | undefined): string | undefined => {
+    if (!refs) return undefined
 
     const revision =
         refs.applicationRevision ||
@@ -56,62 +69,29 @@ const normalizeVariantReference = (refs: Record<string, any> | undefined) => {
         refs.variant_ref ||
         {}
 
-    const variantId =
+    return (
         revision.id ||
         revision.revisionId ||
         revision.revision_id ||
         variant.id ||
         variant.variantId ||
-        variant.variant_id
-
-    const variantSlug =
-        variant.slug ||
-        variant.variantSlug ||
-        variant.variant_slug ||
-        revision.slug ||
-        revision.revisionSlug ||
-        revision.revision_slug ||
+        variant.variant_id ||
         undefined
-
-    const variantVersion =
-        revision.version ?? revision.revision ?? variant.version ?? variant.revision ?? null
-
-    return {
-        application: {
-            id: application.id,
-            slug: application.slug,
-        },
-        variant: {
-            id: variantId ? String(variantId) : undefined,
-            slug: variantSlug ? String(variantSlug) : undefined,
-            version:
-                typeof variantVersion === "number" || variantVersion === null
-                    ? variantVersion
-                    : typeof variantVersion === "string" && variantVersion.trim() !== ""
-                      ? Number(variantVersion)
-                      : null,
-        },
-    }
+    )
 }
 
 export const evaluationVariantConfigAtomFamily = atomFamily((runId: string | null) =>
-    atomWithQuery<VariantConfigResponse | null>((get) => {
+    atomWithQuery<EvaluationVariantConfig | null>((get) => {
         const projectId = get(effectiveProjectIdAtom)
         const runQuery = runId ? get(evaluationRunQueryAtomFamily(runId)) : undefined
 
         // Wait for the run query to finish loading before determining enabled state.
-        // This prevents a race condition where the query is disabled because refs are
-        // empty during initial load, but doesn't re-enable when data arrives.
         const isRunQueryLoading = runQuery?.isPending || runQuery?.isFetching
 
-        const {refs} = runQuery
-            ? pickInvocationReference(runQuery)
-            : {stepKey: undefined, refs: undefined}
-        const reference = normalizeVariantReference(refs)
+        const refs = runQuery ? pickInvocationReference(runQuery).refs : undefined
+        const revisionId = extractRevisionId(refs)
 
-        const hasVariantRef = Boolean(reference.variant?.id || reference.variant?.slug)
-        // Disable while run query is loading to ensure we wait for the actual data
-        const enabled = Boolean(projectId && runId && hasVariantRef && !isRunQueryLoading)
+        const enabled = Boolean(projectId && runId && revisionId && !isRunQueryLoading)
 
         return {
             queryKey: [
@@ -120,32 +100,42 @@ export const evaluationVariantConfigAtomFamily = atomFamily((runId: string | nul
                 "variant-config",
                 projectId ?? null,
                 runId ?? null,
-                reference.variant?.id ?? null,
-                reference.variant?.slug ?? null,
-                reference.variant?.version ?? null,
+                revisionId ?? null,
             ],
             enabled,
             staleTime: 60_000,
             gcTime: 5 * 60 * 1000,
             refetchOnWindowFocus: false,
             refetchOnReconnect: false,
-            queryFn: async () => {
-                if (!enabled || !projectId) {
+            queryFn: async (): Promise<EvaluationVariantConfig | null> => {
+                if (!enabled || !projectId || !revisionId) {
                     return null
                 }
 
-                return fetchVariantConfig({
-                    projectId,
-                    application: {
-                        id: reference.application?.id,
-                        slug: reference.application?.slug,
-                    },
-                    variant: {
-                        id: reference.variant?.id,
-                        slug: reference.variant?.slug,
-                        version: reference.variant?.version ?? null,
-                    },
-                })
+                try {
+                    const workflow = await fetchWorkflowRevisionById(revisionId, projectId)
+
+                    // Map Workflow → EvaluationVariantConfig (compatible with legacy shape)
+                    return {
+                        params: (workflow.data?.parameters as Record<string, any>) ?? undefined,
+                        url: workflow.data?.url ?? null,
+                        application_ref: {
+                            id: workflow.workflow_id ?? undefined,
+                            slug: workflow.slug ?? undefined,
+                        },
+                        variant_ref: {
+                            id: workflow.id,
+                            slug: workflow.slug ?? undefined,
+                            version: typeof workflow.version === "number" ? workflow.version : null,
+                            name: workflow.name ?? null,
+                        },
+                    }
+                } catch (error: any) {
+                    if (error?.response?.status === 404) {
+                        return null
+                    }
+                    throw error
+                }
             },
         }
     }),

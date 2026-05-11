@@ -1,16 +1,9 @@
 /**
  * Entity Bridge Type Definitions
  *
- * Type definitions for the entity bridge pattern. Bridges provide unified
- * controller interfaces for loadable and runnable entities, enabling consistent
- * access patterns across different entity types.
- *
- * ## Bridge Pattern Overview
- *
- * The bridge pattern separates:
- * - **Pure state atoms**: No entity dependencies, live in store.ts
- * - **Entity bridges**: Connect molecule APIs to unified selectors/actions
- * - **Controller**: Combines state + bridge into a usable API
+ * Type definitions for the loadable bridge pattern and shared entity types.
+ * Bridges provide unified controller interfaces for loadable entities,
+ * enabling consistent access patterns across different data source types.
  *
  * ## Loadable Bridge
  *
@@ -24,20 +17,6 @@
  * })
  *
  * const rows = useAtomValue(loadableBridge.selectors.rows(loadableId))
- * ```
- *
- * ## Runnable Bridge
- *
- * For executables that can be invoked (app revisions, evaluator revisions):
- * ```typescript
- * const runnableBridge = createRunnableBridge({
- *     runnables: {
- *         appRevision: { molecule: appRevisionMolecule, ... },
- *         evaluatorRevision: { molecule: evaluatorRevisionMolecule, ... },
- *     },
- * })
- *
- * const data = useAtomValue(runnableBridge.selectors.data(runnableId))
  * ```
  *
  * @module shared/entityBridge
@@ -57,6 +36,17 @@ export interface BridgeQueryState<T = unknown> {
     isPending: boolean
     isError: boolean
     error: unknown
+}
+
+/**
+ * Opaque writable atom type for pass-through maps where action signatures vary.
+ * Use concrete WritableAtom generics only at invocation sites.
+ */
+export interface OpaqueWritableAtom {
+    read: unknown
+    write: unknown
+    onMount?: unknown
+    debugLabel?: string
 }
 
 /**
@@ -89,8 +79,14 @@ export interface BaseMolecule {
 
     // Nested API (backwards compatible)
     selectors: BaseMoleculeSelectors
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms need flexible types for action registries
-    actions?: Record<string, WritableAtom<any, any[], any>>
+
+    actions: {
+        /** Update entity draft */
+        update: OpaqueWritableAtom
+        /** Discard entity draft */
+        discard: OpaqueWritableAtom
+        [key: string]: OpaqueWritableAtom
+    }
 }
 
 // ============================================================================
@@ -269,7 +265,7 @@ export interface LoadableBridge extends LoadableBridgeSelectors {
 }
 
 // ============================================================================
-// RUNNABLE BRIDGE TYPES
+// STANDALONE ENTITY TYPES
 // ============================================================================
 
 /**
@@ -283,110 +279,8 @@ export interface RunnablePort {
     schema?: unknown
 }
 
-/**
- * Runnable data interface
- */
-export interface RunnableData {
-    id: string
-    name?: string
-    version?: number
-    slug?: string
-    configuration?: Record<string, unknown>
-    invocationUrl?: string
-    schemas?: {
-        inputSchema?: unknown
-        outputSchema?: unknown
-    }
-}
-
-/**
- * Configuration for a runnable type
- */
-export interface RunnableTypeConfig<T = unknown> {
-    /** The molecule to use for this runnable type */
-    molecule: BaseMolecule
-    /** Transform molecule data to runnable format */
-    toRunnable: (entity: T) => RunnableData
-    /** Extract input ports from entity (fallback if inputPortsSelector not provided) */
-    getInputPorts: (entity: T) => RunnablePort[]
-    /** Extract output ports from entity (fallback if outputPortsSelector not provided) */
-    getOutputPorts: (entity: T) => RunnablePort[]
-    /**
-     * Selector atom for input ports (preferred over getInputPorts).
-     * Use this when input ports are derived reactively from entity state.
-     */
-    inputPortsSelector?: (id: string) => Atom<RunnablePort[]>
-    /**
-     * Selector atom for output ports (preferred over getOutputPorts).
-     * Use this when output ports are derived reactively from entity state.
-     */
-    outputPortsSelector?: (id: string) => Atom<RunnablePort[]>
-    /**
-     * Selector atom for invocation URL (preferred over toRunnable.invocationUrl).
-     * Use this when invocation URL is computed from schema/other atoms.
-     */
-    invocationUrlSelector?: (id: string) => Atom<string | null>
-    /** Additional selectors specific to this runnable type */
-    extraSelectors?: Record<string, (id: string) => Atom<unknown>>
-    /** Additional actions specific to this runnable type */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms need flexible types
-    extraActions?: Record<string, WritableAtom<any, any[], any>>
-}
-
-/**
- * Configuration for creating a runnable bridge
- */
-export interface CreateRunnableBridgeConfig {
-    runnables: Record<string, RunnableTypeConfig>
-}
-
-/**
- * Runnable bridge selectors
- */
-export interface RunnableBridgeSelectors {
-    /** Get runnable data by ID */
-    data: (runnableId: string) => Atom<RunnableData | null>
-    /** Get query state */
-    query: (runnableId: string) => Atom<BridgeQueryState<RunnableData>>
-    /** Check if runnable has unsaved changes */
-    isDirty: (runnableId: string) => Atom<boolean>
-    /** Get input ports */
-    inputPorts: (runnableId: string) => Atom<RunnablePort[]>
-    /** Get output ports */
-    outputPorts: (runnableId: string) => Atom<RunnablePort[]>
-    /** Get configuration */
-    configuration: (runnableId: string) => Atom<Record<string, unknown> | null>
-    /** Get invocation URL */
-    invocationUrl: (runnableId: string) => Atom<string | null>
-    /** Get schemas */
-    schemas: (runnableId: string) => Atom<{inputSchema?: unknown; outputSchema?: unknown} | null>
-}
-
-/**
- * Runnable bridge interface
- *
- * Provides both nested API (selectors.*) and flattened API
- * for cleaner imports: `runnable.inputPorts(id)` instead of `runnable.selectors.inputPorts(id)`
- */
-export interface RunnableBridge extends RunnableBridgeSelectors {
-    // Nested API (backwards compatible)
-    selectors: RunnableBridgeSelectors
-
-    /** Get runnable-type-specific controller */
-    runnable: <T extends string>(
-        runnableType: T,
-    ) => {
-        selectors: RunnableBridgeSelectors & Record<string, (id: string) => Atom<unknown>>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms need flexible types
-        actions?: Record<string, WritableAtom<any, any[], any>>
-    }
-
-    /** Alias for configuration (capability interface compatibility) */
-    config: RunnableBridgeSelectors["configuration"]
-}
-
 // ============================================================================
 // EXPORTS
 // ============================================================================
 
-export type {LoadableSourceConfig as SourceConfig, RunnableTypeConfig as RunnableConfig}
+export type {LoadableSourceConfig as SourceConfig}

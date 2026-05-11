@@ -13,6 +13,7 @@ export {
     fetchRevisionsBatch,
     // Testset
     fetchTestsetsList,
+    fetchTestsetsBatch,
     fetchTestsetDetail,
     // Variant
     fetchVariantDetail,
@@ -25,6 +26,7 @@ export {
     updateTestsetMetadata,
     cloneTestset,
     archiveTestsets,
+    unarchiveTestset,
     // Revision mutations
     patchRevision,
     commitRevision,

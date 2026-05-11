@@ -3,6 +3,7 @@ import {useEffect, useCallback, useState} from "react"
 import SuperTokensReact, {SuperTokensWrapper} from "supertokens-auth-react"
 
 import {frontendConfig} from "@/oss/config/frontendConfig"
+import {installTurnstileFetchPatch} from "@/oss/lib/helpers/auth/turnstile"
 
 import {AuthProviderType} from "./types"
 
@@ -10,6 +11,7 @@ const AuthProvider: AuthProviderType = ({children, pageProps}) => {
     const [isInitialized, setIsInitialized] = useState(false)
     useEffect(() => {
         const initSuperTokens = async () => {
+            installTurnstileFetchPatch()
             SuperTokensReact.init(frontendConfig())
             setIsInitialized(true)
         }

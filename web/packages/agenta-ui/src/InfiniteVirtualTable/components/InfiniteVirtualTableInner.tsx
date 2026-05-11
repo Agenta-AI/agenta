@@ -1,5 +1,7 @@
 import {
+    type Key,
     memo,
+    type Ref,
     useCallback,
     useEffect,
     useId,
@@ -10,7 +12,7 @@ import {
 } from "react"
 
 import {Table} from "antd"
-import type {TableProps} from "antd/es/table"
+import type {TableProps, TableRef} from "antd/es/table"
 import {useSetAtom} from "jotai"
 
 import {cn} from "../../utils/styles"
@@ -82,8 +84,9 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     >(new Map())
     const containerSize = useContainerResize(containerRef)
     const [tableHeaderHeight, setTableHeaderHeight] = useState<number | null>(null)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const lastScrollConfigRef = useRef<Record<string, any> | null>(null)
+    const lastScrollConfigRef = useRef<Exclude<TableProps<RecordType>["scroll"], undefined> | null>(
+        null,
+    )
     const visibilityStorageKey = columnVisibility?.storageKey
     const visibilityDefaultHiddenKeys = columnVisibility?.defaultHiddenKeys
     const normalizedDefaultHiddenKeys = useMemo(
@@ -419,12 +422,9 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
             resolvedY = 360
         }
 
-        const {
-            x: _ignoredX,
-            y: _ignoredY,
-            ...restScroll
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } = (resolvedScroll ?? {}) as Record<string, any>
+        const resolvedScrollObject =
+            typeof resolvedScroll === "object" && resolvedScroll !== null ? resolvedScroll : {}
+        const {x: _ignoredX, y: _ignoredY, ...restScroll} = resolvedScrollObject
         const nextConfig = {
             ...restScroll,
             x: resolvedX,
@@ -450,8 +450,11 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     // Without memoization, a new object is created every render, causing infinite loops during scroll
     const scrollContainerDeps = useMemo(
         () => ({
-            scrollX: scrollConfig.x,
-            scrollY: scrollConfig.y,
+            scrollX:
+                typeof scrollConfig.x === "string" || typeof scrollConfig.x === "number"
+                    ? scrollConfig.x
+                    : undefined,
+            scrollY: typeof scrollConfig.y === "number" ? scrollConfig.y : undefined,
             className: resolvedTableProps.className,
         }),
         [scrollConfig.x, scrollConfig.y, resolvedTableProps.className],
@@ -495,6 +498,59 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
         active,
     })
 
+    const selectOnRowClick = rowSelection?.selectOnRowClick ?? false
+
+    const handleSelectionRowClick = useCallback(
+        (record: RecordType, index?: number) => {
+            if (!selectOnRowClick || !rowSelection?.onChange) return
+
+            const checkboxProps = rowSelection.getCheckboxProps?.(record)
+            if (checkboxProps?.disabled) return
+
+            const resolvedKey = (() => {
+                if (typeof rowKey === "function") return rowKey(record, index ?? 0)
+                if (typeof rowKey === "string")
+                    return (record as Record<string, unknown>)[rowKey] as Key
+                return ((record as Record<string, unknown>).key as Key) ?? index ?? 0
+            })()
+
+            const key = resolvedKey as Key
+            const isSelected = rowSelection.selectedRowKeys.includes(key)
+
+            if (rowSelection.type === "radio") {
+                rowSelection.onChange(isSelected ? [] : [key], isSelected ? [] : [record])
+            } else {
+                const nextKeys = isSelected
+                    ? rowSelection.selectedRowKeys.filter((k) => k !== key)
+                    : [...rowSelection.selectedRowKeys, key]
+                const nextRows = isSelected
+                    ? (dataSource ?? []).filter((r) =>
+                          nextKeys.includes(
+                              typeof rowKey === "function"
+                                  ? rowKey(r, 0)
+                                  : typeof rowKey === "string"
+                                    ? ((r as Record<string, unknown>)[rowKey] as Key)
+                                    : (((r as Record<string, unknown>).key as Key) ?? 0),
+                          ),
+                      )
+                    : [
+                          ...(dataSource ?? []).filter((r) => {
+                              const rk =
+                                  typeof rowKey === "function"
+                                      ? rowKey(r, 0)
+                                      : typeof rowKey === "string"
+                                        ? ((r as Record<string, unknown>)[rowKey] as Key)
+                                        : (((r as Record<string, unknown>).key as Key) ?? 0)
+                              return rowSelection.selectedRowKeys.includes(rk)
+                          }),
+                          record,
+                      ]
+                rowSelection.onChange(nextKeys as Key[], nextRows)
+            }
+        },
+        [selectOnRowClick, rowSelection, rowKey, dataSource],
+    )
+
     const mergedOnRow = useCallback(
         (record: RecordType, index?: number) => {
             const baseOnRow = finalTableProps.onRow
@@ -503,28 +559,41 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                 getShortcutRowProps && index !== undefined
                     ? (getShortcutRowProps(record, index) ?? {})
                     : {}
-            if (!shortcutProps || Object.keys(shortcutProps).length === 0) {
-                return baseProps
-            }
-            return {
+
+            const selectionProps = selectOnRowClick
+                ? {
+                      onClick: () => handleSelectionRowClick(record, index),
+                      className: "cursor-pointer",
+                  }
+                : {}
+
+            const allProps = {
                 ...baseProps,
                 ...shortcutProps,
-                className: cn(baseProps?.className, shortcutProps?.className),
+                ...selectionProps,
+                className: cn(
+                    baseProps?.className,
+                    shortcutProps?.className,
+                    selectionProps?.className,
+                ),
                 onMouseEnter: mergeHandlers(baseProps?.onMouseEnter, shortcutProps?.onMouseEnter),
+                onClick: mergeHandlers(baseProps?.onClick, selectionProps?.onClick),
             }
+
+            return allProps
         },
-        [finalTableProps.onRow, getShortcutRowProps],
+        [finalTableProps.onRow, getShortcutRowProps, selectOnRowClick, handleSelectionRowClick],
     )
 
     const tablePropsWithShortcuts = useMemo<TableProps<RecordType>>(() => {
-        if (!getShortcutRowProps) {
+        if (!getShortcutRowProps && !selectOnRowClick) {
             return finalTableProps
         }
         return {
             ...finalTableProps,
             onRow: mergedOnRow,
         }
-    }, [finalTableProps, getShortcutRowProps, mergedOnRow])
+    }, [finalTableProps, getShortcutRowProps, selectOnRowClick, mergedOnRow])
 
     const tableRowSelection = useTableRowSelection(rowSelection)
 
@@ -549,6 +618,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     }, [expandable, expandableConfig])
 
     const columnVisibilityVersion = version
+    const tableComponentRef = tableRef as unknown as Ref<TableRef>
 
     useEffect(() => {
         const key = resolvedScopeId
@@ -584,8 +654,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                     {beforeTable}
                     <div ref={containerRef} className={cn(containerClassName)}>
                         <Table<RecordType>
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            ref={tableRef as React.Ref<any>}
+                            ref={tableComponentRef}
                             className={tableClassName}
                             columns={finalColumns}
                             dataSource={dataSource}

@@ -73,24 +73,35 @@ export type {
 export {testsetAdapter} from "./testsetRelationAdapter"
 export type {TestsetSelectionResult} from "./testsetRelationAdapter"
 
-// App revision adapter (3-level: App → Variant → Revision)
-// Uses atoms and relations from @agenta/entities/appRevision
-export {appRevisionAdapter} from "./appRevisionRelationAdapter"
-export type {AppRevisionSelectionResult} from "./appRevisionRelationAdapter"
+// Evaluator adapter (1-level: flat evaluator list)
+// Used in playground for chaining evaluators as downstream nodes
+export {evaluatorAdapter, setEvaluatorAtoms} from "./evaluatorAdapter"
+export type {EvaluatorSelectionResult} from "./evaluatorAdapter"
 
-// OSS App revision adapter (3-level: App → Variant → Revision)
-// Uses atoms and relations from @agenta/entities/legacyAppRevision (legacy API)
-// Also exports createLegacyAppRevisionAdapter for configurable 2-level mode
+// Workflow revision adapter (3-level: Workflow → Variant → Revision)
+// Uses atoms and relations from @agenta/entities/workflow
+// Configurable via WorkflowQueryFlags for different model types (app, evaluator, etc.)
 export {
-    legacyAppRevisionAdapter,
-    createLegacyAppRevisionAdapter,
-} from "./legacyAppRevisionRelationAdapter"
+    workflowRevisionAdapter,
+    createWorkflowRevisionAdapter,
+} from "./workflowRevisionRelationAdapter"
 export type {
-    LegacyAppRevisionSelectionResult,
-    CreateLegacyAppRevisionAdapterOptions,
-} from "./legacyAppRevisionRelationAdapter"
+    WorkflowRevisionSelectionResult,
+    CreateWorkflowRevisionAdapterOptions,
+} from "./workflowRevisionRelationAdapter"
 
-// Evaluator revision adapter (3-level: Evaluator → Variant → Revision)
-// Uses legacy runtime configuration pattern (no evaluator relations yet)
-export {evaluatorRevisionAdapter, setEvaluatorRevisionAtoms} from "./evaluatorRevisionAdapter"
-export type {EvaluatorRevisionSelectionResult} from "./evaluatorRevisionAdapter"
+// ============================================================================
+// ENRICHED EVALUATOR ADAPTERS
+// ============================================================================
+
+// Label utilities for evaluator workflow items (colored type tags)
+export {renderEvaluatorPickerLabelNode, buildEvaluatorPickerLabelNode} from "./evaluatorLabelUtils"
+
+// Enriched adapter hooks with auto-fetching evaluator template data
+export {
+    useEvaluatorEnrichedData,
+    useEnrichedEvaluatorBrowseAdapter,
+    useEnrichedEvaluatorOnlyAdapter,
+    useEnrichedHumanEvaluatorAdapter,
+    useEnrichedAnnotationEvaluatorAdapter,
+} from "./useEnrichedEvaluatorAdapter"

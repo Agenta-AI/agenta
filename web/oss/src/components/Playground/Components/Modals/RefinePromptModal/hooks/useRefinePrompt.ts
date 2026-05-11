@@ -11,13 +11,13 @@
  * stale closures without re-creating it on every state change.
  */
 
-import {useCallback, useRef} from "react"
+import {useCallback, useMemo, useRef} from "react"
 
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {generateId} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {aiServicesApi} from "@/oss/services/aiServices/api"
-import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {
     originalPromptSnapshotAtomFamily,
@@ -30,8 +30,8 @@ import {
 import type {PromptTemplate, RefinementIteration} from "../types"
 
 interface UseRefinePromptParams {
-    variantId: string
-    promptId: string
+    revisionId: string
+    promptKey: string
 }
 
 interface UseRefinePromptReturn {
@@ -40,36 +40,51 @@ interface UseRefinePromptReturn {
 }
 
 /**
- * Extract a simple PromptTemplate from the enhanced prompt structure.
+ * Extract a simple PromptTemplate from the entity's parameters.prompt object.
+ *
+ * In the new architecture, parameters.prompt contains plain messages:
+ * { messages: [{role: "user", content: "..."}], template_format: "curly", ... }
  */
-function extractPromptTemplate(enhancedPrompt: any): PromptTemplate | null {
-    if (!enhancedPrompt) return null
+function extractPromptTemplate(promptValue: unknown): PromptTemplate | null {
+    if (!promptValue || typeof promptValue !== "object") return null
 
-    const messagesValue = enhancedPrompt?.messages?.value
-    if (!Array.isArray(messagesValue)) return null
+    const prompt = promptValue as Record<string, unknown>
+    const messages = prompt.messages
 
-    const messages = messagesValue.map((msg: any) => {
-        const role = msg?.role?.value || msg?.role || "user"
-        let content = ""
+    if (!Array.isArray(messages) || messages.length === 0) return null
 
-        const contentValue = msg?.content?.value ?? msg?.content
-        if (typeof contentValue === "string") {
-            content = contentValue
-        } else if (Array.isArray(contentValue)) {
-            content = contentValue
-                .map((part: any) => part?.text?.value ?? part?.text ?? "")
-                .filter(Boolean)
-                .join("\n")
-        } else if (contentValue && typeof contentValue === "object") {
-            content = JSON.stringify(contentValue)
-        }
+    const extracted = messages
+        .map((msg: unknown) => {
+            if (!msg || typeof msg !== "object") return null
+            const m = msg as Record<string, unknown>
+            const role = typeof m.role === "string" ? m.role : "user"
+            let content = ""
 
-        return {role, content}
-    })
+            if (typeof m.content === "string") {
+                content = m.content
+            } else if (Array.isArray(m.content)) {
+                content = m.content
+                    .map((part: unknown) => {
+                        if (typeof part === "string") return part
+                        if (part && typeof part === "object") {
+                            return (part as Record<string, unknown>).text ?? ""
+                        }
+                        return ""
+                    })
+                    .filter(Boolean)
+                    .join("\n")
+            } else if (m.content && typeof m.content === "object") {
+                content = JSON.stringify(m.content)
+            }
+
+            return {role, content}
+        })
+        .filter(Boolean) as {role: string; content: string}[]
 
     return {
-        messages,
-        template_format: enhancedPrompt?.template_format?.value || "",
+        ...prompt,
+        messages: extracted,
+        template_format: typeof prompt.template_format === "string" ? prompt.template_format : "",
     }
 }
 
@@ -80,20 +95,23 @@ function extractPromptTemplate(enhancedPrompt: any): PromptTemplate | null {
  * We preserve the original template_format since refinement only changes message content.
  */
 function parseRefineResponse(
-    response: any,
-    originalTemplateFormat: string,
+    response: unknown,
+    originalPrompt: PromptTemplate,
 ): {
     refinedPrompt: PromptTemplate | null
     explanation: string
 } {
-    const structured = response?.structuredContent
-    const explanation = structured?.summary || "Prompt refined successfully."
+    const structured = (response as Record<string, unknown>)?.structuredContent as
+        | Record<string, unknown>
+        | undefined
+    const explanation = (structured?.summary as string) || "Prompt refined successfully."
 
     if (structured?.messages && Array.isArray(structured.messages)) {
         return {
             refinedPrompt: {
-                messages: structured.messages,
-                template_format: originalTemplateFormat,
+                ...originalPrompt,
+                messages: structured.messages as {role: string; content: string}[],
+                template_format: originalPrompt.template_format || "",
             },
             explanation,
         }
@@ -103,32 +121,36 @@ function parseRefineResponse(
 }
 
 export function useRefinePrompt({
-    variantId,
-    promptId,
+    revisionId,
+    promptKey,
 }: UseRefinePromptParams): UseRefinePromptReturn {
-    const enhancedPrompts = useAtomValue(moleculeBackedPromptsAtomFamily(variantId))
+    const configurationAtom = useMemo(
+        () => workflowMolecule.selectors.configuration(revisionId),
+        [revisionId],
+    )
+    const configuration = useAtomValue(configurationAtom)
 
     // Setters (stable references from Jotai)
-    const setOriginalSnapshot = useSetAtom(originalPromptSnapshotAtomFamily(promptId))
-    const setWorkingPrompt = useSetAtom(workingPromptAtomFamily(promptId))
-    const setWorkingPromptVersion = useSetAtom(workingPromptVersionAtomFamily(promptId))
-    const setIterations = useSetAtom(refineIterationsAtomFamily(promptId))
-    const setLoading = useSetAtom(refineLoadingAtomFamily(promptId))
-    const setPendingGuidelines = useSetAtom(pendingGuidelinesAtomFamily(promptId))
+    const setOriginalSnapshot = useSetAtom(originalPromptSnapshotAtomFamily(promptKey))
+    const setWorkingPrompt = useSetAtom(workingPromptAtomFamily(promptKey))
+    const setWorkingPromptVersion = useSetAtom(workingPromptVersionAtomFamily(promptKey))
+    const setIterations = useSetAtom(refineIterationsAtomFamily(promptKey))
+    const setLoading = useSetAtom(refineLoadingAtomFamily(promptKey))
+    const setPendingGuidelines = useSetAtom(pendingGuidelinesAtomFamily(promptKey))
 
-    const isLoading = useAtomValue(refineLoadingAtomFamily(promptId))
+    const isLoading = useAtomValue(refineLoadingAtomFamily(promptKey))
 
     // Use refs for values only read inside callbacks to keep refine stable
     const workingPromptRef = useRef<PromptTemplate | null>(null)
     const originalSnapshotRef = useRef<PromptTemplate | null>(null)
-    const enhancedPromptsRef = useRef(enhancedPrompts)
+    const configurationRef = useRef(configuration)
 
     // Sync refs on each render
-    const workingPrompt = useAtomValue(workingPromptAtomFamily(promptId))
-    const originalSnapshot = useAtomValue(originalPromptSnapshotAtomFamily(promptId))
+    const workingPrompt = useAtomValue(workingPromptAtomFamily(promptKey))
+    const originalSnapshot = useAtomValue(originalPromptSnapshotAtomFamily(promptKey))
     workingPromptRef.current = workingPrompt
     originalSnapshotRef.current = originalSnapshot
-    enhancedPromptsRef.current = enhancedPrompts
+    configurationRef.current = configuration
 
     const refine = useCallback(
         async (guidelines: string) => {
@@ -138,23 +160,14 @@ export function useRefinePrompt({
             setPendingGuidelines(guidelines)
 
             try {
-                // Find the prompt by ID
-                const promptList = Array.isArray(enhancedPromptsRef.current)
-                    ? enhancedPromptsRef.current
-                    : []
-                const enhancedPrompt =
-                    promptList.find((p: any) => p?.__id === promptId) ||
-                    promptList.find((p: any) => p?.__name === promptId) ||
-                    promptList[0]
-
-                if (!enhancedPrompt) {
-                    throw new Error("Prompt not found")
-                }
-
-                // Use working prompt if we have one, else extract from enhanced
+                // Use working prompt if we have one, else extract from entity data
                 let promptToRefine = workingPromptRef.current
                 if (!promptToRefine) {
-                    promptToRefine = extractPromptTemplate(enhancedPrompt)
+                    const currentConfig = configurationRef.current as
+                        | Record<string, unknown>
+                        | undefined
+                    const promptValue = currentConfig?.[promptKey]
+                    promptToRefine = extractPromptTemplate(promptValue)
                 }
 
                 if (!promptToRefine) {
@@ -173,10 +186,7 @@ export function useRefinePrompt({
                     throw new Error(errorText)
                 }
 
-                const {refinedPrompt, explanation} = parseRefineResponse(
-                    response,
-                    promptToRefine.template_format || "",
-                )
+                const {refinedPrompt, explanation} = parseRefineResponse(response, promptToRefine)
 
                 if (!refinedPrompt) {
                     throw new Error("No refined prompt in response")
@@ -213,7 +223,7 @@ export function useRefinePrompt({
             }
         },
         [
-            promptId,
+            promptKey,
             setOriginalSnapshot,
             setWorkingPrompt,
             setWorkingPromptVersion,

@@ -1,0 +1,115 @@
+{{- if .Values.redisDurable.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "agenta.fullname" . }}-redis-durable
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-durable
+spec:
+  serviceName: {{ include "agenta.fullname" . }}-redis-durable
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "agenta.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis-durable
+  template:
+    metadata:
+      labels:
+        {{- include "agenta.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis-durable
+    spec:
+      {{- include "agenta.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- with .Values.redisDurable.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: redis
+          image: {{ .Values.redisDurable.image.repository }}:{{ .Values.redisDurable.image.tag }}
+          imagePullPolicy: {{ .Values.redisDurable.image.pullPolicy }}
+          {{- with .Values.redisDurable.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - sh
+            - -c
+            - >-
+              exec redis-server
+              --appendonly yes
+              --appendfsync no
+              --save ""
+              --maxmemory {{ .Values.redisDurable.maxmemory | quote }}
+              --maxmemory-policy {{ .Values.redisDurable.maxmemoryPolicy }}
+              --port {{ .Values.redisDurable.port | quote }}
+              {{- if .Values.redisDurable.password }}
+              --requirepass "$REDIS_DURABLE_PASSWORD"
+              {{- end }}
+          ports:
+            - name: redis
+              containerPort: {{ .Values.redisDurable.port }}
+              protocol: TCP
+          {{- if .Values.redisDurable.persistence.enabled }}
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+          {{- end }}
+          {{- if .Values.redisDurable.password }}
+          env:
+            - name: REDIS_DURABLE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta.secretName" . }}
+                  key: REDIS_DURABLE_PASSWORD
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta.secretName" . }}
+                  key: REDIS_DURABLE_PASSWORD
+          {{- end }}
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "-p", {{ .Values.redisDurable.port | quote }}, "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "-p", {{ .Values.redisDurable.port | quote }}, "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          {{- with .Values.redisDurable.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.redisDurable.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.redisDurable.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.redisDurable.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if .Values.redisDurable.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.redisDurable.persistence.storageClass }}
+        storageClassName: {{ .Values.redisDurable.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.redisDurable.persistence.size }}
+  {{- end }}
+{{- end }}

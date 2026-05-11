@@ -1,3 +1,4 @@
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from fastapi import APIRouter, Request, status
@@ -22,7 +23,8 @@ if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
 
-from oss.src.core.tracing.streaming import publish_spans
+if TYPE_CHECKING:
+    from oss.src.core.tracing.service import TracingService
 
 
 MAX_OTLP_BATCH_SIZE = env.otlp.max_batch_bytes
@@ -33,7 +35,12 @@ log = get_module_logger(__name__)
 
 
 class OTLPRouter:
-    def __init__(self):
+    def __init__(
+        self,
+        tracing_service: "TracingService",
+    ):
+        self.tracing_service = tracing_service
+
         self.sdk_router = APIRouter()
         self.router = APIRouter()
 
@@ -206,12 +213,12 @@ class OTLPRouter:
                 )
 
         # -------------------------------------------------------------------- #
-        # Write spans to Redis Streams for async processing
+        # Preprocess and publish spans to Redis Streams for async processing
         # Layer 2 Hard Check and database storage deferred to worker
         # -------------------------------------------------------------------- #
         if spans:
             try:
-                await publish_spans(
+                await self.tracing_service.ingest_span_dtos(
                     organization_id=UUID(request.state.organization_id),
                     project_id=UUID(request.state.project_id),
                     user_id=UUID(request.state.user_id),
@@ -219,7 +226,7 @@ class OTLPRouter:
                 )
             except Exception as e:
                 log.error(
-                    f"[OTLP] Failed to write spans to Redis Stream: {e}",
+                    f"[OTLP] Failed to preprocess and queue spans: {e}",
                     exc_info=True,
                 )
                 err_status = ProtoStatus(

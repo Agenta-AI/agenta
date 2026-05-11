@@ -3,12 +3,19 @@
  *
  * Schema-driven numeric input with slider for range selection.
  * Used for temperature, max tokens, top P, penalties, etc.
+ *
+ * Layout: label + InputNumber on one row (justify-between),
+ * Slider below spanning full width.
  */
 
-import {memo} from "react"
+import {memo, useCallback, useEffect, useState} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
-import {LabeledField, SliderInput} from "@agenta/ui/components/presentational"
+import type {SchemaProperty} from "@agenta/entities/shared"
+import {cn, flexLayouts, gapClasses, textColors} from "@agenta/ui/styles"
+import {X} from "@phosphor-icons/react"
+import {Button, InputNumber, Slider, Tooltip, Typography} from "antd"
+
+const {Text} = Typography
 
 export interface NumberSliderControlProps {
     /** The schema property defining constraints (min, max, type) */
@@ -25,10 +32,12 @@ export interface NumberSliderControlProps {
     withTooltip?: boolean
     /** Disable the control */
     disabled?: boolean
+    /** Tooltip text shown when the disabled state needs context */
+    disabledReason?: string
+    /** Allow clearing the current value */
+    allowClear?: boolean
     /** Placeholder text */
     placeholder?: string
-    /** Allow clearing the value */
-    allowClear?: boolean
     /** Additional CSS classes */
     className?: string
     /** Override minimum value */
@@ -80,8 +89,9 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     description,
     withTooltip = true,
     disabled = false,
-    placeholder,
+    disabledReason,
     allowClear = true,
+    placeholder,
     className,
     min: overrideMin,
     max: overrideMax,
@@ -92,28 +102,77 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     const min = overrideMin ?? constraints.min
     const max = overrideMax ?? constraints.max
     const step = overrideStep ?? constraints.step
+    const precision = schema?.type === "integer" ? 0 : undefined
 
     // Get description from schema or prop
-    const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
+    const tooltipText =
+        (disabled && disabledReason
+            ? disabledReason
+            : (description ?? (schema?.description as string | undefined))) ?? ""
 
-    return (
-        <LabeledField
-            label={label}
-            description={tooltipText}
-            withTooltip={withTooltip}
-            direction="horizontal"
-            className={className}
-        >
-            <SliderInput
-                value={value}
-                onChange={onChange}
+    // Local state for immediate UI feedback
+    const [localValue, setLocalValue] = useState<number | null>(value ?? null)
+
+    useEffect(() => {
+        setLocalValue(value ?? null)
+    }, [value])
+
+    const handleValueChange = useCallback(
+        (newValue: number | null | undefined) => {
+            const processed = newValue === undefined ? null : newValue
+            setLocalValue(processed)
+            onChange(processed)
+        },
+        [onChange],
+    )
+
+    const content = (
+        <div className={cn(flexLayouts.column, gapClasses.xs, className)}>
+            <div className={cn(flexLayouts.rowCenter, "justify-between")}>
+                <Text className={cn("font-medium", textColors.primary)}>{label}</Text>
+                <div className={cn(flexLayouts.rowCenter, gapClasses.xs)}>
+                    <InputNumber
+                        min={min}
+                        max={max}
+                        step={step}
+                        precision={precision}
+                        value={localValue}
+                        onChange={handleValueChange}
+                        disabled={disabled}
+                        style={{width: 70}}
+                        placeholder={placeholder}
+                    />
+                    {allowClear && localValue !== null && (
+                        <Button
+                            icon={<X size={14} />}
+                            type="text"
+                            size="small"
+                            onClick={() => handleValueChange(null)}
+                            disabled={disabled}
+                            aria-label={`Reset ${label}`}
+                        />
+                    )}
+                </div>
+            </div>
+            <Slider
                 min={min}
                 max={max}
                 step={step}
+                value={localValue ?? min}
+                onChange={handleValueChange}
                 disabled={disabled}
-                allowClear={allowClear}
-                placeholder={placeholder}
+                className="!my-0"
             />
-        </LabeledField>
+        </div>
     )
+
+    if (withTooltip && tooltipText && label) {
+        return (
+            <Tooltip title={tooltipText} placement="right">
+                {content}
+            </Tooltip>
+        )
+    }
+
+    return content
 })

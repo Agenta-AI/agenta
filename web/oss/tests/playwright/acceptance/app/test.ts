@@ -1,7 +1,40 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {expect} from "@agenta/web-tests/utils"
+import type {Locator} from "@playwright/test"
 
+import {APP_TYPE_LABELS} from "./assets/types"
 import type {AppFixtures, CreateAppResponse} from "./assets/types"
+
+const selectCreatePromptType = async (dialog: Locator, appTypeLabel: string) => {
+    await expect(dialog.getByText("Choose the prompt type", {exact: true})).toBeVisible({
+        timeout: 15000,
+    })
+
+    const appTypeCards = dialog.locator(".ant-card")
+    await expect(appTypeCards.first()).toBeVisible({timeout: 15000})
+
+    const matchingCards = appTypeCards.filter({hasText: new RegExp(appTypeLabel, "i")})
+    await expect.poll(async () => await matchingCards.count(), {timeout: 15000}).toBeGreaterThan(0)
+
+    const appTypeCard = matchingCards.first()
+    await expect(appTypeCard).toBeVisible({timeout: 15000})
+
+    const appTypeRadio = appTypeCard.locator('input[type="radio"]').first()
+    const isSelected = async () => {
+        if ((await appTypeRadio.count().catch(() => 0)) > 0) {
+            return await appTypeRadio.isChecked().catch(() => false)
+        }
+
+        const checkedRadio = appTypeCard.locator(".ant-radio-checked").first()
+        return await checkedRadio.isVisible().catch(() => false)
+    }
+
+    if (!(await isSelected())) {
+        await appTypeCard.click()
+    }
+
+    await expect.poll(isSelected, {timeout: 15000}).toBe(true)
+}
 
 /**
  * App-specific test fixtures extending the base test fixture.
@@ -16,9 +49,10 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
         await use(async () => {
             await page.goto("/apps")
             await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
-            await uiHelpers.expectText("App Management", {
-                role: "heading",
+            const appsHeading = page.getByRole("heading", {
+                name: /Applications|App Management/i,
             })
+            await expect(appsHeading.first()).toBeVisible()
         })
     },
 
@@ -34,12 +68,11 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
      * 3. Validate API response
      * 4. Confirm navigation to playground
      */
-    createNewApp: async ({page, uiHelpers, apiHelpers}, use) => {
+    createNewApp: async ({page, uiHelpers}, use) => {
         await use(async (appName: string, appType) => {
             await uiHelpers.clickButton("Create New Prompt")
 
-            const input = page.getByRole("textbox", {name: "Enter a name"})
-            let dialog = page.getByRole("dialog")
+            let dialog = page.getByRole("dialog").last()
 
             // Wait for dialog with a short timeout
             const isDialogVisible = await dialog.isVisible().catch(() => false)
@@ -47,25 +80,35 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
             // If dialog is not visible, click the button and wait for it
             if (!isDialogVisible) {
                 await uiHelpers.clickButton("Create New Prompt")
-                dialog = page.getByRole("dialog")
+                dialog = page.getByRole("dialog").last()
                 await expect(dialog).toBeVisible()
             }
+            const input = dialog.getByRole("textbox", {name: "Enter a name"})
             await expect(input).toBeVisible()
             const dialogTitle = dialog.getByText("Create New Prompt").first()
             await expect(dialogTitle).toBeVisible()
             await uiHelpers.typeWithDelay('input[placeholder="Enter a name"]', appName)
-            await page.getByText(appType).first().click()
-            await uiHelpers.clickButton("Create New Prompt", dialog)
-            const createAppPromise = apiHelpers.waitForApiResponse<CreateAppResponse>({
-                route: "/variant/from-template",
-                validateStatus: true,
-                responseHandler: (data) => {
-                    expect(data.app_id).toBeTruthy()
-                    expect(data.app_name).toBe(appName)
-                    expect(data.created_at).toBeTruthy()
-                },
+            const appTypeLabel = APP_TYPE_LABELS[appType]
+            await selectCreatePromptType(dialog, appTypeLabel)
+            const createAppPromise = page.waitForResponse((response) => {
+                if (
+                    !response.url().includes("/workflows") ||
+                    response.request().method() !== "POST"
+                ) {
+                    return false
+                }
+
+                const payload = response.request().postData() || ""
+                return payload.includes(appName)
             })
-            const response = await createAppPromise
+            await uiHelpers.clickButton("Create New Prompt", dialog)
+            const createAppResponse = await createAppPromise
+            expect(createAppResponse.ok()).toBe(true)
+
+            const response = (await createAppResponse.json()) as CreateAppResponse
+            expect(response.workflow.id).toBeTruthy()
+            expect(response.workflow.name).toBe(appName)
+            expect(response.workflow.created_at).toBeTruthy()
             await page.waitForURL(/\/apps\/.*\/playground/)
             return response
         })
@@ -83,7 +126,6 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
      */
     verifyAppCreation: async ({uiHelpers}, use) => {
         await use(async (appName: string) => {
-            await uiHelpers.waitForLoadingState("Loading Playground...")
             await uiHelpers.expectText(appName, {
                 multiple: true,
             })

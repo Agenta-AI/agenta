@@ -22,12 +22,11 @@ import {ENTER_KEY_UPDATE_TAG, setEnterKeyTimestamp} from "../highlight/updateTag
 const log = createLogger("BasicEnterCommand", {disabled: true})
 const DEBUG_ENTER_COMMAND_PROFILE = true
 
-/**
- * Line count above which we skip Lexical's built-in scroll-into-view
- * (which forces synchronous getBoundingClientRect on every scrollable
- * ancestor) and handle scroll manually in a rAF instead.
- */
 const LARGE_DOC_SKIP_SCROLL_THRESHOLD = 500
+
+interface BasicEnterCommandOptions {
+    skipScroll?: boolean
+}
 
 declare global {
     interface Window {
@@ -156,7 +155,10 @@ function $getAbsoluteOffsetInLine(
     return absoluteOffset
 }
 
-export function registerBasicEnterCommands(editor: LexicalEditor): () => void {
+export function registerBasicEnterCommands(
+    editor: LexicalEditor,
+    options: BasicEnterCommandOptions = {},
+): () => void {
     return editor.registerCommand(
         KEY_DOWN_COMMAND,
         (event: KeyboardEvent) => {
@@ -205,11 +207,8 @@ export function registerBasicEnterCommands(editor: LexicalEditor): () => void {
             $addUpdateTag(ENTER_KEY_UPDATE_TAG)
             setEnterKeyTimestamp(enterStartedAtMs)
 
-            // For large documents, skip Lexical's built-in scroll-into-view.
-            // It calls getBoundingClientRect() on the cursor target + every
-            // scrollable ancestor, forcing synchronous layout on a huge DOM.
-            // We handle scroll manually in a rAF after reconciliation instead.
-            const skipScroll = blockLineCount >= LARGE_DOC_SKIP_SCROLL_THRESHOLD
+            const skipScroll =
+                options.skipScroll || blockLineCount >= LARGE_DOC_SKIP_SCROLL_THRESHOLD
             if (skipScroll) {
                 $addUpdateTag(SKIP_SCROLL_INTO_VIEW_TAG)
             }

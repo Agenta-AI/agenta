@@ -17,13 +17,13 @@ import {MoleculeDrillInFieldItem} from "./MoleculeDrillInFieldItem"
 // ============================================================================
 
 export function MoleculeDrillInFieldList() {
-    const {entity, currentPath, classNames, styles, slots} = useDrillIn()
+    const {rootData, currentPath, classNames, styles, slots} = useDrillIn()
 
-    // Get items at current path
+    // Get items at current path (uses rootData, not full entity)
     const items = useMemo((): PathItem[] => {
-        if (!entity) return []
-        return getItemsAtPath(entity, currentPath)
-    }, [entity, currentPath])
+        if (!rootData) return []
+        return getItemsAtPath(rootData, currentPath)
+    }, [rootData, currentPath])
 
     // Render empty state if no items
     if (items.length === 0) {

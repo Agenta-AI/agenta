@@ -8,7 +8,7 @@ def mock_data(authed_api):
     # ARRANGE ------------------------------------------------------------------
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/evaluations/runs/",
         json={"runs": [{}, {}]},
     )
     assert response.status_code == 200
@@ -29,7 +29,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/metrics/",
+        "/evaluations/metrics/",
         json={
             "metrics": [
                 {
@@ -55,7 +55,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/metrics/",
+        "/evaluations/metrics/",
         json={
             "metrics": [
                 {
@@ -98,7 +98,7 @@ class TestEvaluationMetricsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/evaluations/metrics/query",
             json={
                 "metrics": {
                     "ids": metrics_ids,
@@ -124,7 +124,7 @@ class TestEvaluationMetricsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/evaluations/metrics/query",
             json={
                 "metrics": {
                     "run_ids": run_ids,
@@ -156,7 +156,7 @@ class TestEvaluationMetricsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/evaluations/metrics/query",
             json={
                 "metrics": {
                     "run_ids": run_ids,
@@ -187,7 +187,7 @@ class TestEvaluationMetricsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/evaluations/metrics/query",
             json={
                 "metrics": {
                     "run_ids": run_ids,
@@ -214,7 +214,7 @@ class TestEvaluationMetricsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/evaluations/metrics/query",
             json={
                 "metrics": {
                     "run_id": run_id,
@@ -242,7 +242,7 @@ class TestEvaluationMetricsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/evaluations/metrics/query",
             json={
                 "metrics": {
                     "run_ids": run_ids,
@@ -273,7 +273,7 @@ class TestEvaluationMetricsQueries:
         }
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/",
+            "/evaluations/metrics/",
             json={"metrics": [temporal_metric]},
         )
         assert response.status_code == 200
@@ -283,7 +283,7 @@ class TestEvaluationMetricsQueries:
         # timestamps: False => metrics WHERE timestamp IS NULL (run-level)
         run_level_response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/evaluations/metrics/query",
             json={
                 "metrics": {
                     "run_id": run_id,
@@ -294,7 +294,7 @@ class TestEvaluationMetricsQueries:
         # timestamps: True => metrics WHERE timestamp IS NOT NULL (temporal)
         temporal_response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/evaluations/metrics/query",
             json={
                 "metrics": {
                     "run_id": run_id,

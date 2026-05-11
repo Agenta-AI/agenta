@@ -7,7 +7,7 @@
 
 import {memo, useCallback, useEffect, useState} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {Input, Typography} from "antd"
@@ -114,7 +114,6 @@ export const TextInputControl = memo(function TextInputControl({
             maxLength={maxLength}
             rows={rows}
             className="resize-y"
-            size="small"
         />
     ) : (
         <Input
@@ -123,7 +122,6 @@ export const TextInputControl = memo(function TextInputControl({
             disabled={disabled}
             placeholder={placeholder}
             maxLength={maxLength}
-            size="small"
         />
     )
 
@@ -132,6 +130,7 @@ export const TextInputControl = memo(function TextInputControl({
             label={label}
             description={tooltipText}
             withTooltip={withTooltip && !!label}
+            direction="vertical"
             className={cn(className)}
         >
             {inputContent}

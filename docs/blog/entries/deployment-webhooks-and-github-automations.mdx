@@ -1,0 +1,49 @@
+---
+title: "Webhooks and GitHub Automations for Prompt Deployments"
+slug: deployment-webhooks-and-github-automations
+date: 2026-03-11
+tags: [v0.94.0]
+description: "Trigger webhooks and GitHub Actions when you deploy a prompt. Use repository dispatch, workflow dispatch, or a custom HTTPS endpoint."
+---
+
+## The Problem
+
+Deploying a prompt often needs follow-up work outside Agenta. You may want to sync prompt files into a repository, trigger CI, open a pull request, or notify an internal platform. Before this change, that required custom glue code.
+
+## The Solution
+
+You can now trigger webhooks and GitHub automations directly from Agenta when a deployment event happens. Point Agenta at your own HTTPS endpoint, or send the event straight to GitHub with `repository_dispatch` or `workflow_dispatch`.
+
+This gives you a simple way to connect prompt deployments to the rest of your delivery flow. You can keep prompt changes, infrastructure checks, and repository updates in sync without building a separate integration service.
+
+## What You Can Do
+
+- Send deployment events to any HTTPS endpoint
+- Verify deliveries with HMAC signatures or use a bearer token
+- Trigger GitHub `repository_dispatch` with a structured event payload
+- Trigger GitHub `workflow_dispatch` for one known workflow on a branch
+- Fetch the latest prompt in GitHub Actions and open a pull request automatically
+
+## How It Works
+
+Create an automation in your project settings and subscribe it to deployment events. When a prompt revision is committed to an environment, Agenta sends an HTTP `POST` to your target.
+
+For generic webhooks, Agenta sends the event payload plus delivery headers such as `X-Agenta-Event-Type`, `X-Agenta-Delivery-Id`, and `Idempotency-Key`. In signature mode, Agenta also signs the raw request body with HMAC-SHA256.
+
+For GitHub automations, Agenta calls the GitHub API directly. `repository_dispatch` sends a richer JSON payload that includes event metadata and references. `workflow_dispatch` sends a smaller set of string inputs for a specific workflow file and branch.
+
+## Typical Use Cases
+
+- Sync the latest deployed prompt into a repository
+- Open a pull request for prompt changes after each deployment
+- Trigger validation or approval workflows in GitHub Actions
+- Notify internal tools when a production prompt changes
+- Mirror deployment metadata into another system for auditing
+
+## Getting Started
+
+Start with these guides:
+
+- [Webhooks](/prompt-engineering/integrating-prompts/webhooks)
+- [GitHub](/prompt-engineering/integrating-prompts/github)
+- [Fetch Prompts via SDK/API](/prompt-engineering/integrating-prompts/fetch-prompt-programatically)

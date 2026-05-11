@@ -6,26 +6,21 @@
  *
  * ## Migration Note
  *
- * The testset and appRevision adapters now use relation-based atoms directly
- * from @agenta/entities. They no longer require runtime configuration.
- * Just call initializeSelectionSystem() to register them.
+ * The testset adapter now uses relation-based atoms directly
+ * from @agenta/entities. It no longer requires runtime configuration.
+ * Just call initializeSelectionSystem() to register it.
  *
  * @example Simple initialization (recommended)
  * ```typescript
  * import { initializeSelectionSystem } from '@agenta/entity-ui/selection'
  *
- * // Testset and appRevision adapters are auto-configured from entities package
+ * // Testset adapter is auto-configured from entities package
  * initializeSelectionSystem({
  *   user: {
  *     membersAtom: workspaceMembersAtom,
  *     currentUserAtom: userAtom,
  *   },
  *   // Only evaluator needs runtime config (no evaluator relations yet)
- *   evaluatorRevision: {
- *     evaluatorsAtom: evaluatorRevision.selectors.evaluators,
- *     variantsByEvaluatorFamily: evaluatorRevision.selectors.variantsByEvaluator,
- *     revisionsByVariantFamily: evaluatorRevision.selectors.revisions,
- *   },
  * })
  * ```
  */
@@ -34,40 +29,29 @@ import {setUserAtoms, type UserAtomConfig} from "@agenta/entities/shared"
 import type {Atom} from "jotai"
 
 import {registerSelectionAdapter} from "./adapters"
-// New relation-based adapters (auto-configured from @agenta/entities)
-import {appRevisionAdapter} from "./adapters/appRevisionRelationAdapter"
-// Legacy adapter (still needs runtime configuration)
-import {
-    evaluatorRevisionAdapter,
-    setEvaluatorRevisionAtoms,
-} from "./adapters/evaluatorRevisionAdapter"
+// 1-level evaluator adapter (flat list, runtime configuration)
+import {evaluatorAdapter, setEvaluatorAtoms} from "./adapters/evaluatorAdapter"
 import {testsetAdapter} from "./adapters/testsetRelationAdapter"
+import {workflowRevisionAdapter} from "./adapters/workflowRevisionRelationAdapter"
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 /**
- * Configuration for evaluator revision selection adapter
- *
- * Note: This is the only adapter that still requires runtime configuration.
- * Testset and appRevision adapters use relation-based atoms directly.
+ * Configuration for evaluator selection adapter (1-level flat list)
  */
-export interface EvaluatorRevisionSelectionConfig {
+export interface EvaluatorSelectionConfig {
     /**
      * Atom that provides the list of evaluators.
      */
     evaluatorsAtom: Atom<unknown[]>
 
     /**
-     * Factory function that returns an atom for variants given an evaluator ID.
+     * Optional query atom for reflecting loading/error state.
+     * Should expose `isPending` and `isError` from the underlying tanstack query.
      */
-    variantsByEvaluatorFamily: (evaluatorId: string) => Atom<unknown[]>
-
-    /**
-     * Factory function that returns an atom for revisions given a variant ID.
-     */
-    revisionsByVariantFamily: (variantId: string) => Atom<unknown[]>
+    evaluatorsQueryAtom?: Atom<{isPending?: boolean; isError?: boolean; error?: unknown}>
 }
 
 /**
@@ -81,10 +65,10 @@ export interface SelectionSystemConfig {
     user?: UserAtomConfig
 
     /**
-     * Evaluator revision selection adapter configuration.
-     * Required if using the evaluator adapter.
+     * Evaluator selection adapter configuration (1-level flat list).
+     * Used in playground for chaining evaluators as downstream nodes.
      */
-    evaluatorRevision?: EvaluatorRevisionSelectionConfig
+    evaluator?: EvaluatorSelectionConfig
 }
 
 // ============================================================================
@@ -101,8 +85,8 @@ let initialized = false
  * Initialize the entity selection system.
  *
  * This function registers all selection adapters for use with selection components.
- * Testset and appRevision adapters are auto-configured from @agenta/entities.
- * Only evaluator requires runtime configuration.
+ * Testset adapter is auto-configured from @agenta/entities.
+ * Evaluator requires runtime configuration.
  *
  * Safe to call multiple times - subsequent calls are no-ops.
  *
@@ -120,13 +104,13 @@ export function initializeSelectionSystem(config: SelectionSystemConfig = {}): v
     // Register testset adapter (auto-configured from @agenta/entities/testset)
     registerSelectionAdapter(testsetAdapter)
 
-    // Register app revision adapter (auto-configured from @agenta/entities/appRevision)
-    registerSelectionAdapter(appRevisionAdapter)
+    // Register workflow revision adapter (auto-configured from @agenta/entities/workflow)
+    registerSelectionAdapter(workflowRevisionAdapter)
 
-    // Configure and register evaluator revision adapter (if provided)
-    if (config.evaluatorRevision) {
-        setEvaluatorRevisionAtoms(config.evaluatorRevision)
-        registerSelectionAdapter(evaluatorRevisionAdapter)
+    // Configure and register evaluator adapter (1-level flat list, if provided)
+    if (config.evaluator) {
+        setEvaluatorAtoms(config.evaluator)
+        registerSelectionAdapter(evaluatorAdapter)
     }
 }
 

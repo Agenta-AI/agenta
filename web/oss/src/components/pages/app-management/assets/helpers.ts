@@ -1,18 +1,13 @@
-import {isDemo} from "@/oss/lib/helpers/utils"
-import type {Template} from "@/oss/lib/Types"
-import {ServiceType} from "@/oss/services/app-selector/api"
+import type {WorkflowCatalogTemplate} from "@agenta/entities/workflow"
 
-export const getTemplateKey = (template: Template) => {
-    switch (template.image.title) {
-        case "Completion Prompt":
-            return ServiceType.Completion
-        case "Chat Prompt":
-            return ServiceType.Chat
-        case "Custom Workflow":
-            return ServiceType.Custom
-        default:
-            return undefined
-    }
+import {isDemo} from "@/oss/lib/helpers/utils"
+
+/**
+ * Get the template key from a workflow catalog template.
+ * The catalog template already has the key directly — no image.title mapping needed.
+ */
+export const getTemplateKey = (template: WorkflowCatalogTemplate): string | undefined => {
+    return template.key
 }
 
 export const timeout = isDemo() ? 60000 : 30000

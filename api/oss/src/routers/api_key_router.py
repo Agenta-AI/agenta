@@ -14,8 +14,13 @@ if is_ee():
 router = APIRouter()
 
 
-@router.get("/", operation_id="list_api_keys")
-async def list_api_keys(request: Request) -> List[ListAPIKeysResponse]:
+@router.get(
+    "/keys/",
+    operation_id="list_api_keys",
+)
+async def list_api_keys(
+    request: Request,
+) -> List[ListAPIKeysResponse]:
     """
     List all API keys associated with the authenticated user.
 
@@ -56,8 +61,14 @@ async def list_api_keys(request: Request) -> List[ListAPIKeysResponse]:
     ]
 
 
-@router.post("/", response_model=str, operation_id="create_api_key")
-async def create_api_key(request: Request):
+@router.post(
+    "/keys/",
+    operation_id="create_api_key",
+    response_model=str,
+)
+async def create_api_key(
+    request: Request,
+):
     """
     Creates an API key for a user.
 
@@ -90,10 +101,14 @@ async def create_api_key(request: Request):
     return api_key
 
 
-@router.delete("/{key_prefix}/", response_model=dict, operation_id="delete_api_key")
+@router.delete(
+    "/keys/{key_prefix}",
+    operation_id="delete_api_key",
+    response_model=dict,
+)
 async def delete_api_key(
-    key_prefix: str,
     request: Request,
+    key_prefix: str,
 ):
     """
     Delete an API key with the given key prefix for the authenticated user.

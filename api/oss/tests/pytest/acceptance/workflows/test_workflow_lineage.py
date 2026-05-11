@@ -15,7 +15,7 @@ def mock_data(authed_api):
         "flags": {
             "is_custom": False,
             "is_evaluator": False,
-            "is_human": False,
+            "is_feedback": False,
         },
         "tags": {
             "tag1": "value1",
@@ -31,7 +31,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/",
+        "/workflows/",
         json={"workflow": workflow},
     )
 
@@ -45,7 +45,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"workflow-variant-{workflow_variant_slug}",
@@ -54,7 +54,7 @@ def mock_data(authed_api):
                 "flags": {
                     "is_custom": False,
                     "is_evaluator": False,
-                    "is_human": False,
+                    "is_feedback": False,
                 },
                 "tags": {
                     "tag1": "value1",
@@ -81,7 +81,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/workflows/revisions/",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_revision_slug}-first",
@@ -90,7 +90,7 @@ def mock_data(authed_api):
                 "flags": {
                     "is_custom": False,
                     "is_evaluator": False,
-                    "is_human": False,
+                    "is_feedback": False,
                 },
                 "tags": {
                     "tag1": "value1",
@@ -114,7 +114,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/workflows/revisions/",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_revision_slug}-second",
@@ -123,7 +123,7 @@ def mock_data(authed_api):
                 "flags": {
                     "is_custom": False,
                     "is_evaluator": False,
-                    "is_human": False,
+                    "is_feedback": False,
                 },
                 "tags": {
                     "tag1": "value1",
@@ -147,7 +147,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/workflows/revisions/",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_revision_slug}-third",
@@ -156,7 +156,7 @@ def mock_data(authed_api):
                 "flags": {
                     "is_custom": False,
                     "is_evaluator": False,
-                    "is_human": False,
+                    "is_feedback": False,
                 },
                 "tags": {
                     "tag1": "value1",
@@ -178,7 +178,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/query",
+        "/workflows/revisions/query",
         json={
             "workflow_revision": {
                 "workflow_variant_id": workflow_variant_id,
@@ -207,7 +207,7 @@ class TestWorkflowRevisionsLineage:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/log",
+            "/workflows/revisions/log",
             json={
                 "workflow": {
                     "workflow_variant_id": workflow_variant["id"],
@@ -228,7 +228,7 @@ class TestWorkflowRevisionsLineage:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/log",
+            "/workflows/revisions/log",
             json={
                 "workflow": {
                     "workflow_variant_id": workflow_variant["id"],
@@ -252,7 +252,7 @@ class TestWorkflowRevisionsLineage:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/log",
+            "/workflows/revisions/log",
             json={
                 "workflow": {
                     "workflow_revision_id": workflow_revision["id"],
@@ -274,7 +274,7 @@ class TestWorkflowRevisionsLineage:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/log",
+            "/workflows/revisions/log",
             json={
                 "workflow": {
                     "workflow_revision_id": workflow_revision["id"],
@@ -299,7 +299,7 @@ class TestWorkflowRevisionsLineage:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/fork",
+            "/workflows/variants/fork",
             json={
                 "workflow": {
                     "workflow_variant_id": workflow_variant_id,
@@ -311,7 +311,7 @@ class TestWorkflowRevisionsLineage:
                         "flags": {
                             "is_custom": False,
                             "is_evaluator": False,
-                            "is_human": False,
+                            "is_feedback": False,
                         },
                         "tags": {
                             "tag1": "value1",
@@ -331,7 +331,7 @@ class TestWorkflowRevisionsLineage:
                         "flags": {
                             "is_custom": False,
                             "is_evaluator": False,
-                            "is_human": False,
+                            "is_feedback": False,
                         },
                         "tags": {
                             "tag1": "value1",
@@ -358,7 +358,7 @@ class TestWorkflowRevisionsLineage:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/log",
+            "/workflows/revisions/log",
             json={
                 "workflow": {
                     "workflow_variant_id": workflow_variant["id"],
@@ -380,7 +380,7 @@ class TestWorkflowRevisionsLineage:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/fork",
+            "/workflows/variants/fork",
             json={
                 "workflow": {
                     "workflow_variant_id": workflow_variant_id,
@@ -392,7 +392,7 @@ class TestWorkflowRevisionsLineage:
                         "flags": {
                             "is_custom": False,
                             "is_evaluator": False,
-                            "is_human": False,
+                            "is_feedback": False,
                         },
                         "tags": {
                             "tag1": "value1",
@@ -412,7 +412,7 @@ class TestWorkflowRevisionsLineage:
                         "flags": {
                             "is_custom": False,
                             "is_evaluator": False,
-                            "is_human": False,
+                            "is_feedback": False,
                         },
                         "tags": {
                             "tag1": "value1",
@@ -439,7 +439,7 @@ class TestWorkflowRevisionsLineage:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/log",
+            "/workflows/revisions/log",
             json={
                 "workflow": {
                     "workflow_variant_id": workflow_variant["id"],
@@ -450,4 +450,124 @@ class TestWorkflowRevisionsLineage:
         assert response.status_code == 200
         response_data = response.json()
         assert response_data["count"] == 2
+        # ----------------------------------------------------------------------
+
+    def test_fork_workflow_variant_without_revision(self, authed_api, mock_data):
+        # Forking a variant without supplying a new tip revision should succeed
+        # and copy the source revisions without appending a new commit.
+        # ACT ------------------------------------------------------------------
+        workflow_variant_id = mock_data["workflow_variants"][0]["id"]
+
+        workflow_variant_slug = uuid4()
+
+        response = authed_api(
+            "POST",
+            "/workflows/variants/fork",
+            json={
+                "workflow": {
+                    "workflow_variant_id": workflow_variant_id,
+                    "workflow_variant": {
+                        "slug": f"workflow-variant-{workflow_variant_slug}-norev-fork",
+                        "name": f"Workflow Variant {workflow_variant_slug}",
+                    },
+                }
+            },
+        )
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        assert response.status_code == 200
+        response_data = response.json()
+        assert response_data["count"] == 1
+
+        workflow_variant = response_data["workflow_variant"]
+
+        response = authed_api(
+            "POST",
+            "/workflows/revisions/log",
+            json={
+                "workflow": {
+                    "workflow_variant_id": workflow_variant["id"],
+                },
+            },
+        )
+
+        assert response.status_code == 200
+        response_data = response.json()
+        # 3 copied from source, no extra tip commit appended
+        assert response_data["count"] == 3
+        # ----------------------------------------------------------------------
+
+    def test_fork_workflow_variant_missing_variant_payload(self, authed_api, mock_data):
+        # Forking without a 'workflow_variant' block must return a structured 400,
+        # not HTTP 200 with count=0.
+        # ACT ------------------------------------------------------------------
+        workflow_variant_id = mock_data["workflow_variants"][0]["id"]
+
+        response = authed_api(
+            "POST",
+            "/workflows/variants/fork",
+            json={
+                "workflow": {
+                    "workflow_variant_id": workflow_variant_id,
+                }
+            },
+        )
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        assert response.status_code == 400
+        assert "variant" in response.json()["detail"].lower()
+        # ----------------------------------------------------------------------
+
+    def test_fork_workflow_variant_missing_source_ref(self, authed_api, mock_data):
+        # Forking without any source reference must return 400.
+        # ACT ------------------------------------------------------------------
+        workflow_variant_slug = uuid4()
+
+        response = authed_api(
+            "POST",
+            "/workflows/variants/fork",
+            json={
+                "workflow": {
+                    "workflow_variant": {
+                        "slug": f"workflow-variant-{workflow_variant_slug}-nosrc-fork",
+                        "name": f"Workflow Variant {workflow_variant_slug}",
+                    },
+                }
+            },
+        )
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        assert response.status_code == 400
+        detail = response.json()["detail"].lower()
+        assert "variant_id" in detail or "revision_id" in detail
+        # ----------------------------------------------------------------------
+
+    def test_fork_workflow_variant_unknown_source(self, authed_api, mock_data):
+        # Forking from a variant_id that does not resolve must return 400.
+        # ACT ------------------------------------------------------------------
+        bogus_variant_id = str(uuid4())
+
+        workflow_variant_slug = uuid4()
+
+        response = authed_api(
+            "POST",
+            "/workflows/variants/fork",
+            json={
+                "workflow": {
+                    "workflow_variant_id": bogus_variant_id,
+                    "workflow_variant": {
+                        "slug": f"workflow-variant-{workflow_variant_slug}-bogus-fork",
+                        "name": f"Workflow Variant {workflow_variant_slug}",
+                    },
+                }
+            },
+        )
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        assert response.status_code == 400
+        assert "revision" in response.json()["detail"].lower()
         # ----------------------------------------------------------------------

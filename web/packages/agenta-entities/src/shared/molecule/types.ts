@@ -4,11 +4,11 @@
  * Core type definitions for the entity molecule pattern.
  */
 
-import type {Atom, WritableAtom} from "jotai"
+import type {Atom, SetStateAction, WritableAtom} from "jotai"
 import type {createStore} from "jotai/vanilla"
 
-// Import bridge types for capability interfaces
-import type {RunnablePort, LoadableRow, LoadableColumn} from "../entityBridge"
+import type {LoadableColumn, LoadableRow, OpaqueWritableAtom, RunnablePort} from "../entityBridge"
+import type {UserInfo} from "../user/atoms"
 
 // ============================================================================
 // STORE TYPES
@@ -361,8 +361,7 @@ export interface LifecycleConfig {
  */
 
 export interface FlexibleWritableAtomFamily<T, P = string> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai atoms have specific args types that can't be unified with unknown[]
-    (param: P): WritableAtom<T, any[], void>
+    (param: P): WritableAtom<T, [SetStateAction<T>], void>
     /** Remove atom for a specific parameter */
     remove: (param: P) => void
     /** Set auto-cleanup policy */
@@ -704,6 +703,8 @@ export interface RelationSelectionConfig {
     icon?: unknown
     /** How to display an entity in the list */
     displayName?: (entity: unknown) => string
+    /** How to display a subtitle / description for an entity in the list */
+    displayDescription?: (entity: unknown) => string | undefined
     /** Auto-select if only one item */
     autoSelectSingle?: boolean
     /** Auto-select the latest (most recent) item */
@@ -1113,6 +1114,252 @@ export type RunnableLoadableEntity<T, TDraft = Partial<T>> = EntityController<T,
     LoadableCapability
 
 // ============================================================================
+// ENTITY META CAPABILITY
+// ============================================================================
+
+/**
+ * Resolved user information from the user resolution system.
+ * Re-exported from shared/user for convenience in capability consumers.
+ */
+export type {UserInfo} from "../user/atoms"
+
+/**
+ * Configuration for mapping entity fields to standard meta accessors.
+ *
+ * Each entity type may store common concepts (creator, creation date, name)
+ * under different field names. This config tells `withEntityMeta` where to
+ * find each concept in the entity's data shape.
+ *
+ * All fields are optional — omit a mapping to use the default, or set it
+ * to `null` to indicate the entity doesn't have that concept at all.
+ *
+ * @example
+ * ```typescript
+ * // Workflow: all defaults (created_by_id, created_at, name, etc.)
+ * const workflowMeta = withEntityMeta(workflowMolecule)
+ *
+ * // Testset Revision: "author" field holds the creator ID
+ * const revisionMeta = withEntityMeta(revisionMolecule, {
+ *     createdById: "author",
+ * })
+ *
+ * // Trace: non-standard field names
+ * const traceMeta = withEntityMeta(traceSpanMolecule, {
+ *     createdAt: "start_time",
+ *     name: "span_name",
+ *     // no updatedById on traces
+ *     updatedById: null,
+ * })
+ * ```
+ */
+export interface EntityMetaFieldMap {
+    /**
+     * Field path that holds the creator's user ID.
+     * @default "created_by_id"
+     */
+    createdById?: string | null
+
+    /**
+     * Field path that holds the last updater's user ID.
+     * @default "updated_by_id"
+     */
+    updatedById?: string | null
+
+    /**
+     * Field path that holds the creation timestamp (ISO string).
+     * @default "created_at"
+     */
+    createdAt?: string | null
+
+    /**
+     * Field path that holds the last update timestamp (ISO string).
+     * @default "updated_at"
+     */
+    updatedAt?: string | null
+
+    /**
+     * Field path that holds the entity's display name.
+     * @default "name"
+     */
+    name?: string | null
+
+    /**
+     * Field path that holds the entity's version number.
+     * @default "version"
+     */
+    version?: string | null
+
+    /**
+     * Field path that holds the entity's slug.
+     * @default "slug"
+     */
+    slug?: string | null
+
+    /**
+     * Field path that holds the entity's description.
+     * @default "description"
+     */
+    description?: string | null
+}
+
+/**
+ * Entity meta atoms — derived read-only atoms for common entity fields.
+ *
+ * These atoms resolve raw field values into display-ready data:
+ * - User IDs → resolved `UserInfo` objects (via the user resolution system)
+ * - Raw field values → typed accessors
+ *
+ * All atoms are parameterized by entity ID and return `null` when the
+ * entity is not loaded or the mapped field doesn't exist.
+ */
+export interface EntityMetaAtoms {
+    /**
+     * Resolved creator user info.
+     * Reads the `createdById` field and resolves it via `userByIdFamily`.
+     */
+    createdBy: AtomFamily<UserInfo | null>
+
+    /**
+     * Resolved last updater user info.
+     * Reads the `updatedById` field and resolves it via `userByIdFamily`.
+     */
+    updatedBy: AtomFamily<UserInfo | null>
+
+    /**
+     * Raw creator user ID string.
+     * Use `createdBy` for resolved user info; use this when you only need the ID.
+     */
+    createdById: AtomFamily<string | null>
+
+    /**
+     * Raw last updater user ID string.
+     */
+    updatedById: AtomFamily<string | null>
+
+    /**
+     * Creation timestamp as ISO string.
+     */
+    createdAt: AtomFamily<string | null>
+
+    /**
+     * Last update timestamp as ISO string.
+     */
+    updatedAt: AtomFamily<string | null>
+
+    /**
+     * Entity display name.
+     */
+    displayName: AtomFamily<string | null>
+
+    /**
+     * Entity version number (coerced to number).
+     * Returns `null` if the entity has no version concept.
+     */
+    version: AtomFamily<number | null>
+
+    /**
+     * Entity slug (URL-safe identifier).
+     */
+    slug: AtomFamily<string | null>
+
+    /**
+     * Entity description.
+     */
+    description: AtomFamily<string | null>
+}
+
+/**
+ * Imperative getters for entity meta fields.
+ *
+ * These mirror the atoms but read directly from the Jotai store,
+ * for use in callbacks and non-React contexts.
+ */
+export interface EntityMetaGetters {
+    createdBy: (id: string, options?: StoreOptions) => UserInfo | null
+    updatedBy: (id: string, options?: StoreOptions) => UserInfo | null
+    createdById: (id: string, options?: StoreOptions) => string | null
+    updatedById: (id: string, options?: StoreOptions) => string | null
+    createdAt: (id: string, options?: StoreOptions) => string | null
+    updatedAt: (id: string, options?: StoreOptions) => string | null
+    displayName: (id: string, options?: StoreOptions) => string | null
+    version: (id: string, options?: StoreOptions) => number | null
+    slug: (id: string, options?: StoreOptions) => string | null
+    description: (id: string, options?: StoreOptions) => string | null
+}
+
+/**
+ * Entity meta capability interface.
+ *
+ * Provides standardized access to common entity fields (creator, dates,
+ * name, version) with automatic user resolution. Entities opt into this
+ * capability via `withEntityMeta`, which creates derived atoms from
+ * the entity's data shape using a configurable field mapping.
+ *
+ * ## Design Principles
+ *
+ * - **Composable**: Works alongside `RunnableCapability`, `LoadableCapability`
+ * - **Configurable**: Field mapping handles naming differences across entities
+ * - **Read-only**: All atoms are derived; no new writable state is introduced
+ * - **Incremental**: Existing code continues to work; meta atoms are additive
+ *
+ * ## Usage with `satisfies`
+ *
+ * ```typescript
+ * const workflowMolecule = withEntityMeta(
+ *     createWorkflowMolecule(),
+ * ) satisfies EntityController<Workflow> & RunnableCapability & EntityMetaCapability
+ *
+ * // Consumer code:
+ * const creator = useAtomValue(workflowMolecule.meta.atoms.createdBy(revisionId))
+ * const name = useAtomValue(workflowMolecule.meta.atoms.displayName(revisionId))
+ * ```
+ *
+ * @see withEntityMeta — Factory function that creates this capability
+ * @see EntityMetaFieldMap — Configuration for field name overrides
+ */
+export interface EntityMetaCapability {
+    meta: {
+        /** Reactive atoms for subscribing to meta fields */
+        atoms: EntityMetaAtoms
+
+        /** Imperative getters for callbacks and non-React contexts */
+        get: EntityMetaGetters
+
+        /**
+         * The resolved field mapping used by this instance.
+         * Useful for debugging or introspecting which fields are mapped.
+         */
+        fieldMap: Required<Record<keyof EntityMetaFieldMap, string | null>>
+    }
+}
+
+/**
+ * Combined entity type with entity meta capability.
+ *
+ * @example
+ * ```typescript
+ * const testsetMolecule = withEntityMeta(
+ *     createTestsetMolecule(),
+ * ) satisfies MetaEntity<Testset>
+ * ```
+ */
+export type MetaEntity<T, TDraft = Partial<T>> = EntityController<T, TDraft> & EntityMetaCapability
+
+/**
+ * Combined entity type with runnable + meta capabilities.
+ */
+export type RunnableMetaEntity<T, TDraft = Partial<T>> = EntityController<T, TDraft> &
+    RunnableCapability &
+    EntityMetaCapability
+
+/**
+ * Combined entity type with loadable + meta capabilities.
+ */
+export type LoadableMetaEntity<T, TDraft = Partial<T>> = EntityController<T, TDraft> &
+    LoadableCapability &
+    EntityMetaCapability
+
+// ============================================================================
 // EXTENSION TYPES
 // ============================================================================
 
@@ -1121,16 +1368,16 @@ export type RunnableLoadableEntity<T, TDraft = Partial<T>> = EntityController<T,
  * Used for flexible extension atoms like cell accessor with {id, column} param
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Function params are contravariant, unknown can't be assigned from specific types
-export type AnyAtomFamily = (param: any) => Atom<unknown>
+export type AnyAtomFamily = {
+    bivarianceHack(param: unknown): Atom<unknown>
+}["bivarianceHack"]
 
 /**
  * Any writable atom - supports any args and return type
  * Used for reducers that return values (not just void)
- * Note: Uses `any` for all type params due to Jotai type system requirements
+ * This is opaque because reducer signatures vary per extension.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyWritableAtom = WritableAtom<any, any[], any>
+export type AnyWritableAtom = OpaqueWritableAtom
 
 /**
  * Additional atoms to add via extendMolecule
@@ -1158,16 +1405,18 @@ export type ExtendedReducers = Record<string, AnyWritableAtom>
  * Supports any function signature, not just (id, options) => unknown
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Function params are contravariant, needs any for flexible signatures
-export type ExtendedGetters = Record<string, (...args: any[]) => unknown>
+type BivariantFn = {
+    bivarianceHack(...args: unknown[]): unknown
+}["bivarianceHack"]
+
+export type ExtendedGetters = Record<string, BivariantFn>
 
 /**
  * Additional setters to add via extendMolecule
  * Supports any function signature with any return type
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Function params are contravariant, needs any for flexible signatures
-export type ExtendedSetters = Record<string, (...args: any[]) => unknown>
+export type ExtendedSetters = Record<string, BivariantFn>
 
 /**
  * Configuration for extendMolecule

@@ -144,6 +144,44 @@ METRICS_STEP_TYPES = {"invocation", "annotation"}
 DEFAULT_REFRESH_INTERVAL = 1  # minute(s)
 
 
+def _first_reference_id(
+    references: dict[str, Reference],
+    *keys: str,
+) -> Optional[UUID]:
+    for key in keys:
+        reference = references.get(key)
+        if isinstance(reference, Reference) and reference.id:
+            return reference.id
+
+    return None
+
+
+def _is_invocation_query(data: Any) -> bool:
+    """Live evaluations require the query filter to target invocation traces.
+
+    Returns True only when the query's filtering contains a top-level
+    condition with field="trace_type", operator="is", value="invocation".
+    """
+    filtering = getattr(data, "filtering", None)
+    if filtering is None:
+        return False
+
+    for condition in filtering.conditions or []:
+        field = getattr(condition, "field", None)
+        if field != "trace_type":
+            continue
+
+        operator = getattr(condition, "operator", None)
+        if operator != "is":
+            continue
+
+        value = getattr(condition, "value", None)
+        if value == "invocation":
+            return True
+
+    return False
+
+
 class EvaluationsService:
     def __init__(
         self,
@@ -197,6 +235,22 @@ class EvaluationsService:
             user_id = run.created_by_id
 
             try:
+                if not await self._is_live_run_valid(
+                    project_id=project_id,
+                    run=run,
+                ):
+                    log.warning(
+                        "[LIVE] Closing invalid live run (null data or non-invocation trace_type).",
+                        project_id=project_id,
+                        run_id=run.id,
+                    )
+                    await self._close_live_run(
+                        project_id=project_id,
+                        user_id=user_id,
+                        run=run,
+                    )
+                    continue
+
                 log.info(
                     "[LIVE] Dispatching...",
                     project_id=project_id,
@@ -204,6 +258,12 @@ class EvaluationsService:
                     #
                     newest=newest,
                     oldest=oldest,
+                )
+
+                await self._ensure_human_annotation_queue(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run=run,
                 )
 
                 await self.evaluations_worker.evaluate_live_query.kiq(
@@ -227,6 +287,108 @@ class EvaluationsService:
 
         return True
 
+    async def _is_live_run_valid(
+        self,
+        *,
+        project_id: UUID,
+        run: EvaluationRun,
+    ) -> bool:
+        """Every query step must reference a revision with data targeting invocation traces."""
+        if not run.data or not run.data.steps:
+            return False
+
+        query_revision_ids: List[UUID] = []
+        for step in run.data.steps:
+            query_ref = (step.references or {}).get("query_revision")
+            if isinstance(query_ref, Reference) and query_ref.id:
+                query_revision_ids.append(query_ref.id)
+
+        if not query_revision_ids:
+            return False
+
+        for query_revision_id in query_revision_ids:
+            query_revision = await self.queries_service.fetch_query_revision(
+                project_id=project_id,
+                #
+                query_revision_ref=Reference(id=query_revision_id),
+            )
+
+            if not query_revision or not query_revision.data:
+                return False
+
+            if not _is_invocation_query(query_revision.data):
+                return False
+
+        return True
+
+    async def _close_live_run(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        run: EvaluationRun,
+    ) -> None:
+        flags = run.flags.model_copy() if run.flags else EvaluationRunFlags()
+        flags.is_active = False
+        flags.is_closed = True
+
+        await self.edit_run(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            run=EvaluationRunEdit(
+                id=run.id,
+                #
+                name=run.name,
+                description=run.description,
+                #
+                flags=flags,
+                tags=run.tags,
+                meta=run.meta,
+                #
+                status=run.status,
+                #
+                data=run.data,
+            ),
+        )
+
+    async def _ensure_human_annotation_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        run: EvaluationRun,
+    ) -> None:
+        """Create an EvaluationQueue for human annotation steps if none exists for this run."""
+        if not run.id or not run.data or not run.data.steps:
+            return
+
+        human_step_keys = [
+            step.key
+            for step in run.data.steps
+            if step.type == "annotation" and step.origin == "human" and step.key
+        ]
+
+        if not human_step_keys:
+            return
+
+        existing_queues = await self.query_queues(
+            project_id=project_id,
+            queue=EvaluationQueueQuery(run_id=run.id),
+        )
+        if any(q.run_id == run.id for q in existing_queues):
+            return
+
+        await self.create_queue(
+            project_id=project_id,
+            user_id=user_id,
+            queue=EvaluationQueueCreate(
+                run_id=run.id,
+                status=EvaluationStatus.RUNNING,
+                data=EvaluationQueueData(step_keys=human_step_keys),
+            ),
+        )
+
     async def fetch_live_runs(
         self,
         *,
@@ -237,6 +399,40 @@ class EvaluationsService:
         )
 
         return ext_runs
+
+    # - RUNTIME OBSERVABILITY --------------------------------------------------
+
+    async def is_run_executing(
+        self,
+        *,
+        run_id: UUID,
+    ) -> bool:
+        """
+        Return True if any active job locks exist for this run.
+
+        Checks Redis for eval:run:{run_id}:job:*:lock keys.
+        """
+        from oss.src.core.evaluations.runtime.locks import (
+            is_run_executing as _is_run_executing,
+        )
+
+        return await _is_run_executing(run_id=str(run_id))
+
+    async def has_run_mutation_lock(
+        self,
+        *,
+        run_id: UUID,
+    ) -> bool:
+        """
+        Return True if a mutation lock exists for this run.
+
+        Checks Redis for eval:run:{run_id}:lock.
+        """
+        from oss.src.core.evaluations.runtime.locks import (
+            has_mutation_lock as _has_mutation_lock,
+        )
+
+        return await _has_mutation_lock(run_id=str(run_id))
 
     async def create_run(
         self,
@@ -918,10 +1114,16 @@ class EvaluationsService:
             log.warning("run or run.data or run.data.steps not found")
             return []
 
+        refreshable_steps: List[EvaluationRunDataStep] = [
+            step for step in run.data.steps if step.type in METRICS_STEP_TYPES
+        ]
+
+        steps_by_key: Dict[str, EvaluationRunDataStep] = {
+            step.key: step for step in refreshable_steps
+        }
+
         step_types_by_key: Dict[str, str] = {
-            step.key: step.type
-            for step in run.data.steps
-            if step.type in METRICS_STEP_TYPES
+            step.key: step.type for step in refreshable_steps
         }
 
         steps_metrics_keys: Dict[str, List[Dict[str, str]]] = {
@@ -949,7 +1151,23 @@ class EvaluationsService:
             )
 
             if not results:
-                log.warning(f"No results found for step_key: {step_key}")
+                step = steps_by_key.get(step_key)
+
+                if (
+                    step
+                    and step.type == "annotation"
+                    and step.origin in {"human", "custom"}
+                ):
+                    pass
+                else:
+                    log.warning(
+                        "No results found for step_key: %s",
+                        step_key,
+                        run_id=run_id,
+                        scenario_id=scenario_id,
+                        timestamp=timestamp,
+                        interval=interval,
+                    )
                 continue
 
             trace_ids: List[str] | None = [
@@ -965,10 +1183,7 @@ class EvaluationsService:
 
         inferred_metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}
 
-        for step in run.data.steps:
-            if step.type not in METRICS_STEP_TYPES:
-                continue
-
+        for step in refreshable_steps:
             steps_metrics_keys[step.key] = deepcopy(DEFAULT_METRICS)
 
             if step.type == "annotation":
@@ -989,22 +1204,15 @@ class EvaluationsService:
                     log.warning("Evaluator revision not found")
                     continue
 
-                outputs_schema = None
-                service_format = None
-
-                if evaluator_revision.data:
-                    if evaluator_revision.data.schemas:
-                        outputs_schema = evaluator_revision.data.schemas.outputs
-                    if evaluator_revision.data.service:
-                        service_format = evaluator_revision.data.service.get("format")
+                outputs_schema = (
+                    evaluator_revision.data.schemas.outputs
+                    if evaluator_revision.data and evaluator_revision.data.schemas
+                    else None
+                )
 
                 if outputs_schema:
                     metrics_keys = get_metrics_keys_from_schema(
                         schema=outputs_schema,
-                    )
-                elif service_format:
-                    metrics_keys = get_metrics_keys_from_schema(
-                        schema=service_format,
                     )
                 else:
                     trace_ids = steps_trace_ids.get(step.key)
@@ -1630,6 +1838,8 @@ class SimpleEvaluationsService:
                 is_live=evaluation.flags.is_live,
                 is_active=False,
                 is_queue=evaluation.flags.is_queue,
+                is_cached=evaluation.flags.is_cached,
+                is_split=evaluation.flags.is_split,
             )
 
             if not run_flags:
@@ -1646,6 +1856,8 @@ class SimpleEvaluationsService:
                 evaluator_steps=evaluation.data.evaluator_steps,
                 #
                 repeats=evaluation.data.repeats,
+                #
+                is_live=evaluation.flags.is_live,
             )
 
             if not run_data:
@@ -1808,6 +2020,8 @@ class SimpleEvaluationsService:
                 is_live=_evaluation.flags.is_live,
                 is_active=_evaluation.flags.is_active,
                 is_queue=_evaluation.flags.is_queue,
+                is_cached=_evaluation.flags.is_cached,
+                is_split=_evaluation.flags.is_split,
             )
 
             run_data = await self._make_evaluation_run_data(
@@ -1820,6 +2034,8 @@ class SimpleEvaluationsService:
                 evaluator_steps=evaluation.data.evaluator_steps,
                 #
                 repeats=_evaluation.data.repeats,
+                #
+                is_live=(_evaluation.flags.is_live if _evaluation.flags else None),
             )
 
             run_edit = EvaluationRunEdit(
@@ -1918,6 +2134,8 @@ class SimpleEvaluationsService:
             is_live=flags.get("is_live"),
             is_active=flags.get("is_active"),
             is_queue=flags.get("is_queue"),
+            is_cached=flags.get("is_cached"),
+            is_split=flags.get("is_split"),
             #
             has_queries=flags.get("has_queries"),
             has_testsets=flags.get("has_testsets"),
@@ -2026,6 +2244,11 @@ class SimpleEvaluationsService:
                 has_evaluator_steps = bool(_evaluation.data.evaluator_steps)
 
                 if has_query_steps and has_evaluator_steps:
+                    await self._ensure_human_annotation_queue(
+                        project_id=project_id,
+                        user_id=user_id,
+                        run=run,
+                    )
                     await self.evaluations_worker.evaluate_batch_query.kiq(
                         project_id=project_id,
                         user_id=user_id,
@@ -2106,39 +2329,10 @@ class SimpleEvaluationsService:
         user_id: UUID,
         run: EvaluationRun,
     ) -> None:
-        """Create an EvaluationQueue for human annotation steps if none exists for this run.
-
-        Queue creation is the service's responsibility — tasks must not create structural
-        objects. This is called before dispatching batch evaluation tasks so that any
-        human annotation steps are immediately queryable as a queue.
-        """
-        if not run.id or not run.data or not run.data.steps:
-            return
-
-        human_step_keys = [
-            step.key
-            for step in run.data.steps
-            if step.type == "annotation" and step.origin == "human" and step.key
-        ]
-
-        if not human_step_keys:
-            return
-
-        existing_queues = await self.evaluations_service.query_queues(
-            project_id=project_id,
-            queue=EvaluationQueueQuery(run_id=run.id),
-        )
-        if any(q.run_id == run.id for q in existing_queues):
-            return
-
-        await self.evaluations_service.create_queue(
+        await self.evaluations_service._ensure_human_annotation_queue(
             project_id=project_id,
             user_id=user_id,
-            queue=EvaluationQueueCreate(
-                run_id=run.id,
-                status=EvaluationStatus.RUNNING,
-                data=EvaluationQueueData(step_keys=human_step_keys),
-            ),
+            run=run,
         )
 
     async def evaluate_batch_traces(
@@ -2149,6 +2343,7 @@ class SimpleEvaluationsService:
         #
         run_id: UUID,
         trace_ids: List[str],
+        input_step_key: Optional[str] = None,
     ) -> bool:
         if not trace_ids:
             return False
@@ -2182,6 +2377,7 @@ class SimpleEvaluationsService:
             #
             run_id=run_id,
             trace_ids=trace_ids,
+            input_step_key=input_step_key,
         )
         return True
 
@@ -2193,6 +2389,7 @@ class SimpleEvaluationsService:
         #
         run_id: UUID,
         testcase_ids: List[UUID],
+        input_step_key: Optional[str] = None,
     ) -> bool:
         if not testcase_ids:
             return False
@@ -2226,6 +2423,7 @@ class SimpleEvaluationsService:
             #
             run_id=run_id,
             testcase_ids=testcase_ids,
+            input_step_key=input_step_key,
         )
         return True
 
@@ -2287,6 +2485,8 @@ class SimpleEvaluationsService:
         evaluator_steps: Optional[Target] = None,
         #
         repeats: Optional[int] = None,
+        #
+        is_live: Optional[bool] = None,
     ) -> Optional[EvaluationRunData]:
         # IMPLICIT FLAG: is_multivariate=False
         # IMPLICIT FLAG: all_inputs=True
@@ -2317,6 +2517,20 @@ class SimpleEvaluationsService:
                 if not query_revision or not query_revision.slug:
                     log.warning(
                         "[EVAL] [run] [make] [failure] could not find query revision",
+                        id=query_revision_ref.id,
+                    )
+                    return None
+
+                if is_live and not query_revision.data:
+                    log.warning(
+                        "[EVAL] [run] [make] [failure] live evaluation requires query with data",
+                        id=query_revision_ref.id,
+                    )
+                    return None
+
+                if is_live and not _is_invocation_query(query_revision.data):
+                    log.warning(
+                        "[EVAL] [run] [make] [failure] live evaluation requires trace_type=invocation",
                         id=query_revision_ref.id,
                     )
                     return None
@@ -2844,6 +3058,8 @@ class SimpleEvaluationsService:
         is_live: Optional[bool] = None,
         is_active: Optional[bool] = None,
         is_queue: Optional[bool] = None,
+        is_cached: Optional[bool] = None,
+        is_split: Optional[bool] = None,
         has_queries: Optional[bool] = None,
         has_testsets: Optional[bool] = None,
         has_evaluators: Optional[bool] = None,
@@ -2856,6 +3072,8 @@ class SimpleEvaluationsService:
             is_live=is_live or False,
             is_active=is_active or False,
             is_queue=is_queue or False,
+            is_cached=is_cached or False,
+            is_split=is_split or False,
             has_queries=has_queries or False,
             has_testsets=has_testsets or False,
             has_evaluators=has_evaluators or False,
@@ -2871,6 +3089,8 @@ class SimpleEvaluationsService:
         is_live: Optional[bool] = None,
         is_active: Optional[bool] = None,
         is_queue: Optional[bool] = None,
+        is_cached: Optional[bool] = None,
+        is_split: Optional[bool] = None,
         has_queries: Optional[bool] = None,
         has_testsets: Optional[bool] = None,
         has_evaluators: Optional[bool] = None,
@@ -2886,6 +3106,8 @@ class SimpleEvaluationsService:
             is_live=is_live,
             is_active=is_active,
             is_queue=is_queue,
+            is_cached=is_cached,
+            is_split=is_split,
             has_queries=has_queries,
             has_testsets=has_testsets,
             has_evaluators=has_evaluators,
@@ -3025,31 +3247,40 @@ class SimpleEvaluationsService:
                 step_id = None
 
                 if step_type == "input":
-                    if "query_revision" in step_references:
-                        step_ref = step_references["query_revision"]
-                        if not isinstance(step_ref, Reference):
-                            continue
-                        step_id = step_ref.id
+                    step_id = _first_reference_id(
+                        step_references,
+                        "query_revision",
+                        "query_variant",
+                        "query",
+                    )
+                    if step_id:
                         query_steps[step_id] = step_origin  # type: ignore
-                    elif "testset_revision" in step_references:
-                        step_ref = step_references["testset_revision"]
-                        if not isinstance(step_ref, Reference):
-                            continue
-                        step_id = step_ref.id
+                    else:
+                        step_id = _first_reference_id(
+                            step_references,
+                            "testset_revision",
+                            "testset_variant",
+                            "testset",
+                        )
+                    if step_id:
                         testset_steps[step_id] = step_origin  # type: ignore
                 elif step_type == "invocation":
-                    if "application_revision" in step_references:
-                        step_ref = step_references["application_revision"]
-                        if not isinstance(step_ref, Reference):
-                            continue
-                        step_id = step_ref.id
+                    step_id = _first_reference_id(
+                        step_references,
+                        "application_revision",
+                        "application_variant",
+                        "application",
+                    )
+                    if step_id:
                         application_steps[step_id] = step_origin  # type: ignore
                 elif step_type == "annotation":
-                    if "evaluator_revision" in step_references:
-                        step_ref = step_references["evaluator_revision"]
-                        if not isinstance(step_ref, Reference):
-                            continue
-                        step_id = step_ref.id
+                    step_id = _first_reference_id(
+                        step_references,
+                        "evaluator_revision",
+                        "evaluator_variant",
+                        "evaluator",
+                    )
+                    if step_id:
                         evaluator_steps[step_id] = step_origin  # type: ignore
 
             evaluation_flags = SimpleEvaluationFlags(**run.flags.model_dump())
@@ -3118,7 +3349,11 @@ class SimpleQueuesService:
         if not queue.data.evaluators:
             return None
 
-        kind = queue.data.kind
+        source_kind = self._get_source_kind(queue_data=queue.data)
+        kind = queue.data.kind or source_kind
+        if kind is None:
+            return None
+
         queue_user_ids = self._normalize_assignments(
             assignments=queue.data.assignments,
         )
@@ -3129,19 +3364,38 @@ class SimpleQueuesService:
             else min_repeats
         )
 
-        run_data_and_keys = await self._make_run_data(
-            project_id=project_id,
-            #
-            kind=kind,
-            #
-            evaluator_steps=queue.data.evaluators,
-            repeats=repeats,
-        )
+        if source_kind is None:
+            run_data_and_keys = await self._make_run_data(
+                project_id=project_id,
+                #
+                kind=kind,
+                #
+                evaluator_steps=queue.data.evaluators,
+                repeats=repeats,
+            )
 
-        if not run_data_and_keys:
-            return None
+            if not run_data_and_keys:
+                return None
 
-        run_data, annotation_step_keys = run_data_and_keys
+            run_data, annotation_step_keys = run_data_and_keys
+        else:
+            run_data = await self.simple_evaluations_service._make_evaluation_run_data(
+                project_id=project_id,
+                user_id=user_id,
+                query_steps=queue.data.queries,
+                testset_steps=queue.data.testsets,
+                evaluator_steps=queue.data.evaluators,
+                repeats=repeats,
+                is_live=False,
+            )
+            if not run_data or not run_data.steps:
+                return None
+
+            annotation_step_keys = [
+                step.key
+                for step in run_data.steps
+                if step.type == "annotation" and step.key
+            ]
 
         run = await self.evaluations_service.create_run(
             project_id=project_id,
@@ -3211,10 +3465,30 @@ class SimpleQueuesService:
             )
             return None
 
-        return self._parse_queue(
+        parsed_queue = self._parse_queue(
             queue=created_queue,
             run=run,
         )
+
+        if not parsed_queue:
+            return None
+
+        if source_kind is not None:
+            dispatched = await self._dispatch_source_batches(
+                project_id=project_id,
+                user_id=user_id,
+                run=run,
+            )
+            if not dispatched:
+                log.warning(
+                    "[EVAL] [queue] [create] source-backed queue created without initial batch dispatch",
+                    project_id=project_id,
+                    queue_id=created_queue.id,
+                    run_id=run.id,
+                    source_kind=source_kind.value,
+                )
+
+        return parsed_queue
 
     async def fetch(
         self,
@@ -3515,6 +3789,78 @@ class SimpleQueuesService:
 
         return scenarios, next_windowing
 
+    async def _dispatch_source_batches(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        run: EvaluationRun,
+    ) -> bool:
+        if not run.id or not run.data or not run.data.steps:
+            return False
+
+        dispatched = False
+        for step in run.data.steps:
+            if step.type != "input" or not step.key:
+                continue
+
+            refs = step.references or {}
+            query_revision_ref = refs.get("query_revision")
+            testset_revision_ref = refs.get("testset_revision")
+
+            if query_revision_ref and query_revision_ref.id:
+                query_revision = await self.simple_evaluations_service.queries_service.fetch_query_revision(
+                    project_id=project_id,
+                    query_revision_ref=query_revision_ref,
+                    include_trace_ids=True,
+                )
+                trace_ids = (
+                    query_revision.data.trace_ids
+                    if query_revision
+                    and query_revision.data
+                    and query_revision.data.trace_ids
+                    else []
+                )
+                if not trace_ids:
+                    continue
+
+                ok = await self.simple_evaluations_service.evaluate_batch_traces(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run_id=run.id,
+                    trace_ids=trace_ids,
+                    input_step_key=step.key,
+                )
+                dispatched = dispatched or ok
+                continue
+
+            if testset_revision_ref and testset_revision_ref.id:
+                testset_revision = await self.simple_evaluations_service.testsets_service.fetch_testset_revision(
+                    project_id=project_id,
+                    testset_revision_ref=testset_revision_ref,
+                    include_testcase_ids=True,
+                )
+                testcase_ids = (
+                    testset_revision.data.testcase_ids
+                    if testset_revision
+                    and testset_revision.data
+                    and testset_revision.data.testcase_ids
+                    else []
+                )
+                if not testcase_ids:
+                    continue
+
+                ok = await self.simple_evaluations_service.evaluate_batch_testcases(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run_id=run.id,
+                    testcase_ids=testcase_ids,
+                    input_step_key=step.key,
+                )
+                dispatched = dispatched or ok
+
+        return dispatched
+
     async def _make_run_data(
         self,
         *,
@@ -3665,6 +4011,30 @@ class SimpleQueuesService:
 
         return None
 
+    @staticmethod
+    def _get_source_kind(*, queue_data: SimpleQueueData) -> Optional[SimpleQueueKind]:
+        if queue_data.queries:
+            return SimpleQueueKind.TRACES
+
+        if queue_data.testsets:
+            return SimpleQueueKind.TESTCASES
+
+        return None
+
+    @staticmethod
+    def _is_source_backed(run: EvaluationRun) -> bool:
+        if not run.data or not run.data.steps:
+            return False
+
+        return any(
+            step.type == "input"
+            and bool(
+                (step.references or {}).get("query_revision")
+                or (step.references or {}).get("testset_revision")
+            )
+            for step in run.data.steps
+        )
+
     def _parse_queue(
         self,
         *,
@@ -3698,6 +4068,24 @@ class SimpleQueuesService:
         elif assignment_lanes > 1:
             repeats = assignment_lanes
 
+        queries: Optional[List[UUID]] = None
+        testsets: Optional[List[UUID]] = None
+        if run.data and run.data.steps:
+            query_ids = []
+            testset_ids = []
+            for step in run.data.steps:
+                if step.type != "input":
+                    continue
+                refs = step.references or {}
+                query_ref = refs.get("query_revision")
+                testset_ref = refs.get("testset_revision")
+                if query_ref and query_ref.id:
+                    query_ids.append(query_ref.id)
+                if testset_ref and testset_ref.id:
+                    testset_ids.append(testset_ref.id)
+            queries = list(dict.fromkeys(query_ids)) or None
+            testsets = list(dict.fromkeys(testset_ids)) or None
+
         return SimpleQueue(
             id=queue.id,
             #
@@ -3705,7 +4093,7 @@ class SimpleQueuesService:
             description=queue.description,
             #
             created_at=queue.created_at,
-            updated_at=queue.updated_at,
+            updated_at=queue.updated_at or queue.created_at,
             deleted_at=queue.deleted_at,
             created_by_id=queue.created_by_id,
             updated_by_id=queue.updated_by_id,
@@ -3724,6 +4112,8 @@ class SimpleQueuesService:
             #
             data=SimpleQueueData(
                 kind=kind,
+                queries=queries,
+                testsets=testsets,
                 assignments=assignments,
                 repeats=repeats,
                 settings=SimpleQueueSettings(

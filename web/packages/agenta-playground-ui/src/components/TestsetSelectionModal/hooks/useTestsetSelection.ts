@@ -6,12 +6,17 @@
  *
  * Note: The testsetName comes from the testset entity, not the revision.
  * We use testset.dataOptional to fetch the testset name when a revision is selected.
+ *
+ * Selection behavior:
+ * - Load mode: No auto-selection. User must manually select testcases.
+ * - Edit mode: Selection is pre-initialized by TestsetDropdown before modal opens.
+ *   This hook does NOT auto-select - it only manages the selected testset/revision.
  */
 
 import {useCallback, useMemo, useState} from "react"
 
 // Clean entity imports from main package
-import {testcase, revision, testset} from "@agenta/entities"
+import {revision, testcase, testset} from "@agenta/entities"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {RevisionInfo, UseTestsetSelectionReturn} from "../types"
@@ -30,6 +35,7 @@ import type {RevisionInfo, UseTestsetSelectionReturn} from "../types"
 export function useTestsetSelection(
     initialRevisionId?: string,
     initialTestsetId?: string,
+    preselectedIds: string[] = [],
 ): UseTestsetSelectionReturn {
     // Track selected revision ID - initialized from props on mount
     const [selectedRevisionId, setSelectedRevisionId] = useState<string | null>(
@@ -76,16 +82,26 @@ export function useTestsetSelection(
 
     // Set revision context using molecule action (sets both context and paginated store atoms)
     const setRevisionContext = useSetAtom(testcase.actions.setRevisionContext)
+    // Selection draft actions
+    const initSelectionDraft = useSetAtom(testcase.actions.initSelectionDraft)
 
     // Handle selection change (both revision and testset)
+    // Note: This does NOT auto-select testcases. For edit mode, selection is
+    // pre-initialized by TestsetDropdown before opening the modal.
+    // For load mode, user must manually select testcases.
     const handleSetSelection = useCallback(
         (revisionId: string | null, testsetId: string | null) => {
             setSelectedRevisionId(revisionId)
             setSelectedTestsetId(testsetId)
             // Set revision context using molecule action
             setRevisionContext(revisionId)
+
+            // Initialize selection draft with preselected testcases
+            if (revisionId) {
+                initSelectionDraft(revisionId, preselectedIds)
+            }
         },
-        [setRevisionContext],
+        [setRevisionContext, initSelectionDraft, preselectedIds],
     )
 
     return {

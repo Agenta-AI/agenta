@@ -6,11 +6,12 @@
  * 2. Build-time process.env values
  */
 
-/**
- * Type declaration for runtime environment config injected via window.__env
- */
-interface WindowWithEnv extends Window {
+type RuntimeGlobal = typeof globalThis & {
     __env?: Record<string, string>
+    location?: {
+        protocol?: string
+        hostname?: string
+    }
 }
 
 // Build-time environment variables
@@ -20,6 +21,8 @@ export const processEnv = {
     NEXT_PUBLIC_AGENTA_API_URL: process.env.NEXT_PUBLIC_AGENTA_API_URL,
     NEXT_PUBLIC_POSTHOG_API_KEY: process.env.NEXT_PUBLIC_POSTHOG_API_KEY,
     NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
+    NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY:
+        process.env.NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY,
     NEXT_PUBLIC_LOG_APP_ATOMS: process.env.NEXT_PUBLIC_LOG_APP_ATOMS,
     NEXT_PUBLIC_ENABLE_ATOM_LOGS: process.env.NEXT_PUBLIC_ENABLE_ATOM_LOGS,
 }
@@ -29,12 +32,10 @@ export const processEnv = {
  * Checks window.__env first (runtime), falls back to process.env (build-time).
  */
 export const getEnv = (envKey: string): string => {
-    // Check for window.__env if in browser (runtime config)
-    if (typeof window !== "undefined") {
-        const windowEnv = (window as WindowWithEnv).__env
-        if (windowEnv && Object.keys(windowEnv).length > 0 && windowEnv[envKey]) {
-            return windowEnv[envKey]
-        }
+    // Check for runtime config first (browser/worker)
+    const runtimeEnv = (globalThis as RuntimeGlobal).__env
+    if (runtimeEnv && Object.keys(runtimeEnv).length > 0 && runtimeEnv[envKey]) {
+        return runtimeEnv[envKey]
     }
 
     // Fall back to build-time environment
@@ -48,8 +49,11 @@ export const getEnv = (envKey: string): string => {
 export const getAgentaApiUrl = (): string => {
     const apiUrl = getEnv("NEXT_PUBLIC_AGENTA_API_URL")
 
-    if (!apiUrl && typeof window !== "undefined") {
-        return `${window.location.protocol}//${window.location.hostname}`
+    if (!apiUrl) {
+        const runtimeLocation = (globalThis as RuntimeGlobal).location
+        if (runtimeLocation?.protocol && runtimeLocation?.hostname) {
+            return `${runtimeLocation.protocol}//${runtimeLocation.hostname}`
+        }
     }
 
     return apiUrl

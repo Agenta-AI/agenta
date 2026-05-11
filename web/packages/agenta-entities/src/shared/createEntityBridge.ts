@@ -1,14 +1,8 @@
 /**
- * Entity Bridge Factory Implementations
+ * Loadable Bridge Factory
  *
- * Factory functions for creating loadable and runnable bridges.
- * These bridge entity molecules to a unified controller API.
- *
- * The bridge pattern provides a consistent interface for accessing entity data
- * regardless of the underlying molecule implementation. This enables:
- * - Unified API across different entity types (testsets, traces, revisions)
- * - Static configuration at build time with runtime flexibility via context
- * - Clean separation between state management and entity specifics
+ * Factory function for creating loadable bridges that connect entity molecules
+ * to a unified controller API for data source management.
  *
  * ## Important: Local-Only vs Connected Mode
  *
@@ -24,24 +18,16 @@
  * @module shared/createEntityBridge
  */
 
-import {atom, type Atom} from "jotai"
+import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 
 import type {
     CreateLoadableBridgeConfig,
-    CreateRunnableBridgeConfig,
     LoadableBridge,
     LoadableBridgeActions,
     LoadableBridgeSelectors,
     LoadableColumn,
     LoadableRow,
-    LoadableSourceConfig as _LoadableSourceConfig,
-    RunnableBridge,
-    RunnableBridgeSelectors,
-    RunnableData,
-    RunnablePort as _RunnablePort,
-    RunnableTypeConfig as _RunnableTypeConfig,
-    BridgeQueryState,
 } from "./entityBridge"
 
 // ============================================================================
@@ -476,189 +462,12 @@ export function createLoadableBridge(config: CreateLoadableBridgeConfig): Loadab
 }
 
 // ============================================================================
-// RUNNABLE BRIDGE FACTORY
-// ============================================================================
-
-/**
- * Create a runnable bridge with configured runnable types
- *
- * @example
- * ```typescript
- * const runnableBridge = createRunnableBridge({
- *     runnables: {
- *         appRevision: {
- *             molecule: appRevisionMolecule,
- *             toRunnable: (entity) => ({ id: entity.id, ... }),
- *             getInputPorts: (entity) => extractInputPorts(entity.schemas?.inputSchema),
- *             getOutputPorts: (entity) => extractOutputPorts(entity.schemas?.outputSchema),
- *         },
- *         evaluatorRevision: {
- *             molecule: evaluatorRevisionMolecule,
- *             toRunnable: (entity) => ({ id: entity.id, ... }),
- *             getInputPorts: (entity) => extractInputPorts(entity.schemas?.inputSchema),
- *             getOutputPorts: (entity) => [{key: 'score', name: 'Score', type: 'number'}],
- *             extraSelectors: {
- *                 presets: (id) => evaluatorRevisionMolecule.selectors.presets(id),
- *             },
- *         },
- *     },
- * })
- * ```
- */
-export function createRunnableBridge(config: CreateRunnableBridgeConfig): RunnableBridge {
-    const {runnables} = config
-
-    // Create selectors
-    const selectors: RunnableBridgeSelectors = {
-        data: (runnableId: string) =>
-            atom((get) => {
-                // Try each runnable type to find data
-                for (const [_type, config] of Object.entries(runnables)) {
-                    const entity = get(config.molecule.selectors.data(runnableId))
-                    if (entity) {
-                        return config.toRunnable(entity)
-                    }
-                }
-                return null
-            }),
-
-        query: (runnableId: string) =>
-            atom((get) => {
-                // Try each runnable type to find query state
-                for (const [_type, config] of Object.entries(runnables)) {
-                    const query = get(config.molecule.selectors.query(runnableId))
-                    if (query.data || query.isPending || query.isError) {
-                        return query as BridgeQueryState<RunnableData>
-                    }
-                }
-                return {
-                    data: null,
-                    isPending: false,
-                    isError: false,
-                    error: null,
-                }
-            }),
-
-        isDirty: (runnableId: string) =>
-            atom((get) => {
-                for (const [_type, config] of Object.entries(runnables)) {
-                    const isDirty = get(config.molecule.selectors.isDirty(runnableId))
-                    if (isDirty) return true
-                }
-                return false
-            }),
-
-        inputPorts: (runnableId: string) =>
-            atom((get) => {
-                for (const [_type, config] of Object.entries(runnables)) {
-                    const entity = get(config.molecule.selectors.data(runnableId))
-                    if (entity) {
-                        // Prefer selector atom if provided (reactive derivation)
-                        if (config.inputPortsSelector) {
-                            return get(config.inputPortsSelector(runnableId))
-                        }
-                        // Fallback to extraction function
-                        return config.getInputPorts(entity)
-                    }
-                }
-                return []
-            }),
-
-        outputPorts: (runnableId: string) =>
-            atom((get) => {
-                for (const [_type, config] of Object.entries(runnables)) {
-                    const entity = get(config.molecule.selectors.data(runnableId))
-                    if (entity) {
-                        // Prefer selector atom if provided (reactive derivation)
-                        if (config.outputPortsSelector) {
-                            return get(config.outputPortsSelector(runnableId))
-                        }
-                        // Fallback to extraction function
-                        return config.getOutputPorts(entity)
-                    }
-                }
-                return []
-            }),
-
-        configuration: (runnableId: string) =>
-            atom((get) => {
-                const data = get(selectors.data(runnableId))
-                return data?.configuration ?? null
-            }),
-
-        invocationUrl: (runnableId: string) =>
-            atom((get) => {
-                // Try each runnable type to find invocation URL
-                for (const [_type, config] of Object.entries(runnables)) {
-                    const entity = get(config.molecule.selectors.data(runnableId))
-                    if (entity) {
-                        // Prefer selector atom if provided (computed from schema)
-                        if (config.invocationUrlSelector) {
-                            return get(config.invocationUrlSelector(runnableId))
-                        }
-                        // Fallback to toRunnable extraction
-                        const data = config.toRunnable(entity)
-                        return data?.invocationUrl ?? null
-                    }
-                }
-                return null
-            }),
-
-        schemas: (runnableId: string) =>
-            atom((get) => {
-                const data = get(selectors.data(runnableId))
-                return data?.schemas ?? null
-            }),
-    }
-
-    return {
-        // Nested API (backwards compatible)
-        selectors,
-        runnable: <T extends string>(runnableType: T) => {
-            const config = runnables[runnableType]
-            if (!config) {
-                throw new Error(`Unknown runnable type: ${runnableType}`)
-            }
-
-            return {
-                selectors: {
-                    ...selectors,
-                    ...config.extraSelectors,
-                } as RunnableBridgeSelectors & Record<string, (id: string) => Atom<unknown>>,
-                actions: config.extraActions,
-            }
-        },
-
-        // =====================================================================
-        // FLATTENED API (preferred)
-        // These are top-level aliases for cleaner imports:
-        //   runnable.inputPorts(id) instead of runnable.selectors.inputPorts(id)
-        // =====================================================================
-
-        /** Get runnable data by ID */
-        data: selectors.data,
-        /** Get query state */
-        query: selectors.query,
-        /** Check if runnable has unsaved changes */
-        isDirty: selectors.isDirty,
-        /** Get input ports */
-        inputPorts: selectors.inputPorts,
-        /** Get output ports */
-        outputPorts: selectors.outputPorts,
-        /** Get configuration */
-        configuration: selectors.configuration,
-        /** Alias for configuration (capability interface compatibility) */
-        config: selectors.configuration,
-        /** Get invocation URL */
-        invocationUrl: selectors.invocationUrl,
-        /** Get schemas */
-        schemas: selectors.schemas,
-    }
-}
-
-// ============================================================================
 // UTILITY EXPORTS
 // ============================================================================
+
+// NOTE: The runnable bridge factory and type hint registry were removed
+// as part of the migration to direct workflowMolecule access.
+// All consumers now use workflowMolecule.selectors.* directly.
 
 /**
  * Get the internal loadable state family (for advanced usage)

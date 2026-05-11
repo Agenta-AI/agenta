@@ -2,10 +2,11 @@ import {FC, useEffect, useMemo} from "react"
 
 import {
     ArrowLeft,
-    Sparkle,
-    Receipt,
-    Key,
     Buildings,
+    Key,
+    Link,
+    Receipt,
+    Sparkle,
     UsersThree,
     Wrench,
 } from "@phosphor-icons/react"
@@ -14,9 +15,10 @@ import clsx from "clsx"
 import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
-import {isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
+import {isBillingEnabled, isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {settingsTabAtom} from "@/oss/state/settings"
@@ -34,13 +36,27 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
     const [collapsed] = useAtom(sidebarCollapsedAtom)
     const [tab, setTab] = useQueryParam("tab", undefined, "replace")
     const [settingsTab, setSettingsTab] = useAtom(settingsTabAtom)
-    const activeTab = tab ?? settingsTab ?? "workspace"
     const {selectedOrg} = useOrgData()
     const {user} = useProfileData()
+    const {canViewApiKeys} = useProjectPermissions()
     const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
     const canShowOrganization = isEE()
-    const canShowBilling = isEE() && isOwner
+    const canShowBilling = isEE() && isBillingEnabled() && isOwner
     const canShowTools = isToolsEnabled()
+    const activeTab = useMemo(() => {
+        const requestedTab = tab ?? settingsTab ?? "workspace"
+
+        if (
+            (requestedTab === "organization" && !canShowOrganization) ||
+            (requestedTab === "billing" && !canShowBilling) ||
+            (requestedTab === "tools" && !canShowTools) ||
+            (requestedTab === "apiKeys" && !canViewApiKeys)
+        ) {
+            return "workspace"
+        }
+
+        return requestedTab
+    }, [canShowBilling, canShowOrganization, canShowTools, canViewApiKeys, settingsTab, tab])
 
     useEffect(() => {
         if (tab && tab !== settingsTab) {
@@ -50,16 +66,19 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
 
     const items = useMemo<SidebarConfig[]>(() => {
         const list: SidebarConfig[] = [
-            {
-                key: "apiKeys",
-                title: "API Keys",
-                icon: <Key size={16} className="mt-0.5" />,
-            },
+            ...(canViewApiKeys
+                ? [
+                      {
+                          key: "apiKeys",
+                          title: "API Keys",
+                          icon: <Key size={16} className="mt-0.5" />,
+                      },
+                  ]
+                : []),
             {
                 key: "secrets",
                 title: "Models",
                 icon: <Sparkle size={16} className="mt-0.5" />,
-                divider: !canShowTools,
             },
             ...(canShowTools
                 ? [
@@ -67,10 +86,15 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                           key: "tools",
                           title: "Tools",
                           icon: <Wrench size={16} className="mt-0.5" />,
-                          divider: true,
                       },
                   ]
                 : []),
+            {
+                key: "automations",
+                title: "Automations",
+                icon: <Link size={16} className="mt-0.5" />,
+                divider: true,
+            },
             {
                 key: "workspace",
                 title: "Members",
@@ -94,7 +118,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
             })
         }
         return list
-    }, [isOwner, canShowOrganization, canShowBilling, canShowTools])
+    }, [canShowBilling, canShowOrganization, canShowTools, canViewApiKeys, isOwner])
 
     return (
         <section

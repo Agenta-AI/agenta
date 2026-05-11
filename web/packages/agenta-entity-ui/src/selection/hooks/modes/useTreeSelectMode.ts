@@ -11,6 +11,7 @@
  */
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import React from "react"
 
 import {atom, useAtomValue} from "jotai"
 
@@ -22,11 +23,11 @@ import type {
     SelectionPathItem,
 } from "../../types"
 import {
-    useEntitySelectionCore,
     getLevelLabel,
+    useEntitySelectionCore,
     type EntitySelectionCoreOptions,
 } from "../useEntitySelectionCore"
-import {useLevelData, buildPathItem, type LevelQueryState} from "../utilities"
+import {buildPathItem, useLevelData, type LevelQueryState} from "../utilities"
 
 // ============================================================================
 // TYPES
@@ -136,10 +137,23 @@ export interface UseTreeSelectModeOptions<TSelection = EntitySelectionResult> ex
     ) => React.ReactNode
 
     /**
+     * Whether to show dates/subtitles in labels.
+     * Propagated to RevisionLabel (showDateInline) and EntityListItemLabel (showSubtitle).
+     * @default true
+     */
+    showDate?: boolean
+
+    /**
      * Whether to expand all nodes by default
      * @default true
      */
     defaultExpandAll?: boolean
+
+    /**
+     * Parent IDs to expand initially (when defaultExpandAll is false).
+     * Children for these parents will be fetched on mount.
+     */
+    initialExpandedKeys?: string[]
 
     /**
      * Filter function for parents (in addition to search)
@@ -362,8 +376,10 @@ export function useTreeSelectMode<TSelection = EntitySelectionResult>(
         renderChildTitle,
         renderSelectedLabel,
         defaultExpandAll = true,
+        initialExpandedKeys,
         parentFilter,
         childFilter,
+        showDate = true,
     } = options
 
     // Get core utilities
@@ -385,7 +401,7 @@ export function useTreeSelectMode<TSelection = EntitySelectionResult>(
     // ========================================================================
 
     const [searchTerm, setSearchTerm] = useState("")
-    const [expandedKeys, setExpandedKeys] = useState<string[]>([])
+    const [expandedKeys, setExpandedKeys] = useState<string[]>(initialExpandedKeys ?? [])
     const [selectedValue, setSelectedValue] = useState<string | null>(selectedValueProp ?? null)
 
     // Sync selectedValue with prop
@@ -414,29 +430,30 @@ export function useTreeSelectMode<TSelection = EntitySelectionResult>(
         return items
     }, [parentItems, parentFilter])
 
-    // Get parent IDs for fetching children
-    const parentIds = useMemo(() => {
+    // Get all parent IDs
+    const allParentIds = useMemo(() => {
         return filteredParentItems.map((p) => parentLevelConfig.getId(p))
     }, [filteredParentItems, parentLevelConfig])
+
+    // Only fetch children for expanded parents (or all when searching/expanding all).
+    // This avoids N network requests when the tree opens with many collapsed parents.
+    const parentIdsToFetch = useMemo(() => {
+        // When searching, we need all children to filter results
+        if (searchTerm) return allParentIds
+        // When defaultExpandAll is true, fetch everything
+        if (defaultExpandAll) return allParentIds
+        // Otherwise, only fetch children for expanded parents
+        const expandedSet = new Set(expandedKeys)
+        return allParentIds.filter((id) => expandedSet.has(id))
+    }, [allParentIds, expandedKeys, searchTerm, defaultExpandAll])
 
     // ========================================================================
     // CHILDREN DATA
     // ========================================================================
 
-    const childrenDataMap = useChildrenDataForParents(childLevelConfig, parentIds)
+    const childrenDataMap = useChildrenDataForParents(childLevelConfig, parentIdsToFetch)
 
     const isLoadingChildren = useMemo(() => {
-        // Debug: log children loading state
-        if (process.env.NODE_ENV === "development") {
-            const childrenStates: Record<string, {isPending: boolean; itemCount: number}> = {}
-            for (const [parentId, data] of childrenDataMap) {
-                childrenStates[parentId] = {
-                    isPending: data.query.isPending,
-                    itemCount: data.items.length,
-                }
-            }
-        }
-
         for (const [, data] of childrenDataMap) {
             if (data.query.isPending) return true
         }
@@ -446,6 +463,32 @@ export function useTreeSelectMode<TSelection = EntitySelectionResult>(
     // ========================================================================
     // BUILD TREE DATA
     // ========================================================================
+
+    const enrichLabelNode = useCallback(
+        (node: React.ReactNode): React.ReactNode => {
+            if (!React.isValidElement(node)) return node
+
+            // We specifically look for RevisionLabel and EntityListItemLabel
+            // But since they might be wrapped or come from other packages,
+            // we try to inject the props if they seem compatible.
+            const propsToInject: {
+                showDateInline: boolean
+                showSubtitle: boolean
+            } = {
+                showDateInline: showDate,
+                showSubtitle: showDate,
+            }
+
+            return React.cloneElement(
+                node as React.ReactElement<{
+                    showDateInline?: boolean
+                    showSubtitle?: boolean
+                }>,
+                propsToInject,
+            )
+        },
+        [showDate],
+    )
 
     const {treeData, flatNodes} = useMemo(() => {
         const flat: TreeSelectNode[] = []
@@ -467,7 +510,7 @@ export function useTreeSelectMode<TSelection = EntitySelectionResult>(
         filteredParentItems.forEach((parent) => {
             const parentId = parentLevelConfig.getId(parent)
             const parentLabelStr = parentLevelConfig.getLabel(parent)
-            const parentLabelNode = parentLevelConfig.getLabelNode?.(parent)
+            const parentLabelNode = enrichLabelNode(parentLevelConfig.getLabelNode?.(parent))
             const isParentDisabled = disabledParentIds?.has(parentId) ?? false
 
             // Get children for this parent
@@ -506,7 +549,7 @@ export function useTreeSelectMode<TSelection = EntitySelectionResult>(
             const childNodes: TreeSelectNode[] = childItems.map((child: unknown) => {
                 const childId = childLevelConfig.getId(child)
                 const childLabelStr = childLevelConfig.getLabel(child)
-                const childLabelNode = childLevelConfig.getLabelNode?.(child)
+                const childLabelNode = enrichLabelNode(childLevelConfig.getLabelNode?.(child))
                 const isChildDisabled = disabledChildIds?.has(childId) ?? false
 
                 // Build default title node

@@ -47,7 +47,7 @@ The implementation quality and architecture are generally strong, but there are 
 
 ## P1 Findings
 
-1. Compatibility/Correctness: `/preview/testcases/query` dropped legacy `testset_revision_id`.
+1. Compatibility/Correctness: `/testcases/query` dropped legacy `testset_revision_id`.
 - Request model no longer includes legacy field: `api/oss/src/apis/fastapi/testcases/models.py:18`
 - Router resolves only ref fields: `api/oss/src/apis/fastapi/testcases/router.py:174`
 - Service/DAO path can fall back to broad project query when expected filters are absent:
@@ -55,7 +55,7 @@ The implementation quality and architecture are generally strong, but there are 
   - `api/oss/src/dbs/postgres/blobs/dao.py:426`
 - Impact: silent behavior change and potentially over-broad reads for legacy callers.
 
-2. Correctness: `/preview/spans/{trace_id}/{span_id}` cannot fetch nested spans.
+2. Correctness: `/spans/{trace_id}/{span_id}` cannot fetch nested spans.
 - Lookup checks only top-level spans: `api/oss/src/core/tracing/utils/trees.py:493`
 - Endpoint depends on this directly: `api/oss/src/apis/fastapi/tracing/router.py:947`
 - Impact: child spans are not retrievable by ID from span endpoint.

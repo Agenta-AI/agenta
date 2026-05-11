@@ -187,7 +187,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                 <div>
                     <Collapse
                         defaultActiveKey={["1"]}
-                        expandIconPosition="end"
+                        expandIconPlacement="end"
                         items={[
                             {
                                 key: "1",

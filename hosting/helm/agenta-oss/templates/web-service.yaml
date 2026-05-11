@@ -1,0 +1,19 @@
+{{- if .Values.web.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agenta.fullname" . }}-web
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.web.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "agenta.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+{{- end }}

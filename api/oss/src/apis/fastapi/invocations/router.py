@@ -59,17 +59,6 @@ class InvocationsRouter:
             "/{trace_id}",
             self.fetch_invocation,
             methods=["GET"],
-            operation_id="fetch_invocation_by_trace_id",
-            status_code=status.HTTP_200_OK,
-            response_model=InvocationResponse,
-            response_model_exclude_none=True,
-        )
-
-        # GET /api/invocations/{trace_id}/{span_id}
-        self.router.add_api_route(
-            "/{trace_id}/{span_id}",
-            self.fetch_invocation,
-            methods=["GET"],
             operation_id="fetch_invocation",
             status_code=status.HTTP_200_OK,
             response_model=InvocationResponse,
@@ -81,17 +70,6 @@ class InvocationsRouter:
             "/{trace_id}",
             self.edit_invocation,
             methods=["PATCH"],
-            operation_id="edit_invocation_by_trace_id",
-            status_code=status.HTTP_200_OK,
-            response_model=InvocationResponse,
-            response_model_exclude_none=True,
-        )
-
-        # PUT /api/invocations/{trace_id}/{span_id}
-        self.router.add_api_route(
-            "/{trace_id}/{span_id}",
-            self.edit_invocation,
-            methods=["PATCH"],
             operation_id="edit_invocation",
             status_code=status.HTTP_200_OK,
             response_model=InvocationResponse,
@@ -101,17 +79,6 @@ class InvocationsRouter:
         # DELETE /api/invocations/{trace_id}
         self.router.add_api_route(
             "/{trace_id}",
-            self.delete_invocation,
-            methods=["DELETE"],
-            operation_id="delete_invocation_by_trace_id",
-            status_code=status.HTTP_200_OK,
-            response_model=InvocationLinkResponse,
-            response_model_exclude_none=True,
-        )
-
-        # DELETE /api/invocations/{trace_id}/{span_id}
-        self.router.add_api_route(
-            "/{trace_id}/{span_id}",
             self.delete_invocation,
             methods=["DELETE"],
             operation_id="delete_invocation",

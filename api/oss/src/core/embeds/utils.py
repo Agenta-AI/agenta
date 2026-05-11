@@ -10,7 +10,7 @@ from copy import deepcopy
 from json import dumps
 import re
 
-from agenta.sdk.types import resolve_any
+from agenta.sdk.utils.resolvers import resolve_any
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.embeds.dtos import (
     ObjectEmbed,
@@ -275,12 +275,13 @@ def create_universal_resolver(
             if deepest_level == "revision":
                 entity = await _resolve_revision_with_normalization(
                     ref=revision_ref,
-                    fetch_revision_by_refs=lambda vref,
-                    rref: workflows_service.fetch_workflow_revision(
-                        project_id=project_id,
-                        workflow_variant_ref=vref or scoping_ref,
-                        workflow_revision_ref=rref,
-                        include_archived=include_archived,
+                    fetch_revision_by_refs=lambda vref, rref: (
+                        workflows_service.fetch_workflow_revision(
+                            project_id=project_id,
+                            workflow_variant_ref=vref or scoping_ref,
+                            workflow_revision_ref=rref,
+                            include_archived=include_archived,
+                        )
                     ),
                 )
                 if not entity or not entity.data:
@@ -327,12 +328,13 @@ def create_universal_resolver(
             if deepest_level == "revision":
                 entity = await _resolve_revision_with_normalization(
                     ref=revision_ref,
-                    fetch_revision_by_refs=lambda vref,
-                    rref: environments_service.fetch_environment_revision(
-                        project_id=project_id,
-                        environment_variant_ref=vref or scoping_ref,
-                        environment_revision_ref=rref,
-                        include_archived=include_archived,
+                    fetch_revision_by_refs=lambda vref, rref: (
+                        environments_service.fetch_environment_revision(
+                            project_id=project_id,
+                            environment_variant_ref=vref or scoping_ref,
+                            environment_revision_ref=rref,
+                            include_archived=include_archived,
+                        )
                     ),
                 )
                 if not entity or not entity.data:
@@ -379,12 +381,13 @@ def create_universal_resolver(
             if deepest_level == "revision":
                 entity = await _resolve_revision_with_normalization(
                     ref=revision_ref,
-                    fetch_revision_by_refs=lambda vref,
-                    rref: applications_service.fetch_application_revision(
-                        project_id=project_id,
-                        application_variant_ref=vref or scoping_ref,
-                        application_revision_ref=rref,
-                        include_archived=include_archived,
+                    fetch_revision_by_refs=lambda vref, rref: (
+                        applications_service.fetch_application_revision(
+                            project_id=project_id,
+                            application_variant_ref=vref or scoping_ref,
+                            application_revision_ref=rref,
+                            include_archived=include_archived,
+                        )
                     ),
                 )
                 if not entity or not entity.data:
@@ -431,12 +434,13 @@ def create_universal_resolver(
             if deepest_level == "revision":
                 entity = await _resolve_revision_with_normalization(
                     ref=revision_ref,
-                    fetch_revision_by_refs=lambda vref,
-                    rref: evaluators_service.fetch_evaluator_revision(
-                        project_id=project_id,
-                        evaluator_variant_ref=vref or scoping_ref,
-                        evaluator_revision_ref=rref,
-                        include_archived=include_archived,
+                    fetch_revision_by_refs=lambda vref, rref: (
+                        evaluators_service.fetch_evaluator_revision(
+                            project_id=project_id,
+                            evaluator_variant_ref=vref or scoping_ref,
+                            evaluator_revision_ref=rref,
+                            include_archived=include_archived,
+                        )
                     ),
                 )
                 if not entity or not entity.data:
@@ -1006,6 +1010,7 @@ def find_object_embeds(
     config: Dict[str, Any],
     parent_path: str = "",
     parent_key: str = "",
+    visited: Optional[Set[int]] = None,
 ) -> List[ObjectEmbed]:
     """
     Recursively traverse config to find object embeds.
@@ -1033,6 +1038,14 @@ def find_object_embeds(
         List of found object embeds
     """
     embeds: List[ObjectEmbed] = []
+    if visited is None:
+        visited = set()
+
+    if isinstance(config, (dict, list)):
+        config_id = id(config)
+        if config_id in visited:
+            return embeds
+        visited.add(config_id)
 
     if isinstance(config, dict):
         if AG_EMBED_KEY in config:
@@ -1086,12 +1099,12 @@ def find_object_embeds(
             # Recurse into children
             for key, value in config.items():
                 child_path = f"{parent_path}.{key}" if parent_path else key
-                embeds.extend(find_object_embeds(value, child_path, key))
+                embeds.extend(find_object_embeds(value, child_path, key, visited))
 
     elif isinstance(config, list):
         for idx, item in enumerate(config):
             child_path = f"{parent_path}.{idx}"
-            embeds.extend(find_object_embeds(item, child_path, str(idx)))
+            embeds.extend(find_object_embeds(item, child_path, str(idx), visited))
 
     return embeds
 
@@ -1100,6 +1113,7 @@ def find_string_embeds(
     config: Dict[str, Any],
     parent_path: str = "",
     parent_key: str = "",
+    visited: Optional[Set[int]] = None,
 ) -> List[StringEmbed]:
     """
     Recursively traverse config to find string embeds with inline tokens.
@@ -1120,6 +1134,14 @@ def find_string_embeds(
         List of found string embeds
     """
     embeds: List[StringEmbed] = []
+    if visited is None:
+        visited = set()
+
+    if isinstance(config, (dict, list)):
+        config_id = id(config)
+        if config_id in visited:
+            return embeds
+        visited.add(config_id)
 
     if isinstance(config, dict):
         # Recurse into children
@@ -1149,7 +1171,7 @@ def find_string_embeds(
                             f"Invalid embed token at {child_path}: {token} - {e}",
                         )
             else:
-                embeds.extend(find_string_embeds(value, child_path, key))
+                embeds.extend(find_string_embeds(value, child_path, key, visited))
 
     elif isinstance(config, list):
         for idx, item in enumerate(config):
@@ -1177,7 +1199,7 @@ def find_string_embeds(
                             f"Invalid embed token at {child_path}: {token} - {e}",
                         )
             else:
-                embeds.extend(find_string_embeds(item, child_path, str(idx)))
+                embeds.extend(find_string_embeds(item, child_path, str(idx), visited))
 
     return embeds
 
@@ -1558,6 +1580,7 @@ def find_snippet_embeds(
     config: Dict[str, Any],
     parent_path: str = "",
     parent_key: str = "",
+    visited: Optional[Set[int]] = None,
 ) -> List[SnippetEmbed]:
     """
     Recursively traverse config to find @{{...}} snippet embeds.
@@ -1576,6 +1599,14 @@ def find_snippet_embeds(
         List of found snippet embeds
     """
     embeds: List[SnippetEmbed] = []
+    if visited is None:
+        visited = set()
+
+    if isinstance(config, (dict, list)):
+        config_id = id(config)
+        if config_id in visited:
+            return embeds
+        visited.add(config_id)
 
     if isinstance(config, dict):
         for key, value in config.items():
@@ -1602,7 +1633,7 @@ def find_snippet_embeds(
                             f"Invalid snippet embed token at {child_path}: {token} - {e}",
                         )
             else:
-                embeds.extend(find_snippet_embeds(value, child_path, key))
+                embeds.extend(find_snippet_embeds(value, child_path, key, visited))
 
     elif isinstance(config, list):
         for idx, item in enumerate(config):
@@ -1629,7 +1660,7 @@ def find_snippet_embeds(
                             f"Invalid snippet embed token at {child_path}: {token} - {e}",
                         )
             else:
-                embeds.extend(find_snippet_embeds(item, child_path, str(idx)))
+                embeds.extend(find_snippet_embeds(item, child_path, str(idx), visited))
 
     return embeds
 

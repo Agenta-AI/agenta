@@ -752,7 +752,7 @@ const OnboardingCard = ({
                                     type="primary"
                                     onClick={handleNext}
                                     icon={<ArrowRight size={14} className="mt-0.5" />}
-                                    iconPosition="end"
+                                    iconPlacement="end"
                                     className="!text-xs !h-[26px] bg-colorPrimary hover:!bg-colorPrimaryHover rounded-lg"
                                     size="small"
                                 >

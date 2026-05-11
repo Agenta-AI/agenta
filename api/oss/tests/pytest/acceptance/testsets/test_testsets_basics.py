@@ -30,7 +30,7 @@ class TestTestsetsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/",
+            "/simple/testsets/",
             json={
                 "testset": testset,
             },
@@ -77,7 +77,7 @@ class TestTestsetsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/",
+            "/simple/testsets/",
             json={
                 "testset": testset,
             },
@@ -123,7 +123,7 @@ class TestTestsetsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/",
+            "/simple/testsets/",
             json={
                 "testset": testset,
             },
@@ -137,7 +137,7 @@ class TestTestsetsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/simple/testsets/{testset_id}",
+            f"/simple/testsets/{testset_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -186,7 +186,7 @@ class TestTestsetsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/",
+            "/simple/testsets/",
             json={
                 "testset": testset,
             },
@@ -220,7 +220,7 @@ class TestTestsetsBasics:
 
         response = authed_api(
             "PUT",
-            f"/preview/simple/testsets/{testset_id}",
+            f"/simple/testsets/{testset_id}",
             json={
                 "testset": updated_testset,
             },
@@ -272,7 +272,7 @@ class TestTestsetsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/",
+            "/simple/testsets/",
             json={
                 "testset": testset,
             },
@@ -296,7 +296,7 @@ class TestTestsetsBasics:
 
         response = authed_api(
             "PUT",
-            f"/preview/simple/testsets/{testset_id}",
+            f"/simple/testsets/{testset_id}",
             json={
                 "testset": updated_testset,
             },
@@ -348,7 +348,7 @@ class TestTestsetsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/",
+            "/simple/testsets/",
             json={
                 "testset": testset,
             },
@@ -362,7 +362,7 @@ class TestTestsetsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            f"/preview/simple/testsets/{testset_id}/archive",
+            f"/simple/testsets/{testset_id}/archive",
         )
         # ----------------------------------------------------------------------
 
@@ -399,7 +399,7 @@ class TestTestsetsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/simple/testsets/",
+            "/simple/testsets/",
             json={
                 "testset": testset,
             },
@@ -411,7 +411,7 @@ class TestTestsetsBasics:
 
         response = authed_api(
             "POST",
-            f"/preview/simple/testsets/{testset_id}/archive",
+            f"/simple/testsets/{testset_id}/archive",
         )
         assert response.status_code == 200
         # ----------------------------------------------------------------------
@@ -419,7 +419,7 @@ class TestTestsetsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            f"/preview/simple/testsets/{testset_id}/unarchive",
+            f"/simple/testsets/{testset_id}/unarchive",
         )
         # ----------------------------------------------------------------------
 

@@ -1,12 +1,12 @@
-import {cloneElement, isValidElement, useMemo, useState} from "react"
+import {cloneElement, isValidElement, useCallback, useMemo, useState} from "react"
 
+import {workflowMolecule, workflowVariantsListDataAtomFamily} from "@agenta/entities/workflow"
 import {CloudArrowUp} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
-import {moleculeBackedVariantAtomFamily} from "@/oss/components/Playground/state/atoms"
-import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
+import {useAppEnvironments} from "@/oss/state/environment/useAppEnvironments"
 
 import {DeployVariantButtonProps} from "./types"
 
@@ -25,24 +25,26 @@ const DeployVariantButton = ({
         environments: _environments,
         mutate: mutateEnv,
         isEnvironmentsLoading,
-    } = useEnvironments()
+    } = useAppEnvironments()
 
-    // Use molecule-backed variant for single source of truth
-    const variant = useAtomValue(moleculeBackedVariantAtomFamily(revisionId)) as any
+    const runnableData = useAtomValue(workflowMolecule.selectors.data(revisionId || ""))
+    const workflowId = runnableData?.workflow_id || ""
+    const variants = useAtomValue(workflowVariantsListDataAtomFamily(workflowId))
 
     const {environments, variantName, revision} = useMemo(() => {
+        const variantEntity = variants.find((v) => v.id === runnableData?.workflow_variant_id)
         return {
-            variantName: variant?.variantName || "",
-            revision: (variant as any)?.revisionNumber ?? (variant as any)?.revision ?? "",
+            variantName: variantEntity?.name || runnableData?.name || "",
+            revision: runnableData?.version ?? "",
             environments: _environments,
         }
-    }, [variant, _environments])
+    }, [runnableData, variants, _environments])
 
-    const onSuccess = async () => {
-        // Just refetch environments - the revisionListAtom will automatically update
-        // when the deployment state changes through SWR revalidation
+    const onSuccess = useCallback(async () => {
         await mutateEnv()
-    }
+    }, [mutateEnv])
+
+    const handleCloseDeployModal = useCallback(() => setIsDeployModalOpen(false), [])
 
     return (
         <>
@@ -70,7 +72,7 @@ const DeployVariantButton = ({
 
             <DeployVariantModal
                 open={isDeployModalOpen}
-                onCancel={() => setIsDeployModalOpen(false)}
+                onCancel={handleCloseDeployModal}
                 variantId={variantId}
                 revisionId={revisionId}
                 environments={environments}

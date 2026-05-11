@@ -13,10 +13,14 @@ export {
 export type {
     PlaygroundEntityProviders,
     EntityRevisionSelectors,
-    EvaluatorRevisionSelectors,
-    EvaluatorRevisionActions,
+    EvaluatorSelectors,
     EntityQueryState,
     SettingsPreset,
     AppRevisionRawData,
-    EvaluatorRevisionRawData,
+    EvaluatorRawData,
+    AppRevisionListSelectors,
+    AppRevisionActions,
+    AppRevisionCreateVariantPayload,
+    AppRevisionCommitPayload,
+    AppRevisionCrudResult,
 } from "./PlaygroundEntityContext"

@@ -34,7 +34,6 @@ const TraceContent = ({
 }: TraceContentProps) => {
     const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useAtom(traceSidePanelOpenAtom)
     const activeTrace = active
-    const {key, children, spans, invocationIds, ...filteredTrace} = activeTrace || {}
     const spanEntityId = activeTrace?.span_id || activeTrace?.invocationIds?.span_id || activeId
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
@@ -54,7 +53,7 @@ const TraceContent = ({
         if (!activeTrace) {
             const errorPayload = error
             const rawPayload =
-                traceResponse?.response || (errorPayload ? {error: errorPayload} : {})
+                traceResponse?.response ?? (errorPayload ? {error: errorPayload} : {})
             return [
                 {
                     key: "raw_data",
@@ -86,6 +85,7 @@ const TraceContent = ({
                         {spanEntityId ? (
                             <TraceSpanDrillInView
                                 spanId={spanEntityId}
+                                spanDataOverride={activeTrace}
                                 title="Raw Data"
                                 editable={false}
                                 rootScope="span"
@@ -94,7 +94,7 @@ const TraceContent = ({
                         ) : (
                             <AccordionTreePanel
                                 label={"Raw Data"}
-                                value={{...filteredTrace}}
+                                value={activeTrace ?? {}}
                                 enableFormatSwitcher
                                 fullEditorHeight
                                 enableSearch
@@ -114,7 +114,7 @@ const TraceContent = ({
                 children: <AnnotationTabItem annotations={activeTrace?.annotations || []} />,
             },
         ]
-    }, [activeTrace, filteredTrace, isLoading, traceResponse, error, tab, spanEntityId])
+    }, [activeTrace, isLoading, traceResponse, error, tab, spanEntityId])
 
     // Ensure active tab exists in items; if not, switch to first tab
     const itemKeys = useMemo(() => (items || []).map((it) => String(it?.key)), [items])

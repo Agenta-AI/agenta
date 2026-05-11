@@ -104,7 +104,6 @@ import { playgroundController } from '@agenta/playground/state'
 
 // Selectors
 const nodes = useAtomValue(playgroundController.selectors.nodes())
-const primaryNode = useAtomValue(playgroundController.selectors.primaryNode())
 
 // Actions
 const addNode = useSetAtom(playgroundController.actions.addPrimaryNode)

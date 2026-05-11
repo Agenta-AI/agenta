@@ -5,8 +5,10 @@
  * warnings, and any blocked entities.
  */
 
+import {useMemo} from "react"
+
 import {Alert, Typography} from "antd"
-import {useAtomValue} from "jotai"
+import {atom, useAtomValue} from "jotai"
 import {Trash2} from "lucide-react"
 
 import {getEntityAdapter} from "../../adapters"
@@ -140,17 +142,30 @@ interface EntityNameDisplayProps {
 function EntityNameDisplay({entity}: EntityNameDisplayProps) {
     const adapter = getEntityAdapter(entity.type)
 
-    // If name is provided, use it
+    // Memoize the data atom to avoid creating new atoms on every render
+    const dataAtom = useMemo(
+        () => (adapter ? adapter.dataAtom(entity.id) : null),
+        [adapter, entity.id],
+    )
+
+    // Read entity data from adapter's atom
+    const entityData = useAtomValue(dataAtom ?? emptyAtom)
+
+    // If name is provided in the reference, use it
     if (entity.name) {
         return <span>{entity.name}</span>
     }
 
-    // Try to resolve via adapter
-    if (adapter) {
-        // Note: We'd need to read the atom here, but we already have the name
-        // from deleteModalNamesAtom. For simplicity, fall back to ID.
-        return <span className="font-mono">{entity.id}</span>
+    // Try to resolve via adapter's getDisplayName
+    if (adapter && entityData) {
+        const displayName = adapter.getDisplayName(entityData)
+        if (displayName && displayName !== entity.id) {
+            return <span>{displayName}</span>
+        }
     }
 
     return <span className="font-mono">{entity.id}</span>
 }
+
+// Empty atom for when no adapter is available
+const emptyAtom = atom(() => null)

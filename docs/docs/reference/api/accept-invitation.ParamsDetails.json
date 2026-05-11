@@ -1,0 +1,1 @@
+{"parameters":[{"name":"organization_id","in":"path","required":true,"schema":{"type":"string","title":"Organization Id"}},{"name":"workspace_id","in":"path","required":true,"schema":{"type":"string","title":"Workspace Id"}},{"name":"project_id","in":"query","required":true,"schema":{"type":"string","title":"Project Id"}}]}

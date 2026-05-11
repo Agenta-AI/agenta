@@ -29,7 +29,18 @@
  * Promise return values from write functions.
  */
 
+import {atom} from "jotai"
+
 import {entitySelectorOpenAtom, entitySelectorConfigAtom} from "../atoms/entitySelector"
+import type {EntitySelectorConfig} from "../types"
+
+const setEntitySelectorOpenAtom = atom(null, (_get, set, isOpen: boolean) => {
+    set(entitySelectorOpenAtom, isOpen)
+})
+
+const setEntitySelectorConfigAtom = atom(null, (_get, set, config: EntitySelectorConfig) => {
+    set(entitySelectorConfigAtom, config)
+})
 
 // ============================================================================
 // CONTROLLER EXPORT
@@ -47,5 +58,10 @@ export const entitySelectorController = {
 
         /** Current modal configuration */
         config: () => entitySelectorConfigAtom,
+    },
+
+    actions: {
+        setOpen: setEntitySelectorOpenAtom,
+        setConfig: setEntitySelectorConfigAtom,
     },
 }

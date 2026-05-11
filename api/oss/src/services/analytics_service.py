@@ -128,6 +128,7 @@ def capture_oss_deployment_created(user_email: str, organization_id: str):
                 properties={
                     "organization_id": organization_id,
                     "deployment_type": "oss",
+                    "$set": {"email": user_email},
                 },
             )
             log.info(f"Captured 'oss_deployment_created' event for {user_email}")
@@ -246,6 +247,8 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 pass
 
             if distinct_id and env.posthog.api_key:
+                properties["$set"] = {"email": distinct_id}
+
                 posthog.capture(
                     distinct_id=distinct_id,
                     event=event_name,
@@ -329,8 +332,11 @@ def _get_event_name_from_path(
     elif method == "PUT" and "/evaluators/configs/" in path:
         return "evaluator_updated"
 
-    elif method == "POST" and (
-        path == "/preview/evaluations/runs/" or path == "/preview/simple/evaluations/"
+    elif method == "POST" and path in (
+        "/evaluations/runs/",
+        "/simple/evaluations/",
+        "/preview/evaluations/runs/",
+        "/preview/simple/evaluations/",
     ):
         return "evaluation_created"
 
@@ -347,10 +353,10 @@ def _get_event_name_from_path(
     # <----------- End of Observability Events ------------->
 
     # <----------- Query/Prompt Management Events ------------->
-    if method == "POST" and path == "/preview/queries/":
+    if method == "POST" and path in ("/queries/", "/preview/queries/"):
         return "query_created"
 
-    elif method == "POST" and path == "/preview/simple/queries/":
+    elif method == "POST" and path in ("/simple/queries/", "/preview/simple/queries/"):
         return "query_created"
     # <----------- End of Query/Prompt Management Events ------------->
 

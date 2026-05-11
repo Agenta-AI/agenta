@@ -1,8 +1,9 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {workflowMolecule, workflowLatestRevisionIdAtomFamily} from "@agenta/entities/workflow"
 import {PythonOutlined} from "@ant-design/icons"
-import {CloudArrowUp, FileCode, FileTs} from "@phosphor-icons/react"
-import {Button, Spin, Tabs, Typography} from "antd"
+import {FileCode, FileTs} from "@phosphor-icons/react"
+import {Spin, Tabs} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -14,12 +15,8 @@ import invokeLlmApppythonCode from "@/oss/code_snippets/endpoints/invoke_llm_app
 import invokeLlmApptsCode from "@/oss/code_snippets/endpoints/invoke_llm_app/typescript"
 import LanguageCodeBlock from "@/oss/components/pages/overview/deployments/DeploymentDrawer/assets/LanguageCodeBlock"
 import {useAppId} from "@/oss/hooks/useAppId"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {DeploymentRevisions} from "@/oss/lib/Types"
 import {createParams} from "@/oss/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/endpoints"
-import {currentAppAtom, useURI} from "@/oss/state/app"
-import {stablePromptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {deployedRevisionByEnvironmentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
+import {currentAppAtom} from "@/oss/state/app"
 
 const ApiKeyInput = dynamic(
     () => import("@/oss/components/pages/app-management/components/ApiKeyInput"),
@@ -27,46 +24,62 @@ const ApiKeyInput = dynamic(
 )
 
 interface UseApiContentProps {
-    variants: EnhancedVariant[]
-    selectedEnvironment: DeploymentRevisions
+    envName: string
+    deployedRevisionId?: string | null
     revisionId?: string
     handleOpenSelectDeployVariantModal: () => void
 }
 
 const UseApiContent = ({
-    selectedEnvironment,
+    envName,
+    deployedRevisionId,
     revisionId,
     handleOpenSelectDeployVariantModal,
 }: UseApiContentProps) => {
-    const appId = useAppId()
     const currentApp = useAtomValue(currentAppAtom)
+    const appId = useAppId()
     const [selectedLang, setSelectedLang] = useState("python")
     const [apiKeyValue, setApiKeyValue] = useState("")
 
-    const hasDeployment = Boolean(selectedEnvironment?.deployed_app_variant_id)
-    const variantId = hasDeployment ? selectedEnvironment.deployed_app_variant_id : undefined
-    const {data: uri, isLoading: isUriQueryLoading} = useURI(appId, variantId)
-    const isLoading = Boolean(variantId) && isUriQueryLoading
+    // Use workflow entity to get latest revision as fallback
+    const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(appId || ""))
 
-    const latestRevisionForVariant = useAtomValue(
-        deployedRevisionByEnvironmentAtomFamily(selectedEnvironment.name),
-    ) as any
-    const variableNames = useAtomValue(
-        stablePromptVariablesAtomFamily(revisionId || latestRevisionForVariant?.id || ""),
-    ) as string[]
+    const effectiveRevisionId = revisionId || deployedRevisionId || latestRevisionId || ""
+
+    const uri = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.deploymentUrl(effectiveRevisionId || ""),
+            [effectiveRevisionId],
+        ),
+    )
+
+    const inputPorts = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.inputPorts(effectiveRevisionId || ""),
+            [effectiveRevisionId],
+        ),
+    ) as any[]
+    const variableNames = useMemo(
+        () => (inputPorts || []).map((p: any) => p.key) as string[],
+        [inputPorts],
+    )
+    const isChat = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.isChat(effectiveRevisionId || ""),
+            [effectiveRevisionId],
+        ),
+    )
 
     const params = useMemo(() => {
         const synthesized = variableNames.map((name) => ({name, input: name === "messages"}))
 
-        return createParams(
-            synthesized,
-            selectedEnvironment?.name || "none",
-            "add_a_value",
-            currentApp,
-        )
-    }, [variableNames, selectedEnvironment?.name, currentApp])
+        return createParams(synthesized, envName || "none", "add_a_value", currentApp, {
+            flags: {is_chat: isChat},
+        })
+    }, [variableNames, envName, currentApp, isChat])
 
-    const invokeLlmUrl = uri ?? ""
+    // deploymentUrl resolves to /v0/invoke (resolves config from the deployed environment).
+    const invokeLlmUrl = useMemo(() => uri?.trim() || "", [uri])
 
     const invokeLlmAppCodeSnippet = useMemo(
         () => ({
@@ -80,70 +93,42 @@ const UseApiContent = ({
     const fetchConfigCodeSnippet = useMemo(
         () => ({
             python: fetchConfigpythonCode(
-                currentApp?.app_name!,
-                selectedEnvironment?.name!,
+                currentApp?.slug ?? currentApp?.name ?? "",
+                envName!,
                 apiKeyValue || "x.xxxxxxxx",
             ),
             bash: fetchConfigcURLCode(
-                currentApp?.app_name!,
-                selectedEnvironment?.name!,
+                currentApp?.slug ?? currentApp?.name ?? "",
+                envName!,
                 apiKeyValue || "x.xxxxxxxx",
             ),
             typescript: fetchConfigtsCode(
-                currentApp?.app_name!,
-                selectedEnvironment?.name!,
+                currentApp?.slug ?? currentApp?.name ?? "",
+                envName!,
                 apiKeyValue || "x.xxxxxxxx",
             ),
         }),
-        [apiKeyValue, currentApp?.app_name, selectedEnvironment?.name],
+        [apiKeyValue, currentApp?.name, currentApp?.slug, envName],
     )
 
     const renderTabChildren = useCallback(() => {
-        if (!hasDeployment) {
-            return (
-                <div className="flex flex-col items-center gap-4 py-16 text-center">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-50">
-                        <CloudArrowUp size={24} className="text-primary-500" />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                        <Typography.Text className="text-base font-medium">
-                            No deployment yet
-                        </Typography.Text>
-                        <Typography.Text type="secondary">
-                            Deploy a variant to generate API credentials and client snippets for
-                            this environment.
-                        </Typography.Text>
-                    </div>
-                    <Button
-                        type="primary"
-                        icon={<CloudArrowUp size={16} />}
-                        onClick={handleOpenSelectDeployVariantModal}
-                    >
-                        Deploy variant
-                    </Button>
-                </div>
-            )
-        }
-
         return (
-            <Spin spinning={isLoading}>
+            <Spin spinning={false}>
                 <LanguageCodeBlock
                     fetchConfigCodeSnippet={fetchConfigCodeSnippet}
                     invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
                     selectedLang={selectedLang}
                     handleOpenSelectDeployVariantModal={handleOpenSelectDeployVariantModal}
                     invokeLlmUrl={invokeLlmUrl}
+                    showDeployOverlay={false}
                 />
             </Spin>
         )
     }, [
-        apiKeyValue,
         fetchConfigCodeSnippet,
         handleOpenSelectDeployVariantModal,
-        hasDeployment,
         invokeLlmAppCodeSnippet,
         invokeLlmUrl,
-        isLoading,
         selectedLang,
     ])
 

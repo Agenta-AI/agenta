@@ -1,0 +1,43 @@
+{{- if or .Values.api.enabled .Values.web.enabled .Values.supertokens.enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "agenta.fullname" . }}-test-connection
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+spec:
+  restartPolicy: Never
+  containers:
+    {{- if .Values.api.enabled }}
+    - name: test-api
+      image: busybox:1.36
+      command: ['sh', '-c']
+      args:
+        - |
+          echo "Testing API health endpoint..."
+          wget -q --spider http://{{ include "agenta.fullname" . }}-api:{{ .Values.api.port }}/health
+          echo "API is healthy."
+    {{- end }}
+    {{- if .Values.web.enabled }}
+    - name: test-web
+      image: busybox:1.36
+      command: ['sh', '-c']
+      args:
+        - |
+          echo "Testing Web endpoint..."
+          wget -q --spider http://{{ include "agenta.fullname" . }}-web:{{ .Values.web.port }}/
+          echo "Web is reachable."
+    {{- end }}
+    {{- if .Values.supertokens.enabled }}
+    - name: test-supertokens
+      image: busybox:1.36
+      command: ['sh', '-c']
+      args:
+        - |
+          echo "Testing SuperTokens endpoint..."
+          wget -q --spider http://{{ include "agenta.fullname" . }}-supertokens:{{ .Values.supertokens.port }}/hello
+          echo "SuperTokens is healthy."
+    {{- end }}
+{{- end }}

@@ -118,6 +118,15 @@ export interface CreateLevelFromRelationOptions<TChild = unknown> {
      * List atom family (for child levels) - overrides relation.listAtomFamily
      */
     listAtomFamily?: (parentId: string) => Atom<ListQueryState<TChild>>
+
+    /** Get a group key for this entity (for grouped select rendering) */
+    getGroupKey?: (entity: TChild) => string | null | undefined
+
+    /** Map a group key to a human-readable display label */
+    getGroupLabel?: (key: string) => string
+
+    /** Function to derive tab definitions from loaded items */
+    buildTabs?: (items: TChild[]) => import("../types").TabDefinition[]
 }
 
 // ============================================================================
@@ -235,6 +244,9 @@ export function createLevelFromRelation<TChild = unknown>(
         onBeforeLoad,
         listAtom,
         listAtomFamily,
+        getGroupKey,
+        getGroupLabel,
+        buildTabs,
     } = options
 
     // Derive from relation.selection if available
@@ -272,6 +284,13 @@ export function createLevelFromRelation<TChild = unknown>(
         (selectionConfig?.displayName as ((entity: TChild) => string) | undefined) ??
         (defaultGetLabel as (entity: TChild) => string)
 
+    // Use relation.selection.displayDescription as fallback for getDescription
+    const resolvedGetDescription =
+        getDescription ??
+        (selectionConfig?.displayDescription as
+            | ((entity: TChild) => string | undefined)
+            | undefined)
+
     return {
         type,
         label: label ?? selectionConfig?.label ?? type,
@@ -283,11 +302,16 @@ export function createLevelFromRelation<TChild = unknown>(
         getLabelNode,
         getPlaceholderNode,
         getIcon,
-        getDescription,
+        getDescription: resolvedGetDescription,
         hasChildren: hasChildrenFn,
         isSelectable: isSelectableFn,
         isDisabled,
         onBeforeLoad,
+        getGroupKey,
+        getGroupLabel,
+        buildTabs: buildTabs as
+            | ((items: unknown[]) => import("../types").TabDefinition[])
+            | undefined,
     }
 }
 

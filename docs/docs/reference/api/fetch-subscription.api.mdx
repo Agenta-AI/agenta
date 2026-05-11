@@ -5,7 +5,7 @@ description: "Fetch Subscription User Route"
 sidebar_label: "Fetch Subscription User Route"
 hide_title: true
 hide_table_of_contents: true
-api: eJyFUk1v2zAM/SvBOwtxtqNPzYB9BL0UzXoKjIFRmFibbakSHcwz/N8HOm6a+FJfBIuP1PtgD6FTQr7DF1dVrjmhMPCBI4nzzeaAHEcWW/5K7T7Z6IJewyByCr5JnJD3+Lxa6XHgd0SObWstp3Rsq8XzBIaB9Y1wIwqnECpnx3ey30l7eiRbck3I+0E/Mxv5TZkstjdMFi+J4+LZt6LDa5bSK+UTCwwCSYkc2f6iLJtJSBzPHFV7jzZWyFGKhJRnma18e1jSiRuhJbmMgsNQaIdto5NubFk/bR65+8F04Ih8V9wCtirj4s09rId0gZGDgnvkDgYN1fq/bqX00f2jiZxTveWlS41wzdGP7U6qET+SW6yfNjBQGReHVstPyxXmvt2BNQGyYwJvb49lmJkLV/0w4Jqc1oSpfngvKLPgk9TU3Mz7KKY7cldHhP9KFipyDYaJSj9FuMMUoaZ2G2JhUPokiuj7PSV+idUw6PVry1FzKgzOFB3t1bVdMZg3UzXCP9ypfGs56L6cqWov2cwWU6O97tb3rz8xDP8Bxkwaeg==
+api: eJyFUsFu2zAM/RWDZyHOdtRpGbCtQS9Fs54CY2AUJtYqS6pEB3UN//tAO8mcXOqLIfKRfHyPPTAeM+gtfLfOWX+ESkGIlJBt8Os9aDgQm/pPbnfZJBslDAoS5Rh8pgy6h6/Lpfz29B+hYdMaQzkfWlc8n8GgwATP5FngGKOzZpxT/s1S00M2NTUIuh/kU3ctfwqTYjNjUrxkSsVzaFmaN8R1EMpHYlAQkWvQUO6mzcq7FTKlEyXZvYc2OUFitDCoy7NmjrosXTDo6pB5SldSadpkuRtLV0/rR+oeCPeUQG+rOWAj60wa3cJ64C4SaMBoH6kDBR4bea9arkOyH3gmaWXveqoSQaw/hLHcshvxR/KMxeppDfdq3aREdzSj7pdJYxrUbNmsyxLH8AJtCQqoQStJJmy+XTMwKBDlpjHLxZfFUkIxZG7Qz0Z85tcN36skTO9cRofWS9eRXX/2cgtnL8W+uZuVAnFIEH2/w0wvyQ2DhN9aSmJUpeCEyeJOZNtWg7qoKh6+UieKGENRDueErp3MubtQ8fZ6ZL9+/IZh+Acdkhz0
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -45,16 +46,13 @@ Fetch Subscription User Route
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./fetch-subscription.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}
+  {...require("./fetch-subscription.StatusCodes.json")}
 >
   
 </StatusCodes>

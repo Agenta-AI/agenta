@@ -8,18 +8,17 @@
 import {createContext, useContext, useMemo, useState, useCallback, type ReactNode} from "react"
 
 import {type DataPath, setValueAtPath, deleteValueAtPath} from "@agenta/shared/utils"
-import {useAtomValue, useSetAtom} from "jotai"
-
-import {defaultFieldBehaviors} from "../context"
-import type {DrillInContextValue} from "../context"
+import type {DrillInContextValue} from "@agenta/ui/drill-in"
 import type {
     DrillInClassNames,
     DrillInFieldBehaviors,
     DrillInSlots,
     DrillInStyles,
     MoleculeDrillInAdapter,
-} from "../types"
-import {mergeClassNames} from "../utils/classNames"
+} from "@agenta/ui/drill-in"
+import {defaultFieldBehaviors} from "@agenta/ui/drill-in"
+import {mergeClassNames} from "@agenta/ui/drill-in"
+import {useAtomValue, useSetAtom} from "jotai"
 
 // ============================================================================
 // CONTEXT
@@ -42,6 +41,16 @@ export function useDrillIn<TEntity = unknown>(): DrillInContextValue<TEntity> {
         throw new Error("useDrillIn must be used within MoleculeDrillInView")
     }
     return ctx as DrillInContextValue<TEntity>
+}
+
+/**
+ * Safe variant of {@link useDrillIn} that returns `null` when called outside a
+ * DrillInProvider. Useful for controls that may be rendered both inside and
+ * outside the drill-in tree (e.g. shared schema controls).
+ */
+export function useOptionalDrillIn<TEntity = unknown>(): DrillInContextValue<TEntity> | null {
+    const ctx = useContext(DrillInContext)
+    return ctx as DrillInContextValue<TEntity> | null
 }
 
 // ============================================================================
@@ -154,6 +163,13 @@ export function MoleculeDrillInProvider<TEntity = unknown, TDraft = Partial<TEnt
     const updateEntity = useSetAtom(molecule.reducers.update)
     const discardEntity = useSetAtom(molecule.reducers.discard)
 
+    // ========== ROOT DATA ==========
+    // Extract the navigable data subset (e.g., parameters) from the full entity
+    const rootData = useMemo(() => molecule.drillIn.getRootData(entity), [molecule.drillIn, entity])
+
+    // ========== SCHEMA ==========
+    const getSchemaAtPath = molecule.drillIn.getSchemaAtPath
+
     // ========== NAVIGATION STATE ==========
     const [internalPath, setInternalPath] = useState<DataPath>(initialPath)
     const currentPath = controlledPath ?? internalPath
@@ -216,6 +232,7 @@ export function MoleculeDrillInProvider<TEntity = unknown, TDraft = Partial<TEnt
             const updatedRoot = setValueAtPath(rootData, path, value)
             // Convert back to entity changes
             const changes = molecule.drillIn.getChangesFromRoot(entity, updatedRoot, path)
+            if (!changes) return
             // Update via molecule reducer
             updateEntity(entityId, changes)
         },
@@ -232,6 +249,7 @@ export function MoleculeDrillInProvider<TEntity = unknown, TDraft = Partial<TEnt
             const updatedRoot = deleteValueAtPath(rootData, path)
             // Convert back to entity changes
             const changes = molecule.drillIn.getChangesFromRoot(entity, updatedRoot, path)
+            if (!changes) return
             // Update via molecule reducer
             updateEntity(entityId, changes)
         },
@@ -249,6 +267,7 @@ export function MoleculeDrillInProvider<TEntity = unknown, TDraft = Partial<TEnt
             const updatedRoot = setValueAtPath(rootData, targetPath, value)
             // Convert back to entity changes
             const changes = molecule.drillIn.getChangesFromRoot(entity, updatedRoot, targetPath)
+            if (!changes) return
             // Update via molecule reducer
             updateEntity(entityId, changes)
         },
@@ -282,6 +301,8 @@ export function MoleculeDrillInProvider<TEntity = unknown, TDraft = Partial<TEnt
             entity,
             entityId,
             isDirty,
+            rootData,
+            getSchemaAtPath,
             // Navigation
             currentPath,
             navigateInto,
@@ -312,6 +333,8 @@ export function MoleculeDrillInProvider<TEntity = unknown, TDraft = Partial<TEnt
             entity,
             entityId,
             isDirty,
+            rootData,
+            getSchemaAtPath,
             currentPath,
             navigateInto,
             navigateBack,

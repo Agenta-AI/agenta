@@ -1,10 +1,16 @@
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
-from uuid import UUID
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from uuid import UUID, uuid4
 from datetime import datetime
 
-from oss.src.utils.logging import get_module_logger
-from oss.src.utils.common import is_ee
+from genson import SchemaBuilder
 
+from oss.src.utils.logging import get_module_logger
+
+from oss.src.core.evaluators.dtos import (
+    SimpleEvaluatorCreate,
+    SimpleEvaluatorData,
+    SimpleEvaluatorFlags,
+)
 from oss.src.core.tracing.interfaces import TracingDAOInterface
 from oss.src.core.tracing.utils.parsing import (
     parse_span_id_to_uuid,
@@ -15,11 +21,20 @@ from oss.src.core.tracing.utils.parsing import (
     parse_trace_id_to_uuid,
 )
 from oss.src.core.tracing.utils.trees import (
-    calculate_and_propagate_metrics,
+    calculate_and_propagate_metrics_by_trace,
+    infer_and_propagate_trace_type_by_trace,
     trace_map_to_traces,
 )
 from oss.src.core.tracing.streaming import publish_spans
 from oss.src.core.tracing.utils.filtering import parse_query
+from oss.src.core.tracing.utils.traces import (
+    ParsedSimpleTrace,
+    build_otel_links,
+    build_simple_trace_attributes,
+    build_simple_trace_query,
+    first_link,
+    parse_simple_trace,
+)
 from oss.src.core.tracing.dtos import (
     ComparisonOperator,
     Condition,
@@ -27,6 +42,7 @@ from oss.src.core.tracing.dtos import (
     Format,
     Formatting,
     ListOperator,
+    LogicalOperator,
     OTelLink,
     OTelLinks,
     OTelFlatSpans,
@@ -34,6 +50,7 @@ from oss.src.core.tracing.dtos import (
     OTelSpan,
     OTelTraceTree,
     Span,
+    SpanType,
     Spans,
     TracingQuery,
     Bucket,
@@ -47,15 +64,24 @@ from oss.src.core.tracing.dtos import (
     Trace,
     Traces,
     Windowing,
+    #
+    SimpleTrace,
+    SimpleTraceCreate,
+    SimpleTraceEdit,
+    SimpleTraceQuery,
+    SimpleTraceOrigin,
+    SimpleTraceKind,
+    SimpleTraceChannel,
+    SimpleTraceReferences,
 )
-from oss.src.core.shared.dtos import Reference
+from oss.src.core.shared.dtos import Link, Reference
 
 if TYPE_CHECKING:
     from oss.src.core.queries.service import QueriesService
-
-
-if is_ee():
-    from ee.src.utils.entitlements import check_entitlements, Counter
+    from oss.src.core.evaluators.service import (
+        EvaluatorsService,
+        SimpleEvaluatorsService,
+    )
 
 
 log = get_module_logger(__name__)
@@ -107,43 +133,29 @@ class TracingService:
         project_id: UUID,
         user_id: UUID,
         span_dtos: List[OTelFlatSpan],
-        sync: bool = False,
-        propagate_metrics: bool = True,
     ) -> OTelLinks:
-        if propagate_metrics:
-            try:
-                span_dtos = calculate_and_propagate_metrics(span_dtos)
-            except Exception:  # pylint: disable=broad-exception-caught
-                log.error(
-                    "Failed to calculate metrics; continuing without metrics",
-                    exc_info=True,
-                )
-
-        if sync:
-            if is_ee():
-                delta = sum(1 for span_dto in span_dtos if span_dto.parent_id is None)
-                if delta > 0:
-                    allowed, _, _ = await check_entitlements(  # type: ignore
-                        organization_id=organization_id,
-                        key=Counter.TRACES,  # type: ignore
-                        delta=delta,
-                        use_cache=False,
-                    )
-                    if not allowed:
-                        raise ValueError("Trace quota exceeded for organization")
-
-            await self.ingest(
-                project_id=project_id,
-                user_id=user_id,
-                span_dtos=span_dtos,
+        try:
+            span_dtos = infer_and_propagate_trace_type_by_trace(span_dtos)
+        except Exception:  # pylint: disable=broad-exception-caught
+            log.error(
+                "Failed to infer trace types; continuing without trace-type propagation",
+                exc_info=True,
             )
-        else:
-            await publish_spans(
-                organization_id=organization_id,
-                project_id=project_id,
-                user_id=user_id,
-                span_dtos=span_dtos,
+
+        try:
+            span_dtos = calculate_and_propagate_metrics_by_trace(span_dtos)
+        except Exception:  # pylint: disable=broad-exception-caught
+            log.error(
+                "Failed to calculate metrics; continuing without metrics",
+                exc_info=True,
             )
+
+        await publish_spans(
+            organization_id=organization_id,
+            project_id=project_id,
+            user_id=user_id,
+            span_dtos=span_dtos,
+        )
 
         return [
             OTelLink(
@@ -161,7 +173,7 @@ class TracingService:
         user_id: UUID,
         spans: Optional[OTelFlatSpans] = None,
         traces: Optional[OTelTraceTree] = None,
-        sync: bool = False,
+        dropped: Optional[OTelLinks] = None,
     ) -> OTelLinks:
         _spans: Dict[str, Union[OTelSpan, OTelFlatSpans]] = dict()
 
@@ -191,14 +203,13 @@ class TracingService:
                                 )
                             )
 
-        span_dtos = parse_spans_from_request(_spans)
+        span_dtos = parse_spans_from_request(_spans, dropped=dropped)
 
         return await self.ingest_span_dtos(
             organization_id=organization_id,
             project_id=project_id,
             user_id=user_id,
             span_dtos=span_dtos,
-            sync=sync,
         )
 
     ## HELPERS
@@ -273,7 +284,6 @@ class TracingService:
         user_id: UUID,
         spans: Optional[OTelFlatSpans] = None,
         traces: Optional[OTelTraceTree] = None,
-        sync: bool = True,
     ) -> OTelLinks:
         extracted_spans = self._extract_single_trace_spans(spans=spans, traces=traces)
         self._validate_single_trace_roots(extracted_spans)
@@ -284,7 +294,6 @@ class TracingService:
             user_id=user_id,
             spans=spans,
             traces=traces,
-            sync=sync,
         )
 
     async def edit_trace(
@@ -295,7 +304,6 @@ class TracingService:
         user_id: UUID,
         spans: Optional[OTelFlatSpans] = None,
         traces: Optional[OTelTraceTree] = None,
-        sync: bool = True,
     ) -> OTelLinks:
         extracted_spans = self._extract_single_trace_spans(spans=spans, traces=traces)
         self._validate_single_trace_roots(extracted_spans)
@@ -306,7 +314,6 @@ class TracingService:
             user_id=user_id,
             spans=spans,
             traces=traces,
-            sync=sync,
         )
 
     @staticmethod
@@ -844,3 +851,499 @@ class TracingService:
             #
             windowing=windowing,
         )
+
+
+class SimpleTracesService:
+    def __init__(
+        self,
+        *,
+        tracing_service: "TracingService",
+        evaluators_service: Optional["EvaluatorsService"] = None,
+        simple_evaluators_service: Optional["SimpleEvaluatorsService"] = None,
+    ):
+        self.tracing_service = tracing_service
+        self.evaluators_service = evaluators_service
+        self.simple_evaluators_service = simple_evaluators_service
+
+    # --- helpers ---------------------------------------------------------------
+
+    @staticmethod
+    def _flags(
+        origin: SimpleTraceOrigin,
+        kind: SimpleTraceKind,
+        channel: SimpleTraceChannel,
+    ) -> dict:
+        flags: dict = {}
+        if origin == SimpleTraceOrigin.HUMAN:
+            flags["is_feedback"] = True
+        elif origin == SimpleTraceOrigin.CUSTOM:
+            flags["is_custom"] = True
+        if kind == SimpleTraceKind.EVAL:
+            flags["is_evaluation"] = True
+        if channel == SimpleTraceChannel.SDK:
+            flags["is_sdk"] = True
+        elif channel == SimpleTraceChannel.WEB:
+            flags["is_web"] = True
+        return flags
+
+    @staticmethod
+    def _derive(
+        flags: Optional[dict],
+    ) -> tuple:
+        flags = flags or {}
+        origin = (
+            SimpleTraceOrigin.HUMAN
+            if flags.get("is_feedback")
+            else SimpleTraceOrigin.CUSTOM
+        )
+        kind = (
+            SimpleTraceKind.EVAL
+            if flags.get("is_evaluation")
+            else SimpleTraceKind.ADHOC
+        )
+        channel = (
+            SimpleTraceChannel.SDK
+            if flags.get("is_sdk")
+            else SimpleTraceChannel.WEB
+            if flags.get("is_web")
+            else SimpleTraceChannel.API
+        )
+        return origin, kind, channel
+
+    def _build_from_parsed(
+        self,
+        parsed: ParsedSimpleTrace,
+    ) -> SimpleTrace:
+        origin, kind, channel = self._derive(parsed.flags)
+        return SimpleTrace(
+            trace_id=parsed.span.trace_id,
+            span_id=parsed.span.span_id,
+            #
+            created_at=parsed.span.created_at,
+            updated_at=parsed.span.updated_at,
+            deleted_at=parsed.span.deleted_at,
+            created_by_id=parsed.span.created_by_id,
+            updated_by_id=parsed.span.updated_by_id,
+            deleted_by_id=parsed.span.deleted_by_id,
+            #
+            origin=origin,
+            kind=kind,
+            channel=channel,
+            #
+            tags=parsed.tags,
+            meta=parsed.meta,
+            data=parsed.data,
+            references=SimpleTraceReferences(**parsed.references),
+            links=parsed.links,
+        )
+
+    async def _resolve_evaluator_references(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        trace_create: SimpleTraceCreate,
+    ) -> SimpleTraceReferences:
+        references = trace_create.references.model_copy(deep=True)
+
+        if not references.evaluator or not trace_create.links:
+            return references
+
+        if not self.evaluators_service or not self.simple_evaluators_service:
+            return references
+
+        evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
+            project_id=project_id,
+            evaluator_ref=references.evaluator,
+            evaluator_variant_ref=references.evaluator_variant,
+            evaluator_revision_ref=references.evaluator_revision,
+        )
+
+        if evaluator_revision is None:
+            builder = SchemaBuilder()
+            builder.add_object(trace_create.data)
+            evaluator_outputs_schema: Dict[str, Any] = builder.to_schema()
+
+            evaluator_slug = references.evaluator.slug or uuid4().hex[-12:]
+            simple_evaluator = await self.simple_evaluators_service.create(
+                project_id=project_id,
+                user_id=user_id,
+                simple_evaluator_create=SimpleEvaluatorCreate(
+                    slug=evaluator_slug,
+                    name=evaluator_slug,
+                    flags=SimpleEvaluatorFlags(is_evaluator=True),
+                    data=SimpleEvaluatorData(
+                        uri="agenta:custom:feedback:v0",
+                        schemas={"outputs": evaluator_outputs_schema},
+                    ),
+                ),
+            )
+
+            if simple_evaluator is None:
+                return references
+
+            references.evaluator = Reference(
+                id=simple_evaluator.id,
+                slug=simple_evaluator.slug,
+            )
+            references.evaluator_variant = Reference(id=simple_evaluator.variant_id)
+            references.evaluator_revision = Reference(id=simple_evaluator.revision_id)
+
+            evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
+                project_id=project_id,
+                evaluator_revision_ref=references.evaluator_revision,
+            )
+
+        if evaluator_revision is None:
+            return references
+
+        evaluator = await self.evaluators_service.fetch_evaluator(
+            project_id=project_id,
+            evaluator_ref=Reference(id=evaluator_revision.evaluator_id),
+        )
+        evaluator_variant = await self.evaluators_service.fetch_evaluator_variant(
+            project_id=project_id,
+            evaluator_variant_ref=Reference(id=evaluator_revision.evaluator_variant_id),
+        )
+
+        references.evaluator = Reference(
+            id=evaluator_revision.evaluator_id,
+            slug=(evaluator.slug if evaluator else None)
+            or (references.evaluator.slug if references.evaluator else None),
+        )
+        references.evaluator_variant = Reference(
+            id=evaluator_revision.evaluator_variant_id,
+            slug=(evaluator_variant.slug if evaluator_variant else None)
+            or (
+                references.evaluator_variant.slug
+                if references.evaluator_variant
+                else None
+            ),
+        )
+        references.evaluator_revision = Reference(
+            id=evaluator_revision.id,
+            slug=evaluator_revision.slug,
+            version=evaluator_revision.version,
+        )
+
+        return references
+
+    # --- public API ------------------------------------------------------------
+
+    async def create(
+        self,
+        *,
+        organization_id: UUID,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        trace_create: SimpleTraceCreate,
+    ) -> Optional[SimpleTrace]:
+        trace_id = uuid4().hex
+        span_id = uuid4().hex[16:]
+        references = await self._resolve_evaluator_references(
+            project_id=project_id,
+            user_id=user_id,
+            trace_create=trace_create,
+        )
+
+        _flags = self._flags(
+            trace_create.origin, trace_create.kind, trace_create.channel
+        )
+        _references = references.model_dump(
+            mode="json", exclude_none=True, exclude_unset=True
+        )
+        _links = build_otel_links(trace_create.links)
+        _attributes = build_simple_trace_attributes(
+            flags=_flags,
+            tags=trace_create.tags,
+            meta=trace_create.meta,
+            data=trace_create.data,
+            references=_references,
+        )
+
+        span_name = (
+            references.evaluator.slug
+            if references.evaluator and references.evaluator.slug
+            else "annotation"
+        )
+
+        otel_links = await self.tracing_service.create_trace(
+            organization_id=organization_id,
+            project_id=project_id,
+            user_id=user_id,
+            spans=[
+                OTelFlatSpan(
+                    trace_id=trace_id,
+                    span_id=span_id,
+                    span_type=SpanType.TASK,
+                    span_name=span_name,
+                    attributes=_attributes,
+                    links=_links,
+                )
+            ],
+        )
+
+        link = first_link(otel_links)
+        if link is None:
+            return None
+
+        return SimpleTrace(
+            trace_id=link.trace_id,
+            span_id=link.span_id,
+            #
+            origin=trace_create.origin,
+            kind=trace_create.kind,
+            channel=trace_create.channel,
+            #
+            tags=trace_create.tags,
+            meta=trace_create.meta,
+            data=trace_create.data,
+            references=references,
+            links=trace_create.links or {},
+        )
+
+    async def fetch(
+        self,
+        *,
+        project_id: UUID,
+        #
+        trace_id: str,
+    ) -> Optional[SimpleTrace]:
+        trace = await self.tracing_service.fetch_trace(
+            project_id=project_id,
+            trace_id=trace_id,
+        )
+
+        parsed = parse_simple_trace(trace)
+        if parsed is None:
+            return None
+
+        return self._build_from_parsed(parsed)
+
+    async def edit(
+        self,
+        *,
+        organization_id: UUID,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        trace_id: str,
+        #
+        trace_edit: SimpleTraceEdit,
+    ) -> Optional[SimpleTrace]:
+        existing = await self.fetch(project_id=project_id, trace_id=trace_id)
+        if existing is None:
+            return None
+
+        _flags = self._flags(existing.origin, existing.kind, existing.channel)
+        references = trace_edit.references or SimpleTraceReferences()
+        links = trace_edit.links or {}
+
+        _references = references.model_dump(
+            mode="json", exclude_none=True, exclude_unset=True
+        )
+        _links = build_otel_links(links)
+        _attributes = build_simple_trace_attributes(
+            flags=_flags,
+            tags=trace_edit.tags,
+            meta=trace_edit.meta,
+            data=trace_edit.data,
+            references=_references,
+        )
+
+        otel_links = await self.tracing_service.edit_trace(
+            organization_id=organization_id,
+            project_id=project_id,
+            user_id=user_id,
+            spans=[
+                OTelFlatSpan(
+                    trace_id=existing.trace_id,
+                    span_id=existing.span_id,
+                    attributes=_attributes,
+                    links=_links,
+                )
+            ],
+        )
+
+        link = first_link(otel_links)
+        if link is None:
+            return None
+
+        return SimpleTrace(
+            trace_id=link.trace_id,
+            span_id=link.span_id,
+            #
+            created_at=existing.created_at,
+            updated_at=existing.updated_at,
+            deleted_at=existing.deleted_at,
+            created_by_id=existing.created_by_id,
+            updated_by_id=existing.updated_by_id,
+            deleted_by_id=existing.deleted_by_id,
+            #
+            origin=existing.origin,
+            kind=existing.kind,
+            channel=existing.channel,
+            #
+            tags=trace_edit.tags,
+            meta=trace_edit.meta,
+            data=trace_edit.data,
+            references=references,
+            links=links,
+        )
+
+    async def delete(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        trace_id: str,
+    ) -> Optional[Link]:
+        otel_links = await self.tracing_service.delete_trace(
+            project_id=project_id,
+            trace_id=trace_id,
+        )
+
+        return first_link(otel_links)
+
+    async def query(
+        self,
+        *,
+        project_id: UUID,
+        #
+        trace_query: Optional[SimpleTraceQuery] = None,
+        trace_links: Optional[List] = None,
+        windowing: Optional[Windowing] = None,
+    ) -> List[SimpleTrace]:
+        _flags = None
+        _tags = None
+        _meta = None
+        _references = None
+        _links = None
+
+        if trace_query:
+            # Build flags only for explicitly specified fields.
+            # Using defaults (e.g. origin=CUSTOM when unset) would add spurious
+            # positive flag conditions that exclude non-default traces.
+            _flag_dict: dict = {}
+            if trace_query.origin == SimpleTraceOrigin.HUMAN:
+                _flag_dict["is_feedback"] = True
+            elif trace_query.origin == SimpleTraceOrigin.CUSTOM:
+                _flag_dict["is_custom"] = True
+            # AUTO → no positive flag; IS_NOT conditions added below
+            if trace_query.kind == SimpleTraceKind.EVAL:
+                _flag_dict["is_evaluation"] = True
+            # ADHOC → no positive flag; IS_NOT condition added below
+            if trace_query.channel == SimpleTraceChannel.SDK:
+                _flag_dict["is_sdk"] = True
+            elif trace_query.channel == SimpleTraceChannel.WEB:
+                _flag_dict["is_web"] = True
+            # API → no positive flag; IS_NOT conditions added below
+            _flags = _flag_dict if _flag_dict else None
+            _tags = trace_query.tags
+            _meta = trace_query.meta
+            _references = (
+                trace_query.references.model_dump(mode="json", exclude_none=True)
+                if trace_query.references
+                else None
+            )
+            _links = trace_query.links
+
+        # Accept both invocation and annotation trace types
+        type_filter = Filtering(
+            operator=LogicalOperator.OR,
+            conditions=[
+                Condition(
+                    field="attributes",
+                    key="ag.type.trace",
+                    value="invocation",
+                    operator=ComparisonOperator.IS,
+                ),
+                Condition(
+                    field="attributes",
+                    key="ag.type.trace",
+                    value="annotation",
+                    operator=ComparisonOperator.IS,
+                ),
+            ],
+        )
+
+        base_query = build_simple_trace_query(
+            trace_kind="invocation",  # placeholder — first condition replaced below
+            flags=_flags,
+            tags=_tags,
+            meta=_meta,
+            references=_references,
+            links=_links,
+            trace_links=trace_links,
+            windowing=windowing,
+        )
+
+        # Replace the single type condition with the OR filter
+        conditions = list(base_query.filtering.conditions)
+        conditions[0] = type_filter
+
+        # Add explicit IS_NOT conditions for "default" flag values.
+        # The flag system uses absence to represent defaults (auto/adhoc/api),
+        # so querying by those values requires excluding non-matching flags.
+        if trace_query:
+            if trace_query.origin == SimpleTraceOrigin.AUTO:
+                conditions.append(
+                    Condition(
+                        field="attributes",
+                        key="ag.flags.is_feedback",
+                        value=True,
+                        operator=ComparisonOperator.IS_NOT,
+                    )
+                )
+                conditions.append(
+                    Condition(
+                        field="attributes",
+                        key="ag.flags.is_custom",
+                        value=True,
+                        operator=ComparisonOperator.IS_NOT,
+                    )
+                )
+            if trace_query.kind == SimpleTraceKind.ADHOC:
+                conditions.append(
+                    Condition(
+                        field="attributes",
+                        key="ag.flags.is_evaluation",
+                        value=True,
+                        operator=ComparisonOperator.IS_NOT,
+                    )
+                )
+            if trace_query.channel == SimpleTraceChannel.API:
+                conditions.append(
+                    Condition(
+                        field="attributes",
+                        key="ag.flags.is_sdk",
+                        value=True,
+                        operator=ComparisonOperator.IS_NOT,
+                    )
+                )
+                conditions.append(
+                    Condition(
+                        field="attributes",
+                        key="ag.flags.is_web",
+                        value=True,
+                        operator=ComparisonOperator.IS_NOT,
+                    )
+                )
+
+        base_query.filtering.conditions = conditions
+
+        traces = await self.tracing_service.query_traces(
+            project_id=project_id,
+            query=base_query,
+        )
+
+        result = []
+        for trace in traces or []:
+            parsed = parse_simple_trace(trace)
+            if parsed is None:
+                continue
+            result.append(self._build_from_parsed(parsed))
+
+        return result

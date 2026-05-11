@@ -1,5 +1,6 @@
 import React, {useCallback, useMemo, useRef, useState} from "react"
 
+import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
 import {
     ArrowLeft,
     BracketsRound,
@@ -17,8 +18,8 @@ import {
     Form,
     Input,
     message,
-    Spin,
     Segmented,
+    Spin,
     Tag,
     Typography,
 } from "antd"
@@ -28,12 +29,10 @@ import Image from "next/image"
 import type {ActionItem} from "@/oss/services/tools/api/types"
 
 import ResultViewer from "../components/ResultViewer"
-import SchemaForm from "../components/SchemaForm"
 import type {SchemaFormHandle} from "../components/SchemaForm"
-import ScrollSentinel from "../components/ScrollSentinel"
-import ScrollToTopButton from "../components/ScrollToTopButton"
+import SchemaForm from "../components/SchemaForm"
 import {useActionDetail} from "../hooks/useActionDetail"
-import {useCatalogActions, actionsSearchAtom} from "../hooks/useCatalogActions"
+import {actionsSearchAtom, useCatalogActions} from "../hooks/useCatalogActions"
 import {useDebouncedAtomSearch} from "../hooks/useDebouncedAtomSearch"
 import {useIntegrationDetail} from "../hooks/useIntegrationDetail"
 import {useToolExecution} from "../hooks/useToolExecution"
@@ -96,18 +95,18 @@ export default function ToolExecutionDrawer() {
             {state &&
                 (step === 1 ? (
                     <ActionPickerStep
-                        integrationKey={state.integrationKey}
-                        integrationName={integrationName}
+                        integrationKey={state.integrationKey || ""}
+                        integrationName={integrationName || ""}
                         integrationLogo={integrationLogo}
-                        connectionSlug={state.connectionSlug}
+                        connectionSlug={state.connectionSlug || ""}
                         onSelectAction={handleSelectAction}
                     />
                 ) : (
                     <ActionDetailStep
-                        integrationKey={state.integrationKey}
-                        integrationName={integrationName}
+                        integrationKey={state.integrationKey || ""}
+                        integrationName={integrationName || ""}
                         integrationLogo={integrationLogo}
-                        connectionSlug={state.connectionSlug}
+                        connectionSlug={state.connectionSlug || ""}
                         actionKey={activeActionKey}
                         actionName={selectedAction?.name}
                         canGoBack={!state.actionKey}

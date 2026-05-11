@@ -8,7 +8,6 @@
  * ## Usage
  *
  * These types are consumed by:
- * - `runnableBridge.ts` for entity-specific features
  * - Playground package for the React context implementation
  *
  * @module runnable/providerTypes
@@ -54,18 +53,68 @@ export interface EntityRevisionSelectors<TData> {
     isDirty: (id: string) => Atom<boolean>
 }
 
+// ============================================================================
+// APP REVISION LIST INTERFACES
+// ============================================================================
+
 /**
- * Extended selectors for evaluator revision (has presets)
+ * List selectors for app revision entity hierarchies.
+ * Allows the playground controller to query variants/revisions
+ * without knowing the concrete data source.
  */
-export interface EvaluatorRevisionSelectors<TData> extends EntityRevisionSelectors<TData> {
-    presets: (id: string) => Atom<SettingsPreset[]>
+export interface AppRevisionListSelectors {
+    /** Variants for an app (includes local draft groups) */
+    variantsForApp: (appId: string) => Atom<{data: unknown[] | null}> | undefined
+    /** Revisions for a variant */
+    revisionsForVariant: (variantId: string) => Atom<unknown[]> | undefined
+    /** All revisions for an app (flattened, includes local drafts) */
+    allRevisions: (appId: string) => Atom<unknown[]>
+    /** Readiness signal — true when initial revision load is complete */
+    isReady: Atom<boolean>
+}
+
+// ============================================================================
+// APP REVISION CRUD INTERFACES
+// ============================================================================
+
+export interface AppRevisionCreateVariantPayload {
+    baseRevisionId?: string
+    baseVariantName?: string
+    newVariantName: string
+    slug?: string
+    note?: string
+    callback?: (newRevision: {id: string}, state: {selected: string[]}) => void
+}
+
+export interface AppRevisionCommitPayload {
+    revisionId: string
+    note?: string
+    commitMessage?: string
+    variantId?: string
+    parameters?: Record<string, unknown>
+}
+
+export interface AppRevisionCrudResult {
+    success: boolean
+    newRevisionId?: string
+    message?: string
+    error?: string
+    errorStatus?: number
 }
 
 /**
- * Actions for evaluator revision
+ * CRUD actions for app revision entities.
+ * OSS/EE provides concrete implementations via the provider.
  */
-export interface EvaluatorRevisionActions {
-    applyPreset: WritableAtom<null, [{revisionId: string; preset: SettingsPreset}], void>
+export interface AppRevisionActions {
+    createVariant: WritableAtom<
+        null,
+        [AppRevisionCreateVariantPayload],
+        Promise<AppRevisionCrudResult>
+    >
+    commitRevision: WritableAtom<null, [AppRevisionCommitPayload], Promise<AppRevisionCrudResult>>
+    deleteRevision: WritableAtom<null, [string], Promise<AppRevisionCrudResult>>
+    invalidateQueries: WritableAtom<null, [], Promise<void>>
 }
 
 // ============================================================================
@@ -91,26 +140,74 @@ export interface AppRevisionRawData {
 }
 
 /**
- * Evaluator revision raw data (as returned by the controller)
+ * Evaluator raw data (as returned by the new evaluator molecule)
  */
-export interface EvaluatorRevisionRawData {
+export interface EvaluatorRawData {
     id: string
-    name?: string
-    slug?: string
-    version?: number
-    configuration?: Record<string, unknown>
-    invocationUrl?: string
-    evaluatorId?: string
-    variantId?: string
-    schemas?: {
-        inputs?: Record<string, unknown>
-        outputs?: Record<string, unknown>
-    }
+    name?: string | null
+    slug?: string | null
+    data?: {
+        uri?: string | null
+        url?: string | null
+        parameters?: Record<string, unknown> | null
+        schemas?: {
+            inputs?: Record<string, unknown> | null
+            outputs?: Record<string, unknown> | null
+            parameters?: Record<string, unknown> | null
+        } | null
+    } | null
+    flags?: {
+        is_custom?: boolean
+        is_evaluator?: boolean
+        is_feedback?: boolean
+        is_chat?: boolean
+    } | null
+}
+
+/**
+ * Workflow raw data (as returned by the workflow molecule)
+ */
+export interface WorkflowRawData {
+    id: string
+    name?: string | null
+    slug?: string | null
+    version?: number | null
+    workflow_id?: string | null
+    flags?: {
+        is_custom?: boolean
+        is_evaluator?: boolean
+        is_feedback?: boolean
+        is_chat?: boolean
+    } | null
+    data?: {
+        uri?: string | null
+        url?: string | null
+        parameters?: Record<string, unknown> | null
+        schemas?: {
+            inputs?: Record<string, unknown> | null
+            outputs?: Record<string, unknown> | null
+            parameters?: Record<string, unknown> | null
+        } | null
+    } | null
 }
 
 // ============================================================================
 // PROVIDER INTERFACE
 // ============================================================================
+
+/**
+ * Selectors for the new evaluator entity
+ */
+export interface EvaluatorSelectors extends EntityRevisionSelectors<EvaluatorRawData> {
+    /** Evaluator URI (e.g., "agenta:builtin:auto_exact_match:v0") */
+    uri?: (id: string) => Atom<string | null>
+    /** Evaluator key parsed from URI */
+    evaluatorKey?: (id: string) => Atom<string | null>
+    /** Configuration parameters */
+    parameters?: (id: string) => Atom<Record<string, unknown> | null>
+    /** Is custom evaluator */
+    isCustom?: (id: string) => Atom<boolean>
+}
 
 /**
  * Injected entity providers
@@ -119,11 +216,8 @@ export interface EvaluatorRevisionRawData {
  * playground to work with different entity implementations.
  */
 export interface PlaygroundEntityProviders {
-    appRevision: {
-        selectors: EntityRevisionSelectors<AppRevisionRawData>
-    }
-    evaluatorRevision: {
-        selectors: EvaluatorRevisionSelectors<EvaluatorRevisionRawData>
-        actions: EvaluatorRevisionActions
+    /** Workflow entity (modern /workflows/ API, handles both apps and evaluators via flags) */
+    workflow?: {
+        selectors: EntityRevisionSelectors<WorkflowRawData>
     }
 }

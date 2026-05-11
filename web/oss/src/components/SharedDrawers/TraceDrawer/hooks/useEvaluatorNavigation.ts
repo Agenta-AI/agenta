@@ -17,7 +17,7 @@ const getEvaluatorIdentifier = (evaluator: any) => {
 }
 
 const isHumanEvaluator = (evaluator: any) => {
-    return Boolean(evaluator?.flags?.is_human || evaluator?.meta?.is_human)
+    return Boolean(evaluator?.flags?.is_feedback || evaluator?.meta?.is_feedback)
 }
 
 const useEvaluatorNavigation = () => {
@@ -42,7 +42,7 @@ const useEvaluatorNavigation = () => {
             }
 
             return {
-                href: `${projectURL}/evaluators/configure/${encodeURIComponent(identifier)}`,
+                href: `${projectURL}/evaluators/playground?revisions=${encodeURIComponent(identifier)}`,
                 type: "auto",
             }
         },

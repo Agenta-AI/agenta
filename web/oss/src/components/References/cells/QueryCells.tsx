@@ -1,6 +1,6 @@
+import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {Typography} from "antd"
 
-import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import {
     formatSamplingRate,
     formatWindowRange,

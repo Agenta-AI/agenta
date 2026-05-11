@@ -1,342 +1,295 @@
-import {type ReactElement, useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
+import {publishMutationAtom} from "@agenta/entities/runnable"
+import {workflowMolecule, createWorkflowFromEphemeralAtom} from "@agenta/entities/workflow"
+import {EntityCommitModal} from "@agenta/entity-ui"
+import type {CommitSubmitParams, CommitCreateFieldsConfig} from "@agenta/entity-ui"
+import {playgroundController} from "@agenta/playground"
+import {EnvironmentTag, environmentColors} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
-import {FloppyDiskBack} from "@phosphor-icons/react"
-import {useAtomValue, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
-import {Resizable} from "react-resizable"
+import {Checkbox, Select} from "antd"
+import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
-import {saveVariantMutationAtom} from "@/oss/components/Playground/state/atoms"
-import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
-import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
-import {moleculeBackedVariantAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
+import {
+    evaluatorsPaginatedStore,
+    clearEvaluatorWorkflowCache,
+} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
+import {
+    registryPaginatedStore,
+    clearRegistryVariantNameCache,
+} from "@/oss/components/VariantsComponents/store/registryStore"
+import {selectedAppIdAtom} from "@/oss/state/app"
 
-import {createVariantMutationAtom} from "../../../state/atoms/variantCrudMutations"
+import {CommitVariantChangesModalProps} from "./assets/types"
 
-import {CommitVariantChangesModalProps, SelectedCommitType} from "./assets/types"
-const CommitVariantChangesModalContent = dynamic(
-    () => import("./assets/CommitVariantChangesModalContent"),
-    {ssr: false},
-)
+const EVALUATOR_CREATE_FIELDS: CommitCreateFieldsConfig = {nameLabel: "Evaluator name"}
+const VARIANT_CREATE_FIELDS: CommitCreateFieldsConfig = {
+    modes: ["variant"],
+    nameLabel: "Variant name",
+}
 
 const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     variantId,
     onSuccess,
-    commitType,
     ...props
 }) => {
-    const {onCancel, ...modalProps} = props
-    // Get variant metadata using molecule-backed atom (works for both server revisions and local drafts)
-    const variant = useAtomValue(moleculeBackedVariantAtomFamily(variantId || ""))
+    const {onCancel, open} = props
 
-    // Extract values from variant
-    const variantName = variant?.variantName
+    const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId || ""))
+    const isEphemeral = useAtomValue(workflowMolecule.selectors.isEphemeral(variantId || ""))
+    const isEvaluator = useAtomValue(workflowMolecule.selectors.isEvaluator(variantId || ""))
 
-    // Get mutation functions
-    const saveVariant = useSetAtom(saveVariantMutationAtom)
-    const createVariant = useSetAtom(createVariantMutationAtom)
+    const appId = useAtomValue(selectedAppIdAtom)
+    const commitRevision = useSetAtom(playgroundController.actions.commitRevision)
+    const createVariant = useSetAtom(playgroundController.actions.createVariant)
+    const createFromEphemeral = useSetAtom(createWorkflowFromEphemeralAtom)
     const {mutateAsync: publish} = useAtomValue(publishMutationAtom)
 
-    // Track loading state for mutations
-    const [isMutating, setIsMutating] = useState(false)
-
-    const [selectedCommitType, setSelectedCommitType] = useState<SelectedCommitType>({
-        type: "version",
-    })
-    const [note, setNote] = useState("")
     const [shouldDeploy, setShouldDeploy] = useState(false)
     const [selectedEnvironment, setSelectedEnvironment] = useState<string | null>(null)
-    const [modalSize, setModalSize] = useState({width: 960, height: 640})
-    const [viewport, setViewport] = useState({width: 0, height: 0})
 
-    const onClose = useCallback(() => {
-        onCancel?.({} as any)
-        setIsMutating(false)
-        setSelectedCommitType({
-            type: "version",
-        })
-        setNote("")
+    const variantName = runnableData?.name || "Variant"
+    const variantSlug = runnableData?.slug
+
+    const environmentOptions = useMemo(
+        () =>
+            (Object.keys(environmentColors) as (keyof typeof environmentColors)[]).map((env) => ({
+                value: env,
+                label: <EnvironmentTag environment={env} />,
+            })),
+        [],
+    )
+
+    const handleClose = useCallback(() => {
+        onCancel?.({} as never)
         setShouldDeploy(false)
         setSelectedEnvironment(null)
     }, [onCancel])
 
-    // Track viewport to clamp the resizable modal
-    useEffect(() => {
-        if (typeof window === "undefined") return
-        const updateViewport = () =>
-            setViewport({width: window.innerWidth, height: window.innerHeight})
-        updateViewport()
-        window.addEventListener("resize", updateViewport)
-        return () => window.removeEventListener("resize", updateViewport)
-    }, [])
+    const handleSubmit = useCallback(
+        async ({
+            message: commitMessage,
+            mode,
+            entityName: editedName,
+            entitySlug: editedSlug,
+        }: CommitSubmitParams) => {
+            // Ephemeral entities: create a new workflow via the entities package reducer
+            if (isEphemeral) {
+                const result = await createFromEphemeral({
+                    revisionId: variantId,
+                    commitMessage: commitMessage ?? undefined,
+                    name: editedName,
+                    slug: editedSlug,
+                })
 
-    const computedMaxWidth = useMemo(() => {
-        if (!viewport.width) return 960
-        return Math.min(Math.max(viewport.width - 48, 480), 1200)
-    }, [viewport.width])
+                if (!result.success) {
+                    const errorStatus = (result.error as {response?: {status?: number}}).response
+                        ?.status
+                    return {
+                        success: false,
+                        error:
+                            "error" in result ? result.error.message : "Failed to create workflow",
+                        errorStatus,
+                    }
+                }
 
-    const computedMaxHeight = useMemo(() => {
-        if (!viewport.height) return 640
-        return Math.min(Math.max(viewport.height - 160, 400), 900)
-    }, [viewport.height])
-
-    const minConstraints = useMemo(() => {
-        return [Math.min(720, computedMaxWidth), Math.min(480, computedMaxHeight)] as [
-            number,
-            number,
-        ]
-    }, [computedMaxWidth, computedMaxHeight])
-
-    const maxConstraints = useMemo(() => {
-        return [computedMaxWidth, computedMaxHeight] as [number, number]
-    }, [computedMaxWidth, computedMaxHeight])
-
-    useEffect(() => {
-        if (!viewport.width || !viewport.height) return
-        setModalSize((previous) => ({
-            width: Math.min(Math.max(previous.width, minConstraints[0]), computedMaxWidth),
-            height: Math.min(Math.max(previous.height, minConstraints[1]), computedMaxHeight),
-        }))
-    }, [viewport, minConstraints, computedMaxWidth, computedMaxHeight])
-
-    const fireDeployAfterCommit = useCallback(
-        (resultVariant: any, environment: string, commitNote: string) => {
-            const variantIdForDeployment =
-                resultVariant?.variant_id || resultVariant?.variantId || variant?.variantId
-
-            const revisionIdForDeployment =
-                resultVariant?.id || resultVariant?.revision_id || variantId
-
-            const revisionLabel = resultVariant?.revision
-                ? `v${resultVariant.revision}`
-                : "new version"
-
-            if (!variantIdForDeployment) {
-                message.error("Unable to deploy because the variant identifier is missing.")
-                return
+                clearRegistryVariantNameCache()
+                clearEvaluatorWorkflowCache()
+                getDefaultStore().set(registryPaginatedStore.actions.refresh)
+                getDefaultStore().set(evaluatorsPaginatedStore.actions.refresh)
+                onSuccess?.({revisionId: result.newRevisionId, variantId: undefined})
+                return {success: true, newRevisionId: result.newRevisionId}
             }
 
-            const deployMessageKey = `deploy-${variantIdForDeployment}-${Date.now()}`
+            const selectedMode = mode === "variant" ? "variant" : "version"
+            const note = commitMessage ?? undefined
 
-            message.loading({
-                content: `Deploying ${revisionLabel} to ${environment}`,
-                key: deployMessageKey,
-                duration: 0,
-            })
-
-            publish({
-                type: "variant",
-                variant_id: variantIdForDeployment,
-                revision_id: revisionIdForDeployment ?? undefined,
-                environment_name: environment,
-                note: commitNote,
-            })
-                .then(() => {
-                    message.success({
-                        content: `${revisionLabel} has been successfully deployed to ${environment}`,
-                        key: deployMessageKey,
-                    })
-                })
-                .catch((error) => {
-                    console.error("Failed to deploy after commit", error)
-                    message.error({
-                        content: `Failed to deploy ${revisionLabel} to ${environment}`,
-                        key: deployMessageKey,
-                    })
-                })
-        },
-        [publish, variant, variantId],
-    )
-
-    const onSaveVariantChanges = useCallback(async () => {
-        // Capture deploy settings before mutation (modal will close after commit)
-        const deployEnabled = shouldDeploy
-        const deployEnvironment = selectedEnvironment
-        const commitNote = note
-
-        try {
-            setIsMutating(true)
-
-            if (selectedCommitType?.type === "version") {
-                const result = await saveVariant?.({
-                    variantId,
-                    note: commitNote,
-                    commitType,
-                })
-
-                if (result?.success) {
-                    onSuccess?.({
-                        revisionId: result.variant?.id,
-                        variantId: result.variant?.variantId,
-                    })
-
-                    // Fire deploy in background (don't await) and close modal immediately
-                    if (deployEnabled && deployEnvironment) {
-                        fireDeployAfterCommit(result.variant, deployEnvironment, commitNote)
-                    }
-
-                    setIsMutating(false)
-                    onClose()
-                    return
+            if (selectedMode === "variant") {
+                const variantNameToCreate = editedName?.trim()
+                if (!variantNameToCreate) {
+                    return {success: false, error: "Variant name is required"}
                 }
-            } else if (selectedCommitType?.type === "variant" && selectedCommitType?.name) {
-                const result = await createVariant?.({
-                    revisionId: variantId,
-                    baseVariantName: variantName || "",
-                    newVariantName: selectedCommitType?.name as string,
-                    note: commitNote,
-                    callback: (newVariant, state) => {
-                        // Replace the local draft with the new variant, preserving other variants in selection
-                        // Note: state is a mock object created by the mutation atom, not the full PlaygroundState
-                        const currentSelected = (state as any).selected as string[]
-                        ;(state as any).selected = currentSelected.map((id: string) =>
-                            id === variantId ? newVariant.id : id,
+
+                const result = await createVariant({
+                    baseRevisionId: variantId,
+                    baseVariantName: variantName,
+                    newVariantName: variantNameToCreate,
+                    slug: editedSlug,
+                    note,
+                    callback: (newRevision, state) => {
+                        state.selected = state.selected.map((id) =>
+                            id === variantId ? newRevision.id : id,
                         )
-                        ;(state as any).variants = (state as any).selected
                     },
                 })
 
-                if (result?.success) {
-                    const newVariantId = result.variant?.variantId
-                    const newRevisionId = result.variant?.id
-
-                    onSuccess?.({
-                        revisionId: newRevisionId,
-                        variantId: newVariantId,
-                    })
-
-                    // Fire deploy in background (don't await) and close modal immediately
-                    if (deployEnabled && deployEnvironment) {
-                        fireDeployAfterCommit(result.variant, deployEnvironment, commitNote)
+                if (!result.success || !result.newRevisionId) {
+                    return {
+                        success: false,
+                        error: result.error || "Failed to create a new variant",
+                        errorStatus: result.errorStatus,
                     }
+                }
 
-                    setIsMutating(false)
-                    onClose()
-                    return
+                if (shouldDeploy && selectedEnvironment) {
+                    // Use the new revision's workflow data for references
+                    const newRevisionData = workflowMolecule.get.data(result.newRevisionId)
+                    await publish({
+                        revisionId: result.newRevisionId,
+                        environmentSlug: selectedEnvironment,
+                        applicationId:
+                            newRevisionData?.workflow_id ||
+                            runnableData?.workflow_id ||
+                            appId ||
+                            "",
+                        workflowVariantId:
+                            newRevisionData?.workflow_variant_id ??
+                            runnableData?.workflow_variant_id ??
+                            undefined,
+                        variantSlug: newRevisionData?.slug ?? runnableData?.slug ?? undefined,
+                        revisionVersion: newRevisionData?.version ?? undefined,
+                        note,
+                    })
+                    message.success(`Published ${variantNameToCreate} to ${selectedEnvironment}`)
+                }
+
+                clearRegistryVariantNameCache()
+                clearEvaluatorWorkflowCache()
+                getDefaultStore().set(registryPaginatedStore.actions.refresh)
+                getDefaultStore().set(evaluatorsPaginatedStore.actions.refresh)
+                onSuccess?.({revisionId: result.newRevisionId, variantId: undefined})
+                return {success: true, newRevisionId: result.newRevisionId}
+            }
+
+            const result = await commitRevision({
+                revisionId: variantId,
+                note,
+                commitMessage: note,
+            })
+
+            if (!result.success || !result.newRevisionId) {
+                return {
+                    success: false,
+                    error: result.error || "Failed to commit revision",
                 }
             }
 
-            // If we get here without setting a wait state, close immediately
-            onClose()
-        } catch (error) {
-            console.error("Failed to commit variant changes:", error)
-            message.error("We couldn't save your changes. Please try again.")
-            onClose()
-        }
-    }, [
-        selectedCommitType,
-        saveVariant,
-        createVariant,
-        note,
-        variantName,
-        onSuccess,
-        variantId,
-        commitType,
-        shouldDeploy,
-        selectedEnvironment,
-        fireDeployAfterCommit,
-        onClose,
-    ])
+            if (shouldDeploy && selectedEnvironment) {
+                const newRevisionData = workflowMolecule.get.data(result.newRevisionId)
+                await publish({
+                    revisionId: result.newRevisionId,
+                    environmentSlug: selectedEnvironment,
+                    applicationId:
+                        newRevisionData?.workflow_id || runnableData?.workflow_id || appId || "",
+                    workflowVariantId:
+                        newRevisionData?.workflow_variant_id ??
+                        runnableData?.workflow_variant_id ??
+                        undefined,
+                    variantSlug: newRevisionData?.slug ?? runnableData?.slug ?? undefined,
+                    revisionVersion: newRevisionData?.version ?? undefined,
+                    note,
+                })
+                message.success(`Published ${variantName} to ${selectedEnvironment}`)
+            }
 
-    const isOkDisabled =
-        !selectedCommitType?.type ||
-        (selectedCommitType?.type === "variant" && !selectedCommitType?.name) ||
-        (selectedCommitType?.type === "variant" &&
-            selectedCommitType?.name &&
-            !isVariantNameInputValid(selectedCommitType.name)) ||
-        (shouldDeploy && !selectedEnvironment)
-
-    const modalRender = useCallback(
-        (modalNode: ReactElement) => (
-            <Resizable
-                width={modalSize.width}
-                height={modalSize.height}
-                minConstraints={minConstraints}
-                maxConstraints={maxConstraints}
-                onResize={(_, data) =>
-                    setModalSize({width: data.size.width, height: data.size.height})
-                }
-                handle={
-                    <span
-                        className="absolute bottom-2 right-2 h-4 w-4 cursor-se-resize rounded-sm border border-[#CBD5F5] bg-white"
-                        onClick={(event) => event.stopPropagation()}
-                    />
-                }
-                resizeHandles={["se"]}
-                handleSize={[18, 18]}
-                draggableOpts={{enableUserSelectHack: false}}
-            >
-                <div
-                    style={{width: modalSize.width, height: modalSize.height}}
-                    className="relative flex min-h-0 flex-col"
-                >
-                    {modalNode}
-                </div>
-            </Resizable>
-        ),
-        [modalSize, minConstraints, maxConstraints],
+            clearRegistryVariantNameCache()
+            clearEvaluatorWorkflowCache()
+            getDefaultStore().set(registryPaginatedStore.actions.refresh)
+            getDefaultStore().set(evaluatorsPaginatedStore.actions.refresh)
+            onSuccess?.({revisionId: result.newRevisionId, variantId: variantSlug ?? undefined})
+            return {success: true, newRevisionId: result.newRevisionId}
+        },
+        [
+            isEphemeral,
+            createFromEphemeral,
+            createVariant,
+            variantId,
+            variantName,
+            variantSlug,
+            shouldDeploy,
+            selectedEnvironment,
+            publish,
+            appId,
+            onSuccess,
+            commitRevision,
+        ],
     )
 
-    const isDeploymentPending = isMutating
+    const commitModes = useMemo(
+        () =>
+            isEvaluator
+                ? [{id: "version", label: "As a new version"}]
+                : [
+                      {id: "version", label: "As a new version"},
+                      {id: "variant", label: "As a new variant"},
+                  ],
+        [isEvaluator],
+    )
+
+    // For ephemeral entities, render a simplified "Create" modal with editable name
+    if (isEphemeral) {
+        return (
+            <EntityCommitModal
+                open={open}
+                onClose={handleClose}
+                entity={{
+                    type: "variant",
+                    id: variantId,
+                    name: variantName,
+                }}
+                onSubmit={handleSubmit}
+                actionLabel="Create"
+                createEntityFields={EVALUATOR_CREATE_FIELDS}
+                successMessage="Evaluator created successfully"
+            />
+        )
+    }
 
     return (
-        <EnhancedModal
-            title="Commit changes"
-            onCancel={onClose}
-            okText="Commit"
-            confirmLoading={isDeploymentPending}
-            onOk={onSaveVariantChanges}
-            okButtonProps={{
-                icon: <FloppyDiskBack size={14} />,
-                disabled: isOkDisabled,
+        <EntityCommitModal
+            open={open}
+            onClose={handleClose}
+            entity={{
+                type: "variant",
+                id: variantId,
+                name: variantName,
             }}
-            classNames={{footer: "flex items-center justify-end"}}
-            width={modalSize.width}
-            style={{
-                maxWidth: maxConstraints[0],
+            commitModes={commitModes}
+            defaultCommitMode="version"
+            renderModeContent={({mode}) => (
+                <div className="flex flex-col gap-3">
+                    {!isEvaluator && (
+                        <>
+                            <Checkbox
+                                checked={shouldDeploy}
+                                onChange={(e) => setShouldDeploy(e.target.checked)}
+                            >
+                                Deploy after commit
+                            </Checkbox>
+
+                            {shouldDeploy && (
+                                <Select
+                                    placeholder="Select environment"
+                                    value={selectedEnvironment ?? undefined}
+                                    onChange={(value) => setSelectedEnvironment(value)}
+                                    options={environmentOptions}
+                                />
+                            )}
+                        </>
+                    )}
+                </div>
+            )}
+            canSubmit={({mode, entityName}) => {
+                if (mode === "variant") {
+                    if (!entityName?.trim()) return false
+                }
+                if (shouldDeploy && !selectedEnvironment) return false
+                return true
             }}
-            styles={{
-                container: {
-                    display: "flex",
-                    flexDirection: "column",
-                    height: "100%",
-                    maxHeight: maxConstraints[1],
-                },
-                body: {
-                    display: "flex",
-                    flexDirection: "column",
-                    flex: 1,
-                    minHeight: 0,
-                    overflow: "auto",
-                },
-                footer: {
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    gap: 8,
-                    flexShrink: 0,
-                    position: "sticky",
-                    bottom: 0,
-                    background: "#fff",
-                },
-            }}
-            modalRender={modalRender}
-            {...modalProps}
-        >
-            <CommitVariantChangesModalContent
-                variantId={variantId}
-                note={note}
-                setNote={setNote}
-                setSelectedCommitType={setSelectedCommitType}
-                selectedCommitType={selectedCommitType}
-                commitType={commitType}
-                shouldDeploy={shouldDeploy}
-                onToggleDeploy={setShouldDeploy}
-                selectedEnvironment={selectedEnvironment}
-                onSelectEnvironment={setSelectedEnvironment}
-                isDeploymentPending={isDeploymentPending}
-            />
-        </EnhancedModal>
+            createEntityFields={VARIANT_CREATE_FIELDS}
+            onSubmit={handleSubmit}
+            submitLabel="Commit"
+        />
     )
 }
 

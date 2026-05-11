@@ -8,6 +8,7 @@
  * (creating a new revision with a commit message).
  */
 
+import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {atomWithReset, RESET} from "jotai/utils"
 
@@ -29,6 +30,13 @@ export const commitModalOpenAtom = atomWithReset(false)
 export const commitModalEntityAtom = atomWithReset<EntityReference | null>(null)
 
 /**
+ * Action label for the modal (e.g., "Commit" or "Create").
+ * Controls the title, subtitle, and button text throughout the modal.
+ * Defaults to "Commit" when not explicitly set.
+ */
+export const commitModalActionLabelAtom = atomWithReset("Commit")
+
+/**
  * Commit message
  */
 export const commitModalMessageAtom = atomWithReset("")
@@ -43,14 +51,45 @@ export const commitModalLoadingAtom = atomWithReset(false)
  */
 export const commitModalErrorAtom = atomWithReset<Error | null>(null)
 
+/**
+ * User-edited entity name override.
+ * When set (non-null), this takes precedence over the resolved entity name.
+ * Used in "Create" flows where the user can rename the entity before creating.
+ */
+export const commitModalEntityNameOverrideAtom = atomWithReset<string | null>(null)
+
+/**
+ * The slug for the entity being created.
+ * Generated once when the modal opens with a name.
+ * User may edit it or regenerate the suffix.
+ */
+export const commitModalEntitySlugAtom = atomWithReset<string | null>(null)
+
+/**
+ * Whether the slug field is in "editing" mode.
+ * Default state shows the slug as a read-only badge with an Edit link.
+ */
+export const commitModalSlugEditingAtom = atomWithReset(false)
+
+/**
+ * Field-level error for the slug input.
+ * Distinct from commitModalErrorAtom which drives the banner.
+ */
+export const commitModalSlugFieldErrorAtom = atomWithReset<string | null>(null)
+
 // ============================================================================
 // DERIVED ATOMS
 // ============================================================================
 
 /**
- * Resolved entity name via adapter
+ * Resolved entity name via adapter.
+ * If the user has edited the name (via commitModalEntityNameOverrideAtom), that takes precedence.
  */
 export const commitModalEntityNameAtom = atom((get): string => {
+    // Check for user-edited name override first
+    const nameOverride = get(commitModalEntityNameOverrideAtom)
+    if (nameOverride !== null) return nameOverride
+
     const entity = get(commitModalEntityAtom)
     if (!entity) return ""
 
@@ -76,6 +115,9 @@ export const commitModalCanCommitAtom = atom((get): boolean => {
     if (!adapter?.canCommit) return true // Default to true if no canCommit defined
 
     const entityData = get(adapter.dataAtom(entity.id))
+    // Default to true while adapter data is still loading — the actual
+    // submit guard (canProceed) prevents premature commits.
+    if (entityData === null || entityData === undefined) return true
     return adapter.canCommit(entityData)
 })
 
@@ -84,11 +126,10 @@ export const commitModalCanCommitAtom = atom((get): boolean => {
  */
 export const commitModalCanProceedAtom = atom((get): boolean => {
     const entity = get(commitModalEntityAtom)
-    const message = get(commitModalMessageAtom)
     const canCommit = get(commitModalCanCommitAtom)
     const isLoading = get(commitModalLoadingAtom)
 
-    return entity !== null && message.trim().length > 0 && canCommit && !isLoading
+    return entity !== null && canCommit && !isLoading
 })
 
 /**
@@ -121,6 +162,11 @@ export const resetCommitModalAtom = atom(null, (_get, set) => {
     set(commitModalMessageAtom, RESET)
     set(commitModalLoadingAtom, RESET)
     set(commitModalErrorAtom, RESET)
+    set(commitModalActionLabelAtom, RESET)
+    set(commitModalEntityNameOverrideAtom, RESET)
+    set(commitModalEntitySlugAtom, RESET)
+    set(commitModalSlugEditingAtom, RESET)
+    set(commitModalSlugFieldErrorAtom, RESET)
 })
 
 /**
@@ -158,6 +204,48 @@ export const setCommitMessageAtom = atom(null, (_get, set, message: string) => {
 })
 
 /**
+ * Set loading state explicitly (for custom submit flows).
+ */
+export const setCommitLoadingAtom = atom(null, (_get, set, isLoading: boolean) => {
+    set(commitModalLoadingAtom, isLoading)
+})
+
+/**
+ * Set error state explicitly (for custom submit flows).
+ */
+export const setCommitErrorAtom = atom(null, (_get, set, error: Error | null) => {
+    set(commitModalErrorAtom, error)
+})
+
+/**
+ * Update entity name override (for editable name in Create flows).
+ */
+export const setCommitEntityNameAtom = atom(null, (_get, set, name: string | null) => {
+    set(commitModalEntityNameOverrideAtom, name)
+})
+
+/**
+ * Set the entity slug.
+ */
+export const setCommitEntitySlugAtom = atom(null, (_get, set, slug: string | null) => {
+    set(commitModalEntitySlugAtom, slug)
+})
+
+/**
+ * Set the slug field-level error.
+ */
+export const setCommitSlugFieldErrorAtom = atom(null, (_get, set, error: string | null) => {
+    set(commitModalSlugFieldErrorAtom, error)
+})
+
+/**
+ * Toggle slug editing mode.
+ */
+export const setCommitSlugEditingAtom = atom(null, (_get, set, editing: boolean) => {
+    set(commitModalSlugEditingAtom, editing)
+})
+
+/**
  * Execute commit operation via adapter
  *
  * Returns the result from the adapter's commitAtom (e.g., new revision ID)
@@ -191,9 +279,13 @@ export const executeCommitAtom = atom(null, async (get, set) => {
 
         return {success: true}
     } catch (error) {
-        set(commitModalErrorAtom, error as Error)
+        const message = extractApiErrorMessage(error)
+        set(
+            commitModalErrorAtom,
+            error instanceof Error ? Object.assign(error, {message}) : new Error(message),
+        )
         set(commitModalLoadingAtom, false)
-        return {success: false, error: (error as Error).message}
+        return {success: false, error: message}
     }
 })
 

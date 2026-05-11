@@ -16,7 +16,7 @@
  * import { useCascadingMode, useBreadcrumbMode, useListPopoverMode } from '@agenta/entity-ui/selection'
  *
  * // Use pre-built adapters
- * import { appRevisionAdapter, testsetAdapter } from '@agenta/entity-ui/selection'
+ * import { testsetAdapter, workflowRevisionAdapter } from '@agenta/entity-ui/selection'
  *
  * // Use controller for modal management
  * import { entitySelectorController } from '@agenta/entity-ui/selection'
@@ -35,6 +35,7 @@ export type {
     EntitySelectorConfig,
     EntitySelectorResolver,
     ListQueryState,
+    TabDefinition,
     // Pagination types
     PaginationParams,
     PaginationInfo,
@@ -147,8 +148,10 @@ export {
     // Unified EntityPicker with variants
     EntityPicker,
     CascadingVariant,
+    CascaderVariant,
     BreadcrumbVariant,
     ListPopoverVariant,
+    PopoverCascaderVariant,
     TreeSelectPopupContent,
     // Shared components (for customization)
     LevelSelect,
@@ -176,8 +179,10 @@ export type {
     EntityPickerProps,
     EntityPickerBaseProps,
     CascadingVariantProps,
+    CascaderVariantProps,
     BreadcrumbVariantProps,
     ListPopoverVariantProps,
+    PopoverCascaderVariantProps,
     TreeSelectPopupContentProps,
     LevelSelectProps,
     ChildPopoverContentProps,
@@ -188,20 +193,29 @@ export type {
 
 // Pre-built adapters
 export {
-    appRevisionAdapter,
-    legacyAppRevisionAdapter,
-    createLegacyAppRevisionAdapter,
-    evaluatorRevisionAdapter,
-    setEvaluatorRevisionAtoms,
+    evaluatorAdapter,
+    setEvaluatorAtoms,
     testsetAdapter,
+    workflowRevisionAdapter,
+    createWorkflowRevisionAdapter,
 } from "./adapters"
 
 export type {
-    AppRevisionSelectionResult,
-    LegacyAppRevisionSelectionResult,
-    CreateLegacyAppRevisionAdapterOptions,
-    EvaluatorRevisionSelectionResult,
+    EvaluatorSelectionResult,
     TestsetSelectionResult,
+    WorkflowRevisionSelectionResult,
+    CreateWorkflowRevisionAdapterOptions,
+} from "./adapters"
+
+// Enriched evaluator adapters (with colored type tags)
+export {
+    renderEvaluatorPickerLabelNode,
+    buildEvaluatorPickerLabelNode,
+    useEvaluatorEnrichedData,
+    useEnrichedEvaluatorBrowseAdapter,
+    useEnrichedEvaluatorOnlyAdapter,
+    useEnrichedHumanEvaluatorAdapter,
+    useEnrichedAnnotationEvaluatorAdapter,
 } from "./adapters"
 
 // Initialization
@@ -211,4 +225,4 @@ export {
     isSelectionSystemInitialized,
 } from "./initializeSelection"
 
-export type {SelectionSystemConfig, EvaluatorRevisionSelectionConfig} from "./initializeSelection"
+export type {SelectionSystemConfig, EvaluatorSelectionConfig} from "./initializeSelection"

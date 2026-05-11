@@ -12,7 +12,6 @@
 import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {atom, useAtom} from "jotai"
-import {atomFamily} from "jotai-family"
 
 import type {
     EntitySelectionAdapter,
@@ -86,6 +85,13 @@ export interface UseCascadingModeOptions<
      * @default adapter.hierarchy.levels.length
      */
     maxLevels?: number
+
+    /**
+     * Initial selections to pre-populate levels on first mount.
+     * Array of entity IDs matching hierarchy levels (e.g., [workflowId, variantId, revisionId]).
+     * Null entries are skipped. Applied once when the selections atom is empty.
+     */
+    initialSelections?: (string | null)[]
 }
 
 /**
@@ -114,13 +120,6 @@ export interface UseCascadingModeResult<TSelection = EntitySelectionResult> {
 // ============================================================================
 // STATE ATOMS
 // ============================================================================
-
-/**
- * Atom family for user selections per instance.
- * Key: instanceId
- * Value: Array of user selections per level (null = no selection)
- */
-const userSelectionsAtomFamily = atomFamily((instanceId: string) => atom<(string | null)[]>([]))
 
 // ============================================================================
 // INTERNAL: Level Data Hook
@@ -245,7 +244,7 @@ function useCascadingLevelWithData(
 export function useCascadingMode<TSelection = EntitySelectionResult>(
     options: UseCascadingModeOptions<TSelection>,
 ): UseCascadingModeResult<TSelection> {
-    const {onSelect, maxLevels} = options
+    const {onSelect, maxLevels, initialSelections} = options
 
     // Get core utilities
     const {
@@ -260,8 +259,25 @@ export function useCascadingMode<TSelection = EntitySelectionResult>(
     // Limit levels if specified
     const effectiveLevels = maxLevels ? hierarchyLevels.slice(0, maxLevels) : hierarchyLevels
 
-    // User selections atom for this instance
-    const userSelectionsAtom = useMemo(() => userSelectionsAtomFamily(instanceId), [instanceId])
+    // Build the initial value for the selections atom.
+    // Computed once per mount so the very first useAtom read already has the right IDs.
+    const initialValue = useMemo(() => {
+        const base = new Array(effectiveLevels.length).fill(null)
+        if (initialSelections) {
+            for (let i = 0; i < Math.min(initialSelections.length, base.length); i++) {
+                if (initialSelections[i]) {
+                    base[i] = initialSelections[i]
+                }
+            }
+        }
+        return base
+    }, []) // intentionally empty — seed once per mount
+
+    // User selections atom for this instance, seeded with initialValue
+    const userSelectionsAtom = useMemo(() => {
+        const a = atom(initialValue)
+        return a
+    }, [instanceId]) // fresh atom per instance
     const [userSelections, setUserSelections] = useAtom(userSelectionsAtom)
 
     // Track previous adapter name for reset on change
@@ -275,7 +291,7 @@ export function useCascadingMode<TSelection = EntitySelectionResult>(
         }
     }, [adapter.name, setUserSelections])
 
-    // Initialize user selections array if needed
+    // Ensure array length matches level count (handles dynamic adapter hierarchy)
     useEffect(() => {
         if (userSelections.length !== effectiveLevels.length) {
             setUserSelections(new Array(effectiveLevels.length).fill(null))
@@ -290,6 +306,8 @@ export function useCascadingMode<TSelection = EntitySelectionResult>(
     // Create setter for a specific level (clears subsequent levels)
     const createLevelSetter = useCallback(
         (levelIndex: number) => (id: string | null) => {
+            // Mark that user has actively changed a selection
+            userHasInteractedRef.current = true
             setUserSelections((prev) => {
                 const next = [...prev]
                 next[levelIndex] = id
@@ -393,11 +411,17 @@ export function useCascadingMode<TSelection = EntitySelectionResult>(
 
     const isComplete = selection !== null
 
-    // Trigger onSelect when selection completes
+    // Track whether the user has interacted (changed a level selection).
+    // When initialSelections pre-populate the cascading state, we must NOT
+    // fire onSelect immediately — that would close the popover before the
+    // user has a chance to change anything.
+    const userHasInteractedRef = useRef(!initialSelections)
+
+    // Trigger onSelect when selection completes — but only after user interaction
     const getSelectionId = useCallback((s: TSelection) => (s as EntitySelectionResult).id, [])
     const triggerSelect = useSelectionCallbackTrigger(onSelect, getSelectionId)
     useEffect(() => {
-        if (selection) {
+        if (selection && userHasInteractedRef.current) {
             triggerSelect(selection)
         }
     }, [selection, triggerSelect])

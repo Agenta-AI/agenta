@@ -59,7 +59,7 @@ async def _run_evaluator(evaluator_key: str, evaluator_input):
 ### Option 2: Native Workflow Invoke Endpoint
 
 ```
-POST /preview/workflows/invoke
+POST /workflows/invoke
 ```
 
 **Request:**
@@ -98,7 +98,7 @@ For a fully "native" approach:
 
 1. **Fetch the evaluator revision:**
    ```
-   POST /preview/evaluators/revisions/retrieve
+   POST /evaluators/revisions/retrieve
    ```
    
 2. **Get the URI from revision data:**
@@ -108,7 +108,7 @@ For a fully "native" approach:
 
 3. **Invoke via workflow service:**
    ```
-   POST /preview/workflows/invoke
+   POST /workflows/invoke
    ```
 
 ## Comparison: Which Approach to Use?
@@ -132,16 +132,16 @@ For the Evaluator Playground migration:
 
 ## New SimpleEvaluator CRUD Endpoints
 
-Base path: `/preview/simple/evaluators/`
+Base path: `/simple/evaluators/`
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/preview/simple/evaluators/` | POST | Create new evaluator |
-| `/preview/simple/evaluators/{id}` | GET | Fetch evaluator by ID |
-| `/preview/simple/evaluators/{id}` | PUT | Update evaluator |
-| `/preview/simple/evaluators/{id}/archive` | POST | Archive (soft delete) evaluator |
-| `/preview/simple/evaluators/{id}/unarchive` | POST | Restore archived evaluator |
-| `/preview/simple/evaluators/query` | POST | Query evaluators with filters |
+| `/simple/evaluators/` | POST | Create new evaluator |
+| `/simple/evaluators/{id}` | GET | Fetch evaluator by ID |
+| `/simple/evaluators/{id}` | PUT | Update evaluator |
+| `/simple/evaluators/{id}/archive` | POST | Archive (soft delete) evaluator |
+| `/simple/evaluators/{id}/unarchive` | POST | Restore archived evaluator |
+| `/simple/evaluators/query` | POST | Query evaluators with filters |
 
 ## Data Structures
 
@@ -259,7 +259,7 @@ Response: EvaluatorConfig[]
 
 **New:**
 ```
-POST /preview/simple/evaluators/query?project_id={project_id}
+POST /simple/evaluators/query?project_id={project_id}
 
 Request: SimpleEvaluatorQuery
 {
@@ -293,7 +293,7 @@ Response: EvaluatorConfig
 
 **New:**
 ```
-POST /preview/simple/evaluators/?project_id={project_id}
+POST /simple/evaluators/?project_id={project_id}
 
 Request: SimpleEvaluatorCreateRequest
 {
@@ -335,7 +335,7 @@ Response: EvaluatorConfig
 
 **New:**
 ```
-PUT /preview/simple/evaluators/{id}?project_id={project_id}
+PUT /simple/evaluators/{id}?project_id={project_id}
 
 Request: SimpleEvaluatorEditRequest
 {
@@ -364,7 +364,7 @@ Response: boolean
 
 **New:**
 ```
-POST /preview/simple/evaluators/{id}/archive?project_id={project_id}
+POST /simple/evaluators/{id}/archive?project_id={project_id}
 
 Response: SimpleEvaluatorResponse
 ```
@@ -445,4 +445,4 @@ To migrate, the frontend needs to:
 
 5. **When running evaluators:**
    - **Option A (Recommended):** Keep using `/evaluators/{key}/run/` - no change needed
-   - **Option B (Native):** Use `/preview/workflows/invoke` with URI from revision
+   - **Option B (Native):** Use `/workflows/invoke` with URI from revision

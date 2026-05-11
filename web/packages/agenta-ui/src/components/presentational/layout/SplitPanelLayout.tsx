@@ -101,7 +101,7 @@ export function SplitPanelLayout({
                 {left}
             </div>
 
-            {showDivider && <Divider type="vertical" className="m-0 h-full" />}
+            {showDivider && <Divider orientation="vertical" className="m-0 h-full" />}
 
             {/* Right Panel */}
             <div

@@ -1,17 +1,17 @@
 """
-Acceptance tests for /preview/simple/queries/ CRUD endpoints.
+Acceptance tests for /simple/queries/ CRUD endpoints.
 
 These endpoints are used by the loadable strategies (B.0/B.2) to persist
 trace-filtering expressions as versioned query revisions, which can then be
-referenced by /preview/traces/query and /preview/spans/query.
+referenced by /traces/query and /spans/query.
 
 Routes under test:
-  POST   /preview/simple/queries/          — create_simple_query (returns revision)
-  GET    /preview/simple/queries/{id}      — fetch_simple_query
-  PUT    /preview/simple/queries/{id}      — edit_simple_query
-  POST   /preview/simple/queries/{id}/archive   — archive_simple_query
-  POST   /preview/simple/queries/{id}/unarchive — unarchive_simple_query
-  POST   /preview/simple/queries/query    — query_simple_queries
+  POST   /simple/queries/          — create_simple_query (returns revision)
+  GET    /simple/queries/{id}      — fetch_simple_query
+  PUT    /simple/queries/{id}      — edit_simple_query
+  POST   /simple/queries/{id}/archive   — archive_simple_query
+  POST   /simple/queries/{id}/unarchive — unarchive_simple_query
+  POST   /simple/queries/query    — query_simple_queries
 """
 
 from uuid import uuid4
@@ -44,14 +44,15 @@ def _make_query_payload(suffix: str = "") -> dict:
 class TestSimpleQueriesCreate:
     def test_create_simple_query_returns_200(self, authed_api):
         """
-        POST /preview/simple/queries/ creates a query with an initial revision
+        POST /simple/queries/ creates a query with an initial revision
         and returns the full query object.
         """
         # ACT -----------------------------------------------------------------
+        payload = _make_query_payload()
         response = authed_api(
             "POST",
-            "/preview/simple/queries/",
-            json=_make_query_payload(),
+            "/simple/queries/",
+            json=payload,
         )
         # ---------------------------------------------------------------------
 
@@ -60,10 +61,26 @@ class TestSimpleQueriesCreate:
         body = response.json()
         assert "query" in body
         query = body["query"]
+
+        commit_response = authed_api(
+            "POST",
+            "/queries/revisions/commit",
+            json={
+                "query_revision_commit": {
+                    "slug": uuid4().hex[-12:],
+                    "query_id": query["id"],
+                    "query_variant_id": query["variant_id"],
+                    "data": payload["query"]["data"],
+                }
+            },
+        )
+        assert commit_response.status_code == 200, commit_response.text
+        query_revision = commit_response.json()["query_revision"]
+
         assert query.get("id") is not None
-        assert query.get("revision_id") is not None
+        assert query_revision.get("id") is not None
         assert query.get("slug") is not None
-        assert query.get("data") is not None
+        assert query_revision.get("data") is not None
         # ---------------------------------------------------------------------
 
     def test_create_simple_query_stores_filtering(self, authed_api):
@@ -77,14 +94,29 @@ class TestSimpleQueriesCreate:
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/queries/",
+            "/simple/queries/",
             json=payload,
         )
         # ---------------------------------------------------------------------
 
         # ASSERT --------------------------------------------------------------
         assert response.status_code == 200, response.text
-        data = response.json()["query"].get("data") or {}
+        query = response.json()["query"]
+
+        commit_response = authed_api(
+            "POST",
+            "/queries/revisions/commit",
+            json={
+                "query_revision_commit": {
+                    "slug": uuid4().hex[-12:],
+                    "query_id": query["id"],
+                    "query_variant_id": query["variant_id"],
+                    "data": payload["query"]["data"],
+                }
+            },
+        )
+        assert commit_response.status_code == 200, commit_response.text
+        data = commit_response.json()["query_revision"].get("data") or {}
         assert data.get("filtering") == filtering
         # ---------------------------------------------------------------------
 
@@ -92,19 +124,19 @@ class TestSimpleQueriesCreate:
 class TestSimpleQueriesFetch:
     def test_fetch_simple_query_returns_200(self, authed_api):
         """
-        GET /preview/simple/queries/{id} returns the full query object.
+        GET /simple/queries/{id} returns the full query object.
         """
         # ARRANGE -------------------------------------------------------------
         create_resp = authed_api(
             "POST",
-            "/preview/simple/queries/",
+            "/simple/queries/",
             json=_make_query_payload(),
         )
         assert create_resp.status_code == 200, create_resp.text
         query_id = create_resp.json()["query"]["id"]
 
         # ACT -----------------------------------------------------------------
-        response = authed_api("GET", f"/preview/simple/queries/{query_id}")
+        response = authed_api("GET", f"/simple/queries/{query_id}")
         # ---------------------------------------------------------------------
 
         # ASSERT --------------------------------------------------------------
@@ -115,12 +147,12 @@ class TestSimpleQueriesFetch:
 
     def test_fetch_unknown_query_returns_empty(self, authed_api):
         """
-        GET /preview/simple/queries/{unknown_id} returns 200 with count=0
+        GET /simple/queries/{unknown_id} returns 200 with count=0
         (suppress_exceptions default).
         """
         # ACT -----------------------------------------------------------------
         unknown_id = uuid4()
-        response = authed_api("GET", f"/preview/simple/queries/{unknown_id}")
+        response = authed_api("GET", f"/simple/queries/{unknown_id}")
         # ---------------------------------------------------------------------
 
         # ASSERT --------------------------------------------------------------
@@ -133,8 +165,8 @@ class TestSimpleQueriesFetch:
 class TestSimpleQueriesArchive:
     def test_archive_and_unarchive_simple_query(self, authed_api):
         """
-        POST /preview/simple/queries/{id}/archive archives the query.
-        POST /preview/simple/queries/{id}/unarchive restores it.
+        POST /simple/queries/{id}/archive archives the query.
+        POST /simple/queries/{id}/unarchive restores it.
         After archiving, the query is excluded from default list results.
         After unarchiving, it reappears.
         """
@@ -142,7 +174,7 @@ class TestSimpleQueriesArchive:
         payload = _make_query_payload()
         create_resp = authed_api(
             "POST",
-            "/preview/simple/queries/",
+            "/simple/queries/",
             json=payload,
         )
         assert create_resp.status_code == 200, create_resp.text
@@ -153,14 +185,14 @@ class TestSimpleQueriesArchive:
         # ACT — archive -------------------------------------------------------
         archive_resp = authed_api(
             "POST",
-            f"/preview/simple/queries/{query_id}/archive",
+            f"/simple/queries/{query_id}/archive",
         )
         assert archive_resp.status_code == 200, archive_resp.text
 
         # ASSERT — excluded from default listing
         list_resp = authed_api(
             "POST",
-            "/preview/simple/queries/query",
+            "/simple/queries/query",
             json={},
         )
         assert list_resp.status_code == 200
@@ -170,14 +202,14 @@ class TestSimpleQueriesArchive:
         # ACT — unarchive ----------------------------------------------------
         unarchive_resp = authed_api(
             "POST",
-            f"/preview/simple/queries/{query_id}/unarchive",
+            f"/simple/queries/{query_id}/unarchive",
         )
         assert unarchive_resp.status_code == 200, unarchive_resp.text
 
         # ASSERT — reappears in listing
         list_resp2 = authed_api(
             "POST",
-            "/preview/simple/queries/query",
+            "/simple/queries/query",
             json={},
         )
         assert list_resp2.status_code == 200
@@ -189,13 +221,13 @@ class TestSimpleQueriesArchive:
 class TestSimpleQueriesList:
     def test_query_simple_queries_returns_200(self, authed_api):
         """
-        POST /preview/simple/queries/query with empty body returns 200 and
+        POST /simple/queries/query with empty body returns 200 and
         a list of non-archived queries.
         """
         # ACT -----------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/simple/queries/query",
+            "/simple/queries/query",
             json={},
         )
         # ---------------------------------------------------------------------
@@ -214,7 +246,7 @@ class TestSimpleQueriesList:
         # ARRANGE -------------------------------------------------------------
         create_resp = authed_api(
             "POST",
-            "/preview/simple/queries/",
+            "/simple/queries/",
             json=_make_query_payload(),
         )
         assert create_resp.status_code == 200, create_resp.text
@@ -223,7 +255,7 @@ class TestSimpleQueriesList:
         # ACT -----------------------------------------------------------------
         list_resp = authed_api(
             "POST",
-            "/preview/simple/queries/query",
+            "/simple/queries/query",
             json={},
         )
         # ---------------------------------------------------------------------

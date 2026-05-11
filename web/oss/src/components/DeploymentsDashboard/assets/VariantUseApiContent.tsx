@@ -1,5 +1,12 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {
+    workflowMolecule,
+    workflowVariantsListDataAtomFamily,
+    workflowRevisionsListDataAtomFamily,
+    workflowRevisionsByWorkflowListDataAtomFamily,
+} from "@agenta/entities/workflow"
+import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {PythonOutlined} from "@ant-design/icons"
 import {FileCode, FileTs} from "@phosphor-icons/react"
 import {Spin, Tabs, Typography} from "antd"
@@ -14,15 +21,8 @@ import invokeLlmApppythonCode from "@/oss/code_snippets/endpoints/invoke_llm_app
 import invokeLlmApptsCode from "@/oss/code_snippets/endpoints/invoke_llm_app/typescript"
 import LanguageCodeBlock from "@/oss/components/pages/overview/deployments/DeploymentDrawer/assets/LanguageCodeBlock"
 import SelectVariant from "@/oss/components/Playground/Components/Menus/SelectVariant"
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {useAppId} from "@/oss/hooks/useAppId"
-import {currentAppAtom, useURI} from "@/oss/state/app"
-import {stablePromptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {revisionsByVariantIdAtomFamily, variantsAtom} from "@/oss/state/variant/atoms/fetcher"
-import {
-    latestRevisionInfoByVariantIdAtomFamily,
-    revisionListAtom,
-} from "@/oss/state/variant/selectors/variant"
+import {currentAppAtom} from "@/oss/state/app"
 
 const ApiKeyInput = dynamic(
     () => import("@/oss/components/pages/app-management/components/ApiKeyInput"),
@@ -35,8 +35,8 @@ interface VariantUseApiContentProps {
 
 const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) => {
     const appId = useAppId()
-    const variants = useAtomValue(variantsAtom)
-    const revisionList = useAtomValue(revisionListAtom)
+    const variants = useAtomValue(workflowVariantsListDataAtomFamily(appId || ""))
+    const revisionList = useAtomValue(workflowRevisionsByWorkflowListDataAtomFamily(appId || ""))
     const currentApp = useAtomValue(currentAppAtom)
 
     const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>()
@@ -44,14 +44,31 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
     const [selectedLang, setSelectedLang] = useState("python")
     const [apiKeyValue, setApiKeyValue] = useState("")
 
-    // Get URI for the selected variant
-    const {data: uri, isLoading: isUriQueryLoading} = useURI(appId, selectedVariantId)
-    const isLoading = Boolean(selectedVariantId) && isUriQueryLoading
+    // Get invocation URL and input ports from workflow molecule
+    const uri = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.deploymentUrl(selectedRevisionId || ""),
+            [selectedRevisionId],
+        ),
+    )
+    const isLoading = false
 
-    // Get variable names for the selected revision
-    const variableNames = useAtomValue(
-        stablePromptVariablesAtomFamily(selectedRevisionId || ""),
-    ) as string[]
+    const inputPorts = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.inputPorts(selectedRevisionId || ""),
+            [selectedRevisionId],
+        ),
+    ) as any[]
+    const variableNames = useMemo(
+        () => (inputPorts || []).map((p: any) => p.key) as string[],
+        [inputPorts],
+    )
+    const isChat = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.isChat(selectedRevisionId || ""),
+            [selectedRevisionId],
+        ),
+    )
 
     const initialRevision = useMemo(
         () => revisionList.find((rev) => rev.id === initialRevisionId),
@@ -59,28 +76,28 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
     )
 
     useEffect(() => {
-        if (initialRevision?.variantId) {
-            setSelectedVariantId(initialRevision.variantId)
+        if (initialRevision?.workflow_variant_id) {
+            setSelectedVariantId(initialRevision.workflow_variant_id)
             setSelectedRevisionId(initialRevision.id)
             return
         }
 
         if (!selectedVariantId && variants.length) {
-            setSelectedVariantId(variants[0].variantId)
+            setSelectedVariantId(variants[0]?.id)
         }
     }, [initialRevision, selectedVariantId, variants])
 
     const variantRevisionsAtom = useMemo(
-        () => revisionsByVariantIdAtomFamily(selectedVariantId || ""),
-        [selectedVariantId],
-    )
-    const latestRevisionAtom = useMemo(
-        () => latestRevisionInfoByVariantIdAtomFamily(selectedVariantId || ""),
+        () => workflowRevisionsListDataAtomFamily(selectedVariantId || ""),
         [selectedVariantId],
     )
 
     const variantRevisions = useAtomValue(variantRevisionsAtom)
-    const latestRevision = useAtomValue(latestRevisionAtom)
+    const latestRevision = useMemo(() => {
+        if (!Array.isArray(variantRevisions) || variantRevisions.length === 0) return null
+        // Already sorted by version desc from the atom family
+        return variantRevisions[0]
+    }, [variantRevisions])
 
     useEffect(() => {
         if (!selectedVariantId) return
@@ -92,7 +109,7 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
         if (hasSelectedRevision) return
 
         const nextRevisionId =
-            initialRevision && initialRevision.variantId === selectedVariantId
+            initialRevision && initialRevision.workflow_variant_id === selectedVariantId
                 ? initialRevision.id
                 : latestRevision?.id
 
@@ -108,7 +125,7 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
     ])
 
     const selectedVariant = useMemo(
-        () => variants.find((variant) => variant.variantId === selectedVariantId),
+        () => variants.find((variant) => variant.id === selectedVariantId),
         [selectedVariantId, variants],
     )
 
@@ -120,58 +137,50 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
     useEffect(() => {
         if (!selectedRevisionId) return
         const revision = revisionList.find((item) => item.id === selectedRevisionId)
-        if (revision?.variantId && revision.variantId !== selectedVariantId) {
-            setSelectedVariantId(revision.variantId)
+        if (revision?.workflow_variant_id && revision.workflow_variant_id !== selectedVariantId) {
+            setSelectedVariantId(revision.workflow_variant_id)
         }
     }, [revisionList, selectedRevisionId, selectedVariantId])
 
     const variantSlug =
-        (selectedVariant as any)?.variantSlug ||
-        selectedVariant?.variantName ||
-        (selectedRevision as any)?.variantName ||
+        selectedVariant?.slug ||
+        selectedVariant?.name ||
+        selectedRevision?.name ||
         "my-variant-slug"
-    const variantVersion = selectedRevision?.revision ?? latestRevision?.revision ?? 1
-    const appSlug = (currentApp as any)?.app_slug || currentApp?.app_name || "my-app-slug"
+    const variantVersion = selectedRevision?.version ?? latestRevision?.version ?? 1
+    const appSlug = currentApp?.slug || currentApp?.name || "my-app-slug"
     const apiKey = apiKeyValue || "YOUR_API_KEY"
 
-    const invokeLlmUrl = uri ?? ""
+    const invokeLlmUrl = (uri && uri.trim()) || ""
 
     // Build params for invoke LLM (with variant refs instead of environment)
     const params = useMemo(() => {
-        const synthesized = variableNames.map((name) => ({name, input: name === "messages"}))
+        const inputs: Record<string, any> = {}
 
-        const mainParams: Record<string, any> = {}
-        const secondaryParams: Record<string, any> = {}
-
-        synthesized.forEach((item) => {
-            if (item.input) {
-                mainParams[item.name] = "add_a_value"
-            } else {
-                secondaryParams[item.name] = "add_a_value"
-            }
+        variableNames.forEach((name) => {
+            inputs[name] = "add_a_value"
         })
 
-        const hasMessagesParam = synthesized.some((p) => p?.name === "messages")
-        const isChat = currentApp?.app_type === "chat" || hasMessagesParam
         if (isChat) {
-            mainParams["messages"] = [
+            inputs["messages"] = [
                 {
                     role: "user",
                     content: "",
                 },
             ]
-            mainParams["inputs"] = secondaryParams
-        } else if (Object.keys(secondaryParams).length > 0) {
-            mainParams["inputs"] = secondaryParams
         }
 
-        // Use variant refs instead of environment
-        mainParams["app"] = appSlug
-        mainParams["variant_slug"] = variantSlug
-        mainParams["variant_version"] = variantVersion
+        const params: Record<string, any> = {
+            data: {inputs},
+            references: {
+                application: {slug: appSlug},
+                application_variant: {slug: variantSlug},
+                application_revision: {version: String(variantVersion)},
+            },
+        }
 
-        return JSON.stringify(mainParams, null, 2)
-    }, [variableNames, currentApp?.app_type, appSlug, variantSlug, variantVersion])
+        return JSON.stringify(params, null, 2)
+    }, [variableNames, isChat, appSlug, variantSlug, variantVersion])
 
     const fetchConfigCodeSnippet = useMemo(
         () => ({
@@ -200,6 +209,7 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
                     selectedLang={selectedLang}
                     handleOpenSelectDeployVariantModal={() => {}}
                     invokeLlmUrl={invokeLlmUrl}
+                    showDeployOverlay={false}
                 />
             </Spin>
         )
@@ -243,8 +253,8 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
                                 const revision = revisionList.find(
                                     (item) => item.id === nextRevisionId,
                                 )
-                                if (revision?.variantId) {
-                                    setSelectedVariantId(revision.variantId)
+                                if (revision?.workflow_variant_id) {
+                                    setSelectedVariantId(revision.workflow_variant_id)
                                 }
                             }}
                             showCreateNew={false}
@@ -252,11 +262,12 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
                             className="w-[186px]"
                         />
                         <VariantDetailsWithStatus
-                            revision={selectedRevision?.revision ?? null}
+                            revision={selectedRevision?.version ?? null}
                             variant={{
                                 id: selectedRevision?.id || "",
                                 deployedIn: [],
-                                isLatestRevision: selectedRevision?.isLatestRevision ?? false,
+                                isLatestRevision:
+                                    selectedRevision?.version === latestRevision?.version,
                             }}
                             hideName
                             showRevisionAsTag

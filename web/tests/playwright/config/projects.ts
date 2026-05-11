@@ -8,6 +8,6 @@ export const project: Project = {
     name: process.env.AGENTA_LICENSE || "oss",
     use: {
         ...devices["Desktop Chrome"],
-        baseURL: process.env.AGENTA_WEB_URL || "http://localhost",
+        baseURL: process.env.AGENTA_WEB_URL || "http://localhost:3000",
     },
 }

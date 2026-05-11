@@ -119,6 +119,15 @@ export {
     type RunnableEntity,
     type LoadableEntity,
     type RunnableLoadableEntity,
+    // Entity meta capability
+    withEntityMeta,
+    type EntityMetaFieldMap,
+    type EntityMetaAtoms,
+    type EntityMetaGetters,
+    type EntityMetaCapability,
+    type MetaEntity,
+    type RunnableMetaEntity,
+    type LoadableMetaEntity,
 } from "./molecule"
 
 // ============================================================================
@@ -171,6 +180,10 @@ export {
     composeTransforms,
     parseISODate,
     normalizeTimestampsBasic,
+    // Date formatting utilities
+    type EntityDateInput,
+    type EntityDateTimeFormatOptions,
+    formatEntityDateTime,
     // ID & batch utilities
     isLocalId,
     isServerId,
@@ -220,6 +233,7 @@ export {
     // Atoms
     userByIdFamily,
     currentUserAtom,
+    workspaceMembersAtom,
     // Hooks
     useUserDisplayName,
     useIsCurrentUser,
@@ -228,6 +242,7 @@ export {
     // Types
     type UserAtomConfig,
     type UserInfo,
+    type WorkspaceMember,
     type UserAuthorLabelProps,
 } from "./user"
 
@@ -251,7 +266,6 @@ export {
 export {
     // Factories
     createLoadableBridge,
-    createRunnableBridge,
     // Internal state (advanced)
     loadableStateFamily,
 } from "./createEntityBridge"
@@ -261,6 +275,7 @@ export type {
     BridgeQueryState,
     BaseMolecule,
     BaseMoleculeSelectors,
+    OpaqueWritableAtom,
     // Loadable types
     LoadableRow,
     LoadableColumn,
@@ -269,16 +284,10 @@ export type {
     LoadableBridge,
     LoadableBridgeSelectors,
     LoadableBridgeActions,
-    // Runnable types
+    // Standalone entity types
     RunnablePort,
-    RunnableData,
-    RunnableTypeConfig,
-    CreateRunnableBridgeConfig,
-    RunnableBridge,
-    RunnableBridgeSelectors,
     // Aliases
     SourceConfig,
-    RunnableConfig,
 } from "./entityBridge"
 
 // ============================================================================
@@ -417,7 +426,7 @@ export {
 } from "./paginated"
 
 // ============================================================================
-// REVISION UTILITIES (shared between appRevision and legacyAppRevision)
+// REVISION UTILITIES
 // ============================================================================
 
 export {
@@ -434,11 +443,9 @@ export {
     // Revision parameter extraction
     type RawAgConfig,
     extractRevisionParameters,
-    extractRevisionParametersFromEnhanced,
     extractRevisionParametersFromApiRevision,
     // Deprecated agConfig aliases
     extractAgConfig,
-    extractAgConfigFromEnhanced,
     extractAgConfigFromApiRevision,
     // List item types
     type AppListItem,
@@ -452,7 +459,4 @@ export {
     transformAppToListItem,
     transformVariantToListItem,
     transformRevisionToListItem,
-    // Enhanced variant types
-    type EnhancedVariantLike,
-    extractUriFromEnhanced,
 } from "./utils"

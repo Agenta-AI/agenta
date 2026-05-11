@@ -1,10 +1,10 @@
 import {useMemo, useState} from "react"
 
+import {LLMIconMap} from "@agenta/ui"
 import {GearSix, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {Button, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 
-import LLMIcons from "@/oss/components/LLMIcons"
 import ConfigureProviderDrawer from "@/oss/components/ModelRegistry/Drawers/ConfigureProviderDrawer"
 import ConfigureProviderModal from "@/oss/components/ModelRegistry/Modals/ConfigureProviderModal"
 import DeleteProviderModal from "@/oss/components/ModelRegistry/Modals/DeleteProviderModal"
@@ -31,7 +31,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                     style: {minWidth: 160},
                 }),
                 render: (_, record) => {
-                    const Icon = LLMIcons[record.title as string]
+                    const Icon = LLMIconMap[record.title as string]
 
                     return isCustom ? (
                         record?.name
@@ -90,7 +90,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                               return (
                                   <div className="flex flex-col items-start gap-1">
                                       <Tag
-                                          bordered={false}
+                                          variant="filled"
                                           color="default"
                                           className="bg-[#0517290F] px-2 py-[1px]"
                                       >

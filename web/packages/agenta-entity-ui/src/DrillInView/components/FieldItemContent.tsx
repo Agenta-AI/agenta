@@ -1,14 +1,17 @@
 /**
  * FieldItemContent Component
  *
- * Renders the content section of a drill-in field item:
- * - Drill-in link (for expandable fields)
- * - Value display or editor (for leaf fields)
+ * Renders the content section of a drill-in field item.
+ * All fields render inline via SchemaPropertyRenderer — no drill-in navigation.
  */
 
 import {useCallback, useMemo} from "react"
 
+import type {SchemaProperty} from "@agenta/entities/shared"
 import type {PathItem} from "@agenta/shared/utils"
+import {formatLabel} from "@agenta/ui/drill-in"
+
+import {SchemaPropertyRenderer} from "../SchemaControls/SchemaPropertyRenderer"
 
 // ============================================================================
 // TYPES
@@ -19,6 +22,11 @@ export interface FieldItemContentProps {
      * Field item being rendered
      */
     item: PathItem
+
+    /**
+     * Full path to this field (for SchemaPropertyRenderer)
+     */
+    path?: string[]
 
     /**
      * Whether the field is expandable (has children)
@@ -51,6 +59,24 @@ export interface FieldItemContentProps {
     onChange: (value: unknown) => void
 
     /**
+     * Optional JSON schema for schema-aware rendering.
+     * When provided, SchemaPropertyRenderer uses it for rich controls.
+     * When null/undefined, SchemaPropertyRenderer falls back to value-based detection.
+     */
+    schema?: SchemaProperty | null
+
+    /**
+     * Original server value for preserving custom descriptions.
+     * Passed to FeedbackConfigurationControl via SchemaPropertyRenderer.
+     */
+    originalValue?: unknown
+
+    /**
+     * Entity ID for scoping modal state per variant (e.g., response format modal)
+     */
+    entityId?: string
+
+    /**
      * CSS class names
      */
     classNames: {
@@ -73,56 +99,44 @@ export interface FieldItemContentProps {
 
 export function FieldItemContent({
     item,
-    isExpandable,
-    childCount,
-    canDrillIn,
+    path,
+    isExpandable: _isExpandable,
+    childCount: _childCount,
     isEditable,
-    onDrillIn,
+    onDrillIn: _onDrillIn,
     onChange,
+    schema,
+    originalValue,
+    entityId,
     classNames,
     styles,
 }: FieldItemContentProps) {
-    // Simple value display
-    const displayValue = useMemo(() => {
-        return typeof item.value === "string" ? item.value : JSON.stringify(item.value, null, 2)
-    }, [item.value])
+    const label = useMemo(
+        () => (schema?.title as string) ?? formatLabel(item.key),
+        [schema, item.key],
+    )
 
     const handleChange = useCallback(
-        (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-            onChange(e.target.value)
+        (value: unknown) => {
+            onChange(value)
         },
         [onChange],
     )
 
-    const rowCount = useMemo(() => {
-        return Math.min(displayValue.split("\n").length, 10)
-    }, [displayValue])
-
-    if (isExpandable) {
-        return (
-            <div className={classNames.fieldContent} style={styles?.fieldContent}>
-                <button type="button" onClick={onDrillIn} className="text-blue-600 hover:underline">
-                    View {childCount} {childCount === 1 ? "item" : "items"} →
-                </button>
-            </div>
-        )
-    }
-
+    // All fields render inline via SchemaPropertyRenderer — no drill-in navigation.
     return (
         <div className={classNames.fieldContent} style={styles?.fieldContent}>
             <div className={classNames.valueRenderer} style={styles?.valueRenderer}>
-                {isEditable ? (
-                    <textarea
-                        value={displayValue}
-                        onChange={handleChange}
-                        className="w-full p-2 border rounded font-mono"
-                        rows={rowCount}
-                    />
-                ) : (
-                    <pre className="text-gray-700 whitespace-pre-wrap break-words">
-                        {displayValue}
-                    </pre>
-                )}
+                <SchemaPropertyRenderer
+                    schema={schema}
+                    label={label}
+                    value={item.value}
+                    onChange={handleChange}
+                    disabled={!isEditable}
+                    path={path}
+                    originalValue={originalValue}
+                    entityId={entityId}
+                />
             </div>
         </div>
     )

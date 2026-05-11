@@ -3,12 +3,14 @@ import {useMemo} from "react"
 import {Play, Plus} from "@phosphor-icons/react"
 import {Button, Collapse, Empty, Spin, Tag, Tooltip, Typography} from "antd"
 import {useSetAtom} from "jotai"
+import Image from "next/image"
 
 import ConnectionStatusBadge from "@/oss/components/pages/settings/Tools/components/ConnectionStatusBadge"
 import {
     useConnectionsQuery,
     catalogDrawerOpenAtom,
     executionDrawerAtom,
+    useIntegrationDetail,
 } from "@/oss/features/gateway-tools"
 import CatalogDrawer from "@/oss/features/gateway-tools/drawers/CatalogDrawer"
 import ToolExecutionDrawer from "@/oss/features/gateway-tools/drawers/ToolExecutionDrawer"
@@ -74,11 +76,7 @@ export default function GatewayToolsPanel({mountDrawers = false}: GatewayToolsPa
                     size="small"
                     items={integrationKeys.map((integrationKey) => ({
                         key: integrationKey,
-                        label: (
-                            <Typography.Text className="text-sm capitalize">
-                                {integrationKey.replace(/_/g, " ")}
-                            </Typography.Text>
-                        ),
+                        label: <IntegrationSectionLabel integrationKey={integrationKey} />,
                         extra: <Tag className="text-xs">{grouped[integrationKey].length}</Tag>,
                         children: (
                             <div className="flex flex-col gap-1">
@@ -112,17 +110,57 @@ export default function GatewayToolsPanel({mountDrawers = false}: GatewayToolsPa
     )
 }
 
+function IntegrationSectionLabel({integrationKey}: {integrationKey: string}) {
+    const {integration} = useIntegrationDetail(integrationKey)
+    const label = integration?.name || integrationKey.replace(/_/g, " ")
+    const logo = integration?.logo
+
+    return (
+        <div className="flex items-center gap-2 min-w-0">
+            {logo ? (
+                <Image
+                    src={logo}
+                    alt={label}
+                    width={16}
+                    height={16}
+                    className="h-4 w-4 rounded object-contain shrink-0"
+                    unoptimized
+                />
+            ) : null}
+            <Typography.Text className="text-sm truncate">{label}</Typography.Text>
+        </div>
+    )
+}
+
 function ConnectionRow({connection, onTest}: {connection: ConnectionItem; onTest: () => void}) {
     const isReady = connection.flags?.is_active && connection.flags?.is_valid
+    const {integration} = useIntegrationDetail(connection.integration_key)
+    const label = integration?.name || connection.integration_key.replace(/_/g, " ")
+    const logo = integration?.logo
 
     return (
         <div
             className="flex items-center gap-2 px-2 py-1 rounded hover:bg-[#f5f5f5] dark:hover:bg-[#2a2a2a] cursor-pointer"
             onClick={onTest}
         >
-            <Typography.Text className="flex-1 text-xs truncate">
-                {connection.name || connection.slug}
-            </Typography.Text>
+            {logo ? (
+                <Image
+                    src={logo}
+                    alt={label}
+                    width={16}
+                    height={16}
+                    className="h-4 w-4 rounded object-contain shrink-0"
+                    unoptimized
+                />
+            ) : null}
+            <div className="flex flex-col min-w-0 flex-1 leading-tight">
+                <Typography.Text className="text-xs truncate">
+                    {connection.name || connection.slug}
+                </Typography.Text>
+                <Typography.Text className="text-[10px] text-slate-400 truncate">
+                    {label} / {connection.slug}
+                </Typography.Text>
+            </div>
             <ConnectionStatusBadge connection={connection} />
             <Tooltip title="Test">
                 <Button

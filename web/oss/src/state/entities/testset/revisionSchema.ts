@@ -2,7 +2,7 @@ import {z} from "zod"
 
 /**
  * Zod schema for testset revision entity based on backend API
- * Endpoint: POST /preview/testsets/revisions/query
+ * Endpoint: POST /testsets/revisions/query
  * Response: { testset_revisions: TestsetRevision[] }
  *
  * Revisions are immutable snapshots of testset data.

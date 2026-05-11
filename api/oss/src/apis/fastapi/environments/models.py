@@ -2,6 +2,8 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
+from oss.src.utils.exceptions import Support
+
 from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
@@ -56,12 +58,12 @@ class EnvironmentQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class EnvironmentResponse(BaseModel):
+class EnvironmentResponse(Support):
     count: int = 0
     environment: Optional[Environment] = None
 
 
-class EnvironmentsResponse(BaseModel):
+class EnvironmentsResponse(Support):
     count: int = 0
     environments: List[Environment] = []
 
@@ -88,12 +90,12 @@ class EnvironmentVariantQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class EnvironmentVariantResponse(BaseModel):
+class EnvironmentVariantResponse(Support):
     count: int = 0
     environment_variant: Optional[EnvironmentVariant] = None
 
 
-class EnvironmentVariantsResponse(BaseModel):
+class EnvironmentVariantsResponse(Support):
     count: int = 0
     environment_variants: List[EnvironmentVariant] = []
 
@@ -116,10 +118,12 @@ class EnvironmentRevisionQueryRequest(BaseModel):
     environment_variant_refs: Optional[List[Reference]] = None
     environment_revision_refs: Optional[List[Reference]] = None
     #
+    application_refs: Optional[List[Reference]] = None
+    #
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
-    resolve: bool = False  # Optionally resolve embeds on query
+    resolve: Optional[bool] = None  # Optionally resolve embeds on query
 
 
 class EnvironmentRevisionCommitRequest(BaseModel):
@@ -130,20 +134,20 @@ class EnvironmentRevisionRetrieveRequest(BaseModel):
     environment_ref: Optional[Reference] = None
     environment_variant_ref: Optional[Reference] = None
     environment_revision_ref: Optional[Reference] = None
-    resolve: bool = False  # Optionally resolve embeds on retrieve
+    resolve: Optional[bool] = None  # Optionally resolve embeds on retrieve
 
 
 class EnvironmentRevisionsLogRequest(BaseModel):
     environment: EnvironmentRevisionsLog
 
 
-class EnvironmentRevisionResponse(BaseModel):
+class EnvironmentRevisionResponse(Support):
     count: int = 0
     environment_revision: Optional[EnvironmentRevision] = None
     resolution_info: Optional[ResolutionInfo] = None  # Included when resolve=True
 
 
-class EnvironmentRevisionsResponse(BaseModel):
+class EnvironmentRevisionsResponse(Support):
     count: int = 0
     environment_revisions: List[EnvironmentRevision] = []
 
@@ -169,12 +173,12 @@ class SimpleEnvironmentQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class SimpleEnvironmentResponse(BaseModel):
+class SimpleEnvironmentResponse(Support):
     count: int = 0
     environment: Optional[SimpleEnvironment] = None
 
 
-class SimpleEnvironmentsResponse(BaseModel):
+class SimpleEnvironmentsResponse(Support):
     count: int = 0
     environments: List[SimpleEnvironment] = []
 
@@ -192,7 +196,7 @@ class EnvironmentRevisionResolveRequest(BaseModel):
     error_policy: Optional[ErrorPolicy] = ErrorPolicy.EXCEPTION
 
 
-class EnvironmentRevisionResolveResponse(BaseModel):
+class EnvironmentRevisionResolveResponse(Support):
     count: int = 0
     environment_revision: Optional[EnvironmentRevision] = None
     resolution_info: Optional[ResolutionInfo] = None

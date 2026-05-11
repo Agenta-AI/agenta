@@ -27,6 +27,18 @@ export interface EvaluatorMetricEntry {
     metrics: EvaluatorMetricDefinition[]
 }
 
+const EVALUATOR_OUTPUT_PATH_PREFIXES = [
+    "attributes.ag.data.outputs.",
+    "ag.data.outputs.",
+    "data.outputs.",
+    "outputs.",
+]
+
+const isEvaluatorOutputMetric = (path: string) => {
+    const normalized = canonicalizeMetricKey(path || "")
+    return EVALUATOR_OUTPUT_PATH_PREFIXES.some((prefix) => normalized.startsWith(prefix))
+}
+
 export const extractEvaluatorRef = (rawRefs: Record<string, any> | undefined | null) => {
     if (!rawRefs) return {id: undefined, slug: undefined}
 
@@ -91,6 +103,9 @@ export const buildEvaluatorMetricEntries = (
                     const rawKey = key.slice(prefix.length)
                     if (!rawKey) return
                     const canonicalKey = canonicalizeMetricKey(rawKey)
+                    if (!isEvaluatorOutputMetric(canonicalKey)) {
+                        return
+                    }
                     if (hasSchema && !allowedCanonicalKeys.has(canonicalKey)) {
                         if (!rawKey.startsWith("attributes.ag.data.outputs.")) {
                             return
@@ -111,6 +126,9 @@ export const buildEvaluatorMetricEntries = (
             if (unique.size === 0 && fallbackMetricsByStep?.[stepKey]?.length) {
                 fallbackMetricsByStep[stepKey].forEach((metric) => {
                     const fallbackKey = metric.canonicalKey ?? canonicalizeMetricKey(metric.rawKey)
+                    if (!isEvaluatorOutputMetric(fallbackKey)) {
+                        return
+                    }
                     if (!unique.has(fallbackKey)) {
                         unique.set(fallbackKey, {
                             canonicalKey: fallbackKey,
@@ -158,6 +176,7 @@ export const buildEvaluatorFallbackMetricsByStep = (
             definition.metrics?.map((metric) => {
                 const normalized = normalizeMetricPath(metric.path ?? metric.name ?? "")
                 if (!normalized) return null
+                if (!isEvaluatorOutputMetric(normalized)) return null
                 return {
                     canonicalKey: canonicalizeMetricKey(normalized),
                     rawKey: normalized,

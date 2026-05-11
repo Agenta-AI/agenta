@@ -1,112 +1,194 @@
-// E2E test for prompt registry: editing and committing a prompt, verifying commit in recent prompts
-// Covers overview and drawer interactions
+import type {Locator, Page} from "@playwright/test"
 import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {expect} from "@agenta/web-tests/utils"
-
-import type {ApiRevision} from "@/oss/lib/Types"
+import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
+import {expectAuthenticatedSession} from "../utils/auth"
+import {createScenarios} from "../utils/scenarios"
+import {buildAcceptanceTags} from "../utils/tags"
 import {
-    createTagString,
     TestCoverage,
+    TestcaseType,
     TestPath,
     TestScope,
+    TestLensType,
+    TestCostType,
+    TestLicenseType,
+    TestRoleType,
+    TestSpeedType,
 } from "@agenta/web-tests/playwright/config/testTags"
 
-// TODO: Implement fixture helpers for navigation, prompt editing, drawer interaction, and commit dialog as needed
-// TODO: Use API helpers to validate server data before asserting UI state
+interface WorkflowRevision {
+    id: string
+    workflow_id?: string | null
+    version?: number | null
+}
+
+interface WorkflowRevisionsResponse {
+    workflow_revisions: WorkflowRevision[]
+    count?: number
+}
+
+type PromptRegistryApiHelpers = {
+    getApp: (slug: string) => Promise<{id: string}>
+    waitForApiResponse: <T>(options: {route: string; method: string}) => Promise<T>
+}
+
+type PromptRegistryUiHelpers = {
+    expectPath: (path: string) => Promise<void>
+}
+
+const scenarios = createScenarios(test)
+
+const tags = buildAcceptanceTags({
+    scope: [TestScope.PLAYGROUND],
+    coverage: [TestCoverage.SMOKE, TestCoverage.LIGHT, TestCoverage.FULL],
+    path: TestPath.HAPPY,
+    lens: TestLensType.FUNCTIONAL,
+    cost: TestCostType.Free,
+    license: TestLicenseType.OSS,
+    role: TestRoleType.Owner,
+    caseType: TestcaseType.TYPICAL,
+    speed: TestSpeedType.FAST,
+})
+
+const getCompletionAppId = async (apiHelpers: {
+    getApp: (slug: string) => Promise<{id: string}>
+}) => {
+    const app = await apiHelpers.getApp("completion")
+    return app.id
+}
+
+const openWorkflowRevisionsPage = async (
+    page: Page,
+    uiHelpers: PromptRegistryUiHelpers,
+    apiHelpers: PromptRegistryApiHelpers,
+    appId: string,
+) => {
+    const basePath = getProjectScopedBasePath(page)
+    const revisionsResponsePromise = apiHelpers.waitForApiResponse<WorkflowRevisionsResponse>({
+        route: "/api/workflows/revisions/query",
+        method: "POST",
+    })
+
+    await page.goto(`${basePath}/apps/${appId}/variants`, {
+        waitUntil: "domcontentloaded",
+    })
+    await uiHelpers.expectPath(`/apps/${appId}/variants`)
+
+    return await revisionsResponsePromise
+}
+
+const openFirstPublishedWorkflowRevision = async (
+    page: Page,
+    revisionsResponse: WorkflowRevisionsResponse,
+) => {
+    const revisions = revisionsResponse.workflow_revisions.filter(
+        (revision) => (revision.version ?? 0) > 0,
+    )
+
+    test.skip(revisions.length === 0, "No workflow revisions found in registry")
+
+    const selectedRevision = revisions[0]
+    const revisionId = selectedRevision.id
+    const row = page.locator(`[data-row-key="${revisionId}"]`).first()
+    await expect(row).toBeVisible({timeout: 30000})
+    await row.click()
+
+    return revisionId
+}
+
+const expectWorkflowRevisionDrawer = async (page: Page, appId: string, revisionId: string) => {
+    await page.waitForURL((url) => {
+        return (
+            url.pathname.endsWith(`/apps/${appId}/variants`) &&
+            url.searchParams.get("revisionId") === revisionId
+        )
+    })
+
+    const drawer = page.locator(".ant-drawer-content-wrapper").filter({
+        hasText: "Workflow Revision",
+    })
+    await expect(drawer).toBeVisible({timeout: 15000})
+    await expect(drawer.getByText("Workflow Revision").first()).toBeVisible({
+        timeout: 15000,
+    })
+
+    return drawer
+}
+
+const openPlaygroundFromWorkflowRevisionDrawer = async (drawer: Locator) => {
+    const playgroundButton = drawer.getByRole("button", {name: "Playground"})
+    await expect(playgroundButton).toBeVisible({timeout: 15000})
+    await playgroundButton.click()
+}
+
+const expectPlaygroundForSelectedRevision = async (
+    page: Page,
+    uiHelpers: PromptRegistryUiHelpers,
+    appId: string,
+    revisionId: string,
+) => {
+    await page.waitForURL(
+        (url) => {
+            const revisionsParam = url.searchParams.get("revisions") ?? ""
+            return (
+                url.pathname.endsWith(`/apps/${appId}/playground`) &&
+                revisionsParam.split(",").includes(revisionId)
+            )
+        },
+        {timeout: 15000},
+    )
+    await uiHelpers.expectPath(`/apps/${appId}/playground`)
+}
 
 const promptRegistryTests = () => {
     test(
-        "should allow editing and committing a prompt in the prompt registry, and verify the commit appears in recent prompts",
-        {
-            tag: [
-                createTagString("scope", TestScope.PLAYGROUND),
-                createTagString("coverage", TestCoverage.SMOKE),
-                createTagString("coverage", TestCoverage.LIGHT),
-                createTagString("coverage", TestCoverage.FULL),
-                createTagString("path", TestPath.HAPPY),
-            ],
-        },
+        "should open prompt details from prompt registry",
+        {tag: tags},
         async ({page, uiHelpers, apiHelpers}) => {
-            // Implementation will:
-            // 1. Navigate to the prompt registry page (implement navigation helper if needed)
-            // 2. Assert table loads (use semantic selectors, not text-based)
-            // 3. Select a prompt row (by structure, not text)
-            // 4. Interact with the drawer component (open, edit prompt, etc.)
-            // 5. Switch between overview and JSON tabs
-            // 6. Commit changes (open dialog, fill message, confirm)
-            // 7. Use apiHelpers to validate data presence before UI assertions
-            // 8. Assert commit appears in recent prompts
+            let appId = ""
+            let revisionId = ""
+            let revisionsResponse: WorkflowRevisionsResponse | null = null
+            let workflowRevisionDrawer: ReturnType<typeof page.locator> | null = null
 
-            // 1. Dynamically navigate to the prompt registry overview page
-            // Fetch the list of apps from the API (using apiHelpers)
-            const app = await apiHelpers.getApp("completion")
-            const appId = app.app_id
-
-            const variants = await apiHelpers.getVariants(appId)
-
-            // Log the API response for debugging
-            console.log(
-                "[Prompt Registry E2E] Variants API response:",
-                JSON.stringify(variants, null, 2),
-            )
-
-            // 3. Select a prompt row using the variant name from the API
-            const variant = variants[variants.length - 1]
-            const variantName = variant.variant_name || variant.name
-            const variantId = variant.variant_id
-
-            // Fetch revisions for the selected variant
-            const revisionsResponse = apiHelpers.waitForApiResponse<ApiRevision[]>({
-                route: `/api/variants/${variantId}/revisions`,
-                method: "GET",
+            await scenarios.given("the user is authenticated", async () => {
+                await expectAuthenticatedSession(page)
             })
-            const revisions = await revisionsResponse
-            expect(Array.isArray(revisions)).toBe(true)
-            expect(revisions.length).toBeGreaterThan(0)
-            console.log(
-                "[Prompt Registry E2E] Variant revisions:",
-                JSON.stringify(revisions, null, 2),
+
+            await scenarios.and("at least one completion app exists", async () => {
+                appId = await getCompletionAppId(apiHelpers)
+            })
+
+            await scenarios.and(
+                "the user is on the workflow revisions page for that app",
+                async () => {
+                    revisionsResponse = await openWorkflowRevisionsPage(
+                        page,
+                        uiHelpers,
+                        apiHelpers,
+                        appId,
+                    )
+                },
             )
-            // Use the first revision's id for URL assertion (unless your flow requires otherwise)
-            const revision = revisions[0]
-            const revisionId = revision.id
-            console.log(
-                `[Prompt Registry E2E] Selecting row for variant: ${variantName} ${revisionId}`,
+
+            await scenarios.when(
+                "the user opens the first published workflow revision",
+                async () => {
+                    revisionId = await openFirstPublishedWorkflowRevision(page, revisionsResponse!)
+                },
             )
-            // Scroll the section header into view for robust targeting
-            const sectionHeader = page.getByRole("heading", {name: /recent prompts/i})
-            await sectionHeader.scrollIntoViewIfNeeded()
-            // Find the row by text content and scroll/click
-            const row = page.locator("tr", {hasText: variantName}).first()
-            await row.scrollIntoViewIfNeeded()
-            await row.click()
 
-            // 4. Open the drawer and assert its contents
-            console.log(
-                `[Prompt Registry E2E] Waiting for drawer with variant: ${variantName}`,
-                revision,
-            )
-            await expect(page.locator(".ant-drawer-content-wrapper")).toBeVisible()
+            await scenarios.and("the workflow revision drawer is visible", async () => {
+                workflowRevisionDrawer = await expectWorkflowRevisionDrawer(page, appId, revisionId)
+            })
 
-            // 5. Assert revision metadata present (ApiRevision fields only)
-            expect(revision.id).toBe(revisionId)
-            expect(typeof revision.revision).toBe("number")
-            expect(typeof revision.modified_by).toBe("string")
-            expect(typeof revision.created_at).toBe("string")
+            await scenarios.and("the user opens Playground from that drawer", async () => {
+                await openPlaygroundFromWorkflowRevisionDrawer(workflowRevisionDrawer!)
+            })
 
-            // Switch back to Overview tab (if required by UI flow)
-            await page.getByRole("tab", {name: /overview|variant/i}).click()
-
-            // Assert the prompt message is visible in the overview tab
-            // Assume the prompt message is stored at revisions[0].config.parameters.promptMessage
-
-            // const promptMessage = revision.config.parameters.prompt.messages[0].content
-
-            // expect(typeof promptMessage).toBe("string")
-
-            // await expect(
-            //     page.getByText(promptMessage.substring(0, 20), {exact: false}),
-            // ).toBeVisible()
+            await scenarios.then("the Playground opens for the selected revision", async () => {
+                await expectPlaygroundForSelectedRevision(page, uiHelpers, appId, revisionId)
+            })
         },
     )
 }

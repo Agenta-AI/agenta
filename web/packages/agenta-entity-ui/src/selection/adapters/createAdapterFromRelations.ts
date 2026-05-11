@@ -79,6 +79,12 @@ export interface LevelOverride<T = unknown> {
      * Return true to include the item, false to exclude it.
      */
     filterItems?: (entity: T) => boolean
+    /** Get a group key for this entity (for grouped select rendering) */
+    getGroupKey?: (entity: T) => string | null | undefined
+    /** Map a group key to a human-readable display label */
+    getGroupLabel?: (key: string) => string
+    /** Function to derive tab definitions from loaded items */
+    buildTabs?: (items: T[]) => import("../types").TabDefinition[]
 }
 
 /**
@@ -224,6 +230,9 @@ function applyOverrides<T>(
                 : baseLevel.isSelectable,
         onBeforeLoad: overrides.onBeforeLoad ?? baseLevel.onBeforeLoad,
         filterItems: overrides.filterItems ?? baseLevel.filterItems,
+        getGroupKey: overrides.getGroupKey ?? baseLevel.getGroupKey,
+        getGroupLabel: overrides.getGroupLabel ?? baseLevel.getGroupLabel,
+        buildTabs: overrides.buildTabs ?? baseLevel.buildTabs,
     }
 }
 
@@ -284,7 +293,7 @@ function applyOverrides<T>(
  *     appName: path[0]?.label,
  *     variantId: path[1]?.id,
  *     variantName: path[1]?.label,
- *     revision: (leaf as any).revision ?? 0,
+ *     revision: (leaf as {revision?: number}).revision ?? 0,
  *   }),
  * })
  * ```
@@ -344,6 +353,11 @@ export function createAdapterFromRelations<
             | ((entity: unknown) => boolean)
             | undefined,
         onBeforeLoad: rootLevel.onBeforeLoad,
+        getGroupKey: rootLevel.getGroupKey as
+            | ((entity: unknown) => string | null | undefined)
+            | undefined,
+        getGroupLabel: rootLevel.getGroupLabel,
+        buildTabs: rootLevel.buildTabs,
     })
     levels.push(rootLevelConfig)
 

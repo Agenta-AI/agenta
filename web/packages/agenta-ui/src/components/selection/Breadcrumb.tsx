@@ -82,7 +82,7 @@ export function Breadcrumb({
             key: "root",
             title: (
                 <span
-                    className="cursor-pointer hover:text-primary"
+                    className="cursor-pointer hover:text-primary flex items-center"
                     onClick={() => onNavigate(0)}
                     role="button"
                     tabIndex={0}

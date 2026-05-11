@@ -157,8 +157,9 @@ export function createEntitySchemaSet<TBase extends z.ZodRawShape>(
     const createSchema = base.omit(omitKeys as any).partial()
 
     // Update schema - partial with required ID
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod type composition requires assertion
-    const updateSchema = base.partial().required({id: true} as any)
+    const updateSchema = base.partial().extend({
+        id: z.string(),
+    })
 
     // Local schema - has defaults and generates ID
     const localSchema = base.extend({
@@ -168,16 +169,19 @@ export function createEntitySchemaSet<TBase extends z.ZodRawShape>(
     // Apply defaults to local schema
     const localWithDefaults = applyDefaults(localSchema, localDefaults)
 
-    // Zod schema composition requires type assertions for complex transformations
-    /* eslint-disable @typescript-eslint/no-explicit-any */
+    type BaseEntity = z.infer<typeof base>
+    const createTyped = createSchema as z.ZodType<Partial<BaseEntity>>
+    const updateTyped = updateSchema as z.ZodType<Partial<BaseEntity> & {id: string}>
+    const localTyped = localWithDefaults as z.ZodType<BaseEntity>
+    const typesPlaceholder = {} as EntitySchemaSet<TBase>["types"]
+
     return {
         base,
-        create: createSchema as any,
-        update: updateSchema as any,
-        local: localWithDefaults as any,
-        types: {} as any, // Types are inferred, this is just for documentation
+        create: createTyped,
+        update: updateTyped,
+        local: localTyped,
+        types: typesPlaceholder, // Types are inferred, this is just for documentation
     }
-    /* eslint-enable @typescript-eslint/no-explicit-any */
 }
 
 // ============================================================================
@@ -353,7 +357,7 @@ export function safeParseWithLogging<T>(
     if (result.success) {
         // Log success in development
         if (process.env.NODE_ENV !== "production") {
-            console.log(`${prefix}Schema validation passed`)
+            // console.log(`${prefix}Schema validation passed`)
         }
         return result.data
     }
@@ -430,12 +434,19 @@ function applyDefaults<T extends z.ZodRawShape>(
 export function createPaginatedResponseSchema<T extends z.ZodTypeAny>(
     entitySchema: T,
     entityKey: string,
-): z.ZodObject<{
-    count: z.ZodNumber
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod windowing object is dynamic
-    windowing: z.ZodOptional<z.ZodNullable<z.ZodObject<any>>>
-}> {
-    return z.object({
+): z.ZodType<
+    {
+        count: number
+        windowing?: {
+            newest?: string | null
+            oldest?: string | null
+            next?: string | null
+            limit?: number | null
+            [key: string]: unknown
+        } | null
+    } & Record<string, z.infer<T>[]>
+> {
+    const schema = z.object({
         count: z.number(),
         [entityKey]: z.array(entitySchema),
         windowing: z
@@ -448,8 +459,20 @@ export function createPaginatedResponseSchema<T extends z.ZodTypeAny>(
             .passthrough()
             .nullable()
             .optional(),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod type composition
-    }) as any
+    })
+
+    return schema as unknown as z.ZodType<
+        {
+            count: number
+            windowing?: {
+                newest?: string | null
+                oldest?: string | null
+                next?: string | null
+                limit?: number | null
+                [key: string]: unknown
+            } | null
+        } & Record<string, z.infer<T>[]>
+    >
 }
 
 /**
@@ -465,15 +488,16 @@ export function createPaginatedResponseSchema<T extends z.ZodTypeAny>(
  * // Validates: { items: [{ id: '1', data: {...} }] }
  * ```
  */
-export function createBatchOperationSchema<T extends z.ZodTypeAny>(
-    itemSchema: T,
-    operation: "create" | "update" | "delete",
-): z.ZodObject<{items: z.ZodArray<T>}> {
-    return z.object({
+export function createBatchOperationSchema<
+    T extends z.ZodTypeAny,
+    TOperation extends "create" | "update" | "delete",
+>(itemSchema: T, operation: TOperation): z.ZodType<{items: z.infer<T>[]; operation?: TOperation}> {
+    const schema = z.object({
         items: z.array(itemSchema),
         operation: z.literal(operation).optional(),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod type composition
-    }) as any
+    })
+
+    return schema as unknown as z.ZodType<{items: z.infer<T>[]; operation?: TOperation}>
 }
 
 // ============================================================================

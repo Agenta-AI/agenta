@@ -3,8 +3,6 @@ import {cloneElement, isValidElement, useMemo, useState} from "react"
 import {Database} from "@phosphor-icons/react"
 import dynamic from "next/dynamic"
 
-import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-
 import EnhancedButton from "../../../../EnhancedUIs/Button"
 
 import {TestsetDrawerButtonProps} from "./types"
@@ -32,11 +30,6 @@ const TestsetDrawerButton = ({
         let traces: (Record<string, any> | null | undefined)[] = []
         if (results) {
             traces = Array.isArray(results) ? results : [results]
-        } else if (resultHashes) {
-            const traceHashes = Array.isArray(resultHashes) ? resultHashes : [resultHashes]
-            traces = traceHashes
-                .map((hash) => (hash ? getResponseLazy(hash) : undefined))
-                .filter((tr) => !!tr)
         }
 
         if (traces.length === 0) return []
@@ -53,7 +46,7 @@ const TestsetDrawerButton = ({
                 return hasData ? spanId : null
             })
             .filter((id): id is string => !!id)
-    }, [resultHashes, results, isTestsetDrawerOpen])
+    }, [results, isTestsetDrawerOpen])
 
     // Count only successful results (those that have response data)
     // We count eagerly (before drawer opens) for button disabled state
@@ -62,9 +55,6 @@ const TestsetDrawerButton = ({
 
         if (results) {
             traces = Array.isArray(results) ? results : [results]
-        } else if (resultHashes) {
-            const hashes = Array.isArray(resultHashes) ? resultHashes : [resultHashes]
-            traces = hashes.map((h) => (h ? getResponseLazy(h) : null)).filter(Boolean)
         }
 
         return traces.filter((r: any) => {
@@ -72,7 +62,7 @@ const TestsetDrawerButton = ({
                 (r?.response?.tree?.nodes?.[0]?.data as Record<string, any>) || r?.response?.data
             return Boolean(data)
         }).length
-    }, [results, resultHashes])
+    }, [results])
 
     return (
         <>

@@ -138,7 +138,7 @@ export function ListItem({
     const baseClasses = cn(
         flexLayouts.rowCenter,
         justifyClasses.between,
-        "px-2 py-2 transition-colors",
+        "px-2 py-2 transition-colors rounded-md",
         textColors.secondary,
     )
     const stateClasses = isDisabled

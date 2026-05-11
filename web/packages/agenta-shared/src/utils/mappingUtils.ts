@@ -25,7 +25,6 @@ export type MappingStatus =
  */
 export interface MappingStatusConfig {
     status: MappingStatus
-    color: "red" | "orange" | "blue" | "green" | "gray"
     label: string
     severity: "error" | "warning" | "info" | "success" | "default"
 }
@@ -82,30 +81,30 @@ export function determineMappingStatus(
  * Get the full status configuration for a mapping status
  *
  * @param status - The mapping status
- * @returns Configuration object with color, label, and severity
+ * @returns Configuration object with label and severity
  *
  * @example
  * ```ts
  * const config = getMappingStatusConfig('auto')
- * // Returns: { status: 'auto', color: 'blue', label: 'Auto', severity: 'info' }
+ * // Returns: { status: 'auto', label: 'Auto', severity: 'info' }
  * ```
  */
 export function getMappingStatusConfig(status: MappingStatus): MappingStatusConfig {
     switch (status) {
         case "auto":
-            return {status, color: "blue", label: "Auto", severity: "info"}
+            return {status, label: "Auto", severity: "info"}
         case "manual":
-            return {status, color: "green", label: "Manual", severity: "success"}
+            return {status, label: "Manual", severity: "success"}
         case "missing":
-            return {status, color: "red", label: "Missing", severity: "error"}
+            return {status, label: "Missing", severity: "error"}
         case "invalid_path":
-            return {status, color: "red", label: "Invalid Path", severity: "error"}
+            return {status, label: "Invalid Path", severity: "error"}
         case "type_mismatch":
-            return {status, color: "orange", label: "Type Mismatch", severity: "warning"}
+            return {status, label: "Type Mismatch", severity: "warning"}
         case "optional":
-            return {status, color: "gray", label: "Optional", severity: "default"}
+            return {status, label: "Optional", severity: "default"}
         default:
-            return {status: "optional", color: "gray", label: "Unknown", severity: "default"}
+            return {status: "optional", label: "Unknown", severity: "default"}
     }
 }
 

@@ -12,17 +12,17 @@
  *
  * ## Architecture
  *
- * The context works alongside the static bridge pattern:
- * - **Bridge** (static): Default configuration at build time (`runnableBridge`)
+ * The context works alongside the static molecule pattern:
+ * - **Molecule** (static): Default configuration at build time (`workflowMolecule`)
  * - **Context** (runtime): Optional override for custom implementations
  *
- * When no context is provided, hooks fall back to the default bridge selectors.
+ * When no context is provided, hooks fall back to the default molecule selectors.
  *
  * ## Usage
  *
  * 1. App wraps with `PlaygroundEntityProvider`, passing entity modules
  * 2. Feature code uses `usePlaygroundEntities()` to access injected modules
- * 3. Alternatively, use `runnableBridge` directly for static configuration
+ * 3. Alternatively, use `workflowMolecule` directly for static configuration
  *
  * @example
  * ```tsx
@@ -34,17 +34,6 @@
  *         data: appRevisionMolecule.selectors.data,
  *         query: appRevisionMolecule.selectors.query,
  *         isDirty: appRevisionMolecule.selectors.isDirty,
- *       },
- *     },
- *     evaluatorRevision: {
- *       selectors: {
- *         data: evaluatorRevision.selectors.data,
- *         query: evaluatorRevision.selectors.query,
- *         isDirty: evaluatorRevision.selectors.isDirty,
- *         presets: evaluatorRevision.selectors.presets,
- *       },
- *       actions: {
- *         applyPreset: evaluatorRevision.actions.applyPreset,
  *       },
  *     },
  *   }}
@@ -62,12 +51,16 @@ import type {PlaygroundEntityProviders} from "@agenta/entities/runnable"
 export type {
     PlaygroundEntityProviders,
     EntityRevisionSelectors,
-    EvaluatorRevisionSelectors,
-    EvaluatorRevisionActions,
+    EvaluatorSelectors,
     EntityQueryState,
     SettingsPreset,
     AppRevisionRawData,
-    EvaluatorRevisionRawData,
+    EvaluatorRawData,
+    AppRevisionListSelectors,
+    AppRevisionActions,
+    AppRevisionCreateVariantPayload,
+    AppRevisionCommitPayload,
+    AppRevisionCrudResult,
 } from "@agenta/entities/runnable"
 
 // ============================================================================
@@ -101,10 +94,9 @@ export function PlaygroundEntityProvider({
  * @example
  * ```tsx
  * function RunnableSelector() {
- *   const { appRevision, evaluatorRevision } = usePlaygroundEntities()
+ *   const { workflow, evaluator } = usePlaygroundEntities()
  *
- *   const appData = useAtomValue(appRevision.selectors.data(revisionId))
- *   const evalData = useAtomValue(evaluatorRevision.selectors.data(evalId))
+ *   const workflowData = useAtomValue(workflow.selectors.data(revisionId))
  *
  *   return <div>...</div>
  * }

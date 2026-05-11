@@ -1,0 +1,34 @@
+---
+title: "Chat Template Kwargs"
+sidebar_position: 6
+sidebar_label: "Chat Template Kwargs"
+description: "Learn how to configure provider-specific chat template options in the Agenta playground."
+---
+
+`chat_template_kwargs` lets you send provider-specific chat template options with a model request. Agenta stores the value in the model configuration and passes it through unchanged when the prompt is invoked.
+
+Use it only when the selected model provider documents a chat template option you need. Unsupported keys can be ignored or rejected by the provider.
+
+## Configure in the playground
+
+1. Open your prompt in the playground.
+2. Click the model settings in the prompt configuration panel.
+3. Open **Advanced**.
+4. Edit **Chat Template Kwargs** as JSON.
+5. Run the prompt to test the provider behavior.
+
+Example:
+
+```json
+{
+  "enable_thinking": false
+}
+```
+
+The value is optional. If you leave it empty or reset it, Agenta omits `chat_template_kwargs` from the model request.
+
+## Behavior
+
+Agenta does not treat `chat_template_kwargs` as prompt content. Prompt variables are not substituted inside this object, so a value like `{{provider_flag}}` stays literal.
+
+Fallback models have their own model settings. If a fallback model needs different chat template options, configure `chat_template_kwargs` on that fallback model as well.

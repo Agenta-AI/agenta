@@ -1,6 +1,5 @@
+import {CopyButton} from "@agenta/ui"
 import {Flex, Space, Typography} from "antd"
-
-import CopyButton from "@/oss/components/CopyButton/CopyButton"
 
 import {useStyles} from "../assets/styles"
 

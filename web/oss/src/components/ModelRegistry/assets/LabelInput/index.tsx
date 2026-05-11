@@ -6,7 +6,16 @@ import clsx from "clsx"
 
 import {LabelInputProps} from "./types"
 
-const LabelInput = ({label, className, multiLine = false, ...props}: LabelInputProps) => {
+const LabelInput = ({
+    label,
+    className,
+    multiLine = false,
+    type,
+    inputType,
+    ...props
+}: LabelInputProps) => {
+    const resolvedInputType = type ?? inputType
+
     return (
         <div className="rounded-lg border border-solid border-[#BDC7D1] p-1 pl-2.5">
             <span className="font-medium">{label}</span>
@@ -27,6 +36,7 @@ const LabelInput = ({label, className, multiLine = false, ...props}: LabelInputP
                 <Input
                     variant="borderless"
                     className={clsx("px-0 rounded-none", className)}
+                    type={resolvedInputType}
                     {...props}
                 />
             )}

@@ -983,7 +983,36 @@ class SimpleQueriesService:
             return None
 
         # ----------------------------------------------------------------------
-        # Query revision
+        # Query revision (placeholder v0 — first revision has its fields nulled)
+        # ----------------------------------------------------------------------
+        placeholder_revision_slug = uuid4().hex[-12:]
+
+        _query_revision_create = QueryRevisionCreate(
+            slug=placeholder_revision_slug,
+            #
+            name=simple_query_create.name,
+            description=simple_query_create.description,
+            #
+            flags=simple_query_create.flags,
+            tags=simple_query_create.tags,
+            meta=simple_query_create.meta,
+            #
+            query_id=query.id,
+            query_variant_id=query_variant.id,
+        )
+
+        placeholder_revision = await self.queries_service.create_query_revision(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            query_revision_create=_query_revision_create,
+        )
+
+        if placeholder_revision is None:
+            return None
+
+        # ----------------------------------------------------------------------
+        # Query revision (v1 — carries the actual data)
         # ----------------------------------------------------------------------
         query_revision_slug = uuid4().hex[-12:]
 

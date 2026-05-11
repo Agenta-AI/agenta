@@ -1,0 +1,76 @@
+---
+title: "Images and PDFs in the Playground"
+sidebar_position: 4
+sidebar_label: "Images and PDFs"
+description: "Learn how to use images and PDF documents in the Agenta playground with vision-capable models."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+Agenta supports multimodal content in chat applications. You can attach images and PDF documents to messages in the playground, then run them against vision-capable models from OpenAI, Anthropic, and Google Gemini. This is useful for building applications that analyze images, extract information from documents, or process visual content alongside text.
+
+## Requirements
+
+Multimodal content works only with **chat** applications. Completion-mode applications do not support attachments.
+
+Images and documents are attached to **messages** (the conversation), not to the prompt template itself. Your system prompt remains text-only. The multimodal content lives in the user messages that you send alongside the prompt.
+
+## Adding attachments in the playground
+
+To attach an image or document to a message:
+
+1. Open your chat application in the playground.
+2. Hover over the user message on the right side of the playground. An attachment icon appears.
+3. Click the attachment icon. You will see two options: **Upload Image** and **Attach Document**.
+
+### Upload an image
+
+You can provide an image in two ways:
+
+- **Upload a file.** Drag and drop or select a file from your computer. Supported formats are JPEG, PNG, WebP, and GIF. The maximum file size is 5 MB. The image is encoded as a base64 data URI and sent inline with the request.
+- **Provide a URL.** Paste an HTTP URL or a base64 data URI directly. This is useful when the image is already hosted somewhere.
+
+You can attach multiple images to a single message (up to 5 per message).
+
+### Attach a document (PDF)
+
+You can provide a PDF in two ways:
+
+- **Upload a file.** Drag and drop or select a PDF file. The maximum file size is 8 MB. The file is encoded as a base64 data URI.
+- **Provide a URL.** Paste a URL pointing to the PDF.
+
+You can attach multiple documents to a single message (up to 5 per message).
+
+### Image detail level
+
+When you attach an image, the detail level is set to `auto` by default. This controls how the model processes the image:
+
+- `auto`: The model decides the appropriate resolution.
+- `low`: Uses a lower-resolution version. Faster and uses fewer tokens.
+- `high`: Uses a higher-resolution version. More accurate for detailed content but uses more tokens.
+
+## Provider-specific notes
+
+Different providers handle image and document URLs differently. When you upload a file directly, the playground encodes it as base64 and sends it inline. This works with all providers. When you provide a URL, the behavior depends on the provider.
+
+**OpenAI** accepts public HTTP image URLs directly. For PDFs, OpenAI supports inline base64 content. You can also use an OpenAI `file_id` from the [Files API](https://platform.openai.com/docs/api-reference/files) if you have uploaded the file to OpenAI separately.
+
+**Anthropic** accepts public HTTP image URLs and base64 images. For PDFs, Anthropic supports base64-encoded documents and URLs. Anthropic also provides a [Files API](https://docs.anthropic.com/en/docs/build-with-claude/files) where you can upload files and reference them by `file_id`. See Anthropic's [vision](https://docs.anthropic.com/en/docs/build-with-claude/vision) and [PDF support](https://docs.anthropic.com/en/docs/build-with-claude/pdf-support) documentation for details.
+
+**Google Gemini** accepts base64 inline data. For URL-based files, Gemini uses its own File API and expects a Google Cloud Storage URI or a Gemini file URI. If you upload files through the [Gemini File API](https://ai.google.dev/gemini-api/docs/vision), you can pass the returned URI as the image or document URL. See the [Gemini vision documentation](https://ai.google.dev/gemini-api/docs/vision) for details.
+
+:::tip
+When in doubt, upload the file directly. Base64 encoding works across all providers.
+:::
+
+## Running and evaluating
+
+After attaching images or documents, click **Run** to send the message. The model processes the text and attachments together and returns a response.
+
+Because multimodal content is part of the messages, you can use it in evaluations. Create test sets that include multimodal messages, then run evaluations to compare how different models or prompt variants handle the same visual inputs.
+
+## Next steps
+
+To use multimodal content in your production application, see [Integrating Multimodal Content](/prompt-engineering/integrating-prompts/multimodal-content) for instructions on sending images and PDFs through the API.

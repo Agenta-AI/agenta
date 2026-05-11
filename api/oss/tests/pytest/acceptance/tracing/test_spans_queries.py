@@ -103,7 +103,7 @@ def mock_data(authed_api):
     ]
     response = authed_api(
         "POST",
-        "/preview/tracing/spans/ingest",
+        "/tracing/spans/ingest",
         json={"spans": spans},
     )
 
@@ -115,7 +115,7 @@ def mock_data(authed_api):
     wait_response = wait_for_response(
         authed_api,
         "POST",
-        "/preview/tracing/spans/query",
+        "/tracing/spans/query",
         json={
             "focus": "span",
             "filter": {
@@ -427,7 +427,7 @@ class TestSpansQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/tracing/spans/query",
+            "/tracing/spans/query",
             json={
                 "focus": "span",
                 "filter": {
@@ -457,7 +457,7 @@ class TestSpansQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/tracing/spans/query",
+            "/tracing/spans/query",
             json={
                 "focus": "span",
                 "filter": {

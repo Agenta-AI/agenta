@@ -414,7 +414,7 @@ async def main():
         print(
             "1. Test with actual services (WorkflowsService, EnvironmentsService, etc.)"
         )
-        print("2. Test via API endpoints (/preview/workflows/revisions/resolve)")
+        print("2. Test via API endpoints (/workflows/revisions/resolve)")
         print("3. Create integration tests based on these scenarios")
 
     except Exception as e:

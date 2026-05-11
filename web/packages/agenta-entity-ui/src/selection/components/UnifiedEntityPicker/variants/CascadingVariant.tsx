@@ -41,6 +41,7 @@ export function CascadingVariant<TSelection = EntitySelectionResult>({
     onSelect,
     instanceId,
     autoSelectByLevel,
+    initialSelections,
     showLabels = true,
     layout = "vertical",
     gap = 3,
@@ -56,6 +57,7 @@ export function CascadingVariant<TSelection = EntitySelectionResult>({
         instanceId,
         onSelect,
         autoSelectByLevel,
+        initialSelections,
     })
 
     // Layout classes

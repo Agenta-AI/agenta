@@ -1,6 +1,6 @@
+import {ImagePreview} from "@agenta/ui/components/presentational"
 import {Tag} from "antd"
 
-import ImagePreview from "@/oss/components/Common/ImagePreview"
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 
 import type {PromptPreviewSection} from "../types"

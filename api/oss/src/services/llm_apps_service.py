@@ -1,12 +1,12 @@
 import json
 import asyncio
+import shlex
 import traceback
 import aiohttp
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.services import helpers
 from oss.src.services.auth_service import sign_secret_token
 from oss.src.services.db_manager import get_project_by_id
 from oss.src.models.shared_models import InvokationResult, Result, Error
@@ -121,104 +121,146 @@ def extract_result_from_response(response: dict):
     return value, kind, cost, tokens, latency
 
 
-async def make_payload(
+def _parse_legacy_chat_messages(datapoint: Any) -> list[Any]:
+    # Legacy rows may store chat history under either `messages` or `chat`.
+    raw_messages = datapoint.get("messages") or datapoint.get("chat", "[]")
+
+    if isinstance(raw_messages, list):
+        return raw_messages
+
+    if isinstance(raw_messages, str):
+        try:
+            return json.loads(raw_messages) if raw_messages else []
+        except (json.JSONDecodeError, TypeError):
+            log.warn(f"Failed to parse messages data, using empty list: {raw_messages}")
+            return []
+
+    log.warn(f"Unexpected format for messages data, using empty list: {raw_messages}")
+    return []
+
+
+def _extract_input_keys(parameters: Any) -> List[str]:
+    input_keys: List[str] = []
+
+    def visit(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, nested_value in value.items():
+                if key == "input_keys" and isinstance(nested_value, list):
+                    for item in nested_value:
+                        if isinstance(item, str) and item not in input_keys:
+                            input_keys.append(item)
+                    continue
+                visit(nested_value)
+            return
+
+        if isinstance(value, list):
+            for item in value:
+                visit(item)
+
+    visit(parameters)
+    return input_keys
+
+
+def parse_legacy_inputs(
     datapoint: Any,
-    parameters: Dict,
-    openapi_parameters: List[Dict],
+    parameters: Any,
     is_chat: Optional[bool] = None,
 ) -> Dict:
-    """
-    Constructs the payload for invoking an app based on OpenAPI parameters.
+    if not isinstance(datapoint, dict):
+        return {}
 
-    Args:
-        datapoint (Any): The data to be sent to the app.
-        parameters (Dict): The parameters required by the app taken from the db.
-        openapi_parameters (List[Dict]): The OpenAPI parameters of the app.
-
-    Returns:
-        Dict: The constructed payload for the app.
-    """
-    payload: dict[str, Any] = dict()
-    inputs: dict[str, Any] = dict()
-    messages: list[Any] = list()
-
-    for param in openapi_parameters:
-        if param["name"] == "ag_config":
-            payload["ag_config"] = parameters
-        elif param["type"] == "input":
-            item = datapoint.get(param["name"], parameters.get(param["name"], ""))
-            assert param["name"] != "ag_config", (
-                "ag_config should be handled separately"
-            )
-            payload[param["name"]] = item
-
-        # in case of dynamic inputs (as in our templates)
-        elif param["type"] == "dict":
-            # let's get the list of the dynamic inputs
-            if (
-                param["name"] in parameters
-            ):  # in case we have modified in the playground the default list of inputs (e.g. country_name)
-                input_names = [_["name"] for _ in parameters[param["name"]]]
-            else:  # otherwise we use the default from the openapi
-                input_names = param["default"]
-
-            for input_name in input_names:
-                item = datapoint.get(input_name, "")
-                inputs[input_name] = item
-        elif param["type"] == "messages":
-            # TODO: The FE uses both "messages" and "chat" as testset column names
-            # for chat data ("chat" is hardcoded in SaveTestsetModal when re-saving
-            # evaluation results). Prefer "messages", fall back to "chat".
-            chat_data = datapoint.get("messages") or datapoint.get("chat", "")
-            item = json.loads(chat_data)
-            payload[param["name"]] = item
-        elif param["type"] == "file_url":
-            item = datapoint.get(param["name"], "")
-            payload[param["name"]] = item
-        else:
-            if param["name"] in parameters:  # hotfix
-                log.warn(
-                    f"Processing other param type '{param['type']}': {param['name']}"
-                )
-                item = parameters[param["name"]]
-                payload[param["name"]] = item
-
-    try:
-        input_keys = helpers.find_key_occurrences(parameters, "input_keys") or []
+    input_keys = _extract_input_keys(parameters)
+    if input_keys:
         inputs = {key: datapoint.get(key, None) for key in input_keys}
+    else:
+        inputs = dict(datapoint)
 
-        if is_chat:
-            messages_data = datapoint.get("messages") or datapoint.get("chat", "[]")
-            # Handle both string and object formats (backward compatibility)
-            if isinstance(messages_data, list):
-                messages = messages_data
-            elif isinstance(messages_data, str):
-                try:
-                    messages = json.loads(messages_data) if messages_data else []
-                except (json.JSONDecodeError, TypeError):
-                    log.warn(
-                        f"Failed to parse messages data, using empty list: {messages_data}"
-                    )
-                    messages = list()
-            else:
-                log.warn(
-                    f"Unexpected format for messages data, using empty list: {messages_data}"
-                )
-                messages = list()
-            payload["messages"] = messages
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        log.warn(f"Error making payload: {e}")
+    if is_chat:
+        inputs["messages"] = _parse_legacy_chat_messages(datapoint)
 
-    payload["inputs"] = inputs
+    return inputs
 
-    return payload
+
+def _format_curl_request(
+    *,
+    url: str,
+    headers: Dict[str, str],
+    json_body: Dict[str, Any],
+) -> str:
+    # Keep any future debug curl output safe by redacting sensitive headers.
+    redacted_headers = {
+        key: "[REDACTED]"
+        if key.lower() in {"authorization", "proxy-authorization", "cookie"}
+        else value
+        for key, value in headers.items()
+    }
+    parts = ["curl", "-X", "POST", shlex.quote(url)]
+
+    for key, value in redacted_headers.items():
+        parts.extend(["-H", shlex.quote(f"{key}: {value}")])
+
+    parts.extend(
+        [
+            "--data-raw",
+            shlex.quote(json.dumps(json_body, ensure_ascii=False)),
+        ]
+    )
+
+    return " ".join(parts)
+
+
+def build_invoke_request(
+    *,
+    inputs: Dict[str, Any],
+    parameters: Dict[str, Any],
+    references: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    request = {
+        "data": {
+            "parameters": parameters,
+            "inputs": inputs,
+        }
+    }
+
+    if references:
+        request["references"] = references
+
+    return request
+
+
+def _extract_error_details(
+    app_response: Any,
+    *,
+    fallback_message: str,
+    fallback_stacktrace: str,
+) -> tuple[str, str]:
+    if isinstance(app_response, dict):
+        detail = app_response.get("detail")
+        if isinstance(detail, dict):
+            return (
+                detail.get("error", fallback_message),
+                detail.get("message") or detail.get("traceback") or fallback_stacktrace,
+            )
+        if isinstance(detail, str):
+            return detail, fallback_stacktrace
+
+        status = app_response.get("status")
+        if isinstance(status, dict):
+            return (
+                status.get("message", fallback_message),
+                status.get("stacktrace") or fallback_stacktrace,
+            )
+
+    if isinstance(app_response, str) and app_response:
+        return app_response, fallback_stacktrace
+
+    return fallback_message, fallback_stacktrace
 
 
 async def invoke_app(
     uri: str,
     datapoint: Any,
     parameters: Dict,
-    openapi_parameters: List[Dict],
     openapi_is_chat: Optional[bool],
     user_id: str,
     project_id: str,
@@ -226,14 +268,12 @@ async def invoke_app(
     **kwargs,
 ) -> InvokationResult:
     """
-    Invokes an app for one datapoint using the openapi_parameters to determine
-    how to invoke the app.
+    Invoke an application for one testcase row.
 
     Args:
         uri (str): The URI of the app to invoke.
-        datapoint (Any): The data to be sent to the app.
-        parameters (Dict): The parameters required by the app taken from the db.
-        openapi_parameters (List[Dict]): The OpenAPI parameters of the app.
+        datapoint (Any): The testcase row data to send as `data.inputs`.
+        parameters (Dict): The application parameters to send as `data.parameters`.
 
     Returns:
         InvokationResult: The output of the app.
@@ -242,15 +282,17 @@ async def invoke_app(
         aiohttp.ClientError: If the POST request fails.
     """
 
-    url = f"{uri}/test"
-    if "application_id" in kwargs:
-        url = url + f"?application_id={kwargs.get('application_id')}"
+    url = f"{uri}/invoke"
 
-    payload = await make_payload(
+    inputs = parse_legacy_inputs(
         datapoint,
         parameters,
-        openapi_parameters,
         is_chat=openapi_is_chat,
+    )
+    request_body = build_invoke_request(
+        inputs=inputs,
+        parameters=parameters,
+        references=kwargs.get("references"),
     )
 
     project = await get_project_by_id(
@@ -283,7 +325,7 @@ async def invoke_app(
             )
             response = await client.post(
                 url,
-                json=payload,
+                json=request_body,
                 headers=headers,
                 timeout=900,
             )
@@ -321,13 +363,21 @@ async def invoke_app(
             )
 
         except aiohttp.ClientResponseError as e:
-            error_message = app_response.get("detail", {}).get(
-                "error", f"HTTP error {e.status}: {e.message}"
+            log.error(
+                "Application request failed",
+                scenario_id=scenario_id,
+                testcase_id=(
+                    datapoint["testcase_id"] if "testcase_id" in datapoint else None
+                ),
+                url=url,
+                status_code=e.status,
             )
-            stacktrace = app_response.get("detail", {}).get(
-                "message"
-            ) or app_response.get("detail", {}).get(
-                "traceback", "".join(traceback.format_exception_only(type(e), e))
+            error_message, stacktrace = _extract_error_details(
+                app_response,
+                fallback_message=f"HTTP error {e.status}: {e.message}",
+                fallback_stacktrace="".join(
+                    traceback.format_exception_only(type(e), e)
+                ),
             )
             log.error(f"HTTP error occurred during request: {error_message}")
         except aiohttp.ServerTimeoutError as e:
@@ -364,7 +414,6 @@ async def run_with_retry(
     parameters: Dict,
     max_retry_count: int,
     retry_delay: int,
-    openapi_parameters: List[Dict],
     openapi_is_chat: Optional[bool],
     user_id: str,
     project_id: str,
@@ -380,7 +429,6 @@ async def run_with_retry(
         parameters (Dict): The parameters for the app.
         max_retry_count (int): The maximum number of retries.
         retry_delay (int): The delay between retries in seconds.
-        openapi_parameters (List[Dict]): The OpenAPI parameters for the app.
         openapi_is_chat (Optional[bool]): Whether the app is chat, if detected.
 
     Returns:
@@ -403,7 +451,6 @@ async def run_with_retry(
                 uri,
                 input_data,
                 parameters,
-                openapi_parameters,
                 openapi_is_chat,
                 user_id,
                 project_id,
@@ -446,11 +493,15 @@ async def run_with_retry(
 async def batch_invoke(
     uri: str,
     testset_data: List[Dict],
-    parameters: Dict,
+    *,
     rate_limit_config: Dict,
     user_id: str,
     project_id: str,
+    parameters: Optional[Dict] = None,
     scenarios: Optional[List[Dict]] = None,
+    revision: Optional[Any] = None,
+    schemas: Optional[Dict[str, Any]] = None,
+    is_chat: Optional[bool] = None,
     **kwargs,
 ) -> List[InvokationResult]:
     """
@@ -465,6 +516,17 @@ async def batch_invoke(
     Returns:
         List[InvokationResult]: The list of app outputs after running all batches.
     """
+    (
+        effective_parameters,
+        effective_schemas,
+        effective_is_chat,
+    ) = _extract_batch_invoke_metadata(
+        revision=revision,
+        parameters=parameters,
+        schemas=schemas,
+        is_chat=is_chat,
+    )
+
     batch_size = rate_limit_config[
         "batch_size"
     ]  # Number of testset to make in each batch
@@ -498,38 +560,45 @@ async def batch_invoke(
         headers = {"Authorization": f"Secret {secret_token}"}
     headers["ngrok-skip-browser-warning"] = "1"
 
-    openapi_parameters = None
-    openapi_is_chat = None
-    max_recursive_depth = 5
-    runtime_prefix = uri
-    route_path = ""
+    schema_parameters, openapi_is_chat = get_parameters_from_schemas(
+        schemas=effective_schemas,
+        is_chat=effective_is_chat,
+    )
 
-    while max_recursive_depth > 0 and not openapi_parameters:
-        try:
-            openapi_parameters, openapi_is_chat = await get_parameters_from_openapi(
-                runtime_prefix + "/openapi.json",
+    if not schema_parameters:
+        max_recursive_depth = 5
+        runtime_prefix = uri
+        route_path = ""
+
+        while max_recursive_depth > 0 and not schema_parameters:
+            try:
+                (
+                    schema_parameters,
+                    openapi_is_chat,
+                ) = await get_parameters_from_inspect(
+                    runtime_prefix,
+                    route_path,
+                    headers,
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                schema_parameters = None
+                openapi_is_chat = None
+
+            if not schema_parameters:
+                max_recursive_depth -= 1
+                if not runtime_prefix.endswith("/"):
+                    route_path = "/" + runtime_prefix.split("/")[-1] + route_path
+                    runtime_prefix = "/".join(runtime_prefix.split("/")[:-1])
+                else:
+                    route_path = ""
+                    runtime_prefix = runtime_prefix[:-1]
+
+        if not schema_parameters:
+            schema_parameters, openapi_is_chat = await get_parameters_from_inspect(
+                runtime_prefix,
                 route_path,
                 headers,
             )
-        except Exception:  # pylint: disable=broad-exception-caught
-            openapi_parameters = None
-            openapi_is_chat = None
-
-        if not openapi_parameters:
-            max_recursive_depth -= 1
-            if not runtime_prefix.endswith("/"):
-                route_path = "/" + runtime_prefix.split("/")[-1] + route_path
-                runtime_prefix = "/".join(runtime_prefix.split("/")[:-1])
-            else:
-                route_path = ""
-                runtime_prefix = runtime_prefix[:-1]
-
-    # Final attempt to fetch OpenAPI parameters
-    openapi_parameters, openapi_is_chat = await get_parameters_from_openapi(
-        runtime_prefix + "/openapi.json",
-        route_path,
-        headers,
-    )
 
     # 🆕 Rewritten loop instead of recursion
     for start_idx in range(0, len(testset_data), batch_size):
@@ -541,10 +610,9 @@ async def batch_invoke(
                 run_with_retry(
                     uri,
                     testset_data[index],
-                    parameters,
+                    effective_parameters,
                     max_retries,
                     retry_delay,
-                    openapi_parameters,
                     openapi_is_chat,
                     user_id,
                     project_id,
@@ -566,127 +634,193 @@ async def batch_invoke(
     return list_of_app_outputs
 
 
-async def get_parameters_from_openapi(
+def _to_json_dict(value: Any) -> Dict[str, Any]:
+    if hasattr(value, "model_dump"):
+        value = value.model_dump(mode="json", exclude_none=True)
+
+    return value if isinstance(value, dict) else {}
+
+
+def _extract_batch_invoke_metadata(
+    *,
+    revision: Optional[Any],
+    parameters: Optional[Dict[str, Any]],
+    schemas: Optional[Dict[str, Any]],
+    is_chat: Optional[bool],
+) -> tuple[Dict[str, Any], Optional[Dict[str, Any]], Optional[bool]]:
+    revision_dict = _to_json_dict(revision)
+    revision_data = _to_json_dict(revision_dict.get("data"))
+    revision_flags = _to_json_dict(revision_dict.get("flags"))
+
+    effective_parameters = parameters
+    if effective_parameters is None:
+        revision_parameters = revision_data.get("parameters")
+        effective_parameters = (
+            revision_parameters if isinstance(revision_parameters, dict) else {}
+        )
+
+    effective_schemas = schemas
+    if effective_schemas is None:
+        revision_schemas = revision_data.get("schemas")
+        effective_schemas = (
+            revision_schemas if isinstance(revision_schemas, dict) else None
+        )
+
+    effective_is_chat = is_chat
+    if effective_is_chat is None and "is_chat" in revision_flags:
+        effective_is_chat = bool(revision_flags["is_chat"])
+
+    return effective_parameters or {}, effective_schemas, effective_is_chat
+
+
+def get_parameters_from_schemas(
+    schemas: Optional[Dict[str, Any]],
+    is_chat: Optional[bool] = None,
+) -> tuple[List[Dict[str, Any]], Optional[bool]]:
+    if hasattr(schemas, "model_dump"):
+        schemas = schemas.model_dump(mode="json", exclude_none=True)
+
+    if not isinstance(schemas, dict) or not schemas:
+        return [], is_chat
+
+    parameters_schema = schemas.get("parameters") or {}
+    inputs_schema = schemas.get("inputs") or {}
+
+    parameter_properties = (
+        parameters_schema.get("properties", {})
+        if isinstance(parameters_schema, dict)
+        else {}
+    )
+    input_properties = (
+        inputs_schema.get("properties", {}) if isinstance(inputs_schema, dict) else {}
+    )
+
+    parameters: List[Dict[str, Any]] = []
+
+    if isinstance(parameters_schema, dict):
+        parameters.append(
+            {
+                "name": "ag_config",
+                "type": "dict",
+                "default": list(parameter_properties.keys()),
+            }
+        )
+
+    input_names: List[str] = []
+    has_messages = False
+
+    for name, schema in input_properties.items():
+        if not isinstance(schema, dict):
+            continue
+
+        is_messages_field = name == "messages" or schema.get("x-ag-type-ref") in {
+            "messages",
+            "message",
+        }
+
+        if is_messages_field:
+            has_messages = True
+            parameters.append(
+                {
+                    "name": name,
+                    "type": "messages",
+                    "default": schema.get("default", []),
+                }
+            )
+            continue
+
+        if schema.get("x-ag-type") == "file_url":
+            parameters.append(
+                {
+                    "name": name,
+                    "type": "file_url",
+                    "default": schema.get("default", ""),
+                }
+            )
+            continue
+
+        input_names.append(name)
+
+    inferred_is_chat = is_chat if is_chat is not None else has_messages
+
+    parameters.append(
+        {
+            "name": "inputs",
+            "type": "dict",
+            "default": input_names,
+        }
+    )
+
+    if inferred_is_chat and not has_messages:
+        parameters.append(
+            {
+                "name": "messages",
+                "type": "messages",
+                "default": [],
+            }
+        )
+
+    return parameters, inferred_is_chat
+
+
+async def get_parameters_from_inspect(
     runtime_prefix: str,
     route_path: str,
     headers: Optional[Dict[str, str]],
 ) -> tuple[List[Dict], Optional[bool]]:
     """
-    Parse the OpenAI schema of an LLM app to return list of parameters that it takes with their type as determined by the x-parameter
-    Args:
-    uri (str): The URI of the OpenAPI schema.
-
-    Returns:
-        tuple:
-            - list: A list of parameters. Each a dict with name and type.
-              Type can be one of: input, text, choice, float, dict, bool, int, file_url, messages.
-            - Optional[bool]: Whether the OpenAPI declares chat behavior.
-
-    Raises:
-        KeyError: If the required keys are not found in the schema.
-
+    Read runtime inspect output for an LLM app and derive the UI parameter list.
     """
+    inspect_url = _build_inspect_url(
+        runtime_prefix=runtime_prefix,
+        route_path=route_path,
+    )
+    payload = await _post_json_to_uri(
+        uri=inspect_url,
+        headers=headers,
+        body={},
+    )
 
-    schema = await _get_openai_json_from_uri(runtime_prefix, headers)
+    revision = (payload.get("data") or {}).get("revision") or {}
+    revision_data = revision.get("data") or {}
+    schemas = revision_data.get("schemas")
+    flags = payload.get("flags")
 
-    try:
-        body_schema_name = (
-            schema["paths"][route_path + "/test"]["post"]["requestBody"]["content"][
-                "application/json"
-            ]["schema"]["$ref"]
-            .split("/")
-            .pop()
-        )
-    except KeyError:
-        body_schema_name = ""
+    is_chat = None
+    if isinstance(flags, dict) and "is_chat" in flags:
+        is_chat = bool(flags["is_chat"])
 
-    try:
-        properties = schema["components"]["schemas"][body_schema_name]["properties"]
-    except KeyError:
-        properties = {}
-
-    operation, operation_path = _get_openapi_operation(schema, route_path)
-    is_chat = _get_openapi_chat_flag(operation, operation_path)
-    if is_chat is None:
-        is_chat = _fallback_chat_detection(properties, operation_path)
-
-    parameters = []
-    for name, param in properties.items():
-        parameters.append(
-            {
-                "name": name,
-                "type": param.get("x-parameter", "input"),
-                "default": param.get("default", []),
-            }
-        )
-    return parameters, is_chat
+    return get_parameters_from_schemas(
+        schemas=schemas,
+        is_chat=is_chat,
+    )
 
 
-async def _get_openai_json_from_uri(
+def _build_inspect_url(
+    *,
+    runtime_prefix: str,
+    route_path: str,
+) -> str:
+    runtime_prefix = runtime_prefix.rstrip("/")
+    route_path = route_path.strip("/")
+
+    if route_path:
+        return f"{runtime_prefix}/{route_path}/inspect"
+
+    return f"{runtime_prefix}/inspect"
+
+
+async def _post_json_to_uri(
     uri: str,
     headers: Optional[Dict[str, str]],
+    body: Dict[str, Any],
 ):
     if headers is None:
         headers = {}
     headers["ngrok-skip-browser-warning"] = "1"
 
     async with aiohttp.ClientSession() as client:
-        resp = await client.get(uri, headers=headers, timeout=5)
+        resp = await client.post(uri, headers=headers, json=body, timeout=5)
         resp_text = await resp.text()
         json_data = json.loads(resp_text)
         return json_data
-
-
-def _get_openapi_operation(
-    schema: Dict[str, Any],
-    route_path: str,
-) -> tuple[Optional[Dict[str, Any]], Optional[str]]:
-    paths = schema.get("paths") or {}
-    for suffix in ("/test", "/run"):
-        path = f"{route_path}{suffix}"
-        operation = paths.get(path, {}).get("post")
-        if operation:
-            return operation, path
-    return None, None
-
-
-def _get_openapi_chat_flag(
-    operation: Optional[Dict[str, Any]],
-    operation_path: Optional[str],
-) -> Optional[bool]:
-    if not operation:
-        return None
-
-    # The SDK emits flags under the nested vendor extension:
-    #   "x-agenta": {"flags": {"is_chat": true}}
-    agenta_ext = operation.get("x-agenta")
-    if isinstance(agenta_ext, dict):
-        flags = agenta_ext.get("flags")
-        if isinstance(flags, dict) and "is_chat" in flags:
-            is_chat = bool(flags["is_chat"])
-            log.info(
-                "Chat detection from x-agenta.flags",
-                is_chat=is_chat,
-                path=operation_path,
-            )
-            return is_chat
-
-    return None
-
-
-def _fallback_chat_detection(
-    properties: Dict[str, Any],
-    operation_path: Optional[str],
-) -> bool:
-    has_messages_property = "messages" in properties
-    has_messages_parameter = any(
-        isinstance(param, dict) and param.get("x-parameter") == "messages"
-        for param in properties.values()
-    )
-    is_chat = has_messages_property or has_messages_parameter
-    log.info(
-        "Chat detection fallback to heuristic",
-        is_chat=is_chat,
-        path=operation_path,
-    )
-    return is_chat

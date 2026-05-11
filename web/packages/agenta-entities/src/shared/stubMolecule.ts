@@ -24,7 +24,9 @@
  * ```
  */
 
-import {atom, type Atom, type WritableAtom} from "jotai"
+import {atom, type Atom} from "jotai"
+
+import type {OpaqueWritableAtom} from "./entityBridge"
 
 // ============================================================================
 // TYPES
@@ -58,8 +60,7 @@ export interface StubMoleculeSelectors {
 
 export interface CreateStubMoleculeConfig<
     ExtraSelectors extends Record<string, (id: string) => Atom<unknown>> = Record<string, never>,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai needs flexible types
-    ExtraActions extends Record<string, WritableAtom<any, any[], any>> = Record<string, never>,
+    ExtraActions extends Record<string, OpaqueWritableAtom> = Record<string, never>,
 > {
     /** Name of the entity (for logging/debugging) */
     name: string
@@ -79,8 +80,7 @@ export interface CreateStubMoleculeConfig<
 
 export interface StubMolecule<
     ExtraSelectors extends Record<string, (id: string) => Atom<unknown>> = Record<string, never>,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai needs flexible types
-    ExtraActions extends Record<string, WritableAtom<any, any[], any>> = Record<string, never>,
+    ExtraActions extends Record<string, OpaqueWritableAtom> = Record<string, never>,
 > {
     selectors: StubMoleculeSelectors & ExtraSelectors
     actions: ExtraActions
@@ -132,8 +132,7 @@ const defaultQueryState: StubQueryState = {
 
 export function createStubMolecule<
     ExtraSelectors extends Record<string, (id: string) => Atom<unknown>> = Record<string, never>,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Jotai needs flexible types
-    ExtraActions extends Record<string, WritableAtom<any, any[], any>> = Record<string, never>,
+    ExtraActions extends Record<string, OpaqueWritableAtom> = Record<string, never>,
 >(
     config: CreateStubMoleculeConfig<ExtraSelectors, ExtraActions>,
 ): StubMolecule<ExtraSelectors, ExtraActions> {

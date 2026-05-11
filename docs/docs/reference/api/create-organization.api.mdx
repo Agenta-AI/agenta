@@ -5,7 +5,7 @@ description: "Create a new organization."
 sidebar_label: "Create Organization"
 hide_title: true
 hide_table_of_contents: true
-api: eJydVcFu2zAM/ZWAZy/pip18WrYWaNBtCdpslyAYGJuN1cmSKsltPcP/PlBKYjtZi265xJYeKfG9R7qBnFxmhfFCK0jhsyX0NMKRoqeRtltU4jfy3hgS0IZseJnlkEIWoD/7IEjA0kNFzn/SeQ1pA5lWnpTnRzRGiizgJveOT2vAZQWVyE/GcnYvyPGbwpJCjKrnd5CuGvC1IUjBeSvUFtrksKIqKaFdJ+CFl7zwjWPbZFjY/6W66KVo22SP05t7yjx0uMjavMfEAmupMYeWw5gTYSmH1NuKwoIzWrlY6/nZGf8Ndbitsoycu6vk6GYHhuTNbLbh2A/n56eJf6AUeQgbXVqr7T9kPdIoJ49C8pPwVLpTgNTZYPcNCgjlaUsW2nXHNlqLdY/sLzpekDUu3ZYzD/N10K/kHG6DGyLkZWggY7Tk3TYBoUwVCNlvz8JCm0Dmn3tpTp3AXD77v7qls8EqcBOvv8P1XNdJFBV6mYqLKMFr1rxaLhcnCaM/SvKF5k422nGIQV9ACpN+RztIwJF9JOuCcpWVkELhvXHpZJJJXeVj3JLyOEYxQSNC/zjKKit8HUKmi9k11VeEOVlIV+s+4Ja9Fd0yhB0YRiOuiWuOIwGmlS+07eaNYFMXMYqLYtfedDPo8hlLI6mbKZ3yw744eBGEutN96aehvNF0MYMEmIgYcDZ+Pz47STMAc2Nh5nuHx21Ijng8MAgJUBm6Cjxh+bHb4NpYpxJVL99uXM+HM/ho8h36+/XpviOc7TsxEkVosHDPZmeNFQytsU6gYOukK2iaDTr6bmXb8vJDRZbVXyfwiFbghplccVMXex808Ivqfcco/y60HsNlFXU/mkQ8JWLENMvI+Fex6567F/PbJSSw2X2RSp1zjMUnbkl8ghTCpy2WlDZxrQGJalvx8Egh5uTfH2RHeBo=
+api: eJydVcFu2zAM/ZWAZy/uip18WrYWaNBtCdpslyAYGJu11cmSK8ltPcP/PlBKYjtZi265xCIfKenxkWrBYW4hWcPC5KjEb3RCKwubCDKyqREVryGBz4bQ0QQnip4meoCdQgS6IuMX8wwSSD305xAEERh6qMm6TzprIGkh1cqRcvyJVSVF6nHxveXdWrBpQSXyV2U4uxNkeaWwJB+jmsUdJOsWXFMRJGCdESqHLjpYVC0ldJsInHCSDd84tju62P+luhik6Lpoj9Pbe0od9LjA2pDaJTZSYwYdhzEnwlAGiTM1eYOttLLhrudnZ/w3rsNtnaZk7V0tJzc7MERvZrPz2344Pz9N/AOlyHzY5NIYbf4h61GNMnIoJH8JR6U9BUidjrxvqIBQjnIy0G16ttEYbAZkf9HhgFzj0uaceZyvh34lazH3agiQl6GejMmKvV0EQlW1J2TvnntDF0HqngdpTpXAXD67v6qll8HacxOOv8MNVNeXKFToZSouQglek+bVarU8SRj0UZIrNHdypS2HVOgKSCDWoxERgSXzSMb6ytVGMgQr4csWloVzVRLHUqcoC21dcG84Mq2NcI0PnS3n19RcEWZkIFlvhoBb1lhQzRh2YBorcU189zAaYFa7Qpt+7ggWdxGi+HKs3pt+Fl0+Y1lJ6mdLr4Bxfxw0CULd6aEEZjkph5PZcn4SNHJxO2HqBlsFN0QDumwSx+jNUxQxREClbyZwhOXHg4fPwdyHbc6m76dnbOKClagGW+zm9mI8jI9G4KHRXx/zO8ZZx3ElUfhO80dvdxpZgz5+Rrju7GjbLVr6bmTXsfmhJsPl30TwiEbglqlcc3cXeyG08Iuafeso9873IMNlHQp/NJJYdyFilqZUuVexm4HMl4vbFUSw3T1Npc44xuAT9yY+QQL+jQtXStpga0GiymueIgmEnPz7Axv9g1E=
 sidebar_class_name: "post api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -42,8 +43,8 @@ Create a new organization.
   id={"request"}
   as={"h2"}
   className={"openapi-tabs__heading"}
-  children={"Request"}
 >
+  <Translate id="theme.openapi.request.title">Request</Translate>
 </Heading>
 
 <ParamsDetails
@@ -53,16 +54,13 @@ Create a new organization.
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={{"content":{"application/json":{"schema":{"properties":{"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"}},"type":"object","title":"CreateOrganizationPayload"}}},"required":true}}
+  {...require("./create-organization.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  {...require("./create-organization.StatusCodes.json")}
 >
   
 </StatusCodes>

@@ -1,7 +1,13 @@
+import {publishMutationAtom} from "@agenta/entities/runnable/deploy"
+import {
+    workflowMolecule,
+    workflowVariantsListDataAtomFamily,
+    workflowsListDataAtom,
+} from "@agenta/entities/workflow"
 import {atom} from "jotai"
 import {atomWithImmer} from "jotai-immer"
 
-import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
+import {routerAppIdAtom} from "@/oss/state/app"
 
 interface DeployVariantModalState {
     open: boolean
@@ -69,6 +75,7 @@ export const deploySubmitAtom = atom(
         }
         const selectedEnvName = get(deploySelectedEnvAtom)
         const note = get(deployNoteAtom)
+        const appId = get(routerAppIdAtom)
         const {mutateAsync: publish} = get(publishMutationAtom)
 
         // Debug current state before proceeding
@@ -84,7 +91,9 @@ export const deploySubmitAtom = atom(
             console.debug("[DeployModal] submit:fail", {reason: "no_env_selected"})
             return {ok: false, error: "No environment selected"}
         }
-        if (!state.parentVariantId && !state.revisionId) {
+        // Determine the revision to deploy
+        const revisionId = state.revisionId || state.parentVariantId
+        if (!revisionId) {
             console.debug("[DeployModal] submit:fail", {
                 reason: "missing_ids",
                 parentVariantId: state.parentVariantId,
@@ -93,37 +102,50 @@ export const deploySubmitAtom = atom(
             return {ok: false, error: "Missing revision to deploy."}
         }
 
-        console.debug("[DeployModal] submit:overrides", overrides)
+        // Resolve workflow data for application references
+        const workflowData = workflowMolecule.get.data(revisionId)
+
+        // Resolve variant name from the variant entity (revision slug is auto-generated hex)
+        const workflowId = workflowData?.workflow_id || ""
+        const variants = workflowId ? get(workflowVariantsListDataAtomFamily(workflowId)) : []
+        const variantEntity = variants.find((v) => v.id === workflowData?.workflow_variant_id)
+        const resolvedVariantSlug = variantEntity?.name || variantEntity?.slug || workflowData?.slug
+
+        // Resolve application slug from the workflows list
+        const workflows = get(workflowsListDataAtom)
+        const workflowEntity = workflows.find((w) => w.id === workflowId)
+        const applicationSlug = workflowEntity?.slug || workflowEntity?.name || undefined
 
         try {
             console.debug("[DeployModal] submit:publish", {
-                mode: state.parentVariantId ? "variant" : "revision",
-                parentVariantId: state.parentVariantId,
-                revisionId: state.revisionId,
+                revisionId,
                 env,
-            })
-            await publish(
-                state.parentVariantId
+                workflowData: workflowData
                     ? {
-                          type: "variant" as const,
-                          variant_id: state.parentVariantId,
-                          environment_name: env,
-                          note,
-                          revision_id: state.revisionId || undefined,
+                          workflow_id: workflowData.workflow_id,
+                          workflow_variant_id: workflowData.workflow_variant_id,
+                          slug: workflowData.slug,
+                          resolvedVariantSlug,
+                          applicationSlug,
                       }
-                    : {
-                          type: "revision" as const,
-                          revision_id: state.revisionId as string,
-                          environment_ref: env,
-                          note,
-                      },
-            )
-            // success; keep state for UI to clear/close
+                    : null,
+            })
+            await publish({
+                revisionId,
+                environmentSlug: env,
+                applicationId: workflowId || appId || "",
+                workflowVariantId: workflowData?.workflow_variant_id ?? undefined,
+                variantSlug: resolvedVariantSlug ?? undefined,
+                applicationSlug,
+                revisionVersion: workflowData?.version ?? undefined,
+                note,
+            })
             console.debug("[DeployModal] submit:success", {env})
             return {ok: true, env}
-        } catch (e: any) {
+        } catch (e: unknown) {
+            const errorMessage = e instanceof Error ? e.message : "Failed to deploy"
             console.debug("[DeployModal] submit:error", {error: e})
-            return {ok: false, error: e?.message || "Failed to deploy"}
+            return {ok: false, error: errorMessage}
         }
     },
 )

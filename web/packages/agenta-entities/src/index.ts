@@ -6,7 +6,7 @@
  * ## Quick Start
  *
  * ```typescript
- * import { testcase, appRevision, runnable, loadable } from '@agenta/entities'
+ * import { testcase, runnable, loadable } from '@agenta/entities'
  *
  * // === BASE API (same for all entities) ===
  *
@@ -21,10 +21,6 @@
  * testcase.set.update(id, changes)
  *
  * // === CAPABILITY APIs ===
- *
- * // Runnable API (appRevision, evaluator)
- * appRevision.runnable.inputPorts(id)
- * appRevision.runnable.config(id)
  *
  * // Loadable API (testcase)
  * testcase.loadable.rows(revisionId)
@@ -124,39 +120,29 @@ export {revisionMolecule as revision} from "./testset"
 export {testsetMolecule as testset} from "./testset"
 
 /**
- * App revision entity controller.
- * Implements RunnableCapability for input/output ports.
- *
- * @example
- * ```typescript
- * const ports = useAtomValue(appRevision.runnable.inputPorts(id))
- * ```
+ * @deprecated Use `workflow` instead. Evaluators are workflows with `flags.is_evaluator === true`.
  */
-export {appRevisionMolecule as appRevision} from "./appRevision"
-
-/**
- * OSS app revision entity controller.
- * Uses the legacy backend API (AppVariantRevision model).
- * Implements RunnableCapability for input/output ports.
- *
- * Backend endpoints:
- * - GET /variants/{variant_id}/revisions/{revision_number}/
- * - POST /variants/revisions/query/
- *
- * @example
- * ```typescript
- * const data = useAtomValue(legacyAppRevision.atoms.data(revisionId))
- * const inputPorts = useAtomValue(legacyAppRevision.selectors.inputPorts(revisionId))
- * const isDirty = useAtomValue(legacyAppRevision.atoms.isDirty(revisionId))
- * ```
- */
-export {legacyAppRevisionMolecule as legacyAppRevision} from "./legacyAppRevision"
+export {workflowMolecule as evaluator} from "./workflow"
 
 /**
  * Trace span entity controller.
  * Manages trace span state with attribute editing.
  */
 export {traceSpanMolecule as traceSpan} from "./trace"
+
+/**
+ * Environment entity controller.
+ * Manages environment state with deployment and guard operations.
+ *
+ * Uses the new git-based SimpleEnvironment API (PR #3627).
+ *
+ * @example
+ * ```typescript
+ * const data = useAtomValue(environment.data(envId))
+ * const envBySlug = environment.get.bySlug('production')
+ * ```
+ */
+export {environmentMolecule as environment} from "./environment"
 
 // ============================================================================
 // BRIDGES (Unified Cross-Entity Access)
@@ -176,18 +162,6 @@ export {traceSpanMolecule as traceSpan} from "./trace"
  */
 export {loadableBridge as loadable} from "./loadable"
 
-/**
- * Runnable bridge - unified access to executables.
- * Works with any runnable entity (appRevision, evaluator, etc.)
- *
- * @example
- * ```typescript
- * const ports = useAtomValue(runnable.inputPorts(runnableId))
- * const config = useAtomValue(runnable.config(runnableId))
- * ```
- */
-export {runnableBridge as runnable} from "./runnable"
-
 // ============================================================================
 // TYPES (PascalCase - no conflict with controllers)
 // ============================================================================
@@ -195,9 +169,13 @@ export {runnableBridge as runnable} from "./runnable"
 // Entity data types
 export type {Testcase} from "./testcase"
 export type {Revision, Testset} from "./testset"
-export type {AppRevisionData} from "./appRevision"
-export type {LegacyAppRevisionData} from "./legacyAppRevision"
+export type {
+    Workflow as Evaluator,
+    WorkflowData as EvaluatorData,
+    WorkflowFlags as EvaluatorFlags,
+} from "./workflow"
 export type {TraceSpan} from "./trace"
+export type {Environment, EnvironmentRevision, EnvironmentRevisionData} from "./environment"
 
 // Public API interfaces
 export type {
@@ -218,11 +196,82 @@ export type {
 // Use these with initializeSelectionSystem() from @agenta/entity-ui.
 
 export {testsetSelectionConfig, type TestsetSelectionConfig} from "./testset"
-export {appRevisionSelectionConfig, type AppRevisionSelectionConfig} from "./appRevision"
-export {
-    legacyAppRevisionSelectionConfig,
-    type LegacyAppRevisionSelectionConfig,
-} from "./legacyAppRevision"
+export {evaluatorSelectionConfig, type EvaluatorSelectionConfig} from "./workflow"
+
+// ============================================================================
+// QUEUE ENTITIES & CONTROLLER
+// ============================================================================
+
+/**
+ * SimpleQueue entity controller.
+ * Manages simple annotation queues (traces/testcases) via `/simple/queues/`.
+ */
+export {simpleQueueMolecule as simpleQueue} from "./simpleQueue"
+
+/**
+ * EvaluationQueue entity controller.
+ * Manages evaluation run queues via `/evaluations/queues/`.
+ */
+export {evaluationQueueMolecule as evaluationQueue} from "./evaluationQueue"
+
+/**
+ * Queue controller — unified API that bridges SimpleQueue and EvaluationQueue.
+ * Uses probing + type hints for multi-type dispatch.
+ *
+ * @example
+ * ```typescript
+ * const data = useAtomValue(queue.selectors.data(queueId))
+ * const status = useAtomValue(queue.selectors.status(queueId))
+ * queue.registerTypeHint(queueId, "simple")
+ * ```
+ */
+export {queueController as queue} from "./queue"
+
+// Queue types
+export type {SimpleQueue} from "./simpleQueue"
+export type {EvaluationQueue} from "./evaluationQueue"
+export type {QueueType, QueueData, QueueQueryState} from "./queue"
+
+// ============================================================================
+// EVALUATION RUN ENTITY
+// ============================================================================
+
+/**
+ * EvaluationRun entity controller.
+ * Read-only access to evaluation run data with automatic batch fetching.
+ * Queues reference runs via `run_id` — use this entity to access evaluator configuration.
+ *
+ * @example
+ * ```typescript
+ * const data = useAtomValue(evaluationRun.selectors.data(runId))
+ * const evaluatorIds = useAtomValue(evaluationRun.selectors.evaluatorIds(runId))
+ * ```
+ */
+export {evaluationRunMolecule as evaluationRun} from "./evaluationRun"
+
+// EvaluationRun types
+export type {EvaluationRun, EvaluationRunDataStep} from "./evaluationRun"
+
+// ============================================================================
+// ANNOTATION ENTITY
+// ============================================================================
+
+/**
+ * Annotation entity controller.
+ * Manages annotation entities keyed by composite `traceId:spanId`.
+ * Returns `Annotation[]` per key (multiple annotations per trace/span pair).
+ *
+ * @example
+ * ```typescript
+ * const compositeId = encodeAnnotationId(traceId, spanId)
+ * const annotations = useAtomValue(annotation.selectors.data(compositeId))
+ * annotation.cache.invalidateByLink(traceId, spanId)
+ * ```
+ */
+export {annotationMolecule as annotation} from "./annotation"
+
+// Annotation types
+export type {Annotation, AnnotationDraft} from "./annotation"
 
 // ============================================================================
 // SUBPATH IMPORTS (Advanced Usage)
@@ -233,3 +282,8 @@ export {
 //   import { testcasePaginatedStore } from '@agenta/entities/testcase'
 //   import { extractTemplateVariables } from '@agenta/entities/runnable'
 //   import { traceSpanMolecule } from '@agenta/entities/trace'
+//   import { queueController } from '@agenta/entities/queue'
+//   import { simpleQueueMolecule } from '@agenta/entities/simpleQueue'
+//   import { evaluationQueueMolecule } from '@agenta/entities/evaluationQueue'
+//   import { annotationMolecule, encodeAnnotationId } from '@agenta/entities/annotation'
+//   import { evaluationRunMolecule } from '@agenta/entities/evaluationRun'

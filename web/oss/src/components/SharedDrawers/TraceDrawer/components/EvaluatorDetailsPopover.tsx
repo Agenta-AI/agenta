@@ -1,15 +1,14 @@
 import {memo, ReactNode, useMemo} from "react"
 
+import {UserAuthorLabel} from "@agenta/entities/shared/user"
+import type {Workflow} from "@agenta/entities/workflow"
 import {Button, Popover, Typography} from "antd"
 
-import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
 import ReferenceTag from "@/oss/components/References/ReferenceTag"
-import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
-import {Evaluator} from "@/oss/lib/Types"
 
 import useEvaluatorNavigation from "../hooks/useEvaluatorNavigation"
 
-type EvaluatorLike = EvaluatorPreviewDto | Evaluator | null | undefined
+type EvaluatorLike = Workflow | null | undefined
 
 interface EvaluatorDetailsPopoverProps {
     evaluator: EvaluatorLike
@@ -49,7 +48,8 @@ const EvaluatorDetailsPopover = ({
         (evaluator as any)?.created_by_id
     const createdBy = typeof createdByRaw === "string" ? createdByRaw : ""
     const isHuman =
-        Boolean((evaluator as any)?.flags?.is_human) || Boolean((evaluator as any)?.meta?.is_human)
+        Boolean((evaluator as any)?.flags?.is_feedback) ||
+        Boolean((evaluator as any)?.meta?.is_feedback)
 
     const target = useMemo(() => buildEvaluatorTarget(evaluator), [buildEvaluatorTarget, evaluator])
 
@@ -101,7 +101,7 @@ const EvaluatorDetailsPopover = ({
                     </div>
                     <div className="flex items-center justify-between gap-3">
                         <Typography.Text type="secondary">Created by</Typography.Text>
-                        <UserAvatarTag modifiedBy={createdBy} />
+                        <UserAuthorLabel name={createdBy} showAvatar />
                     </div>
                 </div>
                 {target ? (

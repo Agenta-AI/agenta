@@ -1,3 +1,4 @@
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {useStore} from "jotai"
 
 import {evaluationQueryRevisionAtomFamily} from "@/oss/components/EvalRunDetails/atoms/query"
@@ -8,7 +9,6 @@ import {
     appReferenceAtomFamily,
     evaluatorReferenceAtomFamily,
     previewTestsetReferenceAtomFamily,
-    variantConfigAtomFamily,
 } from "@/oss/components/References/atoms/entityReferences"
 import {getUniquePartOfId} from "@/oss/lib/helpers/utils"
 
@@ -179,17 +179,15 @@ const resolveVariantReferenceValue = (
             undefined
         return normalized
     }
-    let config: any = null
+    let workflowData: any = null
     try {
-        const atom = variantConfigAtomFamily({projectId, revisionId})
-        const queryResult = store.get(atom) as any
-        config = queryResult?.data ?? queryResult ?? null
+        workflowData = workflowMolecule.get.data(revisionId)
     } catch (error) {
         logExportAction("variant reference atom error", {projectId, revisionId, error})
-        config = null
+        workflowData = null
     }
 
-    const configVariantName = sanitizeVariantName(config?.variantName)
+    const configVariantName = sanitizeVariantName(workflowData?.slug)
     const slotLabel =
         sanitizeVariantName(variantEntry?.slug) ?? sanitizeVariantName(variantEntry?.label)
     const sanitizedVariantName =
@@ -200,7 +198,7 @@ const resolveVariantReferenceValue = (
             : sanitizedVariantName
     const displayName = normalizedVariantName ?? (uniqueSuffix ? `Variant ${uniqueSuffix}` : null)
     const resolvedRevision = formatVariantRevisionLabel(
-        (config?.revision as string | number | null | undefined) ??
+        (workflowData?.version as string | number | null | undefined) ??
             invocation?.revisionLabel ??
             invocation?.revisionId ??
             null,
@@ -274,6 +272,7 @@ const resolveEvaluatorReferenceValue = (
         descriptor.sampleStepType ??
         null
     const evaluatorId = slotValue?.id ?? null
+    console.log("slot", {slot})
     const {projectId} = getRecordIdentifiers(record, defaultProjectId)
     if (!projectId || (!slugCandidate && !evaluatorId)) {
         logExportAction("evaluator reference missing identifiers", {

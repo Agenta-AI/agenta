@@ -24,7 +24,7 @@ import {memo} from "react"
 
 import {formatCurrency, formatLatency, formatTokens} from "@agenta/shared/utils"
 import {Timer, Coins, Hash} from "@phosphor-icons/react"
-import {Tag, Skeleton} from "antd"
+import {Tag, Skeleton, Tooltip} from "antd"
 
 import {cn} from "../../../utils/styles"
 
@@ -108,21 +108,52 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
     return (
         <div className={cn("flex items-center gap-1", className)}>
             {showLatency && formattedLatency && (
-                <Tag color="default" className={tagClassName}>
-                    <Timer size={iconSize} /> {formattedLatency}
-                </Tag>
+                <Tooltip title={`Duration: ${formattedLatency}`}>
+                    <Tag color="default" className={tagClassName}>
+                        <Timer size={iconSize} /> {formattedLatency}
+                    </Tag>
+                </Tooltip>
             )}
 
             {showTokens && formattedTokens && (
-                <Tag color="default" className={tagClassName}>
-                    <Hash size={iconSize} /> {formattedTokens}
-                </Tag>
+                <Tooltip
+                    title={
+                        metrics.promptTokens !== undefined &&
+                        metrics.completionTokens !== undefined ? (
+                            <div className="min-w-[140px]">
+                                <div className="flex items-center justify-between gap-3">
+                                    <span>Total Tokens</span>
+                                    <span>{formattedTokens}</span>
+                                </div>
+                                <div className="flex items-center justify-between gap-3 opacity-85">
+                                    <span>Prompt</span>
+                                    <span>{formatTokens(metrics.promptTokens)}</span>
+                                </div>
+                                <div className="flex items-center justify-between gap-3 opacity-85">
+                                    <span>Completion</span>
+                                    <span>{formatTokens(metrics.completionTokens)}</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-between gap-3 min-w-[120px]">
+                                <span>Total Tokens</span>
+                                <span>{formattedTokens}</span>
+                            </div>
+                        )
+                    }
+                >
+                    <Tag color="default" className={tagClassName}>
+                        <Hash size={iconSize} /> {formattedTokens}
+                    </Tag>
+                </Tooltip>
             )}
 
             {showCost && formattedCost && (
-                <Tag color="default" className={tagClassName}>
-                    <Coins size={iconSize} /> {formattedCost}
-                </Tag>
+                <Tooltip title={`Total Cost: ${formattedCost}`}>
+                    <Tag color="default" className={tagClassName}>
+                        <Coins size={iconSize} /> {formattedCost}
+                    </Tag>
+                </Tooltip>
             )}
         </div>
     )

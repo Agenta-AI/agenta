@@ -4,6 +4,7 @@ from typing import Optional, List
 from pydantic import BaseModel
 
 from oss.src.models.api.api_models import TimestampModel
+from oss.src.models.shared_models import CanonicalWorkspaceRole
 
 
 class Workspace(BaseModel):
@@ -15,7 +16,7 @@ class Workspace(BaseModel):
 
 class InviteRequest(BaseModel):
     email: str
-    roles: Optional[List[str]] = None
+    roles: Optional[List[CanonicalWorkspaceRole]] = None
 
 
 class InviteToken(BaseModel):

@@ -19,8 +19,8 @@ The **embeds** feature is now **fully implemented** with comprehensive test cove
 
 | Endpoint | Status | Method |
 |----------|--------|--------|
-| Workflows Resolution | ✅ Complete | `POST /preview/workflows/revisions/resolve` |
-| Environments Resolution | ✅ Complete | `POST /preview/environments/revisions/resolve` |
+| Workflows Resolution | ✅ Complete | `POST /workflows/revisions/resolve` |
+| Environments Resolution | ✅ Complete | `POST /environments/revisions/resolve` |
 | Applications Resolution | ✅ Complete | Service method (legacy adapter) |
 | Evaluators Resolution | ✅ Complete | Service method (legacy adapter) |
 
@@ -239,7 +239,7 @@ evaluator_revision → EvaluatorsService.fetch_evaluator_revision()  # wrapper
 ### Resolve Workflow Revision
 
 ```bash
-POST /preview/workflows/revisions/resolve
+POST /workflows/revisions/resolve
 Content-Type: application/json
 Authorization: Secret {api_key}
 
@@ -280,7 +280,7 @@ Authorization: Secret {api_key}
 ### Resolve Environment Revision
 
 ```bash
-POST /preview/environments/revisions/resolve
+POST /environments/revisions/resolve
 Content-Type: application/json
 
 {

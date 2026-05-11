@@ -1,8 +1,23 @@
-// @ts-nocheck
-import {useEffect, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
+import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
+import {
+    workflowMolecule,
+    workflowVariantsListDataAtomFamily,
+    workflowVariantsListQueryStateAtomFamily,
+} from "@agenta/entities/workflow"
 import {ApiOutlined, AppstoreOutlined, HistoryOutlined} from "@ant-design/icons"
-import {Alert, Collapse, CollapseProps, Empty, Radio, Tabs, Tooltip, Typography} from "antd"
+import {
+    Alert,
+    Collapse,
+    type CollapseProps,
+    Empty,
+    Radio,
+    type RadioChangeEvent,
+    Tabs,
+    Tooltip,
+    Typography,
+} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -18,20 +33,11 @@ import DynamicCodeBlock from "@/oss/components/DynamicCodeBlock/DynamicCodeBlock
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {useVariants} from "@/oss/lib/hooks/useVariants"
-import {
-    Environment,
-    GenericObject,
-    JSSTheme,
-    ListAppsItem,
-    Parameter,
-    Variant,
-} from "@/oss/lib/Types"
-import {fetchAppContainerURL} from "@/oss/services/api"
-import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
-import {currentAppAtom} from "@/oss/state/app"
+import type {GenericObject, JSSTheme, Parameter} from "@/oss/lib/Types"
+import {useCurrentApp} from "@/oss/state/app/hooks"
+import {useAppEnvironments} from "@/oss/state/environment/useAppEnvironments"
 
-const DeploymentHistory: any = dynamic(
+const DeploymentHistory = dynamic(
     () => import("@/oss/components/DeploymentHistory/DeploymentHistory"),
 )
 
@@ -54,43 +60,79 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 const {Text, Title} = Typography
 
+/**
+ * Build example params JSON from a JSON Schema input definition.
+ * Uses the entity's is_chat flag for chat detection.
+ */
+const createParamsFromSchema = (
+    inputSchema: Record<string, unknown> | null,
+    environmentName: string,
+    isChat: boolean,
+    appName: string | null,
+): string => {
+    const inputs: GenericObject = {}
+
+    if (inputSchema) {
+        const properties = inputSchema.properties as Record<string, unknown> | undefined
+        if (properties) {
+            for (const [key, schemaDef] of Object.entries(properties)) {
+                const schema = schemaDef as Record<string, unknown> | undefined
+                inputs[key] = schema?.default ?? "add_a_value"
+            }
+        }
+    }
+
+    if (isChat) {
+        inputs["messages"] = [{role: "user", content: ""}]
+    }
+
+    const params: GenericObject = {
+        data: {inputs},
+        references: {
+            ...(appName ? {application: {slug: appName}} : {}),
+            environment: {slug: environmentName},
+        },
+    }
+    return JSON.stringify(params, null, 2)
+}
+
+/**
+ * Build example params JSON from synthesized Parameter[] + environment name.
+ * Used by DeploymentDrawer and UseApiContent for environment-based code snippets.
+ */
 export const createParams = (
     inputParams: Parameter[] | null,
     environmentName: string,
     value: string | number,
-    app?: ListAppsItem | null,
+    app?: {name?: string | null; slug?: string | null; flags?: {is_chat?: boolean} | null} | null,
+    revision?: {flags?: {is_chat?: boolean} | null} | null,
 ) => {
-    const mainParams: GenericObject = {}
-    const secondaryParams: GenericObject = {}
+    const inputs: GenericObject = {}
 
     inputParams?.forEach((item) => {
         if (item.input) {
-            mainParams[item.name] = item.default || value
+            inputs[item.name] = item.default || value
         } else {
-            secondaryParams[item.name] = item.default || value
+            inputs[item.name] = item.default || value
         }
     })
     const hasMessagesParam = Array.isArray(inputParams)
         ? inputParams.some((p) => p?.name === "messages")
         : false
-    const isChat = app?.app_type === "chat" || hasMessagesParam
+    const isChat = !!revision?.flags?.is_chat || hasMessagesParam
     if (isChat) {
-        mainParams["messages"] = [
-            {
-                role: "user",
-                content: "",
-            },
-        ]
-        mainParams["inputs"] = secondaryParams
-    } else if (Object.keys(secondaryParams).length > 0) {
-        mainParams["inputs"] = secondaryParams
+        inputs["messages"] = [{role: "user", content: ""}]
     }
 
-    mainParams["environment"] = environmentName
-    if (app) {
-        mainParams["app"] = app.app_name
+    const appSlug = app?.name ?? app?.slug
+    const params: GenericObject = {
+        data: {inputs},
+        references: {
+            ...(appSlug ? {application: {slug: appSlug}} : {}),
+            environment: {slug: environmentName},
+        },
     }
-    return JSON.stringify(mainParams, null, 2)
+    return JSON.stringify(params, null, 2)
 }
 
 export default function VariantEndpoint() {
@@ -99,101 +141,155 @@ export default function VariantEndpoint() {
     const appId = router.query.app_id as string
     const [tab, setTab] = useQueryParam("tab", "overview")
     const isOss = !isDemo()
-    const currentApp = useAtomValue(currentAppAtom)
-
-    // Load URL for the given environment
-    const [uri, setURI] = useState<string | null>(null)
-    const loadURL = async (environment: Environment) => {
-        if (environment.deployed_app_variant_id) {
-            const url = await fetchAppContainerURL(appId, environment.deployed_app_variant_id)
-            setURI(`${url}/run`)
-        }
-    }
+    const currentApp = useCurrentApp()
 
     // Load environments for the given app
-    const [selectedEnvironment, setSelectedEnvironment] = useState<Environment | null>(null)
-    const {environments} = useEnvironments({
+    const [selectedEnvironment, setSelectedEnvironment] = useState<AppEnvironmentDeployment | null>(
+        null,
+    )
+
+    const onEnvironmentsLoaded = useCallback((data: AppEnvironmentDeployment[]) => {
+        const productionEnv = data.find((env) => env.name === "production")
+        setSelectedEnvironment(productionEnv ?? data[0] ?? null)
+    }, [])
+
+    const {environments} = useAppEnvironments({
         appId,
-        onSuccess: (data: Environment[]) => {
-            const loadProductionEnv = data.find((env) => env.name === "production")
-            if (loadProductionEnv) {
-                setSelectedEnvironment(loadProductionEnv)
-                loadURL(loadProductionEnv)
-            } else {
-                setSelectedEnvironment(data[0])
-                loadURL(data[0])
-            }
-        },
+        onSuccess: onEnvironmentsLoaded,
     })
 
-    const handleEnvironmentClick = ({key}: {key: string}) => {
-        const chosenEnvironment = environments.find((env) => env.name === key)
-        if (!chosenEnvironment) return
-        setSelectedEnvironment(chosenEnvironment)
-        loadURL(chosenEnvironment)
-    }
+    const handleEnvironmentClick = useCallback(
+        ({key}: {key: string}) => {
+            const chosenEnvironment = environments.find((env) => env.name === key)
+            if (!chosenEnvironment) return
+            setSelectedEnvironment(chosenEnvironment)
+        },
+        [environments],
+    )
 
-    const {data, isLoading, error} = useVariants(currentApp)
+    // Resolve deployed revision ID and use entity atoms for URL + schema
+    const deployedRevisionId = selectedEnvironment?.deployedRevisionId ?? ""
 
-    const variants = data?.variants
+    const invocationUrl = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.deploymentUrl(deployedRevisionId),
+            [deployedRevisionId],
+        ),
+    )
+    const inputSchema = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.inputSchema(deployedRevisionId),
+            [deployedRevisionId],
+        ),
+    )
+    const isChat = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.isChat(deployedRevisionId), [deployedRevisionId]),
+    )
 
-    // Set the variant to the variant deployed in the selected environment
-    const [variant, setVariant] = useState<Variant | null>(null)
-    useEffect(() => {
-        if (!selectedEnvironment) return
-        const variant = (variants || []).find(
-            (variant) => variant.variantId === selectedEnvironment.deployed_app_variant_revision_id,
-        )
-        if (!variant) return
+    // Check if there are any variants at all
+    const variants = useAtomValue(
+        useMemo(() => workflowVariantsListDataAtomFamily(appId || ""), [appId]),
+    )
+    const isLoading = useAtomValue(
+        useMemo(() => workflowVariantsListQueryStateAtomFamily(appId || ""), [appId]),
+    ).isPending
 
-        setVariant(variant)
-    }, [selectedEnvironment, variants])
+    const hasVariants = (variants?.length ?? 0) > 0
 
-    useEffect(() => {
-        if (variants && variants.length > 0) {
-            setVariant(variants[0])
-        }
-    }, [variants, appId])
+    // Build code snippet params
+    const invokeLlmUrl = useMemo(() => invocationUrl?.trim() || "", [invocationUrl])
 
-    const {inputParams} = variant || {}
+    const params = useMemo(
+        () =>
+            createParamsFromSchema(
+                inputSchema,
+                selectedEnvironment?.name || "none",
+                isChat,
+                currentApp?.name ?? currentApp?.slug ?? null,
+            ),
+        [inputSchema, selectedEnvironment?.name, isChat, currentApp?.name, currentApp?.slug],
+    )
+
+    const appSlug = currentApp?.slug ?? currentApp?.name ?? ""
+
+    const invokeLlmAppCodeSnippet = useMemo<Record<string, string>>(
+        () => ({
+            Python: invokeLlmApppythonCode(invokeLlmUrl, params, ""),
+            cURL: invokeLlmAppcURLCode(invokeLlmUrl, params, ""),
+            TypeScript: invokeLlmApptsCode(invokeLlmUrl, params, ""),
+        }),
+        [invokeLlmUrl, params],
+    )
+
+    const fetchConfigCodeSnippet = useMemo<Record<string, string>>(
+        () => ({
+            Python: fetchConfigpythonCode(appSlug, selectedEnvironment?.name ?? "", ""),
+            cURL: fetchConfigcURLCode(appSlug, selectedEnvironment?.name ?? "", ""),
+            TypeScript: fetchConfigtsCode(appSlug, selectedEnvironment?.name ?? "", ""),
+        }),
+        [appSlug, selectedEnvironment?.name],
+    )
+
+    const collapseItems = useMemo<CollapseProps["items"]>(
+        () => [
+            {
+                key: "1",
+                label: "Invoke LLM App",
+                children: <DynamicCodeBlock codeSnippets={invokeLlmAppCodeSnippet} />,
+            },
+            {
+                key: "2",
+                label: "Fetch Prompt/Config",
+                children: <DynamicCodeBlock codeSnippets={fetchConfigCodeSnippet} />,
+            },
+        ],
+        [invokeLlmAppCodeSnippet, fetchConfigCodeSnippet],
+    )
+
+    const handleRadioChange = useCallback(
+        (e: RadioChangeEvent) => handleEnvironmentClick({key: e.target.value}),
+        [handleEnvironmentClick],
+    )
+
+    const tabItems = useMemo(
+        () => [
+            {
+                key: "overview",
+                label: "Overview",
+                icon: <AppstoreOutlined />,
+                children: <Collapse accordion defaultActiveKey={["1"]} items={collapseItems} />,
+            },
+            {
+                key: "history",
+                label: !isOss ? (
+                    "History"
+                ) : (
+                    <Tooltip
+                        placement="right"
+                        title="Deployment History available in Cloud/EE only"
+                    >
+                        History
+                    </Tooltip>
+                ),
+                icon: <HistoryOutlined />,
+                children: (
+                    <DeploymentHistory
+                        environmentSlug={selectedEnvironment?.name ?? ""}
+                        appId={appId}
+                    />
+                ),
+                disabled: isOss,
+            },
+        ],
+        [collapseItems, isOss, selectedEnvironment?.name, appId],
+    )
 
     if (isLoading) {
         return <ResultComponent status={"info"} title="Loading variants..." spinner={true} />
     }
-    if (!variant) {
+    if (!hasVariants) {
         return <Empty style={{margin: "50px 0"}} description={"No variants available"} />
     }
-    if (error) {
-        return (
-            <ResultComponent status={"error"} title={error?.message || "Error loading variant"} />
-        )
-    }
-
-    const params = createParams(inputParams, selectedEnvironment?.name || "none", "add_a_value")
-    const invokeLlmAppCodeSnippet: Record<string, string> = {
-        Python: invokeLlmApppythonCode(uri!, params),
-        cURL: invokeLlmAppcURLCode(uri!, params),
-        TypeScript: invokeLlmApptsCode(uri!, params),
-    }
-
-    const fetchConfigCodeSnippet: Record<string, string> = {
-        Python: fetchConfigpythonCode(variant.baseId, selectedEnvironment?.name!),
-        cURL: fetchConfigcURLCode(variant.baseId, selectedEnvironment?.name!),
-        TypeScript: fetchConfigtsCode(variant.baseId, selectedEnvironment?.name!),
-    }
-
-    const items: CollapseProps["items"] = [
-        {
-            key: "1",
-            label: "Invoke LLM App",
-            children: <DynamicCodeBlock codeSnippets={invokeLlmAppCodeSnippet} />,
-        },
-        {
-            key: "2",
-            label: "Fetch Prompt/Config",
-            children: <DynamicCodeBlock codeSnippets={fetchConfigCodeSnippet} />,
-        },
-    ]
 
     return (
         <div className={classes.container}>
@@ -209,13 +305,13 @@ export default function VariantEndpoint() {
                 <Text>Environment: </Text>
                 <Radio.Group
                     value={selectedEnvironment?.name}
-                    onChange={(e) => handleEnvironmentClick({key: e.target.value})}
+                    onChange={handleRadioChange}
                     className={classes.envButtons}
                 >
                     {environments
                         .map((env) => (
                             <Radio.Button
-                                disabled={!env.deployed_app_variant_id}
+                                disabled={!env.deployedVariantId}
                                 key={env.name}
                                 value={env.name}
                             >
@@ -226,42 +322,8 @@ export default function VariantEndpoint() {
                 </Radio.Group>
             </div>
 
-            {selectedEnvironment?.deployed_app_variant_id ? (
-                <>
-                    <Tabs
-                        destroyOnHidden
-                        defaultActiveKey={tab}
-                        items={[
-                            {
-                                key: "overview",
-                                label: "Overview",
-                                icon: <AppstoreOutlined />,
-                                children: (
-                                    <Collapse accordion defaultActiveKey={["1"]} items={items} />
-                                ),
-                            },
-                            {
-                                key: "history",
-                                label: !isOss ? (
-                                    "History"
-                                ) : (
-                                    <Tooltip
-                                        placement="right"
-                                        title="Deployment History available in Cloud/EE only"
-                                    >
-                                        History
-                                    </Tooltip>
-                                ),
-                                icon: <HistoryOutlined />,
-                                children: (
-                                    <DeploymentHistory selectedEnvironment={selectedEnvironment} />
-                                ),
-                                disabled: isOss,
-                            },
-                        ]}
-                        onChange={setTab}
-                    />
-                </>
+            {selectedEnvironment?.deployedVariantId ? (
+                <Tabs destroyOnHidden defaultActiveKey={tab} items={tabItems} onChange={setTab} />
             ) : (
                 <Alert
                     message="Publish Required"

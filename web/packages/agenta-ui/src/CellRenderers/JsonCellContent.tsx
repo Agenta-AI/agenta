@@ -25,7 +25,7 @@ interface JsonCellContentProps {
  */
 const JsonCellContent = memo(
     ({value, maxLines = 10, maxChars = 500, truncate = true}: JsonCellContentProps) => {
-        const jsonString = useMemo(() => {
+        const displayString = useMemo(() => {
             const full = safeJsonStringify(value)
             if (!truncate) return full
             return truncateContent(full, maxLines, maxChars)
@@ -35,7 +35,7 @@ const JsonCellContent = memo(
             <pre
                 className={`text-xs font-mono whitespace-pre-wrap break-words m-0 overflow-hidden ${JSON_HIGHLIGHT_CLASS}`}
             >
-                {jsonString}
+                {displayString}
             </pre>
         )
     },

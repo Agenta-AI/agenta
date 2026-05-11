@@ -93,20 +93,24 @@ Tasks:
 - [x] Push to GHCR under `ghcr.io/agenta-ai/`
 - [x] Use Docker Buildx with GHA cache for faster builds
 
-Workflow: `.github/workflows/06-railway-preview-build.yml`
+Workflow: `.github/workflows/14-check-pr-preview.yml`
 Trigger: `pull_request` (opened, synchronize, reopened) + `workflow_dispatch`.
 
-### 2.2 Deploy Preview Environment
+### 2.2 Build, Setup, And Deploy Preview Environment
 
 Tasks:
-- [x] Create GitHub Actions workflow that calls `preview-create-or-update.sh`
+- [x] Create reusable GitHub Actions workflows for preview build, setup, and deploy
 - [x] Pass `PR_NUMBER` and `IMAGE_TAG` from the build step
 - [x] Extract preview URL from script output
 - [x] Post preview URL as a PR comment (create or update)
 - [x] Update comment on failure with link to workflow run logs
 
-Workflow: `.github/workflows/07-railway-preview-deploy.yml`
-Trigger: called by 06 after build completes (reusable `workflow_call`) + `workflow_dispatch`.
+Workflows:
+- `.github/workflows/41-railway-setup.yml`
+- `.github/workflows/42-railway-build.yml`
+- `.github/workflows/43-railway-deploy.yml`
+
+Trigger: called by `.github/workflows/14-check-pr-preview.yml` on PR activity + `workflow_dispatch`.
 
 Dependencies:
 - `RAILWAY_TOKEN` as a GitHub Actions secret
@@ -121,7 +125,7 @@ Tasks:
 - [x] Add daily cron job that calls `preview-cleanup-stale.sh`
 - [x] Support manual dispatch with dry-run mode
 
-Workflow: `.github/workflows/08-railway-preview-cleanup.yml`
+Workflow: `.github/workflows/45-railway-cleanup.yml`
 Trigger: `pull_request` (closed) + `schedule` (daily 06:00 UTC) + `workflow_dispatch`.
 
 ### 2.4 Script Reliability (ongoing)

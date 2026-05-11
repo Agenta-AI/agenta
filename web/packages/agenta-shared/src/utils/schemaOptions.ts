@@ -4,12 +4,14 @@
 
 export interface OptionGroup {
     label: string
-    options: {label: string; value: string}[]
+    options: {label: string; value: string; metadata?: Record<string, unknown>}[]
 }
 
 export interface SchemaWithOptions {
     enum?: unknown[] // Allow unknown[] to be compatible with SchemaProperty
     choices?: Record<string, string[]>
+    "x-ag-metadata"?: Record<string, Record<string, {input: number; output: number}>>
+    "x-model-metadata"?: Record<string, Record<string, {input: number; output: number}>> // LEGACY
 }
 
 export function getOptionsFromSchema<TSchema extends SchemaWithOptions>(
@@ -19,12 +21,16 @@ export function getOptionsFromSchema<TSchema extends SchemaWithOptions>(
 
     const choices = schema.choices as Record<string, string[]> | undefined
     if (choices && typeof choices === "object" && !Array.isArray(choices)) {
+        const modelMetadata = (schema["x-ag-metadata"] ?? schema["x-model-metadata"]) as
+            | Record<string, Record<string, {input: number; output: number}>>
+            | undefined
         const grouped = choices
         const options = Object.entries(grouped).map(([group, models]) => ({
             label: group.charAt(0).toUpperCase() + group.slice(1).replace(/_/g, " "),
             options: models.map((model) => ({
                 label: model,
                 value: model,
+                metadata: modelMetadata?.[group]?.[model] as Record<string, unknown> | undefined,
             })),
         }))
         return {grouped, options}

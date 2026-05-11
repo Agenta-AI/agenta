@@ -11,3 +11,4 @@ export type {
     AxiosResponse,
     InternalAxiosRequestConfig,
 } from "axios"
+export {queryClient} from "./queryClient"

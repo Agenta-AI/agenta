@@ -170,14 +170,6 @@ body {
     }
 }
 
-.agenta-editor-wrapper {
-    interpolate-size: allow-keywords;
-    transition: height 0.3s ease-in-out;
-    &:focus-within {
-        height: fit-content !important;
-    }
-}
-
 .editor-inner:not(.code-editor) {
     .editor-code {
         background-color: rgb(240, 242, 245);
@@ -361,7 +353,8 @@ body {
 }
 
 .org-domains-table .ant-table,
-.org-providers-table .ant-table {
+.org-providers-table .ant-table,
+.automations-table .ant-table {
     table-layout: fixed;
 }
 
@@ -372,11 +365,21 @@ body {
     width: 5%;
 }
 
+.automations-table .ant-table-thead > tr > th:nth-child(1),
+.automations-table .ant-table-tbody > tr > td:nth-child(1) {
+    width: 18%;
+}
+
 .org-domains-table .ant-table-thead > tr > th:nth-child(2),
 .org-domains-table .ant-table-tbody > tr > td:nth-child(2),
 .org-providers-table .ant-table-thead > tr > th:nth-child(2),
 .org-providers-table .ant-table-tbody > tr > td:nth-child(2) {
     width: 20%;
+}
+
+.automations-table .ant-table-thead > tr > th:nth-child(2),
+.automations-table .ant-table-tbody > tr > td:nth-child(2) {
+    width: 12%;
 }
 
 .org-domains-table .ant-table-thead > tr > th:nth-child(3),
@@ -386,11 +389,31 @@ body {
     width: 30%;
 }
 
+.automations-table .ant-table-thead > tr > th:nth-child(3),
+.automations-table .ant-table-tbody > tr > td:nth-child(3) {
+    width: 26%;
+}
+
 .org-domains-table .ant-table-thead > tr > th:nth-child(4),
 .org-domains-table .ant-table-tbody > tr > td:nth-child(4),
 .org-providers-table .ant-table-thead > tr > th:nth-child(4),
 .org-providers-table .ant-table-tbody > tr > td:nth-child(4) {
     width: 20%;
+}
+
+.automations-table .ant-table-thead > tr > th:nth-child(4),
+.automations-table .ant-table-tbody > tr > td:nth-child(4) {
+    width: 20%;
+}
+
+.automations-table .ant-table-thead > tr > th:nth-child(5),
+.automations-table .ant-table-tbody > tr > td:nth-child(5) {
+    width: 12%;
+}
+
+.automations-table .ant-table-thead > tr > th:nth-child(6),
+.automations-table .ant-table-tbody > tr > td:nth-child(6) {
+    width: 12%;
 }
 
 .org-domains-table .org-instructions .ant-descriptions-item-label,
@@ -467,4 +490,3 @@ body {
 .ant-cascader-menu-item-loading-icon {
     display: none !important;
 }
-

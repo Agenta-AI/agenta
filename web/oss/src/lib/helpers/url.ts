@@ -9,5 +9,5 @@ export const buildRevisionsQueryParam = (
     ids: (string | null | undefined)[],
 ): string | undefined => {
     const clean = sanitizeRevisionIds(ids)
-    return clean.length ? JSON.stringify(clean) : undefined
+    return clean.length ? clean.join(",") : undefined
 }

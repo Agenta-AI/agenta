@@ -23,6 +23,11 @@ interface UseTestsetFileUploadOptions {
     defaultTestsetName?: string
 }
 
+function getNativeFile(file: UploadFile | File): File | null {
+    if (file instanceof File) return file
+    return (file.originFileObj as File | undefined) ?? null
+}
+
 export const useTestsetFileUpload = (options: UseTestsetFileUploadOptions = {}) => {
     const {onSuccess, onError, defaultTestsetName = ""} = options
 
@@ -33,11 +38,15 @@ export const useTestsetFileUpload = (options: UseTestsetFileUploadOptions = {}) 
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
     const handleFileSelect = useCallback(
-        (file: UploadFile) => {
-            setFileProgress(file)
+        (file: UploadFile | File) => {
+            const nativeFile = getNativeFile(file)
+            const normalizedFile =
+                file instanceof File ? ({name: file.name, originFileObj: file} as UploadFile) : file
+
+            setFileProgress(normalizedFile)
             const detectedType = getFileType(file.name)
             setUploadType(detectedType)
-            setSelectedFile(file.originFileObj as File)
+            setSelectedFile(nativeFile)
 
             // Auto-populate testset name from file name if not already set
             if (!testsetName) {

@@ -1,5 +1,6 @@
 import {useMemo, useState} from "react"
 
+import {evaluatorsListDataAtom} from "@agenta/entities/workflow"
 import {
     ArrowClockwiseIcon,
     CaretDownIcon,
@@ -19,6 +20,7 @@ import {
     TreeSelect,
     Typography,
 } from "antd"
+import {useAtomValue} from "jotai"
 import isEqual from "lodash/isEqual"
 
 import {
@@ -35,8 +37,6 @@ import {
     toUIValue,
 } from "@/oss/components/pages/observability/assets/filters/valueCodec"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
-import useEvaluators from "@/oss/lib/hooks/useEvaluators"
-import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {Filter, FilterConditions} from "@/oss/lib/Types"
 
 import CustomAntdBadge from "../CustomUIs/CustomAntdBadge"
@@ -279,7 +279,7 @@ const Filters: React.FC<Props> = ({
 }) => {
     const classes = useStyles()
 
-    const {data: evaluatorPreviews} = useEvaluators({preview: true})
+    const evaluatorPreviews = useAtomValue(evaluatorsListDataAtom)
 
     const annotationEvaluatorOptions = useMemo(
         () =>
@@ -305,7 +305,7 @@ const Filters: React.FC<Props> = ({
     const annotationFeedbackOptions = useMemo(() => {
         if (!evaluatorPreviews) return [] as AnnotationFeedbackOption[]
         const options: AnnotationFeedbackOption[] = []
-        evaluatorPreviews.forEach((evaluator: EvaluatorPreviewDto) => {
+        evaluatorPreviews.forEach((evaluator: any) => {
             const metrics = evaluator.metrics ?? {}
             Object.entries(metrics).forEach(([key, schema]) => {
                 const typedSchema = schema as any

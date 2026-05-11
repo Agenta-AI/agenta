@@ -137,7 +137,15 @@ function getChangesFromPath(
     path: DataPath,
     value: unknown,
 ): {data: Record<string, unknown>} | null {
-    if (!testcase || path.length === 0) return null
+    if (!testcase) return null
+
+    // Root-level replacement: treat value as the entire data object
+    if (path.length === 0) {
+        if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+            return {data: value as Record<string, unknown>}
+        }
+        return null
+    }
 
     // Build the update using setValueAtPath on the data property
     const currentData = testcase.data ?? {}
@@ -283,8 +291,10 @@ const displayRowIdsAtom = atom((get) => {
     // Filter out deleted server entities
     const activeServerIds = serverIds.filter((id) => !deletedIds.has(id))
 
-    // New entities first (at top), then server entities
-    return [...newIds, ...activeServerIds]
+    // Server entities first, then new (local) entities at the end
+    const result = [...activeServerIds, ...newIds]
+
+    return result
 })
 
 /**
@@ -430,7 +440,7 @@ const addTestcaseAtom = atom(null, (_get, set, initialData?: TestcaseCreateInput
     const result = createLocalTestcase(initialData as Partial<Testcase>)
 
     if (result.success === false) {
-        console.error("[testcase] Invalid data for new testcase:", result.errors)
+        console.error("[testcase:add] Invalid data for new testcase:", result.errors)
         return null
     }
 
@@ -940,16 +950,21 @@ export const testcaseMolecule = {
          */
         getChangesFromRoot: (
             entity: Testcase | null,
-            _rootData: unknown,
+            rootData: unknown,
             path: DataPath,
-            value: unknown,
         ): {data: Record<string, unknown>} | null => {
+            const value = getValueAtPathUtil(rootData, path)
             return getChangesFromPath(entity, path, value)
         },
     },
 
-    // Imperative API
-    get: extendedMolecule.get,
+    // Imperative API — override get.data to use testcaseEntityAtomFamily
+    // (handles draft-only/new testcases that the base molecule's merge returns null for)
+    get: {
+        ...extendedMolecule.get,
+        data: (id: string, options?: StoreOptions) =>
+            getStore(options).get(testcaseEntityAtomFamily(id)),
+    },
     set: extendedMolecule.set,
 
     // Lifecycle and cleanup from base molecule

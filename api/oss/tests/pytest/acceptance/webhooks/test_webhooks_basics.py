@@ -22,9 +22,6 @@ def _subscription_payload(*, name=None, url="https://example.com/hook"):
                 "url": url,
                 "event_types": ["environments.revisions.committed"],
             },
-            "flags": {
-                "is_active": True,
-            },
         }
     }
 
@@ -37,7 +34,9 @@ def _subscription_payload(*, name=None, url="https://example.com/hook"):
 class TestWebhooksSubscriptionsBasics:
     def test_create_webhook_subscription(self, authed_api):
         # ACT ------------------------------------------------------------------
-        response = authed_api("POST", "/webhooks/", json=_subscription_payload())
+        response = authed_api(
+            "POST", "/webhooks/subscriptions/", json=_subscription_payload()
+        )
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
@@ -52,13 +51,15 @@ class TestWebhooksSubscriptionsBasics:
 
     def test_fetch_webhook_subscription(self, authed_api):
         # ARRANGE --------------------------------------------------------------
-        create_resp = authed_api("POST", "/webhooks/", json=_subscription_payload())
+        create_resp = authed_api(
+            "POST", "/webhooks/subscriptions/", json=_subscription_payload()
+        )
         assert create_resp.status_code == 200
         subscription_id = create_resp.json()["subscription"]["id"]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        response = authed_api("GET", f"/webhooks/{subscription_id}")
+        response = authed_api("GET", f"/webhooks/subscriptions/{subscription_id}")
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
@@ -70,7 +71,7 @@ class TestWebhooksSubscriptionsBasics:
 
     def test_fetch_webhook_subscription_not_found(self, authed_api):
         # ACT ------------------------------------------------------------------
-        response = authed_api("GET", f"/webhooks/{uuid4()}")
+        response = authed_api("GET", f"/webhooks/subscriptions/{uuid4()}")
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
@@ -79,7 +80,9 @@ class TestWebhooksSubscriptionsBasics:
 
     def test_edit_webhook_subscription(self, authed_api):
         # ARRANGE --------------------------------------------------------------
-        create_resp = authed_api("POST", "/webhooks/", json=_subscription_payload())
+        create_resp = authed_api(
+            "POST", "/webhooks/subscriptions/", json=_subscription_payload()
+        )
         assert create_resp.status_code == 200
         subscription = create_resp.json()["subscription"]
         subscription_id = subscription["id"]
@@ -88,7 +91,7 @@ class TestWebhooksSubscriptionsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "PUT",
-            f"/webhooks/{subscription_id}",
+            f"/webhooks/subscriptions/{subscription_id}",
             json={
                 "subscription": {
                     "id": subscription_id,
@@ -101,9 +104,6 @@ class TestWebhooksSubscriptionsBasics:
                             "webhooks.subscriptions.tested",
                         ],
                     },
-                    "flags": {
-                        "is_active": False,
-                    },
                 }
             },
         )
@@ -115,13 +115,14 @@ class TestWebhooksSubscriptionsBasics:
         assert body["count"] == 1
         updated = body["subscription"]
         assert updated["name"] == "Updated Webhook Name"
-        assert updated["flags"]["is_active"] is False
         assert len(updated["data"]["event_types"]) == 2
         # ----------------------------------------------------------------------
 
     def test_edit_webhook_subscription_id_mismatch(self, authed_api):
         # ARRANGE --------------------------------------------------------------
-        create_resp = authed_api("POST", "/webhooks/", json=_subscription_payload())
+        create_resp = authed_api(
+            "POST", "/webhooks/subscriptions/", json=_subscription_payload()
+        )
         assert create_resp.status_code == 200
         subscription_id = create_resp.json()["subscription"]["id"]
         # ----------------------------------------------------------------------
@@ -129,7 +130,7 @@ class TestWebhooksSubscriptionsBasics:
         # ACT — body id differs from path id ----------------------------------
         response = authed_api(
             "PUT",
-            f"/webhooks/{subscription_id}",
+            f"/webhooks/subscriptions/{subscription_id}",
             json={
                 "subscription": {
                     "id": str(uuid4()),  # deliberately different
@@ -146,25 +147,27 @@ class TestWebhooksSubscriptionsBasics:
 
     def test_delete_webhook_subscription(self, authed_api):
         # ARRANGE --------------------------------------------------------------
-        create_resp = authed_api("POST", "/webhooks/", json=_subscription_payload())
+        create_resp = authed_api(
+            "POST", "/webhooks/subscriptions/", json=_subscription_payload()
+        )
         assert create_resp.status_code == 200
         subscription_id = create_resp.json()["subscription"]["id"]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        response = authed_api("DELETE", f"/webhooks/{subscription_id}")
+        response = authed_api("DELETE", f"/webhooks/subscriptions/{subscription_id}")
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 204
 
-        fetch_resp = authed_api("GET", f"/webhooks/{subscription_id}")
+        fetch_resp = authed_api("GET", f"/webhooks/subscriptions/{subscription_id}")
         assert fetch_resp.status_code == 404
         # ----------------------------------------------------------------------
 
     def test_delete_webhook_subscription_not_found(self, authed_api):
         # ACT ------------------------------------------------------------------
-        response = authed_api("DELETE", f"/webhooks/{uuid4()}")
+        response = authed_api("DELETE", f"/webhooks/subscriptions/{uuid4()}")
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
@@ -183,7 +186,7 @@ class TestWebhooksSubscriptionsAuthMode:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/webhooks/",
+            "/webhooks/subscriptions/",
             json={
                 "subscription": {
                     "name": f"sig-{uuid4().hex[:8]}",
@@ -210,7 +213,7 @@ class TestWebhooksSubscriptionsAuthMode:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/webhooks/",
+            "/webhooks/subscriptions/",
             json={
                 "subscription": {
                     "name": f"auth-{uuid4().hex[:8]}",
@@ -238,7 +241,7 @@ class TestWebhooksSubscriptionsAuthMode:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/webhooks/",
+            "/webhooks/subscriptions/",
             json={
                 "subscription": {
                     "name": f"auth-{uuid4().hex[:8]}",
@@ -273,7 +276,7 @@ class TestWebhooksSubscriptionsPayloadFields:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/webhooks/",
+            "/webhooks/subscriptions/",
             json={
                 "subscription": {
                     "name": f"pf-{uuid4().hex[:8]}",
@@ -298,7 +301,7 @@ class TestWebhooksSubscriptionsPayloadFields:
 
         create_resp = authed_api(
             "POST",
-            "/webhooks/",
+            "/webhooks/subscriptions/",
             json={
                 "subscription": {
                     "name": f"pf-{uuid4().hex[:8]}",
@@ -313,7 +316,7 @@ class TestWebhooksSubscriptionsPayloadFields:
         subscription_id = create_resp.json()["subscription"]["id"]
 
         # ACT ------------------------------------------------------------------
-        response = authed_api("GET", f"/webhooks/{subscription_id}")
+        response = authed_api("GET", f"/webhooks/subscriptions/{subscription_id}")
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------

@@ -150,7 +150,7 @@ const EmptyState = ({
                             target="_blank"
                             rel="noreferrer"
                             icon={<ArrowRight size={16} />}
-                            iconPosition="end"
+                            iconPlacement="end"
                             className="!px-8"
                         >
                             {secondaryCta.label}

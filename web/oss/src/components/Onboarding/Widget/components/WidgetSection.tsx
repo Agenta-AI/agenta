@@ -110,7 +110,6 @@ const WidgetSection = memo(function WidgetSection({
             activeKey={isExpanded ? [section.id] : []}
             onChange={() => onToggle(section.id)}
             expandIconPlacement="end"
-            expandIconPosition="end"
             expandIcon={({isActive}) =>
                 isActive ? (
                     <CaretUp size={16} className="text-colorText" />

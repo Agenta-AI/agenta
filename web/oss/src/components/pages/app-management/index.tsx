@@ -1,7 +1,8 @@
-import {useEffect, useMemo, useState} from "react"
+import {useEffect, useState} from "react"
 
+import {workflowMolecule} from "@agenta/entities/workflow"
+import {PageLayout} from "@agenta/ui"
 import {Typography} from "antd"
-import dayjs from "dayjs"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -17,31 +18,26 @@ import {
     recordWidgetEventAtom,
     setOnboardingWidgetActivationAtom,
 } from "@/oss/lib/onboarding"
-import {Template, GenericObject, StyleProps} from "@/oss/lib/Types"
+import {StyleProps} from "@/oss/lib/Types"
 import {waitForAppToStart} from "@/oss/services/api"
-import {createAndStartTemplate, deleteApp, ServiceType} from "@/oss/services/app-selector/api"
-import useTemplates from "@/oss/services/app-selector/hooks/useTemplates"
+import {createAppWithTemplate} from "@/oss/services/app-selector/api"
 import {useAppsData} from "@/oss/state/app"
 import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreation/status"
-import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
+import {getProjectValues} from "@/oss/state/project"
 
-import PageLayout from "../../PageLayout/PageLayout"
-
-import {getTemplateKey, timeout} from "./assets/helpers"
+import {timeout} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
 import ApplicationManagementSection from "./components/ApplicationManagementSection"
 import HelpAndSupportSection from "./components/HelpAndSupportSection"
 import WelcomeCardsSection from "./components/WelcomeCardsSection"
+import {invalidateAppManagementWorkflowQueries} from "./store"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
 )
 const AddAppFromTemplatedModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/AddAppFromTemplateModal"),
-)
-const MaxAppModal: any = dynamic(
-    () => import("@/oss/components/pages/app-management/modals/MaxAppModal"),
 )
 
 const SetupTracingModal: any = dynamic(
@@ -64,35 +60,40 @@ const AppManagement: React.FC = () => {
     const posthog = usePostHogAg()
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
-    const [isMaxAppModalOpen, setIsMaxAppModalOpen] = useState(false)
     const {user} = useProfileData()
-    const [templateKey, setTemplateKey] = useState<ServiceType | undefined>(undefined)
+    const [templateKey, setTemplateKey] = useState<string | undefined>(undefined)
     const [isAddAppFromTemplatedModal, setIsAddAppFromTemplatedModal] = useState(false)
     const [isSetupTracingModal, setIsSetupTracingModal] = useState(false)
-    const [newApp, setNewApp] = useState("")
-    const [searchTerm, setSearchTerm] = useState("")
-    const {apps, error, mutate} = useAppsData()
+    const [appName, setAppName] = useState("")
+    const [appSlug, setAppSlug] = useState<string | undefined>(undefined)
+    const {error, mutate} = useAppsData()
 
     const {secrets} = useVaultSecret()
-    const {selectedOrg} = useOrgData()
 
-    const [{data: templates = [], isLoading: fetchingTemplate}, noTemplateMessage] = useTemplates()
-
-    const handleTemplateCardClick = async (template_id: string) => {
+    const handleTemplateCardClick = async (
+        templateId: string,
+        submittedAppName: string,
+        submittedAppSlug?: string,
+    ) => {
+        setAppName(submittedAppName)
+        setAppSlug(submittedAppSlug)
+        setTemplateKey(templateId)
         setIsAddAppFromTemplatedModal(false)
         setStatusModalOpen(true)
         resetAppCreation()
 
         // attempt to create and start the template, notify user of the progress
         const apiKeys = secrets
-        await createAndStartTemplate({
-            appName: newApp,
-            templateKey: template_id! as ServiceType,
+        await createAppWithTemplate({
+            appName: submittedAppName,
+            slug: submittedAppSlug,
+            templateKey: templateId,
             providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
             onStatusChange: async (status, details, appId) => {
                 if (["error", "bad_request", "timeout", "success"].includes(status))
                     if (status === "success") {
-                        await mutate()
+                        await mutate?.()
+                        await invalidateAppManagementWorkflowQueries()
                         posthog?.capture?.("app_deployment", {
                             properties: {
                                 app_id: appId,
@@ -123,15 +124,19 @@ const AppManagement: React.FC = () => {
     const onErrorRetry = async () => {
         if (statusData.appId) {
             setStatusData((prev) => ({...prev, status: "cleanup", details: undefined}))
-            await deleteApp(statusData.appId).catch(console.error)
-            mutate()
+            const {projectId} = getProjectValues()
+            await workflowMolecule.lifecycle
+                .archive(statusData.appId, {projectId})
+                .catch(console.error)
+            await mutate?.()
+            await invalidateAppManagementWorkflowQueries()
         }
-        handleTemplateCardClick(templateKey as ServiceType)
+        handleTemplateCardClick(templateKey as string, appName, appSlug)
     }
 
     const onTimeoutRetry = async () => {
         if (!statusData.appId) return
-        setStatusData((prev) => ({...prev, status: "starting_app", details: undefined}))
+        setStatusData((prev) => ({...prev, status: "configuring_app", details: undefined}))
         try {
             await waitForAppToStart({appId: statusData.appId, timeout})
         } catch (error: any) {
@@ -142,27 +147,9 @@ const AppManagement: React.FC = () => {
             }
         }
         setStatusData((prev) => ({...prev, status: "success", details: undefined}))
-        mutate()
+        await mutate?.()
+        await invalidateAppManagementWorkflowQueries()
     }
-
-    const appNameExist = useMemo(
-        () =>
-            apps.some((app: GenericObject) => app.app_name.toLowerCase() === newApp.toLowerCase()),
-        [apps, newApp],
-    )
-
-    const filteredApps = useMemo(() => {
-        let filtered = apps.sort(
-            (a, b) => dayjs(b.updated_at).valueOf() - dayjs(a.updated_at).valueOf(),
-        )
-
-        if (searchTerm) {
-            filtered = apps.filter((app) =>
-                app.app_name.toLowerCase().includes(searchTerm.toLowerCase()),
-            )
-        }
-        return filtered
-    }, [apps, searchTerm])
 
     return (
         <>
@@ -185,12 +172,7 @@ const AppManagement: React.FC = () => {
                         <ObservabilityDashboardSection />
 
                         <ApplicationManagementSection
-                            selectedOrg={selectedOrg}
-                            apps={apps}
                             setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal}
-                            setIsMaxAppModalOpen={setIsMaxAppModalOpen}
-                            filteredApps={filteredApps}
-                            setSearchTerm={setSearchTerm}
                         />
 
                         <HelpAndSupportSection />
@@ -206,38 +188,12 @@ const AppManagement: React.FC = () => {
             <AddAppFromTemplatedModal
                 open={isAddAppFromTemplatedModal}
                 onCancel={() => setIsAddAppFromTemplatedModal(false)}
-                newApp={newApp}
-                templates={templates}
-                noTemplateMessage={noTemplateMessage}
-                templateKey={templateKey}
-                appNameExist={appNameExist}
-                setNewApp={setNewApp}
-                onCardClick={(template: Template) => {
-                    // TODO: temporary until there's a better way to handle this
-                    const templateKey = getTemplateKey(template)
-
-                    if (templateKey) {
-                        setTemplateKey(templateKey)
-                    }
-                }}
                 handleTemplateCardClick={handleTemplateCardClick}
-                fetchingTemplate={fetchingTemplate}
-                afterClose={() => {
-                    setTemplateKey(undefined)
-                    setNewApp("")
-                }}
-            />
-
-            <MaxAppModal
-                open={isMaxAppModalOpen}
-                onCancel={() => {
-                    setIsMaxAppModalOpen(false)
-                }}
             />
 
             <CreateAppStatusModal
                 open={statusModalOpen}
-                loading={fetchingTemplate}
+                loading={false}
                 onErrorRetry={onErrorRetry}
                 onTimeoutRetry={onTimeoutRetry}
                 onCancel={() => {
@@ -245,7 +201,7 @@ const AppManagement: React.FC = () => {
                     resetAppCreation()
                 }}
                 statusData={statusData}
-                appName={newApp}
+                appName={appName}
             />
         </>
     )

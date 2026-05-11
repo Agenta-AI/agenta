@@ -22,13 +22,12 @@ export type SelectableEntityType =
     | "app"
     | "variant"
     | "appRevision"
-    | "ossVariant"
-    | "legacyAppRevision"
     | "evaluator"
     | "evaluatorVariant"
     | "evaluatorRevision"
-    | "playgroundVariant"
-    | "playgroundRevision"
+    | "workflow"
+    | "workflowVariant"
+    | "workflowRevision"
 
 // ============================================================================
 // SELECTION RESULT
@@ -118,6 +117,18 @@ export interface PaginatedListQueryState<T> extends ListQueryState<T> {
     pagination?: PaginationInfo
     /** Function to fetch the next page */
     fetchNextPage?: () => void
+}
+
+/**
+ * Defines a tab for filtering items by group.
+ * Tabs map to `getGroupKey` values — selecting a tab filters items to that group.
+ * The "all" key is special: it shows all items grouped by their `getGroupKey`.
+ */
+export interface TabDefinition {
+    /** Group key this tab filters to, or "all" to show all items grouped */
+    key: string
+    /** Display label for the tab (e.g., "AI/LLM", "Classifiers") */
+    label: string
 }
 
 /**
@@ -254,6 +265,27 @@ export interface HierarchyLevel<T = unknown> {
      * ```
      */
     filterItems?: (entity: T) => boolean
+
+    /**
+     * Get a group key for this entity (for grouped select rendering).
+     * Items with the same key are grouped under a shared header.
+     * Return null/undefined for ungrouped items.
+     */
+    getGroupKey?: (entity: T) => string | null | undefined
+
+    /**
+     * Map a group key to a human-readable display label.
+     * Falls back to the key itself if not provided.
+     */
+    getGroupLabel?: (key: string) => string
+
+    /**
+     * Optional function that derives tab definitions from loaded items.
+     * Called after items load — only shows tabs for groups that actually have data.
+     * Each tab filters items by `getGroupKey` match. The "all" key shows all items grouped.
+     * Requires `getGroupKey` to be defined for meaningful filtering.
+     */
+    buildTabs?: (items: T[]) => TabDefinition[]
 }
 
 /**

@@ -4,8 +4,8 @@ import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
-import {customWorkflowBannerVisibleAtom} from "@/oss/state/variant/atoms/appStatus"
 
+import {customWorkflowBannerVisibleAtom} from "./atoms"
 import {CustomWorkflowBannerProps} from "./types"
 
 const CustomWorkflowBanner = ({
@@ -13,7 +13,7 @@ const CustomWorkflowBanner = ({
     layout = "banner",
 }: CustomWorkflowBannerProps) => {
     const showBanner = useAtomValue(customWorkflowBannerVisibleAtom)
-    const {openModal} = useCustomWorkflowConfig({configureWorkflow: true})
+    const {openModal} = useCustomWorkflowConfig({})
     const router = useRouter()
     const isPlaygroundPath =
         router.pathname.includes("/playground") || router.pathname.includes("/evaluations/results")

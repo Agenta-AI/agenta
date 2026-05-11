@@ -4,7 +4,7 @@ Manual E2E test for embeds API endpoint.
 
 Tests the full flow:
 1. Create workflows with embeds
-2. Call POST /preview/workflows/revisions/resolve
+2. Call POST /workflows/revisions/resolve
 3. Verify resolved configuration
 """
 
@@ -106,7 +106,7 @@ async def test_api_endpoint_with_mock_services():
 
     # Simulate what the API endpoint does
     async def simulate_api_endpoint(workflow_revision_ref: Reference):
-        """Simulates POST /preview/workflows/revisions/resolve"""
+        """Simulates POST /workflows/revisions/resolve"""
         project_id = uuid4()
 
         # This is what the endpoint calls

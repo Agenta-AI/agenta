@@ -1,0 +1,95 @@
+{{- if .Values.redisVolatile.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agenta.fullname" . }}-redis-volatile
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-volatile
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "agenta.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis-volatile
+  template:
+    metadata:
+      labels:
+        {{- include "agenta.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis-volatile
+    spec:
+      {{- include "agenta.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- with .Values.redisVolatile.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: redis
+          image: {{ .Values.redisVolatile.image.repository }}:{{ .Values.redisVolatile.image.tag }}
+          imagePullPolicy: {{ .Values.redisVolatile.image.pullPolicy }}
+          {{- with .Values.redisVolatile.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - sh
+            - -c
+            - >-
+              exec redis-server
+              --appendonly no
+              --save ""
+              --maxmemory {{ .Values.redisVolatile.maxmemory | quote }}
+              --maxmemory-policy {{ .Values.redisVolatile.maxmemoryPolicy }}
+              --port {{ .Values.redisVolatile.port | quote }}
+              {{- if .Values.redisVolatile.password }}
+              --requirepass "$REDIS_VOLATILE_PASSWORD"
+              {{- end }}
+          ports:
+            - name: redis
+              containerPort: {{ .Values.redisVolatile.port }}
+              protocol: TCP
+          {{- if .Values.redisVolatile.password }}
+          env:
+            - name: REDIS_VOLATILE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta.secretName" . }}
+                  key: REDIS_VOLATILE_PASSWORD
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta.secretName" . }}
+                  key: REDIS_VOLATILE_PASSWORD
+          {{- end }}
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "-p", {{ .Values.redisVolatile.port | quote }}, "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "-p", {{ .Values.redisVolatile.port | quote }}, "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          {{- with .Values.redisVolatile.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.redisVolatile.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.redisVolatile.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.redisVolatile.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

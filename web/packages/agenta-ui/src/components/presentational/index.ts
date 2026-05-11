@@ -46,7 +46,9 @@ export {
     EntityListItemLabel,
     AppListItemLabel,
     VariantListItemLabel,
+    EntityTypeIcon,
     type EntityListItemLabelProps,
+    type EntityTypeIconProps,
 } from "./entity"
 
 // ============================================================================
@@ -71,6 +73,12 @@ export {
 // ============================================================================
 
 export {CopyButton, type CopyButtonProps} from "./CopyButton"
+
+// ============================================================================
+// ENHANCED BUTTON
+// ============================================================================
+
+export {default as EnhancedButton, type EnhancedButtonProps} from "./EnhancedButton"
 
 // ============================================================================
 // SELECT COMPONENTS
@@ -99,9 +107,17 @@ export {
     ImageAttachment,
     FileAttachment,
     AttachmentGrid,
+    ImagePreview,
+    ImageWithFallback,
     type ImageAttachmentProps,
     type FileAttachmentProps,
     type AttachmentGridProps,
+    type ImagePreviewProps,
+    type ImageWithFallbackProps,
+    PromptImageUpload,
+    type PromptImageUploadProps,
+    PromptDocumentUpload,
+    type PromptDocumentUploadProps,
 } from "./attachments"
 
 // ============================================================================
@@ -124,9 +140,13 @@ export {
     StatusTag,
     getStatusColor,
     getStatusLabel,
+    EnvironmentTag,
+    environmentColors,
     type StatusTagProps,
     type QueryStatus,
     type ExecutionStatus,
+    type EnvironmentTagProps,
+    type EnvironmentName,
 } from "./status"
 
 // ============================================================================
@@ -150,7 +170,15 @@ export {SourceIndicator, type SourceIndicatorProps} from "./source-indicator"
 // INPUT COMPONENTS
 // ============================================================================
 
-export {SliderInput, LabeledField, type SliderInputProps, type LabeledFieldProps} from "./inputs"
+export {
+    SliderInput,
+    LabeledField,
+    CommitMessageInput,
+    COMMIT_MESSAGE_MAX_LENGTH,
+    type SliderInputProps,
+    type LabeledFieldProps,
+    type CommitMessageInputProps,
+} from "./inputs"
 
 // ============================================================================
 // SKELETON COMPONENTS
@@ -199,3 +227,43 @@ export {
     type ExecutionMetricsData,
     type MappingStatusTagProps,
 } from "./metrics"
+
+// ============================================================================
+// DATE COMPONENTS
+// ============================================================================
+
+export {FormattedDate, type FormattedDateProps} from "./FormattedDate"
+
+// ============================================================================
+// AVATAR COMPONENTS
+// ============================================================================
+
+export {
+    InitialsAvatar,
+    getColorPairFromStr,
+    getInitials,
+    type InitialsAvatarProps,
+    type ColorPair,
+} from "./avatar"
+
+// ============================================================================
+// BUTTON COMPONENTS
+// ============================================================================
+
+export {
+    AddButton,
+    RunButton,
+    CollapseToggleButton,
+    useCollapseToggle,
+    useCollapseStyle,
+    useContentOverflow,
+    getCollapseIcon,
+    getCollapseLabel,
+    getCollapseStyle,
+    DEFAULT_COLLAPSED_MAX_HEIGHT,
+    type AddButtonProps,
+    type RunButtonProps,
+    type CollapseToggleButtonProps,
+    type UseCollapseToggleOptions,
+    type UseCollapseToggleReturn,
+} from "./buttons"

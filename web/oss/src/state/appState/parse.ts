@@ -3,11 +3,15 @@ import type {ParsedUrlQuery} from "querystring"
 import type {ParsedAppLocation, QueryRecord, RouteLayer} from "./types"
 
 const isBrowser = typeof window !== "undefined"
+const RESERVED_APP_COLLECTION_ROUTES = new Set(["archived"])
 
 const sanitizeId = (value: string | null | undefined): string | null => {
     if (value === undefined || value === null) return null
     const trimmed = String(value).trim()
     if (!trimmed || trimmed === "null" || trimmed === "undefined") return null
+    // Reject Next.js dynamic route parameter patterns (e.g. "[project_id]", "[workspace_id]")
+    // These can leak through Router.asPath before hydration completes
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) return null
     return trimmed
 }
 
@@ -104,7 +108,10 @@ export const parseRouterState = ({
 
                     if (segments[4] === "apps") {
                         const maybeApp = sanitizeId(segments[5])
-                        if (maybeApp) {
+                        if (
+                            maybeApp &&
+                            !RESERVED_APP_COLLECTION_ROUTES.has(maybeApp.toLowerCase())
+                        ) {
                             appId = maybeApp
                             routeLayer = "app"
                             restStartIndex = 6

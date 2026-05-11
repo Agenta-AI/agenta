@@ -22,19 +22,29 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const baseDistinctId = useMemo(() => generateOrRetrieveDistinctId(), [])
     const analyticsId = isDemo() && user?.email ? user.email : baseDistinctId
     const identifiedRef = useRef<string | null>(null)
+    const personPropsIdentifiedRef = useRef<string | null>(null)
     const aliasedRef = useRef(false)
 
     const personProps = useMemo(() => {
-        if (!user?.email) return null
+        if (!user?.email && !user?.username) return undefined
 
-        const props: Record<string, unknown> = {email: user.email}
+        const props: Record<string, unknown> = {}
+
+        if (user.email) {
+            props.email = user.email
+        }
+
         if (user.username) {
             props.username = user.username
         }
+
         return props
     }, [user?.email, user?.username])
-    const baseCapture = posthog?.capture?.bind(posthog)
-    const baseIdentify = posthog?.identify?.bind(posthog)
+    const identifiedPersonPropsKey = useMemo(() => {
+        return personProps ? `${analyticsId}:${JSON.stringify(personProps)}` : null
+    }, [analyticsId, personProps])
+    const baseCapture = useMemo(() => posthog?.capture?.bind(posthog), [posthog])
+    const baseIdentify = useMemo(() => posthog?.identify?.bind(posthog), [posthog])
     const capture: PostHog["capture"] = useCallback(
         (...args) => {
             if (trackingEnabled) {
@@ -62,23 +72,32 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     }, [posthog, trackingEnabled])
 
     useIsomorphicLayoutEffect(() => {
+        if (!user?.email) {
+            personPropsIdentifiedRef.current = null
+            aliasedRef.current = false
+        }
+    }, [user?.email])
+
+    useIsomorphicLayoutEffect(() => {
         if (!posthog) return
         if (!analyticsId) return
-        if (posthog.get_distinct_id?.() === analyticsId) {
-            identifiedRef.current = analyticsId
-            return
-        }
-        if (identifiedRef.current === analyticsId) return
+        const shouldIdentify =
+            identifiedRef.current !== analyticsId ||
+            (identifiedPersonPropsKey !== null &&
+                personPropsIdentifiedRef.current !== identifiedPersonPropsKey)
+
+        if (!shouldIdentify) return
+
         if (isDemo() && user?.email && baseDistinctId !== analyticsId && !aliasedRef.current) {
             posthog.alias?.(analyticsId, baseDistinctId)
             aliasedRef.current = true
         }
+
         identifiedRef.current = analyticsId
-        if (personProps) {
-            identify(analyticsId, personProps)
-        } else {
-            identify(analyticsId)
+        if (identifiedPersonPropsKey) {
+            personPropsIdentifiedRef.current = identifiedPersonPropsKey
         }
+        identify(analyticsId, personProps)
     }, [analyticsId, baseDistinctId, identify, personProps, posthog, user?.email])
 
     if (!posthog) return null

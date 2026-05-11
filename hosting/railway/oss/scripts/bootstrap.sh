@@ -2,18 +2,21 @@
 
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 PROJECT_NAME="${RAILWAY_PROJECT_NAME:-agenta-oss-railway}"
 ENV_NAME="${RAILWAY_ENVIRONMENT_NAME:-staging}"
+SOURCE_COMPOSE_FILE="${RAILWAY_SOURCE_COMPOSE_FILE:-$(railway_source_compose_file "$ROOT_DIR")}"
 
 WEB_IMAGE="${AGENTA_WEB_IMAGE:-ghcr.io/agenta-ai/agenta-web:latest}"
 API_IMAGE="${AGENTA_API_IMAGE:-ghcr.io/agenta-ai/agenta-api:latest}"
 SERVICES_IMAGE="${AGENTA_SERVICES_IMAGE:-ghcr.io/agenta-ai/agenta-services:latest}"
-SUPERTOKENS_IMAGE="${SUPERTOKENS_IMAGE:-supertokens/supertokens-postgresql}"
-REDIS_IMAGE="${REDIS_IMAGE:-redis:8.2.1}"
-POSTGRES_IMAGE="${POSTGRES_IMAGE:-ghcr.io/railwayapp-templates/postgres-ssl:17}"
+SUPERTOKENS_IMAGE="${SUPERTOKENS_IMAGE:-$(require_compose_service_image "$SOURCE_COMPOSE_FILE" "supertokens")}"
+REDIS_IMAGE="${REDIS_IMAGE:-$(require_compose_redis_image "$SOURCE_COMPOSE_FILE")}"
+POSTGRES_IMAGE="${POSTGRES_IMAGE:-$(require_compose_service_image "$SOURCE_COMPOSE_FILE" "postgres")}"
 GATEWAY_IMAGE="${AGENTA_GATEWAY_IMAGE:-}"
 
 require_cmd() {

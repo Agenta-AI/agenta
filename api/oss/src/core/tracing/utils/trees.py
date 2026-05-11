@@ -11,6 +11,7 @@ from oss.src.core.tracing.dtos import (
     OTelSpansTree,
     OTelTraceTree,
     Span,
+    TraceType,
 )
 
 log = get_module_logger(__name__)
@@ -28,7 +29,7 @@ def calculate_and_propagate_metrics(
     span_dtos: List[OTelFlatSpan],
 ) -> List[OTelFlatSpan]:
     """
-    Calculate and propagate costs/tokens for a list of span DTOs.
+    Calculate and propagate costs/tokens/errors for a list of span DTOs.
 
     This must be called BEFORE batching to ensure complete trace trees.
     If called after batching, partial traces will fail to propagate correctly.
@@ -37,7 +38,7 @@ def calculate_and_propagate_metrics(
         span_dtos: List of span DTOs (should be from a complete trace)
 
     Returns:
-        List of span DTOs with calculated and propagated costs/tokens
+        List of span DTOs with calculated and propagated costs/tokens/errors
     """
     if not span_dtos:
         return span_dtos
@@ -55,8 +56,86 @@ def calculate_and_propagate_metrics(
     # Propagate tokens up the tree (children to parents)
     cumulate_tokens(span_id_tree, span_idx)
 
+    # Propagate errors up the tree (children to parents)
+    cumulate_errors(span_id_tree, span_idx)
+
     # Return updated span DTOs
     return list(span_idx.values())
+
+
+def calculate_and_propagate_metrics_by_trace(
+    span_dtos: List[OTelFlatSpan],
+) -> List[OTelFlatSpan]:
+    """
+    Calculate metrics for each trace independently within a mixed batch.
+
+    Some ingestion requests can carry spans from multiple traces. Metric
+    propagation must remain trace-local, so we group by trace_id first and
+    process each trace tree separately before flattening back to one list.
+    """
+    if not span_dtos:
+        return span_dtos
+
+    spans_by_trace: Dict[str, List[OTelFlatSpan]] = {}
+
+    for span_dto in span_dtos:
+        trace_key = str(span_dto.trace_id)
+        spans_by_trace.setdefault(trace_key, []).append(span_dto)
+
+    processed: List[OTelFlatSpan] = []
+    for trace_spans in spans_by_trace.values():
+        processed.extend(calculate_and_propagate_metrics(trace_spans))
+
+    return processed
+
+
+def infer_and_propagate_trace_type_by_trace(
+    span_dtos: List[OTelFlatSpan],
+) -> List[OTelFlatSpan]:
+    """
+    Infer trace type once per trace from span links and propagate it to every span.
+
+    A trace is an annotation iff any span in that trace contains one or more links.
+    Otherwise the trace is an invocation.
+    """
+    if not span_dtos:
+        return span_dtos
+
+    trace_types_by_trace: Dict[str, TraceType] = {}
+    spans_by_trace: Dict[str, List[OTelFlatSpan]] = {}
+
+    for span_dto in span_dtos:
+        trace_key = str(span_dto.trace_id)
+        spans_by_trace.setdefault(trace_key, []).append(span_dto)
+
+    for trace_spans in spans_by_trace.values():
+        trace_key = str(trace_spans[0].trace_id)
+        trace_types_by_trace[trace_key] = (
+            TraceType.ANNOTATION
+            if any(span.links for span in trace_spans)
+            else TraceType.INVOCATION
+        )
+
+    for span in span_dtos:
+        inferred_trace_type = trace_types_by_trace[str(span.trace_id)]
+        span.trace_type = inferred_trace_type
+
+        if span.attributes is None:
+            span.attributes = {}
+
+        ag = span.attributes.setdefault("ag", {})
+        if not isinstance(ag, dict):
+            ag = {}
+            span.attributes["ag"] = ag
+
+        ag_type = ag.setdefault("type", {})
+        if not isinstance(ag_type, dict):
+            ag_type = {}
+            ag["type"] = ag_type
+
+        ag_type["trace"] = inferred_trace_type.value
+
+    return span_dtos
 
 
 def parse_span_idx_to_span_id_tree(
@@ -348,6 +427,72 @@ def cumulate_tokens(
                 span.attributes["ag"]["metrics"]["tokens"] = {}
 
             span.attributes["ag"]["metrics"]["tokens"]["cumulative"] = tokens
+
+    _cumulate_tree_dfs(
+        spans_id_tree,
+        spans_idx,
+        _get_incremental,
+        _get_cumulative,
+        _accumulate,
+        _set_cumulative,
+    )
+
+
+def cumulate_errors(
+    spans_id_tree: OrderedDict,
+    spans_idx: Dict[str, OTelFlatSpan],
+) -> None:
+    def _get_incremental(span: OTelFlatSpan):
+        if span.attributes is None:
+            return 0
+
+        value = (
+            span.attributes.get("ag", {})
+            .get("metrics", {})
+            .get("errors", {})
+            .get("incremental", 0)
+        )
+        return value if isinstance(value, (int, float)) else 0
+
+    def _get_cumulative(span: OTelFlatSpan):
+        if span.attributes is None:
+            return 0
+
+        value = (
+            span.attributes.get("ag", {})
+            .get("metrics", {})
+            .get("errors", {})
+            .get("cumulative", 0)
+        )
+        return value if isinstance(value, (int, float)) else 0
+
+    def _accumulate(a, b):
+        return a + b
+
+    def _set_cumulative(span: OTelFlatSpan, errors):
+        if span.attributes is None:
+            span.attributes = {}
+
+        if errors != 0:
+            if "ag" not in span.attributes or not isinstance(
+                span.attributes["ag"],
+                dict,
+            ):
+                span.attributes["ag"] = {}
+
+            if "metrics" not in span.attributes["ag"] or not isinstance(
+                span.attributes["ag"]["metrics"],
+                dict,
+            ):
+                span.attributes["ag"]["metrics"] = {}
+
+            if "errors" not in span.attributes["ag"]["metrics"] or not isinstance(
+                span.attributes["ag"]["metrics"]["errors"],
+                dict,
+            ):
+                span.attributes["ag"]["metrics"]["errors"] = {}
+
+            span.attributes["ag"]["metrics"]["errors"]["cumulative"] = errors
 
     _cumulate_tree_dfs(
         spans_id_tree,

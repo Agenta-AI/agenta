@@ -1,5 +1,10 @@
 import {memo, useMemo} from "react"
 
+import type {MessageContent} from "@agenta/shared/types"
+import {getAttachments} from "@agenta/shared/utils"
+
+import ImagePreview from "../components/presentational/attachments/ImagePreview"
+
 import {DEFAULT_ROLE_COLOR_CLASS, ROLE_COLOR_CLASSES} from "./constants"
 import {
     extractChatMessages,
@@ -48,12 +53,22 @@ const getContentString = (content: unknown): string => {
     if (content === null || content === undefined) return ""
     if (typeof content === "string") return content
     if (Array.isArray(content)) {
-        // Handle OpenAI content array format
-        const textPart = content.find((c: unknown) => {
-            const part = c as Record<string, unknown> | null
-            return part?.type === "text"
-        }) as Record<string, unknown> | undefined
-        if (textPart?.text) return String(textPart.text)
+        const textParts = content
+            .map((entry: unknown) => {
+                const part = entry as Record<string, unknown> | null
+                return part?.type === "text" && typeof part.text === "string" ? part.text : null
+            })
+            .filter((part): part is string => Boolean(part?.trim()))
+
+        if (textParts.length > 0) {
+            return textParts.join("\n\n")
+        }
+
+        const hasAttachmentParts = content.some((entry: unknown) => {
+            const part = entry as Record<string, unknown> | null
+            return part?.type === "image_url" || part?.type === "file"
+        })
+        if (hasAttachmentParts) return ""
     }
     // Use compact JSON (no pretty printing) to minimize rendered lines
     try {
@@ -61,6 +76,15 @@ const getContentString = (content: unknown): string => {
     } catch {
         return String(content)
     }
+}
+
+const getImageUrls = (content: unknown): string[] => {
+    if (!Array.isArray(content)) return []
+
+    return getAttachments(content as MessageContent)
+        .filter((attachment) => attachment.type === "image_url")
+        .map((attachment) => attachment.image_url?.url?.trim())
+        .filter((url): url is string => Boolean(url))
 }
 
 interface SingleMessageProps {
@@ -82,6 +106,7 @@ const CHARS_PER_LINE = 80
 const SingleMessage = memo(
     ({message, keyPrefix, index, truncate, maxLines, showDivider}: SingleMessageProps) => {
         const contentString = useMemo(() => getContentString(message.content), [message.content])
+        const imageUrls = useMemo(() => getImageUrls(message.content), [message.content])
         // Calculate max chars based on maxLines to prevent overflow
         const maxChars = maxLines * CHARS_PER_LINE
         const displayContent = useMemo(
@@ -98,6 +123,18 @@ const SingleMessage = memo(
                 </span>
                 {displayContent && (
                     <span className="whitespace-pre-wrap break-words block">{displayContent}</span>
+                )}
+                {imageUrls.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                        {imageUrls.map((imageUrl, imageIndex) => (
+                            <ImagePreview
+                                key={`${keyPrefix}-${index}-image-${imageIndex}`}
+                                src={imageUrl}
+                                alt={`Message attachment ${imageIndex + 1}`}
+                                size={truncate ? 36 : 56}
+                            />
+                        ))}
+                    </div>
                 )}
                 {message.tool_calls && message.tool_calls.length > 0 && (
                     <div className="flex flex-col gap-1">

@@ -1,13 +1,27 @@
 import {useCallback} from "react"
 
+import {
+    invalidateRevisionsListCache as invalidateEntityRevisionsListCache,
+    invalidateTestsetCache as invalidateEntityTestsetCache,
+    invalidateTestsetsListCache as invalidateEntityTestsetsListCache,
+} from "@agenta/entities/testset"
 import {message} from "@agenta/ui/app-message"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import {createNewTestset} from "@/oss/services/testsets/api"
-import {currentColumnsAtom, saveTestsetAtom} from "@/oss/state/entities/testcase"
-import {fetchRevisionsList} from "@/oss/state/entities/testset"
+import {
+    createNewTestset,
+    patchTestsetRevision,
+    type TestsetRevisionDelta,
+} from "@/oss/services/testsets/api"
+import {currentColumnsAtom} from "@/oss/state/entities/testcase"
+import {
+    fetchRevisionsList,
+    invalidateRevisionsListCache as invalidateOssRevisionsListCache,
+    invalidateTestsetCache as invalidateOssTestsetCache,
+    invalidateTestsetsListCache as invalidateOssTestsetsListCache,
+} from "@/oss/state/entities/testset"
 import {projectIdAtom} from "@/oss/state/project"
-import {setRevisionsForTestsetAtom} from "@/oss/state/testsetSelection"
+import {clearRevisionsCacheAtom, setRevisionsForTestsetAtom} from "@/oss/state/testsetSelection"
 
 import {isNewTestsetAtom, newTestsetNameAtom, selectedTestsetInfoAtom} from "../atoms/cascaderState"
 import {
@@ -62,13 +76,32 @@ export function useSaveTestset() {
     const mappingData = useAtomValue(mappingDataAtom)
     const currentColumns = useAtomValue(currentColumnsAtom)
 
-    // Entity mutations
-    const executeSaveTestset = useSetAtom(saveTestsetAtom)
     const convertTraceData = useSetAtom(convertTraceDataAtom)
 
     // Revision select setters
     const setSelectedRevisionId = useSetAtom(selectedRevisionIdAtom)
     const setRevisionsForTestset = useSetAtom(setRevisionsForTestsetAtom)
+    const clearRevisionsCache = useSetAtom(clearRevisionsCacheAtom)
+
+    const invalidateSelectionCaches = useCallback(
+        (testsetId?: string) => {
+            // Invalidate both entity-package and OSS testset caches so all
+            // selectors/modals (including Testset Sync modal) see fresh data.
+            invalidateEntityTestsetsListCache()
+            invalidateOssTestsetsListCache()
+
+            if (testsetId) {
+                invalidateEntityTestsetCache(testsetId)
+                invalidateEntityRevisionsListCache(testsetId)
+                invalidateOssTestsetCache(testsetId)
+                invalidateOssRevisionsListCache(testsetId)
+            }
+
+            // Clear shared in-memory revisions map used by selection UIs.
+            clearRevisionsCache()
+        },
+        [clearRevisionsCache],
+    )
 
     /**
      * Convert trace data to export format
@@ -135,6 +168,8 @@ export function useSaveTestset() {
                             : "Testset created successfully",
                     )
 
+                    invalidateSelectionCaches(newTestsetId)
+
                     // Refetch testsets list so the new testset appears
                     await revisionSelect.refetchTestsets()
 
@@ -152,21 +187,66 @@ export function useSaveTestset() {
                         return {success: false, error: "Missing testset information"}
                     }
 
-                    // NOTE: We don't call appendTestcasesAtom here because local entities
-                    // are already created by selectRevisionAtom when the user selects a revision.
-                    // Those entities are in newEntityIdsAtom and will be picked up by saveTestsetAtom.
-                    // Calling appendTestcasesAtom would create duplicates because its deduplication
-                    // compares JSON.stringify of rows which may have different column sets.
+                    const mappedColumns = Array.from(
+                        new Set(
+                            mappingData
+                                .map((mapping) =>
+                                    mapping.column === "create" || !mapping.column
+                                        ? mapping.newColumn
+                                        : mapping.column,
+                                )
+                                .filter((column): column is string => !!column),
+                        ),
+                    )
 
-                    // Save via entity mutation
-                    const result = await executeSaveTestset({
-                        projectId,
-                        testsetId: testset.id,
-                        revisionId: selectedRevisionId,
-                        commitMessage: commitMessage || undefined,
-                    })
+                    const rowsToAdd = convertTraceData({
+                        traceData,
+                        mappings: mappingData,
+                        columns: mappedColumns,
+                    }).map((data) => ({data}))
 
-                    if (result.success && result.newRevisionId) {
+                    const newColumnNames = new Set(
+                        localColumns
+                            .filter((column) => column.isNew)
+                            .map((column) => column.column)
+                            .filter(Boolean),
+                    )
+
+                    const operations: TestsetRevisionDelta = {
+                        rows: {
+                            add: rowsToAdd,
+                        },
+                    }
+
+                    if (newColumnNames.size > 0) {
+                        operations.columns = {
+                            add: Array.from(newColumnNames),
+                        }
+                    }
+
+                    const response = await patchTestsetRevision(
+                        testset.id,
+                        operations,
+                        commitMessage || undefined,
+                        selectedRevisionId || undefined,
+                    )
+                    const newRevisionId = response?.testset_revision?.id as string | undefined
+
+                    if (!response?.testset_revision) {
+                        const detail =
+                            (response as {detail?: string; error?: string; message?: string})
+                                ?.detail ||
+                            (response as {detail?: string; error?: string; message?: string})
+                                ?.error ||
+                            (response as {detail?: string; error?: string; message?: string})
+                                ?.message
+
+                        throw new Error(
+                            detail || "Failed to update testset: revision commit was not created",
+                        )
+                    }
+
+                    if (newRevisionId) {
                         message.success(
                             commitMessage
                                 ? `Saved with message: "${commitMessage}"`
@@ -175,6 +255,8 @@ export function useSaveTestset() {
 
                         // Reload revisions and update cache
                         try {
+                            invalidateSelectionCaches(testset.id)
+
                             const response = await fetchRevisionsList({
                                 projectId,
                                 testsetId: testset.id,
@@ -184,8 +266,8 @@ export function useSaveTestset() {
                                 revisions: response.testset_revisions,
                             })
 
-                            setSelectedRevisionId(result.newRevisionId)
-                            revisionSelect.setCurrentRevisionId(result.newRevisionId)
+                            setSelectedRevisionId(newRevisionId)
+                            revisionSelect.setCurrentRevisionId(newRevisionId)
                         } catch (error) {
                             console.error("Failed to reload revisions:", error)
                         }
@@ -194,9 +276,9 @@ export function useSaveTestset() {
                         resetSaveState()
                         options?.onSuccess?.()
 
-                        return {success: true, revisionId: result.newRevisionId}
+                        return {success: true, revisionId: newRevisionId}
                     } else {
-                        throw result.error || new Error("Save failed")
+                        throw new Error("Failed to update testset: missing new revision ID")
                     }
                 }
             } catch (error) {
@@ -214,14 +296,17 @@ export function useSaveTestset() {
             testset.id,
             selectedRevisionId,
             commitMessage,
-            traceData.length,
+            traceData,
+            mappingData,
+            localColumns,
             getExportData,
-            executeSaveTestset,
+            convertTraceData,
             setSelectedRevisionId,
             setRevisionsForTestset,
             revisionSelect,
             resetSaveState,
             setIsSaving,
+            invalidateSelectionCaches,
         ],
     )
 

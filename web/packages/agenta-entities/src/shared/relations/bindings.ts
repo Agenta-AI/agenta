@@ -99,8 +99,7 @@ export const loadableBindingRelation: EntityRelation<unknown, unknown> = {
 
     // Not a traditional parent-child relation, so these are no-ops
     childIdsPath: () => [],
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    childMolecule: undefined as any,
+    childMolecule: undefined as unknown as EntityRelation<unknown, unknown>["childMolecule"],
     mode: "reference",
 }
 

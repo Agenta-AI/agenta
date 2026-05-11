@@ -92,6 +92,12 @@ export interface RevisionLabelProps {
      * Additional CSS class
      */
     className?: string
+
+    /**
+     * Variant name to display alongside the version badge.
+     * Shown when revisions from multiple variants are listed together (e.g. skip-variant mode).
+     */
+    variantName?: string | null
 }
 
 // ============================================================================
@@ -108,10 +114,11 @@ export function RevisionLabel({
     author,
     renderAuthor,
     compact = false,
-    showDateInline = true,
+    showDateInline = false,
     maxMessageWidth = 220,
     reserveSubtitleSpace = false,
     className,
+    variantName,
 }: RevisionLabelProps) {
     // Format date
     const formattedDate = createdAt
@@ -154,9 +161,18 @@ export function RevisionLabel({
             {/* Version and date row */}
             <div className={cn(flexLayouts.rowCenter, "gap-2")}>
                 <VersionBadge version={version} variant="chip" />
+                {variantName && (
+                    <span
+                        className={cn("truncate text-xs", textColors.secondary)}
+                        style={{maxWidth: 120}}
+                        title={variantName}
+                    >
+                        {variantName}
+                    </span>
+                )}
                 {showDateInline && (formattedDate || reserveSubtitleSpace) && (
                     <span className={cn(textColors.muted, !formattedDate && "invisible")}>
-                        {formattedDate || "Jan 1, 2024"}
+                        {formattedDate || ""}
                     </span>
                 )}
             </div>

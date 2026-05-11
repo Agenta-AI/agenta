@@ -30,7 +30,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/evaluations/runs/",
         json={"runs": [run]},
     )
     assert response.status_code == 200
@@ -60,7 +60,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/evaluations/runs/",
         json={"runs": [run]},
     )
     assert response.status_code == 200
@@ -90,7 +90,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/evaluations/runs/",
         json={"runs": [run]},
     )
     assert response.status_code == 200
@@ -99,7 +99,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        f"/preview/evaluations/runs/{run_3['id']}/close",
+        f"/evaluations/runs/{run_3['id']}/close",
     )
 
     assert response.status_code == 200
@@ -120,7 +120,7 @@ class TestEvaluationRunsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/query",
+            "/evaluations/runs/query",
             json={
                 "run": {
                     "tags": {"_marker": marker},
@@ -145,7 +145,7 @@ class TestEvaluationRunsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/query",
+            "/evaluations/runs/query",
             json={
                 "run": {
                     "ids": run_ids,
@@ -166,7 +166,7 @@ class TestEvaluationRunsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/query",
+            "/evaluations/runs/query",
             json={
                 "run": {
                     "flags": {"is_closed": True},
@@ -189,7 +189,7 @@ class TestEvaluationRunsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/query",
+            "/evaluations/runs/query",
             json={
                 "run": {
                     "tags": {
@@ -212,7 +212,7 @@ class TestEvaluationRunsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/query",
+            "/evaluations/runs/query",
             json={
                 "run": {
                     "tags": {
@@ -238,7 +238,7 @@ class TestEvaluationRunsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/query",
+            "/evaluations/runs/query",
             json={
                 "run": {
                     "status": "success",
@@ -258,7 +258,7 @@ class TestEvaluationRunsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/query",
+            "/evaluations/runs/query",
             json={
                 "run": {
                     "status": "pending",
@@ -278,7 +278,7 @@ class TestEvaluationRunsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/query",
+            "/evaluations/runs/query",
             json={
                 "run": {
                     "status": "failure",

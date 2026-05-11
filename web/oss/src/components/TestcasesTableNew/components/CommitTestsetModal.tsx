@@ -1,11 +1,11 @@
 import {memo, useEffect, useRef, useState} from "react"
 
+import {CommitMessageInput} from "@agenta/ui"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Input, Modal, Tooltip, Typography} from "antd"
+import {Modal, Typography} from "antd"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {COMMIT_MESSAGE_MAX_LENGTH} from "@/oss/config/constants"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 
 const {Text} = Typography
@@ -105,6 +105,7 @@ const CommitTestsetModal = ({
             okButtonProps={{loading: isCommitting, disabled: isCommitting}}
             cancelButtonProps={{disabled: isCommitting}}
             destroyOnHidden
+            centered
             width={hasDiffData ? 900 : 520}
             styles={{
                 body: {
@@ -142,24 +143,16 @@ const CommitTestsetModal = ({
                         )}
                     </div>
 
-                    <div className="flex flex-col gap-1">
-                        <Text className="font-medium">
-                            Commit message{" "}
-                            <Tooltip title="A brief description of what changed helps teammates understand the revision history.">
-                                <span className="text-[#64748B]">ⓘ</span>
-                            </Tooltip>
-                        </Text>
-                        <Input.TextArea
-                            placeholder="Describe what changed in this revision..."
-                            className="w-full"
-                            value={note}
-                            onChange={(e) => setNote(e.target.value)}
-                            autoSize={{minRows: 3, maxRows: 6}}
-                            showCount
-                            maxLength={COMMIT_MESSAGE_MAX_LENGTH}
-                            autoFocus
-                        />
-                    </div>
+                    <CommitMessageInput
+                        value={note}
+                        onChange={setNote}
+                        label="Commit message"
+                        showOptional={false}
+                        placeholder="Describe what changed in this revision..."
+                        minRows={3}
+                        maxRows={6}
+                        autoFocus
+                    />
                 </div>
 
                 {hasDiffData && (

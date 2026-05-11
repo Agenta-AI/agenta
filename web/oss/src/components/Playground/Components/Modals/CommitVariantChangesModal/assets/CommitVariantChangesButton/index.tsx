@@ -1,12 +1,12 @@
 import {cloneElement, isValidElement, useCallback, useState} from "react"
 
-import {FloppyDiskBack} from "@phosphor-icons/react"
+import {workflowMolecule} from "@agenta/entities/workflow"
+import {FloppyDiskBack, Plus} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
-import {revisionIsDirtyAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {CommitVariantChangesButtonProps} from "../types"
 const CommitVariantChangesModal = dynamic(() => import("../.."), {ssr: false})
@@ -17,17 +17,21 @@ const CommitVariantChangesButton = ({
     icon = true,
     children,
     onSuccess,
-    commitType,
     ...props
 }: CommitVariantChangesButtonProps) => {
     const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
-    const isDirty = useAtomValue(revisionIsDirtyAtomFamily(variantId || ""))
-    const disabled = !variantId || !isDirty
+    const hasChanges = useAtomValue(workflowMolecule.selectors.isDirty(variantId || ""))
+    const isEphemeral = useAtomValue(workflowMolecule.selectors.isEphemeral(variantId || ""))
+
+    // Ephemeral entities are always "ready" (no dirty check needed — they need to be created)
+    const disabled = !variantId || (!isEphemeral && !hasChanges)
+    const resolvedLabel = isEphemeral ? "Create" : label
+    const resolvedIcon = isEphemeral ? <Plus size={14} /> : <FloppyDiskBack size={14} />
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const handleSuccess = useCallback(
         (payload?: {revisionId?: string; variantId?: string}) => {
             recordWidgetEvent("playground_committed_change")
-            onSuccess?.(payload)
+            onSuccess?.(payload ?? {})
         },
         [recordWidgetEvent, onSuccess],
     )
@@ -48,12 +52,12 @@ const CommitVariantChangesButton = ({
             ) : (
                 <Button
                     type="text"
-                    icon={icon && <FloppyDiskBack size={14} />}
+                    icon={icon && resolvedIcon}
                     onClick={() => setIsDeployModalOpen(true)}
                     disabled={disabled}
                     {...props}
                 >
-                    {label}
+                    {resolvedLabel}
                 </Button>
             )}
 
@@ -62,7 +66,6 @@ const CommitVariantChangesButton = ({
                 onCancel={() => setIsDeployModalOpen(false)}
                 variantId={variantId}
                 onSuccess={handleSuccess}
-                commitType={commitType}
             />
         </>
     )

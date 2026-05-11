@@ -78,6 +78,18 @@ export function encodeSnapshot(snapshot: PlaygroundSnapshot): EncodeResult {
         // Serialize to JSON
         const json = JSON.stringify(snapshot)
 
+        // Fast pre-check: LZ-String typically achieves 2-3x compression on JSON.
+        // If the raw JSON exceeds 3x the max encoded length, skip the expensive
+        // compression step — it almost certainly won't fit.
+        const RAW_SIZE_BAILOUT = MAX_ENCODED_LENGTH * 3
+        if (json.length > RAW_SIZE_BAILOUT) {
+            return {
+                ok: false,
+                error: `Raw snapshot too large for URL encoding (${json.length} bytes raw, max ~${RAW_SIZE_BAILOUT})`,
+                length: json.length,
+            }
+        }
+
         // Compress using LZ-String (URL-safe encoding)
         const encoded = compressToEncodedURIComponent(json)
 

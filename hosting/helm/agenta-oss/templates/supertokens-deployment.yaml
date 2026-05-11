@@ -1,0 +1,99 @@
+{{- if .Values.supertokens.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agenta.fullname" . }}-supertokens
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: supertokens
+spec:
+  replicas: {{ .Values.supertokens.replicas }}
+  selector:
+    matchLabels:
+      {{- include "agenta.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: supertokens
+  template:
+    metadata:
+      labels:
+        {{- include "agenta.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: supertokens
+    spec:
+      {{- include "agenta.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- with .Values.supertokens.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.postgresql.enabled }}
+      initContainers:
+        {{- include "agenta.waitForPostgres" . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: supertokens
+          image: {{ .Values.supertokens.image.repository }}:{{ .Values.supertokens.image.tag | default "latest" }}
+          imagePullPolicy: {{ .Values.supertokens.image.pullPolicy }}
+          {{- with .Values.supertokens.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.supertokens.port }}
+              protocol: TCP
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta.secretName" . }}
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRESQL_CONNECTION_URI
+              value: {{ include "agenta.postgresUriSupertokens" . | quote }}
+            - name: SUPERTOKENS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta.secretName" . }}
+                  key: SUPERTOKENS_API_KEY
+                  optional: true
+            {{- range $key, $val := .Values.supertokens.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: /hello
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /hello
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /hello
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- with .Values.supertokens.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.supertokens.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.supertokens.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.supertokens.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

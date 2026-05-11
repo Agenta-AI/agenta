@@ -1,8 +1,8 @@
+import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
 import dayjs from "dayjs"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {TraceSpanNode} from "@/oss/services/tracing/types/index"
 

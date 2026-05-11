@@ -14,14 +14,16 @@
 
 import {memo, useMemo} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
+import {formatLabel} from "@agenta/ui/drill-in"
 import {Typography} from "antd"
 import clsx from "clsx"
 
-import {formatLabel} from "../utils"
-
 import {BooleanToggleControl} from "./BooleanToggleControl"
+import {CodeEditorControl} from "./CodeEditorControl"
 import {EnumSelectControl} from "./EnumSelectControl"
+import {FeedbackConfigurationControl} from "./FeedbackConfigurationControl"
+import {FieldsTagsEditorControl} from "./FieldsTagsEditorControl"
 import {GroupedChoiceControl} from "./GroupedChoiceControl"
 import {MessagesSchemaControl, isMessagesSchema} from "./MessagesSchemaControl"
 import {NumberSliderControl} from "./NumberSliderControl"
@@ -58,6 +60,16 @@ export interface SchemaPropertyRendererProps {
     as?: "number" | "text" | "enum" | "boolean" | "textarea"
     /** Hide the model selector in prompt controls (when shown elsewhere) */
     hideModelSelector?: boolean
+    /** Optional renderer for provider icons in tool headers */
+    renderProviderIcon?: (providerKey: string) => React.ReactNode
+    /** Entity ID for scoping modal state per variant (e.g., response format modal) */
+    entityId?: string
+    /**
+     * Original server value for preserving custom descriptions.
+     * Used by FeedbackConfigurationControl to maintain custom descriptions
+     * when regenerating schemas from UI changes.
+     */
+    originalValue?: unknown
 }
 
 /**
@@ -74,14 +86,45 @@ function getControlType(
     | "enum"
     | "boolean"
     | "textarea"
+    | "code"
     | "object"
     | "object_inline"
     | "array"
     | "messages"
     | "prompt"
     | "grouped_choice"
+    | "feedback_config"
+    | "fields_tags_editor"
+    | "hidden"
     | "unknown" {
     if (forceType) return forceType
+
+    // Resolve semantic type markers using priority: x-ag-type-ref → x-ag-type → x-parameter
+    const xAgTypeRef = (schema as Record<string, unknown>)?.["x-ag-type-ref"] as string | undefined
+    const xAgType = (schema as Record<string, unknown>)?.["x-ag-type"] as string | undefined
+    const xParam = schema?.["x-parameter"] as string | undefined
+
+    // Check semantic type hints in priority order
+    if (xAgTypeRef === "hidden" || xAgType === "hidden") {
+        return "hidden"
+    }
+    if (
+        xAgTypeRef === "feedback_config" ||
+        xAgType === "feedback_config" ||
+        xParam === "feedback_config"
+    ) {
+        return "feedback_config"
+    }
+    if (
+        xAgTypeRef === "fields_tags_editor" ||
+        xAgType === "fields_tags_editor" ||
+        xParam === "fields_tags_editor"
+    ) {
+        return "fields_tags_editor"
+    }
+    if (xAgTypeRef === "code" || xAgType === "code") {
+        return "code"
+    }
 
     // When schema is null, fall back to value-based detection
     if (!schema) {
@@ -105,16 +148,19 @@ function getControlType(
     if (!resolvedSchema) return "text"
 
     // Check for prompt objects (with messages array) - must be first
+    // isPromptSchema already checks x-ag-type-ref: "prompt-template"
     if (isPromptSchema(resolvedSchema)) {
         return "prompt"
     }
 
     // Check for grouped choices (e.g., model selection) - must be before enum check
+    // hasGroupedChoices already checks x-ag-type: "grouped_choice"
     if (hasGroupedChoices(resolvedSchema)) {
         return "grouped_choice"
     }
 
     // Check for messages array (chat messages) - must be before generic array check
+    // isMessagesSchema already checks x-ag-type: "messages"
     if (isMessagesSchema(resolvedSchema)) {
         return "messages"
     }
@@ -128,7 +174,7 @@ function getControlType(
         return "enum"
     }
 
-    // Check schema type
+    // Fall back to JSON Schema type
     switch (resolvedSchema.type) {
         case "boolean":
             return "boolean"
@@ -137,13 +183,18 @@ function getControlType(
         case "integer":
             return "number"
 
-        case "string":
-            // Check for multiline hint
+        case "string": {
+            // Check for code editor hint (legacy x-parameters.code)
             const xParams = schema?.["x-parameters"] as SchemaProperty["x-parameters"]
-            if (xParams?.multiline === true || xParams?.code === true) {
+            if (xParams?.code === true) {
+                return "code"
+            }
+            // Check for multiline hint
+            if (xParams?.multiline === true) {
                 return "textarea"
             }
             return "text"
+        }
 
         case "object":
             // Check if object should be rendered inline (e.g., llm_config)
@@ -217,6 +268,9 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
     path,
     as,
     hideModelSelector = false,
+    renderProviderIcon,
+    originalValue,
+    entityId,
 }: SchemaPropertyRendererProps) {
     // Resolve anyOf/oneOf schemas for rendering
     const resolvedSchema = useMemo(() => resolveAnyOfSchema(schema), [schema])
@@ -290,6 +344,20 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                 />
             )
 
+        case "code":
+            return (
+                <CodeEditorControl
+                    schema={resolvedSchema}
+                    label={displayLabel}
+                    value={value as string | null}
+                    onChange={(v) => onChange(v)}
+                    description={tooltipDesc}
+                    withTooltip={withTooltip}
+                    disabled={disabled}
+                    className={className}
+                />
+            )
+
         case "textarea":
             return (
                 <TextInputControl
@@ -322,7 +390,8 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
             )
 
         case "object_inline":
-            // Render object properties inline (e.g., llm_config)
+            // Render object properties inline (e.g., llm_config, advanced_config)
+            // Hide header for top-level fields (path.length === 1) since they already have a section header
             return (
                 <ObjectSchemaControl
                     schema={resolvedSchema}
@@ -334,6 +403,7 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                     disabled={disabled}
                     path={path}
                     className={className}
+                    showHeader={path && path.length > 1}
                     SchemaPropertyRenderer={SchemaPropertyRenderer}
                 />
             )
@@ -364,6 +434,31 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                     disabled={disabled}
                     className={className}
                     hideModelSelector={hideModelSelector}
+                    renderProviderIcon={renderProviderIcon}
+                    entityId={entityId}
+                />
+            )
+
+        case "feedback_config":
+            // Render feedback configuration control directly (outer collapse is handled by PlaygroundConfigSection)
+            return (
+                <FeedbackConfigurationControl
+                    value={(value as Record<string, unknown>)?.json_schema ?? value}
+                    originalValue={
+                        (originalValue as Record<string, unknown>)?.json_schema ?? originalValue
+                    }
+                    onChange={(schema: unknown) => {
+                        // Update the response_format object with the new json_schema
+                        const currentValue = (value as Record<string, unknown>) ?? {}
+                        onChange({
+                            ...currentValue,
+                            type: "json_schema",
+                            json_schema: schema,
+                        })
+                    }}
+                    disabled={disabled}
+                    className={className}
+                    entityId={entityId}
                 />
             )
 
@@ -384,6 +479,20 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                 </div>
             )
 
+        case "fields_tags_editor":
+            return (
+                <FieldsTagsEditorControl
+                    schema={resolvedSchema}
+                    label={displayLabel}
+                    value={Array.isArray(value) ? (value as string[]) : []}
+                    onChange={(v) => onChange(v)}
+                    description={tooltipDesc}
+                    withTooltip={withTooltip}
+                    disabled={disabled}
+                    className={className}
+                />
+            )
+
         case "array":
             // For arrays, show indicator that user should navigate into it
             return (
@@ -396,6 +505,9 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                     </Typography.Text>
                 </div>
             )
+
+        case "hidden":
+            return null
 
         case "unknown":
         default:

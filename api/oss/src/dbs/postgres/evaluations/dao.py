@@ -286,6 +286,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 return None
 
             run_flags = run_dbe.flags or {}
+            base_flags = EvaluationRunFlags(**run_flags)
 
             if run_flags.get("is_closed", False):
                 raise EvaluationClosedConflict(
@@ -294,7 +295,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             run_references = edit_run_references(run)
 
-            run.flags = edit_run_flags(run)
+            run.flags = edit_run_flags(
+                run,
+                base_flags=base_flags,
+            )
 
             run_dbe = edit_dbe_from_dto(
                 dbe=run_dbe,
@@ -348,6 +352,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             for run_dbe in run_dbes:
                 run_flags = run_dbe.flags or {}
+                base_flags = EvaluationRunFlags(**run_flags)
 
                 if run_flags.get("is_closed", False):
                     raise EvaluationClosedConflict(
@@ -364,7 +369,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
                 run_references = edit_run_references(run)
 
-                run.flags = edit_run_flags(run)
+                run.flags = edit_run_flags(
+                    run,
+                    base_flags=base_flags,
+                )
 
                 run_dbe = edit_dbe_from_dto(
                     dbe=run_dbe,
@@ -438,6 +446,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             stmt = stmt.filter(
                 EvaluationRunDBE.id.in_(run_ids),
             )
+
+            stmt = stmt.order_by(EvaluationRunDBE.id)
 
             stmt = stmt.limit(len(run_ids))
 
@@ -521,6 +531,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.project_id == project_id,
                 EvaluationRunDBE.id.in_(run_ids),
             )
+
+            stmt = stmt.order_by(EvaluationRunDBE.id)
 
             stmt = stmt.limit(len(run_ids))
 
@@ -613,6 +625,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.project_id == project_id,
                 EvaluationRunDBE.id.in_(run_ids),
             )
+
+            stmt = stmt.order_by(EvaluationRunDBE.id)
 
             stmt = stmt.limit(len(run_ids))
 
@@ -2339,17 +2353,16 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             created_by_id=user_id,
         )
 
-        if _queue.data and _queue.data.user_ids:
-            _queue.data.user_ids = [  # type: ignore
-                [str(repeat_user_id) for repeat_user_id in repeat_user_ids]
-                for repeat_user_ids in _queue.data.user_ids
-            ]
-
         queue_dbe = create_dbe_from_dto(
             DBE=EvaluationQueueDBE,
             project_id=project_id,
-            dto=_queue,  # use _queue: has string UUIDs in data (JSON-safe)
+            dto=_queue,
         )
+        if _queue.data:
+            queue_dbe.data = _queue.data.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
         queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
         try:
@@ -2389,36 +2402,23 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     run_id=queue.run_id,
                 )
 
-        _queues = [
-            EvaluationQueue(
-                **queue.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                ),
-                created_at=datetime.now(timezone.utc),
-                created_by_id=user_id,
-            )
-            for queue in queues
-        ]
-
-        for _queue in _queues:
-            if _queue.data and _queue.data.user_ids:
-                _queue.data.user_ids = [  # type: ignore
-                    [str(repeat_user_id) for repeat_user_id in repeat_user_ids]
-                    for repeat_user_ids in _queue.data.user_ids
-                ]
-
         queue_dbes = [
             create_dbe_from_dto(
                 DBE=EvaluationQueueDBE,
                 project_id=project_id,
                 dto=queue,
                 #
+                created_at=datetime.now(timezone.utc),
                 created_by_id=user_id,
             )
             for queue in queues
         ]
         for queue_dbe, queue in zip(queue_dbes, queues):
+            if queue.data is not None:
+                queue_dbe.data = queue.data.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                )
             queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
         try:
@@ -2554,6 +2554,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 updated_by_id=user_id,
             )
             if queue.data is not None:
+                queue_dbe.data = queue.data.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                )
                 queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
             await session.commit()
@@ -2619,6 +2623,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         updated_by_id=user_id,
                     )
                     if queue.data is not None:
+                        queue_dbe.data = queue.data.model_dump(
+                            mode="json",
+                            exclude_none=True,
+                        )
                         queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
             await session.commit()

@@ -15,7 +15,7 @@ def mock_data(authed_api):
         "flags": {
             "is_custom": False,
             "is_evaluator": False,
-            "is_human": False,
+            "is_feedback": False,
         },
         "tags": {
             "tag1": "value1",
@@ -31,7 +31,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/",
+        "/workflows/",
         json={"workflow": workflow},
     )
 
@@ -45,7 +45,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"workflow-{workflow_variant_slug}",
@@ -54,7 +54,7 @@ def mock_data(authed_api):
                 "flags": {
                     "is_custom": False,
                     "is_evaluator": False,
-                    "is_human": False,
+                    "is_feedback": False,
                 },
                 "tags": {
                     "tag1": "value1",
@@ -95,7 +95,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/",
+            "/workflows/revisions/",
             json={
                 "workflow_revision": {
                     "slug": f"workflow-revision-{workflow_variant_slug}",
@@ -104,7 +104,7 @@ class TestWorkflowRevisionsBasics:
                     "flags": {
                         "is_custom": False,
                         "is_evaluator": False,
-                        "is_human": False,
+                        "is_feedback": False,
                     },
                     "tags": {
                         "tag1": "value1",
@@ -141,7 +141,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/",
+            "/workflows/revisions/",
             json={
                 "workflow_revision": {
                     "slug": f"workflow-revision-{workflow_revision_slug}",
@@ -150,7 +150,7 @@ class TestWorkflowRevisionsBasics:
                     "flags": {
                         "is_custom": False,
                         "is_evaluator": False,
-                        "is_human": False,
+                        "is_feedback": False,
                     },
                     "tags": {
                         "tag1": "value1",
@@ -178,7 +178,7 @@ class TestWorkflowRevisionsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/{workflow_revision_id}",
+            f"/workflows/revisions/{workflow_revision_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -198,7 +198,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/",
+            "/workflows/revisions/",
             json={
                 "workflow_revision": {
                     "slug": f"workflow-revision-{workflow_revision_slug}",
@@ -207,7 +207,7 @@ class TestWorkflowRevisionsBasics:
                     "flags": {
                         "is_custom": False,
                         "is_evaluator": False,
-                        "is_human": False,
+                        "is_feedback": False,
                     },
                     "tags": {
                         "tag1": "value1",
@@ -236,7 +236,7 @@ class TestWorkflowRevisionsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "PUT",
-            f"/preview/workflows/revisions/{workflow_revision_id}",
+            f"/workflows/revisions/{workflow_revision_id}",
             json={
                 "workflow_revision": {
                     "id": workflow_revision_id,
@@ -245,7 +245,7 @@ class TestWorkflowRevisionsBasics:
                     "flags": {
                         "is_custom": False,
                         "is_evaluator": False,
-                        "is_human": False,
+                        "is_feedback": False,
                     },
                     "tags": {
                         "tag1": "value3",
@@ -278,7 +278,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/",
+            "/workflows/revisions/",
             json={
                 "workflow_revision": {
                     "slug": f"workflow-revision-{workflow_revision_slug}",
@@ -287,7 +287,7 @@ class TestWorkflowRevisionsBasics:
                     "flags": {
                         "is_custom": False,
                         "is_evaluator": False,
-                        "is_human": False,
+                        "is_feedback": False,
                     },
                     "tags": {
                         "tag1": "value1",
@@ -316,7 +316,7 @@ class TestWorkflowRevisionsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            f"/preview/workflows/revisions/{workflow_revision_id}/archive",
+            f"/workflows/revisions/{workflow_revision_id}/archive",
         )
         # ----------------------------------------------------------------------
 
@@ -337,7 +337,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/",
+            "/workflows/revisions/",
             json={
                 "workflow_revision": {
                     "slug": f"workflow-revision-{workflow_revision_slug}",
@@ -346,7 +346,7 @@ class TestWorkflowRevisionsBasics:
                     "flags": {
                         "is_custom": False,
                         "is_evaluator": False,
-                        "is_human": False,
+                        "is_feedback": False,
                     },
                     "tags": {
                         "tag1": "value1",
@@ -373,7 +373,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            f"/preview/workflows/revisions/{workflow_revision_id}/archive",
+            f"/workflows/revisions/{workflow_revision_id}/archive",
         )
 
         assert response.status_code == 200
@@ -385,7 +385,7 @@ class TestWorkflowRevisionsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            f"/preview/workflows/revisions/{workflow_revision_id}/unarchive",
+            f"/workflows/revisions/{workflow_revision_id}/unarchive",
         )
         # ----------------------------------------------------------------------
 
@@ -406,7 +406,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/",
+            "/workflows/revisions/",
             json={
                 "workflow_revision": {
                     "slug": f"workflow-revision-{workflow_revision_slug}",
@@ -415,7 +415,7 @@ class TestWorkflowRevisionsBasics:
                     "flags": {
                         "is_custom": False,
                         "is_evaluator": False,
-                        "is_human": False,
+                        "is_feedback": False,
                     },
                     "tags": {
                         "tag1": "value1",
@@ -447,7 +447,7 @@ class TestWorkflowRevisionsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "revision_id": workflow_revision_id,
@@ -457,7 +457,7 @@ class TestWorkflowRevisionsBasics:
                     "flags": {
                         "is_custom": False,
                         "is_evaluator": False,
-                        "is_human": False,
+                        "is_feedback": False,
                     },
                     "tags": {
                         "tag1": "value1",
@@ -470,7 +470,7 @@ class TestWorkflowRevisionsBasics:
                         "meta3": "value3",
                     },
                     "message": message,
-                    "data": {"configuration": configuration},
+                    "data": {"parameters": configuration},
                     "workflow_id": mock_data["workflows"][0]["id"],
                     "workflow_variant_id": mock_data["workflow_variants"][0]["id"],
                 }
@@ -483,5 +483,5 @@ class TestWorkflowRevisionsBasics:
         response = response.json()
         assert response["count"] == 1
         assert response["workflow_revision"]["message"] == message
-        assert response["workflow_revision"]["data"]["configuration"] == configuration
+        assert response["workflow_revision"]["data"]["parameters"] == configuration
         # ----------------------------------------------------------------------

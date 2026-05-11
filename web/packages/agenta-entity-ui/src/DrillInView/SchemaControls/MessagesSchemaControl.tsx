@@ -12,7 +12,7 @@
 
 import {memo, useCallback, useMemo} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
 import type {SimpleChatMessage} from "@agenta/shared/types"
 import {ChatMessageList} from "@agenta/ui/chat-message"
 import {Typography} from "antd"
@@ -35,7 +35,7 @@ export interface MessagesSchemaControlProps {
     className?: string
     /** Whether to show add/remove controls (default: true) */
     showControls?: boolean
-    /** Whether to allow file uploads (default: true) */
+    /** Whether to allow file uploads (default: false for config messages) */
     allowFileUpload?: boolean
 }
 
@@ -48,9 +48,12 @@ export interface MessagesSchemaControlProps {
 export function isMessagesSchema(schema: SchemaProperty | null | undefined): boolean {
     if (!schema) return false
 
-    // Check for x-parameter: "messages"
+    // Check for x-parameter: "messages" (legacy), x-ag-messages: true, or x-ag-type: "messages"
     const xParam = schema["x-parameter"] as string | undefined
     if (xParam === "messages") return true
+    if ((schema as Record<string, unknown>)["x-ag-messages"] === true) return true
+    const xAgType = (schema as Record<string, unknown>)["x-ag-type"] as string | undefined
+    if (xAgType === "messages") return true
 
     // Check for array with message-like items
     if (schema.type === "array" && schema.items) {
@@ -134,7 +137,7 @@ function denormalizeMessages(messages: SimpleChatMessage[]): Record<string, unkn
  * - Role dropdown (user/assistant/system/tool)
  * - Rich text editor for content
  * - Add/remove message controls
- * - File/image attachment support
+ * - File/image attachment support (disabled by default for config messages)
  *
  * @example
  * ```tsx
@@ -155,7 +158,7 @@ export const MessagesSchemaControl = memo(function MessagesSchemaControl({
     disabled = false,
     className,
     showControls = true,
-    allowFileUpload = true,
+    allowFileUpload = false,
 }: MessagesSchemaControlProps) {
     // Normalize messages to SimpleChatMessage format
     const normalizedMessages = useMemo(() => normalizeMessages(value), [value])
@@ -199,6 +202,8 @@ export const MessagesSchemaControl = memo(function MessagesSchemaControl({
                 placeholder="Enter message..."
                 enableTokens={true}
                 templateFormat="curly"
+                defaultMinimized={disabled}
+                loadingFallback="none"
             />
         </div>
     )

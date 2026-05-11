@@ -15,10 +15,13 @@ import GoogleColabButton from "@site/src/components/GoogleColabButton";
 
 The Agenta API lets you query trace and span data programmatically. You can filter by attributes, time ranges, and status codes. The API returns data in two formats: flat spans or hierarchical trace trees.
 
-## API Endpoint
+## API Endpoints
+
+Two endpoints, same query body — choose the shape you want back:
 
 ```
-POST /api/tracing/spans/query
+POST /api/spans/query     # returns flat spans
+POST /api/traces/query    # returns trace trees
 ```
 
 Send queries as JSON in the request body. This approach works best for complex filters with nested conditions.
@@ -35,17 +38,9 @@ You can create API keys from the Settings page in your Agenta workspace.
 
 ## Response Format Options
 
-### Focus Parameter
+### Spans vs traces
 
-Choose how the API returns your data:
-
-**`span`**: Returns individual spans in a flat list. Use this when you need span-level details.
-
-```json
-{
-  "focus": "span"
-}
-```
+**Spans** (`POST /api/spans/query`): Returns individual spans in a flat list. Use this when you need span-level details.
 
 Example response:
 
@@ -80,13 +75,7 @@ Example response:
 }
 ```
 
-**`trace`** (default): Returns complete traces as hierarchical trees. Each trace groups its spans by `trace_id`. Use this when you need to see the full request flow.
-
-```json
-{
-  "focus": "trace"
-}
-```
+**Traces** (`POST /api/traces/query`): Returns complete traces as hierarchical trees. Each trace groups its spans by `trace_id`. Use this when you need to see the full request flow.
 
 Example response:
 
@@ -526,11 +515,10 @@ Find spans linked to specific traces:
 
 ## Complete Query Example
 
-Here's a full query that finds successful LLM calls from the last month:
+Here's a full query that finds successful LLM calls from the last month. The same body works for both `/spans/query` and `/traces/query`:
 
 ```json
 {
-  "focus": "trace",
   "oldest": "2024-01-01T00:00:00Z",
   "newest": "2024-01-31T23:59:59Z",
   "limit": 50,
@@ -554,21 +542,25 @@ Here's a full query that finds successful LLM calls from the last month:
 
 ## Response Structure
 
-The API returns JSON with these fields:
+`POST /spans/query`:
 
 ```json
 {
   "count": 42,
-  "spans": [...],     // Present when focus=span
-  "traces": {...}     // Present when focus=trace
+  "spans": [...]
 }
 ```
 
-**`count`**: Number of results returned
+`POST /traces/query`:
 
-**`spans`**: Array of spans (when `focus=span`)
+```json
+{
+  "count": 7,
+  "traces": [...]
+}
+```
 
-**`traces`**: Dictionary of trace trees indexed by trace_id (when `focus=trace`)
+**`count`**: Number of results returned. **`spans`**: Array of spans. **`traces`**: Array of trace trees.
 
 ### Span Format
 
@@ -653,7 +645,6 @@ now = datetime.now(timezone.utc)
 week_ago = now - timedelta(days=7)
 
 query = {
-    "focus": "span",
     "oldest": week_ago.isoformat(),
     "newest": now.isoformat(),
     "limit": 100,
@@ -674,7 +665,7 @@ query = {
 }
 
 response = requests.post(
-    f"{AGENTA_HOST}/api/tracing/spans/query",
+    f"{AGENTA_HOST}/api/spans/query",
     headers={
         "Authorization": f"ApiKey {API_KEY}",
         "Content-Type": "application/json"
@@ -699,7 +690,6 @@ const now = new Date();
 const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
 const query = {
-    focus: "span",
     oldest: weekAgo.toISOString(),
     newest: now.toISOString(),
     limit: 100,
@@ -720,7 +710,7 @@ const query = {
 };
 
 const response = await fetch(
-    `${AGENTA_HOST}/api/tracing/spans/query`,
+    `${AGENTA_HOST}/api/spans/query`,
     {
         method: "POST",
         headers: {

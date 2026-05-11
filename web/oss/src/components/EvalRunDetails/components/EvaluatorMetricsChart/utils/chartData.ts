@@ -1,4 +1,4 @@
-import type {BasicStats} from "@/oss/lib/metricUtils"
+import type {BasicStats} from "@agenta/ui/cell-renderers"
 
 const normalizeStats = (value: BasicStats | undefined): any => {
     if (!value || typeof value !== "object" || Array.isArray(value)) return value

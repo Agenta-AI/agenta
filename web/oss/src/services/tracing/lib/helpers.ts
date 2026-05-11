@@ -1,58 +1,21 @@
+import {
+    isSpansResponse,
+    isTracesResponse,
+    sortSpansByStartTime,
+    transformTracesResponseToTree,
+    transformTracingResponse,
+} from "@agenta/entities/trace"
 import dayjs from "dayjs"
 
-import {sortSpansByStartTime} from "@/oss/lib/traces/tracing"
+import {TracingDashboardData} from "../types"
 
-import {SpansResponse, TraceSpanNode, TracesResponse, TracingDashboardData} from "../types"
-
-export const isTracesResponse = (data: any): data is TracesResponse => {
-    return typeof data === "object" && "traces" in data
-}
-
-export const isSpansResponse = (data: any): data is SpansResponse => {
-    return typeof data === "object" && "spans" in data
-}
-
-export const transformTracesResponseToTree = (data: TracesResponse): TraceSpanNode[] => {
-    const buildTree = (spans: Record<string, any> | any[]): TraceSpanNode[] => {
-        if (!spans) {
-            return []
-        }
-
-        const spanArray = Object.values(spans).flatMap((span: any) => {
-            if (Array.isArray(span)) {
-                return buildTree(span)
-            }
-
-            const node: TraceSpanNode = {
-                ...span,
-            }
-
-            if (span?.spans && Object.keys(span.spans).length > 0) {
-                node.children = buildTree(span.spans)
-            }
-
-            return node
-        })
-
-        // Sort spans at this hierarchy level by start_time
-        return sortSpansByStartTime(spanArray)
-    }
-
-    return Object.values(data.traces).flatMap((trace: any) => buildTree(trace.spans))
-}
-
-export const transformTracingResponse = (data: TraceSpanNode[]): TraceSpanNode[] => {
-    const enhance = (span: TraceSpanNode): TraceSpanNode => ({
-        ...span,
-        key: span.span_id,
-        invocationIds: {
-            trace_id: span.trace_id,
-            span_id: span.span_id,
-        },
-        children: span.children?.map(enhance),
-    })
-
-    return data.map(enhance)
+// Re-export entity functions for backward compatibility
+export {
+    isSpansResponse,
+    isTracesResponse,
+    sortSpansByStartTime,
+    transformTracesResponseToTree,
+    transformTracingResponse,
 }
 
 export const rangeToIntervalMinutes = (range: string): number => {

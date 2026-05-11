@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-03-11-deployment-webhooks-github-automations",
+        "title": "Webhooks and GitHub Automations",
+        "description": "Trigger webhooks or GitHub Actions when a prompt deployment happens in Agenta.",
+        "link": "https://agenta.ai/docs/changelog/deployment-webhooks-and-github-automations"
+    },
+    {
         "id": "changelog-2026-02-27-tool-integrations",
         "title": "Tool Integrations in Playground",
         "description": "Connect Gmail, Slack, Notion, and 150+ tools to your prompts. Execute tool calls from the playground.",

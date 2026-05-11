@@ -81,6 +81,12 @@ export interface EntityListItemLabelProps {
     reserveSubtitleSpace?: boolean
 
     /**
+     * Whether to show the subtitle
+     * @default true
+     */
+    showSubtitle?: boolean
+
+    /**
      * Additional CSS class
      */
     className?: string
@@ -108,12 +114,14 @@ export function EntityListItemLabel({
     capitalizeSubtitle = false,
     maxLabelWidth,
     reserveSubtitleSpace = false,
+    showSubtitle = true,
     className,
 }: EntityListItemLabelProps) {
     const isInline = layout === "inline"
 
     // Determine if we need the full structure (with potential subtitle space)
-    const needsFullStructure = subtitle || icon || trailing || reserveSubtitleSpace
+    const needsFullStructure =
+        (subtitle && showSubtitle) || icon || trailing || reserveSubtitleSpace
 
     // If no subtitle, icon, trailing, or reserved space - just return the label text
     if (!needsFullStructure) {
@@ -139,20 +147,21 @@ export function EntityListItemLabel({
     )
 
     // Subtitle element - show actual subtitle or invisible spacer for consistent height
-    const subtitleElement = subtitle ? (
-        <span
-            className={cn(
-                textColors.muted,
-                capitalizeSubtitle && "capitalize",
-                isInline && "ml-1.5",
-            )}
-        >
-            {subtitle}
-        </span>
-    ) : reserveSubtitleSpace ? (
-        // Invisible spacer to maintain consistent height
-        <span className={cn(textColors.muted, "invisible", isInline && "ml-1.5")}>&nbsp;</span>
-    ) : null
+    const subtitleElement =
+        subtitle && showSubtitle ? (
+            <span
+                className={cn(
+                    textColors.muted,
+                    capitalizeSubtitle && "capitalize",
+                    isInline && "ml-1.5",
+                )}
+            >
+                {subtitle}
+            </span>
+        ) : reserveSubtitleSpace ? (
+            // Invisible spacer to maintain consistent height
+            <span className={cn(textColors.muted, "invisible", isInline && "ml-1.5")}>&nbsp;</span>
+        ) : null
 
     // Content layout (label + subtitle)
     const contentElement = isInline ? (

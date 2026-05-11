@@ -7,9 +7,8 @@
 
 import {Fragment, useCallback, useMemo} from "react"
 
+import type {BreadcrumbSlotProps} from "@agenta/ui/drill-in"
 import {ArrowLeft, ChevronRight} from "lucide-react"
-
-import type {BreadcrumbSlotProps} from "../types"
 
 import {useDrillIn} from "./MoleculeDrillInContext"
 
@@ -52,7 +51,7 @@ export function MoleculeDrillInBreadcrumb() {
                     <button
                         type="button"
                         onClick={navigateBack}
-                        className={classNames.breadcrumbBack}
+                        className={`${classNames.breadcrumbBack} border-0 bg-transparent cursor-pointer`}
                         aria-label="Go back"
                     >
                         <ArrowLeft size={16} />
@@ -63,7 +62,7 @@ export function MoleculeDrillInBreadcrumb() {
                 <button
                     type="button"
                     onClick={() => navigateToIndex(0)}
-                    className={classNames.breadcrumbItem}
+                    className={`${classNames.breadcrumbItem} border-0 bg-transparent cursor-pointer`}
                     style={styles?.breadcrumbItem}
                 >
                     {rootTitle}
@@ -78,7 +77,7 @@ export function MoleculeDrillInBreadcrumb() {
                         <button
                             type="button"
                             onClick={() => navigateToIndex(index + 1)}
-                            className={classNames.breadcrumbItem}
+                            className={`${classNames.breadcrumbItem} border-0 bg-transparent cursor-pointer`}
                             style={styles?.breadcrumbItem}
                         >
                             {segment}

@@ -33,6 +33,7 @@
  */
 
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
+import {sessionAtom} from "@agenta/shared/state"
 import {
     isValidUUID,
     getValueAtPath as getValueAtPathUtil,
@@ -167,6 +168,7 @@ const revisionWithTestcasesQueryAtomFamily = atomFamily((revisionId: string) =>
         const projectId = projectIdMap.get(revisionId) ?? null
         const enabledSet = get(revisionWithTestcasesEnabledAtom)
         const isEnabled =
+            get(sessionAtom) &&
             enabledSet.has(revisionId) &&
             Boolean(projectId && revisionId && isValidUUID(revisionId))
 
@@ -179,7 +181,7 @@ const revisionWithTestcasesQueryAtomFamily = atomFamily((revisionId: string) =>
 
                 try {
                     const response = await axios.post(
-                        `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+                        `${getAgentaApiUrl()}/testsets/revisions/query`,
                         {
                             testset_revision_refs: [{id: revisionId}],
                             windowing: {limit: 1},

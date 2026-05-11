@@ -130,7 +130,7 @@ async def test_api_resolution_flow():
     print("  3. Embeds resolved recursively ✓")
     print("  4. Resolution metadata collected ✓")
     print("  5. Workflow revision updated with resolved config ✓")
-    print("\nThe actual API endpoint at POST /preview/workflows/revisions/resolve")
+    print("\nThe actual API endpoint at POST /workflows/revisions/resolve")
     print("follows this exact pattern!")
 
 

@@ -1,21 +1,16 @@
+import {
+    appWorkflowsListQueryAtom,
+    nonArchivedAppWorkflowsAtom,
+    queryWorkflows,
+} from "@agenta/entities/workflow"
+import type {Workflow} from "@agenta/entities/workflow"
+import {projectIdAtom, sessionAtom, stringStorage} from "@agenta/shared/state"
 import {atom} from "jotai"
-import {atomFamily, atomWithStorage} from "jotai/utils"
+import {atomWithStorage} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {ListAppsItem, User} from "@/oss/lib/Types"
-import {fetchAppContainerURL} from "@/oss/services/api"
-import {fetchAllApps} from "@/oss/services/app"
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
-import {activeInviteAtom} from "@/oss/state/url/auth"
 
-import {selectedOrgIdAtom} from "../../org"
-import {userAtom, profileQueryAtom} from "../../profile/selectors/user"
-import {projectIdAtom} from "../../project/selectors/project"
-import {jwtReadyAtom} from "../../session/jwt"
-import {devLog} from "../../utils/devLog"
-import {stringStorage} from "../../utils/stringStorage"
 import {LS_APP_KEY} from "../assets/constants"
 
 const baseRouterAppIdAtom = atom<string | null>(null)
@@ -76,95 +71,63 @@ export const routerAppNavigationAtom = atom(null, (get, set, next: string | null
 
 export const recentAppIdAtom = atomWithStorage<string | null>(LS_APP_KEY, null, stringStorage)
 
-export const appsQueryAtom = atomWithQuery<ListAppsItem[]>((get) => {
+export const currentAppQueryAtom = atomWithQuery<Workflow | null>((get) => {
     const projectId = get(projectIdAtom)
-    const profileState = get(profileQueryAtom)
-    const user = get(userAtom) as User | null
-    const isProj = !!projectId
-    const jwtReady = get(jwtReadyAtom).data ?? false
-    const organizationId = get(selectedOrgIdAtom)
-    const activeInvite = get(activeInviteAtom)
-    const enabled =
-        profileState.isSuccess &&
-        jwtReady &&
-        !!user?.id &&
-        isProj &&
-        !!projectId &&
-        !!organizationId &&
-        !activeInvite
+    const appId = get(routerAppIdAtom) || get(recentAppIdAtom)
+    const liveApps = get(nonArchivedAppWorkflowsAtom)
+    const liveApp = appId ? (liveApps.find((app) => app.id === appId) ?? null) : null
 
     return {
-        queryKey: ["apps", projectId],
+        queryKey: ["currentApp", projectId, appId],
         queryFn: async () => {
-            const data = await fetchAllApps(projectId)
-            return data.filter((app) => app.app_type !== "custom (sdk)")
+            if (!projectId || !appId) return null
+
+            const response = await queryWorkflows({
+                projectId,
+                workflowRefs: [{id: appId}],
+                includeArchived: true,
+            })
+
+            return response.workflows.find((workflow) => workflow.id === appId) ?? null
         },
-        staleTime: 1000 * 60, // 1 minute
+        enabled: get(sessionAtom) && !!projectId && !!appId && !liveApp,
+        initialData: liveApp ?? undefined,
+        staleTime: 30_000,
         refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
-        refetchOnMount: false,
-        enabled,
     }
 })
 
+interface WorkflowListQueryState {
+    data?: Workflow[]
+    isPending?: boolean
+    isLoading?: boolean
+    isFetching?: boolean
+    isError?: boolean
+    error?: Error | null
+    refetch?: () => unknown
+}
+
+// ============================================================================
+// APPS QUERY (derived from entity workflow list)
+// ============================================================================
+
 /**
- * Atom family for fetching app container URIs
- * Creates focused atoms for specific app+variant combinations
+ * Apps query atom — derives from entity `appWorkflowsListQueryAtom`.
+ *
+ * Returns `Workflow[]` directly from the entity layer (non-evaluator, non-archived).
  */
-export const uriQueryAtomFamily = atomFamily((params: {appId: string; variantId?: string}) =>
-    atomWithQuery<string>((get) => {
-        const {appId, variantId} = params
-        const projectId = get(projectIdAtom)
+export const appsQueryAtom = atom((get) => {
+    const query = get(appWorkflowsListQueryAtom) as WorkflowListQueryState
+    const workflows = get(nonArchivedAppWorkflowsAtom)
 
-        return {
-            queryKey: ["uri", appId, variantId],
-            queryFn: async () => {
-                const url = await fetchAppContainerURL(appId, variantId)
-                return `${url}/run`
-            },
-            staleTime: 1000 * 60 * 5, // 5 minutes - URIs don't change often
-            refetchOnWindowFocus: false,
-            refetchOnReconnect: false,
-            refetchOnMount: false,
-            enabled: !!projectId && !!variantId, // Only fetch when variantId is provided
-            retry: (failureCount, error) => {
-                // Don't retry if it's a 404 or similar client error
-                if (
-                    (error as any)?.response?.status >= 400 &&
-                    (error as any)?.response?.status < 500
-                ) {
-                    return false
-                }
-                return failureCount < 3
-            },
-        }
-    }),
-)
-
-export const appDetailQueryAtomFamily = atomFamily((appId: string | null) =>
-    atomWithQuery<ListAppsItem | null>((get) => {
-        const projectId = get(projectIdAtom)
-
-        return {
-            queryKey: ["app", appId, projectId],
-            queryFn: async () => {
-                if (!appId) return null
-                const {data} = await axios.get(
-                    `${getAgentaApiUrl()}/apps/${encodeURIComponent(appId)}?project_id=${projectId}`,
-                )
-                return data as ListAppsItem
-            },
-            staleTime: 1000 * 60,
-            refetchOnWindowFocus: false,
-            refetchOnReconnect: false,
-            refetchOnMount: false,
-            enabled: !!projectId && !!appId,
-        }
-    }),
-)
-
-const logApps = process.env.NEXT_PUBLIC_LOG_APP_ATOMS === "true"
-
-;[appsQueryAtom, routerAppIdAtom, recentAppIdAtom].forEach((a, i) =>
-    devLog(a as any, ["appsQueryAtom", "routerAppIdAtom", "recentAppIdAtom"][i], logApps),
-)
+    return {
+        data: workflows,
+        isPending: query.isPending ?? false,
+        isLoading: query.isLoading ?? query.isPending,
+        isFetching: query.isFetching ?? false,
+        isError: query.isError ?? false,
+        isSuccess: !query.isPending && !query.isError,
+        error: query.error ?? null,
+        refetch: query.refetch,
+    }
+})

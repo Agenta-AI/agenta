@@ -7,87 +7,70 @@
 // Leaf components
 export {EmptyState} from "./EmptyState"
 
-// Loadable entity panel
-export {
-    LoadableEntityPanel,
-    type LoadableEntityPanelProps,
-    LoadableRowCard,
-    type LoadableRowCardProps,
-} from "./LoadableEntityPanel"
-
-// Input mapping modal
-export {
-    InputMappingModalWrapper,
-    type InputMappingModalProps,
-    type InputMappingModalWrapperProps,
-    type EntityInfo,
-    type PathInfo,
-    type MappingStatusInfo,
-    useMappingState,
-    getMappingStatus,
-    extractPathsFromValue,
-    buildAvailablePaths,
-    // Sub-components
-    MappingLegend,
-    ObjectMappingRow,
-    PathSelector,
-    ScalarMappingRow,
-    TestRunPreview,
-} from "./InputMappingModal"
-
 // Entity selector
 export {
-    EntitySelectorProvider,
     EntitySelector,
     EntitySelectorModal,
+    EntitySelectorProvider,
     useEntitySelector,
     type EntitySelection,
     type EntitySelectorConfig,
     type EntityType,
 } from "./EntitySelector"
 
-// Load evaluator preset modal
+// Execution result view (unified completion result renderer)
+export {default as ExecutionResultView} from "./ExecutionResultView"
+
+// Execution header (unified single + comparison header)
+export {default as ExecutionHeader} from "./ExecutionHeader"
+export type {ExecutionHeaderProps} from "./ExecutionHeader"
+
+// Tool call view
+export {default as ToolCallView, ToolCallViewHeader, createToolCallPayloads} from "./ToolCallView"
+
+// Chat controls
+export {default as ControlsBar, type ControlsBarProps} from "./ControlsBar"
+
+// Focus drawer
+export {default as PlaygroundFocusDrawer} from "./FocusDrawer"
+
+// Execution items
 export {
-    LoadEvaluatorPresetModal,
-    type LoadEvaluatorPresetModalProps,
-    type SettingsPreset,
-} from "./LoadEvaluatorPresetModal"
+    ChatMode,
+    ChatTurnView,
+    CompletionMode,
+    default as ExecutionItems,
+    ExecutionRow,
+    GatewayToolAssistantActions,
+    GatewayToolExecuteButton,
+    type ChatModeProps,
+    type CompletionModeProps,
+    type PlaygroundGenerationsProps as ExecutionItemsProps,
+    type ExecutionRowProps,
+} from "./ExecutionItems"
 
-// Configuration section
-export {ConfigurationSection, type ConfigurationSectionProps} from "./ConfigurationSection"
-
-// Runnable entity panel
-export {RunnableEntityPanel, type RunnableEntityPanelProps} from "./RunnableEntityPanel"
-
-// Config panel (left panel)
-export {ConfigPanel, type ConfigPanelProps, type OutputReceiverInfo} from "./ConfigPanel"
-
-// Testcase panel (right panel)
-export {TestcasePanel, type TestcasePanelProps} from "./TestcasePanel"
-
-// Runnable columns layout (multi-column navigation)
+// Execution item comparison view
 export {
-    RunnableColumnsLayout,
-    type RunnableColumnsLayoutProps,
-    type RunnableNode,
-} from "./RunnableColumnsLayout"
+    GenerationComparisonChatOutput,
+    GenerationComparisonCompletionOutput,
+    GenerationComparisonInputHeader,
+    GenerationComparisonOutput,
+    GenerationComparisonOutputHeader,
+} from "./ExecutionItemComparisonView"
 
-// Main orchestrator
-export {PlaygroundContent} from "./PlaygroundContent"
-
-// Testset selection modal (entity-based)
+// Testset selection modal (entity-based, for load/edit modes)
+// For saving new testsets, use EntityCommitModal from @agenta/entity-ui with renderModeContent
 export {
+    CreateTestsetCard,
+    SelectionSummary,
+    TestcaseTable,
     TestsetSelectionModal,
+    useTestsetSelection,
+    type CreateCardRenderProps,
+    type PreviewPanelRenderProps,
+    type SelectionSummaryProps,
+    type TestcaseTableProps,
     type TestsetSelectionModalProps,
     type TestsetSelectionMode,
     type TestsetSelectionPayload,
-    type TestcaseTableProps,
-    type SelectionSummaryProps,
-    useTestsetSelection,
-    // Sub-components
-    TestcaseTable,
-    SelectionSummary,
 } from "./TestsetSelectionModal"
-
-// Execution metrics display
-export {ExecutionMetrics, type ExecutionMetricsProps, type InlineTreeData} from "./ExecutionMetrics"

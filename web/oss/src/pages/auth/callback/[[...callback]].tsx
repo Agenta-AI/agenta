@@ -9,6 +9,7 @@ import {signInAndUp} from "supertokens-auth-react/recipe/thirdparty"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
+import {isTurnstileEnabled, setPendingTurnstileToken} from "@/oss/lib/helpers/auth/turnstile"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
@@ -16,6 +17,7 @@ import {authFlowAtom} from "@/oss/state/session"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 const Auth = dynamic(() => import("../[[...path]]"), {ssr: false})
+const TurnstileWidget = dynamic(() => import("@/oss/components/pages/auth/Turnstile"), {ssr: false})
 
 const Callback = () => {
     const router = useRouter()
@@ -23,6 +25,7 @@ const Callback = () => {
     const {handleAuthSuccess} = usePostAuthRedirect()
     const hasHandledCallback = useRef(false)
     const setAuthFlow = useSetAtom(authFlowAtom)
+    const [turnstileReady, setTurnstileReady] = useState(!isTurnstileEnabled())
 
     const state = router.query.state as string
     const code = router.query.code as string
@@ -132,13 +135,13 @@ const Callback = () => {
     }, [state, code, router.isReady])
 
     useEffect(() => {
-        if (window.location.pathname.startsWith("/auth/callback/")) {
+        if (turnstileReady && window.location.pathname.startsWith("/auth/callback/")) {
             console.log("[AUTH-CALLBACK] Detected callback path", {
                 path: window.location.pathname,
             })
             handleThirdPartyCallback()
         }
-    }, [])
+    }, [turnstileReady])
 
     useLazyEffect(() => {
         if (message.message) {
@@ -153,6 +156,18 @@ const Callback = () => {
             <Spin spinning={true} className="!max-h-screen">
                 <Auth />
             </Spin>
+
+            {isTurnstileEnabled() && !turnstileReady && (
+                <TurnstileWidget
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 dark:bg-black/80"
+                    onTokenChange={(token: string | null) => {
+                        if (token) {
+                            setPendingTurnstileToken(token)
+                            setTurnstileReady(true)
+                        }
+                    }}
+                />
+            )}
 
             {message.message && (
                 <Alert

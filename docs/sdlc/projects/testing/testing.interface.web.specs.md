@@ -179,7 +179,7 @@ test("create app @coverage:smoke @path:happy", async ({ page }) => {
 |----------|-------------|---------|
 | `TESTMAIL_API_KEY` | E2E tests | Email-based auth flow testing |
 | `TESTMAIL_NAMESPACE` | E2E tests | Testmail namespace |
-| `AGENTA_OSS_OWNER_PASSWORD` | E2E tests (OSS only) | OSS owner account password |
-| `AGENTA_OSS_OWNER_EMAIL` | E2E tests (OSS, optional) | OSS owner email |
+| `AGENTA_TEST_OSS_OWNER_PASSWORD` | E2E tests (OSS only) | OSS owner account password |
+| `AGENTA_TEST_OSS_OWNER_EMAIL` | E2E tests (OSS, optional) | OSS owner email |
 | `AGENTA_API_URL` | E2E teardown, API flows | API base URL |
 | `NEXT_PUBLIC_AGENTA_API_URL` | Data layer tests | API URL for frontend |

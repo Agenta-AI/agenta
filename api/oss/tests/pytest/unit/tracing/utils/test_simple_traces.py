@@ -30,7 +30,6 @@ CHILD_UUID = "41d6cfe0-4b90-11ec-41d6-cfe04b9011ec"
 
 def test_build_simple_trace_attributes_builds_ag_payload():
     attrs = build_simple_trace_attributes(
-        trace_kind="invocation",
         flags={"is_web": True},
         tags={"env": "dev"},
         meta={"origin": "api"},
@@ -39,7 +38,7 @@ def test_build_simple_trace_attributes_builds_ag_payload():
     )
 
     ag = attrs["ag"]
-    assert ag["type"] == {"trace": "invocation", "span": "task"}
+    assert ag["type"] == {"span": "task"}
     assert ag["flags"]["is_web"] is True
     assert ag["tags"]["env"] == "dev"
 

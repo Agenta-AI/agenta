@@ -4,15 +4,14 @@
  * Web Worker Provider Component
  *
  * This component initializes the web worker once at a high level to prevent
- * multiple instances from being created when usePlaygroundAtoms is used
+ * multiple instances from being created when playground atoms are used
  * in multiple components.
  */
 
 import {useEffect} from "react"
 
+import {executionItemController} from "@agenta/playground"
 import {useSetAtom} from "jotai"
-
-import {handleWebWorkerResultAtom} from "@/oss/state/newPlayground/mutations/webWorkerIntegration"
 
 import useWebWorker from "../../hooks/useWebWorker"
 
@@ -21,14 +20,17 @@ interface WebWorkerProviderProps {
 }
 
 export const WebWorkerProvider = ({children}: WebWorkerProviderProps) => {
-    const handleWebWorkerResult = useSetAtom(handleWebWorkerResultAtom)
+    const handleWebWorkerResult = useSetAtom(executionItemController.actions.handleWebWorkerResult)
+    const setExecutionWorkerBridge = useSetAtom(
+        executionItemController.actions.setExecutionWorkerBridge,
+    )
 
     // Initialize web worker once at the provider level
     const {postMessageToWorker, createWorkerMessage} = useWebWorker(
         (message: any) => {
             try {
                 if (message && typeof message === "object") {
-                    if (message.type === "runVariantInputRowResult" && message.payload) {
+                    if (message.type === "runVariantRowResult" && message.payload) {
                         handleWebWorkerResult(message.payload)
                         return
                     }
@@ -47,19 +49,17 @@ export const WebWorkerProvider = ({children}: WebWorkerProviderProps) => {
         true, // Enable listening for messages
     )
 
-    // Store web worker functions globally for access by atoms
+    // Inject worker bridge into playground state
     useEffect(() => {
-        // Store the web worker functions in a global object for access by atoms
-        ;(window as any).__playgroundWebWorker = {
+        setExecutionWorkerBridge({
             postMessageToWorker,
             createWorkerMessage,
-        }
+        })
 
         return () => {
-            // Clean up on unmount
-            delete (window as any).__playgroundWebWorker
+            setExecutionWorkerBridge(null)
         }
-    }, [postMessageToWorker, createWorkerMessage])
+    }, [postMessageToWorker, createWorkerMessage, setExecutionWorkerBridge])
 
     return <>{children}</>
 }

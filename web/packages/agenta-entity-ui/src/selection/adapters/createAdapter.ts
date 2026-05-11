@@ -97,6 +97,11 @@ export function createAdapter<TSelection>(
             onBeforeLoad: level.onBeforeLoad,
             // Filtering
             filterItems: level.filterItems,
+            // Grouping
+            getGroupKey: level.getGroupKey,
+            getGroupLabel: level.getGroupLabel,
+            // Tabs
+            buildTabs: level.buildTabs,
         }
     })
 

@@ -250,7 +250,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                             setHoveredProvider(visible ? group.label || null : null)
                                         }
                                         arrow={false}
-                                        overlayInnerStyle={{padding: 0}}
+                                        styles={{container: {padding: 0}}}
                                         content={
                                             <div className="max-h-[300px] overflow-y-auto min-w-[200px] py-1">
                                                 {group.options.map((option) => (

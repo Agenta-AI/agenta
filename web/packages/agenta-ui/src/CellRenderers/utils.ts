@@ -2,6 +2,8 @@
  * Shared utility functions for cell content rendering
  */
 
+import {safeJson5Parse} from "@agenta/shared/utils"
+
 import {DEFAULT_MAX_LINES, MAX_CELL_CHARS} from "./constants"
 
 /**
@@ -175,6 +177,18 @@ export const extractChatMessages = (
 ): unknown[] | null => {
     if (depth > 3) return null
     if (!value) return null
+
+    if (typeof value === "string") {
+        const trimmed = value.trim()
+        if (!trimmed) return null
+
+        const parsed = safeJson5Parse(trimmed)
+        if (parsed !== null && parsed !== value) {
+            return extractChatMessages(parsed, options, depth + 1, seen)
+        }
+
+        return null
+    }
 
     // Direct array - check if it looks like chat messages
     if (Array.isArray(value)) {

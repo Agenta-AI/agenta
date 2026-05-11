@@ -9,10 +9,11 @@ const EnhancedDrawer = ({
     closeOnLayoutClick = true,
     width,
     styles,
+    afterOpenChange: externalAfterOpenChange,
     ...props
 }: EnhancedDrawerProps) => {
-    const [shouldRender, setShouldRender] = useState(false)
     const {open: isVisible, onClose, mask} = props
+    const [shouldRender, setShouldRender] = useState(!!isVisible)
 
     const drawerStyles = useMemo(() => {
         if (!width) return styles
@@ -55,8 +56,8 @@ const EnhancedDrawer = ({
         }
     }, [shouldRender, closeOnLayoutClick, onClose])
 
-    const handleAfterClose = (open: boolean) => {
-        props.afterOpenChange?.(open)
+    const handleAfterOpenChange = (open: boolean) => {
+        externalAfterOpenChange?.(open)
         if (!open) {
             setShouldRender(false)
         }
@@ -66,10 +67,9 @@ const EnhancedDrawer = ({
 
     return (
         <Drawer
-            open={isVisible}
-            afterOpenChange={handleAfterClose}
-            destroyOnHidden
             {...props}
+            open={isVisible}
+            afterOpenChange={handleAfterOpenChange}
             styles={drawerStyles}
             mask={maskProps}
         >

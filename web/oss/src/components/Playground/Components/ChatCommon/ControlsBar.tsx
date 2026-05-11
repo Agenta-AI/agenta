@@ -1,31 +1,20 @@
-import React from "react"
+import {useCallback} from "react"
 
-import AddButton from "@/oss/components/Playground/assets/AddButton"
-import RunButton from "@/oss/components/Playground/assets/RunButton"
+import ControlsBarBase, {type ControlsBarProps} from "@agenta/playground-ui/chat-controls"
+import {useSetAtom} from "jotai"
 
-interface Props {
-    isRunning?: boolean
-    onRun: () => void
-    onCancel: () => void
-    onAddMessage: () => void
-}
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 
-const ControlsBar: React.FC<Props> = ({isRunning, onRun, onCancel, onAddMessage}) => {
-    return (
-        <div className="flex items-center gap-2">
-            {!isRunning ? (
-                <RunButton onClick={onRun} size="small" />
-            ) : (
-                <RunButton isCancel onClick={onCancel} size="small" />
-            )}
-            <AddButton
-                size="small"
-                label="Message"
-                onClick={onAddMessage}
-                disabled={Boolean(isRunning)}
-            />
-        </div>
-    )
+/**
+ * OSS ControlsBar — wraps the package component with onboarding tracking.
+ */
+const ControlsBar = (props: Omit<ControlsBarProps, "onTrackRun">) => {
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
+    const onTrackRun = useCallback(() => {
+        recordWidgetEvent("playground_ran_prompt")
+    }, [recordWidgetEvent])
+
+    return <ControlsBarBase {...props} onTrackRun={onTrackRun} />
 }
 
 export default ControlsBar
