@@ -3,7 +3,7 @@
 ## Current State
 
 **Branch:** `ts-sdk-chore/example-apps`
-**Last Updated:** 2026-05-11 (P-COMMON-01 added — Next.js HTTP auto-instrumentation buries AI SDK spans in UI)
+**Last Updated:** 2026-05-11 (Phase 5 Nuxt added + P-NUXT-01 — H3 v2 RC has no working abort-signal path)
 
 ---
 
@@ -19,7 +19,8 @@
 | 3a | Next.js Pages Router — raw OTel | ✅ 4/4 nodejs assertions PASS · edge route can't BUILD on raw OTel (P-PAGES-RAW-01) |
 | 3b | Next.js Pages Router — `@vercel/otel` | ✅ 4/4 nodejs assertions PASS (assertion-1 loosened — P-PAGES-VERCEL-01 empty token metrics) · edge route BUILDS + runs (`@vercel/otel` passes Pages-edge static check) with same ~10-15s delay as App Router edge |
 | 4 | React TanStack Start (20h hard cap) | ✅ 4/4 nodejs assertions PASS · 3 TanStack-specific pain entries captured (P-TANSTACK-01/02/03) · edge probe deferred (no per-route opt-in, needs preset swap — P-TANSTACK-02) |
-| 5 | Pain log de-dup + severity grouping → SDK design phase input | 🔜 PENDING |
+| 5 | Nuxt 4 (Vue + Nitro) — raw OTel | ✅ 4/4 assertions PASS (assertion-2 needs 30s flush window per P-NUXT-01: H3 v2 RC's abort signal is undefined at runtime) · trace hierarchy CLEAN (ai.streamText IS root, P-COMMON-01 does not apply) · edge probe deferred (no per-route opt-in, same as TanStack) |
+| 6 | Pain log de-dup + severity grouping → SDK design phase input | 🔜 PENDING |
 
 ---
 

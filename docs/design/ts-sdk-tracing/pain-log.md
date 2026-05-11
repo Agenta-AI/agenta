@@ -7,7 +7,7 @@ Structured friction log from spike apps under `web/examples/*`. Each entry captu
 ```markdown
 ## P-{FRAMEWORK}-NN: <one-line title>
 
-**Framework:** <node | app-router-raw | app-router-vercel | pages-router-raw | pages-router-vercel | tanstack | common>
+**Framework:** <node | app-router-raw | app-router-vercel | pages-router-raw | pages-router-vercel | tanstack | nuxt | common>
 **Severity:**
   - User impact: <high | med | low>          // would a real user hit this?
   - Self-recoverable: <yes | partially | no>  // can they fix it from docs alone?
@@ -36,6 +36,7 @@ Per-framework prefix to prevent merge conflicts on numeric IDs. Each framework n
 - `P-PAGES-RAW-NN` — Next.js Pages Router with raw OTel
 - `P-PAGES-VERCEL-NN` — Next.js Pages Router with `@vercel/otel`
 - `P-TANSTACK-NN` — React TanStack Start
+- `P-NUXT-NN` — Nuxt 3/4 (Vue + Nitro)
 - `P-COMMON-NN` — Cross-framework / backend-side findings (Agenta UI, adapter, attribute schema)
 
 ## Quality bar
@@ -736,6 +737,95 @@ export default withAgentaInstrumentation(
 ```
 
 **Notes:** Cost us ~30 minutes of "why does every request 500?" debugging during Phase 4 scaffolding. Resolution required reading the framework's own default-entry source, not the docs. **Implication for `ts-sdk-tracing`:** combines with P-TANSTACK-01 — the SDK's TanStack Start adapter SHOULD own both the instrumentation wiring and the export-shape wrapping. Users never write `export default createStartHandler(...)` directly; they wrap it through our adapter. This is the cheapest possible value-add and dodges a documented framework foot-gun.
+
+### Nuxt 3/4 (Vue + Nitro) (P-NUXT-*)
+
+## P-NUXT-01: H3 v2 RC has no working abort-signal propagation — mid-stream client abort doesn't reach `streamText`
+
+**Framework:** nuxt
+**Severity:**
+  - User impact: high
+  - Self-recoverable: no
+  - Silent failure: no
+
+**The friction (code that exists today):**
+
+In Nuxt 4 (`nuxt@4.4.5` + `nitro@2.13.4` + `h3@2.0.1-rc.20`), there's no working way to get an `AbortSignal` that fires when a client aborts a streaming request mid-flight. The H3 v2 RC types document THREE potential paths, all of which fail at runtime in the Nitro Node-runtime preset:
+
+```ts
+// server/api/chat.post.ts — Nuxt streaming chat
+export default defineEventHandler(async (event) => {
+    // (1) The typed Web Fetch shape — H3 docs comment links to MDN's
+    //     `Request.signal`:
+    const signal = event.req.signal
+    // → undefined at runtime. event.req exists but lacks `.signal`.
+
+    // (2) The "runtime-specific additional context" path:
+    const signal = event.runtime?.node?.req?.signal
+    // → undefined at runtime. event.runtime itself is undefined.
+
+    // (3) The deprecated Node IncomingMessage path:
+    event.node?.req?.on("close", () => streamCtrl.abort())
+    // → 'close' event fires, but only AFTER the response stream finishes
+    //   draining naturally (model completes), NOT when the client
+    //   disconnects mid-stream. So it doesn't help.
+
+    // Net effect: streamText receives no abortSignal, model keeps
+    // generating after client abort, span ends ~7-15s late.
+    const result = streamText({
+        model: openai("gpt-4o-mini"),
+        messages,
+        experimental_telemetry: {isEnabled: true, metadata: {userId, sessionId}},
+        // abortSignal: ??? — no working path
+    })
+    return result.toUIMessageStreamResponse()
+})
+```
+
+**Verified isolation (2026-05-11):**
+
+Runtime probe in `web/examples/nuxt-raw/server/api/chat.post.ts` printed:
+
+```
+[chat.post probe] {
+    "event.req exists": true,
+    "event.req.signal exists": false,    ← typed but missing at runtime
+    "event.node exists": true,
+    "event.node.req exists": true,
+    "event.runtime exists": false        ← typed but missing at runtime
+}
+```
+
+Empirical confirmation via assertion-2:
+- `ASSERTION_FLUSH_WINDOW_S=5` (default for other phases): **FAIL** — span not in Agenta within 5s of client abort
+- `ASSERTION_FLUSH_WINDOW_S=30`: **PASS** — span arrives ~7-15s after abort (= the time it takes the model to finish naturally and the streamText span to end on its own)
+
+Compare to other phases under the same setup:
+- Phase 2a Next.js App Router raw OTel: 5s window PASS — `req.signal` works in Next.js
+- Phase 4 TanStack Start: 5s window PASS — different framework, abort path works
+- Phase 1 Node: 5s window PASS — no framework HTTP layer, `AbortController` flows through directly
+
+So the failing variable is specifically **H3 v2 RC's broken AbortSignal exposure on Node runtime in Nuxt 4 / Nitro 2.13**.
+
+**What would be ideal (sketch of how the SDK would hide this):**
+
+```ts
+// SDK ships a Nuxt server-route helper that fabricates a working
+// AbortSignal via whatever mechanism actually works in the current
+// Nitro version (close event polling, Node-side response 'close',
+// or whatever H3 stabilizes). Users don't see the H3 version skew.
+import {agentaStreamText} from "@agenta/sdk/nuxt"
+
+export default defineEventHandler(async (event) => {
+    return agentaStreamText(event, {
+        model: openai("gpt-4o-mini"),
+        messages,
+        metadata: {userId, sessionId},
+    })
+})
+```
+
+**Notes:** Discovered during Phase 5 scaffolding while running the 4 canonical assertions. Initial assertion-2 failed at 5s; raising to 30s passed. Probed the H3 event shape three different ways before confirming no working path exists. **Why this matters:** mid-stream client abort handling is the cost-control mechanism for production LLM apps — if a user closes their tab mid-generation, the server should stop generating to avoid burning tokens for nothing. Today's Nuxt 4 users can't do that. Their costs include all the streamText completions that ran to natural completion after the user already left. **Why partial-silent:** the span DOES arrive in Agenta (eventually), so observability isn't broken — but the production cost behavior IS broken, and the gap between "client aborted" and "trace lands" is much longer than other frameworks (7-15s vs <1s). **Investigation deferred:** whether H3 v2 stable (when it ships) fixes this; whether building Nuxt against `vercel-edge` preset would route through `event.web.request.signal` instead and surface a working signal. Both kept in observation space.
 
 ### Cross-framework / backend findings (P-COMMON-*)
 

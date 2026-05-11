@@ -33,6 +33,7 @@ const KNOWN_FRAMEWORKS = new Set([
     "pages-router-raw",
     "pages-router-vercel",
     "tanstack",
+    "nuxt",
     "common",
 ])
 
@@ -43,6 +44,7 @@ const FRAMEWORK_PREFIX = {
     "pages-router-raw": "P-PAGES-RAW-",
     "pages-router-vercel": "P-PAGES-VERCEL-",
     tanstack: "P-TANSTACK-",
+    nuxt: "P-NUXT-",
     common: "P-COMMON-",
 }
 
