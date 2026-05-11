@@ -2,6 +2,6 @@
 
 Read and follow all instructions in:
 
-`../../../.agents/skills/write-social-announcement.md`
+`../../../.agents/skills/write-social-announcement/SKILL.md`
 
 This file is a thin Claude-native wrapper over the shared source.

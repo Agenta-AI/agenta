@@ -7,6 +7,6 @@ user-invocable: true
 
 Read and follow all instructions in:
 
-`../../../.agents/skills/add-announcement.md`
+`../../../.agents/skills/add-announcement/SKILL.md`
 
 This file is a thin Claude-native wrapper over the shared source.

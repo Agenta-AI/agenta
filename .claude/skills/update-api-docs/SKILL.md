@@ -5,7 +5,7 @@ description: Claude projection for the shared update-api-docs skill.
 
 Read and follow all instructions in:
 
-`../../../.agents/skills/update-api-docs.md`
+`../../../.agents/skills/update-api-docs/SKILL.md`
 
 ## Overview
 

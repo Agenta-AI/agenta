@@ -291,7 +291,7 @@ If the roadmap item had a `githubUrl` pointing to a GitHub discussion:
 
 ### Step 8: Create Social Media Announcements
 
-**Follow the guidelines in:** `.agents/skills/write-social-announcement.md`
+**Follow the guidelines in:** `.agents/skills/write-social-announcement/SKILL.md`
 
 That skill contains comprehensive guidelines for writing authentic announcements that avoid common AI writing patterns. Key points:
 

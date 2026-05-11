@@ -1,8 +1,12 @@
-# Findings Skills
+# Skills
 
-This folder contains the canonical skill definitions for findings-driven review work in this repo.
+This folder contains the canonical skill definitions for this repo.
 
-The workflow is organized around five generic skills:
+Each skill lives in its own folder as `.agents/skills/<name>/SKILL.md`, optionally with platform metadata under `<name>/agents/` (e.g. Codex `openai.yaml`) and shared references under `.agents/skills/shared/`.
+
+## Findings-driven review
+
+The findings workflow is organized around five generic skills:
 
 1. `scan-codebase`
 2. `test-codebase`
@@ -56,16 +60,16 @@ Code + Docs -- scan-codebase --> Findings <-- test-codebase -- Tests / Runtime /
 For Codex:
 
 - invoke a skill with `$skill-name`
-- `agents/skills/` is the canonical source, but Codex auto-discovers from `~/.codex/skills`
+- `.agents/skills/` is the canonical source, but Codex auto-discovers from `~/.codex/skills`
 - if a skill does not appear under `$`, refresh the symlink or install it into `~/.codex/skills` and reload Codex
 
 For Claude:
 
 - invoke a project skill with `/project:skill-name` when your Claude client exposes project skills that way
 - otherwise use the Claude project skills picker after reloading the project
-- `.claude/skills/` contains the Claude-facing wrappers for the canonical skills in `agents/skills/`
+- `.claude/skills/` contains the Claude-facing wrappers for the canonical skills in `.agents/skills/`
 
-## Skills
+## Findings skills
 
 ### `scan-codebase`
 
@@ -211,3 +215,13 @@ For Claude:
 ```text
 /project:resolve-findings
 ```
+
+## Docs and announcements skills
+
+- `add-announcement`
+- `create-changelog-announcement`
+- `update-api-docs`
+- `update-llm-model-list`
+- `write-social-announcement`
+
+See each `<name>/SKILL.md` for usage. Claude-native wrappers live in `.claude/skills/<name>/SKILL.md` and point back to these shared sources.

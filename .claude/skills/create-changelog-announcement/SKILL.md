@@ -7,6 +7,6 @@ user-invocable: true
 
 Read and follow all instructions in:
 
-`../../../.agents/skills/create-changelog-announcement.md`
+`../../../.agents/skills/create-changelog-announcement/SKILL.md`
 
 This file is a thin Claude-native wrapper over the shared source.
