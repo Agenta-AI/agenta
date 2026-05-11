@@ -60,14 +60,21 @@ Code + Docs -- scan-codebase --> Findings <-- test-codebase -- Tests / Runtime /
 For Codex:
 
 - invoke a skill with `$skill-name`
-- `.agents/skills/` is the canonical source, but Codex auto-discovers from `~/.codex/skills`
-- if a skill does not appear under `$`, refresh the symlink or install it into `~/.codex/skills` and reload Codex
+- `.agents/skills/` is the canonical source; `.codex/skills/<name>` contains relative symlinks into it for project-local discovery
+- if a skill does not appear under `$`, check that the symlink exists in `.codex/skills/` and reload Codex
+- do not install these skills into `~/.codex/skills/` — keep discovery project-local
 
 For Claude:
 
 - invoke a project skill with `/project:skill-name` when your Claude client exposes project skills that way
 - otherwise use the Claude project skills picker after reloading the project
-- `.claude/skills/` contains the Claude-facing wrappers for the canonical skills in `.agents/skills/`
+- `.claude/skills/<name>` contains relative symlinks into `.agents/skills/<name>` for project-local discovery
+
+For GitHub Copilot:
+
+- invoke a skill with `/skill-name` in Copilot Chat when your client supports it
+- `.copilot/skills/<name>` contains relative symlinks into `.agents/skills/<name>` for project-local discovery
+- if a skill does not appear under `/`, check `.agents/platforms/copilot.md` for client-specific discovery notes
 
 ## Findings skills
 
@@ -219,9 +226,10 @@ For Claude:
 ## Docs and announcements skills
 
 - `add-announcement`
+- `changelog-editor`
 - `create-changelog-announcement`
 - `update-api-docs`
 - `update-llm-model-list`
 - `write-social-announcement`
 
-See each `<name>/SKILL.md` for usage. Claude-native wrappers live in `.claude/skills/<name>/SKILL.md` and point back to these shared sources.
+See each `<name>/SKILL.md` for usage. Claude-facing skill directories under `.claude/skills/<name>` are relative symlinks back to these shared sources.

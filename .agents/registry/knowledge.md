@@ -9,18 +9,19 @@ This file points to the main internal documentation surfaces agents should use.
 - `.agents/registry/agents.md`
 - `.agents/platforms/codex.md`
 - `.agents/platforms/claude.md`
+- `.agents/platforms/copilot.md`
 
 ## Documentation taxonomy and reorganization
 
-- `docs/sdlc/projects/agentic-engineering/documentation_taxonomy.md`
-- `docs/sdlc/projects/agentic-engineering/reorganization_scope.md`
-- `docs/sdlc/projects/agentic-engineering/decomposition_proposal.md`
-- `docs/sdlc/projects/agentic-engineering/projects_future_extractable_truth_matrix.md`
+- `.knowledge/projects/agentic-organization/misc/documentation_taxonomy.md`
+- `.knowledge/projects/agentic-organization/misc/reorganization_scope.md`
+- `.knowledge/projects/agentic-organization/misc/decomposition_proposal.md`
+- `.knowledge/projects/agentic-organization/misc/projects_future_extractable_truth_matrix.md`
 
 ## Current major project packs
 
-- `docs/sdlc/projects/code-review/`
-- `docs/sdlc/projects/testing/`
+- `.knowledge/projects/code-review/`
+- `.knowledge/projects/testing/`
 
 ## Canonical destinations
 
@@ -30,4 +31,4 @@ When they exist and are populated, the canonical durable surfaces are:
 - `docs/sdlc/system/`
 - `docs/sdlc/product/`
 
-Until material has been distilled into validated, verified, invariant truth, it should remain in `docs/sdlc/projects/`.
+Until material has been distilled into validated, verified, invariant truth, it should remain in `.knowledge/projects/`.

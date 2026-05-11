@@ -18,6 +18,11 @@ The shared source lives in:
 
 - `AGENTS.md` = Codex/native bootstrap wrapper
 - `.agents/` = shared internal-agent surface
+- `.codex/skills/` = project-local Codex skill discovery (relative symlinks into `.agents/skills/`)
 - `.claude/` = Claude-native projection layer
 
 Codex should use `AGENTS.md` only as the entrypoint and then continue into `.agents/`.
+
+## Skill discovery
+
+Codex discovers skills via `.codex/skills/<name>` symlinks pointing at `../../.agents/skills/<name>`. The links are relative, so they stay valid across worktrees and clones. Do not install these skills into `~/.codex/skills/` — keep discovery project-local.

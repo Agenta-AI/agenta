@@ -1,3 +1,8 @@
+---
+name: write-social-announcement
+description: Write authentic social media announcements for LinkedIn, Twitter/X, and Slack that avoid common AI writing patterns. Use when drafting launch posts, release notes, or feature announcements for social channels.
+---
+
 # Write Social Media Announcements
 
 This skill creates authentic social media announcements for LinkedIn, Twitter/X, and Slack that avoid common AI writing patterns.

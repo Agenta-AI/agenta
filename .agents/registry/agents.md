@@ -1,11 +1,7 @@
 # Agents Registry
 
-Canonical shared agent source files now live in `.agents/agents/`.
+No shared agents are currently defined.
 
-Current shared agents:
+The previous `changelog-editor` agent has been converted to a skill — see `.agents/skills/changelog-editor/SKILL.md`.
 
-- `.agents/agents/changelog-editor.md`
-
-Claude-native wrappers remain under `.claude/agents/`.
-
-Those wrappers should stay thin and point back to these shared source files.
+Claude-native agent wrappers, if any are reintroduced later, live under `.claude/agents/`. They should stay thin and point back to the shared source under `.agents/agents/`.

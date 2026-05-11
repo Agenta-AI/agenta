@@ -25,13 +25,27 @@ The API documentation is generated from an OpenAPI spec using `docusaurus-plugin
 
 ## Steps
 
-### 1. Download the OpenAPI spec from production
+### 1. Run the update script
 
 ```bash
-curl -s "https://cloud.agenta.ai/api/openapi.json" -o docs/docs/reference/openapi.json
+cd docs
+
+# Default — fetch from production (live cloud API)
+pnpm update-api-docs
+
+# Explicit live cloud API
+pnpm update-api-docs:live
+
+# From a locally running API (http://localhost/api/openapi.json)
+pnpm update-api-docs:local
+
+# From an explicit local file
+pnpm update-api-docs:file /path/to/openapi.json
 ```
 
-**Important:** The file should be saved in **minified format** (single line, no pretty-printing) to match the existing format in the repository. The curl command above preserves the original format from the server.
+The wrapper script at `docs/scripts/update-api-docs.sh` downloads or copies the
+OpenAPI spec, writes it to `docs/docs/reference/openapi.json`, then regenerates
+the API docs.
 
 ### 2. Install dependencies (if needed)
 
@@ -39,37 +53,25 @@ If this is a fresh clone or dependencies haven't been installed:
 
 ```bash
 cd docs
-npm install
+pnpm install
 ```
 
-### 3. Clean existing generated API docs
+The script runs `npm run clean-api-docs -- agenta` followed by
+`npm run gen-api-docs -- agenta`. The `agenta` argument refers to the OpenAPI
+config ID defined in `docusaurus.config.ts`.
 
-```bash
-cd docs
-npm run clean-api-docs -- agenta
-```
-
-The `agenta` argument refers to the OpenAPI config ID defined in `docusaurus.config.ts`.
-
-### 4. Regenerate API docs
-
-```bash
-cd docs
-npm run gen-api-docs -- agenta
-```
-
-This will generate:
+This generates:
 - Individual `.api.mdx` files for each endpoint
 - `.tag.mdx` files for API categories
 - `sidebar.ts` for navigation
 
-### 5. Verify the changes
+### 3. Verify the changes
 
 Optionally, start the dev server to preview:
 
 ```bash
 cd docs
-npm run start
+pnpm start
 ```
 
 Then visit `http://localhost:5000/docs/reference/api` to verify the API docs render correctly.
@@ -101,7 +103,7 @@ npm run gen-api-docs -- agenta
 
 ### "docusaurus: not found" error
 
-Run `npm install` in the `docs/` directory first.
+Run `pnpm install` in the `docs/` directory first.
 
 ### Deprecation warning about onBrokenMarkdownLinks
 

@@ -5,6 +5,7 @@ Canonical shared skill source files live under `.agents/skills/<name>/SKILL.md`.
 ## Docs and announcements
 
 - `.agents/skills/add-announcement/SKILL.md`
+- `.agents/skills/changelog-editor/SKILL.md`
 - `.agents/skills/create-changelog-announcement/SKILL.md`
 - `.agents/skills/update-api-docs/SKILL.md`
 - `.agents/skills/update-llm-model-list/SKILL.md`
@@ -25,6 +26,10 @@ Shared references for the findings workflow:
 
 Each skill folder may also carry platform metadata under `<name>/agents/` (e.g. Codex `openai.yaml`).
 
-Claude-native wrappers remain under `.claude/skills/<name>/SKILL.md`.
+Per-platform projections:
 
-Those wrappers should stay thin and point back to these shared source files.
+- Claude discovery: `.claude/skills/<name>` (relative symlinks into `.agents/skills/<name>`)
+- Codex discovery: `.codex/skills/<name>` (relative symlinks into `.agents/skills/<name>`)
+- Copilot discovery: `.copilot/skills/<name>` (relative symlinks into `.agents/skills/<name>`)
+
+Wrappers and symlinks should stay thin and point back to these shared source files.
