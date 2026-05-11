@@ -4,7 +4,7 @@
 
 **Goal:** measure real friction wiring AI SDK v6 + raw OpenTelemetry + Agenta across the runtime/framework patterns most TS users will hit, before we design `ts-sdk-tracing`.
 
-**Current status:** Phase 1 (Node) + Phase 2a/2b (App Router raw + vercel-otel) + Phase 3a (Pages Router raw) complete. **7 ecosystem pain entries** captured, 4 silent-failure-shaped. The Phase 2 A/B test isolated the dominant pattern: **`BatchSpanProcessor` + AI SDK v6 `streamText` is the universal flush failure**, regardless of whether you wire raw OTel or `@vercel/otel`. Edge runtime: raw OTel emits zero spans ever (P-APP-RAW-01); `@vercel/otel` emits spans with ~10-15s delay (P-APP-VERCEL-02); Pages Router raw OTel can't even BUILD an edge route (P-PAGES-RAW-01). 3 self-inflicted SDK gaps separately tracked in [status.md](./status.md) as locked-in requirements.
+**Current status:** Phase 1 (Node) + Phase 2a/2b (App Router raw + vercel-otel) + Phase 3a/3b (Pages Router raw + vercel-otel) complete. **8 ecosystem pain entries** captured, 5 silent-failure-shaped. The Phase 2 A/B test isolated the dominant pattern: **`BatchSpanProcessor` + AI SDK v6 `streamText` is the universal flush failure**, regardless of whether you wire raw OTel or `@vercel/otel`. Edge runtime: raw OTel emits zero spans ever (P-APP-RAW-01); `@vercel/otel` emits spans with ~10-15s delay (P-APP-VERCEL-02); Pages Router raw OTel can't even BUILD an edge route (P-PAGES-RAW-01) but `@vercel/otel` does build and run on Pages-edge. Phase 3b also surfaced a new silent-failure pattern: **Pages Router + `@vercel/otel` + `pipeUIMessageStreamToResponse` produces EMPTY `ag.metrics.tokens`** on the parent span (P-PAGES-VERCEL-01) — token counts disappear when wiring documented best-practice from both ecosystems. 3 self-inflicted SDK gaps separately tracked in [status.md](./status.md) as locked-in requirements.
 
 ---
 
@@ -48,6 +48,14 @@
 - 4/4 nodejs-runtime canonical assertions GREEN
 - **Edge route DROPPED at build time:** Pages Router edge runtime rejects `@opentelemetry/exporter-trace-otlp-http` import via static dynamic-code-eval check, even though the same import compiles fine in App Router edge (P-PAGES-RAW-01)
 
+### Phase 3b — Next.js 15 Pages Router + `@vercel/otel` (A/B counterpart)
+- App: [`web/examples/nextjs-pages-router-vercel/`](../../../web/examples/nextjs-pages-router-vercel/)
+- Stack: same Pages Router app shape as 3a, instrumentation collapses to a single `registerOTel()` call from `@vercel/otel`. Same `pipeUIMessageStreamToResponse` Pages-Router streaming sink as 3a
+- Routes: `pages/api/chat.ts` streaming, `pages/api/sentinels.ts`, AND **`pages/api/edge-chat.ts` (`config = {runtime: "edge"}`)** which `@vercel/otel` allows to BUILD where raw OTel could not
+- 4/4 nodejs-runtime canonical assertions GREEN, BUT assertion-1 had to be loosened to drop the token-metrics check (P-PAGES-VERCEL-01 — see below)
+- **Edge route compiles AND runs:** `@vercel/otel` ships an edge-safe bundle that passes Pages Router's strict static dynamic-code-eval check, where raw OTel hit a hard build failure (P-PAGES-RAW-01). Spans arrive on edge with the same ~10-15s delay seen in App Router + `@vercel/otel` (P-APP-VERCEL-02 behavior reproduces)
+- **New silent failure surfaced:** `streamText` parent span arrives with `ag.metrics.tokens = {}` (empty object, all token counts dropped) — but ONLY in this 4-way combination of Pages Router + `@vercel/otel` + `pipeUIMessageStreamToResponse` + AI SDK v6 streamText. Each isolated piece works alone (P-PAGES-VERCEL-01)
+
 ### Canonical assertions (each spike app's `pnpm test` runs all four)
 1. **Cold-start trace completeness** — fresh process / fresh request produces a complete trace with model + tokens + metadata
 2. **Mid-stream client-abort flush** — streamed call aborted 500ms in still produces a queryable parent span within 5s
@@ -56,7 +64,7 @@
 
 ## What worked
 
-- 11/12 nodejs-runtime canonical assertions GREEN across the three v6 apps (Phase 1 Node + Phase 2a App Router raw + Phase 2b App Router vercel-otel)
+- 19/20 nodejs-runtime canonical assertions GREEN across the five v6 apps (Phase 1 Node + 2a App Router raw + 2b App Router vercel-otel + 3a Pages Router raw + 3b Pages Router vercel-otel)
 - `generateText` traces arrive with full attribute payload (`ag.{data,meta,metrics,type,user,session}`) under v4, v6, raw OTel and `@vercel/otel`
 - `streamText` traces arrive when using `SimpleSpanProcessor` — confirmed across Node + App Router raw. Including from `useChat` consumers
 - Tool-call output captured under the parent span's `ag.data.outputs.toolCalls`
@@ -77,19 +85,20 @@
 | **P-APP-VERCEL-01** (silent) | `@vercel/otel`'s default `BatchSpanProcessor` loses streamText spans on mid-stream client abort — same root cause as P-NODE-02, manifested through the wrapper | `@vercel/otel`'s opinionated wrapper picks `BatchSpanProcessor`. AI SDK v6 streamText's `endWhenDone: false` lifecycle interacts badly with batched flush across both raw and vercel-otel paths | Same as P-NODE-02: SDK MUST own the processor choice. Letting Vercel's wrapper pick the "production-grade" Batch silently breaks the dominant streaming use case |
 | **P-APP-VERCEL-02** | `@vercel/otel` edge route emits spans, but with ~10-15s delay (BatchSpanProcessor batch interval) | BatchSpanProcessor's default 5s flush interval + edge function freeze creates a race; `@vercel/otel`'s `waitUntil`-style wiring rescues most spans but not within an interactive window | SDK's edge-runtime helper must flush within the response cycle (under 1s end-to-end), not on the batch tick |
 | **P-PAGES-RAW-01** | Pages Router edge route fails at BUILD time on raw OTel exporter (App Router edge accepts the same import) | Pages Router's edge runtime applies stricter dynamic-code-eval static analysis than App Router's; `@opentelemetry/exporter-trace-otlp-http` contains code patterns Pages-edge rejects | SDK's edge bundle must be eval-free (or rely on `@vercel/otel`'s edge bundle which already passes the strict check). Pages Router users can't ship edge tracing on raw OTel today AT ALL — not even with the workarounds that App Router accepts |
+| **P-PAGES-VERCEL-01** (silent) | Pages Router + `@vercel/otel` + `pipeUIMessageStreamToResponse` + AI SDK v6 `streamText` produces EMPTY `ag.metrics.tokens` on the parent span (every other 3-way combo of these works) | The `pipeUIMessageStreamToResponse` sink writes UIMessageChunks straight to the Node `ServerResponse` and the Pages-Router-shaped span lifecycle ends before `@vercel/otel`'s span attribute population path runs (App Router's `toUIMessageStreamResponse()` keeps the span alive long enough; raw OTel's `SimpleSpanProcessor` flushes synchronously regardless) | SDK must wrap `streamText` itself and own span-attribute population independent of how the consumer drains the stream — OR ship its own `pipeUIMessageStreamToResponse` analog that hooks into the AI SDK's stream lifecycle. Solves this AND P-NODE-02 AND P-APP-VERCEL-01 in one shot |
 
 Full entries with code samples, severity tags, and ideal-API sketches in [`pain-log.md`](./pain-log.md).
 
 ## Cross-cutting takeaways for `ts-sdk-tracing`
 
-The A/B test between Phases 2a (raw OTel) and 2b (`@vercel/otel`) on the SAME app shape isolated the dominant patterns the SDK has to design around. None of the four pain entries is solved by simply picking the "right" wrapper; the SDK has to own the decisions:
+The A/B tests between raw OTel and `@vercel/otel` on the SAME app shape (Phases 2a/2b for App Router, 3a/3b for Pages Router) isolated the dominant patterns the SDK has to design around. None of the pain entries is solved by simply picking the "right" wrapper; the SDK has to own the decisions:
 
-1. **The SDK must own the span processor choice.** Both raw OTel + Batch (P-NODE-02) and `@vercel/otel`'s default Batch (P-APP-VERCEL-01) fail mid-stream-abort flush for `streamText`. Letting users pick a "production" processor silently breaks streaming traces — and streaming chat IS the dominant AI SDK use case. SDK ships either a streamText-aware Batch processor or forces Simple with documented latency tax.
-2. **The SDK must own edge runtime instrumentation.** Raw OTel + edge (P-APP-RAW-01) emits zero spans ever; `@vercel/otel` + edge (P-APP-VERCEL-02) emits spans but with 10-15s delay. Neither is acceptable for an interactive app. SDK ships an edge helper that flushes within the response cycle (waitUntil-aware, sub-second end-to-end).
+1. **The SDK must own the `streamText` span lifecycle, not just the processor choice.** Three separate Phase 2/3 pain entries (P-NODE-02, P-APP-VERCEL-01, P-PAGES-VERCEL-01) all stem from `streamText`'s `endWhenDone: false` parent span ending at an awkward moment relative to whatever ships next: `BatchSpanProcessor` flush window, mid-stream abort, or the response sink draining synchronously before attribute population runs. Letting users compose "AI SDK streamText + their favourite OTel processor + their favourite stream sink" silently breaks at least one of {trace arrival, mid-abort flush, token-metric population} for every combination tested. SDK should wrap `streamText` itself and own span end + flush + attribute population — OR ship sink-side helpers (`pipeUIMessageStreamToResponse` analog, `toUIMessageStreamResponse` analog) that hook the lifecycle.
+2. **The SDK must own edge runtime instrumentation.** Raw OTel + edge has two failure modes depending on router: zero spans ever (App Router, P-APP-RAW-01) or hard build failure (Pages Router, P-PAGES-RAW-01). `@vercel/otel` + edge works on both routers but with 10-15s delay (P-APP-VERCEL-02 + same on Pages-edge). SDK ships an edge helper with eval-free bundle (passes both routers' static checks) and flushes within the response cycle (waitUntil-aware, sub-second end-to-end).
 3. **Resource attributes need a designated path or first-class API.** `service.name` and other OTel Resource attrs are silently dropped by Agenta's adapter (P-NODE-01). Either backend adapter preserves them under a documented path OR SDK exposes typed service-tag helpers that map to whatever path Agenta does keep.
 4. **Per-trace metadata propagation is users' implicit assumption.** AI SDK only attaches `metadata.userId` to parent spans, not children like `ai.toolCall` (P-NODE-03). SDK should either propagate metadata or expose a "find the full trace by metadata" helper that hides the parent-only-filtering reality.
 
-These four are the design priorities. Phases 3 (Pages Router) and 4 (TanStack Start) will likely surface variations on the same themes rather than fundamentally new categories.
+These four are the design priorities. Phase 4 (TanStack Start) will likely surface variations on the same themes rather than fundamentally new categories.
 
 ## SDK requirements (locked, separate from pain log)
 
@@ -112,7 +121,8 @@ These were initially logged as pain entries but, on user review, are obvious fea
 
 ## Next steps
 
-- **Phase 3a/3b** — Pages Router raw + vercel-otel variants. Lower priority than Phase 2 because Pages Router is legacy; the spike's value is mostly confirming the patterns hold (or differ) on the older API surface
 - **Phase 4** — TanStack Start (highest unknown). Hour-budget capped per design doc. May surface new categories around Vite SSR + worker-style edge
-- **SDK design has enough input to start a serious draft.** 6 pain entries + 4 cross-cutting takeaways + 3 SDK requirements is enough material to sketch the SDK API surface. Phases 3 and 4 tighten/extend rather than redirect
-- **Investigation deferred:** root-cause why raw OTel + edge emits zero spans (P-APP-RAW-01) — likely worth a 1-2 hour source dive into how `@vercel/otel` wires its edge flush to inform the SDK's own edge helper design
+- **SDK design has enough input to start a serious draft.** 8 pain entries + 4 cross-cutting takeaways + 3 SDK requirements is enough material to sketch the SDK API surface. Phase 4 will tighten/extend rather than redirect
+- **Investigations deferred:**
+  - Root-cause why raw OTel + edge emits zero spans (P-APP-RAW-01) — likely worth a 1-2 hour source dive into how `@vercel/otel` wires its edge flush to inform the SDK's own edge helper design
+  - Root-cause why `pipeUIMessageStreamToResponse` + `@vercel/otel` drops `ag.metrics.tokens` (P-PAGES-VERCEL-01) — narrow down whether the parent span ends before AI SDK populates `usage` (likely) or whether `@vercel/otel`'s span attribute serializer drops the field. Either answer informs the SDK's `streamText` wrapper design

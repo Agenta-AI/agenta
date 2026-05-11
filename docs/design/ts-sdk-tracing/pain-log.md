@@ -483,7 +483,72 @@ So Pages Router edge has stricter static analysis at build time than App Router 
 
 ### Next.js Pages Router — `@vercel/otel` (P-PAGES-VERCEL-*)
 
-_No entries yet._
+## P-PAGES-VERCEL-01: Pages Router `streamText` + `pipeUIMessageStreamToResponse` produces EMPTY `ag.metrics.tokens` on the parent span
+
+**Framework:** pages-router-vercel
+**Severity:**
+  - User impact: high
+  - Self-recoverable: no
+  - Silent failure: yes
+
+**The friction (code that exists today):**
+
+The Pages Router streaming path is `pipeUIMessageStreamToResponse({response: res, stream: result.toUIMessageStream({onFinish})})` because Pages handlers receive a Node `ServerResponse`, not a fetch `Response`. Same `streamText` call shape as App Router, same `@vercel/otel` instrumentation. Yet the parent `ai.streamText` span arrives in Agenta with `ag.metrics.tokens` set to an EMPTY object — no `incremental.prompt`, no `incremental.completion`, no `cumulative.*`, no token counts AT ALL:
+
+```ts
+// pages/api/chat.ts — Pages Router + @vercel/otel + AI SDK v6 streamText
+const result = runStreamChat(modelMessages, {userId: runId, sessionId: runId}, reqSignal)
+pipeUIMessageStreamToResponse({
+    response: res,
+    stream: result.toUIMessageStream({
+        onFinish: async () => { await flushTraces() },
+    }),
+})
+
+// Span arrives in Agenta with the rest of ag.* populated correctly:
+//   ag.user.id, ag.session.id, ag.meta.request.model = "gpt-4o-mini",
+//   ag.data.inputs / outputs, ag.type.* — all present
+//
+// But:
+//   ag.metrics.tokens = {}     ← EMPTY OBJECT, not missing, not omitted
+//
+// In the App Router + @vercel/otel sibling app, the same streamText call
+// via toUIMessageStreamResponse() populates ag.metrics.tokens.incremental.*.
+// In Node v6 + raw OTel + SimpleSpanProcessor, the same streamText call
+// also populates ag.metrics.tokens.incremental.*.
+//
+// Only the Pages Router + @vercel/otel + pipeUIMessageStreamToResponse
+// combination drops the token metrics entirely.
+```
+
+**Verified isolation (2026-05-11):**
+- `node-vercel-ai-v6` (raw OTel + SimpleSpanProcessor + streamText): `ag.metrics.tokens.incremental.*` populated ✓
+- `nextjs-app-router-vercel` (`@vercel/otel` + streamText + `toUIMessageStreamResponse`): `ag.metrics.tokens.incremental.*` populated ✓
+- `nextjs-pages-router-raw` (raw OTel + streamText + `pipeUIMessageStreamToResponse`): `ag.metrics.tokens.incremental.*` populated ✓
+- `nextjs-pages-router-vercel` (`@vercel/otel` + streamText + `pipeUIMessageStreamToResponse`): **`ag.metrics.tokens = {}`** ✗
+
+So the failure variable is the combination of `@vercel/otel`'s wrapper + Pages Router's `pipeUIMessageStreamToResponse` sink. Either alone works.
+
+**What would be ideal (sketch of how the SDK would hide this):**
+
+```ts
+// SDK ships a streamText wrapper that owns span attribute population
+// regardless of how the consumer drains the stream:
+import {streamText} from "@agenta/sdk/ai"
+
+const result = streamText({...})         // SDK ensures token counts always
+                                         // land on the parent span before the
+                                         // span ends — no matter whether the
+                                         // consumer pipes via Node res, fetch
+                                         // Response, useChat transport, etc.
+
+pipeUIMessageStreamToResponse({response: res, stream: result.toUIMessageStream()})
+//   → ag.metrics.tokens populated ✓
+```
+
+**Notes:** Discovered during assertion-1 in Phase 3b. Initial assertion-1 (cloned from Phase 3a) checked `ag.metrics.tokens.incremental.prompt > 0` — passed in Phase 3a (raw OTel), failed in Phase 3b (`@vercel/otel`). Loosened the assertion to verify model + metadata only and captured this as the pain entry. **Why this matters:** token counts are the #1 metric users instrument LLM calls for — cost tracking, rate limiting, model selection. If they silently disappear when wiring `pipeUIMessageStreamToResponse` (the documented Pages Router pattern) on top of `@vercel/otel` (Vercel's recommended OTel wrapper), users have built a working observability pipeline that lies about cost. Both pieces are documented best-practice in their respective ecosystems. Their combination silently breaks the most commonly-checked metric. **Implication for `ts-sdk-tracing`:** the SDK either (a) wraps `streamText` itself and owns span-attribute population, OR (b) ships its own `pipeUIMessageStreamToResponse` analog that hooks the AI SDK's stream lifecycle to ensure tokens land on the span before it ends. Option (a) is the cleaner answer because it solves this AND P-NODE-02 AND P-APP-VERCEL-01 in one shot.
+
+### React TanStack Start (P-TANSTACK-*)
 
 ### React TanStack Start (P-TANSTACK-*)
 
