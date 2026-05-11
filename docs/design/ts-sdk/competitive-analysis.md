@@ -1,53 +1,109 @@
 # Competitive Analysis: Braintrust vs Langfuse TS SDKs
 
-> **Purpose.** Input for the agenta TS SDK RFC. Compares the two closest competitors that ship TypeScript SDKs covering tracing + evals + prompts on the same surface area we're rebuilding. Findings are framed against the `ts-sdk-tracing` spike's 11 pain entries (App Router raw/vercel-otel, Pages Router raw/vercel-otel, TanStack Start, AI SDK v6 streaming + abort, edge runtime).
+> **Purpose.** Input for the agenta TS SDK RFC. Compares the two closest competitors that ship TypeScript SDKs covering the full surface area agenta is rebuilding — tracing, prompts, datasets, evals, scoring, media, annotations, sessions, plus the platform-glue (auth, multi-project, CLI, query). Findings are framed against the `ts-sdk-tracing` spike's 11 pain entries AND agenta's existing Python SDK managers (`AppManager`, `VariantManager`, `DeploymentManager`, `ConfigManager`, `SecretsManager`, `VaultManager`, `testsets`).
 >
-> **Methodology.** v1 of this doc (2026-05-11) was synthesis of web research. v2 (this version, 2026-05-11) is a **source-code audit** of both repos cloned locally — every load-bearing claim has a `file:line` citation. v1's framework was kept; ~18 specific claims were corrected against source.
+> **Methodology.** Three audit passes:
+> - **v1** (2026-05-11): web research synthesis. Multiple wrong claims.
+> - **v2** (2026-05-11): source-code audit of tracing + export surfaces, both repos cloned locally, file:line citations. Corrected ~18 v1 claims.
+> - **v3** (2026-05-11, this version): source audit of every NON-tracing surface — prompts, datasets, evals/experiments, scoring, media, annotations, sessions, functions, CLI, auth, configuration, cost tracking, query/read-back. File:line citations throughout.
 >
 > **Sources audited.**
-> - Braintrust: `braintrust` v3.10.0 — `github.com/braintrustdata/braintrust-sdk-javascript` (193 ts source files in `js/src/`, 8 satellite packages in `integrations/`).
-> - Langfuse: `@langfuse/*` v5.3.0 — `github.com/langfuse/langfuse-js` (6 scoped packages).
-> - GitHub issue [#12643](https://github.com/langfuse/langfuse/issues/12643) (verified OPEN, body matches).
+> - Braintrust: `braintrust` v3.10.0 — [`github.com/braintrustdata/braintrust-sdk-javascript`](https://github.com/braintrustdata/braintrust-sdk-javascript). 193 ts files in `js/src/`, 8 satellite packages in `integrations/`. Core entrypoint: `js/src/exports.ts` (288 lines re-exporting from `logger.ts` (~8700 lines), `framework.ts`, `framework2.ts`).
+> - Langfuse: `@langfuse/*` v5.3.0 — [`github.com/langfuse/langfuse-js`](https://github.com/langfuse/langfuse-js). Six scoped packages. Composition root: `packages/client/src/LangfuseClient.ts` mounts five named managers (`prompt`, `dataset`, `score`, `media`, `experiment`) + raw Fern-generated `api.*` (24 resource namespaces).
+> - GitHub issue [#12643](https://github.com/langfuse/langfuse/issues/12643) — verified OPEN, body confirms AI SDK v6 abort failure mode.
+
+---
+
+## Table of contents
+
+0. [TL;DR](#0-tldr)
+1. [Package layout & install surface](#1-package-layout--install-surface)
+2. [Initialization & state model](#2-initialization--state-model)
+3. [Tracing API surface](#3-tracing-api-surface)
+4. [AI provider integrations](#4-ai-provider-integrations)
+5. [Export model & edge runtime](#5-export-model--edge-runtime)
+6. [Prompts](#6-prompts)
+7. [Datasets & testsets](#7-datasets--testsets)
+8. [Evals & experiments](#8-evals--experiments)
+9. [Scoring & feedback](#9-scoring--feedback)
+10. [Media & attachments](#10-media--attachments)
+11. [Annotations & queues](#11-annotations--queues)
+12. [Sessions, users, metadata propagation](#12-sessions-users-metadata-propagation)
+13. [Functions, tools, server-side invoke](#13-functions-tools-server-side-invoke)
+14. [CLI & developer workflow](#14-cli--developer-workflow)
+15. [Auth, multi-project, orgs](#15-auth-multi-project-orgs)
+16. [Configuration, secrets, deployments](#16-configuration-secrets-deployments)
+17. [Cost tracking](#17-cost-tracking)
+18. [Read-back & query surface](#18-read-back--query-surface)
+19. [Type safety & ergonomics](#19-type-safety--ergonomics)
+20. [Notable design opinions](#20-notable-design-opinions)
+21. [RFC decisions for agenta](#21-rfc-decisions-for-agenta)
+22. [Differentiation opportunities](#22-differentiation-opportunities-ranked-by-leverage)
+23. [Open questions](#23-open-questions-for-the-rfc)
+24. [Appendix A: v1 → v2/v3 corrections summary](#appendix-a-v1--v2v3-corrections-summary)
+25. [Appendix B: source-link inventory](#appendix-b-source-link-inventory)
 
 ---
 
 ## 0. TL;DR
 
-| | **Braintrust** | **Langfuse v4/v5** | **Agenta (today + planned)** |
-|---|---|---|---|
-| Wire | Proprietary REST `logs3` batch [^bt-logs3] | OTLP/HTTP (`/api/public/otel/v1/traces`) for spans, REST for everything else [^lf-otlp] | OTLP/HTTP (decided) |
-| Underlying span impl | Custom span + AsyncLocalStorage; OTel as opt-in interop | Real OTel `Span` underneath every `LangfuseSpan` [^lf-otel-span] | OTLP-emit only today |
-| Package shape | One monolith + 8 thin integrations (3 deprecated) | Six scoped packages (`@langfuse/{core,client,tracing,otel,openai,langchain}`) [^lf-pkg] | Currently one (`@agenta/sdk`); decomposition TBD |
-| Runtime-conditional bundles | `node` / `edge-light` / `workerd` / `browser` via `exports` field [^bt-exports] | None — `@langfuse/otel` declares `engines.node >= 20` [^lf-engines] | Spike pain captured; open question |
-| Tracing API | `wrapTraced` HOF (alias `traceable`), `traced` callback, imperative `startSpan` | `observe` HOF, `startActiveObservation` (context), `startObservation` (manual), 10 typed observation classes [^lf-types] | TBD |
-| Span types | **11 values**: `llm/score/function/eval/task/tool/automation/facet/preprocessor/classifier/review` [^bt-spantypes] | **10 observation types**, but only 2 attribute shapes (span-like, generation-like) — the other 8 are semantic labels [^lf-attrs] | `ag.type.*` |
-| AI SDK v6 streaming abort | **Not solved.** `wrapAISDK` dispatches via `diagnostics_channel`. Zero `AbortSignal` handling in source [^bt-noabort] | **Not solved.** Issue #12643 OPEN. `wrapAsyncIterable` ends generation only if for-await loop completes; e2e tests pass via manual `forceFlush()` [^lf-noabort] | This is the spike's central finding — strongest differentiation opportunity |
-| Eval orchestration | In-SDK (`Eval(...)`) + CLI runner (`braintrust eval foo.eval.ts`) [^bt-cli] | In-SDK (`ExperimentManager`), no dedicated runner | Server-side today |
-| Provider wrappers | 13 wrappers in main package (OpenAI, Anthropic, AISDK, GoogleGenAI, Mistral, Cohere, ClaudeAgentSDK, Groq, Cursor, HuggingFace, Mastra, OpenRouter, OpenRouterAgent) [^bt-wrappers] | OpenAI (Proxy), LangChain (callback handler); Vercel AI SDK = pure OTel pass-through, no wrapper [^lf-noaisdk] | None today |
-| Auto-instrument | Node `--import` hook + Vite/Webpack/esbuild/Rollup plugins via `@apm-js-collab/code-transformer` [^bt-autoinstrument] | None — relies on OTel ecosystem instrumentations | None |
+### Cross-surface matrix
 
-**Headline.** Braintrust ships its own bus and treats OTel as opt-in interop; Langfuse rides OTel end-to-end. Both ship eval orchestration in-SDK. Both have a documented gap on AI SDK v6 streaming abort, and **source confirms neither codebase contains any abort-handling logic**. Braintrust's "generator-aware `wrapTraced`" handles only declared `function*`/`async function*` (not arbitrary `AsyncIterable`), so it doesn't solve the AI SDK v6 case either. **Neither solves edge runtime tracing cleanly** — Braintrust ships per-runtime bundles using its proprietary wire; Langfuse is Node-only for tracing.
+| Surface | **Braintrust** | **Langfuse v4/v5** | **Agenta parity** |
+|---|---|---|---|
+| **Tracing API** | Custom span impl + AsyncLocalStorage; OTel as opt-in interop | OTel `Span` underneath every `LangfuseSpan` | OTLP-emit only today |
+| **Wire (tracing)** | Proprietary REST `logs3` batch | OTLP/HTTP to `/api/public/otel/v1/traces` | OTLP/HTTP (decided) |
+| **AI SDK v6 abort** | **Not solved.** Zero `AbortSignal` handling in source | **Not solved.** Issue #12643 OPEN | Strongest differentiation opportunity |
+| **Edge runtime** | Per-runtime bundles (`node`/`edge-light`/`workerd`/`browser`) | **Not supported** for tracing (Node ≥ 20 only) | Spike-pain captured; open |
+| **Prompts** | `loadPrompt({slug|id, version|environment})` returning `Prompt` with `.build()` that emits full LLM request shape | `langfuse.prompt.get(name, {version|label, type, fallback})` returning typed `TextPromptClient`/`ChatPromptClient` | Has prompt registry (server-side) |
+| **Prompt cache** | LRU memory + gzipped disk at `~/.braintrust/prompt_cache`; fallback only on server error | Stale-while-revalidate, 60s TTL default; dedupe concurrent refresh | None in TS SDK today |
+| **Templating** | Mustache via plugin registry; Nunjucks deferred to separate package | Mustache (hard dep `mustache@^4.2.0`) | Currently raw (no template) |
+| **Datasets** | `initDataset(...)` → `Dataset extends ObjectFetcher`. Full CRUD + snapshots + restore | `langfuse.dataset.get(name)` returns `FetchedDataset` with `runExperiment()`. CRUD lives on `api.datasets.*` | Has testsets in entities; TS SDK side TBD |
+| **Dataset versioning** | Monotonic `_xact_id` transaction IDs + named snapshots | ISO timestamp snapshot pin | Has variant IDs |
+| **Evals** | `Eval(name, {data, task, scores, classifiers, parameters, trialCount, maxConcurrency, ...})` — ~25 fields | `experiment.run({data, task, evaluators, runEvaluators, maxConcurrency, datasetVersion})` | Server-side today |
+| **Eval concurrency** | Queue with byte-threshold backpressure flush; per-row + per-evaluator `trialCount` | `Promise.allSettled` per-batch; default `maxConcurrency=50` (docs say Infinity — bug) | TBD |
+| **Scoring** | `span.log({scores})` + `logFeedback()`. No separate queue | `langfuse.score.create()` fire-and-forget; queue `MAX=100k`, `BATCH=100`. Five data types (`NUMERIC\|BOOLEAN\|CATEGORICAL\|CORRECTION\|TEXT`) | Has scoring server-side |
+| **Annotations** | **None.** `logFeedback` is closest. Gap | Raw `api.annotationQueues.*` (10 methods). Annotations are `ScoreBody` with `queueId` | Has annotation entities |
+| **Media** | `Attachment`/`ExternalAttachment`/`JSONAttachment` types; Azure-style blob refs | `MediaManager.resolveReferences({obj, "base64DataUri"})` + `@langfuse/otel` `MediaService` auto-scans 6 attrs for base64 | None TS-side |
+| **Sessions/users** | `metadata` and `tags` only — no first-class `userId`/`sessionId` | First-class via `propagateAttributes`; unprefixed `user.id`/`session.id` OTel attrs; W3C baggage cross-service | Server-side concept |
+| **Functions / tools** | First-class: `Project.tools/prompts/parameters/scorers` builders; server-side `invoke()` execution | **None** | Agenta has tools concept |
+| **CLI** | `braintrust eval`, `push`, `pull` + `--dev` mode server for playground | **No CLI.** `langfuse/experiment-action` GitHub Action only | None |
+| **Auth model** | API key only, no OAuth, idempotent `login()`, `BraintrustState` per-org | Public + secret key (HTTP Basic); no `init()`; one client per project | API key |
+| **Multi-project** | Per-call `state: BraintrustState` arg (multi-tenant) | One `LangfuseClient` instance per project | Project-scoped |
+| **Secrets/Vault/Config** | **None.** Env vars + per-call options + `environment` slug | **None.** `llmConnections.upsert` for server-stored provider keys | Python SDK has `SecretsManager`/`VaultManager`/`ConfigManager`; TS SDK gap |
+| **Cost tracking** | Server-side. Client normalizes token metrics (`parseMetricsFromUsage`) | Server-side. `costDetails: Record<string, number>`; implicit USD | Server-side |
+| **Query/read-back** | `ObjectFetcher` AsyncIterable; underlying BTQL AST | `api.observations.getMany`, `api.trace.get/list`, `api.metrics.metrics(query)` Cube-style | Server-side |
+| **Org/SCIM** | None in SDK; org concept only via `BRAINTRUST_ORG_NAME` | `api.organizations.*` (8 methods) + `api.scim.*` (7 methods) | Has orgs |
+
+### Headline
+
+- **Braintrust ships its own bus + a deep developer workflow** (CLI, push/pull, server-side function invocation, dev-server-for-playground). OTel is opt-in interop.
+- **Langfuse rides OTel end-to-end** and ships a discoverable manager pattern (5 named managers + raw `api.*`). No CLI, no functions concept, but cleaner separation between tracing and REST.
+- **Both ship in-SDK eval orchestration.** Both have a real AI SDK v6 streaming-abort gap (source-confirmed). Both punt on secrets/config management — agenta has more existing Python-side surface here than either competitor.
+- **Edge runtime tracing**: Braintrust ships per-runtime bundles; Langfuse is Node-only. Neither solves the OTel-on-edge problem cleanly.
+- **Annotations**: only Langfuse ships them (raw API only, no manager). Braintrust gap.
+- **Sessions/users**: only Langfuse ships them as first-class. Braintrust gap.
 
 ---
 
 ## 1. Package layout & install surface
 
-### Braintrust — monolith + 8 satellites (verified)
+### Braintrust — monolith + 8 satellites
 
-One primary npm package (`braintrust`) carries the full surface: logging, tracing, evals, CLI, all 13 provider wrappers. Eight satellite packages live under `integrations/`:
+One primary npm package (`braintrust`) carries the full surface: tracing, logging, evals, CLI, prompts, datasets, 13 provider wrappers. Eight satellite packages under `integrations/`:
 
 | Package | Status | Purpose |
 |---|---|---|
 | `@braintrust/otel` | live | `BraintrustSpanProcessor` + `BraintrustExporter` |
-| `@braintrust/browser` | live | Browser build with AsyncLocalStorage polyfill (5-line index re-exporting `braintrust`) |
-| `@braintrust/vercel-ai-sdk` | **legacy** | Legacy AIStream adapter pinned to `ai: "^3.2.16"`. Not the AI SDK v5/v6 path |
+| `@braintrust/browser` | live | Browser build with AsyncLocalStorage polyfill |
+| `@braintrust/vercel-ai-sdk` | **legacy** | Legacy AIStream adapter pinned `ai: "^3.2.16"`. NOT the AI SDK v5/v6 path |
 | `@braintrust/openai-agents` | live | OpenAI Agents tracing |
 | `@braintrust/langchain-js` | live | LangChain callback handler |
 | `@braintrust/temporal` | live | Temporal workflow interceptors |
-| `templates-nunjucks` | internal | Template helpers |
+| `templates-nunjucks` | internal | Nunjucks template plugin |
 | `val.town` | internal | Val.town integration |
 
-The big tell is `exports` in [`js/package.json:25-37`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/package.json):
+Runtime-conditional `exports` ([`js/package.json:25-37`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/package.json)):
 
 ```json
 "exports": {
@@ -57,808 +113,1475 @@ The big tell is `exports` in [`js/package.json:25-37`](https://github.com/braint
     "node": { "import": "./dist/index.mjs", "require": "./dist/index.js" },
     "browser": "./dist/browser.mjs"
   },
-  "./workerd": { ... },
-  "./edge-light": { ... },
-  "./browser": { ... },
-  "./node": { ... },
-  "./instrumentation": { ... },
-  "./hook.mjs": "./dist/auto-instrumentations/hook.mjs",
+  "./workerd": { ... }, "./edge-light": { ... }, "./browser": { ... }, "./node": { ... },
+  "./instrumentation": { ... }, "./hook.mjs": "./dist/auto-instrumentations/hook.mjs",
   "./vite": { ... }, "./webpack": { ... }, "./webpack-loader": { ... },
-  "./esbuild": { ... }, "./rollup": { ... },
-  "./dev": { ... }, "./util": { ... }
+  "./esbuild": { ... }, "./rollup": { ... }, "./dev": { ... }, "./util": { ... }
 }
 ```
 
-Dedicated `workerd`, `edge-light`, `node`, `browser` conditional builds. Six bundler-plugin subpaths. A Node `--import` hook at `braintrust/hook.mjs`. Build tool is **`tsup`** ([`js/tsup.config.ts:62-75`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/tsup.config.ts)) — separate `browser`, `edge-light`, `workerd` bundles built with `platform: "browser"`.
+Build: `tsup`, separate `browser`, `edge-light`, `workerd` bundles with `platform: "browser"`. **`engines` and `sideEffects` NOT declared** anywhere. Runtime targeting via conditional exports only.
 
-**Notable: `engines` and `sideEffects` are NOT declared.** Grep of every `package.json` returns zero hits. Braintrust targets runtimes via conditional exports rather than `engines`. Tree-shaking is on the user's bundler. The dependency surface is heavy — `express`, `cors`, `simple-git`, `esbuild`, `boxen`, `chalk`, `cli-table3` are pulled because the CLI lives in the same package, but they're only used on CLI code paths — `dotenv` is only imported in `js/src/cli/index.ts:4` and `js/src/cli/util/bundle.ts:2`. The runtime entrypoints never import it. The doc-folklore "dotenv auto-loaded by the SDK" is **wrong** (v1 of this doc claimed it; corrected here).
+Dep surface is heavy due to CLI bundled into core: `express`, `cors`, `simple-git`, `esbuild`, `dotenv`, `boxen`, `chalk`, `cli-table3` — but all on CLI code paths. Zod peer dep `^3.25.34 || ^4.0`.
 
-Types: hand-written TS with generated OpenAPI types alongside. Zod is a hard peer dep at `^3.25.34 || ^4.0` ([`js/package.json:230-232`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/package.json)); internally `logger.ts:143` imports `zod/v3`.
-
-### Langfuse — six scoped packages, one job each (verified)
+### Langfuse — six scoped packages
 
 | Package | Purpose | Engines | Build |
 |---|---|---|---|
-| `@langfuse/core` | Shared utilities, Fern-generated REST client (27 sub-resources) | not declared (Node-only in practice) | tsup, dual CJS+ESM |
-| `@langfuse/client` | REST client: prompts, datasets, scores, media, experiments | not declared | tsup |
+| `@langfuse/core` | Shared utilities, Fern-generated REST client (24 sub-resources) | (none declared) | tsup, dual CJS+ESM |
+| `@langfuse/client` | REST: 5 managers (prompt/dataset/score/media/experiment) | (none declared) | tsup |
 | `@langfuse/tracing` | OTel-based tracing functions + Langfuse span wrappers | **`node: ">=20"`** | tsup |
-| `@langfuse/otel` | `LangfuseSpanProcessor` over Batch/Simple processors + media extraction | **`node: ">=20"`** | tsup |
-| `@langfuse/openai` | OpenAI Proxy wrapper | not declared | tsup |
-| `@langfuse/langchain` | LangChain `CallbackHandler` | not declared | tsup |
+| `@langfuse/otel` | `LangfuseSpanProcessor` + media service | **`node: ">=20"`** | tsup |
+| `@langfuse/openai` | OpenAI Proxy wrapper | (none declared) | tsup |
+| `@langfuse/langchain` | LangChain `CallbackHandler` | (none declared) | tsup |
 
-Canonical install (the only documented path):
+Canonical install:
 
 ```bash
 npm install @langfuse/tracing @langfuse/otel @opentelemetry/sdk-node
 ```
 
-Every package declares `"type": "module"`, `"sideEffects": false`, dual `dist/index.cjs` + `dist/index.mjs` ([`packages/tracing/package.json:15-19`](https://github.com/langfuse/langfuse-js/blob/main/packages/tracing/package.json), identical pattern across all six). **No subpath exports** — every package's `exports` map has a single `"."` entry.
+Every package: `"type": "module"`, `"sideEffects": false`, dual `dist/index.cjs` + `dist/index.mjs`. No subpath exports — each capability is its own package.
 
-**Correction from v1 of this doc:** `@langfuse/tracing` is Node ≥ 20 ([`packages/tracing/package.json:11-13`](https://github.com/langfuse/langfuse-js/blob/main/packages/tracing/package.json)), not "Universal" as v1 claimed. The TS source uses only universal APIs (`crypto.subtle`, `TextEncoder`), so the `engines` gate is policy-driven rather than technical — but the gate is declared.
-
-Legacy `langfuse` / `langfuse-node` are frozen-v3 for Node < 18. The v3 → v4 migration cost is **softer than commonly portrayed**: 16 deprecated method-name aliases live in `LangfuseClient` ([`packages/client/src/LangfuseClient.ts:170-232`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/LangfuseClient.ts)) so v3 calls like `langfuse.getPrompt(...)` and `langfuse.fetchTrace(...)` still work. `LANGFUSE_BASEURL` is still read with a `// legacy v2` fallback at `packages/core/src/utils.ts:1-12` — only the recommended env var name changed.
+Legacy `langfuse` / `langfuse-node` are frozen-v3 for Node < 18. **Migration tax softer than commonly portrayed**: 16 deprecated method-name aliases live in `LangfuseClient` ([`packages/client/src/LangfuseClient.ts:170-232`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/LangfuseClient.ts)). `LANGFUSE_BASEURL` still read with `// legacy v2` fallback at `packages/core/src/utils.ts:1-12`.
 
 ### Implication for agenta
 
-Both demonstrate that a single monolith doesn't survive once you have (a) tracing-only users, (b) prompt-only users, (c) eval users. **The decomposition pays for itself in DX** — install only what you need — at the cost of more packages to release in lock-step.
-
-The Langfuse split is cleaner and closer to where agenta is heading; tracing is separated from REST CRUD. Braintrust's CLI-in-runtime-package decision is paid for in bundle complexity — though `dotenv`/`express`/`esbuild` only hit CLI code paths, they're still installed.
-
-**Runtime-conditional bundles (Braintrust's `workerd` / `edge-light` exports) are the right shape for our spike findings.** Even with separate edge bundles, Braintrust still needs a `dc-browser` polyfill for `diagnostics_channel` on edge ([`js/src/edge-light/config.ts:8`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/edge-light/config.ts), [`js/src/workerd/config.ts:8`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/workerd/config.ts)). No single bundle works everywhere — plan for at least 4 builds (`node`, `edge-light`, `workerd`, `browser`).
+- **Decomposition pays for itself** once you have (a) tracing-only users, (b) prompt-only users, (c) eval users. Langfuse split is cleaner; Braintrust paid for monolith in bundle complexity (`dotenv`/`express`/`esbuild` in core install).
+- **Per-runtime conditional exports are necessary**, not optional. Braintrust ships 4 builds and STILL needs `dc-browser` polyfill for `diagnostics_channel` on edge. No single bundle works everywhere.
+- **Declare `engines` and `sideEffects: false`** — Braintrust's leakier approach (runtime targeting via exports only) hurts tree-shaking and version clarity.
 
 ---
 
 ## 2. Initialization & state model
 
-### Braintrust — three init modes, globally-shared symbol-keyed state
+### Braintrust — symbol-keyed globalThis state, three init modes
 
-There is no single client. Init is mode-specific:
+Three mode-specific init functions ([`logger.ts:3547-3564`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)):
 
 ```ts
 import { init, initLogger, initDataset, login } from "braintrust";
 
-const experiment = await init({ project: "my-project", experiment: "my-exp" }); // eval mode
-const logger    = await initLogger({ projectName: "my-project" });               // prod tracing
-const dataset   = await initDataset({ project: "my-project", dataset: "my-ds" }); // test data
+const experiment = await init({ project: "my-project", experiment: "my-exp" });
+const logger    = await initLogger({ projectName: "my-project" });
+const dataset   = await initDataset({ project: "my-project", dataset: "my-ds" });
 ```
 
-Behind the scenes: `BraintrustState` lives on `globalThis[Symbol.for("braintrust-state")]` ([`js/src/logger.ts:1102-1109`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)):
+State lives on `globalThis[Symbol.for("braintrust-state")]` ([`logger.ts:1102-1109`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)) so multiple copies of `braintrust` in node_modules share one state. **Cleanest fix for the multi-copy / Next.js dev-mode / monorepo footgun.** Worth lifting.
 
-```ts
-const sym = Symbol.for("braintrust-state");
-let existing = (globalThis as any)[sym];
-if (!existing) {
-  const state = new BraintrustState({});
-  (globalThis as any)[sym] = state;
-  existing = state;
-}
-_globalState = existing;
-```
+`loginToState(options)` ([`logger.ts:4976`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)) creates a fresh `BraintrustState` for multi-tenant use without touching globals. Every API accepts `state: BraintrustState` for per-call org switching.
 
-**This is the cleanest fix for the multi-copy-in-node_modules + Next.js dev mode footgun** — multiple bundled copies of the SDK share one state, one queue, one flush lifecycle. Worth lifting directly.
-
-`_internalGetGlobalState` / `_internalSetInitialState` ARE exported (logger.ts:1098/:1114, re-exported via exports.ts:80-82) — escape hatches marked `@internal`.
-
-`init` is **overloaded** three ways: `init(options)`, `init(project, options)` (legacy form preserved with explanatory comment at `logger.ts:3555-3558`), and a third overload. So "three init modes" is correct in spirit (`init`/`initLogger`/`initDataset`) — but `init` itself is internally trilingual.
-
-Env vars: grep across `js/src/` finds **32 unique `BRAINTRUST_*` env vars** — including `BRAINTRUST_DISABLE_INSTRUMENTATION` (comma-separated names to skip), `BRAINTRUST_QUEUE_DROP_EXCEEDING_MAXSIZE`, `BRAINTRUST_SYNC_FLUSH`, `BRAINTRUST_FLUSH_BACKPRESSURE_BYTES`, `BRAINTRUST_FAILED_PUBLISH_PAYLOADS_DIR` (debug-dump targets for failed payloads), `BRAINTRUST_MAX_GENERATOR_ITEMS` (default 1000). More configurable than typical observability SDKs.
-
-**Correction from v1:** `BRAINTRUST_PARENT` is NOT read by the core SDK. It only appears in `@braintrust/otel` at [`integrations/otel-js/src/otel.ts:280`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/integrations/otel-js/src/otel.ts). Core SDK targets routing via `init({project})` / explicit args.
+32 env vars across `BRAINTRUST_*`. Notable: `BRAINTRUST_DISABLE_INSTRUMENTATION`, `BRAINTRUST_QUEUE_DROP_EXCEEDING_MAXSIZE`, `BRAINTRUST_SYNC_FLUSH`, `BRAINTRUST_FAILED_PUBLISH_PAYLOADS_DIR`, `BRAINTRUST_MAX_GENERATOR_ITEMS`.
 
 ### Langfuse — explicit, no globals, two-concern split
 
-Two separate concerns:
-
-1. **Tracing**: a Node OTel `NodeSDK` with `LangfuseSpanProcessor` registered. Lives in `instrumentation.ts` and starts before app code.
-2. **Non-tracing API access**: explicit `new LangfuseClient(...)`.
-
 ```ts
 // instrumentation.ts (once)
-import { NodeSDK } from "@opentelemetry/sdk-node";
-import { LangfuseSpanProcessor } from "@langfuse/otel";
-
-const sdk = new NodeSDK({
-  spanProcessors: [new LangfuseSpanProcessor()],
-});
-sdk.start();
+new NodeSDK({ spanProcessors: [new LangfuseSpanProcessor()] }).start();
 
 // elsewhere
-import { LangfuseClient } from "@langfuse/client";
-const langfuse = new LangfuseClient({
-  publicKey: "pk-lf-...",
-  secretKey: "sk-lf-...",
-  baseUrl: "https://cloud.langfuse.com",
-});
+const langfuse = new LangfuseClient({ publicKey, secretKey, baseUrl });
 ```
 
-**No singleton, no `init()`** — confirmed by grepping `packages/client/src/index.ts:1-9`. Multi-project = register multiple `LangfuseSpanProcessor`s with different credentials in the same `NodeSDK`. Each instance gets its own `OTLPTraceExporter` ([`packages/otel/src/span-processor.ts:257`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/span-processor.ts)).
+**No singleton, no `init()`.** Multi-project = multiple `LangfuseSpanProcessor`s registered with one `NodeSDK`; each gets its own `OTLPTraceExporter`. Tracer-provider isolation via `setLangfuseTracerProvider(provider)` ([`packages/tracing/src/tracerProvider.ts:102-104`](https://github.com/langfuse/langfuse-js/blob/main/packages/tracing/src/tracerProvider.ts)) is the only way to use Langfuse with `@vercel/otel`'s isolated provider.
 
-Tracer-provider isolation has an escape hatch: `setLangfuseTracerProvider(provider)` ([`packages/tracing/src/tracerProvider.ts:102-104`](https://github.com/langfuse/langfuse-js/blob/main/packages/tracing/src/tracerProvider.ts)) is **the only way** to use Langfuse with `@vercel/otel`'s isolated (non-global) provider. Without it, `getLangfuseTracer()` falls through to `trace.getTracerProvider()` (line 128), which on Vercel returns the no-op tracer. The function ships with a 36-line warning block (lines 62-98) explaining that even with this set, context (trace IDs, parent spans) is **still shared with the global provider** — so it's not true isolation.
+**Bug worth noting**: `LANGFUSE_FLUSH_AT` and `LANGFUSE_FLUSH_INTERVAL` control BOTH span batching AND score queue ([`span-processor.ts:247-249, 273-276`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/span-processor.ts); [`score/index.ts:43-49`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/score/index.ts)) — one env change rebatches two subsystems. Footgun.
 
-Env vars: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` (with `LANGFUSE_BASEURL` legacy fallback), `LANGFUSE_TRACING_ENVIRONMENT`, `LANGFUSE_RELEASE`, `LANGFUSE_FLUSH_AT`, `LANGFUSE_FLUSH_INTERVAL`.
+### Agenta parity
 
-**Bug worth noting:** `LANGFUSE_FLUSH_AT` and `LANGFUSE_FLUSH_INTERVAL` control **two different things**:
-- `LangfuseSpanProcessor` ([`span-processor.ts:247-249, 273-276`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/span-processor.ts)): `flushAt` → `BatchSpanProcessor.maxExportBatchSize`; `flushInterval` → `scheduledDelayMillis` in seconds × 1000.
-- `ScoreManager` ([`score/index.ts:43-49`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/score/index.ts)): same env vars, defaults `flushAtCount = 10`, `flushIntervalSeconds = 1`, applied to score queue independently.
-
-One env change rebatches both subsystems. Footgun — agenta should namespace.
+- Existing TS SDK has `init({apiKey, projectId, host})` + `getAgentaSdkClient()` singleton ([`web/packages/agenta-sdk/src/index.ts:74`](web/packages/agenta-sdk/src/index.ts)).
+- Python SDK has `init()` + globally-imported singletons (`api`, `async_api`, `tracing`).
 
 ### Implication for agenta
 
-Three concrete moves from this section:
-
-1. **`globalThis[Symbol.for("agenta-state")]` for state.** Braintrust pattern at `logger.ts:1102-1109`. Trivial cost, kills multi-copy / Next.js dev-mode footguns.
-2. **Split env var consumption.** Don't reuse one env var across processor + score queue (Langfuse's bug). Namespace: `AGENTA_SPAN_FLUSH_AT` vs `AGENTA_SCORE_FLUSH_AT`.
-3. **`setAgentaTracerProvider(provider)` escape hatch** for `@vercel/otel`-isolated providers. Lift Langfuse's signature literally — same `Symbol.for("agenta")` slot, same `Object.defineProperty` lock.
+1. **`globalThis[Symbol.for("agenta-state")]`** (Braintrust pattern). Trivial cost, kills monorepo + Next.js dev-mode bugs.
+2. **Split env vars across subsystems** — `AGENTA_SPAN_FLUSH_AT` vs `AGENTA_SCORE_FLUSH_AT`. Don't repeat Langfuse's footgun.
+3. **`setAgentaTracerProvider(provider)` escape hatch** for `@vercel/otel` isolated providers. Lift Langfuse pattern.
+4. **Keep `init()` lean** for REST client; introduce separate `registerAgentaTracing()` or `AgentaSpanProcessor` for tracing setup. Langfuse split is right.
 
 ---
 
 ## 3. Tracing API surface
 
-### Braintrust — three primitives, generator-aware (with important caveats)
+### Braintrust — three primitives, generator-aware (with caveats)
 
 ```ts
-// (a) HOF wrapper — most common
-const myFunc = wrapTraced(async function myFunc(input: string) {
-  return input.toUpperCase();
-}, { name: "myFunc", type: "function" });
+// (a) HOF wrapper — most common; alias `traceable` for LangSmith refugees
+const myFunc = wrapTraced(async function myFunc(input) { return ... }, { name, type });
 
 // (b) callback
 const result = await traced(async (span) => {
-  span.log({ input, metadata: { model: "gpt-4o" } });
+  span.log({ input, metadata });
   return "result";
-}, { name: "op", type: "llm" });
+}, { name, type: "llm" });
 
 // (c) imperative
-const span = startSpan({ name: "custom", type: "llm" });
-try { /* ... */ } finally { span.end(); }
+const span = startSpan({ name, type });
+try { ... } finally { span.end(); }
 ```
 
-`wrapTraced` is aliased as `traceable` ([`js/src/logger.ts:5506`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)) — explicit nod to LangSmith refugees in the comment.
+`wrapTraced` (`logger.ts:5422`) detects sync/async generators via `isGeneratorFunction`/`isAsyncGeneratorFunction` and dispatches to `wrapTracedSyncGenerator` (`:5262`) or `wrapTracedAsyncGenerator` (`:5329`).
 
-**Generator handling — what it actually does:** `wrapTraced` ([`logger.ts:5422-5499`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)) detects sync/async generators via `isGeneratorFunction`/`isAsyncGeneratorFunction` (`Object.prototype.toString.call(fn)` at lines 5243/5254-5256). If matched, it routes to `wrapTracedSyncGenerator` (line 5262) or `wrapTracedAsyncGenerator` (line 5329).
+**Crucial nuance**: this handles **declared `function*` / `async function*` only** — NOT arbitrary `AsyncIterable`. Vercel AI SDK's `streamText` returns an object with `.textStream` / `.fullStream` (each `AsyncIterable`), not a generator function. Stream handling for OpenAI/AI SDK goes through `diagnostics_channel.tracingChannel` (`oai.ts:272`, `ai-sdk.ts:410`) — channel subscribers handle stream lifecycle.
 
-**Important corrections from v1 of this doc:**
+**Generator output silently truncated past 1000 items** (`logger.ts:5274-5296`): when `BRAINTRUST_MAX_GENERATOR_ITEMS` exceeded, `collected = []` and `truncated = true` — captured output **wiped**, debug warning only.
 
-1. **This handles declared `function*` / `async function*` only** — NOT arbitrary `AsyncIterable` returns. Vercel AI SDK's `streamText` returns an object with `.textStream` / `.fullStream` properties (each an `AsyncIterable`), **not** a generator function. So `wrapTraced` does not solve the AI SDK v6 case via generator detection.
-2. **Generator output is silently truncated past 1000 items** ([`logger.ts:5274-5296`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)). When `BRAINTRUST_MAX_GENERATOR_ITEMS` is exceeded, `collected = []` and `truncated = true` — captured output is **wiped**, not partially kept. A debug warning fires only if debug logging is on.
-3. **Stream handling for OpenAI / AI SDK v5/v6 goes through `diagnostics_channel.tracingChannel`**, not `wrapTraced`. The provider wrappers build a Proxy that dispatches via channel: `wrapOpenAI` → `tracePromiseWithResponse(openAIChannels.chatCompletionsCreate, ...)` at [`js/src/wrappers/oai.ts:272`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/wrappers/oai.ts); `wrapAISDK` → `aiSDKChannels.streamText` at [`js/src/wrappers/ai-sdk/ai-sdk.ts:410`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/wrappers/ai-sdk/ai-sdk.ts). Channel subscribers handle the stream lifecycle.
-4. **There is NO `AbortSignal` handling anywhere in `ai-sdk.ts`** — `grep -i "abort|abortSignal|signal" js/src/wrappers/ai-sdk/` returns zero hits. Stream flushing on Braintrust's side relies on the diagnostics_channel `end`/`error` event, not on abort signal interception.
+**Zero `AbortSignal` handling** anywhere in `js/src/wrappers/ai-sdk/` — grep returns no hits.
 
-So the "Braintrust solves AI SDK v6 abort via generator detection" framing in v1 of this doc was **wrong**. They don't.
-
-**Span types — 11 values, not 6** ([`js/util/span_types.ts:1-13`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/util/span_types.ts)):
+**11 span types** ([`js/util/span_types.ts:1-13`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/util/span_types.ts)):
 
 ```ts
-export const spanTypeAttributeValues = [
-  "llm", "score", "function", "eval", "task", "tool",
-  "automation", "facet", "preprocessor", "classifier", "review",
-] as const;
+"llm" | "score" | "function" | "eval" | "task" | "tool"
+| "automation" | "facet" | "preprocessor" | "classifier" | "review"
 ```
 
-V1 listed six. Source has eleven. The extras (`automation`, `facet`, `preprocessor`, `classifier`, `review`) cover use cases agenta will hit.
+Parent-child: AsyncLocalStorage with multi-runtime detection. OTel interop bidirectional via `getIdGenerator()` + `getContextManager()` (process-global mutation pattern — anti-pattern, don't replicate).
 
-**Parent-child propagation**: AsyncLocalStorage with multi-runtime detection ([`runtime-async-local-storage.ts:13-54`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/runtime-async-local-storage.ts)) — probes `globalThis.AsyncLocalStorage`, falls back to `process.getBuiltinModule("node:async_hooks")`. Silent failure on browsers without polyfill. `startSpan` does NOT push onto context; only `traced`/`wrapTraced` do.
+`asyncFlush` typed per-call arg flips return type from `F` to `Promise<F>` — elegant ergonomic for serverless without a separate "edge mode" API.
 
-**OTel interop is bidirectional**: `getIdGenerator()` (`id-gen.ts:49`) + `getContextManager()` (`logger.ts:516-520`). When `@braintrust/otel` is loaded, `setupOtelCompat()` writes to `globalThis.BRAINTRUST_CONTEXT_MANAGER`, `globalThis.BRAINTRUST_ID_GENERATOR` ([`integrations/otel-js/src/index.ts:30-38`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/integrations/otel-js/src/index.ts)). **This global mutation prevents multi-tenant tracing in one process** — bad pattern, don't replicate.
-
-**Span cache auto-disables when OTel is active**: `registerOtelFlush(callback)` ([`logger.ts:1127-1131`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)) disables the local `spanCache` because OTel spans aren't in the local cache. BTQL "what's in this trace tree" queries force OTel flush first. Useful pattern for agenta when bridging to user-managed OTel.
-
-**`asyncFlush` as typed per-call arg** ([`logger.ts:5422-5433`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)):
-
-```ts
-function wrapTraced<F extends (...args: any[]) => any,
-                    IsAsyncFlush extends boolean = true>(
-  fn: F, args?: ...
-): IsAsyncFlush extends false
-  ? (...args: Parameters<F>) => Promise<Awaited<ReturnType<F>>>
-  : F
-```
-
-Flipping `asyncFlush: false` changes return type from `F` to `(...): Promise<Awaited<F>>`. Cleanly handles serverless without a separate "edge mode" API. `PromiseUnless<B, R>` helper at line 1365: `B extends true ? R : Promise<Awaited<R>>`.
-
-**`NOOP_SPAN`** exists (`logger.ts:525-610`, singleton at :612, exported via `exports.ts:69`) — fallback when no logger is initialized.
-
-### Langfuse — three patterns, OTel-native end-to-end
+### Langfuse — three patterns, OTel-native
 
 ```ts
 // (a) startObservation — manual lifecycle, no context push
-const span = startObservation("user-request", { input: { query: "..." } });
-const gen = span.startObservation(
-  "llm-call",
-  { model: "gpt-4", input: [...] },
-  { asType: "generation" }
-);
-gen.update({ usageDetails: { input: 10, output: 5 }, output: { content: "Paris." } }).end();
+const span = startObservation("user-request", { input });
+const gen = span.startObservation("llm-call", { model, input }, { asType: "generation" });
+gen.update({ usageDetails, output }).end();
 span.end();
 
 // (b) startActiveObservation — context push, auto-end
-await startActiveObservation("user-request", async (span) => {
-  const gen = startObservation("llm-call", { model: "gpt-4", input: [...] }, { asType: "generation" });
-  gen.update({ output: { content: "Paris." } }).end();
-});
+await startActiveObservation("user-request", async (span) => { ... });
 
 // (c) observe — HOF wrapper
 const tracedFetch = observe(fetchData, { name: "fetch-data", asType: "span" });
 ```
 
-Implementations at [`packages/tracing/src/index.ts:356-443, 770-877, 1423-1517`](https://github.com/langfuse/langfuse-js/blob/main/packages/tracing/src/index.ts).
+`observe()` ([`tracing/src/index.ts:1443-1456`](https://github.com/langfuse/langfuse-js/blob/main/packages/tracing/src/index.ts)) doesn't use `startActiveObservation` — builds context manually to preserve `this` binding for class methods (fix shipped in 4.0.0-beta.3).
 
-**`observe()` doesn't actually use `startActiveObservation`** — it builds context manually ([`packages/tracing/src/index.ts:1443-1456`](https://github.com/langfuse/langfuse-js/blob/main/packages/tracing/src/index.ts)). Calls `startObservation(...)` then manually `context.with(activeContext, () => fn.apply(this, args))`. Preserves `this` binding for class methods (a fix shipped in 4.0.0-beta.3 per CHANGELOG).
+**10 observation types** at [`tracing/src/types.ts:12-22`](https://github.com/langfuse/langfuse-js/blob/main/packages/tracing/src/types.ts) — but only **2 attribute shapes**: `LangfuseGenerationAttributes` (rich) vs `LangfuseSpanAttributes` (which 8 other types alias). The "10 typed subtypes" framing oversells the type strictness.
 
-**Ten observation types, but only TWO typed shapes** ([`packages/tracing/src/types.ts:99-109`](https://github.com/langfuse/langfuse-js/blob/main/packages/tracing/src/types.ts)):
+**`LangfuseEvent` auto-ends in constructor** ([`spanWrapper.ts:1451-1458`](https://github.com/langfuse/langfuse-js/blob/main/packages/tracing/src/spanWrapper.ts)) — pattern worth mirroring for the agenta `event` type.
 
-```ts
-export type LangfuseObservationType =
-  | "span" | "generation" | "event" | "embedding"
-  | "agent" | "tool" | "chain"
-  | "retriever" | "evaluator" | "guardrail";
-```
+Underlying span is a real OTel `Span` ([`spanWrapper.ts:142-163`](https://github.com/langfuse/langfuse-js/blob/main/packages/tracing/src/spanWrapper.ts)) so third-party processors observe everything.
 
-`LangfuseGenerationAttributes` has rich generation fields (`completionStartTime`, `model`, `modelParameters`, `usageDetails | OpenAiUsage`, `costDetails`, `prompt: { name, version, isFallback }`). The other eight types (`agent`, `tool`, `chain`, `retriever`, `evaluator`, `guardrail`, `event`, `embedding`) are **type aliases of `LangfuseSpanAttributes`**, distinguished only by the `OBSERVATION_TYPE` field. So the "10 typed subtypes" framing from v1 of this doc was overstated — there are 2 structural shapes with 8 semantic labels riding on top.
+`propagateAttributes(callback)` ([`packages/core/src/propagation.ts:246-397`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/propagation.ts)) — v5 observation-centric primitive. Sets attrs on current active span AND OTel context so future child spans inherit via `LangfuseSpanProcessor.onStart`. Both `@langfuse/openai` and `@langfuse/langchain` route trace-level info through this.
 
-**`LangfuseEvent` auto-ends in its constructor** ([`spanWrapper.ts:1451-1458`](https://github.com/langfuse/langfuse-js/blob/main/packages/tracing/src/spanWrapper.ts)) — calls `this.otelSpan.end(params.timestamp)` immediately. Every other observation type requires manual `.end()`. Useful pattern for the agenta `event` type if we borrow the taxonomy.
-
-**Underlying span is a real OTel `Span`** ([`spanWrapper.ts:142-163`](https://github.com/langfuse/langfuse-js/blob/main/packages/tracing/src/spanWrapper.ts)) — `LangfuseBaseObservation` holds `public readonly otelSpan: Span`. Third-party processors observe everything. Tracer obtained via `@opentelemetry/api` ([`tracerProvider.ts:150-155`](https://github.com/langfuse/langfuse-js/blob/main/packages/tracing/src/tracerProvider.ts)).
-
-**Distributed tracing**: `createTraceId(seed?)` ([`index.ts:1604-1617`](https://github.com/langfuse/langfuse-js/blob/main/packages/tracing/src/index.ts)) — SHA-256(seed) sliced to 32 hex chars when seed provided, else 16 random bytes. Deterministic IDs from external IDs (e.g., ticket numbers).
-
-**`propagateAttributes(callback)`** ([`packages/core/src/propagation.ts:246-397, 532-548`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/propagation.ts)) — the v5 observation-centric attribute primitive. Sets attributes on (a) the currently active span if `isRecording()`, AND (b) the OTel context so future child spans inherit them via `LangfuseSpanProcessor.onStart` ([`span-processor.ts:324-333`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/span-processor.ts)).
-
-**Hidden gotcha**: `propagateAttributes` silently truncates string values over 200 chars ([`propagation.ts:618-623`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/propagation.ts)) — a `logger.warn` fires, but if debug logging is off the user sees nothing. Bad for large-payload metadata.
-
-**Trace-level info flows via context, not generation attributes**: both `@langfuse/openai` ([`traceMethod.ts:65-71`](https://github.com/langfuse/langfuse-js/blob/main/packages/openai/src/traceMethod.ts)) and `@langfuse/langchain` ([`CallbackHandler.ts:24-25`](https://github.com/langfuse/langfuse-js/blob/main/packages/langchain/src/CallbackHandler.ts)) wrap their work in `propagateAttributes({ userId, sessionId, tags, traceName }, () => ...)`. This is the v5 paradigm.
-
-**Cross-process propagation via W3C baggage**: optional `asBaggage: true` on `propagateAttributes` ([`propagation.ts:131, 551-569`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/propagation.ts)) with all-snake-case keys for Python-SDK cross-compat (lines 670-673).
+Silent 200-char truncation on propagateAttributes string values ([`propagation.ts:618-623`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/propagation.ts)) — `logger.warn` fires but if debug off, user sees nothing. Bad for large-payload metadata.
 
 ### Implication for agenta
 
-Five concrete moves from this section:
-
-1. **Ship a generator-aware HOF (`ag.trace(fn)`) on top of OTel spans** — but understand it doesn't solve AI SDK v6 abort. The abort fix needs separate processor-level logic (Section 6).
-2. **Borrow Langfuse's typed observation subtypes as labels** — only `generation` needs a typed attribute shape; the rest can ride a common `span-like` shape with a `type:` field. Don't overstate the type strictness.
-3. **Borrow Braintrust's `asyncFlush: boolean` typed per-call arg** — elegant return-type flip, single API for serverless + long-running.
-4. **Adopt `propagateAttributes`-style observation-centric propagation** for user/session/tags. Borrow the OTel-context + baggage dual write. Don't borrow the silent 200-char truncation — log at WARN, not silently.
-5. **Mirror `agenta.user.id` / `agenta.session.id` to OTel-standard `user.id` / `session.id` keys** ([Langfuse does this](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/constants.ts) at `constants.ts:13-14, 60-61`) — undocumented design move that makes existing OTel tooling pick up these IDs without config.
+1. **Ship a generator-aware HOF (`ag.trace(fn)`) on top of OTel spans** — Braintrust's primary surface. Understand it does NOT solve AI SDK v6 abort; see §5.
+2. **Borrow Langfuse's observation type union as labels, not types** — only `generation` needs a rich attribute shape.
+3. **Borrow Braintrust's `asyncFlush: boolean`** typed per-call arg.
+4. **Adopt Langfuse-style `propagateAttributes`** for user/session/tags. Drop the silent truncation — log at WARN.
+5. **Mirror agenta IDs to OTel-standard keys**: `agenta.user.id` AND `user.id` (Langfuse's undocumented dual-write).
 
 ---
 
 ## 4. AI provider integrations
 
-### Braintrust — 13 wrappers via diagnostics_channel
+### Braintrust — 13 wrappers via `diagnostics_channel`
 
-All from the main `braintrust` package ([`js/src/exports.ts:166-199`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/exports.ts)):
+All from main `braintrust` package ([`exports.ts:166-199`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/exports.ts)): `wrapOpenAI`, `wrapAnthropic`, `wrapAISDK`, `wrapGoogleGenAI`, `wrapMistral`, `wrapCohere`, `wrapClaudeAgentSDK`, plus Groq, Cursor, GitHub Copilot, HuggingFace, Mastra, OpenRouter, OpenRouterAgent.
 
-```ts
-import {
-  wrapOpenAI, wrapAnthropic, wrapAISDK, wrapGoogleGenAI,
-  wrapMistral, wrapCohere, wrapClaudeAgentSDK,
-  // also: Groq, Cursor, GitHub Copilot, HuggingFace, Mastra,
-  //       OpenRouter, OpenRouterAgent
-} from "braintrust";
-
-const openai = wrapOpenAI(new OpenAI());
-const ai = wrapAISDK(require("ai"));
-```
-
-`wrapOpenAI` builds a Proxy ([`oai.ts:85-106`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/wrappers/oai.ts)): `new Proxy(typedOpenai.chat.completions, { get(...) })` returning `wrapChatCompletion(baseVal.bind(target))` for `create`/`parse`/`stream`. Same proxy pattern recursive for `.beta.chat.completions`.
-
-**Underlying mechanism is `diagnostics_channel.tracingChannel`** — `wrapChatCompletion` dispatches via `tracePromiseWithResponse(openAIChannels.chatCompletionsCreate, traceContext, completionPromise)` at [`oai.ts:272`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/wrappers/oai.ts). Stream consumers live in channel subscribers. Cross-runtime polyfill via `dc-browser` on edge/workerd ([`edge-light/config.ts:8`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/edge-light/config.ts)).
-
-**Why this matters**: Braintrust unified its manual-wrap path with its AST-transformed and bundler-injected paths around `diagnostics_channel`. Less common than Proxy-based wrappers; more uniform across runtimes. **Heavier complexity** — `dc-browser` polyfill plus `@apm-js-collab/code-transformer` AST machinery. For agenta: probably skip in favor of straight OTel `SpanProcessor` + Proxy wrappers when needed.
+Implementation: Proxy + `diagnostics_channel.tracingChannel` dispatch. `dc-browser` polyfill on edge runtimes.
 
 **Three auto-instrumentation layers**:
 1. Manual `wrapX(client)` — explicit.
-2. Bundler plugins: `braintrust/vite`, `/webpack`, `/webpack-loader`, `/esbuild`, `/rollup` — implementation via `@apm-js-collab/code-transformer` ([`bundler/plugin.ts:18`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/auto-instrumentations/bundler/plugin.ts)).
-3. Node `--import` hook: `node --import braintrust/hook.mjs app.js` ([`auto-instrumentations/hook.mts:38-46, 101-104`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/auto-instrumentations/hook.mts)). Reads `BRAINTRUST_DISABLE_INSTRUMENTATION`, registers ESM loader + CJS `ModulePatch.patch()`, patches `diagnostics_channel.tracingChannel`.
+2. Bundler plugins (`braintrust/vite|webpack|esbuild|rollup`) via `@apm-js-collab/code-transformer`.
+3. Node `--import braintrust/hook.mjs app.js` — patches diagnostics_channel before any SDK code.
 
-**Vercel AI SDK story is messy**: the `@braintrust/vercel-ai-sdk` package at v0.0.5 is a **legacy AIStream adapter** pinned to `ai: "^3.2.16"` ([`integrations/vercel-ai-sdk/src/adapter.ts:11-21`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/integrations/vercel-ai-sdk/src/adapter.ts)) — converts a `BraintrustStream` into AI-SDK-compatible `ReadableStream`. NOT the AI SDK v5/v6 path. The real wrapper is `wrapAISDK` from the main package ([`wrappers/ai-sdk/ai-sdk.ts:95`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/wrappers/ai-sdk/ai-sdk.ts)). The middleware module `BraintrustMiddleware` and `wrapAISDKModel` live under `wrappers/ai-sdk/deprecated/` with TODO "remove in next major release". Three coexisting AI SDK paths, two deprecated, one current. Documentation hazard.
+**Vercel AI SDK is messy**: `@braintrust/vercel-ai-sdk` package at v0.0.5 is a legacy AIStream adapter pinned `ai: "^3.2.16"` — NOT the AI SDK v5/v6 path. `wrapAISDK` from main package handles v5/v6 via dc; `BraintrustMiddleware` and `wrapAISDKModel` live under `wrappers/ai-sdk/deprecated/` with "TODO: remove in next major release". Three coexisting AI SDK paths, two deprecated.
 
-AI SDK v5 + v6 are both tested ([`wrappers/ai-sdk/tests/v5/package.json`, `tests/v6/package.json`](https://github.com/braintrustdata/braintrust-sdk-javascript/tree/main/js/src/wrappers/ai-sdk/tests)) — but **the test fixtures don't exercise the mid-stream abort path** (grep returns no abort handling in `js/src/wrappers/ai-sdk/`).
+### Langfuse — focused, OTel pass-through for AI SDK
 
-### Langfuse — focused, with one big OTel pass-through bet
+- **`@langfuse/openai`** — `observeOpenAI(client)` recursive Proxy ([`observeOpenAI.ts:92-125`](https://github.com/langfuse/langfuse-js/blob/main/packages/openai/src/observeOpenAI.ts)). Streaming via `wrapAsyncIterable` ([`traceMethod.ts:103-104, 186-262`](https://github.com/langfuse/langfuse-js/blob/main/packages/openai/src/traceMethod.ts)). Optional 2nd arg accepts `traceName`, `userId`, `sessionId`, `tags`, `generationName`, `langfusePrompt`, `parentSpanContext`.
+- **`@langfuse/langchain`** — `CallbackHandler` extends `BaseCallbackHandler`.
+- **Vercel AI SDK** — no wrapper. `experimental_telemetry: { isEnabled: true }` direct pass-through to `LangfuseSpanProcessor`.
 
-- **`@langfuse/openai`** — `observeOpenAI` is a recursive Proxy ([`observeOpenAI.ts:92-125`](https://github.com/langfuse/langfuse-js/blob/main/packages/openai/src/observeOpenAI.ts)). Streaming intercepted via `wrapAsyncIterable` ([`traceMethod.ts:103-104, 186-262`](https://github.com/langfuse/langfuse-js/blob/main/packages/openai/src/traceMethod.ts)). Optional 2nd arg accepts `traceName`, `userId`, `sessionId`, `tags`, `generationName`, `langfusePrompt`, `generationMetadata`, `parentSpanContext` ([`types.ts:12-37`](https://github.com/langfuse/langfuse-js/blob/main/packages/openai/src/types.ts)).
-- **`@langfuse/langchain`** — `CallbackHandler` extends `BaseCallbackHandler` ([`CallbackHandler.ts:56`](https://github.com/langfuse/langfuse-js/blob/main/packages/langchain/src/CallbackHandler.ts)).
-- **Vercel AI SDK = pure OTel pass-through, no wrapper.** Confirmed by `find packages -name "*.ts"` — no `@langfuse/vercel-ai-sdk` exists. The e2e test ([`tests/e2e/vercel-ai-sdk.e2e.test.ts:253-263`](https://github.com/langfuse/langfuse-js/blob/main/tests/e2e/vercel-ai-sdk.e2e.test.ts)) uses `experimental_telemetry: { isEnabled: true }` directly with `LangfuseSpanProcessor`.
+**The AI SDK v6 abort smoking gun** ([`traceMethod.ts:186-262`](https://github.com/langfuse/langfuse-js/blob/main/packages/openai/src/traceMethod.ts)):
 
-**The smoking gun on AI SDK v6 abort**: `wrapAsyncIterable` ([`traceMethod.ts:186-262`](https://github.com/langfuse/langfuse-js/blob/main/packages/openai/src/traceMethod.ts)) does NOT handle abort. The `for await (const rawChunk of response as AsyncIterable<unknown>)` loop at line 204 will receive the iterator's abort exception, fall through, and `generation.update({...}).end()` on lines 251-258 will execute **only if the for-await loop completes**. If the consumer aborts mid-stream and the iterator is GC'd without `.return()`, `.end()` never fires — and `BatchSpanProcessor` never sees the span.
-
-**This is exactly the AI SDK v6 abort failure mode from issue #12643** — and source confirms there's no in-SDK guard against it. The Vercel AI SDK e2e tests pass because they explicitly `await testEnv.spanProcessor.forceFlush()` at [test:275](https://github.com/langfuse/langfuse-js/blob/main/tests/e2e/vercel-ai-sdk.e2e.test.ts), papering over the failure mode.
-
-**Media auto-extraction is hard-coded to AI SDK scope name `"ai"`** ([`MediaService.ts:55, 98-100`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/MediaService.ts)) — regex `/data:[^;]+;base64,[A-Za-z0-9+/]+=*/g` scans every attribute value, with special-case walking of `ai.prompt.messages` / `ai.prompt` for Vercel AI SDK.
-
-### Comparison
-
-| | Braintrust | Langfuse |
-|---|---|---|
-| OpenAI | `wrapOpenAI` (Proxy via dc) | `observeOpenAI` (Proxy via async iter wrap) |
-| Anthropic | `wrapAnthropic` | (none — OTel pass-through) |
-| Vercel AI SDK | `wrapAISDK` + deprecated middleware + legacy adapter (3 paths) | None — `experimental_telemetry` pass-through |
-| LangChain | `@braintrust/langchain-js` | `@langfuse/langchain` |
-| Google GenAI | `wrapGoogleGenAI` | (none) |
-| Other wrappers | Mistral, Cohere, Groq, Cursor, HF, Mastra, OpenRouter, etc. | (none) |
-| Auto-instrument | `--import` hook + 4 bundler plugins + AST transform | None |
-| AI SDK v6 streaming abort | **Not handled** in source | **Not handled** in source (issue #12643) |
-
-### Implication for agenta
-
-Two clear takeaways:
-
-1. **Both competitors converge on `experimental_telemetry` + OTel for Vercel AI SDK** — this is the industry-default path. Agenta's spike is already in this lane. Neither offers a first-class `wrapAISDK` that solves the abort problem; Braintrust's exists but is implemented through diagnostics_channel without abort awareness.
-2. **AI SDK v6 streaming abort is a wide-open differentiation opportunity, confirmed at source.** Section 6 unpacks this.
-
-For provider wrapper roster: Braintrust's "13 first-class wrappers via diagnostics_channel" is a deep investment with maintenance cost per provider. Langfuse's "Proxy + OTel pass-through" is simpler. **Recommend Langfuse's path for v1** — OTel-only via `experimental_telemetry` for AI SDK v6; add per-provider Proxy wrappers in v2 only if measured DX gap demands them.
-
----
-
-## 5. Evals, datasets, prompts
-
-### Braintrust
-
-Eval = a function in the SDK, run via a dedicated CLI ([`framework.ts:643-700`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/framework.ts)):
-
-```ts
-import { Eval } from "braintrust";
-import { LevenshteinScorer, Factuality } from "autoevals";
-
-Eval("Say Hi Bot", {
-  data: () => [
-    { input: "Foo", expected: "Hi Foo" },
-    { input: "Bar", expected: "Hello Bar" },
-  ],
-  task: (input) => "Hi " + input,
-  scores: [LevenshteinScorer, Factuality],
-});
-```
-
-**CLI binary is `braintrust`, not `bt`** — `js/package.json:20-22` declares `"bin": { "braintrust": "./dist/cli.js" }`. The README example uses `npx braintrust eval hello.eval.ts`. (V1 of this doc said `bt eval` — wrong.) Subcommands at [`cli/index.ts:1069-1190`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/cli/index.ts): `eval`, `push` (bundles prompts/tools/scorers), `pull` (retrieves them into source). The `eval` command supports `--dev` mode running an HTTP server (`--dev-host`, `--dev-port`) at lines 1116-1132 — **local eval files become live, interactively-runnable from the Braintrust web playground**. Non-obvious feature.
-
-CLI uses esbuild (`cli/index.ts:3, 347, 393`) for transpilation + watch mode. `dotenv` auto-loads at CLI invocation (not at runtime SDK load).
-
-**Disk cache for prompts + parameters** ([`logger.ts:716-746`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)): LRU memory + optional disk layer at `~/.braintrust/prompt_cache` / `~/.braintrust/parameters_cache`. Sizes via env (`BRAINTRUST_PROMPT_CACHE_MEMORY_MAX`, etc.). Edge/browser bundles can't write disk — `iso.homedir!()` undefined there. Production DX win: offline runs hit cached prompts.
-
-`autoevals` ships as a **separate npm package** (github.com/braintrustdata/autoevals), not in this repo.
-
-**Templating: Mustache** ([`logger.ts:163`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts) — `./template/mustache-utils`).
-
-### Langfuse
-
-`LangfuseClient` has **27 sub-resources** under `client.api.*` ([`packages/core/src/api/Client.ts:6-30`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/api/Client.ts)) — fully Fern-generated (`/** This file was auto-generated by Fern */` header at line 1). The five managers (`prompt`, `dataset`, `score`, `media`, `experiment`) wired on `LangfuseClient` ([`LangfuseClient.ts:93-164`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/LangfuseClient.ts)) are **convenience wrappers**; users can hit the raw API at `langfuse.api.metrics.*`, `langfuse.api.scim.*`, etc.
-
-```ts
-const prompt = await langfuse.prompt.get("my-prompt", { version: "1.0" });
-
-langfuse.score.create({
-  name: "quality",
-  value: 0.85,
-  traceId: "trace-123",
-  comment: "High quality response",
-});
-
-await langfuse.experiment.run(/* dataset + task + evaluators */);
-```
-
-**`prompt.get` is overload-typed for `text` vs `chat`** ([`promptManager.ts:235-334`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/prompt/promptManager.ts)) — three overloads narrow return type to `TextPromptClient` or `ChatPromptClient` based on `options.type`.
-
-**Stale-while-revalidate prompt cache** ([`promptManager.ts:316-412`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/prompt/promptManager.ts)). Cache lookup at 340; if `cachedPrompt.isExpired` (line 390), the manager returns the stale cached prompt **immediately** at line 408 and kicks off a background refresh (line 392-406) only if no refresh is in flight. Cache TTL default 60s. **Production callers never pay for prompt latency on cache expiration.** Direct lift candidate for agenta.
-
-**Templating: Mustache** (`packages/client/package.json:38` — `"mustache": "^4.2.0"`). Same engine as Braintrust.
-
-**Score queue**: `MAX_QUEUE_SIZE = 100_000`, `MAX_BATCH_SIZE = 100` ([`score/index.ts:14-15`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/score/index.ts)). Defaults `flushAt = 10`, `flushIntervalSeconds = 1` (lines 46-49). Overflow at 100k items → `logger.error(...)` and drop (lines 89-94). No retry, no backpressure, no exception. Silent data-loss hole, but safe for host app.
-
-`score.create` is **fire-and-forget** (returns `void`, not `Promise<void>`). Four convenience overloads `score.observation`, `score.trace`, `score.activeObservation`, `score.activeTrace` auto-extract IDs from an OTel span and call `create()`. The `active*` variants log a warning and skip on no active span ([`score/index.ts:213-217`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/score/index.ts)).
-
-**Experiment** ([`packages/client/src/experiment/`](https://github.com/langfuse/langfuse-js/tree/main/packages/client/src/experiment)): `ExperimentManager` runs tasks locally, traces each, applies evaluators, batches scores. Experiment IDs are content-addressed (SHA-256(input)[0..16]). `propagateAttributes` reserves an `_internalExperiment` context for run isolation that forces environment to `"sdk-experiment"`.
-
-### Comparison
-
-| | Braintrust | Langfuse |
-|---|---|---|
-| Eval orchestration | In-SDK via `Eval(...)` | In-SDK via `ExperimentManager` |
-| Eval runner | Dedicated CLI (`braintrust eval`) + `--dev` mode hosting for web playground | None — call from any TS script |
-| Scorers | Separate `autoevals` package | AutoEvals integration documented |
-| Templating | Mustache | Mustache |
-| Prompt versioning | `loadPrompt({slug, defaults}).build({var})` | `prompt.get("name", {version, type?})` |
-| Prompt cache | LRU memory + disk (`~/.braintrust/prompt_cache`) | Stale-while-revalidate, 60s TTL default |
-| Dataset CRUD | `initDataset(...).insert/update/delete/fetch/summarize` | `langfuse.dataset.*` |
-| Raw API access | Not exposed as cleanly | `langfuse.api.*` (27 sub-resources) |
-| Wire | Proprietary REST | OTLP for spans, REST for everything else |
-
-### Implication for agenta
-
-Three concrete moves:
-
-1. **Adopt Langfuse's stale-while-revalidate prompt cache** ([`promptCache.ts:5, 32-34, 67-80`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/prompt/promptCache.ts)) — lift directly. Caller never blocks on cache expiration. Combine with Braintrust's optional disk layer for offline-friendly evals.
-2. **Expose `client.api.*` as the escape hatch** — Langfuse's pattern (`packages/core/src/api/Client.ts` exposing 27 sub-resources) works well. Don't try to hand-wrap every endpoint; ship the five named managers + raw `.api` access.
-3. **Skip the eval CLI in v1** — both ship eval orchestration in-SDK; only Braintrust ships a CLI. The CLI's value lives in `--dev` mode (local-eval-hosted-for-web-playground). Worth scoping for v2 once tracing lands.
-
----
-
-## 6. Export model & edge runtime
-
-This is the section that maps most directly to the spike's pain log.
-
-### Braintrust — proprietary batched queue + OTel as opt-in
-
-**Wire**: proprietary REST endpoint `logs3` (NOT `/logs` as v1 of this doc claimed). POST target at [`logger.ts:3231-3236`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts) is literally `"logs3"` (and `"logs3/overflow"` at line 3159). Overflow reference type `"logs3_overflow"` at line 87. Oversized payloads spill to S3.
-
-**Queue**: bg worker (`queue.ts`) with FIFO + drop-newest-when-full semantics ([`queue.ts:31-49`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/queue.ts)). `HTTPBackgroundLogger.defaultBatchSize = 100` ([`logger.ts:2788`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts), configurable via `BRAINTRUST_DEFAULT_BATCH_SIZE`). `DEFAULT_MAX_REQUEST_SIZE = 6 * 1024 * 1024` (6 MB, [`logger.ts:93`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts), comment: "for the AWS lambda gateway"). Default queue size 15000 (`queue.ts:3`).
-
-**`beforeExit` flush** registered automatically ([`logger.ts:2880-2884`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)):
-
-```ts
-if (!opts.noExitFlush) {
-  iso.processOn("beforeExit", async () => {
-    await this.flush();
-  });
-}
-```
-
-With explicit caveat in comments: doesn't run on `process.exit()` or uncaught exceptions. Best-effort only.
-
-**OTel mode** ([`@braintrust/otel` package](https://github.com/braintrustdata/braintrust-sdk-javascript/tree/main/integrations/otel-js)):
-- `BraintrustSpanProcessor` and `BraintrustExporter` at [`integrations/otel-js/src/otel.ts:238, :637`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/integrations/otel-js/src/otel.ts).
-- **`BraintrustExporter` is a wrapper around `BraintrustSpanProcessor`, not a separate exporter** — it instantiates a `BraintrustSpanProcessor` (line 644) and in `export()` calls `this.processor.onEnd(span)` per span + `this.processor.forceFlush()` (lines 656-664). The actual HTTP layer is the upstream `OTLPTraceExporter` from `@opentelemetry/exporter-trace-otlp-http`, constructed inside `BraintrustSpanProcessor` at line 298. Braintrust didn't write a custom OTLP exporter — they configure the upstream one with `x-bt-parent` and `Authorization` headers.
-- POST target: `${apiUrl}/otel/v1/traces` (line 299). `x-bt-parent` header (`project_name:` / `project_id:` / `experiment_id:`) set at line 294.
-- **`filterAISpans` is OFF by default** ([`otel.ts:307-316`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/integrations/otel-js/src/otel.ts)) — the prefix filter (`gen_ai.`, `braintrust.`, `llm.`, `ai.`, `traceloop.` at lines 30-36) is opt-in. Default behavior forwards everything. V1 of this doc implied the filter ran by default — wrong.
-
-**Flush semantics**: `asyncFlush: boolean` is a typed per-call arg on `traced`/`wrapTraced`. With `asyncFlush: true` (default), wrapped function returns sync, flush in background. With `asyncFlush: false`, wrapper returns a Promise resolving only after `span.flush()` completes. **Built for serverless without a separate "edge mode" API.**
-
-**Edge runtime support**: dedicated `workerd.mjs` + `edge-light.mjs` conditional exports ([`js/package.json:25-37`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/package.json)). Configs at [`js/src/edge-light/config.ts:1-58`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/edge-light/config.ts) and [`js/src/workerd/config.ts:1-58`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/workerd/config.ts) — near-identical: polyfill ALS via `resolveRuntimeAsyncLocalStorage()`, swap in `dc-browser`'s `tracingChannel`, provide a non-crypto hash. `@braintrust/browser` adds AsyncLocalStorage polyfill for browser.
-
-### Langfuse — OTLP-native, Node-only for tracing
-
-**Wire**: OTLP/HTTP via `@opentelemetry/exporter-trace-otlp-http` ([`span-processor.ts:14`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/span-processor.ts)). Default endpoint built at line 258: `${baseUrl}/api/public/otel/v1/traces`. REST for scores/prompts/datasets via Fern-generated client.
-
-**Processor**: `LangfuseSpanProcessor` wraps `BatchSpanProcessor` (default) or `SimpleSpanProcessor` based on `exportMode: "batched" | "immediate"` ([`span-processor.ts:269-277`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/span-processor.ts)):
-
-```ts
-exportMode?: "immediate" | "batched"; // default "batched"
-// ...
-params?.exportMode === "immediate"
-  ? new SimpleSpanProcessor(exporter)
-  : new BatchSpanProcessor(exporter, {...})
-```
-
-**Default batching is upstream OTel defaults, NOT Langfuse-specific** — `maxExportBatchSize` and `scheduledDelayMillis` only set when env vars are present (lines 273-277). OTel ships `maxExportBatchSize: 512`, `scheduledDelayMillis: 5000`. Score queue defaults are 10 items / 1s ([`score/index.ts:46-49`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/score/index.ts)), independent.
-
-**`forceFlush()` is a strict superset of OTel's**: Langfuse keeps its own `pendingEndedSpans: Set<Promise<void>>` and `mediaService.flush()` queue ([`span-processor.ts:187, 356-379`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/span-processor.ts)). `forceFlush()` awaits both before calling `this.processor.forceFlush()` — important if media uploads are in flight.
-
-**Mask function pattern** ([`span-processor.ts:444-462`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/span-processor.ts)) — `applyMaskInPlace` targets six attributes: trace/observation × input/output/metadata. Awaited per-attribute. If user mask throws, value replaced with literal `"<fully masked due to failed mask function>"` (line 474). Sensitive-data masking runs **before** `mediaService.process(span)` (line 417-418) — correct order so masked base64 never reaches the media uploader.
-
-**Default span filter** `isDefaultExportSpan` ([`span-filter.ts:35-39`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/span-filter.ts)) — exports spans that are Langfuse-emitted, contain any `gen_ai.*` attribute, or come from a known LLM scope (`ai`, `langsmith`, `openinference`, `litellm`, etc., listed at lines 4-15). Users override via `shouldExportSpan` config (line 66, applied at 283-287).
-
-**Flush on process exit / abort**: standard OTel `processor.forceFlush()` + `sdk.shutdown()`. Default `BatchSpanProcessor` won't ship spans for an in-flight AI SDK v6 `streamText` aborted before `.end()` — exact failure mode from issue #12643. Documented mitigation: `exportMode: "immediate"`.
-
-**Edge runtime support**: **none for tracing**. `@langfuse/otel` declares `engines.node >= 20`. `@vercel/otel` explicitly recommended against in docs ("lacks OpenTelemetry JS SDK v2 support"). Universal `@langfuse/client` works on edge for REST-only paths.
-
-**`X-Langfuse-Sdk-*` headers**: Langfuse ships these on every request ([`packages/core/src/api/Client.ts:39-44`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/api/Client.ts) — `X-Langfuse-Sdk-Name`, `X-Langfuse-Sdk-Version`, `X-Langfuse-Public-Key`). Same headers used client-side and exporter-side. Worth mirroring for server-side per-SDK observability.
-
-### The AI SDK v6 abort failure mode (source-confirmed)
-
-Both codebases share the same gap:
-
-**Langfuse** (`@langfuse/openai/traceMethod.ts:186-262`):
 ```ts
 async function* wrapAsyncIterable(...) {
-  for await (const rawChunk of response as AsyncIterable<unknown>) {
-    // collect chunks
-  }
+  for await (const rawChunk of response as AsyncIterable<unknown>) { ... }
   // ↓ runs ONLY if the loop completes
   generation.update({...}).end();
 }
 ```
 
-If the consumer aborts mid-stream and the iterator is GC'd without `.return()`, `.end()` never fires, `BatchSpanProcessor` never sees the span. **This is the AI SDK v6 abort failure mode from issue #12643.** Langfuse's Vercel AI SDK e2e tests pass by explicitly calling `await testEnv.spanProcessor.forceFlush()` ([`tests/e2e/vercel-ai-sdk.e2e.test.ts:275`](https://github.com/langfuse/langfuse-js/blob/main/tests/e2e/vercel-ai-sdk.e2e.test.ts)) — papering over the production failure mode.
+Consumer aborts mid-stream → iterator GC'd without `.return()` → `.end()` never fires → `BatchSpanProcessor` never sees the span. Langfuse Vercel AI SDK e2e tests pass via manual `forceFlush()` ([`tests/e2e/vercel-ai-sdk.e2e.test.ts:275`](https://github.com/langfuse/langfuse-js/blob/main/tests/e2e/vercel-ai-sdk.e2e.test.ts)) — papering over the production failure mode.
 
-**Braintrust** (`js/src/wrappers/ai-sdk/`): grep for `abort|AbortSignal|signal` returns zero hits in the AI SDK wrapper directory. Stream handling goes through `diagnostics_channel.tracingChannel` (`ai-sdk.ts:410`) — flushing depends on the channel emitting `end`/`error` events. **No abort-signal-aware logic.** Same failure mode.
+### Implication for agenta
 
-This is **the largest open differentiation opportunity** for agenta.
+1. **OTel-only via `experimental_telemetry` for v1** (Langfuse pattern). Per-provider Proxy wrappers only if measured DX gap demands.
+2. **AI SDK v6 abort is wide-open differentiation** — neither competitor handles it. See §5.
 
-### Comparison vs the spike's pain log
+---
+
+## 5. Export model & edge runtime
+
+This section maps directly to the spike's pain log (P-NODE-02, P-APP-VERCEL-01, P-APP-RAW-01, P-PAGES-RAW-01, P-PAGES-VERCEL-01).
+
+### Braintrust — proprietary batched queue + OTel as opt-in
+
+- **Wire**: REST endpoint `logs3` (NOT `/logs`). POST at [`logger.ts:3231-3236`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts).
+- **Queue**: bg worker with FIFO + drop-newest-when-full ([`queue.ts:31-49`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/queue.ts)). `HTTPBackgroundLogger.defaultBatchSize = 100`. `DEFAULT_MAX_REQUEST_SIZE = 6MB`.
+- **`beforeExit` flush** registered automatically ([`logger.ts:2880-2884`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)). Best-effort only (doesn't run on `process.exit()` or uncaught).
+- **OTel mode**: `BraintrustExporter` wraps `BraintrustSpanProcessor` ([`integrations/otel-js/src/otel.ts:637-691`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/integrations/otel-js/src/otel.ts)); HTTP layer is upstream `OTLPTraceExporter`. POST to `${apiUrl}/otel/v1/traces` with `x-bt-parent` header.
+- **`filterAISpans` is OFF by default** ([`otel.ts:307-316`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/integrations/otel-js/src/otel.ts)). Filter is opt-in, not default. Forwards everything by default.
+- **`asyncFlush: boolean` typed per-call arg** — flips return type. Built for serverless without separate "edge mode" API.
+- **Edge support**: dedicated `workerd.mjs` + `edge-light.mjs` bundles. Configs at `js/src/{edge-light,workerd}/config.ts:1-58` — polyfill ALS, swap `dc-browser` `tracingChannel`, non-crypto hash.
+
+### Langfuse — OTLP-native, Node-only for tracing
+
+- **Wire**: OTLP/HTTP via `@opentelemetry/exporter-trace-otlp-http`. Default endpoint `${baseUrl}/api/public/otel/v1/traces`.
+- **Processor**: `LangfuseSpanProcessor` wraps `BatchSpanProcessor` (default) or `SimpleSpanProcessor` based on `exportMode: "batched" | "immediate"` ([`span-processor.ts:269-277`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/span-processor.ts)).
+- **Default batching is upstream OTel defaults** (`maxExportBatchSize: 512`, `scheduledDelayMillis: 5000`) — NOT Langfuse-specific, only overridden if env vars set.
+- **`forceFlush()` is a strict superset of OTel's** — also flushes pending media uploads ([`span-processor.ts:187, 356-379`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/span-processor.ts)).
+- **Mask function** ([`span-processor.ts:444-462`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/span-processor.ts)) — async-aware, six attribute slots, on-throw sentinel `"<fully masked due to failed mask function>"`. Runs BEFORE media extraction.
+- **Default span filter** `isDefaultExportSpan` ([`span-filter.ts:35-39`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/span-filter.ts)) — exports Langfuse-emitted spans, any `gen_ai.*` attribute, or known LLM scope (`ai`, `langsmith`, `openinference`, `litellm`).
+- **Edge support**: **none for tracing**. Both `@langfuse/otel` AND `@langfuse/tracing` declare `engines.node >= 20`. `@vercel/otel` explicitly recommended against in docs.
+
+### AI SDK v6 abort — source-confirmed gap on both sides
 
 | Spike pain | Braintrust | Langfuse | Agenta opportunity |
 |---|---|---|---|
-| P-NODE-02: `BatchSpanProcessor` + `streamText` loses spans on abort | No abort handling in `wrappers/ai-sdk/` | No abort handling in `wrapAsyncIterable`. Issue #12643 OPEN | Ship `AgentaSpanProcessor` that intercepts iterator `.return()`/`.throw()` + AbortSignal + flushes in-flight span |
-| P-APP-RAW-01: edge runtime drops all spans (raw OTel) | Dedicated `edge-light.mjs` bundle, proprietary wire | Not supported | Per-runtime bundle + OTLP exporter that works on edge |
-| P-APP-VERCEL-02: edge tracing works but ~10-15s delay (BatchSpanProcessor) | `asyncFlush: false` maps cleanly to edge handlers | Same as P-NODE-02 — recommend `"immediate"` | Default `"immediate"`-equivalent on edge runtimes |
-| P-PAGES-RAW-01: Pages Router edge can't BUILD raw OTel imports | `edge-light.mjs` ships edge-safe bundle | Not supported | Ship a build that passes Next's static dynamic-code-eval check |
-| P-PAGES-VERCEL-01: Pages Router + vercel-otel loses `ag.metrics.tokens` | (untested with their stack) | Same shape — relies on `experimental_telemetry` working with `@vercel/otel`, which they advise against | Verify against agenta wire; document compatibility matrix |
-| P-TANSTACK-01: instrumentation seam is unenforced import order | (untested) | Not addressed | Document; ship a `register()` helper that throws if called too late |
+| P-NODE-02: `BatchSpanProcessor` + `streamText` loses spans on abort | No abort handling in `wrappers/ai-sdk/` | No abort handling in `wrapAsyncIterable`. Issue #12643 OPEN | Ship `AgentaSpanProcessor` that intercepts iterator `.return()`/`.throw()` + AbortSignal |
+| P-APP-RAW-01: edge runtime drops spans (raw OTel) | `edge-light.mjs` bundle + proprietary wire | Not supported | Per-runtime bundle + OTLP exporter that works on edge |
+| P-APP-VERCEL-02: edge tracing works but ~10-15s delay (Batch) | `asyncFlush: false` maps cleanly | Recommend `"immediate"` mode | Default `"immediate"`-equivalent on edge |
+| P-PAGES-RAW-01: Pages Router edge can't BUILD raw OTel imports | `edge-light.mjs` ships edge-safe bundle | Not supported | Ship build that passes Next's static dynamic-code-eval check |
+| P-TANSTACK-01: unenforced import order in `src/server.ts` | Untested | Not addressed | Ship `register()` helper that throws if called too late |
 
 ### Implication for agenta
 
-Four concrete moves, ranked by leverage:
+Four ranked moves:
 
-1. **`AgentaSpanProcessor` must handle AI SDK v6 abort correctly out of the box.** Neither competitor does, confirmed at source. Ship a processor that (a) intercepts AsyncIterable iterator `.return()` and `.throw()`, (b) listens for `AbortSignal` propagated through `experimental_telemetry`, (c) force-flushes the in-flight span before the OTel batch processor would normally release it. Add `flushOnAbort: boolean` config (true by default).
-2. **Per-runtime conditional exports.** Borrow Braintrust's `node/edge-light/workerd/browser` pattern. Plan for at least 4 builds.
-3. **`asyncFlush: boolean` as typed per-call arg.** Cleaner than Langfuse's "switch processor mode globally."
-4. **Mask function as part of processor config** (Langfuse pattern). Six attribute slots: input/output/metadata × trace/observation. Async-aware. On mask failure → sentinel value. Document the mask-before-media-extraction order.
+1. **`AgentaSpanProcessor` must handle AI SDK v6 abort.** Headline differentiator. Neither competitor does. Ship: (a) intercept `AsyncIterable` `.return()`/`.throw()`, (b) listen for `AbortSignal` from `experimental_telemetry`, (c) force-flush in-flight span. `flushOnAbort: boolean` config, default true.
+2. **Per-runtime conditional exports.** 4 builds: `node`, `edge-light`, `workerd`, `browser`.
+3. **`asyncFlush: boolean` typed per-call arg.** Cleaner than Langfuse's global mode switch.
+4. **Mask function as part of processor config** (Langfuse pattern). Six slots: input/output/metadata × trace/observation. Apply before media extraction.
 
 ---
 
-## 7. Type safety & ergonomics
+## 6. Prompts
 
-### Braintrust
+### Braintrust — `loadPrompt` returns a full LLM request builder
 
-- **Generics-heavy.** `init`, `initLogger`, `initDataset` carry phantom `IsOpen extends boolean = false` and `IsAsyncFlush extends boolean = true`. `wrapTraced` returns conditional types based on `IsAsyncFlush` ([`logger.ts:5422-5433`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)).
-- **Zod is a hard peer dep** (`^3.25.34 || ^4.0`); parallel test suites for v3 + v4. Internally imports `zod/v3`.
-- **Flat namespace.** `import * as braintrust from "braintrust"` works — `exports.ts` is a single re-export sheet.
-- **Error handling**: throws by default; instrumentation paths swallow errors silently via `debug-logger.ts` + `NOOP_SPAN` fallback. Philosophy: observability must never crash the host app. `logError(span, e)` is the explicit error-to-span path.
+Surface ([`logger.ts:4549-4677`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)):
 
-### Langfuse
+```ts
+const prompt = await loadPrompt({
+  projectName: "my-project",      // or projectId
+  slug: "my-prompt",              // or id
+  version: "1234abc",             // optional pin (xact id)
+  environment: "production",      // optional, mutually-exclusive with version
+  defaults: { /* default vars */ },
+});
 
-- **Strict hand-written types** for all observation attributes (`LangfuseGenerationAttributes` with typed `model`, `modelParameters`, `usageDetails`, `costDetails`, `prompt: { name, version, isFallback }`). All other observation types share `LangfuseSpanAttributes` via type aliases — only 2 structural shapes.
-- **Constants enum is the canonical attribute taxonomy** ([`packages/core/src/constants.ts:10-61`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/constants.ts)) — `LangfuseOtelSpanAttributes`. Trace attrs use `langfuse.trace.*`, observation attrs use `langfuse.observation.*`, but `user.id` and `session.id` are unprefixed (lines 13-14) — they piggyback on OTel-standard keys. Compat fallbacks `langfuse.user.id` / `langfuse.session.id` exist at lines 60-61. **Undocumented deliberate design move** — existing OTel tooling picks up user/session IDs without configuration.
-- **`completionStartTime` for streaming** ([`constants.ts:30`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/constants.ts)) — set on first chunk receipt ([`traceMethod.ts:205`](https://github.com/langfuse/langfuse-js/blob/main/packages/openai/src/traceMethod.ts)). Captures time-to-first-token implicitly.
-- **Discoverability**: namespace on `LangfuseClient` (`langfuse.prompt.*`, `langfuse.dataset.*`, `langfuse.score.*`); tracing functions are top-level imports.
-- **Error handling**: silent fail by default. Score queue silently drops on overflow ([`score/index.ts:89-94`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/score/index.ts)). HTTP failures logged but never throw into user code.
+const compiled = prompt.build({
+  customer_name: "Acme",
+  // ...
+});
+
+const response = await openai.chat.completions.create(compiled);
+//                                                   ↑ full ChatCompletionCreateParams
+```
+
+**`Prompt.build()` returns a fully-shaped OpenAI request**, not just a template ([`logger.ts:8087-8103`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)) — chat flavor returns `{messages, tools, model, ...chat params}`; completion flavor returns `{prompt, model, ...params}`. The compiled prompt includes a `span_info` payload so `client.chat.completions.create(...compiledPrompt)` auto-attaches prompt id/version/variables to the span.
+
+Throws "No model specified" at `logger.ts:8165` if no model.
+
+**Versioning**: NO semver. Wire identity is `_xact_id` (transaction ID, sortable string, accessed via `loadPrettyXact`/`prettifyXact`). "Latest" = no version param. `environment` slug ("production"/"staging") is an orthogonal axis tied to deployment-style routing.
+
+`getPromptVersions(projectId, promptId)` ([`logger.ts:8579-8643`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)) builds a raw BTQL AST and POSTs to `state.apiConn().post("btql", ...)` — only public BTQL example in user-facing surface.
+
+**Cache** — two-tier ([`logger.ts:725-746`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)):
+- Memory LRU (default 1024 entries, env-tunable).
+- Optional disk layer at `${HOME}/.braintrust/prompt_cache`, gzipped JSON keyed on `hash(${prefix}:${slug}:${version})`.
+- Eviction by mtime (not atime — noatime mounts).
+- **Cache only consulted on server fault** (`logger.ts:4605-4638`). Only "latest" allowed to be stale; explicit `version`/`environment` requests throw on miss.
+- **No active TTL** — refresh happens on every successful fetch.
+
+**Template engine — Mustache via plugin registry** ([`template/registry.ts:1-133`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/template/registry.ts)):
+- Mustache default (`template/plugins/mustache.ts:1-29`) with custom `jsonEscape` (string passthrough; everything else `JSON.stringify`).
+- Nunjucks deferred to separate package (`@braintrust/template-nunjucks`), throws if not installed.
+- `lint(template, vars)` enumerates `name`/`&` spans, walks variable path; array indices wildcarded to `.0`.
+
+**Tools binding first-class** ([`prompt-schemas.ts:34-42`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/prompt-schemas.ts)) — `PromptDefinitionWithTools = prompt + model + params + tools[]`. Tools can be inline `ToolFunctionDefinition[]` (stored as `JSON.stringify` on `PromptBlockData.tools`) OR references to pushed `CodeFunction`s/`SavedFunctionId`s (resolved server-side).
+
+**Push/pull via CLI**:
+- `bt push` bundles `.ts/.tsx/.js/.jsx` via esbuild, walks `EvaluatorFile` (functions, prompts, parameters, evaluators), POSTs `insert-functions` ([`cli/functions/upload.ts:448`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/cli/functions/upload.ts)).
+- `bt pull` GETs `v1/function` filtered by `project_id|project_name|slug|ids|version`, writes generated `${slug(projectName)}.ts` to `--output-dir` (default `./braintrust`). Refuses to overwrite files dirty in `git diff HEAD` unless `--force` ([`cli/util/pull.ts:80-130`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/cli/util/pull.ts)).
+
+### Langfuse — `PromptManager` with stale-while-revalidate cache
+
+Five public methods on `langfuse.prompt.*` ([`promptManager.ts:32-462`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/prompt/promptManager.ts)):
+
+- **`create(body)`** — three overloads for `CreateChatPromptBodyWithPlaceholders`, `CreateChatPromptRequest`, `CreateTextPromptRequest`. Accepts `config`, `labels`, `tags`, `commitMessage`.
+- **`update({name, version, newLabels})`** — only label edits. Invalidates cache for that name.
+- **`delete(name, options?)`** — optional `version` or `label` filter; without either, all versions removed.
+- **`get(name, options?)`** — three overloads typed for `text`/`chat` return:
+
+```ts
+const prompt = await langfuse.prompt.get("my-prompt", {
+  version: 3,                  // or label, or both
+  label: "production",
+  type: "chat",                // narrows return to ChatPromptClient
+  fallback: "Hello {{name}}",  // for offline/failure resilience
+  cacheTtlSeconds: 60,         // 0 to bypass
+  maxRetries: 3,
+  fetchTimeoutMs: 5000,
+});
+```
+
+**Versioning**: numeric versions. `label: "production"` is the default (when no version/label specified). Cache key: `name-version:${n}` or `name-label:${l}` ([`promptCache.ts:36-53`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/prompt/promptCache.ts)).
+
+**Cache — stale-while-revalidate**:
+- 60-second TTL default.
+- `getIncludingExpired` returns stale value immediately, kicks off background refresh ([`promptManager.ts:340-411`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/prompt/promptManager.ts)).
+- Concurrent refreshes deduplicated via `_refreshingKeys`.
+- Failed background refresh keeps stale entry.
+- `cacheTtlSeconds: 0` bypasses entirely.
+- **Production callers never block on cache expiration.**
+
+**`TextPromptClient` vs `ChatPromptClient`** ([`promptClients.ts:24-478`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/prompt/promptClients.ts)):
+- Both extend `BasePromptClient`: `name`, `version`, `config: unknown`, `labels[]`, `tags[]`, `isFallback`, `type`, `commitMessage`.
+- `TextPromptClient.prompt: string` → `.compile(vars)` runs `mustache.render`.
+- `ChatPromptClient.prompt: ChatMessageWithPlaceholders[]` → `.compile(vars, placeholders)` resolves placeholder rows then Mustache-renders each message.
+- `getLangchainPrompt({placeholders?})` converts `{{var}}` → `{var}` and handles JSON-brace doubling for LangChain f-string parsing (lines 111-163).
+
+**Templating**: Mustache (hard dep `mustache@^4.2.0` in `packages/client/package.json:38`). HTML escaping disabled (`promptClients.ts:15`).
+
+**No variable validation** — missing vars silently emit empty strings.
+
+**No tools binding on prompts on the SDK side** — `resolutionGraph` field server-side, but SDK only passes a `resolve: boolean` flag.
+
+**Linking prompt to generation span**: pass `langfusePrompt: {name, version, isFallback}` in the OpenAI integration's 2nd arg or as a generation attribute ([`tracing/src/types.ts:89-96`](https://github.com/langfuse/langfuse-js/blob/main/packages/tracing/src/types.ts)). Server attribute: `langfuse.observation.prompt.name` + `.version`.
+
+### Agenta parity
+
+- **Has a prompt registry server-side** (variants + revisions).
+- **No TS SDK prompt surface** today.
+- **No client-side templating engine** — currently passes raw config.
 
 ### Implication for agenta
 
-Three concrete moves:
-
-1. **Silent fail on instrumentation paths.** Both converge. Match. Use a debug logger gated on `AGENTA_DEBUG=1` for diagnosis.
-2. **Mirror agenta IDs to OTel-standard keys.** `agenta.user.id` AND `user.id`, `agenta.session.id` AND `session.id`. Costs nothing, makes existing OTel tooling light up.
-3. **`completionStartTime` for streaming.** Easy add, captures TTFT (time-to-first-token) without user config.
+1. **Adopt Langfuse SWR cache pattern verbatim** — 60s default, dedupe concurrent refresh, `cacheTtlSeconds: 0` bypass. **Add what Langfuse skips: warn on unused/missing variables before render.**
+2. **Add Braintrust-style optional disk cache** (`~/.agenta/prompt_cache`, gzipped, hash-keyed) for offline-friendly evals.
+3. **Plugin registry for template engines** (Braintrust pattern, `template/registry.ts`) — Mustache default, opt-in alternatives via side-packages. Lint hook is borrow-worthy.
+4. **Use transaction IDs (or variant revision IDs) as wire identity, not semver.** Agenta already has variant IDs; promote them.
+5. **Layer `environment`/`deployment` slugs as orthogonal axis** — not a version.
+6. **Three signature overloads typed for `text`/`chat` return** (Langfuse pattern, `promptManager.ts:235-333`).
+7. **`fallback` body for offline resilience** — accept text string OR `ChatMessage[]`, synthesize a `isFallback: true` client.
+8. **`prompt.build()` returns LLM request shape, NOT just template** (Braintrust pattern) — auto-attaches span metadata. Less ergonomic friction. Don't try to invoke the model client-side; that's the user's job.
+9. **First-class tool binding on prompts** (Braintrust `PromptDefinitionWithTools`) — agenta has tools as a separate concept; bind them on the prompt entity.
 
 ---
 
-## 8. Notable design opinions
+## 7. Datasets & testsets
+
+### Braintrust — `Dataset extends ObjectFetcher`, full CRUD + snapshots
+
+Three init overloads ([`logger.ts:4129-4289`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)):
+
+```ts
+const dataset = await initDataset({
+  project: "my-project",         // or projectId
+  dataset: "my-dataset",
+  version: "1234abc",            // mutually-exclusive pin modes
+  snapshotName: "v1.0-eval",     // ↑ precedence: version > snapshot > environment
+  environment: "production",     // ↓
+  useOutput: true,               // legacy: rename `expected` → `output`
+});
+```
+
+`Dataset extends ObjectFetcher<DatasetRecord>` ([`logger.ts:7209-7695`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)) — `AsyncIterable<WithTransactionId<DatasetRecord>>`.
+
+**CRUD methods**:
+- `insert({input, expected, metadata?, tags?, id?})` — upserts on `id`, bg-logged.
+- `update({id, input?, expected?, metadata?, tags?})` — sets `IS_MERGE_FIELD`.
+- `delete(id)` — sets `_object_delete: true`.
+
+**Snapshots**:
+- `createSnapshot({name, description?, update?})` — POSTs `api/dataset_snapshot/register` with current `_xact_id`.
+- `listSnapshots()`, `getSnapshot({...lookup})`.
+- `updateSnapshot(snapshotId, {name?, description?})`.
+- `deleteSnapshot(snapshotId)`.
+
+**Restore**:
+- `restorePreview({version})` → `v1/dataset/{id}/restore/preview`.
+- `restore({version})` → `v1/dataset/{id}/restore`.
+
+**Summary**:
+- `summarize({summarizeData=true})` → `{projectName, datasetName, projectUrl, datasetUrl, dataSummary: {newRecords, totalRecords}}`.
+
+**Schema**: row is `{id, input, expected, metadata, tags, dataset_id, created, _xact_id, ...}` (`util/object.ts:18-33`). `metadata` keys must be strings. Tags validated for duplicates and stringness.
+
+**Iteration**: `AsyncIterable` via parent `ObjectFetcher`. Underlying BTQL `cursor` loop, default batch 1000, hard ceiling `MAX_BTQL_ITERATIONS`.
+
+**Versioning**: monotonic-transaction-ID. No fork/branch model. Snapshots are named pointers to xact IDs.
+
+**Eval-time linking**: `Dataset.toEvalData()` ([`logger.ts:7276-7310`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)) returns `{dataset_id, dataset_version | dataset_environment | dataset_snapshot_name, _internal_btql?}` consumed by `Eval(...)`.
+
+**No CLI for datasets** — programmatic-only.
+
+### Langfuse — manager has only `get`, full CRUD on raw API
+
+`DatasetManager.get(name, {fetchItemsPageSize?, version?})` ([`dataset/index.ts:237-292`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/dataset/index.ts)) — paginates `apiClient.datasetItems.list` with default page size 50, returns `FetchedDataset`.
+
+```ts
+const dataset = await langfuse.dataset.get("my-dataset", { version: "2026-05-11T12:00:00Z" });
+
+for (const item of dataset.items) {
+  const result = await myTask(item.input);
+  await item.link(result, "run-2026-05-11", { runDescription: "..." });
+}
+
+const exp = await dataset.runExperiment({ task, evaluators });
+```
+
+**`DatasetItem`** ([`commons/types/DatasetItem.ts:7-25`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/api/api/resources/commons/types/DatasetItem.ts)): `id, status, input?, expectedOutput?, metadata?, sourceTraceId: string|null, sourceObservationId: string|null, datasetId, datasetName, createdAt, updatedAt`. **Source pointers explicitly nullable strings** — lineage first-class.
+
+**Linking** — `item.link(obj, runName, runArgs?)` calls `apiClient.datasetRunItems.create({runName, datasetItemId, traceId: span.spanContext().traceId, runDescription, metadata})`.
+
+**Versioning** — ISO-timestamp snapshot via `version` param. Datasets carry `inputSchema` + `expectedOutputSchema` (JSON Schema) for server-side validation.
+
+**Full CRUD only on raw API** (`api.datasets.*`: `list/get/create/getRun/deleteRun/getRuns`; `api.datasetItems.*`: `create/get/list/delete`). **No `dataset.delete` on manager** — only `deleteRun`. Deliberate "manager = read path, raw API = admin" split.
+
+### Agenta parity
+
+- Has `testsets` entity (`web/packages/agenta-entities/src/testset`).
+- Python SDK has `agenta.sdk.managers.testsets` module.
+- TS SDK starts fresh.
+
+### Implication for agenta
+
+1. **Don't expose full CRUD on the high-level manager** — Langfuse's "manager = opinionated read path, raw `api.*` = admin" is a clean split.
+2. **`AsyncIterable` + cursor + per-page paging** (Braintrust `ObjectFetcher` pattern). Default batch 1000, hard ceiling.
+3. **`sourceTraceId` + `sourceObservationId` as first-class nullable strings on dataset items** (Langfuse pattern) — lineage tracking from prod span → dataset.
+4. **`item.link(obj, runName)` returns a `DatasetRunItem`** with traceId snapped from active span.
+5. **Snapshot CRUD as named pointers to a version** (Braintrust pattern). Three pin modes: `version > snapshot > environment` precedence.
+6. **JSON Schema for `inputSchema` / `expectedOutputSchema`** — server-side validation of dataset items (Langfuse pattern).
+
+---
+
+## 8. Evals & experiments
+
+### Braintrust — `Eval(name, evaluator, opts?)` with ~25 fields
+
+The richest eval surface among any SDK in this audit. Full `Evaluator` interface ([`framework.ts:225-372`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/framework.ts)):
+
+```ts
+Eval("Say Hi Bot", {
+  data,                              // EvalCase[] | async iter | BaseExperiment ref | fn returning any
+  task,                              // (input, hooks) => Output | Promise<Output>
+  scores,                            // EvalScorer[] returning OneOrMoreScores
+  classifiers,                       // optional EvalClassifier[]
+  parameters,                        // Zod schema OR RemoteEvalParameters
+  experimentName, description, metadata, tags, isPublic, update, projectId,
+  trialCount,                        // repetitions per input; per-row override via EvalCase.trialCount
+  maxConcurrency,                    // queue width
+  timeout,                           // ms
+  signal,                            // AbortSignal
+  state,                             // BraintrustState override (multi-tenant)
+  baseExperimentName, baseExperimentId,  // comparison baseline
+  gitMetadataSettings, repoInfo,
+  errorScoreHandler,                 // custom missing-score fallback
+  summarizeScores, flushBeforeScoring,
+});
+```
+
+Plus `EvalOptions` ([`framework.ts:558-634`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/framework.ts)): `reporter, noSendLogs, onStart, stream, parent, progress, parameters, returnResults, enableCache`.
+
+**Hooks** (`EvalHooks` at `framework.ts:129-167`) expose to the task: `metadata`, `expected`, `span`, `parameters`, `reportProgress`, `trialIndex`, `tags`.
+
+**Concurrency** ([`framework.ts:1529-1604`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/framework.ts)) — async queue at `maxConcurrency`. Per-row `trialIndex` iteration. **Byte-threshold backpressure flush** (`framework.ts:1519-1525`) — flushes whenever pending log bytes exceed `flushBackpressureBytes`. Rolling concurrency, not batch-then-batch.
+
+**Scorers**: `OneOrMoreScores = Score | number | null | Array<Score>` (`framework.ts:180-189`). Bare `number` → score. `Score = {name, score, metadata?}`. `autoevals` package (separate npm, `js/package.json:179` `^0.0.131`) ships pre-built scorers (`Levenshtein`, `Factuality`, `ClosedQA`, `NumericDiff`, `EmbeddingSimilarity`, ...). LLM-as-judge scorers are just code using the OpenAI client + `wrapOpenAI`.
+
+**Summary** — server-driven: `experiment.summarize({summarizeScores?, comparisonExperimentId?})` calls `GET /experiment-comparison2` and returns `{scores, metrics}` with `diff`, `improvements`, `regressions` per name ([`logger.ts:6439-6506`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)).
+
+**Reproducibility** — git capture ([`gitutil.ts:151-224`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/gitutil.ts)): commit, branch, tag, dirty, author_name, author_email, commit_message, commit_time, git_diff (truncated 64KB if dirty). Org-level settings: `collect: "all"|"none"` or `fields: [...]` subset.
+
+**`Reporter`** type — pluggable. Multiple built-in reporters; user can supply own.
+
+**Failure handling** — `errorScoreHandler` config; `defaultErrorScoreHandler` logs 0 for skipped scorers.
+
+### Langfuse — `experiment.run({data, task, evaluators, runEvaluators, maxConcurrency, datasetVersion})`
+
+Surface at [`ExperimentManager.ts:174-320`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/experiment/ExperimentManager.ts):
+
+```ts
+const result = await langfuse.experiment.run({
+  name: "my-experiment",
+  runName: "run-2026-05-11",    // default: `${name} - ${ISO timestamp}`
+  description, metadata,
+  data,                          // dataset items array OR Langfuse dataset items
+  task,                          // ExperimentTask: (item) => Promise<any>
+  evaluators,                    // Evaluator[]: per-item, returns Evaluation | Evaluation[]
+  runEvaluators,                 // RunEvaluator[]: aggregate, receives {itemResults}
+  maxConcurrency,                // default 50 (JSDoc says Infinity — bug)
+  datasetVersion,
+});
+
+const formatted = result.format({ includeItemResults: true });
+```
+
+**Types** ([`experiment/types.ts:82-161`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/experiment/types.ts)):
+- `ExperimentTask = (item) => Promise<any>` — task receives FULL item, not just input.
+- `Evaluator = (params: {input, output, expectedOutput?, metadata?}) => Promise<Evaluation | Evaluation[]>`.
+- `RunEvaluator = (params: {itemResults}) => Promise<Evaluation | Evaluation[]>` — aggregate-only.
+- `Evaluation = Pick<ScoreBody, "name" | "value" | "comment" | "metadata" | "dataType" | "configId">` — note `dataType` + `configId` thread through so evaluator results pin to server-side `ScoreConfig`.
+
+**Concurrency**: manual `Promise.allSettled` per-batch (`ExperimentManager.ts:208-247`). Default `maxConcurrency = 50` ([`ExperimentManager.ts:189`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/experiment/ExperimentManager.ts)) **contradicts JSDoc claim of `Infinity` at `types.ts:234`** — known bug. Each batch awaits before starting the next — **no rolling concurrency**, unlike Braintrust.
+
+**IDs** ([`packages/core/src/utils.ts:94-119`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/utils.ts)):
+- `createExperimentId()` — 16 random hex chars (no server-side run linkage).
+- `createExperimentItemId(input)` — first 16 hex of SHA-256(serialized input). **Identical inputs across runs share an item ID** — deliberate dedupe.
+
+**Tracing integration**: each item runs inside `startActiveObservation("experiment-item-run", ...)`. Root span gets `langfuse.environment = "sdk-experiment"`. Children inherit via `propagateAttributes({_internalExperiment: {...}}, fn)` (marked `**INTERNAL USE ONLY**` at `propagation.ts:132-141`).
+
+**Failure semantics**:
+- Task failures caught at batch boundary, logged "Skipping item." (`ExperimentManager.ts:233-240`).
+- Evaluator failures swallowed by `Promise.allSettled`; **only fulfilled evaluations kept** (`ExperimentManager.ts:504-513`). **Failed evaluators silently absent from results** — no error score. Bad pattern.
+
+**Run-level evaluations** only enqueued when `datasetRunId` set (`ExperimentManager.ts:292-296`). `score.flush()` called before return.
+
+**Result formatting**: `ExperimentResult.format({includeItemResults?})` produces Markdown-ish summary with emoji headers, truncated 50-char preview, per-item dataset+trace URLs, averaged numeric scores.
+
+**AutoEvals adapter** ([`experiment/adapters.ts:58-78`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/experiment/adapters.ts)) — `createEvaluatorFromAutoevals(autoevalEvaluator, params?)` maps `{input, output, expected}` → `{input, output, expectedOutput}`.
+
+**CI integration**: `RunnerContext` ([`experiment/RunnerContext.ts:38-87`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/experiment/RunnerContext.ts)) — "Intended for use with the `langfuse/experiment-action` GitHub Action."
+
+### Agenta parity
+
+- Has evaluation server-side (`api/oss/src/core/evaluations`).
+- Has `evaluator` decorator in Python SDK.
+- TS SDK starts fresh.
+
+### Implication for agenta
+
+1. **Adopt Braintrust's full `Evaluator` field set, not Langfuse's**. Specifically borrow:
+   - `trialCount` (per-row AND per-evaluator).
+   - `maxConcurrency` with **rolling** (not batched) concurrency + byte-threshold backpressure flush.
+   - `OneOrMoreScores` return type (`number | Score | Score[] | null`).
+   - `errorScoreHandler` for graceful partial failure (don't silently drop like Langfuse).
+   - `returnResults: false` for million-row evals.
+   - `enableCache` for span disk cache.
+   - `EvalHooks` carrying `metadata`, `span`, `reportProgress` for intermediate state.
+2. **Surface failed evaluator errors as `dataType: "ERROR"` scores**, NOT silently dropped (Langfuse anti-pattern).
+3. **Default `maxConcurrency` = 50** (match Langfuse), document correctly (their JSDoc bug → don't repeat).
+4. **Content-addressed item IDs** (Langfuse pattern, SHA-256 prefix) for dedup across runs.
+5. **`format({includeItemResults})` text summary** for CI output (Langfuse pattern).
+6. **Server-driven summary endpoint** (Braintrust pattern). Don't compute diffs/improvements/regressions client-side — load whole dataset is the footgun.
+7. **AutoEvals adapter as a documented integration point** — both competitors converge.
+8. **Ship eval scorers in a separate package** (`@agenta/evals` or similar) — Braintrust `autoevals` model. Keeps core lean of LLM-as-judge deps.
+9. **Git metadata capture** (Braintrust pattern, `gitutil.ts:151-224`). Org-level settings: `collect: "all"|"none"` or `fields: [...]` subset. Truncate diff at 64KB.
+
+---
+
+## 9. Scoring & feedback
+
+### Braintrust — span-attached, no separate queue
+
+Scores ride spans:
+
+```ts
+span.log({
+  scores: { quality: 0.85, helpfulness: 0.7 },
+  metadata: { ... },
+});
+```
+
+Aggregated server-side. `logFeedback()` for post-hoc adjustment. No separate `score.create` queue — scores share the span queue.
+
+### Langfuse — fire-and-forget queue with rich data types
+
+```ts
+langfuse.score.create({
+  name: "quality",
+  value: 0.85,
+  traceId: "trace-123",
+  observationId: "obs-456",     // optional
+  comment: "High quality",
+  metadata: { ... },
+  dataType: "NUMERIC",          // or BOOLEAN | CATEGORICAL | CORRECTION | TEXT
+  configId: "score-config-id",  // pin to server-side ScoreConfig
+});
+```
+
+**Five `ScoreDataType` values** ([`commons/types/ScoreDataType.ts:5-15`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/api/api/resources/commons/types/ScoreDataType.ts)): `NUMERIC | BOOLEAN | CATEGORICAL | CORRECTION | TEXT`. `ScoreConfigDataType` is same set minus `CORRECTION`.
+
+**`ScoreConfig`** ([`commons/types/ScoreConfig.ts:7-25`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/api/api/resources/commons/types/ScoreConfig.ts)): server-defined schemas with `id`, `name`, `dataType`, `isArchived`, optional `minValue`, `maxValue`, `categories: ConfigCategory[]`, `description`. CRUD on `api.scoreConfigs.*`.
+
+**Convenience overloads** ([`score/index.ts:133-270`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/score/index.ts)):
+- `score.observation({otelSpan}, data)` — auto-extracts `traceId` + `observationId`.
+- `score.trace({otelSpan}, data)` — `traceId` only.
+- `score.activeObservation(data)` — reads `trace.getActiveSpan()`; warns if none.
+- `score.activeTrace(data)`.
+
+**Queue** ([`score/index.ts:14-15, 46-49`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/score/index.ts)):
+- `MAX_QUEUE_SIZE = 100_000`, `MAX_BATCH_SIZE = 100`.
+- Default `flushAtCount = 10`, `flushIntervalSeconds = 1`.
+- Env: `LANGFUSE_FLUSH_AT`, `LANGFUSE_FLUSH_INTERVAL` (also affects span batching — see §2 footgun).
+- POSTs via `apiClient.ingestion.batch`.
+- On queue full: dropped silently with `logger.error(...)` ([`score/index.ts:89-94`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/score/index.ts)). No retry, no backpressure, no exception.
+
+**`score.create` returns `void`** (not `Promise<void>`) — fire-and-forget. Separate `score.flush()` for explicit drain.
+
+### Agenta parity
+
+- Has scoring server-side as part of evaluations.
+- No client-side scoring API.
+
+### Implication for agenta
+
+1. **Adopt Langfuse's five `ScoreDataType`s** — agenta likely has similar enums server-side; align.
+2. **Server-side `ScoreConfig` for schema enforcement** — pin scores to a config ID for validation.
+3. **Fire-and-forget queue with explicit `flush()`** (Langfuse pattern). `MAX_QUEUE_SIZE = 100_000`, `MAX_BATCH_SIZE = 100` are sensible defaults.
+4. **Convenience overloads** `score.observation(span, data)`, `score.trace(span, data)`, `score.activeObservation(data)` — match Langfuse.
+5. **Don't silently drop on overflow.** Expose drop metric / callback hook `onScoreQueueOverflow(score) => void` so users can alert.
+6. **Don't reuse env vars across subsystems** — `AGENTA_SCORE_FLUSH_AT` separate from span flush.
+7. **Allow attaching scores to spans inline** (Braintrust pattern, `span.log({scores})`) as a discoverability win — internally route to the same queue.
+
+---
+
+## 10. Media & attachments
+
+### Braintrust — attachment refs with provider-side upload
+
+Five attachment types exported ([`exports.ts:52-77`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/exports.ts)): `Attachment`, `ExternalAttachment`, `BaseAttachment`, `JSONAttachment`, `ReadonlyAttachment`. Azure-style blob refs with `addAzureBlobHeaders` helper.
+
+**No auto-extraction from span attributes.** Users must explicitly create `Attachment` instances and reference them in event payloads.
+
+`resolveAttachmentsToBase64` ([`logger.ts:8112-8135`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)) — used by `Prompt.buildWithAttachments` to hydrate `Attachment` values in prompt variables back to base64 before Mustache render.
+
+### Langfuse — auto-extraction from span attributes + presigned upload
+
+`MediaManager.resolveReferences({obj, resolveWith: "base64DataUri", maxDepth?})` ([`media/index.ts:81-173`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/media/index.ts)) — recursively walks strings/arrays/objects, regex-matches `/@@@langfuseMedia:.+?@@@/g`, fetches each via `apiClient.media.get(mediaId)` → presigned URL → `data:` URI replacement. Default `maxDepth = 10`. Failures log warning and leave reference untouched.
+
+Static helper `MediaManager.parseReferenceString` parses the `@@@langfuseMedia:type=...|id=...|source=...@@@` envelope.
+
+**OTel-side auto-extraction** ([`packages/otel/src/MediaService.ts:11-200+`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/MediaService.ts)) — `process(span)` scans **six span attributes**: trace/observation × input/output/metadata. Regex `/data:[^;]+;base64,[A-Za-z0-9+/]+=*/g` extracts base64 URIs, spawns `LangfuseMedia` per unique URI, swaps URI for `@@@langfuseMedia:...@@@` tag, schedules upload to presigned URL.
+
+**Vercel AI SDK special case** ([`MediaService.ts:99-185`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/MediaService.ts)) — when `span.instrumentationScope.name === "ai"`, additionally parses `ai.prompt.messages` / `ai.prompt` JSON and harvests base64 from `FilePart.data` / `ImagePart.image`.
+
+**Upload flow** ([`MediaService.ts:211-288`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/MediaService.ts)):
+1. `media.getSha256Hash()` for integrity.
+2. Request presigned URL: `apiClient.media.getUploadUrl({contentLength, traceId, observationId, field, contentType, sha256Hash})`.
+3. Server may return `uploadUrl: undefined` for already-uploaded (sha-dedup).
+4. Mismatch between SDK-computed and server-computed media ID aborts upload.
+5. Exponential backoff, max 3 retries, base delay 1000 ms.
+6. Status report back: `apiClient.media.patch(mediaId, {uploadedAt, uploadHttpStatus, uploadHttpError, uploadTimeMs})`.
+
+**47 MIME types enumerated** ([`media/types/MediaContentType.ts:7-58`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/api/api/resources/media/types/MediaContentType.ts)) — images, audio, video, text/code, PDFs, Office docs, archives. No file-size limit visible in source.
+
+### Agenta parity
+
+- No TS SDK media surface today.
+
+### Implication for agenta
+
+1. **Auto-extraction from span attributes** is the better DX (Langfuse pattern) — agenta should scan attrs for base64 URIs and swap for refs, not require explicit `Attachment` instances.
+2. **Six attribute slots** to scan: input/output/metadata × trace/observation.
+3. **Per-`instrumentationScope` adapter pattern** for third-party SDKs (Langfuse's Vercel AI SDK special case). Reserve a hook for `agenta-{scope}` handlers.
+4. **Presigned URL upload + sha256 dedup**. Exponential backoff. Status patch-back.
+5. **47 MIME types** is a reasonable enumeration to copy.
+
+---
+
+## 11. Annotations & queues
+
+### Braintrust — none
+
+`logFeedback()` is closest analog. No annotation queue concept. **Gap.**
+
+### Langfuse — raw API only, annotations are scores with `queueId`
+
+Only `api.annotationQueues.*` (10 methods at [`annotationQueues/client/Client.ts:78-1259`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/api/api/resources/annotationQueues/client/Client.ts)):
+
+- Queue CRUD: `listQueues`, `createQueue`, `getQueue`.
+- Item CRUD: `listQueueItems`, `getQueueItem`, `createQueueItem`, `updateQueueItem`, `deleteQueueItem`.
+- Assignment: `createQueueAssignment`, `deleteQueueAssignment`.
+
+**Types**:
+- `AnnotationQueue = {id, name, description, scoreConfigIds[], createdAt, updatedAt}`.
+- `AnnotationQueueObjectType: "TRACE" | "OBSERVATION" | "SESSION"`.
+- `AnnotationQueueStatus: "PENDING" | "COMPLETED"`.
+
+**Annotations flow back as `ScoreBody` with `queueId` field set** ([`ingestion/types/ScoreBody.ts:89`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/api/api/resources/ingestion/types/ScoreBody.ts)). **Annotations ARE scores** — unified data model.
+
+No high-level manager — only raw API.
+
+### Agenta parity
+
+- Has annotation entity (`web/packages/agenta-entities/src/annotation`).
+- Has annotation queue v2 design doc.
+
+### Implication for agenta
+
+1. **Unify annotations with scores at the data layer** (Langfuse pattern) — annotation = score with a `queueId`. Single write path (ingestion.batch / score queue), single read path (`scores.getMany`).
+2. **Three queue-item types**: TRACE | OBSERVATION | SESSION (Langfuse pattern).
+3. **Pin queue items to `scoreConfigIds[]`** for schema enforcement of acceptable scores.
+4. **Status enum**: PENDING | COMPLETED — minimal lifecycle.
+5. **Worth a high-level manager** (`langfuse.annotation.*`) — Langfuse only exposes raw API, which is a friction point. Agenta should improve here.
+
+---
+
+## 12. Sessions, users, metadata propagation
+
+### Braintrust — no first-class, metadata only
+
+`metadata` and `tags` only. No `userId`/`sessionId` as facet fields. Users typically store `metadata.user_id` and pivot in the UI.
+
+Read-side: `SpanFetcher`, `CachedSpanFetcher`, `Trace`, `GetThreadOptions` ([`exports.ts:250-251`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/exports.ts)) for thread queries. **No `session.start()` write API** — wire your own `parent` exports.
+
+### Langfuse — first-class via `propagateAttributes`
+
+```ts
+propagateAttributes(
+  {
+    userId: "user-123",
+    sessionId: "session-456",
+    tags: ["production", "tier-2"],
+    metadata: { region: "us-west" },
+    traceName: "user-checkout-flow",
+    asBaggage: true,  // cross-service via W3C baggage
+  },
+  async () => {
+    // every span created here inherits the above
+    await myAgentRun();
+  },
+);
+```
+
+Surface ([`packages/core/src/propagation.ts:81-142`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/propagation.ts)) — writes `user.id` and `session.id` to **unprefixed OTel attrs** ([`constants.ts:13-14`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/constants.ts)), with `langfuse.user.id` / `langfuse.session.id` compat aliases at `constants.ts:59-60`. **Undocumented deliberate move** — existing OTel tooling picks up these IDs without configuration.
+
+**Validation**: 200-char limit on string values, dropped with `logger.warn` (`propagation.ts:618-624`). **Silent if debug logging off.**
+
+**Cross-service baggage**: `asBaggage: true` propagates via W3C baggage with snake-case keys for Python-SDK cross-compat ([`propagation.ts:670-705`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/propagation.ts)).
+
+**No `session.create`** — sessions are implicit, materialized server-side when traces carry `session.id`. Read-side `api.sessions.list/get` only.
+
+`Session = {id, createdAt, projectId, environment}` ([`commons/types/Session.ts`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/api/api/resources/commons/types/Session.ts)).
+
+### Agenta parity
+
+- Has user/session concept server-side.
+- Python SDK has session helpers.
+
+### Implication for agenta
+
+1. **First-class `userId`/`sessionId`** — don't make them metadata (Braintrust's gap).
+2. **Mirror to OTel-standard `user.id` / `session.id` keys** (Langfuse undocumented dual-write).
+3. **`propagateAttributes(...)` HOF** for scope-bound metadata propagation.
+4. **Sessions materialized server-side from `session.id`** — no explicit `session.create()` needed.
+5. **W3C baggage opt-in for cross-service** — useful for distributed agent systems.
+6. **Validation: 200-char limit BUT log at WARN, not silently** — fix Langfuse's footgun.
+
+---
+
+## 13. Functions, tools, server-side invoke
+
+### Braintrust — first-class "function" abstraction
+
+A "Function" is the server-side noun for anything pushable: prompt, tool, scorer, task, classifier, parameters.
+
+**Project DSL** ([`framework2.ts:48-145`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/framework2.ts)):
+
+```ts
+import { projects } from "braintrust";
+import { z } from "zod";
+
+const project = projects.create({ name: "my-project" });
+
+project.tools.create({
+  name: "get-weather",
+  parameters: z.object({ city: z.string() }),
+  returns: z.object({ temperature: z.number() }),
+  handler: async ({ city }) => { /* ... */ },
+});
+
+project.prompts.create({
+  slug: "my-prompt",
+  prompt: [{ role: "system", content: "..." }],
+  model: "gpt-4o",
+  tools: [project.tools.get("get-weather")],
+});
+
+project.scorers.create({
+  name: "factuality-llm",
+  messages: [...],          // LLM-classifier mode
+  model: "gpt-4o",
+  useCot: true,
+  choiceScores: { "yes": 1, "no": 0 },
+});
+```
+
+**Sub-builders**: `tools`, `prompts`, `parameters`, `scorers` ([`framework2.ts:147-295`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/framework2.ts)). Each has `.create()` returning a typed handle usable in code AND pushable via `bt push`.
+
+**`ToolBuilder.create({handler, parameters: Zod, returns?, name, slug, description, ifExists, tags, metadata})`** — schema conversion to JSON Schema happens at upload via `zodToJsonSchema`.
+
+**`ScorerBuilder` has two modes**:
+- Code mode: `{handler, parameters, returns}` → `CodeFunction` with `type:"scorer"`.
+- LLM-classifier mode: `{messages | prompt, model, useCot, choiceScores, params}` → `CodePrompt` with `parser:{type:"llm_classifier", use_cot, choice_scores}`. Server runs this.
+
+**Server-side `invoke()`** ([`functions/invoke.ts:143-234`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/functions/invoke.ts)):
+
+```ts
+const result = await invoke({
+  function_id: "...",            // OR (projectName|projectId)+slug, OR globalFunction+functionType
+  version,
+  input,
+  messages: [...],               // extra OpenAI messages
+  metadata, tags,
+  parent: spanExport,            // distributed tracing
+  stream: true,                  // returns BraintrustStream
+  mode: "auto",
+  strict: true,                  // strict Mustache var check
+  schema: z.object({...}),       // response parsed through this if non-streaming
+});
+```
+
+POSTs `function/invoke` through Braintrust's AI proxy (`proxyConn()`).
+
+**`initFunction({projectName, slug, version?})`** ([`invoke.ts:267-296`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/functions/invoke.ts)) — returns a curried async fn usable directly as `Eval` task or scorer:
+
+```ts
+const myScorer = initFunction({projectName: "p", slug: "my-scorer"});
+await Eval("test", { task, scores: [myScorer] });
+```
+
+Disables span cache (remote spans won't be locally cached).
+
+### Langfuse — no functions concept
+
+**None.** No "Function" abstraction, no server-side `invoke()`, no tools-as-pushable-entities. Tools exist only as a parameter on the OpenAI request (the user owns them).
+
+### Agenta parity
+
+- Has tools concept server-side.
+- Python SDK has `tool` registrations via `workflow` decorator framework.
+
+### Implication for agenta
+
+1. **First-class tools and scorers as pushable entities** (Braintrust pattern) — agenta already has tools; promote them. Single `Project` DSL with sub-builders.
+2. **Two-mode scorer**: code (`handler` function) + LLM-classifier (`messages` + `model` + `choiceScores`). Server runs the classifier path.
+3. **Server-side `invoke({function_id | (project,slug)+version, input, schema, parent, stream})`** — covers the "run my pushed agent from another env" case.
+4. **`initFunction(...)` as a curry helper** — handle returned is usable as Eval task or as a callable.
+5. **Zod schemas converted to JSON Schema at upload via `zodToJsonSchema`** — borrow.
+
+---
+
+## 14. CLI & developer workflow
+
+### Braintrust — `braintrust eval`, `push`, `pull`
+
+CLI binary is `braintrust` (NOT `bt` — common misconception). `js/package.json:20-22`. Three subcommands ([`cli/index.ts:1069-1190`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/cli/index.ts)).
+
+**`braintrust eval`** ([`cli/index.ts:1073-1134`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/cli/index.ts)):
+- Discovers `**/*.eval.{ts,tsx,js,jsx}` in input paths (excludes `node_modules/dist/build`).
+- Bundles each via esbuild (`platform:"node"`, `treeShaking:true`, `external:["node_modules/*"]`).
+- `globalThis._lazy_load=true` during import → `Eval(...)` / `projects.create(...)` register into `globalThis._evals` instead of executing.
+- Then for each evaluator: `initExperiment(...)` → `runEvaluator(...)` → reporter.
+- Flags: `--api-key`, `--org-name`, `--app-url`, `--env-file`, `--debug-logging error|warn|info|debug`, `--filter <regex...>`, `--list`, `--jsonl`, `--terminate-on-failure`, `--tsconfig`, `--external-packages`, `--watch`, `--no-send-logs`, `--no-progress-bars`, `--bundle` (experimental), `--push`, `--dev/--dev-host/--dev-port/--dev-org-name`.
+- `--watch`: esbuild context watch; on rebuild re-runs all evals in touched file.
+
+**`braintrust eval --dev`** — starts an Express server ([`dev/server.ts:57`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/dev/server.ts)) exposing:
+- `GET /list` — each evaluator's `parameters`, `scores`, `classifiers` shapes.
+- `POST /eval` — accepts `{name, parameters, parent, experiment_name, project_id, data, scores, stream}`, validates params against Zod schema, optional SSE stream.
+
+**This is what the Braintrust playground's "Remote evals" tab talks to.** Local eval files become live-runnable from the web UI — non-obvious feature, worth flagging.
+
+**`braintrust push`** ([`cli/index.ts:1136-1151`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/cli/index.ts)):
+- Bundles ALL `.ts/.tsx/.js/.jsx` (not just `.eval.*`) via esbuild.
+- Uploads prompts, tools, scorers, tasks, classifiers, parameters.
+- Flags: `--if-exists error|replace|ignore`.
+
+**`braintrust pull`** ([`cli/index.ts:1153-1179`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/cli/index.ts)):
+- Pulls functions from server, writes one `.ts` per project.
+- Flags: `--output-dir` (default `./braintrust`), `--project-name`, `--project-id`, `--id`, `--slug`, `--version`, `--force`.
+- Refuses to overwrite files dirty in `git diff HEAD` unless `--force`.
+- Generated file uses `braintrust.projects.create(...)` skeleton.
+- Formatted with Prettier if available.
+
+**Missing**: no `bt init` scaffolding, no `bt datasets`/`bt experiments`/`bt secrets` subcommands.
+
+### Langfuse — no CLI
+
+**No CLI.** Confirmed by `scripts/` inspection and `package.json` `bin` fields in all six packages. The `langfuse/experiment-action` GitHub Action ([`RunnerContext.ts:31-32`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/experiment/RunnerContext.ts)) is the closest thing.
+
+### Agenta parity
+
+- No TS CLI today.
+- Python SDK has no CLI either (just imports).
+
+### Implication for agenta
+
+1. **CLI is meaningful differentiator** but expensive to maintain. Decide based on user value, not parity.
+2. **If shipping CLI: three subcommands max for v1** — `eval`, `push`, `pull`. Skip `init` scaffolding.
+3. **`--dev` mode server is the highest-value differentiator** — local eval files runnable from web playground. Concrete UX moment.
+4. **esbuild bundling + `globalThis._lazy_load` pattern** for registration without execution. Same code runs locally AND pushes.
+5. **`bt pull` git-dirty check before overwrite** ([`cli/util/pull.ts:80-130`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/cli/util/pull.ts)) — nice safety.
+6. **`--if-exists error|replace|ignore`** for push — explicit conflict resolution.
+
+---
+
+## 15. Auth, multi-project, orgs
+
+### Braintrust — API key, idempotent login, per-call state for multi-tenant
+
+`login(options)` ([`logger.ts:4934-4974`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)) — idempotent. Throws if re-login with different `appUrl`/`apiKey`/`orgName` unless `forceLogin:true`.
+
+`loginToState(options)` ([`logger.ts:4976`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)) — creates fresh `BraintrustState`, no global side effect. Multi-tenant use.
+
+Endpoint: `POST /api/apikey/login` with `Authorization: Bearer ${apiKey}`. Response: `{ org_info: [{id, name, api_url, proxy_url, git_metadata?}] }`.
+
+`_saveOrgInfo`: if `orgName` passed, picks that one; else first; throws `LoginInvalidOrgError` if not found or user has zero orgs.
+
+**Env vars**: `BRAINTRUST_API_KEY`, `BRAINTRUST_ORG_NAME`, `BRAINTRUST_APP_URL`, `BRAINTRUST_API_URL`, `BRAINTRUST_APP_PUBLIC_URL`, `BRAINTRUST_PROXY_URL`.
+
+**API key only.** No OAuth, no token refresh. Test mode uses sentinel `TEST_API_KEY`.
+
+**Multi-org switching**: pass `state: stateArg` (a fresh `BraintrustState` from `loginToState`) into any of `init/initDataset/initLogger/initExperiment/loadPrompt/loadParameters/invoke`. State holds its own login token + caches.
+
+**Project switching**: per-call `project | projectId | projectName`. No "current project" global. `currentExperiment()`/`currentLogger()`/`currentSpan()` are AsyncLocalStorage-backed.
+
+**No workspace concept beyond `organization`.** Permissions live server-side.
+
+### Langfuse — public+secret HTTP Basic, one client per project
+
+`new LangfuseClient({publicKey, secretKey, baseUrl, timeoutSeconds, additionalHeaders})` ([`LangfuseClient.ts:254-318`](https://github.com/langfuse/langfuse-js/blob/main/packages/client/src/LangfuseClient.ts)):
+
+- `publicKey` → HTTP Basic auth username + `X-Langfuse-Public-Key` header.
+- `secretKey` → HTTP Basic auth password.
+- Env fallback: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` (→ legacy `LANGFUSE_BASEURL` → `"https://cloud.langfuse.com"`).
+- **Missing keys log warnings only — no throw.**
+- `timeoutSeconds` default 5, override via `LANGFUSE_TIMEOUT`.
+
+**No singleton, no `init()`.**
+
+**Multi-project**: no per-call project override. **Each project requires its own `LangfuseClient` instance** (different keys). `projectId` is lazy-fetched once via `api.projects.get()` only when constructing trace URLs.
+
+**Org/project admin APIs** (`api.organizations.*` 8 methods, `api.projects.*` 7 methods) require org-scoped key — throw `MethodNotAllowedError` for project-scoped keys.
+
+**SCIM support** — 7 methods at [`scim/client/Client.ts:77-823`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/api/api/resources/scim/client/Client.ts) covering ServiceProviderConfig, ResourceTypes, Schemas, User CRUD (no `updateUser`). EE feature.
+
+**`X-Langfuse-Sdk-*` headers** on every request ([`Client.ts:39-44`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/api/Client.ts)): `X-Langfuse-Sdk-Name`, `X-Langfuse-Sdk-Version`, `X-Langfuse-Public-Key`. Useful for server-side per-SDK observability.
+
+### Agenta parity
+
+- Has API key auth.
+- Has orgs + workspaces server-side.
+
+### Implication for agenta
+
+1. **`globalThis[Symbol.for("agenta-state")]` for primary state** (Braintrust pattern). Singleton + multi-tenant escape hatch via `agenta.loginToState(...)`.
+2. **API key only for v1.** No OAuth. Mimics both competitors.
+3. **Per-call `project | projectId` arg** (Braintrust pattern, NOT Langfuse's "one client per project"). Multi-project from single client is the common case.
+4. **`X-Agenta-Sdk-Name`, `X-Agenta-Sdk-Version`, `X-Agenta-Project-Id` headers** on every request — bake in from day one.
+5. **SCIM support is EE-only** — defer to v2.
+6. **Org admin endpoints behind `client.admin.*`** (Langfuse flags this implicitly with `MethodNotAllowedError` for project-scoped keys; agenta should make scope explicit at the surface).
+
+---
+
+## 16. Configuration, secrets, deployments
+
+### Braintrust — none
+
+**No `SecretsManager`/`VaultManager`/`ConfigManager` equivalents.** Everything is env-var or per-call options.
+
+- `BRAINTRUST_API_KEY`, `BRAINTRUST_ORG_NAME` — auth.
+- `BRAINTRUST_APP_URL`/`API_URL`/`APP_PUBLIC_URL`/`PROXY_URL` — endpoints.
+- `BRAINTRUST_DEBUG_LOG_LEVEL` — log level.
+- `BRAINTRUST_PROMPT_CACHE_DIR/MEMORY_MAX/DISK_MAX` — cache.
+- `BRAINTRUST_VERBOSE` — cancellation debug.
+
+**Per-environment overrides via `environment` slug** on prompts/parameters/datasets — config-by-data-binding, not config-by-env-file.
+
+No `.env` convention beyond CLI's `loadEnvConfig` (Next.js's env loader) at `cli/index.ts:922`.
+
+**No deployment manager.** Deployment is a Braintrust UI action; SDK only sees resulting `environment` slug.
+
+### Langfuse — none, but server-side `llmConnections` for provider keys
+
+**No `SecretsManager`/`VaultManager`/`ConfigManager`.**
+
+Secrets exist *implicitly* via `api.llmConnections.upsert({secretKey})` ([`llmConnections/types/UpsertLlmConnectionRequest.ts:16`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/api/api/resources/llmConnections/types/UpsertLlmConnectionRequest.ts)) — secret stored server-side, only masked form returned (`LlmConnection.displaySecretKey`). Used by Langfuse's dashboard/playground for LLM calls. **Not a client-side declarative-config or vault interface.**
+
+**No config manager.** Application config lives in two places: (a) `Prompt.config: unknown` (opaque per-prompt JSON bag), (b) `Project.metadata: Record<string, unknown>`. Neither is declarative.
+
+**Blob storage** — `api.blobStorageIntegrations.*` ([4 methods](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/api/api/resources/blobStorageIntegrations/client/Client.ts)) configures **destinations** (S3/S3_COMPATIBLE/AZURE_BLOB_STORAGE) for trace exports. JSON/CSV/JSONL, gzip, cron-style export modes. **Configures destination, not source.** Not a "secrets vault" for general-purpose use.
+
+### Agenta parity
+
+- **Has `SecretsManager`, `VaultManager`, `ConfigManager` in Python SDK** (`agenta/sdk/managers/{secrets,vault,config}.py`). TS SDK gap.
+- Has `DeploymentManager` in Python SDK.
+
+### Implication for agenta
+
+This is the biggest **divergence** from both competitors. Agenta's Python SDK has surfaces neither competitor ships. RFC decision:
+
+**Option A — Match competitors, drop the managers from TS SDK.** Use env vars + `environment` slug for config. Keep `SecretsManager` Python-only.
+
+**Option B — Port the managers.** Adds maintenance cost but maintains Python ↔ TS parity. Users on both runtimes get consistent surfaces.
+
+**Recommendation: Option A for v1.** Reasoning:
+- Both competitors converged on "env-var + per-call options + environment slug" — strong signal it's enough for ~90% of cases.
+- `SecretsManager`/`VaultManager` in Python SDK are thin wrappers over agenta's API; nothing prevents Python and TS users from using the API directly via raw client.
+- TS users rarely need declarative-config-from-yaml at SDK load — they tend to be application code, not infra.
+- **Defer to v2** if measured user demand exists. Don't pre-commit to maintaining ConfigManager parity.
+
+For v1: ship `client.api.secrets.*` raw API access (matching Langfuse's `llmConnections.upsert` pattern), but no high-level manager.
+
+---
+
+## 17. Cost tracking
+
+### Braintrust — server-computed, client normalizes token metrics
+
+**No client-side cost calculation.** SDK extracts token counts from provider usage objects ([`openai-utils.ts:34-64`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/wrappers/openai-utils.ts)) via `parseMetricsFromUsage` — converts OpenAI's `input_tokens`/`output_tokens`/`total_tokens` to canonical `prompt_tokens`/`completion_tokens`/`tokens`, flattens `*_tokens_details` (`cached_tokens`, etc.) into per-metric keys.
+
+`anthropic-tokens-util.ts:8-30` normalizes Anthropic's `input_tokens` + `cache_*` fields, producing `prompt_tokens = input + cache_creation + cache_read` plus `prompt_cached_tokens` metric.
+
+**`cached` boolean** emitted for HTTP-level prompt-cache hits via `x-bt-cached` / `x-cached` response headers ([`openai-utils.ts:8-9, 75-88`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/wrappers/openai-utils.ts)).
+
+**Model pricing NOT in JS SDK at all** — no hardcoded price table, no fetch. Server owns the price model.
+
+### Langfuse — server-computed, client provides untyped USD bag
+
+`Observation.costDetails: Record<string, number>` ([`commons/types/Observation.ts:47`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/api/api/resources/commons/types/Observation.ts)) — free-form key-value bag, computed server-side from `Model.pricingTiers` × `usageDetails`.
+
+Client can set at span-creation: `LangfuseGenerationAttributes.costDetails?: {[k: string]: number}` ([`tracing/src/types.ts:85-87`](https://github.com/langfuse/langfuse-js/blob/main/packages/tracing/src/types.ts)).
+
+**Implicit USD currency** — no `currency` field on `costDetails` itself. Doc example shows `costDetails: { totalCost: 0.002, currency: 'USD' }` but `currency: 'USD'` would coerce to NaN (type is `Record<string, number>`). **Known typing gap.**
+
+**Model pricing**: `Model.pricingTiers: PricingTierInput[]` ([`models/types/CreateModelRequest.ts:22-42`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/api/api/resources/models/types/CreateModelRequest.ts)) supports conditional tiers with `priority`, `isDefault`, `conditions`. Flat `inputPrice`/`outputPrice`/`totalPrice` are deprecated.
+
+### Agenta parity
+
+- Server-side cost in `evaluations` / `traces`.
+
+### Implication for agenta
+
+1. **No client-side cost calculation.** Send normalized token metrics, compute server-side. Both competitors converge.
+2. **Mirror `parseMetricsFromUsage` and `parseCachedHeader` helpers** (Braintrust pattern) — 40 lines each, cover OpenAI/Anthropic shapes including cached tokens.
+3. **`costDetails: Record<string, number>` server-returned, untyped USD bag** (Langfuse pattern). Don't model currency at type level — Langfuse tried and quietly broke it.
+4. **`Model.pricingTiers` with conditional tiers from day one** — Langfuse hit migration pain when adding tiered pricing on top of flat. Don't repeat.
+
+---
+
+## 18. Read-back & query surface
+
+### Braintrust — `ObjectFetcher` AsyncIterable + BTQL AST
+
+Unified read API: `ObjectFetcher<RecordType>` ([`logger.ts:6044-6212`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)):
+
+```ts
+class ObjectFetcher<T> {
+  fetch({batchSize?}): AsyncGenerator<WithTransactionId<T>>;
+  fetchedData({batchSize?}): Promise<T[]>;      // eager + cached
+  version({batchSize?}): Promise<string>;
+  clearCache(): void;
+}
+```
+
+`objectType: "dataset" | "experiment" | "project_logs" | "playground_logs"`.
+
+Under the hood: **BTQL** (Braintrust Query Language) AST POSTed to `btql` endpoint ([`logger.ts:6101-6138`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)):
+
+```ts
+{
+  query: {
+    select: [{op:"star"}],
+    from: {op:"function", name:{op:"ident",name:[objectType]}, args:[{op:"literal",value:objectId}]},
+    cursor, limit,
+    ...internalBtqlWithoutReservedKeys  // raw AST passthrough
+  },
+  use_columnstore: false, brainstore_realtime: true,
+  query_source: "js_sdk_object_fetcher_<type>",
+  version?: pinnedVersion
+}
+```
+
+**`_internal_btql` escape hatch** — accepts arbitrary BTQL filters/projections (reserves `cursor/limit/select/from`).
+
+`getPromptVersions(projectId, promptId)` ([`logger.ts:8579-8643`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)) is the only public BTQL example in user-facing surface — filters for `audit_data.action in ("upsert","merge")`.
+
+**No SQL/Lucene DSL, no full-text.** BTQL is the SQL-ish AST that Braintrust's columnstore exposes.
+
+### Langfuse — typed `client.api.*` endpoints + Cube-style metrics
+
+Read endpoints via `client.api.*`:
+
+- `api.observations.getMany`, `api.legacy.observationsV1.get` (singular get via legacy path).
+- `api.trace.get`, `api.trace.list`, `api.trace.delete`, `api.trace.deleteMultiple`. Note: singular `trace` namespace (real, not typo).
+- `api.scores.getMany`, `api.scores.getById`.
+- `api.sessions.list`, `api.sessions.get`.
+- `api.datasets.list`, `api.datasetItems.list`.
+
+**`api.metrics.metrics(GetMetricsV2Request)`** ([`metrics/client/requests/GetMetricsV2Request.ts:12-62`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/api/api/resources/metrics/client/requests/GetMetricsV2Request.ts)) — **Cube-style query DSL** as JSON-stringified arg:
+
+```ts
+{
+  view,
+  dimensions: [{name: "..."}],
+  metrics: [{aggregation: "...", measure: "..."}],
+  filters: [{column, operator, value, type}],
+  timeDimension: {granularity, dateRange},
+  fromTimestamp, toTimestamp,
+  orderBy: [{column, direction}],
+  config: {bins?, rowLimit?}
+}
+```
+
+**`api.comments.*`** (3 methods) — comment on TRACE | OBSERVATION | SESSION | PROMPT.
+
+### Agenta parity
+
+- Has query endpoints server-side.
+- No TS SDK read-back surface today.
+
+### Implication for agenta
+
+1. **`AsyncIterable` + cursor + per-page paging** as the primary read shape (Braintrust pattern).
+2. **Cube-style metric DSL** (Langfuse `api.metrics.metrics`) is mature and well-typed — borrow the request shape for agenta's metrics endpoint.
+3. **Single `client.api.*` surface for raw access**; 5 high-level managers for the opinionated read path (Langfuse split).
+4. **No SQL/Lucene** — too much surface to maintain. Cube-style or BTQL-style filter object is enough.
+
+---
+
+## 19. Type safety & ergonomics
 
 ### Braintrust
 
-- **OTel is a peer, not the bus.** Own bg logger, queue, span impl. OTel offered as opt-in `SpanProcessor`/`Exporter`.
-- **`diagnostics_channel.tracingChannel` as the unified instrumentation seam** — across manual wraps, AST transforms (`@apm-js-collab/code-transformer`), bundler plugins (`braintrust/vite|webpack|esbuild|rollup`), and Node `--import` hooks. Cross-runtime via `dc-browser` polyfill on edge. Unusual design; heavy.
-- **Symbol-keyed `globalThis` state** — `Symbol.for("braintrust-state")` for cross-bundle survival. Borrow-worthy.
-- **`asyncFlush` typed per-call arg** — elegant return-type flip. Borrow-worthy.
-- **Three layers of "auto":** manual → bundler plugin → `--import` hook. Opt-in.
-- **CLI bundled in runtime package** (with `dotenv`, `express`, `esbuild`, `chalk`). Cautionary tale on bundle size; keep CLI separate.
-- **`traceable` alias** for LangSmith refugees. Small but telling.
-- **No `engines` declaration** — runtime targeting via conditional exports only. Leakier than Langfuse's `engines: {node: ">=20"}`.
+- **Generics-heavy.** `init`/`initLogger`/`initDataset` carry `IsOpen extends boolean = false` and `IsAsyncFlush extends boolean = true`. `wrapTraced` returns conditional types based on `IsAsyncFlush`.
+- **Zod hard peer dep** `^3.25.34 || ^4.0`. Parallel test suites for v3 + v4. Internally imports `zod/v3`.
+- **Flat namespace** — `import * as braintrust from "braintrust"` works.
+- **Error handling**: throws by default; instrumentation paths swallow via `debug-logger.ts` + `NOOP_SPAN` fallback.
 
 ### Langfuse
 
-- **OTel is the design.** Not "OTel-compatible" — OTel-native end-to-end. `LangfuseSpan` is a real OTel `Span`. Wire is OTLP/HTTP.
-- **Two transports, one product.** Spans over OTLP, REST for scores/prompts/datasets. Pragmatic split.
-- **10 observation types but only 2 attribute shapes** — semantic labels riding on top of `span-like` / `generation-like`. Overstated as "richer semantic model" in v1 of this doc.
-- **`propagateAttributes` is the v5 observation-centric primitive** — trace-level info flows via OTel context + optional W3C baggage. Both OpenAI and LangChain wrappers route everything through it.
-- **Stale-while-revalidate prompt cache** — production-grade DX win.
-- **Eval orchestration in-SDK** — `ExperimentManager` runs locally, traces each, batches scores.
-- **Migration tax softer than commonly portrayed** — 16 deprecated method-name aliases preserved in `LangfuseClient`, `LANGFUSE_BASEURL` still read as legacy fallback. The breaking-change reputation overstates the actual surface break.
-- **Two OTel processors per app** — one for `LangfuseClient`'s media service, one for `LangfuseSpanProcessor`'s MediaService. Each has its own Fern fetch agent; connection pools not shared.
+- **Strict hand-written types** for observation attributes (`LangfuseGenerationAttributes` with typed `model`, `modelParameters`, `usageDetails`, `costDetails`, `prompt: { name, version, isFallback }`).
+- **Constants enum is canonical** ([`packages/core/src/constants.ts:10-61`](https://github.com/langfuse/langfuse-js/blob/main/packages/core/src/constants.ts)) — `LangfuseOtelSpanAttributes`. `langfuse.trace.*` for trace, `langfuse.observation.*` for observation, unprefixed `user.id`/`session.id` (lines 13-14).
+- **`completionStartTime` for streaming** — set on first chunk receipt ([`traceMethod.ts:205`](https://github.com/langfuse/langfuse-js/blob/main/packages/openai/src/traceMethod.ts)).
+- **Discoverability** — namespace on `LangfuseClient` (`langfuse.prompt.*` etc.); tracing functions top-level.
+- **Silent fail by default.** Score queue drops on overflow. HTTP failures logged, never throw.
+
+### Implication for agenta
+
+1. **Silent fail on instrumentation paths.** Both converge.
+2. **Mirror agenta IDs to OTel-standard keys.**
+3. **`completionStartTime` for streaming TTFT.**
+4. **Use canonical constants enum** for attribute keys, not magic strings scattered across code.
+
+---
+
+## 20. Notable design opinions
+
+### Braintrust
+
+- **OTel is a peer, not the bus.** Own bg logger, queue, span impl. OTel offered as opt-in interop.
+- **`diagnostics_channel.tracingChannel` as unified instrumentation seam** — across manual wraps, AST transforms, bundler plugins, Node `--import` hook. Cross-runtime via `dc-browser` polyfill.
+- **Symbol-keyed `globalThis` state** — `Symbol.for("braintrust-state")` for cross-bundle survival.
+- **`asyncFlush` typed per-call arg** — elegant return-type flip.
+- **Three layers of "auto":** manual → bundler plugin → `--import` hook.
+- **CLI bundled in runtime package** (with `dotenv`, `express`, `esbuild`, `chalk`) — cautionary tale.
+- **`traceable` alias for LangSmith refugees** — small but telling.
+- **First-class "Function" abstraction** — prompts/tools/scorers/tasks/classifiers all pushable.
+- **Server-side `invoke()`** — pushes the function/prompt/agent, executes there, returns typed value or stream.
+- **Two-tier prompt cache** (LRU memory + gzipped disk).
+- **Dev-mode server for playground integration.**
+- **No `engines` declaration** — runtime targeting via conditional exports only. Leakier.
+
+### Langfuse
+
+- **OTel is the design.** Not "OTel-compatible" — OTel-native end-to-end.
+- **Two transports, one product.** Spans over OTLP, REST for scores/prompts/datasets/etc.
+- **5 named managers + raw `client.api.*`** — opinionated read paths + escape hatch for everything else.
+- **10 observation types but only 2 attribute shapes** — overstated taxonomy.
+- **`propagateAttributes` v5 primitive** — observation-centric trace-level info via OTel context + optional W3C baggage.
+- **Stale-while-revalidate prompt cache** — production-grade DX.
+- **Eval orchestration in-SDK** — `ExperimentManager`.
+- **Migration tax softer than commonly portrayed** — 16 deprecated method aliases preserved.
+- **Annotations = scores with `queueId`** — unified data model.
+- **Sessions/users as first-class via unprefixed OTel attrs** — undocumented but deliberate.
+- **No CLI, no functions concept, no server-side invoke** — much smaller surface than Braintrust.
 - **Node-only tracing.** Deliberate split — `@langfuse/otel` and `@langfuse/tracing` both `engines.node >= 20`.
 
 ---
 
-## 9. Decisions agenta needs to make for the RFC
+## 21. RFC decisions for agenta
 
-Translating the source audit into explicit RFC decision points:
+Consolidated decision points across all surfaces. Updated to 26 from v2's 17.
 
-### D1. Wire protocol
+### Tracing + export (D1–D6 carried from v2)
 
-- ✅ **Already decided: OTLP/HTTP.** Aligns with Langfuse end-to-end; Braintrust's OTel-mode interop confirms OTLP is the cross-vendor lingua franca.
-- Open: do scores/prompts/datasets also go OTLP, or REST? Langfuse splits (REST for non-tracing). **Recommend split** — don't force scores through OTel attributes.
+- **D1. Wire**: OTLP/HTTP (decided). Split spans vs REST for scores/prompts/datasets — don't force everything through OTel.
+- **D2. Package decomposition**: Langfuse-style scoped packages (`@agenta/tracing`, `@agenta/otel`, `@agenta/client`, `@agenta/openai`). Keep CLI separate.
+- **D3. State**: `globalThis[Symbol.for("agenta-state")]` (Braintrust pattern).
+- **D4. Tracing API shape**: hybrid — generator-aware HOF (`ag.trace(fn)`) on OTel spans + `startSpan`/`startActiveSpan` imperative.
+- **D5. AI SDK v6 abort handling**: `AgentaSpanProcessor` intercepts `AsyncIterable.return()/.throw()` + `AbortSignal`. Headline differentiator.
+- **D6. Edge runtime**: 4 conditional builds (`node`/`workerd`/`edge-light`/`browser`).
 
-### D2. Package decomposition
+### Tracing API details
 
-- **Recommend Langfuse-style scoped packages** (`@agenta/tracing`, `@agenta/otel`, `@agenta/client`, `@agenta/openai`).
-- Keep CLI separate from runtime — don't bundle `dotenv`/`express`/`esbuild` into the runtime install (Braintrust's tax).
+- **D7. Attribute propagation**: Langfuse `propagateAttributes` pattern. OTel context + optional W3C baggage. WARN on truncation, don't silent-drop.
+- **D8. Provider integration**: OTel-only via `experimental_telemetry` for v1. Per-provider Proxy wrappers in v2 only if measured DX gap.
+- **D9. Mask function**: async-aware, six attribute slots, sentinel on throw, applied before media extraction (Langfuse pattern).
+- **D10. `asyncFlush: boolean` typed per-call arg** (Braintrust pattern).
+- **D11. Env var design**: namespace per subsystem (`AGENTA_SPAN_FLUSH_AT` vs `AGENTA_SCORE_FLUSH_AT`).
 
-### D3. State + multi-bundle survival
+### Prompts
 
-- **Adopt `globalThis[Symbol.for("agenta-state")]`** (Braintrust pattern, `logger.ts:1102-1109`).
-- Fixes multi-copy in node_modules + Next.js dev mode + monorepo issues.
-- Trivial cost, large bug-prevention benefit.
+- **D12. Prompt cache: SWR + optional disk**. Langfuse SWR pattern + Braintrust disk-cache layer. Default 60s TTL, 0 to bypass. Disk at `~/.agenta/prompt_cache`, gzipped, eviction by mtime.
+- **D13. Templating: plugin registry, Mustache default**. Lint hook for variable validation. Nunjucks/other engines opt-in via side-packages.
+- **D14. `prompt.build()` returns LLM request shape** (Braintrust pattern), not just template. Auto-attaches span metadata. Don't invoke model client-side.
+- **D15. Three signature overloads typed for chat/text** (Langfuse pattern). Include `fallback` body for offline resilience.
+- **D16. Use variant revision IDs as wire identity**, NOT semver. Layer `environment`/`deployment` slugs as orthogonal axis.
+- **D17. Tools binding on prompts** (Braintrust `PromptDefinitionWithTools`) — inline + references to pushed tools.
+- **D18. Add what Langfuse skips**: warn on unused/missing variables before render.
 
-### D4. Tracing API surface shape
+### Datasets
 
-- **Recommend hybrid**: ship a generator-aware HOF (`ag.trace(fn)` or similar) on top of OTel spans as the primary surface. Provide `startSpan`/`startActiveSpan` for imperative cases.
-- Borrow Langfuse's observation type union (`span | generation | event | embedding | agent | tool | chain | retriever | evaluator | guardrail`) as semantic labels — but only generation needs a typed attribute shape.
-- Borrow Braintrust's 11-value `spanType` extras (`automation`, `facet`, `preprocessor`, `classifier`, `review`) where relevant.
+- **D19. Manager = opinionated read path, raw `api.*` = admin** (Langfuse split). Don't expose full CRUD on high-level manager.
+- **D20. `AsyncIterable` + cursor + per-page paging** (Braintrust `ObjectFetcher`). Default batch 1000.
+- **D21. `sourceTraceId`/`sourceObservationId` first-class nullable strings on items** (Langfuse) — lineage tracking.
+- **D22. `item.link(obj, runName)` snaps active span trace ID** — single call from task code.
+- **D23. Three pin modes for dataset version**: `version > snapshot > environment` precedence.
+- **D24. JSON Schema input/expected validation** (Langfuse pattern).
 
-### D5. AI SDK v6 streaming abort handling — **headline differentiator**
+### Evals
 
-- Source confirms neither competitor handles this. Largest open opportunity.
-- **Recommend**: `AgentaSpanProcessor` that (a) intercepts AsyncIterable `.return()`/`.throw()`, (b) listens for `AbortSignal` from `experimental_telemetry`, (c) force-flushes in-flight span before OTel batch processor would release it.
-- Config: `flushOnAbort: boolean` (true by default).
-- Document this as the headline feature.
+- **D25. Adopt Braintrust's `Evaluator` field set, not Langfuse's lighter version**. Key fields: `trialCount`, rolling `maxConcurrency` with byte backpressure, `OneOrMoreScores`, `errorScoreHandler`, `returnResults`, `enableCache`, `EvalHooks`.
+- **D26. Failed evaluator errors → `dataType: "ERROR"` scores**, NOT silently dropped (Langfuse anti-pattern).
+- **D27. Content-addressed item IDs** (Langfuse pattern, SHA-256 prefix) for dedup.
+- **D28. Server-driven `summarize()`** (Braintrust pattern) — don't compute diffs/improvements/regressions client-side.
+- **D29. AutoEvals adapter as documented integration**.
+- **D30. Eval scorers in separate package** (`@agenta/evals`) — Braintrust `autoevals` model.
+- **D31. Git metadata capture** (Braintrust pattern) — commit/branch/diff if dirty (truncated 64KB), org-level settings for opt-out.
+- **D32. `format({includeItemResults})` text summary** for CI.
 
-### D6. Edge runtime support
+### Scoring
 
-- **Per-runtime conditional exports** (Braintrust pattern): separate `node`, `workerd`, `edge-light`, `browser` builds.
-- Plan for 4 builds from day one — no single bundle works everywhere even with polyfills.
-- Spike confirmed there's no shortcut.
+- **D33. Five `ScoreDataType`s**: `NUMERIC | BOOLEAN | CATEGORICAL | CORRECTION | TEXT` (Langfuse).
+- **D34. Server-side `ScoreConfig` schemas**, pin scores via `configId`.
+- **D35. Fire-and-forget queue, explicit `flush()`**. `MAX=100k`, `BATCH=100`. Don't silently drop on overflow — expose `onScoreQueueOverflow(score)` hook.
+- **D36. Convenience overloads**: `score.observation(span, data)`, `score.trace(span, data)`, `score.activeObservation(data)`.
+- **D37. Allow attaching scores inline via `span.log({scores})`** (Braintrust pattern) for discoverability.
 
-### D7. Attribute propagation
+### Media
 
-- **Adopt Langfuse's `propagateAttributes`-style observation-centric propagation** for user/session/tags.
-- Borrow OTel-context + optional W3C baggage dual write.
-- **Don't** borrow silent 200-char truncation — log at WARN.
-- Mirror agenta IDs to OTel-standard keys: `agenta.user.id` AND `user.id`.
+- **D38. Auto-extraction from span attributes** (Langfuse pattern), not explicit `Attachment` instances. Six attribute slots to scan.
+- **D39. Per-`instrumentationScope` adapter for third-party SDKs** (Langfuse `ai` special-case pattern).
+- **D40. Presigned URL upload + sha256 dedup + exponential backoff + status patch-back**.
 
-### D8. Provider integration strategy
+### Annotations
 
-- **Recommend OTel-only via `experimental_telemetry` for v1** (Langfuse pattern).
-- Add per-provider Proxy wrappers in v2 only if measured DX gap demands.
-- Skip Braintrust's `diagnostics_channel` + AST transform machinery — heavy complexity for marginal gain.
+- **D41. Annotations = scores with `queueId`** (Langfuse pattern) — unified data model.
+- **D42. Ship a high-level manager** (Langfuse only exposes raw API — friction point to improve on).
+- **D43. Queue item types**: TRACE | OBSERVATION | SESSION. Status: PENDING | COMPLETED.
+- **D44. Pin to `scoreConfigIds[]`** for schema enforcement.
 
-### D9. Eval orchestration
+### Sessions, users, metadata
 
-- **In-SDK orchestration without a CLI in v1.** Keep surface lean. Users invoke from any TS script (Langfuse pattern).
-- Add runner in v2 only if watch-mode / web-playground-hosted-eval ergonomics become real ask.
+- **D45. First-class `userId`/`sessionId`** — don't make them metadata (Braintrust's gap).
+- **D46. Mirror to OTel-standard `user.id`/`session.id` keys** (Langfuse undocumented dual-write).
+- **D47. `propagateAttributes(...)` HOF** for scope-bound metadata propagation.
+- **D48. Sessions materialized server-side** — no explicit `session.create()`.
+- **D49. W3C baggage opt-in for cross-service** propagation.
+- **D50. 200-char validation BUT log at WARN**, not silently.
 
-### D10. Initialization model
+### Functions, tools
 
-- **Langfuse split**: tracing setup via `registerAgentaTracing()` or `AgentaSpanProcessor` registered with user's `NodeSDK`; REST client via `ag.init({apiKey})` (already in place).
-- Don't conflate.
-- Ship `setAgentaTracerProvider(provider)` escape hatch for `@vercel/otel`-isolated providers.
+- **D51. First-class tools and scorers as pushable entities** (Braintrust pattern). Single `Project` DSL with `tools/prompts/parameters/scorers` sub-builders.
+- **D52. Two-mode scorer**: code handler + LLM-classifier (`messages` + `model` + `choiceScores`).
+- **D53. Server-side `invoke({function_id | (project,slug)+version, input, schema, parent, stream})`**.
+- **D54. `initFunction(...)` curry helper** — handle usable as Eval task or callable.
 
-### D11. Env var design
+### CLI
 
-- **Namespace separately** — `AGENTA_SPAN_FLUSH_AT` vs `AGENTA_SCORE_FLUSH_AT`, not a single `AGENTA_FLUSH_AT` controlling both (Langfuse's footgun).
-- Mirror Braintrust's debug knobs: `AGENTA_DEBUG`, `AGENTA_FAILED_PUBLISH_PAYLOADS_DIR`, `AGENTA_QUEUE_DROP_EXCEEDING_MAXSIZE`.
+- **D55. CLI is optional but high-leverage.** Three subcommands max for v1: `eval`, `push`, `pull`.
+- **D56. `--dev` mode server is the highest-value differentiator** — local eval files runnable from web playground.
+- **D57. esbuild bundling + `globalThis._lazy_load` pattern** for registration without execution.
+- **D58. `bt pull` git-dirty check before overwrite** — safety.
+- **D59. `--if-exists error|replace|ignore`** for push.
 
-### D12. Mask function
+### Auth + multi-project
 
-- **Per-attribute, async-aware `mask({ data })` function** in processor config (Langfuse pattern, `span-processor.ts:444-462`).
-- Six attribute slots: input/output/metadata × trace/observation.
-- On mask throw → sentinel value, not crash.
-- Apply mask BEFORE media extraction.
+- **D60. API key only for v1.**
+- **D61. Per-call `project | projectId` arg** (Braintrust pattern), NOT one-client-per-project (Langfuse pattern).
+- **D62. `X-Agenta-Sdk-Name/Version/Project-Id` headers** on every request.
+- **D63. Org admin endpoints behind `client.admin.*`** to make scope explicit.
 
-### D13. Prompt cache
+### Configuration
 
-- **Adopt Langfuse's stale-while-revalidate pattern** (`promptManager.ts:316-412`).
-- Default 60s TTL, configurable.
-- Consider Braintrust's optional disk-cache layer for offline evals.
+- **D64. No `SecretsManager`/`VaultManager`/`ConfigManager` in TS SDK v1.** Use env vars + per-call options + `environment` slug. Defer to v2.
+- **D65. Ship `client.api.secrets.*` raw API** matching Langfuse `llmConnections` pattern.
 
-### D14. SDK headers
+### Cost
 
-- Ship `X-Agenta-Sdk-Name`, `X-Agenta-Sdk-Version`, `X-Agenta-Project-Key` on every request (Langfuse pattern, `core/src/api/Client.ts:39-44`).
-- Useful for server-side per-SDK observability.
+- **D66. Server-side cost calculation.** Send normalized token metrics.
+- **D67. Mirror `parseMetricsFromUsage` + `parseCachedHeader`** helpers.
+- **D68. `Model.pricingTiers` with conditional tiers from day one**.
 
-### D15. Error handling philosophy
+### Query / read-back
 
-- **Silent fail on instrumentation paths.** Both competitors converge. Match.
-- Use debug logger gated on `AGENTA_DEBUG=1`.
+- **D69. `AsyncIterable` + cursor paging** as primary read shape.
+- **D70. Cube-style metric DSL** (Langfuse `metrics.metrics`) for the metrics endpoint.
 
-### D16. `engines` and `sideEffects`
+### Cross-cutting
 
-- **Declare both.** `engines.node >= 18` (or whatever we support), `sideEffects: false`.
-- Braintrust's "target via conditional exports only" is leakier than Langfuse's `engines` declaration.
-
-### D17. Migration story for existing users
-
-- Agenta has a published `examples/node/observability-vercel-ai/` using v4 AI SDK + raw OTel. The TS SDK rebuild must not silently break it.
-- **Ship migration guide in-repo** (`docs/migration/sdk-v1-to-v2.md`) alongside CHANGELOG — Langfuse's web-only migration guide hurts contributors.
-- Preserve method-name aliases for at least one minor version (Langfuse's compat shim).
+- **D71. Silent fail on instrumentation paths.** Debug logger gated on `AGENTA_DEBUG=1`.
+- **D72. `engines: node >= 18` + `sideEffects: false` declared** on every package.
+- **D73. Canonical constants enum** for attribute keys.
+- **D74. Migration plan: one consolidated v1→v2 cut**, with `bind()` re-export compat shim. Don't repeat Langfuse's three-release tax.
+- **D75. In-repo `MIGRATION.md`** alongside CHANGELOG.
 
 ---
 
-## 10. Opportunities to differentiate (ranked by leverage)
+## 22. Differentiation opportunities (ranked by leverage)
 
-1. **AI SDK v6 streamText + abort flush correctness.** Source confirms neither competitor has solved this — Langfuse issue #12643 OPEN, Braintrust has no abort handling in `wrappers/ai-sdk/`. If agenta ships a span processor that flushes correctly on stream abort across all four App Router / Pages Router × raw OTel / `@vercel/otel` combinations, that's the headline.
-2. **Edge runtime tracing that actually works.** Langfuse: not supported. Braintrust: proprietary wire works on edge, but OTLP-on-edge for OTel users remains messy. Spike already established the four pain modes (P-APP-RAW-01, P-APP-VERCEL-02, P-PAGES-RAW-01, P-PAGES-VERCEL-01).
-3. **TanStack Start documentation + helper.** Neither competitor documents it. Spike captured P-TANSTACK-01/02/03. Lowest-effort win — write the docs and ship a `register()` helper that throws if called too late.
-4. **One consolidated migration, not three.** Langfuse's three breaking-change releases in nine months is a real cautionary tale (though softer than commonly portrayed — 16 method-name aliases preserved). Land the new SDK once.
-5. **`asyncFlush` per-call typed boolean.** Braintrust pattern, lift directly. Cleaner than Langfuse's "switch processor mode globally."
-6. **Stale-while-revalidate prompt cache + optional disk layer.** Langfuse's pattern + Braintrust's disk-cache idea combined. Production-grade DX.
-
----
-
-## 11. Open questions for the RFC
-
-- Do we need a dedicated `agenta eval`-style CLI runner, or is "call from any TS script" enough for v1?
-- Should the `ag.tracing` API expose all 10 observation subtypes as labels (Langfuse) or trim to a smaller core?
-- Where do scores live? REST (Langfuse split) or OTel attributes (forced unification)?
-- Do we ship bundler plugins (Braintrust pattern) or rely on framework-native instrumentation hooks (Next.js `instrumentation.ts`, TanStack Start `src/server.ts`)?
-- Browser support: AsyncLocalStorage polyfill (Braintrust pattern) or punt browser tracing entirely?
-- Do we adopt `diagnostics_channel.tracingChannel` (Braintrust) as the instrumentation seam, or stick with straight OTel `SpanProcessor` + Proxy wrappers (Langfuse)?
+1. **AI SDK v6 streamText + abort flush correctness.** Source confirms neither competitor handles this. Langfuse issue #12643 OPEN. Braintrust no `AbortSignal` handling in `wrappers/ai-sdk/`. **Headline.**
+2. **Edge runtime tracing that actually works.** Langfuse not supported. Braintrust ships per-runtime bundles but proprietary wire. Spike-validated pain.
+3. **Annotation queues with a high-level manager.** Langfuse only exposes raw API. Friction point.
+4. **First-class scope-bound user/session propagation + W3C baggage** + 200-char-WARN-not-silent.
+5. **Stale-while-revalidate prompt cache + optional disk layer** (Langfuse + Braintrust combined).
+6. **Failed evaluator → `dataType: "ERROR"` score**, not silently dropped (Langfuse anti-pattern fix).
+7. **TanStack Start documentation + helper.** Neither competitor documents it. P-TANSTACK-01 captured. Low-effort win.
+8. **One consolidated v1→v2 migration** with `bind()` compat shim, not three breaking releases.
+9. **`asyncFlush` per-call typed boolean** (Braintrust pattern, lift).
+10. **`--dev` mode server for web playground integration** if shipping CLI.
+11. **Manager + raw API split** (Langfuse 5-manager pattern) — discoverable + escape hatch.
+12. **Symbol-keyed globalThis state for cross-bundle survival** (Braintrust pattern).
 
 ---
 
-## Appendix A: v1 → v2 corrections summary
+## 23. Open questions for the RFC
 
-v1 of this doc (web research synthesis) made 18+ claims that source audit corrected:
+- Do we ship a CLI in v1, or defer to v2?
+- Do we ship Functions/Tools/Server-side invoke as first-class (Braintrust shape) or punt and let users go through API directly?
+- Do we adopt `diagnostics_channel.tracingChannel` for instrumentation, or stick with OTel `SpanProcessor` + Proxy wrappers?
+- Browser support: AsyncLocalStorage polyfill or punt browser tracing entirely?
+- Do we port `SecretsManager`/`VaultManager`/`ConfigManager` from Python SDK, or accept divergence?
+- Annotations: high-level manager or raw API only?
+- Eval scorers: in `@agenta/sdk` or separate `@agenta/evals` package?
+- Prompt templating: Mustache default + plugin registry, or pick one and lock?
+- How aggressive is the v1 cut? Match every Python SDK manager, or trim to "tracing + prompts + datasets + evals" for v1?
 
-### Braintrust corrections
+---
 
-| Wrong (v1) | Correct (source) | Citation |
+## Appendix A: v1 → v2/v3 corrections summary
+
+**v1** (web research): ~18 wrong/imprecise claims.
+**v2**: source-audited tracing + export, corrected ~18 claims.
+**v3**: source-audited every non-tracing surface (prompts, datasets, evals, scoring, media, annotations, sessions, functions, CLI, auth, config, cost, query) and added entire new sections (§§6-18).
+
+### Notable corrections in v3 (beyond v2)
+
+| Surface | Wrong (or missing in v2) | Source-confirmed (v3) |
 |---|---|---|
-| Span types: 6 values | 11 values incl. `automation`, `facet`, `preprocessor`, `classifier`, `review` | `js/util/span_types.ts:1-13` |
-| Wire endpoint: `/logs` | `logs3` | `js/src/logger.ts:3231-3236` |
-| Log upload batch size: 1000 | 100 (the 1000 was `ObjectFetcher` reads) | `logger.ts:2788` |
-| `BRAINTRUST_PARENT` env var: core SDK | Only `@braintrust/otel` reads it | `integrations/otel-js/src/otel.ts:280` |
-| `dotenv` auto-loaded at runtime | CLI-only | `js/src/cli/index.ts:4` |
-| CLI binary: `bt eval` | `npx braintrust eval` | `js/package.json:20-22` |
-| `wrapTraced` "solves AI SDK v6 abort via generator detection" | Only handles declared `function*`/`async function*`. AI SDK goes through `diagnostics_channel`. Zero abort handling. | `logger.ts:5422-5499`; `wrappers/ai-sdk/ai-sdk.ts:410` |
-| `BraintrustExporter` is a separate exporter | Wraps `BraintrustSpanProcessor`; HTTP layer is upstream `OTLPTraceExporter` | `integrations/otel-js/src/otel.ts:637-691` |
-| `filterAISpans` is default-on | Default-off; opt-in via `options.filterAISpans === true` | `integrations/otel-js/src/otel.ts:307-316` |
-| `traceable` alias at logger.ts:5503-5506 | Actually at logger.ts:5506 | `js/src/logger.ts:5506` |
-| `engines` and `sideEffects` declared | Neither declared anywhere | grep of all package.json |
+| Prompts (Braintrust) | "Prompt registry similar to Langfuse" | Versions are `_xact_id` transaction IDs, NOT semver. `build()` returns full LLM request shape, not just template. Two-tier cache (memory + gzipped disk). Cache only on server fault. |
+| Prompts (Langfuse) | "Cache with 60s TTL" | Stale-while-revalidate with concurrent-refresh dedup. `getIncludingExpired` returns stale, refreshes in background. `cacheTtlSeconds: 0` bypass. |
+| Datasets (Braintrust) | Brief mention of `initDataset` | Full CRUD + snapshots + restore + `summarize` + three pin modes. `AsyncIterable` via `ObjectFetcher`. |
+| Datasets (Langfuse) | "Manager has CRUD" | Manager only has `get`. CRUD on raw `api.datasets.*`. Deliberate split. |
+| Evals (Braintrust) | "`Eval(name, opts)` is good" | ~25 fields in `Evaluator` interface. Rolling concurrency with byte backpressure. `OneOrMoreScores` return type. `errorScoreHandler` for graceful failure. |
+| Evals (Langfuse) | "`ExperimentManager.run` in-SDK" | Default `maxConcurrency = 50` (JSDoc bug says Infinity). Batched not rolling. Failed evaluators silently absent. |
+| Scoring | "Both have queue" | Braintrust has NO separate score queue — scores ride spans. Langfuse has dedicated queue with 5 data types and `ScoreConfig` server schemas. |
+| Annotations | Not covered in v2 | Braintrust has NONE. Langfuse has raw API only (no manager). Annotations = scores with `queueId`. |
+| Sessions/users | Not covered in v2 | Braintrust has NO first-class. Langfuse has via `propagateAttributes` → unprefixed OTel `user.id`/`session.id`. |
+| Functions | Not covered in v2 | Braintrust has first-class `Project.tools/prompts/parameters/scorers` + server-side `invoke()`. Langfuse has NONE. |
+| CLI | Brief mention in v2 | Braintrust has `eval/push/pull` + `--dev` mode server for playground. Langfuse has NO CLI. |
+| Configuration | Not covered in v2 | NEITHER competitor has `SecretsManager`/`VaultManager`/`ConfigManager`. Both punt to env vars + `environment` slug. Agenta Python SDK is the outlier. |
+| Cost | Not covered in v2 | Both server-side. Braintrust normalizes token metrics. Langfuse `costDetails: Record<string, number>`, implicit USD. |
 
-### Langfuse corrections
+### Verified v2 corrections (still hold in v3)
 
-| Wrong (v1) | Correct (source) | Citation |
-|---|---|---|
-| `@langfuse/tracing` runtime: Universal | Node ≥ 20 declared | `packages/tracing/package.json:11-13` |
-| `LANGFUSE_BASEURL` removed in v4 | Still read as legacy fallback | `packages/core/src/utils.ts:1-12` |
-| "10 typed observation subtypes" | 10 type labels, 2 attribute shapes (span-like, generation-like) | `packages/tracing/src/types.ts:99-109` |
-| "Three breaking releases" framing | Softer in reality — 16 method-name aliases preserved in `LangfuseClient` | `packages/client/src/LangfuseClient.ts:170-232` |
-| Default batching: Langfuse-specific | Upstream OTel defaults unless env vars set | `packages/otel/src/span-processor.ts:273-277` |
-| `getTraceUrl()` async unexplained | Async because project-id lookup requires server round-trip | `LangfuseClient.ts:369-380` |
-| One env var per concern | `LANGFUSE_FLUSH_AT`/`_INTERVAL` control BOTH span batching AND score queue | `span-processor.ts:247-249`, `score/index.ts:43-49` |
+- Braintrust span types: 11 not 6.
+- Braintrust wire endpoint: `logs3` not `/logs`.
+- Braintrust `wrapTraced` handles declared generators only, not arbitrary `AsyncIterable`.
+- Both lack `AbortSignal` handling for AI SDK v6 streams.
+- Langfuse `@langfuse/tracing` is Node ≥ 20, not Universal.
+- Langfuse 10 observation types but only 2 attribute shapes.
 
 ---
 
-## Appendix B: source links
+## Appendix B: source-link inventory
 
-**Braintrust**
-- Repo: [github.com/braintrustdata/braintrust-sdk-javascript](https://github.com/braintrustdata/braintrust-sdk-javascript) (audited at npm v3.10.0)
-- npm: [`braintrust`](https://www.npmjs.com/package/braintrust)
+### Braintrust
+
+- Repo: [`github.com/braintrustdata/braintrust-sdk-javascript`](https://github.com/braintrustdata/braintrust-sdk-javascript) (v3.10.0)
 - Key files audited:
-  - `js/package.json` (exports, deps)
-  - `js/src/logger.ts` (5500+ lines: state, queue, span lifecycle, `wrapTraced`, `traceable`)
-  - `js/src/exports.ts` (re-export sheet)
-  - `js/src/wrappers/ai-sdk/ai-sdk.ts` (AI SDK wrap via dc)
-  - `js/src/wrappers/oai.ts` (OpenAI wrap via Proxy + dc)
-  - `js/src/cli/index.ts` (CLI commands incl. `--dev` mode)
-  - `js/src/framework.ts` (`Eval` implementation)
-  - `js/src/runtime-async-local-storage.ts` (runtime detection)
-  - `js/src/auto-instrumentations/hook.mts` (Node `--import` hook)
-  - `js/src/edge-light/config.ts`, `js/src/workerd/config.ts`
-  - `js/util/span_types.ts` (11 span types)
-  - `integrations/otel-js/src/otel.ts` (`BraintrustSpanProcessor`, `BraintrustExporter`)
-  - `integrations/otel-js/src/index.ts` (`setupOtelCompat`)
-  - `integrations/browser-js/src/index.ts` (5-line re-export)
-  - `integrations/vercel-ai-sdk/src/adapter.ts` (legacy AIStream, pinned to ai@3)
-- Docs: [braintrust.dev/docs](https://www.braintrust.dev/docs/reference/libs/nodejs)
+  - `js/package.json` — exports, deps, no `engines`/`sideEffects`
+  - `js/src/exports.ts` (288 lines) — full re-export sheet
+  - `js/src/logger.ts` (~8700 lines) — state, queue, prompts, datasets, login, `wrapTraced`, `traceable`, `loadPrompt`, `initDataset`, `ObjectFetcher`, `Eval` impl
+  - `js/src/framework.ts` — `Eval`, `Evaluator`, `EvalOptions`, `EvalHooks`, `runEvaluator`
+  - `js/src/framework2.ts` — `Project`, `tools/prompts/parameters/scorers` builders, `CodePrompt`, `CodeFunction`
+  - `js/src/wrappers/{oai,anthropic,ai-sdk,...}.ts` — provider wrappers
+  - `js/src/cli/index.ts` — `eval/push/pull` commands
+  - `js/src/cli/functions/upload.ts` — push bundling
+  - `js/src/cli/util/pull.ts` — pull + git-dirty check
+  - `dev/server.ts` — `--dev` mode Express app
+  - `js/src/functions/invoke.ts` — server-side function execution
+  - `js/src/runtime-async-local-storage.ts` — runtime detection
+  - `js/src/template/{registry,plugins/mustache}.ts` — template plugin registry
+  - `js/src/prompt-cache/{prompt-cache,disk-cache}.ts` — two-tier cache
+  - `js/util/span_types.ts` — 11 span types
+  - `js/src/auto-instrumentations/hook.mts` — Node `--import` hook
+  - `js/src/edge-light/config.ts`, `js/src/workerd/config.ts` — per-runtime configs
+  - `js/src/gitutil.ts` — git metadata capture
+  - `integrations/otel-js/src/otel.ts` — `BraintrustSpanProcessor`, `BraintrustExporter`
+  - `integrations/otel-js/src/index.ts` — `setupOtelCompat`
+  - `integrations/browser-js/src/index.ts` — browser polyfill
+- Docs: [`braintrust.dev/docs`](https://www.braintrust.dev/docs/reference/libs/nodejs)
+- External: [`autoevals`](https://github.com/braintrustdata/autoevals) (separate npm package)
 
-**Langfuse**
-- Repo: [github.com/langfuse/langfuse-js](https://github.com/langfuse/langfuse-js) (audited at v5.3.0)
-- npm: [`@langfuse/tracing`](https://www.npmjs.com/package/@langfuse/tracing), [`@langfuse/otel`](https://www.npmjs.com/package/@langfuse/otel), [`@langfuse/client`](https://www.npmjs.com/package/@langfuse/client), [`@langfuse/openai`](https://www.npmjs.com/package/@langfuse/openai), [`@langfuse/langchain`](https://www.npmjs.com/package/@langfuse/langchain), [`@langfuse/core`](https://www.npmjs.com/package/@langfuse/core)
+### Langfuse
+
+- Repo: [`github.com/langfuse/langfuse-js`](https://github.com/langfuse/langfuse-js) (v5.3.0)
+- Six published packages:
+  - [`@langfuse/core`](https://www.npmjs.com/package/@langfuse/core)
+  - [`@langfuse/client`](https://www.npmjs.com/package/@langfuse/client)
+  - [`@langfuse/tracing`](https://www.npmjs.com/package/@langfuse/tracing)
+  - [`@langfuse/otel`](https://www.npmjs.com/package/@langfuse/otel)
+  - [`@langfuse/openai`](https://www.npmjs.com/package/@langfuse/openai)
+  - [`@langfuse/langchain`](https://www.npmjs.com/package/@langfuse/langchain)
 - Key files audited:
-  - All six packages' `package.json` (engines, peerDeps, exports)
-  - `packages/tracing/src/index.ts` (`startObservation`, `startActiveObservation`, `observe`, `createTraceId`)
-  - `packages/tracing/src/types.ts` (10 observation types)
-  - `packages/tracing/src/spanWrapper.ts` (`LangfuseSpan`, `LangfuseGeneration`, `LangfuseEvent`)
-  - `packages/tracing/src/tracerProvider.ts` (`setLangfuseTracerProvider`, isolation warning)
-  - `packages/otel/src/span-processor.ts` (Batch/Simple switch, mask, media)
-  - `packages/otel/src/span-filter.ts` (`isDefaultExportSpan`)
-  - `packages/otel/src/MediaService.ts` (base64 regex, ai-prompt special case)
-  - `packages/client/src/LangfuseClient.ts` (managers, deprecated aliases, `getTraceUrl`)
-  - `packages/client/src/score/index.ts` (queue, fire-and-forget)
-  - `packages/client/src/prompt/promptManager.ts` (stale-while-revalidate)
-  - `packages/core/src/propagation.ts` (`propagateAttributes`, baggage)
-  - `packages/core/src/constants.ts` (`LangfuseOtelSpanAttributes` enum)
-  - `packages/core/src/api/Client.ts` (Fern-generated, 27 sub-resources)
-  - `packages/openai/src/observeOpenAI.ts` (recursive Proxy)
-  - `packages/openai/src/traceMethod.ts` (`wrapAsyncIterable` — the abort gap)
-  - `packages/langchain/src/CallbackHandler.ts`
-  - `tests/e2e/vercel-ai-sdk.e2e.test.ts` (manual `forceFlush()` confirming the abort gap)
-- Docs: [langfuse.com/docs/observability/sdk/typescript](https://langfuse.com/docs/observability/sdk/typescript/instrumentation)
-- AI SDK v6 IO bug: [github.com/langfuse/langfuse/issues/12643](https://github.com/langfuse/langfuse/issues/12643) (verified OPEN, assigned hassiebp, created 2026-03-17)
+  - All six `package.json`s — engines, peerDeps, exports
+  - `packages/tracing/src/index.ts` — `startObservation`, `startActiveObservation`, `observe`, `createTraceId`, `getActiveTraceId`
+  - `packages/tracing/src/types.ts` — 10 observation types, `LangfuseGenerationAttributes`
+  - `packages/tracing/src/spanWrapper.ts` — `LangfuseSpan`, `LangfuseGeneration`, `LangfuseEvent`
+  - `packages/tracing/src/tracerProvider.ts` — `setLangfuseTracerProvider`, isolation warning
+  - `packages/otel/src/span-processor.ts` — Batch/Simple, mask, media, pendingEndedSpans
+  - `packages/otel/src/span-filter.ts` — `isDefaultExportSpan`
+  - `packages/otel/src/MediaService.ts` — base64 regex, AI SDK special case
+  - `packages/client/src/LangfuseClient.ts` — managers + 16 deprecated aliases
+  - `packages/client/src/prompt/promptManager.ts` — `get/create/update/delete`, SWR cache integration
+  - `packages/client/src/prompt/promptCache.ts` — TTL, refresh dedup
+  - `packages/client/src/prompt/promptClients.ts` — `TextPromptClient`, `ChatPromptClient`, `getLangchainPrompt`
+  - `packages/client/src/dataset/index.ts` — `get`, `FetchedDataset`, `link`
+  - `packages/client/src/score/index.ts` — queue, fire-and-forget, convenience overloads
+  - `packages/client/src/media/index.ts` — `MediaManager.resolveReferences`
+  - `packages/client/src/experiment/ExperimentManager.ts` — `run`, batching, propagation, format
+  - `packages/client/src/experiment/types.ts` — `ExperimentTask`, `Evaluator`, `RunEvaluator`, `Evaluation`
+  - `packages/client/src/experiment/RunnerContext.ts` — CI integration
+  - `packages/client/src/experiment/adapters.ts` — `createEvaluatorFromAutoevals`
+  - `packages/core/src/propagation.ts` — `propagateAttributes`, baggage
+  - `packages/core/src/constants.ts` — `LangfuseOtelSpanAttributes` enum
+  - `packages/core/src/api/Client.ts` — Fern-generated, 24 sub-resources
+  - `packages/core/src/api/api/resources/*` — Fern-generated request/response types
+  - `packages/openai/src/observeOpenAI.ts` — recursive Proxy
+  - `packages/openai/src/traceMethod.ts` — `wrapAsyncIterable` (the abort gap)
+  - `packages/openai/src/types.ts` — `LangfuseConfig`
+  - `packages/langchain/src/CallbackHandler.ts` — LangChain callback
+  - `packages/core/src/logger/index.ts` — `LoggerSingleton`, env-driven config
+  - `tests/e2e/vercel-ai-sdk.e2e.test.ts` — manual `forceFlush()` confirms abort gap
+- Docs: [`langfuse.com/docs/observability/sdk/typescript`](https://langfuse.com/docs/observability/sdk/typescript/instrumentation)
+- AI SDK v6 IO bug: [`github.com/langfuse/langfuse/issues/12643`](https://github.com/langfuse/langfuse/issues/12643) (OPEN, assigned hassiebp, 2026-03-17)
 
-**Agenta context**
+### Agenta context
+
 - [`docs/design/ts-sdk-tracing/summary.md`](../ts-sdk-tracing/summary.md) — spike status, 11 pain entries
 - [`docs/design/ts-sdk-tracing/pain-log.md`](../ts-sdk-tracing/pain-log.md) — full pain entries
 - [`web/packages/agenta-sdk/src/index.ts`](../../../web/packages/agenta-sdk/src/index.ts) — current SDK entry
-
----
-
-[^bt-logs3]: `js/src/logger.ts:3231-3236` POST target `"logs3"`; overflow at `:3159` `"logs3/overflow"`.
-[^lf-otlp]: `packages/otel/src/span-processor.ts:14, 258` — OTLPTraceExporter at `${baseUrl}/api/public/otel/v1/traces`.
-[^lf-otel-span]: `packages/tracing/src/spanWrapper.ts:142-163` — `public readonly otelSpan: Span`.
-[^lf-pkg]: `ls packages/` returns six dirs; each `package.json:2` confirms name.
-[^bt-exports]: `js/package.json:25-37` — root export has `edge-light`, `workerd`, `node`, `browser` conditions.
-[^lf-engines]: `packages/otel/package.json:11-13` — `"engines": { "node": ">=20" }`.
-[^lf-types]: `packages/tracing/src/types.ts:12-22` — `LangfuseObservationType` exact list.
-[^bt-spantypes]: `js/util/span_types.ts:1-13` — `spanTypeAttributeValues` array.
-[^lf-attrs]: `packages/tracing/src/types.ts:69-97, 99-109` — generation has rich shape; others are type aliases of span-attrs.
-[^bt-noabort]: grep `abort|AbortSignal|signal` in `js/src/wrappers/ai-sdk/` returns zero hits; stream handling via `diagnostics_channel` at `ai-sdk.ts:410`.
-[^lf-noabort]: `packages/openai/src/traceMethod.ts:186-262` `wrapAsyncIterable` ends generation only on loop completion; `tests/e2e/vercel-ai-sdk.e2e.test.ts:275` uses manual `forceFlush()`.
-[^bt-cli]: `js/package.json:20-22` `"bin": { "braintrust": "./dist/cli.js" }`; subcommands at `cli/index.ts:1069-1190`.
-[^bt-wrappers]: `js/src/exports.ts:166-199` exports all wrappers; implementations in `js/src/wrappers/`.
-[^lf-noaisdk]: `find packages -name "*.ts" -name "*vercel*"` returns nothing; e2e tests use `experimental_telemetry` directly.
-[^bt-autoinstrument]: `js/src/auto-instrumentations/hook.mts:38-46, 101-104`; bundler plugins in `js/src/auto-instrumentations/bundler/*.ts`.
+- [`web/packages/agenta-entities/src/`](../../../web/packages/agenta-entities/src/) — entity layer (annotation, testset, trace, workflow, etc.)
+- [`sdks/python/agenta/sdk/`](../../../sdks/python/agenta/sdk/) — Python SDK reference (managers, decorators, types)
