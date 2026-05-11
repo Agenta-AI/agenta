@@ -3,7 +3,7 @@
 ## Current State
 
 **Branch:** `ts-sdk-chore/example-apps`
-**Last Updated:** 2026-05-11 (deferred investigations resolved)
+**Last Updated:** 2026-05-11 (P-COMMON-01 added — Next.js HTTP auto-instrumentation buries AI SDK spans in UI)
 
 ---
 

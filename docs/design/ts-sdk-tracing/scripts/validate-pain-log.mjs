@@ -33,6 +33,7 @@ const KNOWN_FRAMEWORKS = new Set([
     "pages-router-raw",
     "pages-router-vercel",
     "tanstack",
+    "common",
 ])
 
 const FRAMEWORK_PREFIX = {
@@ -42,6 +43,7 @@ const FRAMEWORK_PREFIX = {
     "pages-router-raw": "P-PAGES-RAW-",
     "pages-router-vercel": "P-PAGES-VERCEL-",
     tanstack: "P-TANSTACK-",
+    common: "P-COMMON-",
 }
 
 const SEVERITY_AXES = {

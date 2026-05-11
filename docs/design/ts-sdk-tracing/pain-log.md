@@ -7,7 +7,7 @@ Structured friction log from spike apps under `web/examples/*`. Each entry captu
 ```markdown
 ## P-{FRAMEWORK}-NN: <one-line title>
 
-**Framework:** <node | app-router-raw | app-router-vercel | pages-router-raw | pages-router-vercel | tanstack>
+**Framework:** <node | app-router-raw | app-router-vercel | pages-router-raw | pages-router-vercel | tanstack | common>
 **Severity:**
   - User impact: <high | med | low>          // would a real user hit this?
   - Self-recoverable: <yes | partially | no>  // can they fix it from docs alone?
@@ -36,6 +36,7 @@ Per-framework prefix to prevent merge conflicts on numeric IDs. Each framework n
 - `P-PAGES-RAW-NN` — Next.js Pages Router with raw OTel
 - `P-PAGES-VERCEL-NN` — Next.js Pages Router with `@vercel/otel`
 - `P-TANSTACK-NN` — React TanStack Start
+- `P-COMMON-NN` — Cross-framework / backend-side findings (Agenta UI, adapter, attribute schema)
 
 ## Quality bar
 
@@ -735,3 +736,103 @@ export default withAgentaInstrumentation(
 ```
 
 **Notes:** Cost us ~30 minutes of "why does every request 500?" debugging during Phase 4 scaffolding. Resolution required reading the framework's own default-entry source, not the docs. **Implication for `ts-sdk-tracing`:** combines with P-TANSTACK-01 — the SDK's TanStack Start adapter SHOULD own both the instrumentation wiring and the export-shape wrapping. Users never write `export default createStartHandler(...)` directly; they wrap it through our adapter. This is the cheapest possible value-add and dodges a documented framework foot-gun.
+
+### Cross-framework / backend findings (P-COMMON-*)
+
+## P-COMMON-01: Next.js auto-instrumentation creates an HTTP root span that hides AI SDK data in Agenta's "Root" UI view
+
+**Framework:** common
+**Severity:**
+  - User impact: high
+  - Self-recoverable: partially
+  - Silent failure: no
+
+**The friction (code that exists today):**
+
+Every Next.js 15 app with `instrumentation.ts` (whether using raw OTel or `@vercel/otel`) emits an HTTP server span + a Next-internal handler-execution span automatically — Next.js's own built-in OTel auto-instrumentation, not the user's choice. The AI SDK's `ai.streamText` / `ai.generateText` spans then become CHILDREN nested 2-3 levels deep. Agenta's UI "Root" filter shows the HTTP root as the trace's representative row, which carries only Next-internal duration data — not the LLM payload.
+
+Verified trace shape for the SAME assertion across all four Next.js spike apps (queried via `POST /api/spans/query` filtering by `trace_id`):
+
+```text
+Phase 2a + 2b (App Router, both raw OTel and @vercel/otel — IDENTICAL trees):
+└─ POST /api/chat/route                              ← Agenta UI shows THIS as root
+   ├─ resolve page components
+   ├─ executing api route (app) /api/chat/route
+   │  ├─ ai.streamText                               ← AI SDK data lives HERE (L2)
+   │  │  └─ ai.streamText.doStream
+   │  │     └─ fetch POST https://api.openai.com/v1/responses
+   │  └─ start response
+
+Phase 3a + 3b (Pages Router, both raw OTel and @vercel/otel — IDENTICAL trees):
+└─ POST /api/chat                                    ← Agenta UI shows THIS as root
+   └─ executing api route (pages) /api/chat
+      └─ ai.streamText                               ← AI SDK data lives HERE (L2)
+         └─ ai.streamText.doStream
+            └─ fetch POST https://api.openai.com/v1/responses
+
+Phase 4 TanStack Start (NO HTTP auto-instrumentation):
+└─ ai.streamText                                     ← AI SDK IS the root (L0) ✓
+   └─ ai.streamText.doStream
+
+Phase 1 Node (NO HTTP layer at all):
+└─ ai.streamText (or ai.generateText)                ← root ✓
+   └─ ai.streamText.doStream
+```
+
+Attribute payload comparison for the same trace's HTTP root vs `ai.streamText` (Phase 2a, run `a3-1778501741412`):
+
+```text
+POST /api/chat/route (UI displays this row):
+  ag.type.trace = 'invocation'
+  ag.metrics.duration.cumulative = 1745.926
+  (no inputs, no outputs, no model, no tokens, no metadata — column shows "—")
+
+ai.streamText (buried at depth 2, not visible in default UI view):
+  ag.data.inputs.messages    = [{role: 'user', content: [...]}]  ← the prompt
+  ag.data.outputs            = 'ok.'                              ← the response
+  ag.meta.system             = 'openai.responses'
+  ag.meta.request.model      = 'gpt-4o-mini'
+  ag.meta.request.max_retries = 2
+  ag.meta.response.finish_reasons = ['stop']
+  ag.metrics.tokens.incremental.{total,prompt,completion,cached,reasoning}
+  ag.user.id, ag.session.id
+  ag.metrics.duration.cumulative
+```
+
+**Verified isolation (2026-05-11):**
+- Phase 2a (raw OTel): 7 spans, AI SDK at L2 — HTTP root + Next handler wrappers present
+- Phase 2b (`@vercel/otel`): 7 spans, **identical tree shape** to 2a — proves the wrappers come from Next.js itself, NOT from `@vercel/otel`
+- Phase 3a (Pages raw): 4 spans, AI SDK at L2 — same `executing api route (pages)` pattern
+- Phase 3b (Pages vercel): 5 spans, AI SDK at L2 — identical to 3a
+- Phase 4 TanStack Start: 2 spans, AI SDK IS the root (L0) — confirms Vite/Nitro doesn't emit HTTP auto-instrumentation spans
+- Phase 1 Node: AI SDK IS the root — no HTTP layer at all
+- Pure Node v4 published example: same as Phase 1, AI SDK is the root
+
+So the failing variable is **Next.js 15's built-in OTel auto-instrumentation**, independent of which OTel wrapper the user installs.
+
+**What would be ideal (sketch of how the SDK would hide this):**
+
+Two non-mutually-exclusive directions, kept in observation-only form per current spike direction:
+
+```ts
+// (1) Backend / Agenta-UI side: the "Root" filter promotes the deepest
+//     LLM-relevant span (ai.streamText / ai.generateText) when present —
+//     or the trace's row display shows the LLM span's inputs/outputs even
+//     if technically a non-LLM HTTP span is the trace root. Users see
+//     prompts/responses/tokens at the trace-list level, not after a click-
+//     through. Implementation: server-side aggregation that hoists
+//     `ag.data.*` from the first descendant LLM span onto the trace
+//     summary, OR UI shows the LLM span as the representative row instead
+//     of the HTTP root.
+
+// (2) SDK side: ship a Next.js adapter that disables Next 15's HTTP
+//     auto-instrumentation when Agenta tracing is enabled — restoring
+//     the AI-SDK-span-as-root shape. Or selectively drop the Next-internal
+//     spans at the processor layer.
+import {withAgentaInstrumentation} from "@agenta/sdk/nextjs"
+export function register() {
+    withAgentaInstrumentation({apiKey, projectId, suppressNextHttpSpans: true})
+}
+```
+
+**Notes:** Discovered when comparing the spike's screenshots — all 4 Next.js phases showed `POST /api/chat...` / `executing api r...` / `GET /api/sentin...` rows with empty Inputs/Outputs columns, while Phase 1 (Node) and the Node v4 published example showed `ai.generateText` / `ai.streamText` rows with the prompt + response fully visible. **The data is in Agenta** (confirmed via direct `POST /api/spans/query` API calls — `ai.streamText` spans carry `ag.data.inputs/outputs/metrics.tokens/user.id/session.id`), it's just not surfaced in the default "Root" UI view. Users with hundreds of Next.js traces have to click into each `POST /api/chat/route` row, navigate two levels of children, and inspect the `ai.streamText` span to see what their LLM call did — including which prompt, which model, how many tokens, what cost. **Why this matters:** the dashboard becomes practically unusable for production triage at scale. Token-cost monitoring, prompt-regression debugging, and per-user usage breakdowns ALL depend on those payload columns being visible at the trace-list level. This affects **every Next.js + AI SDK + Agenta user equally** — the entire dominant deployment shape for AI SDK in production. **Why we missed it earlier in the spike:** our `verifyTrace` harness queries the spans API by attribute (`ag.user.id`) and matches by span name, which finds the `ai.streamText` regardless of hierarchy. Programmatic assertions pass; UI experience is degraded. The pre-existing pain log's "silent failure" entries focused on data loss (P-NODE-02, P-APP-RAW-01, P-PAGES-VERCEL-01); P-COMMON-01 is the inverse — the data is preserved, but the UI's default lens hides it.
