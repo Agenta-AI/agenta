@@ -808,31 +808,55 @@ ai.streamText (buried at depth 2, not visible in default UI view):
 - Phase 1 Node: AI SDK IS the root — no HTTP layer at all
 - Pure Node v4 published example: same as Phase 1, AI SDK is the root
 
-So the failing variable is **Next.js 15's built-in OTel auto-instrumentation**, independent of which OTel wrapper the user installs.
+So the failing variable is **Next.js's built-in OTel auto-instrumentation**, independent of which OTel wrapper the user installs.
+
+**Confirmed not-a-wiring-mistake (2026-05-11):** Compared our `instrumentation.ts` shape against canonical references — they match 1:1, no filtering. Our wiring is not the problem. References:
+- Vercel's own `ai-chatbot` template (`github.com/vercel/ai-chatbot`) ships literally `registerOTel({serviceName: "chatbot"})` and stops
+- The [Next.js OTel docs](https://nextjs.org/docs/app/guides/open-telemetry)'s "Manual OpenTelemetry configuration" sample matches our raw OTel setup line-for-line
+- The same docs explicitly call out: *"the root server span labeled as `[http.method] [next.route]`. All other spans from that particular trace will be nested under it."* — confirms the root-HTTP shape is by design
+- Span names we see (`POST /api/chat/route`, `executing api route (app) /api/chat/route`, `resolve page components`, `start response`) all come from Next.js internals (`packages/next/src/server/lib/trace/constants.ts`), not from `@opentelemetry/instrumentation-http` and not from `@vercel/otel`. The `@vercel/otel` README confirms it only adds fetch instrumentation; HTTP server spans are Next itself
+- Documented Next env knobs that DON'T solve this: `NEXT_OTEL_VERBOSE=0` (default — keeps the 5 wrapper spans, adds more if set to 1); `NEXT_OTEL_FETCH_DISABLED=1` (suppresses only the outbound `fetch` span). Neither removes the HTTP root or the `executing api route` wrapper
+
+**How other LLM observability SDKs handle the same symptom (2026-05-11):**
+- **Langfuse** (`@langfuse/otel` v5+): ships a `LangfuseSpanProcessor` whose `onStart`/`onEnd` filter drops every span whose `instrumentationScope.name` doesn't match a known LLM-library prefix (`ai`, `openinference`, `opentelemetry.instrumentation.anthropic`, `langsmith`, `litellm`, etc.) and that doesn't carry `gen_ai.*` attributes. Next.js's wrapper spans have scope `next.js` and no `gen_ai.*` → silently dropped at the processor BEFORE export. Langfuse's FAQ (`/faq/all/unwanted-http-database-spans`) explicitly addresses this exact symptom: *"The Langfuse Python SDK v4+ and JS/TS SDK v5+ apply a default span filter that automatically keeps only LLM-related spans... drops HTTP, database, and framework spans."* Pre-v5 Langfuse exported these too and they counted toward billing — i.e. they evolved to filter after running into the same pain
+- **Braintrust**: uses wrapper-based observability (`wrapAISDK`, `traced()`) rather than `instrumentation.ts` auto-instrumentation. The AI call is wrapped explicitly, so the Braintrust span IS the root. Different paradigm — no filtering needed because the wrappers don't sit downstream of Next's auto-instrumentation
+- **Neither** documents a user-side `instrumentation.ts` modification for the Next.js case — the filtering (Langfuse) or wrapping (Braintrust) is SDK-side, applied uniformly across all customer apps
 
 **What would be ideal (sketch of how the SDK would hide this):**
 
-Two non-mutually-exclusive directions, kept in observation-only form per current spike direction:
+Three known approaches in the LLM observability ecosystem today — all kept in observation-only form per current spike direction:
 
 ```ts
-// (1) Backend / Agenta-UI side: the "Root" filter promotes the deepest
-//     LLM-relevant span (ai.streamText / ai.generateText) when present —
-//     or the trace's row display shows the LLM span's inputs/outputs even
-//     if technically a non-LLM HTTP span is the trace root. Users see
-//     prompts/responses/tokens at the trace-list level, not after a click-
-//     through. Implementation: server-side aggregation that hoists
-//     `ag.data.*` from the first descendant LLM span onto the trace
-//     summary, OR UI shows the LLM span as the representative row instead
-//     of the HTTP root.
+// (1) Langfuse approach: SDK-side scope filter. Their @langfuse/otel v5+
+//     ships a custom SpanProcessor that drops every span whose
+//     `instrumentationScope.name` is not in a known-LLM allowlist (`ai`,
+//     `openinference`, `gen_ai.*` attrs, etc.). Next.js wrapper spans
+//     (scope `next.js`) get dropped at the processor BEFORE export, so
+//     the Langfuse backend only ever sees AI SDK spans. The dashboard
+//     naturally shows ai.streamText as the trace root.
+//
+//     import {LangfuseSpanProcessor} from "@langfuse/otel"
+//     // Inside instrumentation.ts:
+//     new NodeTracerProvider({
+//         spanProcessors: [new LangfuseSpanProcessor({apiKey})],
+//     })
 
-// (2) SDK side: ship a Next.js adapter that disables Next 15's HTTP
-//     auto-instrumentation when Agenta tracing is enabled — restoring
-//     the AI-SDK-span-as-root shape. Or selectively drop the Next-internal
-//     spans at the processor layer.
-import {withAgentaInstrumentation} from "@agenta/sdk/nextjs"
-export function register() {
-    withAgentaInstrumentation({apiKey, projectId, suppressNextHttpSpans: true})
-}
+// (2) Braintrust approach: wrapper-based, not auto-instrumented. AI
+//     calls are explicitly wrapped (wrapAISDK / traced()), so the
+//     Braintrust span IS the trace root by construction. No filtering
+//     needed because Braintrust's spans don't sit downstream of Next's
+//     auto-instrumentation — they're a separate trace tree.
+//
+//     import {wrapAISDK} from "@braintrust/sdk"
+//     const result = await wrapAISDK(streamText)({model, messages})
+
+// (3) Backend-side UI fix: Agenta's "Root" filter promotes the deepest
+//     LLM-relevant span (ai.streamText / ai.generateText) to the
+//     displayed trace-list row when present — server-side aggregation
+//     that hoists `ag.data.*` from the first descendant LLM span onto
+//     the trace summary. Accepts the auto-instrumentation spans but
+//     hides them by default; users see prompts/responses/tokens at the
+//     list level. (Doesn't require any SDK changes.)
 ```
 
 **Notes:** Discovered when comparing the spike's screenshots — all 4 Next.js phases showed `POST /api/chat...` / `executing api r...` / `GET /api/sentin...` rows with empty Inputs/Outputs columns, while Phase 1 (Node) and the Node v4 published example showed `ai.generateText` / `ai.streamText` rows with the prompt + response fully visible. **The data is in Agenta** (confirmed via direct `POST /api/spans/query` API calls — `ai.streamText` spans carry `ag.data.inputs/outputs/metrics.tokens/user.id/session.id`), it's just not surfaced in the default "Root" UI view. Users with hundreds of Next.js traces have to click into each `POST /api/chat/route` row, navigate two levels of children, and inspect the `ai.streamText` span to see what their LLM call did — including which prompt, which model, how many tokens, what cost. **Why this matters:** the dashboard becomes practically unusable for production triage at scale. Token-cost monitoring, prompt-regression debugging, and per-user usage breakdowns ALL depend on those payload columns being visible at the trace-list level. This affects **every Next.js + AI SDK + Agenta user equally** — the entire dominant deployment shape for AI SDK in production. **Why we missed it earlier in the spike:** our `verifyTrace` harness queries the spans API by attribute (`ag.user.id`) and matches by span name, which finds the `ai.streamText` regardless of hierarchy. Programmatic assertions pass; UI experience is degraded. The pre-existing pain log's "silent failure" entries focused on data loss (P-NODE-02, P-APP-RAW-01, P-PAGES-VERCEL-01); P-COMMON-01 is the inverse — the data is preserved, but the UI's default lens hides it.
