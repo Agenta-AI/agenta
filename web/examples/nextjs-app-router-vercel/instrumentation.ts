@@ -18,12 +18,16 @@
  */
 
 import {registerOTel, OTLPHttpProtoTraceExporter} from "@vercel/otel"
+import {BatchSpanProcessor} from "@opentelemetry/sdk-trace-base"
 
 const AGENTA_HOST = process.env.AGENTA_HOST || "https://cloud.agenta.ai"
 const AGENTA_API_KEY = process.env.AGENTA_API_KEY
 const AGENTA_PROJECT_ID = process.env.AGENTA_PROJECT_ID
 const AGENTA_OTLP_PATH = process.env.AGENTA_OTLP_PATH || "/api/otlp/v1/traces"
 const APP_NAME = process.env.AGENTA_SPIKE_APP_NAME ?? "app-router-vercel"
+const BRAINTRUST_API_KEY = process.env.BRAINTRUST_API_KEY
+const BRAINTRUST_OTLP_URL =
+    process.env.BRAINTRUST_OTLP_URL || "https://api.braintrust.dev/otel/v1/traces"
 
 const otlpUrl = AGENTA_PROJECT_ID
     ? `${AGENTA_HOST}${AGENTA_OTLP_PATH}?project_id=${encodeURIComponent(AGENTA_PROJECT_ID)}`
@@ -35,13 +39,40 @@ export function register(): void {
         return
     }
 
-    registerOTel({
-        serviceName: `vercel-ai-spike-${APP_NAME}`,
-        traceExporter: new OTLPHttpProtoTraceExporter({
-            url: otlpUrl,
-            headers: {Authorization: `ApiKey ${AGENTA_API_KEY}`},
-        }),
+    const serviceName = `vercel-ai-spike-${APP_NAME}`
+    const agentaExporter = new OTLPHttpProtoTraceExporter({
+        url: otlpUrl,
+        headers: {Authorization: `ApiKey ${AGENTA_API_KEY}`},
     })
+
+    // Optional Braintrust dual-export. `@vercel/otel`'s `spanProcessors` array
+    // accepts standard OTel SpanProcessor — we wrap both exporters in
+    // BatchSpanProcessor to match `@vercel/otel`'s DEFAULT behaviour when
+    // `traceExporter` is used. This preserves the baseline P-APP-VERCEL-01
+    // failure mode (mid-stream-abort streamText loss) — switching to
+    // SimpleSpanProcessor here would silently fix it and hide the pain
+    // entry we're trying to keep reproducible. See pain-log.md.
+    if (BRAINTRUST_API_KEY) {
+        const braintrustExporter = new OTLPHttpProtoTraceExporter({
+            url: BRAINTRUST_OTLP_URL,
+            headers: {
+                Authorization: `Bearer ${BRAINTRUST_API_KEY}`,
+                "x-bt-parent": `project_name:${serviceName}`,
+            },
+        })
+        registerOTel({
+            serviceName,
+            spanProcessors: [
+                new BatchSpanProcessor(agentaExporter),
+                new BatchSpanProcessor(braintrustExporter),
+            ],
+        })
+    } else {
+        registerOTel({
+            serviceName,
+            traceExporter: agentaExporter,
+        })
+    }
 
     // Per-app sentinel for assertion-4 (same pattern as the raw variant).
     // We only stamp this from the nodejs runtime register() — edge runtime
@@ -51,7 +82,10 @@ export function register(): void {
         const instrKey = `__agenta_instr_${APP_NAME}` as const
         ;(globalThis as Record<string, unknown>)[instrKey] = Date.now()
         console.log(
-            `instrumentation: registered (@vercel/otel) for service.name="vercel-ai-spike-${APP_NAME}" → ${otlpUrl}`,
+            `instrumentation: registered (@vercel/otel) for service.name="${serviceName}" → ${otlpUrl}`,
         )
+        if (BRAINTRUST_API_KEY) {
+            console.log(`instrumentation: + Braintrust dual-export → ${BRAINTRUST_OTLP_URL}`)
+        }
     }
 }

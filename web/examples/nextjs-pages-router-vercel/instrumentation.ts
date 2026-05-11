@@ -14,6 +14,7 @@
  *   └─────────────────────────────────────────────────────────────┘
  */
 
+import {BatchSpanProcessor} from "@opentelemetry/sdk-trace-base"
 import {registerOTel, OTLPHttpProtoTraceExporter} from "@vercel/otel"
 
 const AGENTA_HOST = process.env.AGENTA_HOST || "https://cloud.agenta.ai"
@@ -21,6 +22,9 @@ const AGENTA_API_KEY = process.env.AGENTA_API_KEY
 const AGENTA_PROJECT_ID = process.env.AGENTA_PROJECT_ID
 const AGENTA_OTLP_PATH = process.env.AGENTA_OTLP_PATH || "/api/otlp/v1/traces"
 const APP_NAME = process.env.AGENTA_SPIKE_APP_NAME ?? "pages-vercel"
+const BRAINTRUST_API_KEY = process.env.BRAINTRUST_API_KEY
+const BRAINTRUST_OTLP_URL =
+    process.env.BRAINTRUST_OTLP_URL || "https://api.braintrust.dev/otel/v1/traces"
 
 const otlpUrl = AGENTA_PROJECT_ID
     ? `${AGENTA_HOST}${AGENTA_OTLP_PATH}?project_id=${encodeURIComponent(AGENTA_PROJECT_ID)}`
@@ -32,19 +36,48 @@ export function register(): void {
         return
     }
 
-    registerOTel({
-        serviceName: `vercel-ai-spike-${APP_NAME}`,
-        traceExporter: new OTLPHttpProtoTraceExporter({
-            url: otlpUrl,
-            headers: {Authorization: `ApiKey ${AGENTA_API_KEY}`},
-        }),
+    const serviceName = `vercel-ai-spike-${APP_NAME}`
+    const agentaExporter = new OTLPHttpProtoTraceExporter({
+        url: otlpUrl,
+        headers: {Authorization: `ApiKey ${AGENTA_API_KEY}`},
     })
+
+    // Optional Braintrust dual-export via @vercel/otel's spanProcessors array.
+    // We wrap both exporters in BatchSpanProcessor to match @vercel/otel's
+    // DEFAULT (which is what the original baseline used). This preserves the
+    // P-PAGES-VERCEL-01 reproduction (empty ag.metrics.tokens) and the same
+    // BatchSpanProcessor flush characteristic that the rest of the matrix
+    // exhibits for @vercel/otel apps.
+    if (BRAINTRUST_API_KEY) {
+        const braintrustExporter = new OTLPHttpProtoTraceExporter({
+            url: BRAINTRUST_OTLP_URL,
+            headers: {
+                Authorization: `Bearer ${BRAINTRUST_API_KEY}`,
+                "x-bt-parent": `project_name:${serviceName}`,
+            },
+        })
+        registerOTel({
+            serviceName,
+            spanProcessors: [
+                new BatchSpanProcessor(agentaExporter),
+                new BatchSpanProcessor(braintrustExporter),
+            ],
+        })
+    } else {
+        registerOTel({
+            serviceName,
+            traceExporter: agentaExporter,
+        })
+    }
 
     if (process.env.NEXT_RUNTIME === "nodejs") {
         const instrKey = `__agenta_instr_${APP_NAME}` as const
         ;(globalThis as Record<string, unknown>)[instrKey] = Date.now()
         console.log(
-            `instrumentation: registered (@vercel/otel) for service.name="vercel-ai-spike-${APP_NAME}" → ${otlpUrl}`,
+            `instrumentation: registered (@vercel/otel) for service.name="${serviceName}" → ${otlpUrl}`,
         )
+        if (BRAINTRUST_API_KEY) {
+            console.log(`instrumentation: + Braintrust dual-export → ${BRAINTRUST_OTLP_URL}`)
+        }
     }
 }

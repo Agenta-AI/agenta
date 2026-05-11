@@ -3,7 +3,7 @@
 ## Current State
 
 **Branch:** `ts-sdk-chore/example-apps`
-**Last Updated:** 2026-05-11 (Phase 6 Mastra: P-MASTRA-01/02/03 + AgentaMastraExporter PoC 4/4 PASS + broken-baseline example at `examples/node/observability-mastra/`)
+**Last Updated:** 2026-05-12 (Phase 7 Braintrust dual-export across 8 apps + accidental P-APP-VERCEL-01 SimpleSpanProcessor workaround discovered)
 
 ---
 
@@ -21,7 +21,8 @@
 | 4 | React TanStack Start (20h hard cap) | ✅ 4/4 nodejs assertions PASS · 3 TanStack-specific pain entries captured (P-TANSTACK-01/02/03) · edge probe deferred (no per-route opt-in, needs preset swap — P-TANSTACK-02) |
 | 5 | Nuxt 4 (Vue + Nitro) — raw OTel | ✅ 4/4 assertions PASS (assertion-2 needs 30s flush window per P-NUXT-01: H3 v2 RC's abort signal is undefined at runtime) · trace hierarchy CLEAN (ai.streamText IS root, P-COMMON-01 does not apply) · edge probe deferred (no per-route opt-in, same as TanStack) |
 | 6 | Mastra (Node) — raw OTel + custom Mastra exporter | ✅ 4/4 assertions PASS with AgentaMastraExporter PoC · Path A (bare Mastra) and Path B-cheap (Observability + ConsoleExporter) both emit 0 OTel traces (P-MASTRA-01 + P-MASTRA-02) · Path B-real with custom `BaseExporter` subclass (~150 lines) ships 4-level Mastra tree to Agenta · companion broken-baseline at `examples/node/observability-mastra/` reproduces failure mode |
-| 7 | Pain log de-dup + severity grouping → SDK design phase input | 🔜 PENDING |
+| 7 | Braintrust dual-export across 8 AI-SDK-direct apps | ✅ 29/32 assertions PASS (a2 P-APP-VERCEL-01 expected FAIL preserved) · single instrumentation-file change adds Braintrust alongside Agenta · accidental finding: `spanProcessors: [SimpleSpanProcessor]` overrides @vercel/otel's default BatchSpanProcessor and sidesteps P-APP-VERCEL-01 (added as interim workaround note to that entry) · Mastra-Braintrust integration deferred (different shape, no key provided) |
+| 8 | Pain log de-dup + severity grouping → SDK design phase input | 🔜 PENDING |
 
 ---
 

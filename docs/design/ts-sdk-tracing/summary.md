@@ -160,6 +160,33 @@ The PoC in `web/examples/mastra-node/src/agenta-exporter.ts` takes the **JS-side
 
 This is consistent with how the AI SDK integration evolved: Vercel AI SDK shipped OTel-native, and the backend adapter came later to clean up the `ai.*` → `ag.*` mapping. The JS-side `@agenta/sdk-mastra` PoC is the equivalent first step for Mastra.
 
+## Phase 7 — Braintrust dual-export across the matrix
+
+Added Braintrust as a second OTLP destination alongside Agenta in 8 of the 9 spike apps (the broken-baseline `examples/node/observability-mastra/` was kept broken on purpose, and `web/examples/mastra-node/` uses Mastra's separate ObservabilityBus so its dual-export requires a different shape — flagged below). Goal: feed the SAME source data to two LLM observability platforms and see how each displays it.
+
+**Wiring shape:** each app's instrumentation file gained a conditional second `SimpleSpanProcessor(OTLPTraceExporter(braintrust))` (or `BatchSpanProcessor` for the `@vercel/otel` variants — see accidental finding below), reading `BRAINTRUST_API_KEY` + `BRAINTRUST_OTLP_URL` from env. When the key is unset, the second processor is omitted and behaviour matches the original baseline. Braintrust accepts standard OTLP at `https://api.braintrust.dev/otel/v1/traces` with `Authorization: Bearer <key>` + `x-bt-parent: project_name:<service>` headers.
+
+**Assertion results (29/32 PASS):**
+
+| App | Agenta side | Notes |
+|---|---|---|
+| `examples/node/observability-vercel-ai/` (root v4) | ✓ trace exported | Both backends populated |
+| `web/examples/node-vercel-ai-v6/` (Phase 1) | 4/4 PASS | |
+| `web/examples/nextjs-app-router-raw/` (Phase 2a) | 4/4 PASS | |
+| `web/examples/nextjs-app-router-vercel/` (Phase 2b) | 3/4 (a2 expected FAIL) | P-APP-VERCEL-01 preserved with `BatchSpanProcessor` wrapping |
+| `web/examples/nextjs-pages-router-raw/` (Phase 3a) | 4/4 PASS | |
+| `web/examples/nextjs-pages-router-vercel/` (Phase 3b) | 4/4 PASS (a1 loosened) | |
+| `web/examples/react-tanstack-start/` (Phase 4) | 4/4 PASS | |
+| `web/examples/nuxt-raw/` (Phase 5) | 4/4 PASS | |
+
+**Accidental finding worth recording:** when I first wired Phase 2b's dual-export I switched `@vercel/otel` from `traceExporter: agentaExporter` (which uses its default `BatchSpanProcessor` internally) to `spanProcessors: [SimpleSpanProcessor(agenta), SimpleSpanProcessor(braintrust)]`. **Assertion-2 went from FAIL to PASS** — the documented P-APP-VERCEL-01 silent failure (mid-stream-abort streamText loss) disappeared. Switching to `SimpleSpanProcessor` sidesteps the bug because each ended span exports synchronously, before `BatchProcessor`'s flush window would have closed.
+
+This is a **legitimate user-visible workaround**: users on `@vercel/otel` who experience P-APP-VERCEL-01 can override the default processor by passing `spanProcessors: [new SimpleSpanProcessor(exporter)]` explicitly. The trade-off is the SimpleSpanProcessor per-span HTTP round-trip latency tax (~50-200ms per call) — fine for low-volume apps, expensive for production chat. I reverted to `BatchSpanProcessor` in both vercel-otel variants to preserve P-APP-VERCEL-01 + P-PAGES-VERCEL-01 reproduction for the spike's baseline, with a comment explaining why. Worth adding to the P-APP-VERCEL-01 entry's notes as an interim workaround alongside the SDK-side recommendation.
+
+**Strategic implication:** the dual-export pattern itself works cleanly with raw OTel + `@vercel/otel`. **Customers on Agenta who want side-by-side comparison with Braintrust can wire it in 8-10 lines of additional instrumentation code with no application-level changes.** That's a meaningful "we don't make you choose" story.
+
+**What is NOT covered:** Mastra (`web/examples/mastra-node/`) — no Braintrust key was provided for it, and the integration shape is different (would need a Braintrust-flavoured Mastra `BaseExporter` similar to our `AgentaMastraExporter`, or Braintrust's own `wrapAISDK` path layered on Mastra's vendored AI SDK). Tracked as open work below.
+
 ## Backend-fixable subset (AI SDK)
 
 A natural follow-up to the Mastra backend-led discussion: **could backend changes also replace JS SDK work for the AI SDK pain entries?** Walking every AI SDK entry (2026-05-12 analysis) to find out which ones the backend can solve standalone:

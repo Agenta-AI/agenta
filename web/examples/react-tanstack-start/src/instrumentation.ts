@@ -31,6 +31,9 @@ const AGENTA_API_KEY = process.env.AGENTA_API_KEY
 const AGENTA_PROJECT_ID = process.env.AGENTA_PROJECT_ID
 const AGENTA_OTLP_PATH = process.env.AGENTA_OTLP_PATH || "/api/otlp/v1/traces"
 const APP_NAME = process.env.AGENTA_SPIKE_APP_NAME ?? "tanstack-start"
+const BRAINTRUST_API_KEY = process.env.BRAINTRUST_API_KEY
+const BRAINTRUST_OTLP_URL =
+    process.env.BRAINTRUST_OTLP_URL || "https://api.braintrust.dev/otel/v1/traces"
 
 if (!AGENTA_API_KEY) {
     console.error("instrumentation: AGENTA_API_KEY is required — traces will not export")
@@ -41,18 +44,31 @@ if (!AGENTA_API_KEY) {
         ? `${AGENTA_HOST}${AGENTA_OTLP_PATH}?project_id=${encodeURIComponent(AGENTA_PROJECT_ID)}`
         : `${AGENTA_HOST}${AGENTA_OTLP_PATH}`
 
-    const exporter = new OTLPTraceExporter({
+    const agentaExporter = new OTLPTraceExporter({
         url: otlpUrl,
         headers: {
             Authorization: `ApiKey ${AGENTA_API_KEY}`,
         },
     })
 
+    // Optional Braintrust dual-export. Same OTel data fans out to both backends.
+    const spanProcessors = [new SimpleSpanProcessor(agentaExporter)]
+    if (BRAINTRUST_API_KEY) {
+        const braintrustExporter = new OTLPTraceExporter({
+            url: BRAINTRUST_OTLP_URL,
+            headers: {
+                Authorization: `Bearer ${BRAINTRUST_API_KEY}`,
+                "x-bt-parent": `project_name:${SERVICE_NAME}`,
+            },
+        })
+        spanProcessors.push(new SimpleSpanProcessor(braintrustExporter))
+    }
+
     const provider = new NodeTracerProvider({
         resource: resourceFromAttributes({
             [ATTR_SERVICE_NAME]: SERVICE_NAME,
         }),
-        spanProcessors: [new SimpleSpanProcessor(exporter)],
+        spanProcessors,
     })
 
     provider.register()
@@ -72,4 +88,7 @@ if (!AGENTA_API_KEY) {
     }
 
     console.log(`instrumentation: registered service.name="${SERVICE_NAME}" → ${otlpUrl}`)
+    if (BRAINTRUST_API_KEY) {
+        console.log(`instrumentation: + Braintrust dual-export → ${BRAINTRUST_OTLP_URL}`)
+    }
 }
