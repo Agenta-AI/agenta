@@ -5,3 +5,5 @@
  */
 
 export {TestcaseTable, type TestcaseTableProps} from "./TestcaseTable"
+export {default as TestcaseDrawer} from "./TestcaseDrawer"
+export type {TestcaseDrawerContentRenderProps, TestcaseDrawerProps} from "./TestcaseDrawer"
