@@ -101,6 +101,13 @@ const StepGroupHeader = ({
             refs.application_revision?.application?.id,
             refs.applicationRevision?.application?.id,
         ) ?? null
+    const revisionId =
+        pickString(
+            refs.application_revision?.id,
+            refs.applicationRevision?.id,
+            refs.application_revision?.revision_id,
+            refs.applicationRevision?.revision_id,
+        ) ?? null
     const variantId =
         pickString(
             refs.application_variant?.id,
@@ -123,12 +130,13 @@ const StepGroupHeader = ({
         applicationReferenceQueryAtomFamily,
         applicationId,
     )
+    // Prefer revisionId because workflowMolecule is keyed by revision ID
     const variantQuery = useQueryAtom<{
         name?: string | null
         slug?: string | null
         revision?: string | number | null
         version?: string | number | null
-    }>(variantReferenceQueryAtomFamily, variantId)
+    }>(variantReferenceQueryAtomFamily, revisionId ?? variantId)
 
     let label = fallbackLabel
 

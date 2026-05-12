@@ -42,7 +42,7 @@ export async function fetchEnvironmentsList({
     }
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/environments/query`,
+        `${getAgentaApiUrl()}/simple/environments/query`,
         {
             include_archived: includeArchived,
         },
@@ -67,7 +67,7 @@ export async function fetchEnvironmentDetail({
     id,
     projectId,
 }: EnvironmentDetailParams): Promise<Environment> {
-    const response = await axios.get(`${getAgentaApiUrl()}/preview/simple/environments/${id}`, {
+    const response = await axios.get(`${getAgentaApiUrl()}/simple/environments/${id}`, {
         params: {project_id: projectId},
     })
 
@@ -92,11 +92,16 @@ export async function fetchEnvironmentDetail({
 export async function fetchEnvironmentRevisionsList({
     projectId,
     environmentId,
+    applicationId,
+    message,
 }: EnvironmentRevisionListParams): Promise<EnvironmentRevisionsResponse> {
+    const hasRevisionQuery = !!message
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/environments/revisions/query`,
+        `${getAgentaApiUrl()}/environments/revisions/query`,
         {
             environment_refs: [{id: environmentId}],
+            ...(applicationId ? {application_refs: [{id: applicationId}]} : {}),
+            ...(hasRevisionQuery ? {environment_revision: {message}} : {}),
             windowing: {limit: 100, order: "descending"},
         },
         {params: {project_id: projectId}},
@@ -121,7 +126,7 @@ export async function fetchLatestEnvironmentRevision({
     environmentId,
 }: EnvironmentRevisionListParams): Promise<EnvironmentRevision | null> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/environments/revisions/query`,
+        `${getAgentaApiUrl()}/environments/revisions/query`,
         {
             environment_refs: [{id: environmentId}],
             windowing: {limit: 1, order: "descending"},
@@ -152,7 +157,7 @@ export async function fetchEnvironmentsBatch(
     if (!projectId || environmentIds.length === 0) return results
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/environments/query`,
+        `${getAgentaApiUrl()}/simple/environments/query`,
         {
             environment_refs: environmentIds.map((id) => ({id})),
         },

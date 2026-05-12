@@ -15,14 +15,14 @@
  * const snapshot: PlaygroundSnapshot = {
  *     v: SNAPSHOT_VERSION,
  *     selection: [
- *         { kind: 'commit', id: 'rev-123', runnableType: 'legacyAppRevision' },
- *         { kind: 'draft', draftKey: 'dk-1', runnableType: 'legacyAppRevision' },
+ *         { kind: 'commit', id: 'rev-123', runnableType: 'workflow' },
+ *         { kind: 'draft', draftKey: 'dk-1', runnableType: 'workflow' },
  *     ],
  *     drafts: [
  *         {
  *             draftKey: 'dk-1',
  *             sourceRevisionId: 'rev-456',
- *             runnableType: 'legacyAppRevision',
+ *             runnableType: 'workflow',
  *             patch: {
  *                 parameters: {...},
  *             },
@@ -52,7 +52,7 @@ export const SNAPSHOT_VERSION = 2 as const
  * Used to restore downstream chain entities during URL hydration.
  */
 export interface SnapshotEntityMetadata {
-    /** Playground entity type (e.g., "legacyAppRevision", "evaluatorRevision") */
+    /** Playground entity type (e.g., "workflow", "evaluator") */
     entityType?: string
     /** Node depth in the playground graph (0 = root) */
     depth?: number
@@ -67,7 +67,7 @@ export interface CommitSelectionItem extends SnapshotEntityMetadata {
     kind: "commit"
     /** Revision ID */
     id: string
-    /** Runnable type (e.g., 'legacyAppRevision', 'evaluatorRevision') */
+    /** Runnable type (e.g., 'workflow', 'evaluatorRevision') */
     runnableType: RunnableType
 }
 
@@ -79,18 +79,18 @@ export interface DraftSelectionItem extends SnapshotEntityMetadata {
     kind: "draft"
     /** Key referencing a draft in the drafts array */
     draftKey: string
-    /** Runnable type (e.g., 'legacyAppRevision', 'evaluatorRevision') */
+    /** Runnable type (e.g., 'workflow', 'evaluatorRevision') */
     runnableType: RunnableType
 }
 
 /**
  * Selection item for an ephemeral entity (no server-side state).
  * Carries the full entity data inline so it can be restored from URL.
- * Used for entities like baseRunnable that are created from trace data.
+ * Used for ephemeral workflow entities created from trace data.
  */
 export interface EphemeralSelectionItem extends SnapshotEntityMetadata {
     kind: "ephemeral"
-    /** Runnable type (e.g., 'baseRunnable') */
+    /** Runnable type (e.g., 'workflow') */
     runnableType: RunnableType
     /** Full entity data serialized inline */
     data: Record<string, unknown>

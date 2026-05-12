@@ -1,8 +1,8 @@
+import {createBatchFetcher} from "@agenta/shared/utils"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
 import type {
     QueryFilteringPayload,
@@ -402,7 +402,7 @@ const evaluationQueryRevisionBatchFetcher = createBatchFetcher<
                     if (variantRefs.length) body.query_variant_refs = variantRefs
                     if (queryRefs.length) body.query_refs = queryRefs
 
-                    const response = await axios.post("/preview/queries/revisions/query", body, {
+                    const response = await axios.post("/queries/revisions/query", body, {
                         params: {project_id: projectId},
                         _ignoreError: true,
                     } as any)

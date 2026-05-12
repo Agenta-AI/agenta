@@ -36,6 +36,8 @@ class TestcasesRouter:
     FastAPI router for testcase endpoints.
     """
 
+    __test__ = False
+
     def __init__(
         self,
         *,

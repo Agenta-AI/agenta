@@ -117,7 +117,7 @@ export const updateOrganization = async (
     ignoreAxiosError = false,
 ) => {
     const response = await axios.patch(
-        `${getAgentaApiUrl()}/organizations/${organizationId}/`,
+        `${getAgentaApiUrl()}/organizations/${organizationId}`,
         payload,
         {
             _ignoreError: ignoreAxiosError,
@@ -132,7 +132,7 @@ export const createOrganization = async (data: {name: string; description?: stri
 }
 
 export const deleteOrganization = async (organizationId: string) => {
-    const response = await axios.delete(`${getAgentaApiUrl()}/organizations/${organizationId}/`)
+    const response = await axios.delete(`${getAgentaApiUrl()}/organizations/${organizationId}`)
     return response.data
 }
 

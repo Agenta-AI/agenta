@@ -124,6 +124,9 @@ export interface CreateLevelFromRelationOptions<TChild = unknown> {
 
     /** Map a group key to a human-readable display label */
     getGroupLabel?: (key: string) => string
+
+    /** Function to derive tab definitions from loaded items */
+    buildTabs?: (items: TChild[]) => import("../types").TabDefinition[]
 }
 
 // ============================================================================
@@ -243,6 +246,7 @@ export function createLevelFromRelation<TChild = unknown>(
         listAtomFamily,
         getGroupKey,
         getGroupLabel,
+        buildTabs,
     } = options
 
     // Derive from relation.selection if available
@@ -305,6 +309,9 @@ export function createLevelFromRelation<TChild = unknown>(
         onBeforeLoad,
         getGroupKey,
         getGroupLabel,
+        buildTabs: buildTabs as
+            | ((items: unknown[]) => import("../types").TabDefinition[])
+            | undefined,
     }
 }
 

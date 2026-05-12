@@ -81,7 +81,7 @@ Annotations allow you to add structured feedback to your LLM application traces.
 2. **Annotation data**: The feedback you want to add (scores, comments, labels, etc.)
 3. **Evaluator slug**: A name for the type of evaluation you're performing
 
-When you use an evaluator for the first time, Agenta automatically creates it and infers its schema from your data. Later annotations using the same evaluator will be validated against this schema.
+The `evaluator_slug` can be any string; the annotation call accepts unknown slugs. To make the evaluator show up in the UI with aggregated stats, create it explicitly through `POST /api/simple/evaluators/` or from the Agenta UI.
 
 
 ```python
@@ -103,24 +103,25 @@ def annotate(trace_id, span_id, annotation, evaluator_slug):
         "Authorization": f"ApiKey {os.environ['AGENTA_API_KEY']}",
     }
 
-    # Structure the annotation data according to the API format
-    annotation_data = {
-        "annotation": {
+    # Annotations are stored as traces. The link back to the instrumented
+    # span is expressed via `links.invocation`.
+    trace_payload = {
+        "trace": {
             "data": {"outputs": annotation},  # Your feedback data goes here
             "references": {"evaluator": {"slug": evaluator_slug}},  # Evaluator reference
-            "links": {"invocation": {"trace_id": trace_id, "span_id": span_id}},  # Link to the trace
+            "links": {"invocation": {"trace_id": trace_id, "span_id": span_id}},  # Link to the instrumented span
         }
     }
 
     # Send the annotation to the Agenta API
     response = requests.post(
-        f"{os.environ.get('AGENTA_HOST', 'https://cloud.agenta.ai')}/api/preview/annotations/",
+        f"{os.environ.get('AGENTA_HOST', 'https://cloud.agenta.ai')}/api/simple/traces/",
         headers=headers,
-        json=annotation_data,
+        json=trace_payload,
     )
 
     # Handle the response
-    if response.status_code == 200:
+    if response.status_code in (200, 202):
         print("Annotation created successfully")
         return response.json()
     else:

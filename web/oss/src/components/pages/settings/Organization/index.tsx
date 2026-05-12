@@ -831,19 +831,41 @@ const Organization: FC = () => {
                                                                 </span>
                                                             }
                                                         >
-                                                            <TooltipWithCopyAction
-                                                                copyText={txtRecordName}
-                                                                title="Copy host"
-                                                            >
-                                                                <span
-                                                                    style={{
-                                                                        fontFamily: "monospace",
-                                                                        fontSize: "12px",
-                                                                    }}
+                                                            <div>
+                                                                <TooltipWithCopyAction
+                                                                    copyText={txtRecordName}
+                                                                    title="Copy host"
                                                                 >
-                                                                    {txtRecordName}
-                                                                </span>
-                                                            </TooltipWithCopyAction>
+                                                                    <span
+                                                                        style={{
+                                                                            fontFamily: "monospace",
+                                                                            fontSize: "12px",
+                                                                        }}
+                                                                    >
+                                                                        {txtRecordName}
+                                                                    </span>
+                                                                </TooltipWithCopyAction>
+                                                                <div style={{marginTop: 4}}>
+                                                                    <Text
+                                                                        type="secondary"
+                                                                        style={{fontSize: "11px"}}
+                                                                    >
+                                                                        Some DNS providers (e.g.
+                                                                        Namecheap, GoDaddy,
+                                                                        Cloudflare) automatically
+                                                                        append your domain. If so,
+                                                                        enter only:{" "}
+                                                                        <Text
+                                                                            code
+                                                                            style={{
+                                                                                fontSize: "11px",
+                                                                            }}
+                                                                        >
+                                                                            _agenta-verification
+                                                                        </Text>
+                                                                    </Text>
+                                                                </div>
+                                                            </div>
                                                         </Descriptions.Item>
                                                         <Descriptions.Item
                                                             label={

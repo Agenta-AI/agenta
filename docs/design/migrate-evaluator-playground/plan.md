@@ -9,7 +9,7 @@ Full migration of the Evaluator Playground to the new workflow-based evaluator A
 **Two PRs, no adapters:**
 
 1. **PR 1:** Migrate CRUD to `SimpleEvaluator` endpoints (internal shapes change)
-2. **PR 2:** Migrate run to native workflow invoke (`/preview/workflows/invoke`)
+2. **PR 2:** Migrate run to native workflow invoke (`/workflows/invoke`)
 
 This keeps changes reviewable while avoiding tech debt from adapter layers.
 
@@ -17,14 +17,14 @@ This keeps changes reviewable while avoiding tech debt from adapter layers.
 PR 1: CRUD Migration
 ┌─────────────────────────────────────────────────────────────────┐
 │  EvaluatorConfig → SimpleEvaluator                              │
-│  /evaluators/configs/* → /preview/simple/evaluators/*           │
+│  /evaluators/configs/* → /simple/evaluators/*           │
 │  settings_values → data.parameters                              │
 │  evaluator_key → data.uri                                       │
 └─────────────────────────────────────────────────────────────────┘
 
 PR 2: Run Migration  
 ┌─────────────────────────────────────────────────────────────────┐
-│  /evaluators/{key}/run → /preview/workflows/invoke              │
+│  /evaluators/{key}/run → /workflows/invoke              │
 │  EvaluatorInputInterface → WorkflowServiceRequest               │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -171,7 +171,7 @@ export const fetchAllEvaluatorConfigs = async (
     if (!projectId) return []
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/evaluators/query?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/evaluators/query?project_id=${projectId}`,
         {
             evaluator: { flags: { is_evaluator: true, is_human: false } },
             include_archived: false,
@@ -199,7 +199,7 @@ export const createEvaluatorConfig = async (
     }
     
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/evaluators/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/evaluators/?project_id=${projectId}`,
         { evaluator: payload },
     )
     
@@ -230,7 +230,7 @@ export const updateEvaluatorConfig = async (
     }
 
     const response = await axios.put(
-        `${getAgentaApiUrl()}/preview/simple/evaluators/${evaluatorId}?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/evaluators/${evaluatorId}?project_id=${projectId}`,
         { evaluator: payload },
     )
     
@@ -244,7 +244,7 @@ export const deleteEvaluatorConfig = async (evaluatorId: string): Promise<boolea
     const {projectId} = getProjectValues()
 
     await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/evaluators/${evaluatorId}/archive?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/evaluators/${evaluatorId}/archive?project_id=${projectId}`,
     )
     
     return true
@@ -254,7 +254,7 @@ export const fetchEvaluatorById = async (evaluatorId: string): Promise<SimpleEva
     const {projectId} = getProjectValues()
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/preview/simple/evaluators/${evaluatorId}?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/evaluators/${evaluatorId}?project_id=${projectId}`,
     )
     
     return response.data?.evaluator || null
@@ -454,7 +454,7 @@ render: (uri) => extractEvaluatorKeyFromUri(uri)
 
 ## PR 2: Run Migration
 
-**Goal:** Replace legacy `/evaluators/{key}/run` with native workflow invoke `/preview/workflows/invoke`.
+**Goal:** Replace legacy `/evaluators/{key}/run` with native workflow invoke `/workflows/invoke`.
 
 **Prerequisite:** PR 1 merged and stable.
 
@@ -569,7 +569,7 @@ export const invokeEvaluator = async (
     }
 
     const response = await axios.post<WorkflowServiceBatchResponse>(
-        `${getAgentaApiUrl()}/preview/workflows/invoke?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/workflows/invoke?project_id=${projectId}`,
         request,
     )
 

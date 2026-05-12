@@ -50,7 +50,6 @@ export type {
     EntitySelectorConfig,
     // Entity types
     EntityType,
-    EvaluatorRevisionData,
     ExecutionMetrics,
     ExecutionResult,
     // Execution types
@@ -183,6 +182,7 @@ export {isAnyRunningForRowAtomFamily} from "./execution"
 export {
     cancelTestsMutationAtom,
     canRunAllChatComparisonAtom,
+    clearAllExecutionItemsMutationAtom,
     clearAllRunsMutationAtom,
     generationHeaderDataAtomFamily,
     generationVariableRowIdsAtom,
@@ -315,6 +315,11 @@ export {
     type ExtractChatMessagesParams,
 } from "./helpers/extractAndLoadChatMessages"
 export {loadTestsetNormalizedMutationAtom} from "./helpers/loadTestsetNormalizedMutation"
+export {
+    extractCanonicalTestcaseRow,
+    normalizeTestcaseRowsForLoad,
+    type CanonicalTestcaseRow,
+} from "./helpers/testcaseRowNormalization"
 
 // Chat ↔ entity sync (writes chat messages back to testcase drafts)
 export {syncChatMessagesToEntityAtom} from "./helpers/syncChatMessagesToEntity"
@@ -344,8 +349,6 @@ export {
     setSelectionUpdateCallback,
     urlSnapshotController,
 } from "./controllers"
-
-export {getRunnableBridge, resetRunnableBridge, setRunnableBridge} from "./controllers"
 
 export type {
     BuildEncodedSnapshotResult,
@@ -379,9 +382,6 @@ export type {
     EntityQueryState,
     EntityRevisionSelectors,
     EvaluatorRawData,
-    EvaluatorRevisionActions,
-    EvaluatorRevisionRawData,
-    EvaluatorRevisionSelectors,
     EvaluatorSelectors,
     PlaygroundEntityProviders,
     SettingsPreset,

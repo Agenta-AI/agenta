@@ -6,7 +6,7 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getProjectValues} from "@/oss/state/project"
 
-const RESULTS_ENDPOINT = "/preview/evaluations/results/"
+const RESULTS_ENDPOINT = "/evaluations/results/"
 
 /**
  * Convert a hex string (32 chars) to UUID format (with dashes)

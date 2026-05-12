@@ -135,6 +135,11 @@ export interface CascadingVariantProps<
      * Null entries are skipped.
      */
     initialSelections?: (string | null)[]
+
+    /**
+     * Called when the user actively clears the selection (e.g., clicks 'x').
+     */
+    onDeselect?: () => void
 }
 
 // ============================================================================
@@ -554,6 +559,16 @@ export interface PopoverCascaderVariantProps<
     variant: "popover-cascader"
 
     /**
+     * Currently selected parent entity ID (for highlighting)
+     */
+    selectedParentId?: string | null
+
+    /**
+     * Currently selected child entity ID (for highlighting)
+     */
+    selectedChildId?: string | null
+
+    /**
      * Trigger button size
      * @default "small"
      */
@@ -571,6 +586,12 @@ export interface PopoverCascaderVariantProps<
     icon?: ReactNode
 
     /**
+     * Whether to render the dropdown chevron on the trigger button.
+     * @default true
+     */
+    showDropdownIcon?: boolean
+
+    /**
      * Popover placement
      * @default "bottomLeft"
      */
@@ -581,6 +602,13 @@ export interface PopoverCascaderVariantProps<
      * @default 220
      */
     panelMinWidth?: number
+
+    /**
+     * Fixed width of each cascading panel (px).
+     * When set, this takes precedence over `panelMinWidth` and prevents
+     * content-driven panel resizing.
+     */
+    panelWidth?: number
 
     /**
      * Maximum height of item lists (px)
@@ -617,6 +645,50 @@ export interface PopoverCascaderVariantProps<
      * @default "Already connected"
      */
     disabledChildTooltip?: string
+
+    /**
+     * Opens the child panel when hovering a parent item.
+     * @default false
+     */
+    openChildOnHover?: boolean
+
+    // ========================================================================
+    // MULTI-SELECT
+    // ========================================================================
+
+    /**
+     * Enable multi-select mode in the child panel.
+     * When true, children render with checkboxes instead of click-to-select.
+     * The popover stays open after each toggle (user closes manually).
+     * @default false
+     */
+    multiSelect?: boolean
+
+    /**
+     * Controlled set of selected child IDs (for multi-select mode).
+     * The component renders checkboxes as checked for IDs in this set.
+     * In multi-select mode, this takes precedence over `selectedChildId`.
+     */
+    selectedChildIds?: Set<string>
+
+    /**
+     * Controls the rendering mode for child item labels.
+     * - "full": Render using `labelNode` from adapter (if available), which may contain avatars/metadata.
+     * - "simple": Force render using simple string label, ignoring `labelNode`.
+     * @default "full"
+     */
+    childItemLabelMode?: "full" | "simple"
+
+    // ========================================================================
+    // SELECTION SUMMARY
+    // ========================================================================
+
+    /**
+     * Whether to display an internally generated selection summary above the root item list.
+     * The picker derives the summary text from the current selection state.
+     * @default false
+     */
+    selectionSummary?: boolean
 }
 
 // ============================================================================
@@ -628,6 +700,7 @@ export interface PopoverCascaderVariantProps<
  */
 export type EntityPickerProps<TSelection = EntitySelectionResult> =
     | CascadingVariantProps<TSelection>
+    | CascaderVariantProps<TSelection>
     | BreadcrumbVariantProps<TSelection>
     | ListPopoverVariantProps<TSelection>
     | TreeSelectVariantProps<TSelection>

@@ -40,7 +40,7 @@ import {atomFamily} from "jotai-family"
 import {queryClientAtom} from "jotai-tanstack-query"
 
 import {loadableColumnsFromRunnableAtomFamily} from "../runnable/bridge"
-import type {Testcase} from "../testcase/core"
+import {SYSTEM_FIELDS, type Testcase} from "../testcase/core"
 import {testcaseMolecule} from "../testcase/state/molecule"
 import {
     setTestcaseIdsAtom,
@@ -52,6 +52,7 @@ import {
     newEntityIdsAtom,
     setCurrentRevisionIdAtom,
     clearDeletedIdsAtom,
+    testcaseDraftAtomFamily,
 } from "../testcase/state/store"
 import {pendingColumnOpsAtomFamily} from "../testset/state"
 import {saveNewTestsetAtom, saveTestsetAtom} from "../testset/state/mutations"
@@ -88,28 +89,6 @@ import {createOutputMappingId, extractPaths} from "./utils"
 // ============================================================================
 // CONSTANTS
 // ============================================================================
-
-/**
- * System fields to exclude from column comparisons and row data
- * These are entity metadata fields, not actual testcase data
- */
-const SYSTEM_FIELDS = new Set([
-    "id",
-    "flags",
-    "tags",
-    "meta",
-    "created_at",
-    "updated_at",
-    "deleted_at",
-    "created_by_id",
-    "updated_by_id",
-    "deleted_by_id",
-    "testset_id",
-    "set_id",
-    "testset_variant_id",
-    "revision_id",
-    "testcase_dedup_id",
-])
 
 const LOCAL_TESTCASE_PREFIXES = ["new-", "local-"] as const
 const VERSION_SUFFIX_REGEX = /\s+v\d+\s*$/i
@@ -807,6 +786,59 @@ const clearRowsAtom = atom(null, (get, set, loadableId: string) => {
     })
 })
 
+/**
+ * Reset rows for the playground Clear action.
+ *
+ * Local mode returns to a single empty testcase. Connected mode keeps server
+ * testcases in the playground, removes locally-added rows, and discards edits.
+ */
+const resetRowsForPlaygroundClearAtom = atom(null, (get, set, loadableId: string) => {
+    const state = get(loadableStateAtomFamily(loadableId))
+
+    if (state.connectedSourceId) {
+        const newIds = get(newEntityIdsAtom)
+        const newIdSet = new Set(newIds)
+        for (const id of newIds) {
+            set(testcaseMolecule.actions.delete, id)
+        }
+
+        set(clearDeletedIdsAtom)
+        set(testcaseMolecule.actions.discardAll)
+
+        const hiddenTestcaseIds = new Set(
+            [...state.hiddenTestcaseIds].filter((id) => !newIdSet.has(id)),
+        )
+        const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+        const visibleRowIds = displayRowIds.filter((id) => !hiddenTestcaseIds.has(id))
+
+        set(loadableStateAtomFamily(loadableId), {
+            ...state,
+            activeRowId: visibleRowIds[0] ?? null,
+            executionResults: {},
+            hiddenTestcaseIds,
+        })
+        return
+    }
+
+    const existingIds = get(testcaseMolecule.atoms.displayRowIds)
+    for (const id of existingIds) {
+        set(testcaseMolecule.actions.delete, id)
+    }
+
+    set(resetTestcaseIdsAtom)
+    set(clearNewEntityIdsAtom)
+    set(clearDeletedIdsAtom)
+
+    const result = set(testcaseMolecule.actions.add, {data: {}})
+
+    set(loadableStateAtomFamily(loadableId), {
+        ...state,
+        activeRowId: result?.id ?? null,
+        executionResults: {},
+        hiddenTestcaseIds: new Set<string>(),
+    })
+})
+
 // ============================================================================
 // COLUMN ACTIONS
 // ============================================================================
@@ -920,12 +952,16 @@ const connectToSourceAtom = atom(
         set(clearDeletedIdsAtom)
         set(resetTestcaseIdsAtom)
 
-        // If testcases provided, populate query cache and set IDs
+        // If testcases provided, populate query cache + drafts and set IDs
         // Note: Testcases are stored in nested Testcase format
         if (testcases && testcases.length > 0) {
             const ids: string[] = []
             for (const tc of testcases) {
                 queryClient.setQueryData(["testcase", projectId, tc.id], tc as Testcase)
+                // Also write to draft so the Jotai reactive graph picks up the data
+                // immediately — atomWithQuery doesn't re-notify subscribers on external
+                // setQueryData calls, but testcaseEntityAtomFamily checks drafts first.
+                set(testcaseDraftAtomFamily(tc.id), tc as Testcase)
                 ids.push(tc.id)
             }
             // Reset and set testcase IDs so displayRowIds picks them up
@@ -1190,7 +1226,10 @@ const saveAsNewTestsetAtom = atom(
         get,
         set,
         loadableId: string,
-        _commitMessage?: string,
+        options?: {
+            commitMessage?: string
+            slug?: string
+        },
     ): Promise<SaveAsNewTestsetResult> => {
         const state = get(loadableStateAtomFamily(loadableId))
         const projectId = get(projectIdAtom)
@@ -1225,6 +1264,8 @@ const saveAsNewTestsetAtom = atom(
             const result = await set(saveNewTestsetAtom, {
                 projectId,
                 testsetName: name.trim(),
+                slug: options?.slug,
+                commitMessage: options?.commitMessage,
                 explicitTestcaseData: allTestcaseData,
             })
 
@@ -2439,6 +2480,9 @@ export const testsetLoadable = {
         /** Clear all rows */
         clearRows: clearRowsAtom,
 
+        /** Reset rows for the playground Clear action */
+        resetRowsForPlaygroundClear: resetRowsForPlaygroundClearAtom,
+
         /** Set columns */
         setColumns: setColumnsAtom,
 
@@ -2641,6 +2685,7 @@ const unifiedActions = {
     setRows: testsetLoadable.actions.setRows,
     importRows: testsetLoadable.actions.importRows,
     clearRows: testsetLoadable.actions.clearRows,
+    resetRowsForPlaygroundClear: testsetLoadable.actions.resetRowsForPlaygroundClear,
 
     // Column actions
     setColumns: testsetLoadable.actions.setColumns,

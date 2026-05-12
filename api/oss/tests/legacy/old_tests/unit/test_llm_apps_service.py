@@ -67,8 +67,8 @@ async def test_batch_invoke_success():
         results = await batch_invoke(
             uri,
             testset_data,
-            parameters,
-            rate_limit_config,
+            parameters=parameters,
+            rate_limit_config=rate_limit_config,
             user_id="test_user",
             project_id="test_project",
         )
@@ -134,8 +134,8 @@ async def test_batch_invoke_retries_and_failure():
         results = await batch_invoke(
             uri,
             testset_data,
-            parameters,
-            rate_limit_config,
+            parameters=parameters,
+            rate_limit_config=rate_limit_config,
             user_id="test_user",
             project_id="test_project",
         )
@@ -198,8 +198,8 @@ async def test_batch_invoke_generic_exception():
         results = await batch_invoke(
             uri,
             testset_data,
-            parameters,
-            rate_limit_config,
+            parameters=parameters,
+            rate_limit_config=rate_limit_config,
             user_id="test_user",
             project_id="test_project",
         )

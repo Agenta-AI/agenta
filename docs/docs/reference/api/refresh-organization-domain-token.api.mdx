@@ -1,0 +1,72 @@
+---
+id: refresh-organization-domain-token
+title: "Refresh Domain Token"
+description: "Refresh the verification token for an unverified domain."
+sidebar_label: "Refresh Domain Token"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVVk1T5DYQ/SuqPiVV3jGh9pDyKVNLkqU2CRTM5gJTVGP1jLUrS15JBiYu//dUS/ZgM0ASbjnBqD/U3e+9ljsIuPVQXMGZ26JRf2FQ1nhYZyDJl041/BsKuKCNI1+JUJG4I6c2qoyuItivZMTGOoFGtCbZSAppa1RmcW2uza9kyGEgL1AYuh9C0EjhyFPwMen7H99VtnWCHhrlduJeGWnvF9dmVSkvlBetp02rxX1FJvpbp7bKoB6yVehTKMkFZGAbvlFZcyqhAJeKv7GTHm9SgTcxHDJo0GFNgRxPowODNUEBg5OSkIHiOTQYKsjA0beW74IiuJYy8GVFNULRQdg1HOiDU2YLGQQVNB+cxEziVELfrzmBb6zx5Dnm+OiI/8wnftmWJXnPTV8MzpBBaU0gE9gdm0YPKORfPMd0kzoaxzMIKt2g5HO1bayrMUABbRs7HGvlIjPwut2+1tEl2/tsGFUHaHZnmzi8eUSf7U9MqzVw+2OOPzi2f0K2t6U6maToM9joSOwOUErFh6jPJyNJsA257O0XKsOktV9icJ9BYscbK1rF4D6D0hEGkjcYXkVBYqB3QdU0qeRDChXLwInaRk4SvVTTsylfK/RzSjtcMlPJfyPOdIkkqh/O+FE6VxCDI88GGs2ZMKI44jCb5Gwah1Wvn68qyXAiqKdrLhlEbSXptNbGVQZ9z/28Pz4+FOufqJVMbf/snHVvV6qkgEpHzQaq/aGDtuXM+i+YqUygLTno1494oHO4m0D3m00FMgNq/6rwfyfvcRt1m1xedo3DECu29rxBmzZJYFw08YAVEh4maQ70+IFn+RD+kU88m1T+4DdhwSNECaGXR3GSIHjustHl42p1fpAw8aOmUFl+dRrrQ3xYQgUF5FOC+jxxyufd/oXp8+GZYkmQuxtfotZpDsdGRUjTzyqEpshzbUvUlfUhmdccWbZOhV0MXZ6ffqLdR0JJDoqr9dThkvmXGDV326OAjfpEu1GZBSzbUFk3dDC+h1WK6iO6GzsFd7klE1Asz08PZDYzsVCwjLwYb4pmVvi+WV/kOcbjBaocMqA6ygQCYf3T3sKo8uTSNUeLHxZHfMRQ1GgmV4zfM8OzvBr2y5N3aK/h/9v3zwAhiyZvNKoo6zjNbiDk1Wxj8o4dKAkZFNPPnpGV6wyYaRzZdbfo6bPTfc/H31pyTLh1BnfoFN4y/FcdSOX5fwnFBrWnV6b73cUg4u/FS8WPpDTMyDvULf+CDL7SbvadFndcNVK+G+zLsqQmTCIPVjJrYy/d87PLFfT93wrv00k=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Refresh Domain Token"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations/domains/{domain_id}/refresh"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Refresh the verification token for an unverified domain.
+
+Generates a new token and resets the 48-hour expiry window.
+This is useful when the original token has expired.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./refresh-organization-domain-token.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./refresh-organization-domain-token.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./refresh-organization-domain-token.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

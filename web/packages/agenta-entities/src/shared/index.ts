@@ -119,6 +119,15 @@ export {
     type RunnableEntity,
     type LoadableEntity,
     type RunnableLoadableEntity,
+    // Entity meta capability
+    withEntityMeta,
+    type EntityMetaFieldMap,
+    type EntityMetaAtoms,
+    type EntityMetaGetters,
+    type EntityMetaCapability,
+    type MetaEntity,
+    type RunnableMetaEntity,
+    type LoadableMetaEntity,
 } from "./molecule"
 
 // ============================================================================
@@ -224,6 +233,7 @@ export {
     // Atoms
     userByIdFamily,
     currentUserAtom,
+    workspaceMembersAtom,
     // Hooks
     useUserDisplayName,
     useIsCurrentUser,
@@ -232,6 +242,7 @@ export {
     // Types
     type UserAtomConfig,
     type UserInfo,
+    type WorkspaceMember,
     type UserAuthorLabelProps,
 } from "./user"
 
@@ -255,12 +266,6 @@ export {
 export {
     // Factories
     createLoadableBridge,
-    createRunnableBridge,
-    // Type hint registry (prevent spurious cross-molecule probing)
-    registerRunnableTypeHint,
-    getRunnableTypeHint,
-    clearRunnableTypeHint,
-    clearAllRunnableTypeHints,
     // Internal state (advanced)
     loadableStateFamily,
 } from "./createEntityBridge"
@@ -270,6 +275,7 @@ export type {
     BridgeQueryState,
     BaseMolecule,
     BaseMoleculeSelectors,
+    OpaqueWritableAtom,
     // Loadable types
     LoadableRow,
     LoadableColumn,
@@ -278,18 +284,10 @@ export type {
     LoadableBridge,
     LoadableBridgeSelectors,
     LoadableBridgeActions,
-    // Runnable types
+    // Standalone entity types
     RunnablePort,
-    RunnableData,
-    RunnableTypeConfig,
-    CreateRunnableBridgeConfig,
-    RunnableBridge,
-    RunnableBridgeSelectors,
-    RunnableBridgeCrudActions,
-    TypeScopedRunnableSelectors,
     // Aliases
     SourceConfig,
-    RunnableConfig,
 } from "./entityBridge"
 
 // ============================================================================
@@ -428,7 +426,7 @@ export {
 } from "./paginated"
 
 // ============================================================================
-// REVISION UTILITIES (shared between appRevision and legacyAppRevision)
+// REVISION UTILITIES
 // ============================================================================
 
 export {

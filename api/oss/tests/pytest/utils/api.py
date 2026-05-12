@@ -5,6 +5,25 @@ from utils.constants import BASE_TIMEOUT
 
 
 @pytest.fixture(scope="session")
+def admin_api(ag_env):
+    """
+    Preconfigured requests session for admin endpoints (Authorization: Access <auth_key>).
+    """
+    api_url = ag_env["api_url"]
+    auth_key = ag_env["auth_key"]
+    session = requests.Session()
+    session.headers.update({"Authorization": f"Access {auth_key}"})
+
+    def _request(method: str, endpoint: str, **kwargs):
+        url = f"{api_url}{endpoint}"
+        return session.request(method=method, url=url, timeout=BASE_TIMEOUT, **kwargs)
+
+    yield _request
+
+    session.close()
+
+
+@pytest.fixture(scope="session")
 def unauthed_api(ag_env):
     """
     Preconfigured requests session for unauthenticated endpoints (supports all methods).

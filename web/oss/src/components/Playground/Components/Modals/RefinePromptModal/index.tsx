@@ -57,7 +57,6 @@ const RefinePromptModal: React.FC<RefinePromptModalProps> = ({
                     overscrollBehavior: "contain",
                 },
             }}
-            destroyOnClose
         >
             <RefinePromptModalContent
                 revisionId={revisionId}

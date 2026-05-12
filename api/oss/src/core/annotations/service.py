@@ -18,7 +18,6 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.tracing.dtos import (
     OTelFlatSpan,
-    TraceType,
     SpanType,
 )
 from oss.src.core.tracing.service import TracingService
@@ -33,6 +32,9 @@ from oss.src.core.tracing.utils.traces import (
     build_simple_trace_query,
     first_link,
     parse_simple_trace,
+)
+from oss.src.core.tracing.dtos import (
+    SimpleTraceReferences,
 )
 from oss.src.core.annotations.types import (
     AnnotationOrigin,
@@ -53,6 +55,8 @@ from oss.src.core.annotations.utils import validate_data_against_schema
 
 
 log = get_module_logger(__name__)
+
+ANNOTATION_URI = "agenta:custom:feedback:v0"
 
 
 class AnnotationsService:
@@ -84,8 +88,6 @@ class AnnotationsService:
 
         simple_evaluator_flags = SimpleEvaluatorFlags(
             is_evaluator=True,
-            is_custom=annotation_create.origin == AnnotationOrigin.CUSTOM,
-            is_human=annotation_create.origin == AnnotationOrigin.HUMAN,
         )
 
         evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
@@ -102,12 +104,9 @@ class AnnotationsService:
             evaluator_outputs_schema: Dict[str, Any] = builder.to_schema()
 
             simple_evaluator_data = SimpleEvaluatorData(
+                uri=ANNOTATION_URI,
                 schemas=dict(
                     outputs=evaluator_outputs_schema,
-                ),
-                service=dict(
-                    agenta="v0.1.0",
-                    format=evaluator_outputs_schema,
                 ),
             )
 
@@ -149,11 +148,9 @@ class AnnotationsService:
 
         validate_data_against_schema(
             annotation_create.data,
-            (
-                evaluator_revision.data.service.get("format", {})
-                if evaluator_revision.data.service
-                else {}
-            ),
+            (evaluator_revision.data.schemas.outputs or {})
+            if evaluator_revision.data.schemas
+            else {},
         )
 
         annotation_create.references.evaluator = Reference(
@@ -183,7 +180,7 @@ class AnnotationsService:
         annotation_flags = AnnotationFlags(
             is_evaluator=True,
             is_custom=annotation_create.origin == AnnotationOrigin.CUSTOM,
-            is_human=annotation_create.origin == AnnotationOrigin.HUMAN,
+            is_feedback=annotation_create.origin == AnnotationOrigin.HUMAN,
             is_sdk=annotation_create.channel == AnnotationChannel.SDK,
             is_web=annotation_create.channel == AnnotationChannel.WEB,
             is_evaluation=annotation_create.kind == AnnotationKind.EVAL,
@@ -198,7 +195,7 @@ class AnnotationsService:
             project_id=project_id,
             user_id=user_id,
             #
-            name=simple_evaluator.name if simple_evaluator else None,
+            name=simple_evaluator.slug if simple_evaluator else None,
             #
             flags=annotation_flags,
             tags=annotation_create.tags,
@@ -213,11 +210,43 @@ class AnnotationsService:
         if annotation_link is None:
             return None
 
-        annotation = await self._fetch_annotation(
-            project_id=project_id,
-            user_id=user_id,
+        _origin = (
+            AnnotationOrigin.CUSTOM
+            if annotation_flags.is_custom
+            else AnnotationOrigin.HUMAN
+            if annotation_flags.is_feedback
+            else AnnotationOrigin.AUTO
+        )
+
+        _kind = (
+            AnnotationKind.EVAL
+            if annotation_flags.is_evaluation
+            else AnnotationKind.ADHOC
+        )
+
+        _channel = (
+            AnnotationChannel.SDK
+            if annotation_flags.is_sdk
+            else AnnotationChannel.WEB
+            if annotation_flags.is_web
+            else AnnotationChannel.API
+        )
+
+        annotation = Annotation(
+            trace_id=annotation_link.trace_id,
+            span_id=annotation_link.span_id,
             #
-            annotation_link=annotation_link,
+            origin=_origin,
+            kind=_kind,
+            channel=_channel,
+            #
+            tags=annotation_create.tags,
+            meta=annotation_create.meta,
+            #
+            data=annotation_create.data,
+            #
+            references=annotation_references,
+            links=annotation_create.links,
         )
 
         return annotation
@@ -279,8 +308,6 @@ class AnnotationsService:
 
         simple_evaluator_flags = SimpleEvaluatorFlags(
             is_evaluator=True,
-            is_custom=annotation.origin == AnnotationOrigin.CUSTOM,
-            is_human=annotation.origin == AnnotationOrigin.HUMAN,
         )
 
         evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
@@ -297,12 +324,9 @@ class AnnotationsService:
             evaluator_outputs_schema: Dict[str, Any] = builder.to_schema()
 
             simple_evaluator_data = SimpleEvaluatorData(
+                uri=ANNOTATION_URI,
                 schemas=dict(
                     outputs=evaluator_outputs_schema,
-                ),
-                service=dict(
-                    agenta="v0.1.0",
-                    format=evaluator_outputs_schema,
                 ),
             )
 
@@ -337,33 +361,42 @@ class AnnotationsService:
 
         validate_data_against_schema(
             annotation_edit.data,
-            (
-                evaluator_revision.data.service.get("format", {})
-                if evaluator_revision.data.service
-                else {}
-            ),
+            (evaluator_revision.data.schemas.outputs or {})
+            if evaluator_revision.data.schemas
+            else {},
+        )
+
+        annotation_references = (
+            AnnotationReferences(**annotation_edit.references.model_dump())
+            if annotation_edit.references
+            else annotation.references
+        )
+        annotation_links = (
+            annotation_edit.links
+            if annotation_edit.links is not None
+            else annotation.links
         )
 
         if evaluator_revision:
-            annotation.references.evaluator = Reference(
+            annotation_references.evaluator = Reference(
                 id=evaluator_revision.evaluator_id,
                 slug=(
-                    annotation.references.evaluator.slug
-                    if annotation.references.evaluator
+                    annotation_references.evaluator.slug
+                    if annotation_references.evaluator
                     else None
                 ),
             )
 
-            annotation.references.evaluator_variant = Reference(
+            annotation_references.evaluator_variant = Reference(
                 id=evaluator_revision.evaluator_variant_id,
                 slug=(
-                    annotation.references.evaluator_variant.slug
-                    if annotation.references.evaluator_variant
+                    annotation_references.evaluator_variant.slug
+                    if annotation_references.evaluator_variant
                     else None
                 ),
             )
 
-            annotation.references.evaluator_revision = Reference(
+            annotation_references.evaluator_revision = Reference(
                 id=evaluator_revision.id,
                 slug=evaluator_revision.slug,
                 version=evaluator_revision.version,
@@ -372,14 +405,10 @@ class AnnotationsService:
         annotation_flags = AnnotationFlags(
             is_evaluator=True,
             is_custom=annotation.origin == AnnotationOrigin.CUSTOM,
-            is_human=annotation.origin == AnnotationOrigin.HUMAN,
+            is_feedback=annotation.origin == AnnotationOrigin.HUMAN,
             is_sdk=annotation.channel == AnnotationChannel.SDK,
             is_web=annotation.channel == AnnotationChannel.WEB,
             is_evaluation=annotation.kind == AnnotationKind.EVAL,
-        )
-
-        annotation_references = AnnotationReferences(
-            **annotation.references.model_dump(),
         )
 
         annotation_link = await self._edit_annotation(
@@ -396,20 +425,59 @@ class AnnotationsService:
             data=annotation_edit.data,
             #
             references=annotation_references,
-            links=annotation.links,
+            links=annotation_links,
         )
 
         if annotation_link is None:
             return None
 
-        annotation = await self._fetch_annotation(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            annotation_link=annotation_link,
+        _origin = (
+            AnnotationOrigin.CUSTOM
+            if annotation_flags.is_custom
+            else AnnotationOrigin.HUMAN
+            if annotation_flags.is_feedback
+            else AnnotationOrigin.AUTO
         )
 
-        return annotation
+        _kind = (
+            AnnotationKind.EVAL
+            if annotation_flags.is_evaluation
+            else AnnotationKind.ADHOC
+        )
+
+        _channel = (
+            AnnotationChannel.SDK
+            if annotation_flags.is_sdk
+            else AnnotationChannel.WEB
+            if annotation_flags.is_web
+            else AnnotationChannel.API
+        )
+
+        updated_annotation = Annotation(
+            trace_id=annotation_link.trace_id,
+            span_id=annotation_link.span_id,
+            #
+            created_at=annotation.created_at,
+            updated_at=annotation.updated_at,
+            deleted_at=annotation.deleted_at,
+            created_by_id=annotation.created_by_id,
+            updated_by_id=annotation.updated_by_id,
+            deleted_by_id=annotation.deleted_by_id,
+            #
+            origin=_origin,
+            kind=_kind,
+            channel=_channel,
+            #
+            tags=annotation_edit.tags,
+            meta=annotation_edit.meta,
+            #
+            data=annotation_edit.data,
+            #
+            references=annotation_references,
+            links=annotation_links,
+        )
+
+        return updated_annotation
 
     async def delete(
         self,
@@ -447,14 +515,16 @@ class AnnotationsService:
         windowing: Optional[Windowing] = None,
     ):
         annotation = annotation_query if annotation_query else None
-        annotation_flags = AnnotationQueryFlags(is_evaluator=True)
+        annotation_flags = AnnotationQueryFlags()
 
         if annotation:
             if annotation.origin:
                 annotation_flags.is_custom = (
                     annotation.origin == AnnotationOrigin.CUSTOM
                 )
-                annotation_flags.is_human = annotation.origin == AnnotationOrigin.HUMAN
+                annotation_flags.is_feedback = (
+                    annotation.origin == AnnotationOrigin.HUMAN
+                )
 
             if annotation.channel:
                 annotation_flags.is_sdk = annotation.channel == AnnotationChannel.SDK
@@ -466,13 +536,7 @@ class AnnotationsService:
         annotation_tags = annotation.tags if annotation else None
         annotation_meta = annotation.meta if annotation else None
 
-        annotation_references = (
-            AnnotationReferences(
-                **annotation.references.model_dump(),
-            )
-            if annotation and annotation.references
-            else None
-        )
+        annotation_references = annotation.references if annotation else None
 
         _annotation_links = annotation.links if annotation else None
 
@@ -514,8 +578,6 @@ class AnnotationsService:
         links: AnnotationLinks,
     ) -> Optional[Link]:
         trace_id = uuid4().hex
-        trace_type = TraceType.ANNOTATION
-
         span_id = uuid4().hex[16:]
         span_type = SpanType.TASK
         span_name = name or references.evaluator.slug or "annotation"
@@ -531,7 +593,6 @@ class AnnotationsService:
         _flags = flags.model_dump(mode="json", exclude_none=True)
 
         _attributes = build_simple_trace_attributes(
-            trace_kind="annotation",
             flags=_flags,
             tags=tags,
             meta=meta,
@@ -546,7 +607,6 @@ class AnnotationsService:
             spans=[
                 OTelFlatSpan(
                     trace_id=trace_id,
-                    trace_type=trace_type,
                     span_id=span_id,
                     span_type=span_type,
                     span_name=span_name,
@@ -554,7 +614,6 @@ class AnnotationsService:
                     links=_links,
                 )
             ],
-            sync=True,  # Synchronous for user-facing annotations
         )
 
         _link = first_link(links)
@@ -591,7 +650,7 @@ class AnnotationsService:
             (
                 parsed_trace.flags.get("is_custom")
                 and AnnotationOrigin.CUSTOM
-                or parsed_trace.flags.get("is_human")
+                or parsed_trace.flags.get("is_feedback")
                 and AnnotationOrigin.HUMAN
                 or AnnotationOrigin.AUTO
             )
@@ -679,7 +738,6 @@ class AnnotationsService:
         _flags = flags.model_dump(mode="json", exclude_none=True)
 
         _attributes = build_simple_trace_attributes(
-            trace_kind="annotation",
             flags=_flags,
             tags=tags,
             meta=meta,
@@ -699,7 +757,6 @@ class AnnotationsService:
                     links=_links,
                 )
             ],
-            sync=True,  # Synchronous for user-facing annotations
         )
 
         _link = first_link(links)
@@ -734,7 +791,7 @@ class AnnotationsService:
         tags: Optional[Tags] = None,
         meta: Optional[Meta] = None,
         #
-        references: Optional[AnnotationReferences] = None,
+        references: Optional[SimpleTraceReferences] = None,
         links: Optional[AnnotationLinks] = None,
         #
         annotation_links: Optional[List[Link]] = None,
@@ -777,7 +834,7 @@ class AnnotationsService:
                 (
                     parsed_trace.flags.get("is_custom")
                     and AnnotationOrigin.CUSTOM
-                    or parsed_trace.flags.get("is_human")
+                    or parsed_trace.flags.get("is_feedback")
                     and AnnotationOrigin.HUMAN
                     or AnnotationOrigin.AUTO
                 )

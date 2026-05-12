@@ -1,0 +1,35 @@
+{
+    "name": "@agenta/sdk-mastra",
+    "version": "0.1.0",
+    "private": true,
+    "sideEffects": false,
+    "description": "Agenta SDK — Mastra framework adapter (traced stream/generate, prompt config)",
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "scripts": {
+        "build": "tsc --noEmit",
+        "build:dist": "tsc -p tsconfig.build.json",
+        "types:check": "tsc --noEmit",
+        "lint": "eslint --config ../eslint.config.mjs src/"
+    },
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "dependencies": {
+        "@agenta/sdk": "workspace:../agenta-sdk",
+        "@agenta/sdk-tracing": "workspace:../agenta-sdk-tracing"
+    },
+    "devDependencies": {
+        "@types/node": "^25.6.0",
+        "typescript": "6.0.2"
+    },
+    "peerDependencies": {
+        "@mastra/core": "^1",
+        "@opentelemetry/api": "^1"
+    },
+    "peerDependenciesMeta": {
+        "@mastra/core": {
+            "optional": true
+        }
+    }
+}

@@ -1,5 +1,6 @@
 import {useMemo, useState} from "react"
 
+import type {EvaluatorDefinition} from "@agenta/entities/workflow"
 import {DownOutlined} from "@ant-design/icons"
 import {Alert, Button, Form, Segmented, Skeleton, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -14,7 +15,6 @@ import {EvaluatorReferenceLabel} from "@/oss/components/References/ReferenceLabe
 
 import {effectiveProjectIdAtom} from "../../../../atoms/run"
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../../../atoms/table/evaluators"
-import type {EvaluatorDefinition} from "../../../../atoms/table/types"
 import useRunScopedUrls from "../../../../hooks/useRunScopedUrls"
 import {stringifyError} from "../utils"
 
@@ -156,7 +156,7 @@ const EvaluatorCard = ({
 
     const {projectURL} = useRunScopedUrls(runId)
     const evaluatorHref = projectURL
-        ? `${projectURL}/evaluators/configure/${evaluator.id}`
+        ? `${projectURL}/evaluators/playground?revisions=${evaluator.id}`
         : undefined
 
     const titleNode = (

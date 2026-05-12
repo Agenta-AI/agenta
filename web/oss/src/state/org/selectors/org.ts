@@ -1,3 +1,4 @@
+import {logAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -8,7 +9,6 @@ import {fetchAllOrgsList, fetchSingleOrg} from "@/oss/services/organization/api"
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom} from "@/oss/state/session"
-import {logAtom} from "@/oss/state/utils/logAtom"
 
 const WORKSPACE_ORG_MAP_KEY = "workspaceOrgMap"
 const LAST_USED_WORKSPACE_ID_KEY = "lastUsedWorkspaceId"

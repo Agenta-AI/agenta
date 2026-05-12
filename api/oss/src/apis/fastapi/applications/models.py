@@ -2,12 +2,17 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
+from oss.src.utils.exceptions import Support
+
 from oss.src.core.shared.dtos import (
     Reference,
     Windowing,
 )
 from oss.src.core.applications.dtos import (
     Application,
+    ApplicationCatalogType,
+    ApplicationCatalogTemplate,
+    ApplicationCatalogPreset,
     ApplicationCreate,
     ApplicationEdit,
     ApplicationQuery,
@@ -56,12 +61,12 @@ class ApplicationQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class ApplicationResponse(BaseModel):
+class ApplicationResponse(Support):
     count: int = 0
     application: Optional[Application] = None
 
 
-class ApplicationsResponse(BaseModel):
+class ApplicationsResponse(Support):
     count: int = 0
     applications: List[Application] = []
 
@@ -96,12 +101,12 @@ class ApplicationVariantQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class ApplicationVariantResponse(BaseModel):
+class ApplicationVariantResponse(Support):
     count: int = 0
     application_variant: Optional[ApplicationVariant] = None
 
 
-class ApplicationVariantsResponse(BaseModel):
+class ApplicationVariantsResponse(Support):
     count: int = 0
     application_variants: List[ApplicationVariant] = []
 
@@ -127,7 +132,7 @@ class ApplicationRevisionQueryRequest(BaseModel):
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
-    resolve: bool = False  # Optionally resolve embeds on query
+    resolve: Optional[bool] = None  # Optionally resolve embeds on query
 
 
 class ApplicationRevisionCommitRequest(BaseModel):
@@ -138,16 +143,31 @@ class ApplicationRevisionRetrieveRequest(BaseModel):
     application_ref: Optional[Reference] = None
     application_variant_ref: Optional[Reference] = None
     application_revision_ref: Optional[Reference] = None
-    resolve: bool = False  # Optionally resolve embeds on retrieve
+    environment_ref: Optional[Reference] = None
+    environment_variant_ref: Optional[Reference] = None
+    environment_revision_ref: Optional[Reference] = None
+    key: Optional[str] = None
+    resolve: Optional[bool] = None  # Optionally resolve embeds on retrieve
 
 
-class ApplicationRevisionResponse(BaseModel):
+class ApplicationRevisionDeployRequest(BaseModel):
+    application_ref: Optional[Reference] = None
+    application_variant_ref: Optional[Reference] = None
+    application_revision_ref: Optional[Reference] = None
+    environment_ref: Optional[Reference] = None
+    environment_variant_ref: Optional[Reference] = None
+    environment_revision_ref: Optional[Reference] = None
+    key: Optional[str] = None
+    message: Optional[str] = None
+
+
+class ApplicationRevisionResponse(Support):
     count: int = 0
     application_revision: Optional[ApplicationRevision] = None
     resolution_info: Optional[ResolutionInfo] = None  # Included when resolve=True
 
 
-class ApplicationRevisionsResponse(BaseModel):
+class ApplicationRevisionsResponse(Support):
     count: int = 0
     application_revisions: List[ApplicationRevision] = []
 
@@ -173,12 +193,12 @@ class SimpleApplicationQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class SimpleApplicationResponse(BaseModel):
+class SimpleApplicationResponse(Support):
     count: int = 0
     application: Optional[SimpleApplication] = None
 
 
-class SimpleApplicationsResponse(BaseModel):
+class SimpleApplicationsResponse(Support):
     count: int = 0
     applications: List[SimpleApplication] = []
 
@@ -196,7 +216,37 @@ class ApplicationRevisionResolveRequest(BaseModel):
     error_policy: Optional[ErrorPolicy] = ErrorPolicy.EXCEPTION
 
 
-class ApplicationRevisionResolveResponse(BaseModel):
+class ApplicationRevisionResolveResponse(Support):
     count: int = 0
     application_revision: Optional[ApplicationRevision] = None
     resolution_info: Optional[ResolutionInfo] = None
+
+
+class ApplicationCatalogTypeResponse(Support):
+    count: int = 0
+    type: Optional[ApplicationCatalogType] = None
+
+
+class ApplicationCatalogTypesResponse(Support):
+    count: int = 0
+    types: List[ApplicationCatalogType] = []
+
+
+class ApplicationCatalogTemplateResponse(Support):
+    count: int = 0
+    template: Optional[ApplicationCatalogTemplate] = None
+
+
+class ApplicationCatalogTemplatesResponse(Support):
+    count: int = 0
+    templates: List[ApplicationCatalogTemplate] = []
+
+
+class ApplicationCatalogPresetResponse(Support):
+    count: int = 0
+    preset: Optional[ApplicationCatalogPreset] = None
+
+
+class ApplicationCatalogPresetsResponse(Support):
+    count: int = 0
+    presets: List[ApplicationCatalogPreset] = []

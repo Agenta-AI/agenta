@@ -1,12 +1,16 @@
 import {useCallback} from "react"
 
+import {workflowMolecule} from "@agenta/entities/workflow"
+import {message} from "@agenta/ui/app-message"
 import {Modal} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
-import {deleteApp} from "@/oss/services/app-selector/api"
 import {useAppsData} from "@/oss/state/app"
+import {getProjectValues} from "@/oss/state/project"
+
+import {invalidateAppManagementWorkflowQueries} from "../../store"
 
 import {
     closeDeleteAppModalAtom,
@@ -16,44 +20,49 @@ import {
 
 const DeleteAppModal = (props = {}) => {
     const router = useRouter()
-    const {open, appDetails, confirmLoading} = useAtomValue(deleteAppModalAtom)
+    const {open, appDetails, confirmLoading, onArchived} = useAtomValue(deleteAppModalAtom)
     const closeModal = useSetAtom(closeDeleteAppModalAtom)
     const setLoading = useSetAtom(setDeleteAppModalLoadingAtom)
     const {mutate: mutateApps} = useAppsData()
-    const {baseProjectURL} = useURL()
+    const {baseAppURL} = useURL()
 
     const handleDeleteOk = useCallback(async () => {
         if (!appDetails) return
 
         setLoading(true)
         try {
-            await deleteApp(appDetails.app_id)
-            await mutateApps()
+            const {projectId} = getProjectValues()
+            await workflowMolecule.lifecycle.archive(appDetails.id, {projectId})
+            await mutateApps?.()
+            await invalidateAppManagementWorkflowQueries()
+            await onArchived?.(appDetails)
+            message.success("App archived")
             closeModal()
-            if (router.pathname.includes("/overview")) {
-                await router.push(baseProjectURL)
+            if (router.pathname.includes("/apps/")) {
+                await router.push(baseAppURL)
             }
         } catch (error) {
-            console.error("Failed to delete app:", error)
+            console.error("Failed to archive app:", error)
         } finally {
             setLoading(false)
         }
-    }, [appDetails, setLoading, mutateApps, closeModal, router])
+    }, [appDetails, setLoading, mutateApps, onArchived, closeModal, router, baseAppURL])
 
     return (
         <Modal
-            title="Are you sure?"
+            title="Archive prompt?"
             confirmLoading={confirmLoading}
-            okText="Yes"
+            okText="Archive"
             okButtonProps={{disabled: !appDetails}}
             onCancel={closeModal}
-            cancelText="No"
+            cancelText="Cancel"
             onOk={handleDeleteOk}
             destroyOnHidden
+            centered
             {...props}
             open={open}
         >
-            <p>Are you sure you want to delete {appDetails?.app_name}?</p>
+            <p>{appDetails?.name} will move to archived prompts.</p>
         </Modal>
     )
 }

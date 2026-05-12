@@ -2,6 +2,8 @@ from typing import Optional, List, Dict, Any
 
 from pydantic import BaseModel
 
+from oss.src.utils.exceptions import Support
+
 from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
@@ -34,6 +36,11 @@ from oss.src.core.embeds.dtos import (
     ErrorPolicy,
     ResolutionInfo,
 )
+from oss.src.core.evaluators.dtos import (
+    EvaluatorCatalogType,
+    EvaluatorCatalogTemplate,
+    EvaluatorCatalogPreset,
+)
 
 
 # EVALUATORS -------------------------------------------------------------------
@@ -61,12 +68,12 @@ class EvaluatorForkRequest(BaseModel):
     evaluator: EvaluatorFork
 
 
-class EvaluatorResponse(BaseModel):
+class EvaluatorResponse(Support):
     count: int = 0
     evaluator: Optional[Evaluator] = None
 
 
-class EvaluatorsResponse(BaseModel):
+class EvaluatorsResponse(Support):
     count: int = 0
     evaluators: List[Evaluator] = []
 
@@ -105,12 +112,12 @@ class EvaluatorRevisionsLogRequest(BaseModel):
     evaluator: EvaluatorRevisionsLog
 
 
-class EvaluatorVariantResponse(BaseModel):
+class EvaluatorVariantResponse(Support):
     count: int = 0
     evaluator_variant: Optional[EvaluatorVariant] = None
 
 
-class EvaluatorVariantsResponse(BaseModel):
+class EvaluatorVariantsResponse(Support):
     count: int = 0
     evaluator_variants: List[EvaluatorVariant] = []
 
@@ -136,7 +143,7 @@ class EvaluatorRevisionQueryRequest(BaseModel):
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
-    resolve: bool = False  # Optionally resolve embeds on query
+    resolve: Optional[bool] = None  # Optionally resolve embeds on query
 
 
 class EvaluatorRevisionCommitRequest(BaseModel):
@@ -147,16 +154,31 @@ class EvaluatorRevisionRetrieveRequest(BaseModel):
     evaluator_ref: Optional[Reference] = None
     evaluator_variant_ref: Optional[Reference] = None
     evaluator_revision_ref: Optional[Reference] = None
-    resolve: bool = False  # Optionally resolve embeds on retrieve
+    environment_ref: Optional[Reference] = None
+    environment_variant_ref: Optional[Reference] = None
+    environment_revision_ref: Optional[Reference] = None
+    key: Optional[str] = None
+    resolve: Optional[bool] = None  # Optionally resolve embeds on retrieve
 
 
-class EvaluatorRevisionResponse(BaseModel):
+class EvaluatorRevisionDeployRequest(BaseModel):
+    evaluator_ref: Optional[Reference] = None
+    evaluator_variant_ref: Optional[Reference] = None
+    evaluator_revision_ref: Optional[Reference] = None
+    environment_ref: Optional[Reference] = None
+    environment_variant_ref: Optional[Reference] = None
+    environment_revision_ref: Optional[Reference] = None
+    key: Optional[str] = None
+    message: Optional[str] = None
+
+
+class EvaluatorRevisionResponse(Support):
     count: int = 0
     evaluator_revision: Optional[EvaluatorRevision] = None
     resolution_info: Optional[ResolutionInfo] = None  # Included when resolve=True
 
 
-class EvaluatorRevisionsResponse(BaseModel):
+class EvaluatorRevisionsResponse(Support):
     count: int = 0
     evaluator_revisions: List[EvaluatorRevision] = []
 
@@ -182,12 +204,12 @@ class SimpleEvaluatorQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class SimpleEvaluatorResponse(BaseModel):
+class SimpleEvaluatorResponse(Support):
     count: int = 0
     evaluator: Optional[SimpleEvaluator] = None
 
 
-class SimpleEvaluatorsResponse(BaseModel):
+class SimpleEvaluatorsResponse(Support):
     count: int = 0
     evaluators: List[SimpleEvaluator] = []
 
@@ -205,7 +227,7 @@ class EvaluatorRevisionResolveRequest(BaseModel):
     error_policy: Optional[ErrorPolicy] = ErrorPolicy.EXCEPTION
 
 
-class EvaluatorRevisionResolveResponse(BaseModel):
+class EvaluatorRevisionResolveResponse(Support):
     count: int = 0
     evaluator_revision: Optional[EvaluatorRevision] = None
     resolution_info: Optional[ResolutionInfo] = None
@@ -230,6 +252,39 @@ class EvaluatorTemplate(BaseModel):
     archived: Optional[bool] = False
 
 
-class EvaluatorTemplatesResponse(BaseModel):
+class EvaluatorTemplatesResponse(Support):
     count: int = 0
     templates: List[EvaluatorTemplate] = []
+
+
+# EVALUATORS CATALOG -----------------------------------------------------------
+
+
+class EvaluatorCatalogTypeResponse(Support):
+    count: int = 0
+    type: Optional[EvaluatorCatalogType] = None
+
+
+class EvaluatorCatalogTypesResponse(Support):
+    count: int = 0
+    types: List[EvaluatorCatalogType] = []
+
+
+class EvaluatorCatalogTemplateResponse(Support):
+    count: int = 0
+    template: Optional[EvaluatorCatalogTemplate] = None
+
+
+class EvaluatorCatalogTemplatesResponse(Support):
+    count: int = 0
+    templates: List[EvaluatorCatalogTemplate] = []
+
+
+class EvaluatorCatalogPresetResponse(Support):
+    count: int = 0
+    preset: Optional[EvaluatorCatalogPreset] = None
+
+
+class EvaluatorCatalogPresetsResponse(Support):
+    count: int = 0
+    presets: List[EvaluatorCatalogPreset] = []

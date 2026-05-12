@@ -5,7 +5,7 @@ description: "Status check for OTLP"
 sidebar_label: "Status check for OTLP"
 hide_title: true
 hide_table_of_contents: true
-api: eJx1UtGO2jAQ/BU0zxbh+pinoqpq0VU6VK5PKKoWsxDfJbHP3qDSKP9ebRK4A6l5SeKd8e7MbAehY0K+xdMucTzRzlVOzigMfOBI4nyz2iOHlyr8TkLSJhhETsE3iRPyDp8WC33tOdnogjKQY9Nayykd2mr2cwLDwPpGuBGFUwiVs0OD7CUpp0OyJdekXyFqe3Fjh6lv3kHOgZEjSXTNEQbipNKDzYjoe3OB+N0LWxlmfWtd5L2KnC4q3olffFWxlZF/nbTXx9xLGjAzW7J9nR18nD09/1jDoGYpvXp0ZO0XSErkyNSx7PSQSSTLapr6y1HN7tDGCjlKkZDyLLOVb/dzOnIjNCeXUXDoC2XYNmocSlmuV498/s6054h8W3wEbNS40atb2NUxCu6RzzBoqNb/ZSulj+7vEAAMnCosR5ZKd83BD/TJp+Uw3Gy5XsFAZYyeLOYP8wXunboBa+Zkh8wvvYcyzJ0LV/0w4Jqc1oSp/vxe0MmCT1JT8+G+/wVzM9TVCeE/koWKXIN+GqGbQtsOa64CH3S3xuAKg9In0WrX7Sjxr1j1vR6/tRw1m8LgRNHRTp3aFr25GKmxvfJZJVvLQbfjRFU75nG3/hrndZO+fX1G3/8DWAA6jA==
+api: eJyNU8Fu2zAM/ZWAZ61Od/RpwTBsQQckWLNTYBSszMRqZUmV6GCe4X8fKKdGmqHDfLElvscnv0cNwHhMUO5hE8jtyFJLHHuoFPhAEdl4t66hBM82PCRG7hIoiJSCd4kSlAN8XC7lVVPS0QRhQAn3ndaU0qGzix9nMCjQ3jE5FjiGYI3OAsVTEs4ASTfUonyFKPJsJoXUheAjP5g6M12/OUC5H4D7QFBC4mjcEUY177jOWhgrBWzYUj5O7rBY1zCquR+nf/VTcPCxRYYSamT6wKal/xLZpSwymVX+3XbGT4hxVK8Q//hEmrPBL52JVEsy50YXQp+9taR54s/2jvKo6xwyZqEb0s+Lg4+Lze77FhS0xI2XYI8kegG5gRIKibk43RYcUZMknSieKKZsTxetYDCYbMO0bJhDWRTWa7SNTzyVK2HqLhruM3W1Xd9R/42wpgjlvroE3EvqU9BvYbNzGMwd9aDAYSvrVceNj+Z3nh5QYORPm4klFhh38Jl+9mt1JMe4WG3XcO3Pm5KMJ+o8nq9KuQzq4mdTWRSYt2/QFKCAWjRSZML201yRERDnJpnlze3NUraCT9yiu5B4L6E355ytYPrFRbBonHTLpxrO6e3zJQUFp1sZsinBSoGkItVheMREP6MdR9l+6ShKOJWCE0aDj2LVvhrVq5OS2zP14oLWFGRMTmi7KZCryyt5ziP19csOxvEP32B69Q==
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -45,16 +46,13 @@ Status check for OTLP
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./otlp-status.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"status":{"type":"string","title":"Status"}},"type":"object","required":["status"],"title":"CollectStatusResponse"}}}}}}
+  {...require("./otlp-status.StatusCodes.json")}
 >
   
 </StatusCodes>

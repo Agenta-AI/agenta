@@ -54,7 +54,7 @@ export interface ExecutionSession {
     id: string
     /** The runnable entity ID this session represents */
     runnableId: string
-    /** Type of runnable (appRevision or evaluatorRevision) */
+    /** Type of runnable (workflow) */
     runnableType: RunnableType
     /** Execution mode for this session */
     mode: ExecutionMode

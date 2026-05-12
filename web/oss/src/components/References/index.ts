@@ -22,7 +22,7 @@ export type {
     EnvironmentReference,
     QueryReference,
     TestsetReference,
-    VariantConfigReference,
+    VariantReference,
 } from "./atoms/entityReferences"
 export {
     appReferenceAtomFamily,
@@ -30,5 +30,5 @@ export {
     environmentReferenceAtomFamily,
     previewTestsetReferenceAtomFamily,
     queryReferenceAtomFamily,
-    variantConfigAtomFamily,
+    variantReferenceAtomFamily,
 } from "./atoms/entityReferences"

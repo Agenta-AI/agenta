@@ -1,0 +1,74 @@
+---
+id: test-organization-provider
+title: "Test Provider"
+description: "Test SSO provider connection."
+sidebar_label: "Test Provider"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVk1v4zYQ/SvEnDaAaqVBTwIK1EharLFtY6y9vSSGwYhji7sSqSVHxrqC/nsxpORIcZJ2c+7JFueDwzfvDdkCyb2H7A5u3V4a/bckbY2HTQIKfe50zd+QwRo9idXqVtTOHrRCJ3JrDOZsnt2be7MutBdoVG21IUHoyQsqUNwubq4nQTu9b1zYRjwcxQ4pL7TZs++9Udrn9oDuKJTNmwoNCWmUOMhSK0ns5vBrox2q01Ze4DftaXZvFjvhmzxH73dNmYhKui+xhNPu0sdU4p322/DvZ3INXsTgndQlqiFQeqFN9OYSFMqc9EES+lH0TpYeE6H9NlgxLlzMIAFbYzzlQkEGjMfWjiDeDkVBArV0skJCx41owcgKIYPBYasVJKC5CbWkAhIYMICMq0/A5wVWErIW6FhzqCenzR4SIE0lLywHBBYKum7DKXxtjUfPUVeXl/wzbfjqBKX42DtDArk1hIbYXdZ1qfNwmPSz55h2VEntGADScQetnqtuZ10lCTJomnDGoVouMgFfNvvXzrRie5f0cLUgzfF2FwCcRnTJacU0ZQl8/CHHnxzbPeH621LdjFJ0CezKoKsWpFKaF2W5HEESG9fnsg+fMafR0X4LwYwBErP+zYlWQ3yXQO5QEqqtpFd7oSThD6QrHKW5jqFiTpyoqdUo0UtYPZvyNQA/xbT9JhOtfB99xpMsEv4coEcJ3UEIDmzryTTlw9DLUTcmYE4AOS9883xhgyJH2prqbzCIyiosxc46Ic1kAs+g6/hsP11dncv3r35kWiN+dc66t2tXIUldBhUTVv7cobT5xPof1KMN4R4ddJvH3kjn5HHUxt9tLJDZUPlXR8Ef6L3cByVHl5ddAxhizdaOp2rdRDkMoycssFro2yjNmbCuGctv9K/cYmxi+b3fiA6PLYodehmKm9iC5zYbXN6v18uzhJEfFVJh+RKqradw3VABGaRjpvp0YJVP29HN06V8cwXuu8NwQTWu5HhZ69DT+FkQ1VmaljaXZWE9RfOGI/PGaTqG0Ply8QGP71HyzZfdbcYOKyZgpNTU7dQGWesPeBxkmsG8ocK6/gjDJVnEqC60d2fH3Z3v0ZAU8+XiTG4TEytF5oEYw07BzFo/HdZnaSrD8kzqFBLAKugECGX1y8nCbWXk4jaXsx9nl7zEvaikGW0RXljLx1fBkzvppN7/n2Lf+xTr2cOCTetS6jBSQiPbXgx3k7HNA/4kB0ggmz7FgiI2CTDLObRtH6THT67sOl7+2qBjsm8SOEin5QNT764FpT3/V5DFUl9u8LuPPbIX4qXqB0EYVsNBlg1/QQJf8Pjk6RhGbDEIru095nmONY1iz24EVuZpcixvV2voun8AO4Y78w==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Test Provider"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations/providers/{provider_id}/test"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Test SSO provider connection.
+
+This endpoint tests the OIDC provider configuration by fetching the
+discovery document and validating required endpoints exist.
+If successful, marks the provider as valid (is_valid=true).
+If failed, marks as invalid and deactivates (is_valid=false, is_active=false).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./test-organization-provider.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./test-organization-provider.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./test-organization-provider.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

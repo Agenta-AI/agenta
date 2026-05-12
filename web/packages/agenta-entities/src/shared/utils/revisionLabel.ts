@@ -102,7 +102,7 @@ export interface RevisionLabelInfo {
  * Common prefixes for local/draft entity IDs.
  * Used to identify entities that haven't been committed to the server.
  */
-const LOCAL_DRAFT_PREFIXES = ["local-", "new-", "draft-", "base-runnable-"]
+const LOCAL_DRAFT_PREFIXES = ["local-", "new-", "draft-"]
 
 /**
  * Check if an ID represents a local draft entity.

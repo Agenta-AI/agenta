@@ -771,6 +771,8 @@ def filter(  # pylint:disable=redefined-builtin
                 clauses.extend(_handle_list_field(condition))
             elif field == Fields.EVENTS:
                 clauses.extend(_handle_list_field(condition))
+            elif field == Fields.HASHES:
+                clauses.extend(_handle_list_field(condition))
             elif field == Fields.CREATED_AT:
                 clauses.extend(_handle_timestamp_field(condition))
             elif field == Fields.UPDATED_AT:

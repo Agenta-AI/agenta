@@ -232,5 +232,5 @@
         }
     },
     "globalDependencies": ["tsconfig.json", "package.json", "pnpm-lock.yaml"],
-    "globalEnv": ["CI", "NODE_ENV"]
+    "globalEnv": ["CI", "DISABLE_PRETTIER", "NODE_ENV"]
 }

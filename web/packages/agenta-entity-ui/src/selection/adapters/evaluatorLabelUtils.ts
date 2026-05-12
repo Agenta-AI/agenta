@@ -5,13 +5,13 @@
  * Moved from OSS `useEvaluatorBrowseAdapter.ts` to enable package-level reuse.
  *
  * Uses:
- * - `getEvaluatorColor` from `@agenta/entities/evaluator` for consistent color hashing
+ * - `getEvaluatorColor` from `@agenta/entities/workflow` for consistent color hashing
  * - `EntityListItemLabel` from `@agenta/ui` for the label + trailing tag layout
  */
 
 import React from "react"
 
-import {getEvaluatorColor} from "@agenta/entities/evaluator"
+import {getEvaluatorColor} from "@agenta/entities/workflow"
 import {EntityListItemLabel} from "@agenta/ui/components/presentational"
 
 // ============================================================================
@@ -21,7 +21,7 @@ import {EntityListItemLabel} from "@agenta/ui/components/presentational"
 interface EvaluatorWorkflowLike {
     id: string
     name?: string
-    flags?: {is_human?: boolean; is_custom?: boolean; is_evaluator?: boolean} | null
+    flags?: {is_feedback?: boolean; is_custom?: boolean; is_evaluator?: boolean} | null
 }
 
 // ============================================================================
@@ -49,9 +49,11 @@ export function renderEvaluatorPickerLabelNode(
 ): React.ReactNode {
     const w = entity as EvaluatorWorkflowLike
     const name = w.name ?? "Unnamed"
+    const evaluatorKey = evaluatorKeyMap.get(w.id)
+    const isHumanEvaluator = Boolean(w.flags?.is_feedback) || evaluatorKey === "feedback"
 
     // Only show colored tags for evaluator-type workflows
-    if (!w.flags?.is_evaluator) {
+    if (!w.flags?.is_evaluator && !isHumanEvaluator) {
         return React.createElement(EntityListItemLabel, {label: name})
     }
 
@@ -59,14 +61,13 @@ export function renderEvaluatorPickerLabelNode(
     let tagLabel: string | null = null
     let colorSource: string | null = null
 
-    if (w.flags?.is_human) {
+    if (isHumanEvaluator) {
         tagLabel = "Human"
         colorSource = "human"
     } else if (w.flags?.is_custom) {
         tagLabel = "Custom Code"
         colorSource = "custom"
     } else {
-        const evaluatorKey = evaluatorKeyMap.get(w.id)
         if (evaluatorKey) {
             tagLabel = evaluatorDefsByKey.get(evaluatorKey) ?? null
             colorSource = evaluatorKey

@@ -1,7 +1,7 @@
 import {memo, useMemo} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/entities/shared"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {Tag, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -15,9 +15,9 @@ const GenerationComparisonOutputHeader: React.FC<GenerationComparisonOutputHeade
     className,
     entityId,
 }) => {
-    const data = useAtomValue(useMemo(() => runnableBridge.data(entityId), [entityId]))
+    const data = useAtomValue(useMemo(() => workflowMolecule.selectors.data(entityId), [entityId]))
 
-    const version = (data as Record<string, unknown> | null)?.version as number | undefined
+    const version = data?.version as number | undefined
     const label = isLocalDraftId(entityId) ? formatLocalDraftLabel(null) : getVersionLabel(version)
 
     return (

@@ -27,19 +27,19 @@ from ee.src.models.db_models import (
 log = get_module_logger(__name__)
 
 
+REFERENCE_JSON_ENCODERS = {UUID: str}
+
+
 class Reference(BaseModel):
     id: Optional[UUID] = None
     slug: Optional[str] = None
-
-    class Config:
-        json_encoders = {UUID: str}
 
     def encode(self, data: Any) -> Any:
         if isinstance(data, dict):
             return {k: self.encode(v) for k, v in data.items()}
         elif isinstance(data, list):
             return [self.encode(item) for item in data]
-        for type_, encoder in self.Config.json_encoders.items():
+        for type_, encoder in REFERENCE_JSON_ENCODERS.items():
             if isinstance(data, type_):
                 return encoder(data)
         return data
@@ -88,12 +88,8 @@ class ProjectRequest(BaseModel):
 
 OrganizationRole = Literal[
     "owner",
-    "viewer",
-    "editor",
-    "evaluator",
-    "workspace_admin",
-    "deployment_manager",
-]  # update list
+    "member",
+]
 
 
 class OrganizationMembershipRequest(BaseModel):
@@ -104,13 +100,13 @@ class OrganizationMembershipRequest(BaseModel):
     organization_ref: Reference
 
 
-WorkspaceRole = Literal[  # update list
+WorkspaceRole = Literal[
     "owner",
-    "viewer",
+    "admin",
+    "developer",
     "editor",
-    "evaluator",
-    "workspace_admin",
-    "deployment_manager",
+    "annotator",
+    "viewer",
 ]
 
 
@@ -122,13 +118,13 @@ class WorkspaceMembershipRequest(BaseModel):
     workspace_ref: Reference
 
 
-ProjectRole = Literal[  # update list
+ProjectRole = Literal[
     "owner",
-    "viewer",
+    "admin",
+    "developer",
     "editor",
-    "evaluator",
-    "workspace_admin",
-    "deployment_manager",
+    "annotator",
+    "viewer",
 ]
 
 
@@ -327,6 +323,9 @@ async def create_workspace_membership(
             )
         )
         workspace_db = workspace.scalars().first()
+        workspace_organization_id = (
+            workspace_db.organization_id if workspace_db else None
+        )
 
         membership_db = WorkspaceMembershipDB(
             # id=uuid7()  # use default
@@ -344,7 +343,7 @@ async def create_workspace_membership(
 
         log.info(
             "[scopes] workspace membership created",
-            organization_id=workspace_db.organization_id,
+            organization_id=workspace_organization_id,
             workspace_id=request.workspace_ref.id,
             user_id=request.user_ref.id,
             membership_id=membership_db.id,
@@ -365,6 +364,8 @@ async def create_project_membership(
             )
         )
         project_db = project.scalars().first()
+        project_organization_id = project_db.organization_id if project_db else None
+        project_workspace_id = project_db.workspace_id if project_db else None
 
         membership_db = ProjectMembershipDB(
             # id=uuid7()  # use default
@@ -382,8 +383,8 @@ async def create_project_membership(
 
         log.info(
             "[scopes] project membership created",
-            organization_id=project_db.organization_id,
-            workspace_id=project_db.workspace_id,
+            organization_id=project_organization_id,
+            workspace_id=project_workspace_id,
             project_id=request.project_ref.id,
             user_id=request.user_ref.id,
             membership_id=membership_db.id,

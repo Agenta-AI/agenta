@@ -2,11 +2,17 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
+from oss.src.utils.exceptions import Support
+
 from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
 )
 from oss.src.core.workflows.dtos import (
+    #
+    WorkflowCatalogType,
+    WorkflowCatalogTemplate,
+    WorkflowCatalogPreset,
     #
     Workflow,
     WorkflowCreate,
@@ -25,6 +31,11 @@ from oss.src.core.workflows.dtos import (
     WorkflowRevisionEdit,
     WorkflowRevisionQuery,
     WorkflowRevisionCommit,
+    #
+    SimpleWorkflow,
+    SimpleWorkflowCreate,
+    SimpleWorkflowEdit,
+    SimpleWorkflowQuery,
 )
 from oss.src.core.embeds.dtos import (
     ErrorPolicy,
@@ -57,14 +68,15 @@ class WorkflowForkRequest(BaseModel):
     workflow: WorkflowFork
 
 
-class WorkflowResponse(BaseModel):
+class WorkflowResponse(Support):
     count: int = 0
     workflow: Optional[Workflow] = None
 
 
-class WorkflowsResponse(BaseModel):
+class WorkflowsResponse(Support):
     count: int = 0
     workflows: List[Workflow] = []
+    windowing: Optional[Windowing] = None
 
 
 # WORKFLOW VARIANTS ------------------------------------------------------------
@@ -89,14 +101,15 @@ class WorkflowVariantQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class WorkflowVariantResponse(BaseModel):
+class WorkflowVariantResponse(Support):
     count: int = 0
     workflow_variant: Optional[WorkflowVariant] = None
 
 
-class WorkflowVariantsResponse(BaseModel):
+class WorkflowVariantsResponse(Support):
     count: int = 0
     workflow_variants: List[WorkflowVariant] = []
+    windowing: Optional[Windowing] = None
 
 
 # WORKFLOW REVISIONS -----------------------------------------------------------
@@ -131,22 +144,41 @@ class WorkflowRevisionRetrieveRequest(BaseModel):
     workflow_variant_ref: Optional[Reference] = None
     workflow_revision_ref: Optional[Reference] = None
     #
-    resolve: bool = False  # Optionally resolve embeds on retrieve
+    environment_ref: Optional[Reference] = None
+    environment_variant_ref: Optional[Reference] = None
+    environment_revision_ref: Optional[Reference] = None
+    key: Optional[str] = None
+    #
+    resolve: Optional[bool] = None  # Optionally resolve embeds on retrieve
+
+
+class WorkflowRevisionDeployRequest(BaseModel):
+    workflow_ref: Optional[Reference] = None
+    workflow_variant_ref: Optional[Reference] = None
+    workflow_revision_ref: Optional[Reference] = None
+    #
+    environment_ref: Optional[Reference] = None
+    environment_variant_ref: Optional[Reference] = None
+    environment_revision_ref: Optional[Reference] = None
+    key: Optional[str] = None
+    #
+    message: Optional[str] = None
 
 
 class WorkflowRevisionsLogRequest(BaseModel):
     workflow: WorkflowRevisionsLog
 
 
-class WorkflowRevisionResponse(BaseModel):
+class WorkflowRevisionResponse(Support):
     count: int = 0
     workflow_revision: Optional[WorkflowRevision] = None
     resolution_info: Optional[ResolutionInfo] = None  # Included when resolve=True
 
 
-class WorkflowRevisionsResponse(BaseModel):
+class WorkflowRevisionsResponse(Support):
     count: int = 0
     workflow_revisions: List[WorkflowRevision] = []
+    windowing: Optional[Windowing] = None
 
 
 # WORKFLOW REVISION RESOLUTION -------------------------------------------------
@@ -164,7 +196,71 @@ class WorkflowRevisionResolveRequest(BaseModel):
     error_policy: Optional[ErrorPolicy] = ErrorPolicy.EXCEPTION
 
 
-class WorkflowRevisionResolveResponse(BaseModel):
+class WorkflowRevisionResolveResponse(Support):
     count: int = 0
     workflow_revision: Optional[WorkflowRevision] = None
     resolution_info: Optional[ResolutionInfo] = None
+
+
+# WORKFLOW CATALOG -------------------------------------------------------------
+
+
+class WorkflowCatalogTypeResponse(Support):
+    count: int = 0
+    type: Optional[WorkflowCatalogType] = None
+
+
+class WorkflowCatalogTypesResponse(Support):
+    count: int = 0
+    types: List[WorkflowCatalogType] = []
+
+
+class WorkflowCatalogTemplateResponse(Support):
+    count: int = 0
+    template: Optional[WorkflowCatalogTemplate] = None
+
+
+class WorkflowCatalogTemplatesResponse(Support):
+    count: int = 0
+    templates: List[WorkflowCatalogTemplate] = []
+
+
+class WorkflowCatalogPresetResponse(Support):
+    count: int = 0
+    preset: Optional[WorkflowCatalogPreset] = None
+
+
+class WorkflowCatalogPresetsResponse(Support):
+    count: int = 0
+    presets: List[WorkflowCatalogPreset] = []
+
+
+# SIMPLE WORKFLOWS -------------------------------------------------------------
+
+
+class SimpleWorkflowCreateRequest(BaseModel):
+    workflow: SimpleWorkflowCreate
+
+
+class SimpleWorkflowEditRequest(BaseModel):
+    workflow: SimpleWorkflowEdit
+
+
+class SimpleWorkflowQueryRequest(BaseModel):
+    workflow: Optional[SimpleWorkflowQuery] = None
+    #
+    workflow_refs: Optional[List[Reference]] = None
+    #
+    include_archived: Optional[bool] = None
+    #
+    windowing: Optional[Windowing] = None
+
+
+class SimpleWorkflowResponse(Support):
+    count: int = 0
+    workflow: Optional[SimpleWorkflow] = None
+
+
+class SimpleWorkflowsResponse(Support):
+    count: int = 0
+    workflows: List[SimpleWorkflow] = []

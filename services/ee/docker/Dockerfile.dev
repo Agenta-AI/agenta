@@ -1,14 +1,19 @@
-FROM python:3.11-slim-bookworm
+ARG UV_VERSION=0.11.9
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
+
+FROM python:3.13-slim-trixie
 
 WORKDIR /app
 
-RUN pip install --upgrade pip \
-    && pip install poetry
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_LINK_MODE=copy \
+    PATH="/opt/venv/bin:${PATH}"
 
-COPY ./pyproject.toml /app/
+COPY --from=uv /uv /uvx /bin/
 
-RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi
+COPY ./pyproject.toml ./uv.lock* /app/
+
+RUN uv sync --locked
 
 RUN groupadd --gid 10001 agenta && \
     useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta
@@ -16,7 +21,11 @@ RUN groupadd --gid 10001 agenta && \
 COPY --chown=agenta:agenta ./oss /app/oss/
 COPY --chown=agenta:agenta ./entrypoints /app/entrypoints/
 
-ENV PYTHONPATH=/sdk:$PYTHONPATH
+ENV PYTHONPATH=/sdks/python:/clients/python:$PYTHONPATH
+
+RUN site_packages="$(python -c 'import site; print(site.getsitepackages()[0])')" \
+    && echo "/clients/python" > "${site_packages}/agenta_client_path.pth" \
+    && echo "/sdks/python" >> "${site_packages}/agenta_client_path.pth"
 
 USER 10001
 

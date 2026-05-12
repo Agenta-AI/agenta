@@ -1,7 +1,7 @@
 import React, {useMemo} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import type {ChatMessage, SimpleChatMessage} from "@agenta/playground"
 import {
@@ -58,10 +58,7 @@ const EvaluatorResultPopover = ({
     ) as {status?: string; output?: unknown; error?: {message: string} | null} | null
 
     const outputPorts = useAtomValue(
-        useMemo(
-            () => runnableBridge.forType(node.entityType).outputPorts(node.entityId),
-            [node.entityType, node.entityId],
-        ),
+        useMemo(() => workflowMolecule.selectors.outputPorts(node.entityId), [node.entityId]),
     )
 
     const status = fullResult?.status ?? "idle"
@@ -325,7 +322,7 @@ const ChatTurnView = ({
                 if (!nodes) return {} as Record<string, string>
                 const names: Record<string, string> = {}
                 for (const node of nodes) {
-                    const data = get(runnableBridge.dataForType(node.entityType, node.entityId))
+                    const data = get(workflowMolecule.selectors.data(node.entityId))
                     if (data?.name) {
                         names[node.id] = data.name
                     }

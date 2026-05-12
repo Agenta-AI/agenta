@@ -229,6 +229,14 @@ export function CascaderVariant<TSelection = EntitySelectionResult>({
                 }
             })
             subscriptionsRef.current.push(unsub)
+
+            // Re-check after subscribing to handle race where the atom
+            // resolved between store.get() and store.sub()
+            const isSettledAfterSub = readAndApplyChildState()
+            if (isSettledAfterSub) {
+                unsub()
+                subscriptionsRef.current = subscriptionsRef.current.filter((u) => u !== unsub)
+            }
         },
         [hierarchyLevels, totalLevels],
     )

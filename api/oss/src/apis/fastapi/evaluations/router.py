@@ -6,7 +6,11 @@ from fastapi import APIRouter, Request, Query, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
+from oss.src.utils.exceptions import (
+    BadRequestException,
+    intercept_exceptions,
+    suppress_exceptions,
+)
 
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 
@@ -92,16 +96,7 @@ from oss.src.apis.fastapi.evaluations.models import (
 from oss.src.apis.fastapi.evaluations.utils import (
     handle_evaluation_closed_exception,
 )
-from oss.src.core.shared.dtos import Reference
 from oss.src.core.evaluations.types import (
-    EvaluationRun,
-    EvaluationRunCreate,
-    EvaluationRunEdit,
-    #
-    SimpleEvaluation,
-    SimpleEvaluationCreate,
-    SimpleEvaluationEdit,
-    SimpleQueueCreate,
     SimpleQueueScenariosQuery,
     EvaluationQueueScenariosQuery,
 )
@@ -145,6 +140,7 @@ class EvaluationsRouter:
             endpoint=self.create_runs,
             response_model=EvaluationRunsResponse,
             response_model_exclude_none=True,
+            operation_id="create_runs",
         )
 
         # PATCH /api/evaluations/runs/
@@ -154,6 +150,7 @@ class EvaluationsRouter:
             endpoint=self.edit_runs,
             response_model=EvaluationRunsResponse,
             response_model_exclude_none=True,
+            operation_id="edit_runs",
         )
 
         # DELETE /api/evaluations/runs/
@@ -163,6 +160,7 @@ class EvaluationsRouter:
             endpoint=self.delete_runs,
             response_model=EvaluationRunIdsResponse,
             response_model_exclude_none=True,
+            operation_id="delete_runs",
         )
 
         # POST /api/evaluations/runs/query
@@ -172,6 +170,7 @@ class EvaluationsRouter:
             endpoint=self.query_runs,
             response_model=EvaluationRunsResponse,
             response_model_exclude_none=True,
+            operation_id="query_runs",
         )
 
         # POST /api/evaluations/runs/close
@@ -181,6 +180,7 @@ class EvaluationsRouter:
             endpoint=self.close_runs,
             response_model=EvaluationRunsResponse,
             response_model_exclude_none=True,
+            operation_id="close_runs",
         )
 
         # POST /api/evaluations/runs/open
@@ -190,6 +190,7 @@ class EvaluationsRouter:
             endpoint=self.open_runs,
             response_model=EvaluationRunsResponse,
             response_model_exclude_none=True,
+            operation_id="open_runs",
         )
 
         # GET /api/evaluations/runs/{run_id}
@@ -199,6 +200,7 @@ class EvaluationsRouter:
             endpoint=self.fetch_run,
             response_model=EvaluationRunResponse,
             response_model_exclude_none=True,
+            operation_id="fetch_run",
         )
 
         # PATCH /api/evaluations/runs/{run_id}
@@ -208,6 +210,7 @@ class EvaluationsRouter:
             endpoint=self.edit_run,
             response_model=EvaluationRunResponse,
             response_model_exclude_none=True,
+            operation_id="edit_run",
         )
 
         # DELETE /api/evaluations/runs/{run_id}
@@ -217,6 +220,7 @@ class EvaluationsRouter:
             endpoint=self.delete_run,
             response_model=EvaluationRunIdResponse,
             response_model_exclude_none=True,
+            operation_id="delete_run",
         )
 
         # POST /api/evaluations/runs/{run_id}/close
@@ -226,6 +230,7 @@ class EvaluationsRouter:
             endpoint=self.close_run,
             response_model=EvaluationRunResponse,
             response_model_exclude_none=True,
+            operation_id="close_run",
         )
 
         # POST /api/evaluations/runs/{run_id}/close/{status}
@@ -235,6 +240,7 @@ class EvaluationsRouter:
             endpoint=self.close_run,
             response_model=EvaluationRunResponse,
             response_model_exclude_none=True,
+            operation_id="close_run_with_status",
         )
 
         # POST /api/evaluations/runs/{run_id}/open
@@ -244,6 +250,7 @@ class EvaluationsRouter:
             endpoint=self.open_run,
             response_model=EvaluationRunResponse,
             response_model_exclude_none=True,
+            operation_id="open_run",
         )
 
         # EVALUATION SCENARIOS -------------------------------------------------
@@ -255,6 +262,7 @@ class EvaluationsRouter:
             endpoint=self.create_scenarios,
             response_model=EvaluationScenariosResponse,
             response_model_exclude_none=True,
+            operation_id="create_scenarios",
         )
 
         # PATCH /api/evaluations/scenarios/
@@ -264,6 +272,7 @@ class EvaluationsRouter:
             endpoint=self.edit_scenarios,
             response_model=EvaluationScenariosResponse,
             response_model_exclude_none=True,
+            operation_id="edit_scenarios",
         )
 
         # DELETE /api/evaluations/scenarios/
@@ -273,6 +282,7 @@ class EvaluationsRouter:
             endpoint=self.delete_scenarios,
             response_model=EvaluationScenarioIdsResponse,
             response_model_exclude_none=True,
+            operation_id="delete_scenarios",
         )
 
         # POST /api/evaluations/scenarios/query
@@ -282,6 +292,7 @@ class EvaluationsRouter:
             endpoint=self.query_scenarios,
             response_model=EvaluationScenariosResponse,
             response_model_exclude_none=True,
+            operation_id="query_scenarios",
         )
 
         # GET /api/evaluations/scenarios/{scenario_id}
@@ -291,6 +302,7 @@ class EvaluationsRouter:
             endpoint=self.fetch_scenario,
             response_model=EvaluationScenarioResponse,
             response_model_exclude_none=True,
+            operation_id="fetch_scenario",
         )
 
         # PATCH /api/evaluations/scenarios/{scenario_id}
@@ -300,6 +312,7 @@ class EvaluationsRouter:
             endpoint=self.edit_scenario,
             response_model=EvaluationScenarioResponse,
             response_model_exclude_none=True,
+            operation_id="edit_scenario",
         )
 
         # DELETE /api/evaluations/scenarios/{scenario_id}
@@ -309,6 +322,7 @@ class EvaluationsRouter:
             endpoint=self.delete_scenario,
             response_model=EvaluationScenarioIdResponse,
             response_model_exclude_none=True,
+            operation_id="delete_scenario",
         )
 
         # EVALUATION RESULTS ---------------------------------------------------
@@ -320,6 +334,7 @@ class EvaluationsRouter:
             endpoint=self.create_results,
             response_model=EvaluationResultsResponse,
             response_model_exclude_none=True,
+            operation_id="create_results",
         )
 
         # PATCH /api/evaluations/results/
@@ -329,6 +344,7 @@ class EvaluationsRouter:
             endpoint=self.edit_results,
             response_model=EvaluationResultsResponse,
             response_model_exclude_none=True,
+            operation_id="edit_results",
         )
 
         # DELETE /api/evaluations/results/
@@ -338,6 +354,7 @@ class EvaluationsRouter:
             endpoint=self.delete_results,
             response_model=EvaluationResultIdsResponse,
             response_model_exclude_none=True,
+            operation_id="delete_results",
         )
 
         # POST /api/evaluations/results/query
@@ -347,6 +364,7 @@ class EvaluationsRouter:
             endpoint=self.query_results,
             response_model=EvaluationResultsResponse,
             response_model_exclude_none=True,
+            operation_id="query_results",
         )
 
         # GET /api/evaluations/results/{result_id}
@@ -356,6 +374,7 @@ class EvaluationsRouter:
             endpoint=self.fetch_result,
             response_model=EvaluationResultResponse,
             response_model_exclude_none=True,
+            operation_id="fetch_result",
         )
 
         # PATCH /api/evaluations/results/{result_id}
@@ -365,6 +384,7 @@ class EvaluationsRouter:
             endpoint=self.edit_result,
             response_model=EvaluationResultResponse,
             response_model_exclude_none=True,
+            operation_id="edit_result",
         )
 
         # DELETE /api/evaluations/results/{result_id}
@@ -374,6 +394,7 @@ class EvaluationsRouter:
             endpoint=self.delete_result,
             response_model=EvaluationResultIdResponse,
             response_model_exclude_none=True,
+            operation_id="delete_result",
         )
 
         # EVALUATION METRICS ---------------------------------------------------
@@ -385,6 +406,7 @@ class EvaluationsRouter:
             endpoint=self.refresh_metrics,
             response_model=EvaluationMetricsResponse,
             response_model_exclude_none=True,
+            operation_id="refresh_metrics",
         )
 
         # POST /api/evaluations/metrics/
@@ -394,6 +416,7 @@ class EvaluationsRouter:
             endpoint=self.create_metrics,
             response_model=EvaluationMetricsResponse,
             response_model_exclude_none=True,
+            operation_id="create_metrics",
         )
 
         # PATCH /api/evaluations/metrics/
@@ -403,6 +426,7 @@ class EvaluationsRouter:
             endpoint=self.edit_metrics,
             response_model=EvaluationMetricsResponse,
             response_model_exclude_none=True,
+            operation_id="edit_metrics",
         )
 
         # DELETE /api/evaluations/metrics/
@@ -412,6 +436,7 @@ class EvaluationsRouter:
             endpoint=self.delete_metrics,
             response_model=EvaluationMetricsIdsResponse,
             response_model_exclude_none=True,
+            operation_id="delete_metrics",
         )
 
         # POST /api/evaluations/metrics/query
@@ -421,6 +446,7 @@ class EvaluationsRouter:
             endpoint=self.query_metrics,
             response_model=EvaluationMetricsResponse,
             response_model_exclude_none=True,
+            operation_id="query_metrics",
         )
 
         # EVALUATION QUEUES ----------------------------------------------------
@@ -432,6 +458,7 @@ class EvaluationsRouter:
             endpoint=self.create_queues,
             response_model=EvaluationQueuesResponse,
             response_model_exclude_none=True,
+            operation_id="create_queues",
         )
 
         # PATCH /api/evaluations/queues/
@@ -441,6 +468,7 @@ class EvaluationsRouter:
             endpoint=self.edit_queues,
             response_model=EvaluationQueuesResponse,
             response_model_exclude_none=True,
+            operation_id="edit_queues",
         )
 
         # DELETE /api/evaluations/queues/
@@ -450,6 +478,7 @@ class EvaluationsRouter:
             endpoint=self.delete_queues,
             response_model=EvaluationQueueIdsResponse,
             response_model_exclude_none=True,
+            operation_id="delete_queues",
         )
 
         # POST /api/evaluations/queues/query
@@ -459,6 +488,7 @@ class EvaluationsRouter:
             endpoint=self.query_queues,
             response_model=EvaluationQueuesResponse,
             response_model_exclude_none=True,
+            operation_id="query_queues",
         )
 
         # GET /api/evaluations/queues/{queue_id}
@@ -468,6 +498,7 @@ class EvaluationsRouter:
             endpoint=self.fetch_queue,
             response_model=EvaluationQueueResponse,
             response_model_exclude_none=True,
+            operation_id="fetch_queue",
         )
 
         # PATCH /api/evaluations/queues/{queue_id}
@@ -477,6 +508,7 @@ class EvaluationsRouter:
             endpoint=self.edit_queue,
             response_model=EvaluationQueueResponse,
             response_model_exclude_none=True,
+            operation_id="edit_queue",
         )
 
         # DELETE /api/evaluations/queues/{queue_id}
@@ -486,6 +518,7 @@ class EvaluationsRouter:
             endpoint=self.delete_queue,
             response_model=EvaluationQueueIdResponse,
             response_model_exclude_none=True,
+            operation_id="delete_queue",
         )
 
         # POST /api/evaluations/queues/{queue_id}/scenarios/query
@@ -545,28 +578,12 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        jit = runs_create_request.jit
-
-        for run in runs_create_request.runs:
-            await self._resolve_run_request(
-                project_id=UUID(request.state.project_id),
-                run=run,
-                jit=jit,
-            )
-
         runs = await self.evaluations_service.create_runs(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
             runs=runs_create_request.runs,
         )
-
-        for run in runs:
-            await self._unresolve_run_response(
-                project_id=UUID(request.state.project_id),
-                run=run,
-                jit=jit,
-            )
 
         runs_response = EvaluationRunsResponse(
             count=len(runs),
@@ -591,28 +608,12 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        jit = runs_edit_request.jit
-
-        for run in runs_edit_request.runs:
-            await self._resolve_run_request(
-                project_id=UUID(request.state.project_id),
-                run=run,
-                jit=jit,
-            )
-
         runs = await self.evaluations_service.edit_runs(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
             runs=runs_edit_request.runs,
         )
-
-        for run in runs:
-            await self._unresolve_run_response(
-                project_id=UUID(request.state.project_id),
-                run=run,
-                jit=jit,
-            )
 
         runs_response = EvaluationRunsResponse(
             count=len(runs),
@@ -667,8 +668,6 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        jit = run_query_request.jit
-
         runs = await self.evaluations_service.query_runs(
             project_id=UUID(request.state.project_id),
             #
@@ -676,13 +675,6 @@ class EvaluationsRouter:
             #
             windowing=run_query_request.windowing,
         )
-
-        for run in runs:
-            await self._unresolve_run_response(
-                project_id=UUID(request.state.project_id),
-                run=run,
-                jit=jit,
-            )
 
         windowing = compute_next_windowing(
             entities=runs,
@@ -721,12 +713,6 @@ class EvaluationsRouter:
             run_ids=run_ids_request.run_ids,
         )
 
-        for run in runs:
-            await self._unresolve_run_response(
-                project_id=UUID(request.state.project_id),
-                run=run,
-            )
-
         runs_response = EvaluationRunsResponse(
             count=len(runs),
             runs=runs,
@@ -757,12 +743,6 @@ class EvaluationsRouter:
             run_ids=run_ids_request.run_ids,
         )
 
-        for run in runs:
-            await self._unresolve_run_response(
-                project_id=UUID(request.state.project_id),
-                run=run,
-            )
-
         runs_response = EvaluationRunsResponse(
             count=len(runs),
             runs=runs,
@@ -778,8 +758,6 @@ class EvaluationsRouter:
         request: Request,
         *,
         run_id: UUID,
-        #
-        jit: Optional[bool] = Query(True),
     ) -> EvaluationRunResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -794,13 +772,6 @@ class EvaluationsRouter:
             #
             run_id=run_id,
         )
-
-        if run:
-            await self._unresolve_run_response(
-                project_id=UUID(request.state.project_id),
-                run=run,
-                jit=jit,
-            )
 
         run_response = EvaluationRunResponse(
             count=1 if run else 0,
@@ -830,27 +801,12 @@ class EvaluationsRouter:
         if str(run_id) != str(run_edit_request.run.id):
             return EvaluationRunResponse()
 
-        jit = run_edit_request.jit
-
-        await self._resolve_run_request(
-            project_id=UUID(request.state.project_id),
-            run=run_edit_request.run,
-            jit=jit,
-        )
-
         run = await self.evaluations_service.edit_run(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
             run=run_edit_request.run,
         )
-
-        if run:
-            await self._unresolve_run_response(
-                project_id=UUID(request.state.project_id),
-                run=run,
-                jit=jit,
-            )
 
         run_response = EvaluationRunResponse(
             count=1 if run else 0,
@@ -898,7 +854,6 @@ class EvaluationsRouter:
         run_id: UUID,
         #
         status: Optional[EvaluationStatus] = None,
-        jit: Optional[bool] = Query(True),
     ) -> EvaluationRunResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -917,13 +872,6 @@ class EvaluationsRouter:
             status=status,
         )
 
-        if run:
-            await self._unresolve_run_response(
-                project_id=UUID(request.state.project_id),
-                run=run,
-                jit=jit,
-            )
-
         run_response = EvaluationRunResponse(
             count=1 if run else 0,
             run=run,
@@ -938,7 +886,6 @@ class EvaluationsRouter:
         request: Request,
         *,
         run_id: UUID,
-        jit: Optional[bool] = Query(True),
     ) -> EvaluationRunResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -954,13 +901,6 @@ class EvaluationsRouter:
             #
             run_id=run_id,
         )
-
-        if run:
-            await self._unresolve_run_response(
-                project_id=UUID(request.state.project_id),
-                run=run,
-                jit=jit,
-            )
 
         run_response = EvaluationRunResponse(
             count=1 if run else 0,
@@ -1841,114 +1781,6 @@ class EvaluationsRouter:
             windowing=windowing,
         )
 
-    # -- helpers ---------------------------------------------------------------
-
-    async def _resolve_run_request(
-        self,
-        *,
-        project_id: UUID,
-        run: EvaluationRunCreate | EvaluationRunEdit,
-        jit: bool = True,
-    ) -> None:
-        """Resolve evaluator artifact IDs → full reference chain on inbound requests.
-
-        The frontend sends annotation steps with only an evaluator artifact ref.
-        The service/DB layer expects evaluator, evaluator_variant, and
-        evaluator_revision references.
-        Controlled by jit (defaults to True).
-        """
-        if not jit:
-            return
-
-        if not run.data or not run.data.steps:
-            return
-
-        evaluators_service = self.evaluations_service.evaluators_service
-
-        for step in run.data.steps:
-            if step.type != "annotation":
-                continue
-
-            if "evaluator_revision" in step.references:
-                continue
-
-            if "evaluator" not in step.references:
-                continue
-
-            evaluator_ref = step.references["evaluator"]
-
-            if not isinstance(evaluator_ref, Reference) or not evaluator_ref.id:
-                continue
-
-            evaluator_revision = await evaluators_service.fetch_evaluator_revision(
-                project_id=project_id,
-                evaluator_ref=Reference(id=evaluator_ref.id),
-            )
-
-            if evaluator_revision is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        f"Could not resolve evaluator revision"
-                        f" for evaluator {evaluator_ref.id}"
-                    ),
-                )
-
-            evaluator_variant = await evaluators_service.fetch_evaluator_variant(
-                project_id=project_id,
-                evaluator_variant_ref=Reference(
-                    id=evaluator_revision.variant_id,
-                ),
-            )
-
-            evaluator = await evaluators_service.fetch_evaluator(
-                project_id=project_id,
-                evaluator_ref=Reference(id=evaluator_ref.id),
-            )
-
-            step.references["evaluator"] = Reference(
-                id=evaluator.id,
-                slug=evaluator.slug,
-            )
-
-            if evaluator_variant:
-                step.references["evaluator_variant"] = Reference(
-                    id=evaluator_variant.id,
-                    slug=evaluator_variant.slug,
-                )
-
-            step.references["evaluator_revision"] = Reference(
-                id=evaluator_revision.id,
-                slug=evaluator_revision.slug,
-                version=evaluator_revision.version,
-            )
-
-    async def _unresolve_run_response(
-        self,
-        *,
-        project_id: UUID,
-        run: EvaluationRun,
-        jit: bool = True,
-    ) -> None:
-        """Strip evaluator_variant and evaluator_revision refs on outbound responses.
-
-        The service/DB layer stores full reference chains.
-        The frontend only needs the evaluator artifact ref.
-        Controlled by jit (defaults to True).
-        """
-        if not jit:
-            return
-
-        if not run.data or not run.data.steps:
-            return
-
-        for step in run.data.steps:
-            if step.type != "annotation":
-                continue
-
-            step.references.pop("evaluator_variant", None)
-            step.references.pop("evaluator_revision", None)
-
 
 class SimpleEvaluationsRouter:
     def __init__(
@@ -1969,6 +1801,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.create_evaluation,
             response_model=SimpleEvaluationResponse,
             response_model_exclude_none=True,
+            operation_id="create_simple_evaluation",
         )
 
         # GET /api/simple/evaluations/{evaluation_id}
@@ -1978,6 +1811,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.fetch_evaluation,
             response_model=SimpleEvaluationResponse,
             response_model_exclude_none=True,
+            operation_id="fetch_simple_evaluation",
         )
 
         # PATCH /api/simple/evaluations/{evaluation_id}
@@ -1987,6 +1821,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.edit_evaluation,
             response_model=SimpleEvaluationResponse,
             response_model_exclude_none=True,
+            operation_id="edit_simple_evaluation",
         )
 
         # DELETE /api/simple/evaluations/{evaluation_id}
@@ -1996,6 +1831,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.delete_evaluation,
             response_model=SimpleEvaluationIdResponse,
             response_model_exclude_none=True,
+            operation_id="delete_simple_evaluation",
         )
 
         # POST /api/simple/evaluations/query
@@ -2005,6 +1841,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.query_evaluations,
             response_model=SimpleEvaluationsResponse,
             response_model_exclude_none=True,
+            operation_id="query_simple_evaluations",
         )
 
         # POST /api/simple/evaluations/{evaluation_id}/start
@@ -2024,6 +1861,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.stop_evaluation,
             response_model=SimpleEvaluationResponse,
             response_model_exclude_none=True,
+            operation_id="stop_simple_evaluation",
         )
 
         # POST /api/simpleEvaluations/{evaluation_id}/close
@@ -2033,6 +1871,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.close_evaluation,
             response_model=SimpleEvaluationResponse,
             response_model_exclude_none=True,
+            operation_id="close_simple_evaluation",
         )
 
         # POST /api/simple/evaluations/{evaluation_id}/open
@@ -2042,6 +1881,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.open_evaluation,
             response_model=SimpleEvaluationResponse,
             response_model_exclude_none=True,
+            operation_id="open_simple_evaluation",
         )
 
     # SIMPLE EVALUATIONS -------------------------------------------------------
@@ -2063,13 +1903,6 @@ class SimpleEvaluationsRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         evaluation_create = evaluation_create_request.evaluation
-        jit = evaluation_create_request.jit
-
-        await self._resolve_evaluation_request(
-            project_id=UUID(request.state.project_id),
-            evaluation=evaluation_create,
-            jit=jit,
-        )
 
         evaluation = await self.simple_evaluations_service.create(
             project_id=UUID(request.state.project_id),
@@ -2077,13 +1910,6 @@ class SimpleEvaluationsRouter:
             #
             evaluation=evaluation_create,
         )
-
-        if evaluation:
-            await self._unresolve_evaluation_response(
-                project_id=UUID(request.state.project_id),
-                evaluation=evaluation,
-                jit=jit,
-            )
 
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
@@ -2115,12 +1941,6 @@ class SimpleEvaluationsRouter:
             evaluation_id=evaluation_id,
         )
 
-        if evaluation:
-            await self._unresolve_evaluation_response(
-                project_id=UUID(request.state.project_id),
-                evaluation=evaluation,
-            )
-
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
             evaluation=evaluation,
@@ -2150,13 +1970,6 @@ class SimpleEvaluationsRouter:
             return SimpleEvaluationResponse()
 
         evaluation_edit = evaluation_edit_request.evaluation
-        jit = evaluation_edit_request.jit
-
-        await self._resolve_evaluation_request(
-            project_id=UUID(request.state.project_id),
-            evaluation=evaluation_edit,
-            jit=jit,
-        )
 
         evaluation = await self.simple_evaluations_service.edit(
             project_id=UUID(request.state.project_id),
@@ -2164,13 +1977,6 @@ class SimpleEvaluationsRouter:
             #
             evaluation=evaluation_edit,
         )
-
-        if evaluation:
-            await self._unresolve_evaluation_response(
-                project_id=UUID(request.state.project_id),
-                evaluation=evaluation,
-                jit=jit,
-            )
 
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
@@ -2225,20 +2031,11 @@ class SimpleEvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        jit = evaluation_query_request.jit
-
         evaluations = await self.simple_evaluations_service.query(
             project_id=UUID(request.state.project_id),
             #
             query=evaluation_query_request.evaluation,
         )
-
-        for evaluation in evaluations:
-            await self._unresolve_evaluation_response(
-                project_id=UUID(request.state.project_id),
-                evaluation=evaluation,
-                jit=jit,
-            )
 
         response = SimpleEvaluationsResponse(
             count=len(evaluations),
@@ -2270,12 +2067,6 @@ class SimpleEvaluationsRouter:
             evaluation_id=evaluation_id,
         )
 
-        if evaluation:
-            await self._unresolve_evaluation_response(
-                project_id=UUID(request.state.project_id),
-                evaluation=evaluation,
-            )
-
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
             evaluation=evaluation,
@@ -2305,12 +2096,6 @@ class SimpleEvaluationsRouter:
             #
             evaluation_id=evaluation_id,
         )
-
-        if evaluation:
-            await self._unresolve_evaluation_response(
-                project_id=UUID(request.state.project_id),
-                evaluation=evaluation,
-            )
 
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
@@ -2342,12 +2127,6 @@ class SimpleEvaluationsRouter:
             evaluation_id=evaluation_id,
         )
 
-        if evaluation:
-            await self._unresolve_evaluation_response(
-                project_id=UUID(request.state.project_id),
-                evaluation=evaluation,
-            )
-
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
             evaluation=evaluation,
@@ -2378,106 +2157,12 @@ class SimpleEvaluationsRouter:
             evaluation_id=evaluation_id,
         )
 
-        if evaluation:
-            await self._unresolve_evaluation_response(
-                project_id=UUID(request.state.project_id),
-                evaluation=evaluation,
-            )
-
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,
             evaluation=evaluation,
         )
 
         return response
-
-    # -- helpers ---------------------------------------------------------------
-
-    async def _resolve_evaluation_request(
-        self,
-        *,
-        project_id: UUID,
-        evaluation: SimpleEvaluationCreate | SimpleEvaluationEdit,
-        jit: bool = True,
-    ) -> None:
-        """Resolve evaluator artifact IDs → revision IDs on inbound requests.
-
-        The frontend sends evaluator artifact IDs in evaluator_steps.
-        The service/DB layer expects revision IDs.
-        Controlled by jit (defaults to True).
-        """
-        if not jit:
-            return
-
-        if not evaluation.data or not evaluation.data.evaluator_steps:
-            return
-
-        evaluator_steps = evaluation.data.evaluator_steps
-        evaluators_service = self.simple_evaluations_service.evaluators_service
-
-        if isinstance(evaluator_steps, list):
-            evaluator_steps = {eid: "auto" for eid in evaluator_steps}
-
-        resolved: dict[UUID, str] = {}
-
-        for evaluator_id, origin in evaluator_steps.items():
-            evaluator_revision = await evaluators_service.fetch_evaluator_revision(
-                project_id=project_id,
-                #
-                evaluator_ref=Reference(id=evaluator_id),
-            )
-
-            if evaluator_revision is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Could not resolve evaluator revision for evaluator {evaluator_id}",
-                )
-
-            resolved[evaluator_revision.id] = origin
-
-        evaluation.data.evaluator_steps = resolved
-
-    async def _unresolve_evaluation_response(
-        self,
-        *,
-        project_id: UUID,
-        evaluation: SimpleEvaluation,
-        jit: bool = True,
-    ) -> None:
-        """Resolve evaluator revision IDs -> artifact IDs on outbound responses.
-
-        The service/DB layer stores revision IDs in evaluator_steps.
-        The frontend expects the artifact IDs it originally wrote.
-        Controlled by jit (defaults to True).
-        """
-        if not jit:
-            return
-
-        if not evaluation.data or not evaluation.data.evaluator_steps:
-            return
-
-        evaluator_steps = evaluation.data.evaluator_steps
-        evaluators_service = self.simple_evaluations_service.evaluators_service
-
-        if isinstance(evaluator_steps, list):
-            evaluator_steps = {eid: "auto" for eid in evaluator_steps}
-
-        resolved: dict[UUID, str] = {}
-
-        for revision_id, origin in evaluator_steps.items():
-            evaluator_revision = await evaluators_service.fetch_evaluator_revision(
-                project_id=project_id,
-                #
-                evaluator_revision_ref=Reference(id=revision_id),
-            )
-
-            if evaluator_revision is None or evaluator_revision.evaluator_id is None:
-                resolved[revision_id] = origin
-                continue
-
-            resolved[evaluator_revision.evaluator_id] = origin
-
-        evaluation.data.evaluator_steps = resolved
 
 
 class SimpleQueuesRouter:
@@ -2563,11 +2248,6 @@ class SimpleQueuesRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        await self._resolve_queue_request(
-            project_id=UUID(request.state.project_id),
-            queue=queue_create_request.queue,
-        )
-
         queue = await self.simple_queues_service.create(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -2579,60 +2259,6 @@ class SimpleQueuesRouter:
             count=1 if queue else 0,
             queue=queue,
         )
-
-    # -- helpers ---------------------------------------------------------------
-
-    async def _resolve_queue_request(
-        self,
-        *,
-        project_id: UUID,
-        queue: SimpleQueueCreate,
-        jit: bool = True,
-    ) -> None:
-        """Resolve evaluator artifact IDs → revision IDs on inbound queue create requests.
-
-        The frontend sends evaluator artifact IDs in queue.data.evaluators.
-        The service/DB layer (SimpleQueuesService._make_run_data) expects revision IDs.
-        Controlled by jit (defaults to True).
-        """
-        if not jit:
-            return
-
-        if not queue.data or not queue.data.evaluators:
-            return
-
-        evaluators = queue.data.evaluators
-        evaluators_service = self.simple_queues_service.evaluators_service
-
-        if isinstance(evaluators, list):
-            # List form means human annotation (per SimpleQueueData.evaluators docstring)
-            evaluators = {eid: "human" for eid in evaluators}
-
-        resolved: dict[UUID, str] = {}
-
-        for evaluator_id, origin in evaluators.items():
-            evaluator_revision = await evaluators_service.fetch_evaluator_revision(
-                project_id=project_id,
-                #
-                evaluator_revision_ref=Reference(id=evaluator_id),
-            )
-
-            if evaluator_revision is None:
-                evaluator_revision = await evaluators_service.fetch_evaluator_revision(
-                    project_id=project_id,
-                    #
-                    evaluator_ref=Reference(id=evaluator_id),
-                )
-
-            if evaluator_revision is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Could not resolve evaluator revision for evaluator {evaluator_id}",
-                )
-
-            resolved[evaluator_revision.id] = origin
-
-        queue.data.evaluators = resolved
 
     @intercept_exceptions()
     @suppress_exceptions(default=SimpleQueuesResponse(), exclude=[HTTPException])
@@ -2764,6 +2390,18 @@ class SimpleQueuesRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        queue = await self.simple_queues_service.fetch(
+            project_id=UUID(request.state.project_id),
+            queue_id=queue_id,
+        )
+        if queue and queue.data and (queue.data.queries or queue.data.testsets):
+            raise BadRequestException(
+                message=(
+                    "Cannot add traces directly to a source-backed queue. "
+                    "Create a direct traces queue instead."
+                )
+            )
+
         queue_id = await self.simple_queues_service.add_traces(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -2794,6 +2432,18 @@ class SimpleQueuesRouter:
                 permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue = await self.simple_queues_service.fetch(
+            project_id=UUID(request.state.project_id),
+            queue_id=queue_id,
+        )
+        if queue and queue.data and (queue.data.queries or queue.data.testsets):
+            raise BadRequestException(
+                message=(
+                    "Cannot add testcases directly to a source-backed queue. "
+                    "Create a direct testcases queue instead."
+                )
+            )
 
         queue_id = await self.simple_queues_service.add_testcases(
             project_id=UUID(request.state.project_id),

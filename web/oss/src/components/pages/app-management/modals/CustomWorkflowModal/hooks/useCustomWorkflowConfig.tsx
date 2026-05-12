@@ -1,60 +1,49 @@
 import {useCallback} from "react"
 
-import {variantsListAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {removeTrailingSlash} from "@agenta/shared/utils"
 import {useQueryClient} from "@tanstack/react-query"
-import {useAtomValue, useSetAtom, useStore} from "jotai"
+import {useSetAtom, useStore} from "jotai"
 
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {removeTrailingSlash} from "@/oss/lib/shared/variant"
-import {createAndStartTemplate, ServiceType} from "@/oss/services/app-selector/api"
+import {createAppWithTemplate, ServiceType} from "@/oss/services/app-selector/api"
 import {useAppsData} from "@/oss/state/app"
-import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {appCreationStatusAtom} from "@/oss/state/appCreation/status"
 import {
+    normalizeAppKey,
     openCustomWorkflowModalAtom,
     closeCustomWorkflowModalAtom,
+    customWorkflowValuesAtomFamily,
 } from "@/oss/state/customWorkflow/modalAtoms"
-import {customWorkflowValuesAtomFamily} from "@/oss/state/customWorkflow/modalAtoms"
 import {useProfileData} from "@/oss/state/profile"
+
+import {invalidateAppManagementWorkflowQueries} from "../../../store"
 
 import {useCustomWorkflowConfigProps} from "./types"
 
 const useCustomWorkflowConfig = ({
     setFetchingTemplate,
     setStatusModalOpen,
-    // configureWorkflow = true,
     appId: propsAppId,
     folderId,
     afterConfigSave,
 }: useCustomWorkflowConfigProps) => {
-    const {currentApp} = useAppsData()
+    const {currentApp, mutate} = useAppsData()
     const {secrets} = useVaultSecret()
-    // Read current form values directly from the atom family (scoped by appId for configure mode)
-    const rawAppId = propsAppId ?? (currentApp as any)?.app_id ?? ""
-    const modalAtomKey = rawAppId && String(rawAppId).trim().length ? String(rawAppId) : "new-app"
+    const rawAppId = propsAppId ?? currentApp?.id ?? ""
+    const modalAtomKey = normalizeAppKey(rawAppId)
     const configureWorkflow = modalAtomKey !== "new-app"
 
-    const {mutate} = useAppsData()
-    const appId = useAtomValue(selectedAppIdAtom) || ""
     const queryClient = useQueryClient()
-    const variantsMutate = useCallback(async () => {
-        await queryClient.invalidateQueries({queryKey: ["variants"]})
-    }, [queryClient])
-
     const posthog = usePostHogAg()
-
-    // No local seeding based on first variant here; hydration is centralized
     const {user} = useProfileData()
 
     const openModalAtom = useSetAtom(openCustomWorkflowModalAtom)
     const closeModalAtom = useSetAtom(closeCustomWorkflowModalAtom)
     const jotaiStore = useStore()
     const setStatusData = useSetAtom(appCreationStatusAtom)
-
-    // Hydration of initial values is handled centrally in openCustomWorkflowModalAtom
 
     const handleCustomWorkflowClick = async () => {
         if (!setFetchingTemplate || !setStatusModalOpen) return
@@ -64,9 +53,8 @@ const useCustomWorkflowConfig = ({
         setFetchingTemplate(true)
         setStatusModalOpen(true)
 
-        // attempt to create and start the template, notify user of the progress
         const apiKeys = secrets
-        await createAndStartTemplate({
+        await createAppWithTemplate({
             isCustomWorkflow: true,
             appName: latestValues.appName,
             templateKey: ServiceType.Custom,
@@ -78,6 +66,7 @@ const useCustomWorkflowConfig = ({
                     setFetchingTemplate(false)
                 if (status === "success") {
                     await mutate()
+                    await invalidateAppManagementWorkflowQueries()
                     posthog?.capture?.("app_deployment", {
                         properties: {
                             app_id: appId,
@@ -92,36 +81,18 @@ const useCustomWorkflowConfig = ({
         })
     }
 
-    // appNameExist moved to modal content for both modes
+    const onSuccess = useCallback(async () => {
+        await queryClient.invalidateQueries({queryKey: ["variants"]})
+        await afterConfigSave?.()
+    }, [queryClient, afterConfigSave])
 
     const openModal = useCallback(() => {
-        // Read variants lazily when the modal opens — avoids triggering
-        // the expensive variant→revision fetch cascade on playground mount.
-        const variantsData = jotaiStore.get(variantsListAtomFamily(appId))
         openModalAtom({
-            open: true,
-            onCancel: () => {
-                closeModalAtom()
-            },
-            handleCreateApp: configureWorkflow ? () => {} : handleCustomWorkflowClick,
-            configureWorkflow,
             appId: modalAtomKey,
-            allVariantsDataMutate: variantsMutate,
-            variants: variantsData ?? [],
-            mutate: async () => afterConfigSave?.(),
+            onSuccess,
+            onCreateApp: configureWorkflow ? undefined : handleCustomWorkflowClick,
         })
-    }, [
-        openModalAtom,
-        closeModalAtom,
-        configureWorkflow,
-        (currentApp as any)?.app_id,
-        modalAtomKey,
-        handleCustomWorkflowClick,
-        variantsMutate,
-        jotaiStore,
-        appId,
-        afterConfigSave,
-    ])
+    }, [openModalAtom, configureWorkflow, modalAtomKey, handleCustomWorkflowClick, onSuccess])
 
     return {
         openModal,

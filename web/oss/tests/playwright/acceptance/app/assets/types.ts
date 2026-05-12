@@ -1,14 +1,22 @@
 import type {BaseFixture} from "@agenta/web-tests/tests/fixtures/base.fixture/types"
 
 export interface CreateAppResponse {
-    app_id: string
-    app_name: string
-    created_at: string
+    count: number
+    workflow: {
+        id: string
+        name: string
+        created_at: string
+    }
 }
 
 export enum AppType {
-    COMPLETION_PROMPT = "Completion Prompt",
-    CHAT_PROMPT = "Chat Prompt",
+    COMPLETION_PROMPT = "agenta:builtin:completion:v0",
+    CHAT_PROMPT = "agenta:builtin:chat:v0",
+}
+
+export const APP_TYPE_LABELS: Record<AppType, string> = {
+    [AppType.COMPLETION_PROMPT]: "Completion",
+    [AppType.CHAT_PROMPT]: "Chat",
 }
 
 export interface AppActions {

@@ -24,7 +24,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/evaluations/runs/",
         json={"runs": [run]},
     )
     assert response.status_code == 200
@@ -52,7 +52,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/runs/",
+        "/evaluations/runs/",
         json={"runs": [run]},
     )
     assert response.status_code == 200
@@ -76,7 +76,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/scenarios/",
+        "/evaluations/scenarios/",
         json={"scenarios": scenarios},
     )
 
@@ -101,7 +101,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/scenarios/",
+        "/evaluations/scenarios/",
         json={"scenarios": scenarios},
     )
 
@@ -126,7 +126,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/scenarios/",
+        "/evaluations/scenarios/",
         json={"scenarios": scenarios},
     )
 
@@ -151,7 +151,7 @@ class TestEvaluationScenariosQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/scenarios/query",
+            "/evaluations/scenarios/query",
             json={
                 "scenario": {
                     "run_ids": run_ids,
@@ -173,7 +173,7 @@ class TestEvaluationScenariosQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/scenarios/query",
+            "/evaluations/scenarios/query",
             json={
                 "scenario": {
                     "tags": {"tags1": "value1"},
@@ -195,7 +195,7 @@ class TestEvaluationScenariosQueries:
         run_id = mock_data["runs"][0]["id"]
         response = authed_api(
             "POST",
-            "/preview/evaluations/scenarios/query",
+            "/evaluations/scenarios/query",
             json={
                 "scenario": {
                     "run_ids": [run_id],
@@ -215,7 +215,7 @@ class TestEvaluationScenariosQueries:
         run_id = mock_data["runs"][1]["id"]
         response = authed_api(
             "POST",
-            "/preview/evaluations/scenarios/query",
+            "/evaluations/scenarios/query",
             json={
                 "scenario": {
                     "run_ids": [run_id],
@@ -236,7 +236,7 @@ class TestEvaluationScenariosQueries:
         run_2_id = mock_data["runs"][1]["id"]
         response = authed_api(
             "POST",
-            "/preview/evaluations/scenarios/query",
+            "/evaluations/scenarios/query",
             json={
                 "scenario": {
                     "run_ids": [run_1_id, run_2_id],
@@ -257,7 +257,7 @@ class TestEvaluationScenariosQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/scenarios/query",
+            "/evaluations/scenarios/query",
             json={
                 "scenario": {
                     "status": "success",
@@ -276,7 +276,7 @@ class TestEvaluationScenariosQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/scenarios/query",
+            "/evaluations/scenarios/query",
             json={
                 "scenario": {
                     "status": "pending",
@@ -295,7 +295,7 @@ class TestEvaluationScenariosQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/scenarios/query",
+            "/evaluations/scenarios/query",
             json={
                 "scenario": {
                     "status": "running",

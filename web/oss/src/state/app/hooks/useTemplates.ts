@@ -1,14 +1,16 @@
 import {useMemo} from "react"
 
+import {type WorkflowCatalogTemplate} from "@agenta/entities/workflow"
 import {useAtomValue} from "jotai"
 
 import {templatesDataAtom} from "../atoms/templates"
 
+const EMPTY_TEMPLATES: WorkflowCatalogTemplate[] = []
+
 /**
- * Hook for fetching container templates using Jotai atoms
- * Replaces the SWR-based useTemplates hook
+ * Hook for fetching workflow catalog templates.
+ * Returns catalog templates for application-type workflows.
  */
-const EMPTY_TEMPLATES = []
 export const useTemplates = () => {
     const {templates, noTemplateMessage, isLoading, error, refetch} =
         useAtomValue(templatesDataAtom)

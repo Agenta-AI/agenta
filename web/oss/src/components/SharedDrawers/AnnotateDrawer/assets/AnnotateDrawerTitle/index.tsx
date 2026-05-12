@@ -1,19 +1,21 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
+import {humanEvaluatorsListDataAtom} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {CaretLeft, Plus} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {Button, Typography} from "antd"
 import deepEqual from "fast-deep-equal"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 import {useSWRConfig} from "swr"
 
-import useEvaluators from "@/oss/lib/hooks/useEvaluators"
-import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
+import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 import {useObservability} from "@/oss/state/newObservability"
 
 import {AnnotateDrawerSteps} from "../enum"
+import {useEvaluatorSchemas} from "../hooks/useEvaluatorSchemas"
 import {
     generateAnnotationPayloadData,
     generateNewAnnotationPayloadData,
@@ -33,16 +35,15 @@ const AnnotateDrawerTitle = ({
     onCaptureError,
     showOnly,
     queryKey,
+    createEvaluatorMode,
 }: AnnotateDrawerTitleProps) => {
     const router = useRouter()
     const {fetchAnnotations} = useObservability()
     const [isSaving, setIsSaving] = useState(false)
     const queryClient = useQueryClient()
     const {mutate: mutateCache} = useSWRConfig()
-    const {data: evaluators} = useEvaluators({
-        preview: true,
-        queries: {is_human: true},
-    })
+    const evaluatorRefs = useAtomValue(humanEvaluatorsListDataAtom)
+    const evaluators = useEvaluatorSchemas(evaluatorRefs as any)
 
     const onClickPrev = useCallback(
         (step: AnnotateDrawerStepsType) => {
@@ -148,7 +149,7 @@ const AnnotateDrawerTitle = ({
 
             // 2. Invalidate SWR cache for useAnnotations hook (used by TraceDrawer)
             await mutateCache(
-                (key) => Array.isArray(key) && key[0]?.includes("/preview/annotations/"),
+                (key) => Array.isArray(key) && key[0]?.includes("/simple/traces/"),
                 undefined,
                 {revalidate: true},
             )
@@ -166,6 +167,16 @@ const AnnotateDrawerTitle = ({
                     queryKey: [queryKey],
                 })
             }
+
+            // 5. Invalidate trace drawer annotation queries (jotai-tanstack-query)
+            await queryClient.invalidateQueries({
+                queryKey: ["trace-drawer-annotations"],
+            })
+
+            // 6. Also refetch the main trace query so annotations get re-attached
+            await queryClient.invalidateQueries({
+                queryKey: ["trace-drawer"],
+            })
 
             message.success("Annotations updated successfully")
             onClose()
@@ -249,7 +260,7 @@ const AnnotateDrawerTitle = ({
                 ) : steps === AnnotateDrawerSteps.CREATE_EVALUATOR ||
                   showOnly?.createEvaluatorUi ? (
                     <Typography.Text className="text-sm font-medium">
-                        Create new evaluator
+                        {createEvaluatorMode === "edit" ? "Edit evaluator" : "Create new evaluator"}
                     </Typography.Text>
                 ) : null}
             </div>

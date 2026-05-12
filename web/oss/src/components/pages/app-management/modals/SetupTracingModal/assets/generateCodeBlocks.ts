@@ -1,7 +1,7 @@
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
 export const generateCodeBlocks = (apiKeyValue: string, demo: boolean) => {
-    const hostLine = `os.environ["AGENTA_HOST"] = "${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}"`
+    const hostLine = `os.environ["AGENTA_API_URL"] = "${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}"`
     const apiKeyLine = demo ? `os.environ["AGENTA_API_KEY"] = "${apiKeyValue || "{API_KEY}"}"` : ""
 
     return {

@@ -46,3 +46,5 @@ export {
     type PaginatedControllerAction,
     type PaginatedState,
 } from "./createPaginatedEntityStore"
+
+export {createDateDescComparator, emptyFetchResult, getCursorOffset} from "./utils"

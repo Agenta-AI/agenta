@@ -1,0 +1,9 @@
+{
+  "label": "REST API Guide",
+  "position": 2,
+  "collapsed": false,
+  "link": {
+    "type": "generated-index",
+    "description": "Patterns and conventions for calling the Agenta REST API directly."
+  }
+}

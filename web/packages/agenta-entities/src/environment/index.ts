@@ -40,6 +40,8 @@ export {
     invalidateEnvironmentsListCache,
     invalidateEnvironmentCache,
     type EnvironmentMolecule,
+    type RevertDeploymentParams,
+    type RevertToSnapshotParams,
 } from "./state/environmentMolecule"
 
 // ============================================================================
@@ -127,9 +129,23 @@ export {
     environmentQueryAtomFamily,
     environmentsListQueryAtomFamily,
     environmentDraftAtomFamily,
+    // Slug-based resolution
+    environmentBySlugAtomFamily,
+    // App-scoped deployment selectors
+    environmentAppDeploymentsAtomFamily,
+    environmentAppDeploymentsBySlugAtomFamily,
+    appDeploymentInEnvironmentAtomFamily,
+    type AppDeploymentInfo,
+    // Revision deployment lookup
     revisionDeploymentAtomFamily,
     type RevisionDeployment,
+    // Revisions list
     revisionsListQueryAtomFamily,
     enableRevisionsListQueryAtom,
     invalidateEnvironmentRevisionsListCache,
+    // App-scoped deployment atom families (parameterized by appId)
+    appEnvironmentsQueryAtomFamily,
+    appEnvironmentsAtomFamily,
+    appEnvironmentsLoadableAtomFamily,
+    type AppEnvironmentDeployment,
 } from "./state"

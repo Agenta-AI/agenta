@@ -19,7 +19,7 @@ class TestSpansBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/tracing/spans/ingest",
+            "/tracing/spans/ingest",
             json={
                 "spans": [
                     {
@@ -125,7 +125,7 @@ class TestSpansBasics:
         # ARRANGE --------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/tracing/spans/ingest",
+            "/tracing/spans/ingest",
             json={
                 "spans": [
                     {
@@ -218,7 +218,7 @@ class TestSpansBasics:
         response = wait_for_response(
             authed_api,
             "POST",
-            "/preview/tracing/spans/query",
+            "/tracing/spans/query",
             condition_fn=lambda r: r.json().get("count", 0) > 0,
         )
         # ----------------------------------------------------------------------

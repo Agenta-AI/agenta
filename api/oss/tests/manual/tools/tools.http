@@ -1,6 +1,6 @@
 @agenta_api_url = {{$dotenv AGENTA_API_URL}}
 @agenta_auth_key = {{$dotenv AGENTA_AUTH_KEY}}
-@base_url = {{agenta_api_url}}/preview/tools
+@base_url = {{agenta_api_url}}/tools
 
 @composio_api_key = {{$dotenv COMPOSIO_API_KEY}}
 @composio_api_url = https://backend.composio.dev/api/v3
@@ -121,7 +121,7 @@ Authorization: {{authorization}}
 ###
 # @name get_action
 # Our API — use stripped key (GMAIL_ prefix removed by our parser)
-GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/gmail/actions/SEND_EMAIL
+GET {{agenta_api_url}}/tools/catalog/providers/composio/integrations/gmail/actions/SEND_EMAIL
 Authorization: {{authorization}}
 
 ###
@@ -170,7 +170,7 @@ Authorization: {{authorization}}
 ###
 # @name search_github_pr_actions
 # Find the exact action key for listing PRs
-GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/github/actions/?search=LIST_PULL_REQUEST
+GET {{agenta_api_url}}/tools/catalog/providers/composio/integrations/github/actions/?search=LIST_PULL_REQUEST
 Authorization: {{authorization}}
 
 ###

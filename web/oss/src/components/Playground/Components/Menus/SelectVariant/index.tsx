@@ -2,7 +2,7 @@
  * SelectVariant Component
  *
  * Uses createWorkflowRevisionAdapter for workflow-based variant/revision selection.
- * Lists variants and revisions via the workflow API (/preview/workflows/*).
+ * Lists variants and revisions via the workflow API (/workflows/*).
  *
  * Supports two modes:
  * - "scoped" (default): 2-level (Variant → Revision), scoped to the current app
@@ -10,15 +10,15 @@
  */
 import {useCallback, useMemo, useState} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {
     workflowMolecule,
     workflowsListQueryStateAtom,
     workflowLatestRevisionIdAtomFamily,
+    createLocalDraftFromWorkflowRevision,
+    workflowVariantsListDataAtomFamily,
 } from "@agenta/entities/workflow"
 import {
-    CascadingVariant,
     createWorkflowRevisionAdapter,
     TreeSelectPopupContent,
     type WorkflowRevisionSelectionResult,
@@ -59,8 +59,12 @@ const SelectVariant = ({
                   : null,
         [value],
     )
-    const selectedRevisionData = useAtomValue(runnableBridge.data(singleSelectedValue || ""))
-    const selectedRevisionQuery = useAtomValue(runnableBridge.query(singleSelectedValue || ""))
+    const selectedRevisionData = useAtomValue(
+        workflowMolecule.selectors.data(singleSelectedValue || ""),
+    )
+    const selectedRevisionQuery = useAtomValue(
+        workflowMolecule.selectors.query(singleSelectedValue || ""),
+    )
     const hasSelectedDisplayName = useMemo(() => {
         if (!singleSelectedValue) return false
         if (isLocalDraftId(singleSelectedValue)) return true
@@ -177,7 +181,7 @@ const SelectVariant = ({
         (revisionId: string, e: React.MouseEvent) => {
             e.stopPropagation()
             e.preventDefault()
-            const localDraftId = runnableBridge.createLocalDraft(revisionId)
+            const localDraftId = createLocalDraftFromWorkflowRevision(revisionId)
             if (localDraftId) {
                 setSelectedVariants((prev) =>
                     prev.includes(localDraftId) ? prev : [...prev, localDraftId],
@@ -272,7 +276,7 @@ const SelectVariant = ({
         const lastRevisionId = Array.isArray(value) ? value[value.length - 1] : value
 
         if (lastRevisionId) {
-            const localDraftId = runnableBridge.createLocalDraft(lastRevisionId)
+            const localDraftId = createLocalDraftFromWorkflowRevision(lastRevisionId)
 
             if (localDraftId) {
                 setSelectedVariants((prev) =>
@@ -299,21 +303,43 @@ const SelectVariant = ({
     )
 
     // Read the raw workflow entity data (includes workflow_id, workflow_variant_id)
-    // runnableBridge.data() normalizes away hierarchy IDs, so we read the molecule directly
+    // Read the raw workflow entity data (includes workflow_id, workflow_variant_id)
     // Must be called before any early returns to keep hook order stable.
     const rawWorkflowEntity = useAtomValue(
         workflowMolecule.selectors.data(singleSelectedValue || ""),
     )
+    const selectedWorkflowId =
+        (rawWorkflowEntity as {workflow_id?: string | null} | null)?.workflow_id ?? ""
+    const selectedVariantId =
+        (
+            rawWorkflowEntity as {
+                workflow_variant_id?: string | null
+                variant_id?: string | null
+            } | null
+        )?.workflow_variant_id ??
+        (
+            rawWorkflowEntity as {
+                workflow_variant_id?: string | null
+                variant_id?: string | null
+            } | null
+        )?.variant_id ??
+        ""
+    const workflowVariants = useAtomValue(workflowVariantsListDataAtomFamily(selectedWorkflowId))
+    const selectedVariantName = useMemo(() => {
+        if (!selectedVariantId) return null
+        const variant = workflowVariants.find((item) => item.id === selectedVariantId)
+        const name = variant?.name?.trim()
+        return name && name.length > 0 ? name : null
+    }, [selectedVariantId, workflowVariants])
 
     // Look up the parent workflow name for browse mode trigger label
     const workflowsList = useAtomValue(workflowsListQueryStateAtom)
     const workflowName = useMemo(() => {
         if (mode !== "browse") return null
-        const workflowId = (rawWorkflowEntity as {workflow_id?: string | null} | null)?.workflow_id
-        if (!workflowId) return null
-        const wf = workflowsList.data.find((w) => w.id === workflowId)
+        if (!selectedWorkflowId) return null
+        const wf = workflowsList.data.find((w) => w.id === selectedWorkflowId)
         return wf?.name ?? null
-    }, [mode, rawWorkflowEntity, workflowsList.data])
+    }, [mode, selectedWorkflowId, workflowsList.data])
 
     // Build display label from already-fetched individual revision data.
     // Uses singleSelectedValue directly (not selectedValueForControl which
@@ -321,17 +347,24 @@ const SelectVariant = ({
     const triggerLabel = useMemo(() => {
         if (!singleSelectedValue) return selectPlaceholder
         if (isLocalDraftId(singleSelectedValue)) {
-            return selectedRevisionData?.name ?? "Draft"
+            return selectedVariantName ?? selectedRevisionData?.name ?? "Draft"
         }
         if (selectedRevisionQuery.isPending) return "Loading..."
-        const variantName = selectedRevisionData?.name ?? selectPlaceholder
-        // In browse mode, prefix with the workflow (app/evaluator) name
-        if (mode === "browse" && workflowName) {
+        const variantName = selectedVariantName ?? selectedRevisionData?.name ?? selectPlaceholder
+        // In browse mode, keep workflow context available only when the variant
+        // label cannot disambiguate on its own.
+        if (
+            mode === "browse" &&
+            workflowName &&
+            variantName !== selectPlaceholder &&
+            variantName === workflowName
+        ) {
             return `${workflowName} / ${variantName}`
         }
         return variantName
     }, [
         singleSelectedValue,
+        selectedVariantName,
         selectedRevisionData,
         selectedRevisionQuery.isPending,
         selectPlaceholder,
@@ -339,18 +372,13 @@ const SelectVariant = ({
         workflowName,
     ])
 
-    // Build initial selections for browse mode from currently selected revision data
-    const browseInitialSelections = useMemo(() => {
-        if (!rawWorkflowEntity) return undefined
-        const rev = rawWorkflowEntity as {
-            workflow_id?: string | null
-            workflow_variant_id?: string | null
-        }
-        const workflowId = rev.workflow_id
-        const variantId = rev.workflow_variant_id
+    // Initial expanded keys for browse mode — expand the parent workflow of the selected revision
+    const browseInitialExpandedKeys = useMemo(() => {
+        if (mode !== "browse") return undefined
+        const workflowId = (rawWorkflowEntity as {workflow_id?: string | null} | null)?.workflow_id
         if (!workflowId) return undefined
-        return [workflowId, variantId ?? null, singleSelectedValue]
-    }, [rawWorkflowEntity, singleSelectedValue])
+        return [workflowId]
+    }, [mode, rawWorkflowEntity])
 
     // Handle browse mode selection — wraps handleSelect to also close the popover
     const handleBrowseSelect = useCallback(
@@ -400,22 +428,25 @@ const SelectVariant = ({
         )
     }
 
-    // Browse mode: cascading dropdowns (Workflow → Variant → Revision) inside a Popover
+    // Browse mode: tree selector (Workflow → Variant → Revision) inside a Popover
     if (mode === "browse") {
         return (
             <div style={style ?? {width: 200}}>
                 <Popover
                     content={
-                        <div className="p-3 w-[320px]">
+                        <div>
                             {singlePopoverOpen && (
-                                <CascadingVariant<WorkflowRevisionSelectionResult>
+                                <TreeSelectPopupContent<WorkflowRevisionSelectionResult>
                                     adapter={browseAdapter}
                                     onSelect={handleBrowseSelect}
-                                    initialSelections={browseInitialSelections}
-                                    showLabels
-                                    layout="vertical"
-                                    size="small"
-                                    gap={2}
+                                    selectedValue={selectedValueForControl}
+                                    disabledChildIds={disabledIds}
+                                    renderChildTitle={renderChildTitle}
+                                    renderSelectedLabel={renderSelectedLabel}
+                                    defaultExpandAll={false}
+                                    initialExpandedKeys={browseInitialExpandedKeys}
+                                    maxHeight={400}
+                                    width={280}
                                 />
                             )}
                         </div>

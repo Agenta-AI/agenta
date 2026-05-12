@@ -3,6 +3,7 @@ from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.caching import invalidate_cache
 from oss.src.services import db_manager
 from ee.src.services import db_manager_ee, converters
 from oss.src.models.db_models import (
@@ -212,7 +213,16 @@ async def invite_user_to_workspace(
             )
             if not existing_invitation and not existing_role:
                 # Create a new invitation
-                role = payload_invite.roles[0] if payload_invite.roles else "editor"
+                role = (
+                    payload_invite.roles[0].value
+                    if payload_invite.roles
+                    and hasattr(payload_invite.roles[0], "value")
+                    else (
+                        str(payload_invite.roles[0])
+                        if payload_invite.roles
+                        else WorkspaceRole.VIEWER.value
+                    )
+                )
                 invitation = await create_invitation(
                     role, project_id, payload_invite.email
                 )
@@ -384,6 +394,14 @@ async def accept_workspace_invitation(
             await db_manager_ee.mark_invitation_as_used(
                 project_id, str(user.id), invitation
             )
+
+            # Invalidate any cached auth deny for this user so they can
+            # access the project immediately after accepting the invite.
+            await invalidate_cache(
+                namespace="verify_bearer_token",
+                user_id=str(user.id),
+            )
+
             return True
 
         else:

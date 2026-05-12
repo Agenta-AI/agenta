@@ -7,7 +7,7 @@ import {CustomWorkflowHistoryProps} from "./types"
 
 const CustomWorkflowHistory = ({...props}: CustomWorkflowHistoryProps) => {
     return (
-        <Drawer title="Configuration History" width={1200} {...props}>
+        <Drawer title="Configuration History" styles={{wrapper: {width: 1200}}} {...props}>
             <div className={clsx(["flex gap-6 p-6"])}>
                 <ConfigurationTable />
                 <ConfigurationView />

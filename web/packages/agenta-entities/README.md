@@ -10,13 +10,23 @@ This is a workspace package. It's automatically available within the monorepo:
 
 ```typescript
 // PREFERRED: Clean named exports from main package
-import {testcase, revision, testset, appRevision, loadable, runnable} from '@agenta/entities'
-import type {Testcase, Revision, Testset} from '@agenta/entities'
+import {
+    testcase,
+    revision,
+    testset,
+    traceSpan,
+    environment,
+    loadable,
+    queue,
+    annotation,
+} from '@agenta/entities'
+import type {Testcase, Revision, Testset, TraceSpan, Environment} from '@agenta/entities'
 
 // Specialized utilities require subpath imports
 import {testcasePaginatedStore, testcaseDataController} from '@agenta/entities/testcase'
 import {latestRevisionForTestsetAtomFamily, saveTestsetAtom} from '@agenta/entities/testset'
 import {loadableController} from '@agenta/entities/loadable'
+import {workflowMolecule} from '@agenta/entities/workflow'
 
 // UI components are now in @agenta/entity-ui
 import {EntityPicker, MoleculeDrillInView} from '@agenta/entity-ui'
@@ -32,23 +42,29 @@ src/
 │   ├── relations/        # Entity parent-child relationships & registry
 │   ├── utils/            # Schema, transforms, helpers
 │   └── user/             # User resolution atoms
-├── appRevision/          # App revision entity
-│   ├── relations.ts      # App → Variant → Revision hierarchy definitions
+├── workflow/             # Workflow (app/evaluator revision) entity
+│   ├── core/             # Schemas & types
+│   ├── api/              # HTTP functions
 │   └── state/            # Molecule & store
 ├── trace/                # Trace/span entity
 │   ├── core/             # Schemas & types
 │   ├── api/              # HTTP functions
 │   ├── state/            # Molecule & store
 │   └── utils/            # Selectors
+├── environment/          # Environment entity (deployments, revisions)
 ├── testset/              # Testset/revision entity
 │   ├── core/             # Schemas & types
 │   ├── api/              # HTTP functions & mutations
 │   ├── relations.ts      # Testset → Revision → Testcase hierarchy definitions
 │   └── state/            # Molecules & table state
-└── testcase/             # Testcase entity
-    ├── core/             # Schemas & types
-    ├── api/              # HTTP functions
-    └── state/            # Molecule & paginated store
+├── testcase/             # Testcase entity
+├── loadable/             # Loadable bridge (data source abstraction)
+├── runnable/             # Runnable helpers/utilities
+├── simpleQueue/          # Simple annotation queue entity
+├── evaluationQueue/      # Evaluation queue entity
+├── queue/                # Unified queue controller
+├── evaluationRun/        # Evaluation run entity
+└── annotation/           # Annotation entity
 
 # UI components moved to @agenta/entity-ui
 ```
@@ -60,7 +76,8 @@ src/
 Entity controllers provide a unified API for state management. Use clean named exports from the main package:
 
 ```typescript
-import {testcase, revision, appRevision} from '@agenta/entities'
+import {testcase, revision, loadable} from '@agenta/entities'
+import {workflowMolecule} from '@agenta/entities/workflow'
 
 // React hook - returns [state, dispatch]
 const [state, dispatch] = testcase.useController(id)
@@ -71,11 +88,11 @@ const isDirty = useAtomValue(testcase.atoms.isDirty(id))
 
 // Imperative API (for callbacks)
 const data = testcase.get.data(id)
-testcase.set.update(id, {name: 'Updated'})
+testcase.set.update(id, {data: {name: 'Updated'}})
 
 // Capability APIs (runnable/loadable)
-const inputPorts = useAtomValue(appRevision.runnable.inputPorts(id))
-const rows = useAtomValue(testcase.loadable.rows(revisionId))
+const inputPorts = useAtomValue(workflowMolecule.selectors.inputPorts(revisionId))
+const rows = useAtomValue(loadable.rows(loadableId))
 ```
 
 ### Using UI Components
@@ -88,19 +105,21 @@ import {
   EntityPicker,
   MoleculeDrillInView,
 } from '@agenta/entity-ui'
+import {traceSpan} from '@agenta/entities'
 
 // Delete modal (register adapters first)
 <EntityDeleteModal />
 
 // Entity picker with hierarchical navigation
 <EntityPicker
-  adapter={appRevisionAdapter}
+  adapter="appRevision"
+  variant="breadcrumb"
   onSelect={(selection) => console.log(selection)}
 />
 
 // Drill-in view for nested data
 <MoleculeDrillInView
-  molecule={traceSpanMolecule}
+  molecule={traceSpan}
   entityId={spanId}
   editable
 />
@@ -112,12 +131,19 @@ import {
 | --------------------------- | ------------------------------------------------ |
 | `@agenta/entities` | Core utilities (createEntityController, schema utils) |
 | `@agenta/entities/shared` | Molecule factories, transforms, relations, user atoms |
-| `@agenta/entities/appRevision` | App revision molecule, relations (app→variant→revision) |
+| `@agenta/entities/appRevision` | App revision molecule and app→variant→revision relations |
+| `@agenta/entities/workflow` | Workflow molecule (app/evaluator revision), schemas, API |
 | `@agenta/entities/trace` | Trace/span molecule, schemas, API |
+| `@agenta/entities/environment` | Environment molecule, deployment/revision APIs |
 | `@agenta/entities/testset` | Testset/revision molecules, relations, schemas, API |
 | `@agenta/entities/testcase` | Testcase molecule, schemas, API |
 | `@agenta/entities/loadable` | Loadable bridge (data sources) |
-| `@agenta/entities/runnable` | Runnable bridge (executable entities) |
+| `@agenta/entities/runnable` | Runnable utilities and execution helpers |
+| `@agenta/entities/simpleQueue` | Simple queue molecule |
+| `@agenta/entities/evaluationQueue` | Evaluation queue molecule |
+| `@agenta/entities/queue` | Unified queue controller |
+| `@agenta/entities/evaluationRun` | Evaluation run molecule |
+| `@agenta/entities/annotation` | Annotation molecule and helpers |
 
 > **UI components** are now in `@agenta/entity-ui` (modals, pickers, drill-in views)
 
@@ -136,7 +162,7 @@ entity.useController    // React hook combining atoms + dispatch
 entity.cleanup.*        // Memory management
 
 // Capability namespaces (if applicable)
-entity.runnable.*       // For runnable entities (appRevision, evaluator)
+entity.runnable.*       // For runnable entities (workflow/evaluator)
 entity.loadable.*       // For loadable entities (testcase)
 ```
 
@@ -244,7 +270,10 @@ See the [import-lazy rule](../../.claude/skills/agenta-package-practices/rules/i
 Each submodule has its own README with detailed documentation:
 
 - [`src/shared/README.md`](./src/shared/README.md) - Molecule pattern
+- [`src/loadable/README.md`](./src/loadable/README.md) - Loadable bridge pattern
+- [`src/runnable/README.md`](./src/runnable/README.md) - Runnable utilities
 - [`src/trace/README.md`](./src/trace/README.md) - Trace entity
+- [`src/environment/README.md`](./src/environment/README.md) - Environment entity
 - [`src/testset/README.md`](./src/testset/README.md) - Testset entity
 - [`src/testcase/README.md`](./src/testcase/README.md) - Testcase entity
 - [`docs/onboarding-reference.md`](./docs/onboarding-reference.md) - Onboarding quick reference

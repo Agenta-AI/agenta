@@ -60,7 +60,9 @@ function parseArgs(args: string[]): ParsedArgs {
         }
 
         // Check if this is a dimension flag
-        const dimensionMatch = arg.match(/^--?(coverage|lens|path|case|speed|scope|license|cost|plan|role)$/)
+        const dimensionMatch = arg.match(
+            /^--?(coverage|lens|path|case|speed|scope|license|cost|plan|role)$/,
+        )
 
         if (dimensionMatch && i + 1 < args.length) {
             const dimension = dimensionMatch[1]

@@ -1,10 +1,11 @@
 {
     "name": "@agenta/ee",
-    "version": "0.94.2",
+    "version": "0.99.6",
     "private": true,
     "engines": {
-        "node": ">=18"
+        "node": "24.x"
     },
+    "packageManager": "pnpm@10.30.0",
     "scripts": {
         "dev": "next dev --turbopack",
         "dev:local": "ENV_FILE=.local.env next dev",
@@ -19,6 +20,8 @@
         "types:watch": "tsc -w"
     },
     "dependencies": {
+        "@agenta/annotation": "workspace:../packages/agenta-annotation",
+        "@agenta/annotation-ui": "workspace:../packages/agenta-annotation-ui",
         "@agenta/entities": "workspace:../packages/agenta-entities",
         "@agenta/entity-ui": "workspace:../packages/agenta-entity-ui",
         "@agenta/oss": "workspace:../oss",
@@ -30,7 +33,6 @@
         "@ant-design/cssinjs": "^2.1.0",
         "@ant-design/icons": "^6.1.0",
         "@lexical/code-shiki": "^0.40.0",
-        "@monaco-editor/react": "^4.7.0-rc.0",
         "@phosphor-icons/react": "^2.1.10",
         "@reduxjs/toolkit": "^2.8.2",
         "@tanstack/query-core": "^5.90.20",
@@ -43,10 +45,9 @@
         "@types/react-resizable": "^3.0.7",
         "@types/react-window": "^1.8.8",
         "@types/recharts": "^2.0.1",
-        "@types/uuid": "^10.0.0",
         "antd": "^6.1.3",
         "autoprefixer": "10.4.20",
-        "axios": "^1.13.5",
+        "axios": "1.16.0",
         "classnames": "^2.3.2",
         "clsx": "^2.1.1",
         "crisp-sdk-web": "^1.0.26",
@@ -57,13 +58,13 @@
         "jotai": "^2.16.1",
         "jotai-eager": "^0.2.4",
         "jotai-family": "^1.0.1",
-        "jotai-immer": "^0.4.1",
+        "jotai-immer": "^0.4.3",
         "jotai-scheduler": "^0.0.5",
         "jotai-tanstack-query": "^0.11.0",
         "js-yaml": "^4.1.1",
         "jsonrepair": "^3.13.2",
-        "lodash": ">=4.17.23",
-        "postcss": "^8.5.6",
+        "lodash": ">=4.18.0",
+        "postcss": "^8.5.10",
         "posthog-js": "^1.223.3",
         "rc-virtual-list": "^3.19.2",
         "react": "^19.0.0",
@@ -80,7 +81,8 @@
         "typescript": "5.8.3",
         "use-animation-frame": "^0.2.1",
         "usehooks-ts": "^3.1.0",
-        "uuid": "^11.1.0"
+        "uuid": "^11.1.1",
+        "webpack": "^5.104.1"
     },
     "devDependencies": {
         "@agenta/web-tests": "workspace:../tests",

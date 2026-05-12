@@ -1,12 +1,19 @@
 import {memo, useMemo} from "react"
 
+import type {MessageContent} from "@agenta/shared/types"
+import {getAttachments} from "@agenta/shared/utils"
+
+import ImagePreview from "../components/presentational/attachments/ImagePreview"
+
 import {DEFAULT_ROLE_COLOR_CLASS, ROLE_COLOR_CLASSES} from "./constants"
 import {
     extractChatMessages,
     normalizeChatMessages,
+    selectPreviewChatMessages,
     truncateContent,
     tryParseJson,
     type ChatExtractionPreference,
+    type ChatPreviewStrategy,
 } from "./utils"
 
 interface ChatMessagesCellContentProps {
@@ -24,6 +31,8 @@ interface ChatMessagesCellContentProps {
     showDividers?: boolean
     /** Hint for chat extraction direction in mixed payloads */
     chatPreference?: ChatExtractionPreference
+    /** Strategy for selecting the truncated table preview */
+    previewStrategy?: ChatPreviewStrategy
 }
 
 /**
@@ -48,12 +57,22 @@ const getContentString = (content: unknown): string => {
     if (content === null || content === undefined) return ""
     if (typeof content === "string") return content
     if (Array.isArray(content)) {
-        // Handle OpenAI content array format
-        const textPart = content.find((c: unknown) => {
-            const part = c as Record<string, unknown> | null
-            return part?.type === "text"
-        }) as Record<string, unknown> | undefined
-        if (textPart?.text) return String(textPart.text)
+        const textParts = content
+            .map((entry: unknown) => {
+                const part = entry as Record<string, unknown> | null
+                return part?.type === "text" && typeof part.text === "string" ? part.text : null
+            })
+            .filter((part): part is string => Boolean(part?.trim()))
+
+        if (textParts.length > 0) {
+            return textParts.join("\n\n")
+        }
+
+        const hasAttachmentParts = content.some((entry: unknown) => {
+            const part = entry as Record<string, unknown> | null
+            return part?.type === "image_url" || part?.type === "file"
+        })
+        if (hasAttachmentParts) return ""
     }
     // Use compact JSON (no pretty printing) to minimize rendered lines
     try {
@@ -61,6 +80,15 @@ const getContentString = (content: unknown): string => {
     } catch {
         return String(content)
     }
+}
+
+const getImageUrls = (content: unknown): string[] => {
+    if (!Array.isArray(content)) return []
+
+    return getAttachments(content as MessageContent)
+        .filter((attachment) => attachment.type === "image_url")
+        .map((attachment) => attachment.image_url?.url?.trim())
+        .filter((url): url is string => Boolean(url))
 }
 
 interface SingleMessageProps {
@@ -82,6 +110,7 @@ const CHARS_PER_LINE = 80
 const SingleMessage = memo(
     ({message, keyPrefix, index, truncate, maxLines, showDivider}: SingleMessageProps) => {
         const contentString = useMemo(() => getContentString(message.content), [message.content])
+        const imageUrls = useMemo(() => getImageUrls(message.content), [message.content])
         // Calculate max chars based on maxLines to prevent overflow
         const maxChars = maxLines * CHARS_PER_LINE
         const displayContent = useMemo(
@@ -99,6 +128,18 @@ const SingleMessage = memo(
                 {displayContent && (
                     <span className="whitespace-pre-wrap break-words block">{displayContent}</span>
                 )}
+                {imageUrls.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                        {imageUrls.map((imageUrl, imageIndex) => (
+                            <ImagePreview
+                                key={`${keyPrefix}-${index}-image-${imageIndex}`}
+                                src={imageUrl}
+                                alt={`Message attachment ${imageIndex + 1}`}
+                                size={truncate ? 36 : 56}
+                            />
+                        ))}
+                    </div>
+                )}
                 {message.tool_calls && message.tool_calls.length > 0 && (
                     <div className="flex flex-col gap-1">
                         <span className="text-xs font-medium">Tool Calls:</span>
@@ -113,45 +154,6 @@ const SingleMessage = memo(
     },
 )
 SingleMessage.displayName = "SingleMessage"
-
-/**
- * Select messages that fit within maxTotalLines budget
- * Each message takes: 1 line for role + content lines (capped by maxLinesPerMessage)
- */
-const selectMessagesToFit = (
-    messages: unknown[],
-    maxTotalLines: number,
-    maxLinesPerMessage: number,
-): {selected: unknown[]; totalCount: number} => {
-    const totalCount = messages.length
-    if (!maxTotalLines) {
-        return {selected: messages, totalCount}
-    }
-
-    const selected: unknown[] = []
-    let usedLines = 0
-    const ROLE_LINE = 1
-
-    for (const msg of messages) {
-        // Each message will use at most: 1 role line + maxLinesPerMessage content lines
-        // Content is truncated to maxLinesPerMessage * CHARS_PER_LINE chars
-        const msgLines = ROLE_LINE + maxLinesPerMessage
-
-        if (usedLines + msgLines > maxTotalLines) {
-            break
-        }
-
-        selected.push(msg)
-        usedLines += msgLines
-    }
-
-    // Always show at least one message
-    if (selected.length === 0 && messages.length > 0) {
-        selected.push(messages[0])
-    }
-
-    return {selected, totalCount}
-}
 
 /**
  * Renders chat messages (OpenAI format) as lightweight plain text blocks.
@@ -174,6 +176,7 @@ const ChatMessagesCellContent = memo(
         truncate = true,
         showDividers = true,
         chatPreference,
+        previewStrategy,
     }: ChatMessagesCellContentProps) => {
         // Memoize message extraction and smart selection together
         const {displayMessages, totalCount} = useMemo(() => {
@@ -183,17 +186,17 @@ const ChatMessagesCellContent = memo(
             if (!extracted) return {displayMessages: [], totalCount: 0}
 
             // Smart selection: pick messages that fit within line budget
-            const {selected, totalCount: total} = selectMessagesToFit(
-                extracted,
-                maxTotalLines ?? 0,
-                maxLines,
-            )
+            const {selected, totalCount: total} = selectPreviewChatMessages(extracted, {
+                maxTotalLines: maxTotalLines ?? 0,
+                maxLinesPerMessage: maxLines,
+                strategy: truncate ? previewStrategy : "first",
+            })
 
             // Only normalize the selected messages
             const normalized = normalizeChatMessages(selected)
 
             return {displayMessages: normalized, totalCount: total}
-        }, [value, maxTotalLines, maxLines, chatPreference])
+        }, [value, maxTotalLines, maxLines, chatPreference, previewStrategy, truncate])
 
         if (displayMessages.length === 0) {
             return null

@@ -1,3 +1,4 @@
+import {SYSTEM_FIELDS} from "@agenta/entities/testcase"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
@@ -159,28 +160,6 @@ export interface Column {
     name: string
 }
 
-/**
- * System fields to exclude from column derivation
- */
-const SYSTEM_FIELDS = new Set([
-    "id",
-    "key",
-    "testset_id",
-    "set_id",
-    "created_at",
-    "updated_at",
-    "deleted_at",
-    "created_by_id",
-    "updated_by_id",
-    "deleted_by_id",
-    "flags",
-    "tags",
-    "meta",
-    "__isSkeleton",
-    "testcase_dedup_id",
-    "__dedup_id__",
-])
-
 // ============================================================================
 // LOCAL COLUMN STATE (REVISION-SCOPED)
 // Tracks columns added locally that don't exist in entity data yet
@@ -329,21 +308,30 @@ export const currentColumnsAtom = atom((get) => {
     const entityKeys = get(currentColumnKeysAtom)
     const localCols = get(localColumnsAtom)
     const deletedCols = get(deletedColumnsAtom)
+    const pendingRenames = get(pendingColumnRenamesAtom)
 
     // Start with entity keys
     const columnMap = new Map<string, Column>()
 
     // Add columns from entities
     entityKeys.forEach((key) => {
-        if (!deletedCols.has(key)) {
-            columnMap.set(key, {key, name: key})
+        const effectiveKey = pendingRenames.get(key) ?? key
+
+        if (!deletedCols.has(effectiveKey)) {
+            columnMap.set(effectiveKey, {key: effectiveKey, name: effectiveKey})
         }
     })
 
     // Add local columns (explicitly added but no data yet)
     localCols.forEach((col) => {
-        if (!deletedCols.has(col.key) && !columnMap.has(col.key)) {
-            columnMap.set(col.key, col)
+        const effectiveKey = pendingRenames.get(col.key) ?? col.key
+
+        if (!deletedCols.has(effectiveKey) && !columnMap.has(effectiveKey)) {
+            columnMap.set(effectiveKey, {
+                ...col,
+                key: effectiveKey,
+                name: effectiveKey === col.key || col.name !== col.key ? col.name : effectiveKey,
+            })
         }
     })
 
@@ -442,6 +430,9 @@ function collectObjectSubKeysRecursive(
     if (currentDepth >= MAX_COLUMN_DEPTH) return
 
     Object.entries(obj).forEach(([subKey, subValue]) => {
+        // Never expose internal fields as nested columns.
+        if (subKey.startsWith("__")) return
+
         const fullPath = prefix ? `${prefix}.${subKey}` : subKey
 
         // Skip if this path is marked as deleted
@@ -679,8 +670,8 @@ export const renameColumnAtom = atom(
         if (!trimmedNewName) return false
         if (oldName === trimmedNewName) return true
 
-        // Check if new name already exists
-        const currentCols = get(currentColumnsAtom)
+        // Check expanded columns so object-derived leaf columns cannot overwrite siblings.
+        const currentCols = get(expandedColumnsAtom)
         if (currentCols.some((c) => c.key === trimmedNewName && c.key !== oldName)) return false
 
         // IMPORTANT: Rename in entities BEFORE adding pending rename

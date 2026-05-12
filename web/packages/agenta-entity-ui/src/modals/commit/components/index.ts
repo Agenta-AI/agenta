@@ -7,6 +7,7 @@ export type {
     EntityCommitModalProps,
     CommitSubmitParams,
     CommitSubmitResult,
+    CommitCreateFieldsConfig,
 } from "./EntityCommitModal"
 export {EntityCommitTitle} from "./EntityCommitTitle"
 export {EntityCommitContent} from "./EntityCommitContent"

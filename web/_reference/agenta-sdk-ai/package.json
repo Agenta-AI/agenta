@@ -1,0 +1,21 @@
+{
+  "name": "@agenta/sdk-ai",
+  "version": "0.1.0",
+  "description": "Agenta SDK — Vercel AI SDK adapter (traced responses, agent builder with prompts)",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0"
+  },
+  "dependencies": {
+    "@agenta/sdk": "workspace:../agenta-sdk",
+    "@agenta/sdk-tracing": "workspace:../agenta-sdk-tracing"
+  },
+  "peerDependencies": {
+    "@opentelemetry/api": "^1",
+    "ai": ">=4"
+  }
+}

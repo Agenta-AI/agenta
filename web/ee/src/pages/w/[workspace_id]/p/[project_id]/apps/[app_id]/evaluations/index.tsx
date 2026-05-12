@@ -1,3 +1,5 @@
+import {memo} from "react"
+
 import EvaluationsView from "@/oss/components/pages/evaluations/EvaluationsView"
 import {useAppId} from "@/oss/hooks/useAppId"
 
@@ -6,4 +8,4 @@ const AppEvaluationsPage = () => {
     return <EvaluationsView scope="app" appId={appId} />
 }
 
-export default AppEvaluationsPage
+export default memo(AppEvaluationsPage)
