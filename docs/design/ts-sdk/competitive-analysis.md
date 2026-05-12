@@ -2,21 +2,26 @@
 
 > **Purpose.** Input for the agenta TS SDK RFC. Compares the two closest competitors that ship TypeScript SDKs covering the full surface area agenta is rebuilding — tracing, prompts, datasets, evals, scoring, media, annotations, sessions, plus the platform-glue (auth, multi-project, CLI, query). Findings are framed against the `ts-sdk-tracing` spike's 11 pain entries AND agenta's existing Python SDK managers (`AppManager`, `VariantManager`, `DeploymentManager`, `ConfigManager`, `SecretsManager`, `VaultManager`, `testsets`).
 >
-> **Methodology.** Three audit passes:
+> **Methodology.** Four audit passes:
 > - **v1** (2026-05-11): web research synthesis. Multiple wrong claims.
 > - **v2** (2026-05-11): source-code audit of tracing + export surfaces, both repos cloned locally, file:line citations. Corrected ~18 v1 claims.
-> - **v3** (2026-05-11, this version): source audit of every NON-tracing surface — prompts, datasets, evals/experiments, scoring, media, annotations, sessions, functions, CLI, auth, configuration, cost tracking, query/read-back. File:line citations throughout.
+> - **v3** (2026-05-11): source audit of every NON-tracing surface — prompts, datasets, evals/experiments, scoring, media, annotations, sessions, functions, CLI, auth, configuration, cost tracking, query/read-back. File:line citations throughout.
+> - **v4** (2026-05-12, this version): **empirical evidence** from the `ts-sdk-chore/example-apps` branch — eight spike apps fan IDENTICAL OTel span data out to Agenta + Braintrust + Langfuse in parallel via `SimpleSpanProcessor`s on a shared `NodeTracerProvider`. Real trace counts pulled via REST API. Two new pain entries discovered (P-BRAINTRUST-01 silent data-plane mismatch, P-LANGFUSE-01 no server-side scope filter). One v3 claim corrected.
 >
 > **Sources audited.**
 > - Braintrust: `braintrust` v3.10.0 — [`github.com/braintrustdata/braintrust-sdk-javascript`](https://github.com/braintrustdata/braintrust-sdk-javascript). 193 ts files in `js/src/`, 8 satellite packages in `integrations/`. Core entrypoint: `js/src/exports.ts` (288 lines re-exporting from `logger.ts` (~8700 lines), `framework.ts`, `framework2.ts`).
 > - Langfuse: `@langfuse/*` v5.3.0 — [`github.com/langfuse/langfuse-js`](https://github.com/langfuse/langfuse-js). Six scoped packages. Composition root: `packages/client/src/LangfuseClient.ts` mounts five named managers (`prompt`, `dataset`, `score`, `media`, `experiment`) + raw Fern-generated `api.*` (24 resource namespaces).
 > - GitHub issue [#12643](https://github.com/langfuse/langfuse/issues/12643) — verified OPEN, body confirms AI SDK v6 abort failure mode.
+> - **Empirical layer** (v4): companion doc [`docs/design/ts-sdk-tracing/sdk-comparison.md`](../ts-sdk-tracing/sdk-comparison.md) on branch `ts-sdk-chore/example-apps`. Tri-export wired across 8 spike apps. Trace counts verified via Agenta `POST /api/spans/query`, Braintrust `POST /v1/project_logs/<id>/fetch`, Langfuse `GET /api/public/traces`.
+>
+> **The vendor-SDK vs raw-OTLP distinction matters.** Most of the source-audit findings (§§3-13) describe behavior that runs INSIDE each vendor's SDK. The empirical layer wires raw `@opentelemetry/exporter-trace-otlp-proto` directly to each backend's OTLP endpoint — **bypassing all vendor SDK logic**. Many features documented below (Langfuse's `isDefaultExportSpan` scope filter, Braintrust's wrap-based attribute mapping, both `propagateAttributes`) only fire when the user installs the vendor SDK. The raw OTLP path is what agenta will ship — what we ourselves emit and what backends do with it on receipt.
 
 ---
 
 ## Table of contents
 
 0. [TL;DR](#0-tldr)
+0.5. [Empirical evidence: tri-export across 8 spike apps](#05-empirical-evidence-tri-export-across-8-spike-apps)
 1. [Package layout & install surface](#1-package-layout--install-surface)
 2. [Initialization & state model](#2-initialization--state-model)
 3. [Tracing API surface](#3-tracing-api-surface)
@@ -83,6 +88,98 @@
 - **Edge runtime tracing**: Braintrust ships per-runtime bundles; Langfuse is Node-only. Neither solves the OTel-on-edge problem cleanly.
 - **Annotations**: only Langfuse ships them (raw API only, no manager). Braintrust gap.
 - **Sessions/users**: only Langfuse ships them as first-class. Braintrust gap.
+- **v4 empirical correction**: when wired via raw OTLP (no vendor SDK), Langfuse stores ALL spans including non-LLM wrappers — its scope filter is JS-SDK-only (P-LANGFUSE-01). Braintrust silently drops spans on data-plane mismatch with no error feedback (P-BRAINTRUST-01).
+
+---
+
+## 0.5 Empirical evidence: tri-export across 8 spike apps
+
+> Source: companion doc [`docs/design/ts-sdk-tracing/sdk-comparison.md`](../ts-sdk-tracing/sdk-comparison.md). Eight spike apps on the `ts-sdk-chore/example-apps` branch fan IDENTICAL OTel span data out to all three backends via parallel `SimpleSpanProcessor` instances on the same `NodeTracerProvider`. Differences below are about what each platform DOES with that identical input, not what the SDK produces.
+
+### Wiring cost on top of agenta baseline
+
+Lines added to a baseline Agenta-only instrumentation file to enable each additional backend on raw OTLP. **All three backends accept standard OTLP** — no vendor SDK required.
+
+| Backend | Env vars | Auth header | Critical config | Total LoC added |
+|---|---|---|---|---|
+| Agenta (baseline) | 4 (`AGENTA_HOST`, `AGENTA_API_KEY`, `AGENTA_PROJECT_ID`, `AGENTA_OTLP_PATH`) | `Authorization: ApiKey <key>` | `project_id` query param | n/a |
+| + Braintrust | 2 (`BRAINTRUST_API_KEY`, `BRAINTRUST_OTLP_URL`) | `Authorization: Bearer <key>` + `x-bt-parent: project_name:<name>` | **Must match org's data plane (US `api.braintrust.dev` vs EU `api-eu.braintrust.dev`)** | ~8 |
+| + Langfuse | 3 (`LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`) | `Authorization: Basic <base64(pk:sk)>` + optional `x-langfuse-ingestion-version: 4` | Both pk+sk required (single key fails) | ~12 (extra line for base64) |
+
+The wiring is mechanically simple. **Strategic implication**: tri-export with one OTel pipeline is real and works. Customers can wire N observability backends in ~20 lines of additional code.
+
+### Verified trace counts (2026-05-12, REST API)
+
+After fixing the Braintrust data-plane URL (US → EU) and re-running all 8 apps:
+
+| App / `service.name` | Agenta assertions | Langfuse traces | Braintrust events |
+|---|---|---|---|
+| `vercel-ai-quickstart` (root v4) | n/a | 1 | 2 |
+| `vercel-ai-spike-node` (Phase 1) | **4/4 PASS** | 12 | 9 |
+| `vercel-ai-spike-app-router-raw` (Phase 2a) | **4/4 PASS** | 5 | 33 |
+| `vercel-ai-spike-app-router-vercel` (Phase 2b) | **4/4 PASS** | 11 | 33 |
+| `vercel-ai-spike-pages-raw` (Phase 3a) | **4/4 PASS** | 5 | 17 |
+| `vercel-ai-spike-pages-vercel` (Phase 3b) | **4/4 PASS** | 5 | 20 |
+| `vercel-ai-spike-tanstack-start` (Phase 4) | **4/4 PASS** | 4 | 7 |
+| `vercel-ai-spike-nuxt-raw` (Phase 5) | **4/4 PASS** | 6 | 6 |
+
+**Why the counts differ:**
+- Agenta stores spans individually.
+- Langfuse groups child spans under a root trace ID. `totalItems` = root-trace count, not span count.
+- Braintrust stores each span as its own event (flat). Event count = span count. Next.js apps have 6-7× more events because of HTTP-auto-instrumentation wrapper-span explosion.
+
+### Side-by-side: same `ai.streamText` span, three backends
+
+Pulled from each backend's REST API for the IDENTICAL span from the same `POST /api/chat` request (Phase 2b):
+
+| Field | Agenta | Braintrust (EU) | Langfuse |
+|---|---|---|---|
+| Span name | `ai.streamText.doStream` | `ai.streamText` (child of HTTP wrapper) | Trace root: `POST /api/chat/route` · AI span as child observation |
+| Inputs | `ag.data.inputs` = `{prompt: [{role:"user", content: [{text:"..."}]}]}` | `input` = `[{content:"...", role:"user"}]` | `input` = `{messages:[{role:"user",content:[{type:"text",text:"..."}]}]}` |
+| Outputs | `ag.data.outputs` = `"ok."` | `output` = `[{content:"ok.", role:"assistant"}]` | `output` = `"ok."` |
+| Token usage | `ag.metrics.tokens.incremental` = `{prompt:12, completion:3, total:15}` | `metadata.ai.usage.inputTokens=12, outputTokens=3` | Rolled up into `totalCost` |
+| Cost | `ag.metrics.costs` = `{}` (**NOT computed**) | Per-event, not aggregated in default fetch | `totalCost` = `3.6e-06` (computed from `gen_ai.usage.*`) |
+| Latency | Per-span `duration.cumulative` | Per-event `metrics.start/end` | `latency` = `0.973s` (rolled up trace-level) |
+| Metadata propagation (`userId`, `sessionId`) | On every span | On every event | At trace root |
+| Trace structure visibility | Spans flat; UI picks ONE as trace-list row (P-COMMON-01 picks wrapper, not LLM) | Flat event stream with `span_parents` to reconstruct tree | Tree-first: 1 root + N child observations. Cost/latency rollup at root |
+
+**Empirical observations from the same span:**
+
+1. **All three backends have the LLM payload.** Data is not lost; it's about UI surfacing.
+2. **Agenta does NOT compute cost** (`ag.metrics.costs = {}`). Braintrust + Langfuse both compute `totalCost` from `gen_ai.usage.*`. **RFC implication**: cost calculation is server-side work, not SDK work.
+3. **Langfuse rolls up to trace level.** Trace-list row shows totalCost + latency aggregated. Agenta's trace-list row shows the Next HTTP wrapper with empty metrics. P-COMMON-01 is the gap.
+4. **Braintrust UI hierarchy comes from `span_parents`** in flat events. Same data, different rendering choice.
+
+### Two new pain entries from the empirical work
+
+#### P-BRAINTRUST-01: silent data-plane mismatch on US-default OTLP endpoint
+
+**Mechanism**: Braintrust runs separate data planes (US `api.braintrust.dev`, EU `api-eu.braintrust.dev`). SDK + docs default to US. If user's org is on EU:
+
+1. OTLP requests to US endpoint accept body and auto-create projects via `x-bt-parent` header.
+2. Projects show up in US-plane `GET /v1/project` listings.
+3. **But span data is silently rejected/unrouted.** `POST /v1/project_logs/<id>/fetch` on US plane returns HTTP 421 `DataPlaneRedirectError`.
+4. OTLP exporter logs no error. `SimpleSpanProcessor` does not surface failure. Spans silently lost.
+
+**Discovery cost**: ~3 hours. Pre-Phase-8 doc claimed "Live (200)" for Braintrust based on the false assumption that test PASS implied delivery.
+
+**Generalizable lesson**: OTel exporters log HTTP errors to stderr and swallow them silently. **Multi-backend OTel pipelines need REST-API-based delivery verification, not just assertion PASS.** Applies to any future `@agenta/sdk-tracing` that ships multi-backend fan-out.
+
+#### P-LANGFUSE-01: no server-side scope filter when receiving raw OTLP
+
+**Earlier wrong claim** (v2/v3 of this doc, and Phase 8 of the spike): "Langfuse drops non-LLM scope spans server-side, per @langfuse/otel precedent."
+
+**Empirical reality**: when sending raw OTLP to `https://cloud.langfuse.com/api/public/otel/v1/traces` (i.e., NOT using `@langfuse/otel`), Langfuse stores **every span** including Next.js HTTP wrapper spans with null input/output. The `isDefaultExportSpan` filter lives **inside their JS SDK**, running client-side before export. On raw OTLP, Langfuse behaves identically to Agenta — both store all spans, both have wrapper spans in the trace list.
+
+**RFC implication**: the scope filter pattern is **portable to agenta's backend**, not unique to Langfuse. P-COMMON-01 is backend-fixable on agenta's side with the same filter logic Langfuse's SDK applies client-side. **Strictly cleaner architecture** than asking users to install a JS SDK with yet another SpanProcessor.
+
+### Implications for the RFC
+
+1. **Tri-export pattern works.** Users can fan one OTel pipeline out to N backends with ~10-12 LoC per extra backend. **The case for `@agenta/sdk-tracing` is no longer "wraps OTel ergonomically"** — that's not enough to differentiate. The case is "**hides config gotchas that silently lose data**" (P-BRAINTRUST-01) and "**solves what raw OTLP can't**" (the AI SDK v6 abort lifecycle bugs from §5).
+2. **Same wire, three UIs.** Different rendering choices (Agenta = flat spans + UI picks one as root, Braintrust = flat + parent refs, Langfuse = tree-with-rollup) — that's a backend display question, not an SDK question.
+3. **Vendor SDK features ≠ raw OTLP behavior.** Most "features" my §§3-13 source audit documented run only inside vendor SDKs. On raw OTLP (what agenta will produce + receive), most of those features don't fire. The filter logic, attribute propagation, mask functions — all of these are JS-SDK-side. The pattern is portable to agenta's backend if we want it.
+4. **Cost computation is server-side.** Both competitors do it; Agenta currently doesn't. Trivial backend fix.
+5. **No SDK escape from data-plane gotchas.** Whatever we ship needs to surface delivery health explicitly — `SimpleSpanProcessor`'s success callback is not proof of delivery.
 
 ---
 
@@ -323,7 +420,7 @@ This section maps directly to the spike's pain log (P-NODE-02, P-APP-VERCEL-01, 
 
 ### Braintrust — proprietary batched queue + OTel as opt-in
 
-- **Wire**: REST endpoint `logs3` (NOT `/logs`). POST at [`logger.ts:3231-3236`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts).
+- **Wire**: REST endpoint `logs3` (NOT `/logs`). POST at [`logger.ts:3231-3236`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts). **Empirical finding** (P-BRAINTRUST-01, v4): Braintrust runs separate data planes (US `api.braintrust.dev`, EU `api-eu.braintrust.dev`). OTLP requests to the wrong plane silently auto-create projects via `x-bt-parent` but the trace storage is unreachable. Response is HTTP 200 — OTel exporter has no signal. Multi-region OTel pipelines need explicit REST-API delivery verification, not just span-export-success.
 - **Queue**: bg worker with FIFO + drop-newest-when-full ([`queue.ts:31-49`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/queue.ts)). `HTTPBackgroundLogger.defaultBatchSize = 100`. `DEFAULT_MAX_REQUEST_SIZE = 6MB`.
 - **`beforeExit` flush** registered automatically ([`logger.ts:2880-2884`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/js/src/logger.ts)). Best-effort only (doesn't run on `process.exit()` or uncaught).
 - **OTel mode**: `BraintrustExporter` wraps `BraintrustSpanProcessor` ([`integrations/otel-js/src/otel.ts:637-691`](https://github.com/braintrustdata/braintrust-sdk-javascript/blob/main/integrations/otel-js/src/otel.ts)); HTTP layer is upstream `OTLPTraceExporter`. POST to `${apiUrl}/otel/v1/traces` with `x-bt-parent` header.
@@ -338,7 +435,7 @@ This section maps directly to the spike's pain log (P-NODE-02, P-APP-VERCEL-01, 
 - **Default batching is upstream OTel defaults** (`maxExportBatchSize: 512`, `scheduledDelayMillis: 5000`) — NOT Langfuse-specific, only overridden if env vars set.
 - **`forceFlush()` is a strict superset of OTel's** — also flushes pending media uploads ([`span-processor.ts:187, 356-379`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/span-processor.ts)).
 - **Mask function** ([`span-processor.ts:444-462`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/span-processor.ts)) — async-aware, six attribute slots, on-throw sentinel `"<fully masked due to failed mask function>"`. Runs BEFORE media extraction.
-- **Default span filter** `isDefaultExportSpan` ([`span-filter.ts:35-39`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/span-filter.ts)) — exports Langfuse-emitted spans, any `gen_ai.*` attribute, or known LLM scope (`ai`, `langsmith`, `openinference`, `litellm`).
+- **Default span filter** `isDefaultExportSpan` ([`span-filter.ts:35-39`](https://github.com/langfuse/langfuse-js/blob/main/packages/otel/src/span-filter.ts)) — exports Langfuse-emitted spans, any `gen_ai.*` attribute, or known LLM scope (`ai`, `langsmith`, `openinference`, `litellm`). **This runs INSIDE `@langfuse/otel`'s `LangfuseSpanProcessor`, JS-SDK-side only.** Empirically verified (P-LANGFUSE-01, v4): when sending raw OTLP to `https://cloud.langfuse.com/api/public/otel/v1/traces` (bypassing `@langfuse/otel`), Langfuse stores ALL spans including non-LLM Next.js HTTP wrappers with null input/output. **No server-side filter exists.**
 - **Edge support**: **none for tracing**. Both `@langfuse/otel` AND `@langfuse/tracing` declare `engines.node >= 20`. `@vercel/otel` explicitly recommended against in docs.
 
 ### AI SDK v6 abort — source-confirmed gap on both sides
@@ -1160,6 +1257,7 @@ Client can set at span-creation: `LangfuseGenerationAttributes.costDetails?: {[k
 ### Agenta parity
 
 - Server-side cost in `evaluations` / `traces`.
+- **Empirical finding (v4, 2026-05-12)**: from real tri-export data on the same `ai.streamText` span — `ag.metrics.costs = {}` (NOT computed); Langfuse server returns `totalCost = 3.6e-06` (computed from `gen_ai.usage.*`); Braintrust per-event metrics. **Agenta currently doesn't compute cost server-side**, but the raw token data IS landing (`ag.metrics.tokens.incremental = {prompt:12, completion:3, total:15}`). Trivial backend fix to add.
 
 ### Implication for agenta
 
@@ -1167,6 +1265,7 @@ Client can set at span-creation: `LangfuseGenerationAttributes.costDetails?: {[k
 2. **Mirror `parseMetricsFromUsage` and `parseCachedHeader` helpers** (Braintrust pattern) — 40 lines each, cover OpenAI/Anthropic shapes including cached tokens.
 3. **`costDetails: Record<string, number>` server-returned, untyped USD bag** (Langfuse pattern). Don't model currency at type level — Langfuse tried and quietly broke it.
 4. **`Model.pricingTiers` with conditional tiers from day one** — Langfuse hit migration pain when adding tiered pricing on top of flat. Don't repeat.
+5. **Wire `gen_ai.usage.*` → cost computation on the backend.** Token data already lands; just need a pricing table + rollup. Closes the empirically-observed gap with both competitors.
 
 ---
 
@@ -1437,22 +1536,33 @@ Consolidated decision points across all surfaces. Updated to 26 from v2's 17.
 - **D74. Migration plan: one consolidated v1→v2 cut**, with `bind()` re-export compat shim. Don't repeat Langfuse's three-release tax.
 - **D75. In-repo `MIGRATION.md`** alongside CHANGELOG.
 
+### Empirical-evidence-driven (v4)
+
+- **D76. Surface per-destination delivery health.** P-BRAINTRUST-01 lesson generalizes: OTel exporters return success on HTTP 200 even when the gateway accepts the request but storage is unreachable. If `@agenta/sdk-tracing` fans out to multiple backends, surface explicit delivery status per destination (e.g., periodic health-ping via REST API; warning log on first failure; opt-in metrics callback). `SimpleSpanProcessor`'s success callback is not proof of delivery.
+- **D77. Document data-plane / multi-region selection loudly.** Don't bury alternative endpoints in docs. If agenta ever ships an EU/US data plane split, default to a config error (not silent US fallback) when ambiguous. If agenta documents fan-out to Braintrust, lead with the data-plane callout — saves users the ~3 hours of empirical discovery.
+- **D78. Scope-filter logic belongs at ingest/render, NOT as a JS SpanProcessor.** P-LANGFUSE-01 confirms: Langfuse's `isDefaultExportSpan` filter is JS-SDK-only. Raw OTLP to Langfuse stores everything. The pattern is portable to agenta's backend with the same effect — clean trace lists in the UI without requiring users to install yet another SDK. **Cleaner architecture than the Langfuse SpanProcessor approach.**
+- **D79. The tri-export pattern is real.** Customers can wire Agenta + Braintrust + Langfuse + others in ~10-12 LoC per extra backend via `SimpleSpanProcessor` fan-out on one `NodeTracerProvider`. **The case for `@agenta/sdk-tracing` is no longer "wraps OTel ergonomically"** (insufficient differentiation) — it's "hides config gotchas that silently lose data" + "solves what raw OTLP can't" (AI SDK v6 abort lifecycle bugs).
+- **D80. Cost computation server-side, populated from `gen_ai.usage.*`.** Empirical gap: agenta currently returns `ag.metrics.costs = {}` while Langfuse computes `totalCost` from the same wire data. Trivial backend fix. Don't move cost to the SDK.
+
 ---
 
 ## 22. Differentiation opportunities (ranked by leverage)
 
 1. **AI SDK v6 streamText + abort flush correctness.** Source confirms neither competitor handles this. Langfuse issue #12643 OPEN. Braintrust no `AbortSignal` handling in `wrappers/ai-sdk/`. **Headline.**
 2. **Edge runtime tracing that actually works.** Langfuse not supported. Braintrust ships per-runtime bundles but proprietary wire. Spike-validated pain.
-3. **Annotation queues with a high-level manager.** Langfuse only exposes raw API. Friction point.
-4. **First-class scope-bound user/session propagation + W3C baggage** + 200-char-WARN-not-silent.
-5. **Stale-while-revalidate prompt cache + optional disk layer** (Langfuse + Braintrust combined).
-6. **Failed evaluator → `dataType: "ERROR"` score**, not silently dropped (Langfuse anti-pattern fix).
-7. **TanStack Start documentation + helper.** Neither competitor documents it. P-TANSTACK-01 captured. Low-effort win.
-8. **One consolidated v1→v2 migration** with `bind()` compat shim, not three breaking releases.
-9. **`asyncFlush` per-call typed boolean** (Braintrust pattern, lift).
-10. **`--dev` mode server for web playground integration** if shipping CLI.
-11. **Manager + raw API split** (Langfuse 5-manager pattern) — discoverable + escape hatch.
-12. **Symbol-keyed globalThis state for cross-bundle survival** (Braintrust pattern).
+3. **Multi-backend delivery health verification (v4).** P-BRAINTRUST-01 proves OTel exporters silently lose data on data-plane mismatch. **No vendor SDK surfaces this**; raw OTel doesn't either. A wrapper SDK that ping-checks each destination via REST API and surfaces failures explicitly is concrete differentiation. The pain is real and the solution is small.
+4. **Server-side scope filter (v4)** for P-COMMON-01 (Next.js wrapper-span clutter). P-LANGFUSE-01 confirms Langfuse only does this JS-SDK-side, NOT server-side. Agenta can match the UX with a backend filter — strictly cleaner architecture, helps Python SDK + raw OTel users too. Zero JS SDK code required.
+5. **Annotation queues with a high-level manager.** Langfuse only exposes raw API. Friction point.
+6. **First-class scope-bound user/session propagation + W3C baggage** + 200-char-WARN-not-silent.
+7. **Stale-while-revalidate prompt cache + optional disk layer** (Langfuse + Braintrust combined).
+8. **Failed evaluator → `dataType: "ERROR"` score**, not silently dropped (Langfuse anti-pattern fix).
+9. **Cost computation server-side from `gen_ai.usage.*` (v4)** — empirical gap with both competitors. Token data lands; just needs pricing table + rollup. Closes a visible regression on the trace-list UI.
+10. **TanStack Start documentation + helper.** Neither competitor documents it. P-TANSTACK-01 captured. Low-effort win.
+11. **One consolidated v1→v2 migration** with `bind()` compat shim, not three breaking releases.
+12. **`asyncFlush` per-call typed boolean** (Braintrust pattern, lift).
+13. **`--dev` mode server for web playground integration** if shipping CLI.
+14. **Manager + raw API split** (Langfuse 5-manager pattern) — discoverable + escape hatch.
+15. **Symbol-keyed globalThis state for cross-bundle survival** (Braintrust pattern).
 
 ---
 
@@ -1470,11 +1580,23 @@ Consolidated decision points across all surfaces. Updated to 26 from v2's 17.
 
 ---
 
-## Appendix A: v1 → v2/v3 corrections summary
+## Appendix A: v1 → v2/v3/v4 corrections summary
 
 **v1** (web research): ~18 wrong/imprecise claims.
 **v2**: source-audited tracing + export, corrected ~18 claims.
 **v3**: source-audited every non-tracing surface (prompts, datasets, evals, scoring, media, annotations, sessions, functions, CLI, auth, config, cost, query) and added entire new sections (§§6-18).
+**v4**: empirical verification via tri-export to all 3 backends on 8 spike apps. Trace counts pulled from REST API. Two new pain entries (P-BRAINTRUST-01, P-LANGFUSE-01). One v3 claim corrected.
+
+### Notable corrections in v4 (beyond v3)
+
+| Surface | Wrong (v3 implied or stated) | Source-confirmed empirically (v4) |
+|---|---|---|
+| Langfuse scope filter | "`isDefaultExportSpan` filters non-LLM spans" framed as a Langfuse-platform feature | **JS-SDK-only.** Lives inside `@langfuse/otel`'s `LangfuseSpanProcessor`. Raw OTLP to Langfuse cloud stores ALL spans including non-LLM wrappers — no server-side filter exists. P-LANGFUSE-01. |
+| Cross-vendor wire | "Vendor-specific" framing of attribute mappings | **All three backends accept raw OTLP** with ~10-12 LoC additional wiring per backend. The vendor SDKs are layered on top, but the bus is the same. |
+| Delivery confirmation | Implicit assumption that exporter-success = delivery | P-BRAINTRUST-01: OTel exporters return HTTP 200 even when the gateway accepts the request but storage is on a different data plane. Spans silently lost. Multi-backend OTel pipelines need explicit REST-API verification, not just span-export-success. |
+| Cost computation | v3 said "Langfuse `costDetails` server-returned" | v4 confirms with real data: Langfuse server returns `totalCost = 3.6e-06` computed from `gen_ai.usage.*`. **Agenta server currently returns `ag.metrics.costs = {}`** — gap is on agenta's side, not in the SDK. |
+| Trace structure rendering | v3 didn't quantify | v4 has side-by-side: same `ai.streamText` span, three backends. Same data, three rendering choices. Agenta picks the wrong span as trace-list row (P-COMMON-01); Langfuse rolls up to trace level; Braintrust flat events with `span_parents`. |
+| Multi-backend wiring cost | Not measured in v3 | v4: ~8 LoC for +Braintrust, ~12 LoC for +Langfuse on top of agenta baseline. Tri-export pattern works. |
 
 ### Notable corrections in v3 (beyond v2)
 
