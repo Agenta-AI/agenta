@@ -10,69 +10,98 @@
 
 Users cannot tell what TYPE a value is by looking at a rendered editor or table cell. A short string and a number both render as text. An empty string and null both render as nothing. A stringified JSON blob renders identically to a regular long string. Production today surfaces no type indicator anywhere — the user has to read the value carefully or infer from context.
 
+**Full problem breakdown + vocabulary rationale:**
+`web/apps/design-mockups/src/pages/gap-01-type-chips.tsx` — the concept page that defines the chip system, explains all three axes, and describes the type-switching mechanism.
+
 ---
 
 ## Proposal Summary
 
-A small monospace `TypeChip` primitive appears next to field names and column headers on every surface that renders user-authored data: testcase drawer (drill-in), playground execution items, and testset table columns. Same component everywhere. Same vocabulary. The chip is static for now; clicking it is reserved for Phase 2 (`ChipConversionPopover`) with the API already designed to accept `onClick` without call-site changes.
+A small monospace `TypeChip` primitive appears next to field names and column headers on every surface that renders user-authored data: testcase drawer (drill-in), playground execution items, and testset table columns. Same component everywhere. Same vocabulary. The chip is static for now; clicking it is reserved for a later phase (`ChipConversionPopover`) with the API already designed to accept `onClick` without call-site changes.
+
+**Chip design reference:** `web/apps/design-mockups/src/components/proposed/TypeChip.tsx`
+**Conversion popover reference (future):** `web/apps/design-mockups/src/components/proposed/ChipConversionPopover.tsx`
 
 ---
 
 ## Scope
 
 **In scope:**
-- `TypeChip` primitive extracted to `@agenta/ui`
-- Type detection utilities (`detectDataType`, `inferRenderHint`) in `@agenta/ui/drill-in`
+- `TypeChip` primitive (Axis 1 — type primitive) extracted to `@agenta/ui`
+- Type detection utilities (`detectDataType`, `inferRenderHint`, `getViewOptions`) in `@agenta/ui/drill-in`
+- Axis 2 (render hints) and Axis 3 (state/correctness) chips — implemented but **hidden behind flags** (off by default)
 - Testset table column headers: type chips + button-style ±-toggle (Mahmoud's proposal)
 - Testcase drawer: new sub-header toolbar, per-field "View as" dropdown, TypeChip on field headers, Form view with flag gate
 - Playground: compact variable list with TypeChip, flag-gated nested rendering
 
 **Out of scope (this phase):**
-- `ChipConversionPopover` (click-to-convert type action)
+- `ChipConversionPopover` (click-to-convert type action) — full implementation in mockup at `web/apps/design-mockups/src/components/proposed/ChipConversionPopover.tsx`; deferred
 - gap-09 variable provenance / usage states (used / chain / draft / unused)
 - Schema-aware form direction (SchemaForm, gap-07)
-- ProposedDrillIn Row 1 (auto-expand, collision detection, inline message cards)
+- ProposedDrillIn Row 1 (auto-expand, collision detection, inline message cards) — reference: `web/apps/design-mockups/src/components/proposed/ProposedDrillIn.tsx`
 
 ---
 
 ## Chip Vocabulary
 
-Three orthogonal axes. A field may carry chips from multiple axes simultaneously.
+Three orthogonal axes. A field may carry chips from multiple axes simultaneously. **Only Axis 1 is enabled by default.** Axes 2 and 3 are implemented but gated behind flags at the surface level.
 
-### Axis 1 — Type Primitive (always one)
-What the value IS. Solid background, no border.
+### Axis 1 — Type Primitive (always one, always on)
 
-| Variant | Display | Colour |
+What the value IS. Solid background, no border. One chip per field, inferred from `detectDataType(value)`.
+
+| Variant key | Display label | Colour |
 |---|---|---|
 | `string` | string | Neutral grey |
 | `number` | number | Neutral grey |
 | `boolean` | boolean | Neutral grey |
 | `null` | null | Muted grey |
-| `json-object` | object | Blue |
-| `json-array` | array | Teal |
+| `json-object` | object | Blue `#1677ff` |
+| `json-array` | array | Teal `#13c2c2` |
 
-### Axis 2 — Render Hint (optional)
-How the value is rendered. Dashed border + italic so user reads "render mode" not "type".
+Note: variant keys use `json-object` / `json-array` for TS precision (greppable); display labels are `object` / `array`.
+
+### Axis 2 — Render Hint (optional, flag-gated)
+
+How a value is rendered. Dashed border + italic so the user reads "render mode" not "type". Stacks alongside the Axis 1 chip. Inferred from `inferRenderHint(value)`.
+
+**Flag:** `enableRenderHints` on each surface component — default `false`.
 
 | Variant | Display | Meaning |
 |---|---|---|
 | `markdown` | markdown | Long/multiline string, rendered with markdown preview |
 | `stringified` | stringified | String that parses as JSON |
-| `messages` | messages | Array shaped like chat history |
-| `tool-calls` | tool-calls | Array shaped like OpenAI tool calls |
+| `messages` | messages | Array shaped like chat history (role + content per item) |
+| `tool-calls` | tool-calls | Array shaped like OpenAI tool calls (id + type:function + function) |
 
-### Axis 3 — State / Correctness (optional)
-Domain-specific signals. Amber for warnings, red for errors.
+Examples from mockup: `[str][markdown]`, `[str][stringified]`, `[arr][messages]`, `[arr][tool-calls]`
+
+**Mockup reference:**
+- Type detection: `web/apps/design-mockups/src/components/proposed/TypeChip.tsx` → `inferRenderHint()`
+- Usage in drill-in: `web/apps/design-mockups/src/components/proposed/ProposedDrillIn.tsx` (search `renderHint`)
+- Usage in table cells: `web/apps/design-mockups/src/components/proposed/ProposedTableCell.tsx`
+
+### Axis 3 — State / Correctness (optional, flag-gated)
+
+Domain-specific signals that stack alongside type + render-hint chips. Amber for warnings, red for errors.
+
+**Flag:** `enableStateChips` on each surface component — default `false`.
 
 | Variant | Display | Meaning |
 |---|---|---|
 | `mixed` | mixed | Column has heterogeneous types across rows |
-| `collision` | ⚠ collision | Literal-dot key and nested path both exist |
-| `dotted-key` | dotted-key | Literal dotted top-level key |
-| `not-authored` | not authored | Union-projected key missing from this row |
-| `optional` | optional | Schema-defined but not required |
-| `shadowed` | ⚠ shadowed | Literal-key resolution silently overrides nested |
-| `draft` | draft | Referenced in prompt but not yet on testcase |
+| `collision` | ⚠ collision | Literal-dot key and nested path both exist on the same row |
+| `dotted-key` | dotted-key | Literal dotted top-level key (`"geo.region"` as a key, not a path) |
+| `not-authored` | not authored | Union-projected key missing from this row (gap-04) |
+| `optional` | optional | Schema-defined but not required (gap-07, out of scope for now) |
+| `shadowed` | ⚠ shadowed | Literal-key resolution silently overrides nested path |
+| `draft` | draft | Referenced in prompt template but not yet on testcase (gap-09) |
+
+**Mockup references:**
+- Collision + dotted-key detection: `web/apps/design-mockups/src/components/proposed/testsetTableHelpers.ts` → `detectCollisionColumns()`, `detectDottedKeyColumns()`
+- Mixed column detection: `web/apps/design-mockups/src/components/proposed/testsetTableHelpers.ts` → `detectMixedColumns()`
+- Column header warnings consolidated as single indicator: `web/apps/design-mockups/src/components/proposed/ProposedTableCell.tsx` → `CellWarningsIndicator`
+- Drill-in field warnings: `web/apps/design-mockups/src/components/proposed/ProposedDrillIn.tsx` → `FieldWarningsIndicator`
 
 ---
 
@@ -80,85 +109,119 @@ Domain-specific signals. Amber for warnings, red for errors.
 
 ### `TypeChip` — `@agenta/ui/type-chip`
 
-Single presentational primitive used verbatim across all surfaces.
+Single presentational primitive used verbatim across all surfaces. Source of truth for styles, labels, and the three-axis vocabulary.
+
+**Mockup source:** `web/apps/design-mockups/src/components/proposed/TypeChip.tsx` — port this file directly; the `STYLES` map, `AMBIGUOUS_HIDE` set, `inferVariant()`, `inferRenderHint()`, and `BadgeKeyframes` are all production-ready as written.
 
 ```typescript
 interface TypeChipProps {
   variant?: ChipVariant       // explicit variant; inferred from value if omitted
   value?: unknown             // used for inference when variant is not set
-  label?: string              // override display label
+  label?: string              // override display label (e.g. "5 messages")
   ambiguousOnly?: boolean     // when true, hides chip for string / number / boolean
-  onClick?: () => void        // no-op now; wiring this converts chip to <button>
-  notificationBadge?: boolean // reserved for future popover nudge dot
+  onClick?: () => void        // no-op now; wiring this converts chip to <button> with hover lift + focus ring
+  notificationBadge?: boolean // reserved for future popover nudge dot (pulsing purple dot)
+  badgeTooltip?: string       // tooltip for the badge
 }
 ```
 
-**Forward-compatibility contract:** when `onClick` is undefined the chip renders as a static `<span>`. When `onClick` is provided it renders as a `<button>` with hover lift and focus ring. Adding `ChipConversionPopover` later is: wrap `<TypeChip onClick={openPopover} />` in a popover at the call site. Zero changes to `TypeChip` internals or any other call site.
+**Forward-compatibility contract:** when `onClick` is undefined the chip renders as a static `<span>`. When `onClick` is provided it renders as a `<button>` with hover lift (`translateY(-1px)`) and focus ring. Adding `ChipConversionPopover` later requires: wrap `<TypeChip onClick={openPopover} />` in a popover at the call site. Zero changes to `TypeChip` internals or any existing call site.
+
+**`ChipVariant` type** is exported separately so surfaces can type their chip props without importing the full component:
+```typescript
+export type ChipVariant = TypePrimitive | RenderHint | StateChip
+```
 
 ### Type Detection — `@agenta/ui/drill-in`
 
-- `detectDataType(value)` — already exists; returns `DataType` (string | number | boolean | null | json-object | json-array)
-- `inferRenderHint(value)` — **new**; returns `RenderHint | null` (markdown | stringified | messages | tool-calls | null)
-- `getViewOptions(value)` — **new**; returns ordered view mode options for a given value (Text / Markdown / JSON / YAML, contextually filtered)
+Pure functions, no React dependency. All three surfaces import from the same source.
 
-All three are pure functions with no React dependency. They live in `@agenta/ui/drill-in` so drill-in, tables, and playground all import from the same source.
+- **`detectDataType(value)`** — already exists in production; returns `DataType` (`string | number | boolean | null | json-object | json-array`)
+- **`inferRenderHint(value)`** — **new**; returns `RenderHint | null`. Ported from `web/apps/design-mockups/src/components/proposed/TypeChip.tsx` → `inferRenderHint()`. Logic: checks for `messages` shape (array with `role` key), `tool-calls` shape (array with `type: "function"`), `stringified` (string that JSON-parses to object/array), `markdown` (length > 100 or contains newline).
+- **`getViewOptions(value)`** — **new**; returns ordered view mode options for a given value. Used by drill-in field header and playground to populate the "View as ▾" dropdown.
+
+---
+
+## Feature Flags Summary
+
+| Flag | Default | Controls |
+|---|---|---|
+| `enableRenderHints` | `false` | Axis 2 chips (markdown / stringified / messages / tool-calls) |
+| `enableStateChips` | `false` | Axis 3 chips (mixed / collision / dotted-key / not-authored / etc.) |
+| `enableFormView` | `false` | Form view option in the "View as" dropdown + rail-style nested object renderer |
+| `enableNestedVariableRendering` | `false` | Playground: expand structured rows into full embedded drill-in body |
+
+Flags live on the surface-level components, not on `TypeChip` itself. `TypeChip` is always capable of rendering any axis; the surface controls what it passes down.
 
 ---
 
 ## Implementation Phases
 
-### Phase 1 — Foundation
+### Phase 1 + 2 — Foundation + Tables (single PR)
 
-**Deliverable:** `TypeChip` and detection utilities available in production packages. No surface changes.
+**Status:** Phase 1 primitives (`TypeChip`, `inferRenderHint`, `getViewOptions`) are already implemented in `@agenta/ui`. The table-level implementation plan builds detection into `InfiniteVirtualTable` as a generic feature.
 
-**Files:**
-- `web/packages/agenta-ui/src/type-chip/TypeChip.tsx` — component (ported from mockup)
-- `web/packages/agenta-ui/src/type-chip/index.ts` — barrel export
-- `web/packages/agenta-ui/package.json` — add `"./type-chip"` subpath export
-- `web/packages/agenta-ui/src/drill-in/index.ts` — export `inferRenderHint`, `getViewOptions`
-- `web/packages/agenta-ui/src/drill-in/utils/inferRenderHint.ts` — new pure function
-- `web/packages/agenta-ui/src/drill-in/utils/getViewOptions.ts` — new pure function
+**Design mockup references:**
+- `web/apps/design-mockups/src/components/proposed/TypeChip.tsx` — chip component (already ported)
+- `web/apps/design-mockups/src/pages/solutions-tables.tsx` — `mahmoudColumns`, `renderMahmoudToggleButton()`
+- `web/apps/design-mockups/src/components/proposed/testsetTableHelpers.ts` → `detectColumnTypes()`
 
-**Key decisions:**
-- `TypeChip` styles come from the mockup's `STYLES` map verbatim — no redesign
-- `BadgeKeyframes` injected once via idempotent style tag (same approach as mockup)
-- `ChipVariant` type exported so surfaces can type their chip props without importing the component
+**Architecture decision:** Type chip rendering is a generic `InfiniteVirtualTable` feature, not testcase-table-specific. Any table can opt in by passing `typeChips={{ enabled: true, getRowValue, resolveHeaderVariant }}`. The testcase table is the first consumer.
 
----
+**`typeChips` prop on `InfiniteVirtualTable`:**
+```typescript
+interface TypeChipConfig<RecordType> {
+    enabled: boolean
+    getRowValue: (record: RecordType, columnKey: string) => unknown  // must be stable (useCallback)
+    resolveHeaderVariant?: (key: string, info: ColumnTypeInfo | undefined) => ChipVariant | undefined
+    enableRenderHints?: boolean   // default false
+    enableStateChips?: boolean    // default false
+}
+```
 
-### Phase 2 — Tables (ships with Phase 1)
-
-**Deliverable:** Mahmoud's proposal live on `TestcasesTableShell`. No cell changes.
-
-**Column header chip rules:**
-- Top-level leaf columns: `string` / `boolean` / `object` only. Arrays, numbers, null all collapse to `object` at the top level (testset model semantics).
+**Column header chip rules (Mahmoud's simplified set — encoded in `mahmoudHeaderVariant`):**
+- Top-level leaf columns: `string` / `boolean` / `object` only. Everything else (number, null, array) collapses to `object`
 - Nested leaf columns: full primitive set (`string` / `number` / `boolean` / `null` / `object`)
-- Group headers: always `object`
-- `chipMode` prop (`"all" | "ambiguous-only" | "none"`) controls visibility
+- Group headers: always `object` — rendered by the consumer (`TestcasesTableShell`), not by `InfiniteVirtualTable`
 
 **Group toggle:**
-- Replace `CaretDown` / `CaretRight` icons on group headers with a bordered ±-button (`20×20px`, `1px` border, `#f5f5f5` background, hover → blue border + blue text)
-- Real `<button>` for keyboard + a11y
-- Both expanded (−) and collapsed (+) states use the same button shape
+- `GroupToggleButton` component in `TestcasesTableShell` — `20×20px`, `1px solid rgba(5,23,41,0.18)` border, `#f5f5f5` background, hover → `#e6f4ff` background + `#1677ff` border + `#1677ff` text
+- Shows `+` on collapsed groups, `−` on expanded groups
+- Group header title = `[±-button] [group name] [object chip]` — consumer-owned layout
 
-**New helper:**
-- `detectColumnTypes(flatRows, columns, mixedColumns)` — computes per-column `{ type, hint }` from the union of row values. Added to `web/oss/src/components/TestcasesTableNew/utils/`.
+**`chipMode` persistence:** `atomWithStorage<"all" | "none">` at key `"agenta:testcase-table:chip-mode"`, default `"all"`. Passed as `typeChips.enabled = chipMode !== "none"` to InfiniteVirtualTable. No `"ambiguous-only"` mode.
+
+**Detection:** `useTypeChipColumns` hook inside `InfiniteVirtualTable` — samples first 30 rows of `dataSource` via `getRowValue`, runs `detectColumnTypes`, enhances leaf column titles with `TypeChip` nodes. Group column titles are not touched by the hook.
 
 **Files:**
-- `web/oss/src/components/TestcasesTableNew/TestcasesTableShell.tsx` — add chip to column header renderer, replace caret with ±-button
-- `web/oss/src/components/TestcasesTableNew/utils/detectColumnTypes.ts` — new helper
-- Cell components untouched.
+- `web/packages/agenta-ui/src/InfiniteVirtualTable/utils/detectColumnTypes.ts` — moved from `TestcasesTableNew/utils/`; exports `detectColumnTypes`, `mahmoudHeaderVariant`, `ColumnTypeInfo`
+- `web/packages/agenta-ui/src/InfiniteVirtualTable/types.ts` — adds `TypeChipConfig<RecordType>` + `typeChips` prop
+- `web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipColumns.ts` — new hook
+- `web/packages/agenta-ui/src/InfiniteVirtualTable/components/InfiniteVirtualTableInner.tsx` — wires the hook
+- `web/packages/agenta-ui/src/InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx` — threads `typeChips` prop
+- `web/oss/src/components/TestcasesTableNew/state/chipMode.ts` — simplified to `"all" | "none"`
+- `web/oss/src/components/TestcasesTableNew/state/columnTypeInfo.ts` — deleted (detection inside InfiniteVirtualTable now)
+- `web/oss/src/components/TestcasesTableNew/components/TestcasesTableShell.tsx` — removes leaf column chip rendering; keeps group header chips + ±-button
+- `web/oss/src/components/TestcasesTableNew/index.tsx` — creates `getRowValue`; passes `typeChips`; removes `columnTypeInfoAtom`
+- Cell components untouched: `TestcaseCellContent`, `JsonCellContent`, `ChatMessagesCellContent`
 
 ---
 
 ### Phase 3 — Testcase Drawer (Drill-in)
 
-**Deliverable:** ProposalV2 direction live on the testcase drawer. Production chrome header kept, Fields/JSON toggle removed, new sub-header added.
+**Deliverable:** ProposalV2 direction live on the testcase drawer.
+
+**Design mockup references:**
+- ProposalV2 component: `web/apps/design-mockups/src/components/proposed/ProposalV2DrillIn.tsx`
+- ProposalV2 view type logic: `web/apps/design-mockups/src/components/proposed/proposalV2Views.ts` → `getViewOptions()`, `getDefaultViewForValue()`
+- Per-field view type select: `web/apps/design-mockups/src/components/proposed/ProposalV2ViewTypeSelect.tsx`
+- Root toolbar (from Row 1 proposal): `web/apps/design-mockups/src/components/proposed/ProposedDrillIn.tsx` → root header section (filter icon, collapse-all, view-mode select, copy)
+- Three-row comparison page: `web/apps/design-mockups/src/pages/solutions-drill-in.tsx`
 
 #### Header structure
 
 ```
-┌─ Main chrome (unchanged minus Fields/JSON toggle) ──────────────────┐
+┌─ Main chrome (unchanged, Fields/JSON toggle removed) ───────────────┐
 │  ‹ › ∧   Testcase 12  □                        Add to queue         │
 └─────────────────────────────────────────────────────────────────────┘
 ┌─ DrillInRootToolbar (new) ──────────────────────────────────────────┐
@@ -173,21 +236,23 @@ All three are pure functions with no React dependency. They live in `@agenta/ui/
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+The `DrillInRootToolbar` sub-header is the root toolbar from the first proposal (ProposedDrillIn) combined with the per-field "View as ▾" body from ProposalV2. These two proposals are intentionally composed — the toolbar from Row 1 is the chrome, the body from Row 2 is the content.
+
 #### `DrillInRootToolbar` — new component in `@agenta/ui/drill-in`
 
 ```typescript
 interface DrillInRootToolbarProps {
-  label: string                                    // testcase label
+  label: string
   viewMode: "text" | "markdown" | "json" | "yaml" | "form"
-  onViewModeChange: (mode: string) => void
+  onViewModeChange: (mode: "text" | "markdown" | "json" | "yaml" | "form") => void
   onCollapseAll?: () => void
   onFilter?: () => void
   onCopy?: () => void
-  enableFormView?: boolean                         // default false — Form hidden until ready
+  enableFormView?: boolean   // default false — Form absent from dropdown until ready
 }
 ```
 
-Reusable: playground mounts the same component in Phase 4.
+Reusable: playground mounts the same component in Phase 4 when `enableNestedVariableRendering` is true.
 
 #### Root view mode vs per-field override
 
@@ -197,32 +262,39 @@ The root view mode on `DrillInRootToolbar` sets the default rendering for all fi
 
 Single new prop: `typeChip?: ReactNode`. Rendered between the collapse toggle and the field name. Everything else unchanged.
 
-**Forward-compatibility:** when `ChipConversionPopover` is added, the caller wraps `<TypeChip onClick={open} />` in a popover and passes the result as `typeChip`. No changes to `DrillInFieldHeader`.
+**Forward-compatibility:** when `ChipConversionPopover` is added, the caller wraps `<TypeChip onClick={open} />` in a popover and passes the result as `typeChip`. No changes to `DrillInFieldHeader` or any other consumer.
 
-#### View mode options (per field, via `getViewOptions`)
+Axis 2 + 3 on field headers:
+- `enableRenderHints`: when true, the caller additionally passes the render hint chip (e.g. `[markdown]`, `[messages]`) stacked alongside the type chip in the `typeChip` slot
+- `enableStateChips`: when true, the caller additionally passes a `FieldWarningsIndicator` (reference: `ProposedDrillIn.tsx`) alongside — same Warning icon + tooltip pattern as the table
+
+#### View mode options per field (via `getViewOptions`)
 
 | Value type | Available options |
 |---|---|
-| `string` (short) | Text, Markdown, JSON, YAML |
+| `string` (short, < 100 chars, no newlines) | Text, Markdown, JSON, YAML |
 | `string` (long / multiline) | Markdown, Text, JSON, YAML |
-| `object` | JSON, YAML *(Form available when `enableFormView` is true)* |
+| `object` | JSON, YAML *(+ Form when `enableFormView` is true)* |
 | `messages` array | JSON, YAML |
 | other arrays | JSON, YAML |
 | `number` / `boolean` / `null` | JSON, YAML |
 
-#### Form view (flag-gated)
+Threshold for "long string" matches `inferRenderHint`: length > 100 or contains `\n`.
+
+#### Form view (flag-gated, `enableFormView`)
 
 - `JsonObjectField` drops the card-inside-card wrapper, replaces with `paddingLeft: 16px` + `2px solid` left border rail
-- Style-only change, ~30–50 lines
-- Only mounted when `enableFormView === true` on `DrillInRootToolbar`
+- Style-only change, ~30–50 lines in `JsonObjectField.tsx`
+- Gated via `DrillInUIContext` — the existing context at `web/packages/agenta-ui/src/drill-in/context/DrillInUIContext.tsx` already propagates injectable values through the whole drill-in tree. Add `featureFlags?: { enableFormView?: boolean }` to the `DrillInUIComponents` interface. `JsonObjectField` reads this via `useDrillInUI()` — no prop threading required
+- The OSS app wrapper sets `featureFlags.enableFormView = false` by default; flipping it to `true` in the provider is the only change needed to enable Form view globally
 - Default: `false` — ships hidden, enabled when confident
 
 **Files:**
 - `web/packages/agenta-ui/src/drill-in/core/DrillInRootToolbar.tsx` — new
-- `web/packages/agenta-ui/src/drill-in/core/DrillInFieldHeader.tsx` — add `typeChip` prop
-- `web/packages/agenta-ui/src/drill-in/FieldRenderers/JsonObjectField.tsx` — Form view rail style
-- `web/packages/agenta-ui/src/drill-in/utils/getViewOptions.ts` — already added in Phase 1
-- `web/oss/src/components/TestcaseEditDrawer/index.tsx` — wire `DrillInRootToolbar`, remove Fields/JSON toggle, pass `typeChip` to field headers
+- `web/packages/agenta-ui/src/drill-in/core/DrillInFieldHeader.tsx` — add `typeChip?: ReactNode`
+- `web/packages/agenta-ui/src/drill-in/FieldRenderers/JsonObjectField.tsx` — Form view rail style, gated
+- `web/packages/agenta-ui/src/drill-in/index.ts` — export `DrillInRootToolbar`
+- `web/oss/src/components/TestcaseEditDrawer/index.tsx` — remove Fields/JSON toggle from chrome, mount `DrillInRootToolbar`, pass `typeChip` to field headers, wire per-field "View as" via `getViewOptions`
 
 ---
 
@@ -230,75 +302,80 @@ Single new prop: `typeChip?: ReactNode`. Rendered between the collapse toggle an
 
 **Deliverable:** Compact variable list with TypeChip; flag-gated nested rendering.
 
-**Compact row:** one dense row per variable (~26px).
+**Design mockup references:**
+- Compact execution item: `web/apps/design-mockups/src/components/proposed/PlaygroundExecutionItemCompact.tsx`
+- Three-way compare page: `web/apps/design-mockups/src/pages/solutions-playground.tsx` — "Alt compact" panel
+
+**Compact row layout (~26px height):**
 ```
   country  [string]  Vanuatu                                    ▾
 ```
-- Left: field name + `TypeChip` (static)
+- Left: field name + `TypeChip` (Axis 1, static)
 - Middle: truncated value preview
 - Right: expand chevron
 - Click primitive row → morphs to inline editor
-- Click structured row → expands inline (depth controlled by flag)
+- Click structured row → expands inline (depth controlled by `enableNestedVariableRendering`)
 
-**`enableNestedVariableRendering` flag on the execution item:**
-- `false` (default): structured rows expand to a plain JSON preview
-- `true`: structured rows mount `DrillInRootToolbar` + embedded drill-in body
+**`enableNestedVariableRendering` flag:**
+- `false` (default): structured rows expand to a plain JSON preview inline
+- `true`: structured rows mount `DrillInRootToolbar` + embedded drill-in body (same as Phase 3 drawer)
 
-**`DrillInRootToolbar` reuse:** when `enableNestedVariableRendering` is true, the toolbar mounts in the testcase header area of the execution item — same component, same props as Phase 3.
+**Axis 2 + 3 in playground:**
+- Same flags: `enableRenderHints` and `enableStateChips` on the execution item component
+- When off (default): only Axis 1 chip appears next to the field name
 
 **Files:**
-- `web/oss/src/components/Playground/` — update execution item inputs renderer
-- No new components needed; everything is Phase 1 + Phase 3 reuse
+- `web/oss/src/components/Playground/Components/PlaygroundTestcaseEditor.tsx` — update inputs renderer (this is the component that renders variable rows in the execution item; it already imports `executionItemController.selectors.variableKeys`)
+- No new components; everything is Phase 1 (`TypeChip`) + Phase 3 (`DrillInRootToolbar`) reuse
 
 ---
 
 ## Future Work (not in this spec)
 
-- **`ChipConversionPopover`:** wrap any `TypeChip` in a popover that offers type conversions and editor-mode switching. Entry point: wire `onClick` on existing `TypeChip` instances. No structural changes to any surface.
-- **Correctness chips on drill-in headers:** `[mixed]`, `[collision]`, `[dotted-key]` on field headers within the drawer (currently only on table column headers).
-- **Form view (full):** expand `enableFormView` to stable, with nested object rail tested across all testset shapes.
-- **gap-09 variable provenance:** used / chain / draft / unused state chips on playground variables.
+- **`ChipConversionPopover`:** full implementation already in mockup at `web/apps/design-mockups/src/components/proposed/ChipConversionPopover.tsx`. Covers type conversion rules (string → object/array/number/bool, null → any, object → string, etc.), lossy-conversion warnings inline, and editor mode switching (short/long) for string fields. Entry point: wire `onClick` on existing `TypeChip` instances at each surface. No structural changes required.
+- **Axis 3 on drill-in headers:** correctness chips (`[mixed]`, `[collision]`, `[dotted-key]`) on field headers within the drawer — enabled by turning on `enableStateChips`.
+- **Form view (full):** expand `enableFormView` to stable once rail-style nesting is tested across all testset shapes.
+- **gap-09 variable provenance:** `[draft]`, `[unused]`, `[chain]` state chips on playground variables — part of Axis 3, gated behind `enableStateChips` already.
 
 ---
 
 ## Tasks
 
-### Phase 1 — Foundation
+### Phase 1 + 2 — Foundation + Tables (single PR)
 
-- [ ] Create `web/packages/agenta-ui/src/type-chip/TypeChip.tsx` — port from mockup, same `STYLES` map, same `BadgeKeyframes` idempotent injection, `onClick` renders `<button>` vs `<span>`
-- [ ] Create `web/packages/agenta-ui/src/type-chip/index.ts` — barrel export `TypeChip`, `ChipVariant`, `TypePrimitive`, `RenderHint`, `StateChip`
-- [ ] Add `"./type-chip"` subpath to `web/packages/agenta-ui/package.json`
-- [ ] Create `web/packages/agenta-ui/src/drill-in/utils/inferRenderHint.ts` — port from mockup
-- [ ] Create `web/packages/agenta-ui/src/drill-in/utils/getViewOptions.ts` — returns ordered view options array for a value
-- [ ] Export `inferRenderHint` and `getViewOptions` from `web/packages/agenta-ui/src/drill-in/index.ts`
-- [ ] Run `pnpm lint-fix` in `web/`
+**Phase 1 — already done:** `TypeChip`, `inferRenderHint`, `getViewOptions` in `@agenta/ui`.
 
-### Phase 2 — Tables
-
-- [ ] Create `web/oss/src/components/TestcasesTableNew/utils/detectColumnTypes.ts` — computes `Map<colKey, { type, hint }>` from flat rows
-- [ ] Update `TestcasesTableShell.tsx` — add `chipMode` prop (`"all" | "ambiguous-only" | "none"`, default `"all"`)
-- [ ] Update column header renderer in `TestcasesTableShell.tsx` — add `TypeChip` using simplified top-level type rules
-- [ ] Replace `CaretDown` / `CaretRight` on group headers with bordered ±-button in `TestcasesTableShell.tsx`
+**Phase 2 — table integration (full detail in plan doc):**
+- [ ] Remove intermediate testcase-table chip implementation (chipMode, columnTypeInfo, detectColumnTypes in `TestcasesTableNew`)
+- [ ] Create `web/packages/agenta-ui/src/InfiniteVirtualTable/utils/detectColumnTypes.ts` — `detectColumnTypes()` + `mahmoudHeaderVariant()`
+- [ ] Add `TypeChipConfig<RecordType>` type + `typeChips?` prop to `InfiniteVirtualTableProps`
+- [ ] Create `web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipColumns.ts` — samples rows via `getRowValue`, detects types, enhances leaf column titles
+- [ ] Wire `useTypeChipColumns` in `InfiniteVirtualTableInner.tsx`
+- [ ] Thread `typeChips` through `InfiniteVirtualTableFeatureShell`
+- [ ] Create fresh `chipMode.ts` atom (`"all" | "none"`)
+- [ ] Update `TestcasesTableShell.tsx` — group header `±-button` + `[object]` chip; accept + forward `typeChips` prop
+- [ ] Update `TestcasesTableNew/index.tsx` — create `getRowValue`, pass `typeChips` to shell
 - [ ] Verify cell components (`TestcaseCellContent`, `JsonCellContent`, `ChatMessagesCellContent`) are untouched
 - [ ] Run `pnpm lint-fix` in `web/`
 
 ### Phase 3 — Testcase Drawer
 
-- [ ] Create `web/packages/agenta-ui/src/drill-in/core/DrillInRootToolbar.tsx` — label + filter + collapse-all + view mode select (Text / Markdown / JSON / YAML, + Form when `enableFormView`) + copy
+- [ ] Create `web/packages/agenta-ui/src/drill-in/core/DrillInRootToolbar.tsx` — label + filter icon + collapse-all + view mode select (Text / Markdown / JSON / YAML; Form when `enableFormView`) + copy; reference root header section in `ProposedDrillIn.tsx`
 - [ ] Export `DrillInRootToolbar` from `web/packages/agenta-ui/src/drill-in/index.ts`
 - [ ] Add `typeChip?: ReactNode` prop to `DrillInFieldHeader` — render between collapse toggle and field name
-- [ ] Update `JsonObjectField.tsx` — add indent + 2px left border rail style, gated behind `enableFormView` flag passed from context or prop
+- [ ] Add `featureFlags?: { enableFormView?: boolean }` to `DrillInUIComponents` in `web/packages/agenta-ui/src/drill-in/context/DrillInUIContext.tsx`
+- [ ] Update `JsonObjectField.tsx` — read `useDrillInUI().featureFlags?.enableFormView`; when true, render indent + 2px left border rail instead of card wrapper
 - [ ] Update `web/oss/src/components/TestcaseEditDrawer/index.tsx`:
   - Remove Fields/JSON toggle from main chrome header
   - Mount `DrillInRootToolbar` as sub-header below chrome
   - Pass `typeChip={<TypeChip value={fieldValue} />}` to each `DrillInFieldHeader`
-  - Wire per-field "View as" dropdown using `getViewOptions(value)`
+  - Wire per-field "View as" dropdown using `getViewOptions(value)` — reference `ProposalV2DrillIn.tsx` + `ProposalV2ViewTypeSelect.tsx`
 - [ ] Run `pnpm lint-fix` in `web/`
 
 ### Phase 4 — Playground
 
-- [ ] Add `enableNestedVariableRendering?: boolean` prop to execution item component (default `false`)
-- [ ] Update inputs renderer — compact row: field name + `TypeChip` + truncated value preview + expand chevron
+- [ ] Add `enableNestedVariableRendering`, `enableRenderHints`, `enableStateChips` props to `PlaygroundTestcaseEditor.tsx` (all default `false`)
+- [ ] Update inputs renderer in `PlaygroundTestcaseEditor.tsx` — compact row: field name + `TypeChip` + truncated value preview + expand chevron; reference `web/apps/design-mockups/src/components/proposed/PlaygroundExecutionItemCompact.tsx`
 - [ ] Wire click on primitive row → inline editor morph
 - [ ] Wire click on structured row → JSON preview (flag off) or `DrillInRootToolbar` + embedded drill-in (flag on)
 - [ ] Run `pnpm lint-fix` in `web/`
