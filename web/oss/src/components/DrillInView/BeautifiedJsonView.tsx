@@ -1,4 +1,4 @@
-import {memo, useEffect, useLayoutEffect, useMemo} from "react"
+import {memo, useEffect, useLayoutEffect, useMemo, useState} from "react"
 
 import {
     Editor as EditorWrapper,
@@ -12,6 +12,16 @@ import {
     ROLE_COLOR_CLASSES,
     DEFAULT_ROLE_COLOR_CLASS,
 } from "@agenta/ui/cell-renderers"
+import {Button} from "antd"
+
+import LargeValuePreview from "./LargeValuePreview"
+import {
+    getPreviewItems,
+    getRenderStats,
+    previewValueString,
+    shouldUsePreview,
+    type RenderBudgetMode,
+} from "./renderBudget"
 
 /**
  * "Beautified JSON" view.
@@ -233,6 +243,39 @@ const getMessageText = (content: unknown): string => {
     }
 }
 
+const formatToolCall = (toolCall: unknown): string => {
+    const rec =
+        toolCall && typeof toolCall === "object" ? (toolCall as Record<string, unknown>) : {}
+    const fn =
+        rec.function && typeof rec.function === "object"
+            ? (rec.function as Record<string, unknown>)
+            : undefined
+    const name =
+        (typeof fn?.name === "string" && fn.name) ||
+        (typeof rec.name === "string" && rec.name) ||
+        "tool"
+    const args = fn?.arguments ?? rec.arguments ?? rec.args ?? rec.input
+
+    if (args === undefined || args === null || args === "") {
+        return `${name}()`
+    }
+
+    if (typeof args === "string") {
+        return `${name}(${previewValueString(args)})`
+    }
+
+    const argStats = getRenderStats(args)
+    if (shouldUsePreview(argStats, "beautified-json")) {
+        return `${name}(${previewValueString(args)})`
+    }
+
+    try {
+        return `${name}(${JSON.stringify(args, null, 2)})`
+    } catch {
+        return `${name}(...)`
+    }
+}
+
 const RenderedChatMessages = memo(function RenderedChatMessages({
     messages,
     keyPrefix,
@@ -248,6 +291,7 @@ const RenderedChatMessages = memo(function RenderedChatMessages({
                 const roleColor =
                     ROLE_COLOR_CLASSES[msg.role.toLowerCase()] ?? DEFAULT_ROLE_COLOR_CLASS
                 const text = getMessageText(msg.content)
+                const toolCalls = Array.isArray(msg.tool_calls) ? msg.tool_calls : []
                 const editorId = `${keyPrefix}-msg-${i}`
 
                 return (
@@ -255,24 +299,38 @@ const RenderedChatMessages = memo(function RenderedChatMessages({
                         <span className={`text-xs font-medium capitalize ${roleColor}`}>
                             {msg.role}
                         </span>
-                        <EditorProvider
-                            id={editorId}
-                            initialValue={text}
-                            showToolbar={false}
-                            enableTokens={false}
-                            readOnly
-                            className={EDITOR_RESET_CLASSES}
-                        >
-                            <MarkdownModeSync isMarkdownView={false} />
-                            <EditorWrapper
+                        {text ? (
+                            <EditorProvider
+                                id={editorId}
                                 initialValue={text}
-                                disabled
                                 showToolbar={false}
-                                noProvider
+                                enableTokens={false}
                                 readOnly
-                                boundHeight={false}
-                            />
-                        </EditorProvider>
+                                className={EDITOR_RESET_CLASSES}
+                            >
+                                <MarkdownModeSync isMarkdownView={false} />
+                                <EditorWrapper
+                                    initialValue={text}
+                                    disabled
+                                    showToolbar={false}
+                                    noProvider
+                                    readOnly
+                                    boundHeight={false}
+                                />
+                            </EditorProvider>
+                        ) : null}
+                        {toolCalls.length > 0 ? (
+                            <div className="flex flex-col gap-1">
+                                {toolCalls.map((toolCall, toolCallIndex) => (
+                                    <pre
+                                        key={`${editorId}-tool-call-${toolCallIndex}`}
+                                        className="m-0 whitespace-pre-wrap break-words rounded bg-[#F6F8FB] px-2 py-1 font-mono text-xs text-[var(--ant-color-text)]"
+                                    >
+                                        {formatToolCall(toolCall)}
+                                    </pre>
+                                ))}
+                            </div>
+                        ) : null}
                     </div>
                 )
             })}
@@ -339,6 +397,10 @@ const RenderedValueBlock = memo(function RenderedValueBlock({
     maxDepth?: number
 }) {
     const value = useMemo(() => simplifyValue(rawValue), [rawValue])
+    const [renderFull, setRenderFull] = useState(false)
+    const stats = useMemo(() => getRenderStats(value), [value])
+    const shouldPreviewValue =
+        !renderFull && shouldUsePreview(stats, "beautified-json" as RenderBudgetMode)
 
     const chatMessages = useMemo(() => extractChatMessages(value), [value])
 
@@ -351,6 +413,18 @@ const RenderedValueBlock = memo(function RenderedValueBlock({
     }
 
     if (typeof value === "string") {
+        if (shouldPreviewValue) {
+            return (
+                <LargeValuePreview
+                    compact
+                    value={value}
+                    mode="beautified-json"
+                    stats={stats}
+                    onRenderFull={() => setRenderFull(true)}
+                />
+            )
+        }
+
         return (
             <EditorProvider
                 id={keyPrefix}
@@ -377,15 +451,19 @@ const RenderedValueBlock = memo(function RenderedValueBlock({
         return <span className="text-[#758391]">—</span>
     }
 
+    const previewItems = shouldPreviewValue ? getPreviewItems(value) : null
+
     if (
         depth < maxDepth &&
         Array.isArray(value) &&
         value.length > 0 &&
         value.some((item) => item && typeof item === "object")
     ) {
+        const items = previewItems?.kind === "array" ? (previewItems.items as unknown[]) : value
+
         return (
             <div className="flex flex-col gap-2">
-                {value.map((item, i) => {
+                {items.map((item, i) => {
                     const simplified = simplifyValue(item)
                     if (
                         typeof simplified === "string" ||
@@ -424,12 +502,20 @@ const RenderedValueBlock = memo(function RenderedValueBlock({
                         />
                     )
                 })}
+                {previewItems?.kind === "array" && previewItems.hiddenCount > 0 ? (
+                    <Button size="small" type="link" onClick={() => setRenderFull(true)}>
+                        Show {previewItems.hiddenCount} more items
+                    </Button>
+                ) : null}
             </div>
         )
     }
 
     if (value && typeof value === "object" && !Array.isArray(value)) {
-        const entries = Object.entries(value as Record<string, unknown>)
+        const entries =
+            previewItems?.kind === "object"
+                ? (previewItems.items as [string, unknown][])
+                : Object.entries(value as Record<string, unknown>)
         return (
             <div className="flex flex-col gap-1">
                 {entries.map(([k, v]) => {
@@ -490,7 +576,24 @@ const RenderedValueBlock = memo(function RenderedValueBlock({
                         />
                     )
                 })}
+                {previewItems?.kind === "object" && previewItems.hiddenCount > 0 ? (
+                    <Button size="small" type="link" onClick={() => setRenderFull(true)}>
+                        Show {previewItems.hiddenCount} more keys
+                    </Button>
+                ) : null}
             </div>
+        )
+    }
+
+    if (shouldPreviewValue) {
+        return (
+            <LargeValuePreview
+                compact
+                value={value}
+                mode="beautified-json"
+                stats={stats}
+                onRenderFull={() => setRenderFull(true)}
+            />
         )
     }
 

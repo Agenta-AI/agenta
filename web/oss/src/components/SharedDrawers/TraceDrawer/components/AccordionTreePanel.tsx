@@ -31,6 +31,13 @@ import {
     normalizeEscapedLineBreaks,
     parseStructuredJson,
 } from "@/oss/components/DrillInView/decodedJsonHelpers"
+import LargeValuePreview from "@/oss/components/DrillInView/LargeValuePreview"
+import {
+    getRenderStats,
+    previewValueString,
+    shouldUsePreview,
+    type RenderBudgetMode,
+} from "@/oss/components/DrillInView/renderBudget"
 import {getDefaultJsonViewMode} from "@/oss/components/DrillInView/viewModes"
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
@@ -272,6 +279,7 @@ const AccordionTreePanel = ({
     const [searchTerm, setSearchTerm] = useState("")
     const [currentResultIndex, setCurrentResultIndex] = useState(0)
     const [resultCount, setResultCount] = useState(0)
+    const [renderFullModes, setRenderFullModes] = useState<Record<string, boolean>>({})
 
     const handleNextMatch = () => {
         if (resultCount === 0) return
@@ -351,44 +359,16 @@ const AccordionTreePanel = ({
         closeSearch()
     }, [sanitizedValue, closeSearch])
 
+    useEffect(() => {
+        setRenderFullModes({})
+    }, [sanitizedValue])
+
     const downloadFile = useCallback((url: string) => {
         const link = document.createElement("a")
         link.href = url
         link.download = ""
         link.click()
     }, [])
-
-    const jsonOutput = useMemo(() => {
-        if (panelViewMode !== "json") return ""
-
-        if (isStringValue) {
-            if (parsedStructuredString !== null) {
-                return sanitizedValue
-            }
-            return JSON.stringify(sanitizedValue) ?? ""
-        }
-
-        return getStringOrJson(sanitizedValue)
-    }, [panelViewMode, isStringValue, parsedStructuredString, sanitizedValue])
-
-    const yamlOutput = useMemo(() => {
-        if (panelViewMode !== "yaml") return ""
-
-        const yamlSource = isStringValue ? parsedStructuredString : sanitizedValue
-        if (yamlSource === null || yamlSource === undefined) return ""
-
-        try {
-            return yaml.dump(yamlSource, {lineWidth: 120})
-        } catch (error: any) {
-            console.error("Failed to convert value to YAML:", error)
-            return `Error: Failed to convert content to YAML. (${error?.message || "Unknown error"})`
-        }
-    }, [panelViewMode, isStringValue, parsedStructuredString, sanitizedValue])
-
-    const decodedJsonOutput = useMemo(() => {
-        if (panelViewMode !== "decoded-json") return ""
-        return buildDecodedJsonOutput(sanitizedValue, parsedStructuredString)
-    }, [panelViewMode, sanitizedValue, parsedStructuredString])
 
     const beautifiedJsonSource = useMemo(() => {
         if (isStringValue) {
@@ -397,14 +377,20 @@ const AccordionTreePanel = ({
         return sanitizedValue
     }, [isStringValue, parsedStructuredString, sanitizedValue])
 
-    const textOutput = useMemo(() => {
-        if (typeof sanitizedValue === "string") {
-            return parsedStructuredString !== null
-                ? normalizeEscapedLineBreaks(sanitizedValue)
-                : sanitizedValue
+    const activeStatsSource =
+        panelViewMode === "json" || panelViewMode === "text" || panelViewMode === "markdown"
+            ? sanitizedValue
+            : beautifiedJsonSource
+    const activeRenderStats = useMemo(() => getRenderStats(activeStatsSource), [activeStatsSource])
+    const shouldPreviewActiveMode =
+        !renderFullModes[panelViewMode] &&
+        shouldUsePreview(activeRenderStats, panelViewMode as RenderBudgetMode)
+
+    useEffect(() => {
+        if (shouldPreviewActiveMode) {
+            closeSearch()
         }
-        return getStringOrJson(sanitizedValue)
-    }, [parsedStructuredString, sanitizedValue])
+    }, [shouldPreviewActiveMode, closeSearch])
 
     const viewModeMenuItems = useMemo(
         () =>
@@ -416,16 +402,57 @@ const AccordionTreePanel = ({
         [availableViewModes],
     )
 
-    const copyText =
-        panelViewMode === "yaml"
-            ? yamlOutput
-            : panelViewMode === "decoded-json"
-              ? decodedJsonOutput
-              : panelViewMode === "json"
-                ? jsonOutput
-                : panelViewMode === "beautified-json"
-                  ? JSON.stringify(beautifiedJsonSource, null, 2)
-                  : textOutput
+    const activeOutput = useMemo(() => {
+        if (shouldPreviewActiveMode) return previewValueString(activeStatsSource)
+
+        if (panelViewMode === "yaml") {
+            const yamlSource = isStringValue ? parsedStructuredString : sanitizedValue
+            if (yamlSource === null || yamlSource === undefined) return ""
+
+            try {
+                return yaml.dump(yamlSource, {lineWidth: 120})
+            } catch (error: any) {
+                console.error("Failed to convert value to YAML:", error)
+                return `Error: Failed to convert content to YAML. (${error?.message || "Unknown error"})`
+            }
+        }
+
+        if (panelViewMode === "decoded-json") {
+            return buildDecodedJsonOutput(sanitizedValue, parsedStructuredString)
+        }
+
+        if (panelViewMode === "json") {
+            if (isStringValue) {
+                if (parsedStructuredString !== null) {
+                    return sanitizedValue
+                }
+                return JSON.stringify(sanitizedValue) ?? ""
+            }
+
+            return getStringOrJson(sanitizedValue)
+        }
+
+        if (panelViewMode === "beautified-json") {
+            return JSON.stringify(beautifiedJsonSource, null, 2)
+        }
+
+        if (typeof sanitizedValue === "string") {
+            return parsedStructuredString !== null
+                ? normalizeEscapedLineBreaks(sanitizedValue)
+                : sanitizedValue
+        }
+        return getStringOrJson(sanitizedValue)
+    }, [
+        activeStatsSource,
+        beautifiedJsonSource,
+        isStringValue,
+        panelViewMode,
+        parsedStructuredString,
+        sanitizedValue,
+        shouldPreviewActiveMode,
+    ])
+
+    const copyText = activeOutput
 
     const collapse = (
         <div className="relative">
@@ -488,7 +515,19 @@ const AccordionTreePanel = ({
                                     overflowY: "auto",
                                 }}
                             >
-                                {isCodeMode ? (
+                                {shouldPreviewActiveMode ? (
+                                    <LargeValuePreview
+                                        value={activeStatsSource}
+                                        mode={panelViewMode as RenderBudgetMode}
+                                        stats={activeRenderStats}
+                                        onRenderFull={() =>
+                                            setRenderFullModes((prev) => ({
+                                                ...prev,
+                                                [panelViewMode]: true,
+                                            }))
+                                        }
+                                    />
+                                ) : isCodeMode ? (
                                     <DrillInProvider
                                         value={{
                                             enabled: false,
@@ -506,13 +545,7 @@ const AccordionTreePanel = ({
                                             noProvider
                                         >
                                             <LanguageAwareViewer
-                                                initialValue={
-                                                    panelViewMode === "yaml"
-                                                        ? yamlOutput
-                                                        : panelViewMode === "decoded-json"
-                                                          ? decodedJsonOutput
-                                                          : jsonOutput
-                                                }
+                                                initialValue={activeOutput}
                                                 language={panelViewMode}
                                                 searchProps={
                                                     isSearchOpen
@@ -534,7 +567,7 @@ const AccordionTreePanel = ({
                                 ) : (
                                     <TextModeViewer
                                         editorId={`accordion-${textViewerId}`}
-                                        value={textOutput}
+                                        value={activeOutput}
                                         mode={panelViewMode as "text" | "markdown"}
                                     />
                                 )}
@@ -542,7 +575,7 @@ const AccordionTreePanel = ({
                         ),
                         extra: (
                             <Space size={8} onClick={(e) => e.stopPropagation()}>
-                                {enableSearch && isCodeMode && (
+                                {enableSearch && isCodeMode && !shouldPreviewActiveMode && (
                                     <EnhancedButton
                                         icon={<MagnifyingGlassIcon size={14} />}
                                         type={isSearchOpen ? "primary" : "text"}
