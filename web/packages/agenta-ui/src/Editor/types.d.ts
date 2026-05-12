@@ -74,6 +74,8 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
     disableCodeFoldingPlugin?: boolean
     /** Disable indentation-related Enter/bracket indentation plugins/extensions */
     disableIndentationPlugin?: boolean
+    /** Suppress Lexical's default selection reveal in custom code editor commands */
+    skipScroll?: boolean
     /** Use Lexical built-in CodeNode flow instead of custom CodeBlock/CodeLine nodes */
     useNativeCodeNodes?: boolean
 }
@@ -84,6 +86,7 @@ export interface EditorPluginsProps {
     showMarkdownToggleButton?: boolean
     singleLine: boolean
     codeOnly: boolean
+    largeDocumentMode?: boolean
     autoFocus?: boolean
     debug: boolean
     language?: "json" | "yaml" | "code" | "python" | "javascript" | "typescript"

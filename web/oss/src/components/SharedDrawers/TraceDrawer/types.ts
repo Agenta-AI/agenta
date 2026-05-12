@@ -1,8 +1,7 @@
 import type {ReactNode} from "react"
 
+import type {PlaygroundTestResult as TestResult} from "@agenta/playground"
 import {ButtonProps} from "antd"
-
-import {TestResult} from "@/oss/lib/shared/variant/types"
 
 export interface TraceDrawerButtonProps extends ButtonProps {
     label?: ReactNode

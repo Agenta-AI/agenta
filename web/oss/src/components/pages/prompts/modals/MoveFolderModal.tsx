@@ -50,6 +50,7 @@ const MoveFolderModal = ({
             okText={moveDestinationName ? `Move to ${moveDestinationName}` : "Move folder"}
             okButtonProps={{disabled: disabledConfirm, loading: isMoving}}
             destroyOnHidden
+            centered
         >
             <div className="flex flex-col gap-4 pt-2 pb-4">
                 <div className="font-medium">Moving {itemName || "folder"}</div>

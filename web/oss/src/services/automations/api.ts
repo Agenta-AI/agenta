@@ -2,44 +2,65 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 
 import {
-    WebhookDeliveryResponse,
+    WebhookDeliveriesQueryRequest,
+    WebhookDeliveriesResponse,
+    WebhookSubscriptionTestRequest,
     WebhookSubscriptionCreateRequest,
     WebhookSubscriptionEditRequest,
+    WebhookDeliveryResponse,
     WebhookSubscriptionResponse,
     WebhookSubscriptionsResponse,
 } from "./types"
 
-const listWebhooks = async (): Promise<WebhookSubscriptionsResponse> => {
-    // Backend uses POST /api/webhooks/query
-    // Scoping to project_id happens via auth session injected on backend
-    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/query`, {})
-    return response.data
-}
-
-const createWebhook = async (
+const createWebhookSubscription = async (
     data: WebhookSubscriptionCreateRequest,
 ): Promise<WebhookSubscriptionResponse> => {
-    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/`, data)
+    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/subscriptions/`, data)
     return response.data
 }
 
-const updateWebhook = async (
-    webhookId: string,
+const editWebhookSubscription = async (
+    webhookSubscriptionId: string,
     data: WebhookSubscriptionEditRequest,
 ): Promise<WebhookSubscriptionResponse> => {
     // Backend path requires {subscription_id}; body also requires it inside data
-    const response = await axios.put(`${getAgentaApiUrl()}/webhooks/${webhookId}`, data)
+    const response = await axios.put(
+        `${getAgentaApiUrl()}/webhooks/subscriptions/${webhookSubscriptionId}`,
+        data,
+    )
     return response.data
 }
 
-const deleteWebhook = async (webhookId: string): Promise<void> => {
-    await axios.delete(`${getAgentaApiUrl()}/webhooks/${webhookId}`)
+const deleteWebhookSubscription = async (webhookSubscriptionId: string): Promise<void> => {
+    await axios.delete(`${getAgentaApiUrl()}/webhooks/subscriptions/${webhookSubscriptionId}`)
 }
 
-const testWebhook = async (webhookId: string): Promise<WebhookDeliveryResponse> => {
-    // Backend uses POST /api/webhooks/test/{subscription_id} with no body
-    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/test/${webhookId}`)
+const queryWebhookSubscriptions = async (): Promise<WebhookSubscriptionsResponse> => {
+    // Backend uses POST /api/webhooks/subscriptions/query
+    // Scoping to project_id happens via auth session injected on backend
+    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/subscriptions/query`, {})
     return response.data
 }
 
-export {createWebhook, deleteWebhook, listWebhooks, testWebhook, updateWebhook}
+const testWebhookSubscription = async (
+    data: WebhookSubscriptionTestRequest,
+): Promise<WebhookDeliveryResponse> => {
+    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/subscriptions/test`, data)
+    return response.data
+}
+
+const queryWebhookDeliveries = async (
+    data: WebhookDeliveriesQueryRequest,
+): Promise<WebhookDeliveriesResponse> => {
+    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/deliveries/query`, data)
+    return response.data
+}
+
+export {
+    createWebhookSubscription,
+    deleteWebhookSubscription,
+    queryWebhookDeliveries,
+    queryWebhookSubscriptions,
+    testWebhookSubscription,
+    editWebhookSubscription,
+}

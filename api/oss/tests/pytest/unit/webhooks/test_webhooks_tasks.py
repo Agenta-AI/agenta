@@ -5,7 +5,7 @@ Pure logic, no network or database involved.
 
 from unittest.mock import patch
 
-from oss.src.tasks.taskiq.webhooks.tasks import (
+from oss.src.core.webhooks.delivery import (
     MAX_RESOLVE_DEPTH,
     NON_OVERRIDABLE_HEADERS,
     _merge_headers,
@@ -27,7 +27,6 @@ _MOCK_CONTEXT = {
     "subscription": {
         "id": "sub-1",
         "name": "My Webhook",
-        "flags": {"is_valid": True},
         "tags": [],
         "meta": {},
         "created_at": "2024-01-01T00:00:00Z",
@@ -36,7 +35,7 @@ _MOCK_CONTEXT = {
     "scope": {"project_id": "proj-1"},
 }
 
-_RESOLVE_PATH = "oss.src.tasks.taskiq.webhooks.tasks.resolve_json_selector"
+_RESOLVE_PATH = "oss.src.core.webhooks.delivery.resolve_json_selector"
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +207,7 @@ class TestContextAllowlists:
             )
 
     def test_subscription_context_fields_contains_expected_keys(self):
-        for key in ("id", "name", "flags", "tags", "meta", "created_at", "updated_at"):
+        for key in ("id", "name", "tags", "meta", "created_at", "updated_at"):
             assert key in SUBSCRIPTION_CONTEXT_FIELDS, (
                 f"{key!r} must be in SUBSCRIPTION_CONTEXT_FIELDS"
             )

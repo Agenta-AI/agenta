@@ -150,6 +150,12 @@ export interface UseTreeSelectModeOptions<TSelection = EntitySelectionResult> ex
     defaultExpandAll?: boolean
 
     /**
+     * Parent IDs to expand initially (when defaultExpandAll is false).
+     * Children for these parents will be fetched on mount.
+     */
+    initialExpandedKeys?: string[]
+
+    /**
      * Filter function for parents (in addition to search)
      */
     parentFilter?: (parent: unknown) => boolean
@@ -370,6 +376,7 @@ export function useTreeSelectMode<TSelection = EntitySelectionResult>(
         renderChildTitle,
         renderSelectedLabel,
         defaultExpandAll = true,
+        initialExpandedKeys,
         parentFilter,
         childFilter,
         showDate = true,
@@ -394,7 +401,7 @@ export function useTreeSelectMode<TSelection = EntitySelectionResult>(
     // ========================================================================
 
     const [searchTerm, setSearchTerm] = useState("")
-    const [expandedKeys, setExpandedKeys] = useState<string[]>([])
+    const [expandedKeys, setExpandedKeys] = useState<string[]>(initialExpandedKeys ?? [])
     const [selectedValue, setSelectedValue] = useState<string | null>(selectedValueProp ?? null)
 
     // Sync selectedValue with prop
@@ -423,29 +430,30 @@ export function useTreeSelectMode<TSelection = EntitySelectionResult>(
         return items
     }, [parentItems, parentFilter])
 
-    // Get parent IDs for fetching children
-    const parentIds = useMemo(() => {
+    // Get all parent IDs
+    const allParentIds = useMemo(() => {
         return filteredParentItems.map((p) => parentLevelConfig.getId(p))
     }, [filteredParentItems, parentLevelConfig])
+
+    // Only fetch children for expanded parents (or all when searching/expanding all).
+    // This avoids N network requests when the tree opens with many collapsed parents.
+    const parentIdsToFetch = useMemo(() => {
+        // When searching, we need all children to filter results
+        if (searchTerm) return allParentIds
+        // When defaultExpandAll is true, fetch everything
+        if (defaultExpandAll) return allParentIds
+        // Otherwise, only fetch children for expanded parents
+        const expandedSet = new Set(expandedKeys)
+        return allParentIds.filter((id) => expandedSet.has(id))
+    }, [allParentIds, expandedKeys, searchTerm, defaultExpandAll])
 
     // ========================================================================
     // CHILDREN DATA
     // ========================================================================
 
-    const childrenDataMap = useChildrenDataForParents(childLevelConfig, parentIds)
+    const childrenDataMap = useChildrenDataForParents(childLevelConfig, parentIdsToFetch)
 
     const isLoadingChildren = useMemo(() => {
-        // Debug: log children loading state
-        if (process.env.NODE_ENV === "development") {
-            const childrenStates: Record<string, {isPending: boolean; itemCount: number}> = {}
-            for (const [parentId, data] of childrenDataMap) {
-                childrenStates[parentId] = {
-                    isPending: data.query.isPending,
-                    itemCount: data.items.length,
-                }
-            }
-        }
-
         for (const [, data] of childrenDataMap) {
             if (data.query.isPending) return true
         }

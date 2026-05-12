@@ -434,7 +434,7 @@ const enhancedMessages = workingPrompt.messages.map((msg, idx) => ({
 }))
 
 // 3. Update via molecule reducer
-set(legacyAppRevisionMolecule.reducers.mutateEnhancedPrompts, revisionId, (draft) => {
+set(workflowMolecule.reducers.mutateEnhancedPrompts, revisionId, (draft) => {
   const promptIndex = draft.findIndex(p => p.__id === promptId)
   if (promptIndex !== -1) {
     draft[promptIndex].messages.value = enhancedMessages

@@ -1,6 +1,6 @@
 export default function pythonCode(uri: string, params: string, apiKey: string): string {
     const parsedParams = JSON.parse(params)
-    const isChat = parsedParams.messages !== undefined
+    const isChat = parsedParams?.data?.inputs?.messages !== undefined
 
     return `import requests
 import json

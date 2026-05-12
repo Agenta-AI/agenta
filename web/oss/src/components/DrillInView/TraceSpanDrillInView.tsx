@@ -9,7 +9,9 @@ import {
     useState,
 } from "react"
 
+import {traceSpanMolecule} from "@agenta/entities/trace"
 import {
+    CopyButton,
     Editor as EditorWrapper,
     EditorProvider,
     DrillInProvider,
@@ -32,16 +34,20 @@ import {
 import {Button, Input, Select} from "antd"
 import {useAtomValue} from "jotai"
 import yaml from "js-yaml"
-import JSON5 from "json5"
 import dynamic from "next/dynamic"
 
-import CopyButton from "@/oss/components/CopyButton/CopyButton"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
-import {traceSpan} from "@/oss/state/entities/trace"
 
+import {BeautifiedJsonView} from "./BeautifiedJsonView"
+import {
+    buildDecodedJsonOutput,
+    normalizeEscapedLineBreaks,
+    parseStructuredJson,
+} from "./decodedJsonHelpers"
 import type {DrillInContentProps} from "./DrillInContent"
 import {EntityDrillInView} from "./EntityDrillInView"
+import {getDefaultJsonViewMode} from "./viewModes"
 const ImagePreview = dynamic(() => import("@agenta/ui").then((mod) => mod.ImagePreview), {
     ssr: false,
 })
@@ -98,132 +104,33 @@ export interface TraceSpanDrillInViewProps extends Omit<
 
 type RawSpanViewMode = "json" | "yaml"
 
-type RawSpanDisplayMode = RawSpanViewMode | "rendered-json" | "text" | "markdown"
+/**
+ * View modes for a trace span.
+ *
+ * See `VIEW_MODES.md` in this folder for the full definition of each mode,
+ * including which display target it uses, what cleanup it applies, and when
+ * it is the default.
+ *
+ * Summary:
+ * - `json` / `yaml`: faithful — data as stored, no cleanup.
+ * - `decoded-json`: JSON editor, cleaned (unwrap nested stringified JSON,
+ *   decode escaped newlines).
+ * - `beautified-json`: custom component tree (chat bubbles, per-key fields,
+ *   envelope unwrap, noise stripping). Default for structured JSON data.
+ * - `text` / `markdown`: prose editor.
+ */
+type RawSpanDisplayMode = RawSpanViewMode | "decoded-json" | "beautified-json" | "text" | "markdown"
 
 const RAW_SPAN_VIEW_MODE_LABELS: Record<RawSpanDisplayMode, string> = {
     json: "JSON",
     yaml: "YAML",
-    "rendered-json": "Rendered JSON",
+    "decoded-json": "Decoded JSON",
+    "beautified-json": "Beautified JSON",
     text: "Text",
     markdown: "Markdown",
 }
 
-const getDefaultRawSpanViewMode = (availableModes: RawSpanDisplayMode[]): RawSpanDisplayMode => {
-    if (availableModes.includes("rendered-json")) return "rendered-json"
-    return availableModes[0] ?? "json"
-}
-
-const normalizeEscapedLineBreaks = (value: string): string =>
-    value.replaceAll("\\r\\n", "\n").replaceAll("\\n", "\n")
-
-const parseStructuredJson = (value: string): unknown | null => {
-    const tryParseJson = (input: string): unknown | null => {
-        try {
-            return JSON.parse(input)
-        } catch {
-            return null
-        }
-    }
-
-    const toStructured = (parsed: unknown): unknown | null => {
-        if (parsed && typeof parsed === "object") return parsed
-        if (typeof parsed !== "string") return null
-
-        const nested = tryParseJson(parsed.trim())
-        if (nested && typeof nested === "object") return nested
-        return null
-    }
-
-    let candidate = value.trim()
-    if (!candidate) return null
-
-    const fencedMatch = candidate.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
-    if (fencedMatch?.[1]) {
-        candidate = fencedMatch[1].trim()
-    }
-
-    const strictParsed = toStructured(tryParseJson(candidate))
-    if (strictParsed !== null) return strictParsed
-
-    try {
-        return toStructured(JSON5.parse(candidate))
-    } catch {
-        return null
-    }
-}
-
-const renderStringifiedJson = (value: unknown): {value: unknown; didRender: boolean} => {
-    if (typeof value === "string") {
-        const parsed = parseStructuredJson(value)
-        if (parsed === null) return {value, didRender: false}
-        const nested = renderStringifiedJson(parsed)
-        return {value: nested.value, didRender: true}
-    }
-
-    if (Array.isArray(value)) {
-        let didRender = false
-        const rendered = value.map((item) => {
-            const next = renderStringifiedJson(item)
-            if (next.didRender) didRender = true
-            return next.value
-        })
-        return {value: rendered, didRender}
-    }
-
-    if (value && typeof value === "object") {
-        let didRender = false
-        const rendered = Object.fromEntries(
-            Object.entries(value).map(([key, nestedValue]) => {
-                const next = renderStringifiedJson(nestedValue)
-                if (next.didRender) didRender = true
-                return [key, next.value]
-            }),
-        )
-        return {value: rendered, didRender}
-    }
-
-    return {value, didRender: false}
-}
-
-const decodeEscapedLineBreaks = (value: string): string => {
-    let decoded = value
-
-    // Handle both "\n" and "\\n" style payload encodings.
-    for (let i = 0; i < 2; i += 1) {
-        const next = decoded
-            .replace(/\\\\r\\\\n/g, "\r\n")
-            .replace(/\\\\n/g, "\n")
-            .replace(/\\r\\n/g, "\r\n")
-            .replace(/\\n/g, "\n")
-
-        if (next === decoded) break
-        decoded = next
-    }
-
-    return decoded
-}
-
-const formatRenderedJsonStringsForDisplay = (value: unknown): unknown => {
-    if (typeof value === "string") {
-        // Decode escaped line breaks and preserve multiline rendering in JSON code view.
-        return decodeEscapedLineBreaks(value).replace(/\r\n|\n|\r/g, "\u2028")
-    }
-
-    if (Array.isArray(value)) {
-        return value.map((item) => formatRenderedJsonStringsForDisplay(item))
-    }
-
-    if (value && typeof value === "object") {
-        return Object.fromEntries(
-            Object.entries(value).map(([key, nestedValue]) => [
-                key,
-                formatRenderedJsonStringsForDisplay(nestedValue),
-            ]),
-        )
-    }
-
-    return value
-}
+// Value-simplification and beautified rendering live in ./BeautifiedJsonView.
 
 const LanguageAwareViewer = ({
     initialValue,
@@ -387,7 +294,7 @@ export const TraceSpanDrillInView = memo(
         allowSpanCollapse = true,
         spanDataOverride,
     }: TraceSpanDrillInViewProps) => {
-        const spanEntityData = useAtomValue(traceSpan.selectors.data(spanId))
+        const spanEntityData = useAtomValue(traceSpanMolecule.selectors.data(spanId))
         const spanData = spanDataOverride !== undefined ? spanDataOverride : spanEntityData
         const textViewerId = useId().replace(/:/g, "")
 
@@ -411,13 +318,6 @@ export const TraceSpanDrillInView = memo(
             [isStringValue, sanitizedSpanData],
         )
 
-        const renderedJsonSource = useMemo(() => {
-            if (isStringValue) {
-                return parsedStructuredString ?? sanitizedSpanData
-            }
-            return sanitizedSpanData
-        }, [isStringValue, parsedStructuredString, sanitizedSpanData])
-
         const jsonOutput = useMemo(
             () =>
                 isStringValue
@@ -426,19 +326,6 @@ export const TraceSpanDrillInView = memo(
                         : (JSON.stringify(sanitizedSpanData) ?? "")
                     : getStringOrJson(sanitizedSpanData),
             [isStringValue, parsedStructuredString, sanitizedSpanData],
-        )
-        const renderedJsonResult = useMemo(
-            () => renderStringifiedJson(renderedJsonSource ?? {}),
-            [renderedJsonSource],
-        )
-        const renderedJsonOutput = useMemo(
-            () =>
-                JSON.stringify(
-                    formatRenderedJsonStringsForDisplay(renderedJsonResult.value),
-                    null,
-                    2,
-                ) ?? "null",
-            [renderedJsonResult.value],
         )
         const yamlOutput = useMemo(() => {
             const yamlSource = isStringValue ? parsedStructuredString : sanitizedSpanData
@@ -459,45 +346,62 @@ export const TraceSpanDrillInView = memo(
             return getStringOrJson(sanitizedSpanData)
         }, [parsedStructuredString, sanitizedSpanData])
 
+        const decodedJsonOutput = useMemo(
+            () => buildDecodedJsonOutput(sanitizedSpanData, parsedStructuredString),
+            [sanitizedSpanData, parsedStructuredString],
+        )
+
+        const beautifiedJsonSource = useMemo(() => {
+            if (isStringValue) return parsedStructuredString ?? sanitizedSpanData
+            return sanitizedSpanData
+        }, [isStringValue, parsedStructuredString, sanitizedSpanData])
+
+        const hasStructuredValue =
+            (isStringValue && parsedStructuredString !== null) ||
+            (!isStringValue && isObjectOrArrayValue)
+
         const availableViewModes = useMemo(() => {
             if (viewModePreset === "message") {
                 const modes: RawSpanDisplayMode[] = ["text", "markdown"]
-                if (
-                    (isStringValue && parsedStructuredString !== null) ||
-                    (!isStringValue && isObjectOrArrayValue)
-                ) {
-                    modes.push("rendered-json")
+                if (hasStructuredValue) {
+                    modes.push("decoded-json", "beautified-json")
                 }
                 return modes
             }
 
             if (isStringValue) {
                 if (parsedStructuredString !== null) {
-                    const modes: RawSpanDisplayMode[] = ["json", "yaml", "rendered-json"]
-                    modes.push("text", "markdown")
-                    return modes
+                    return [
+                        "json",
+                        "yaml",
+                        "decoded-json",
+                        "beautified-json",
+                        "text",
+                        "markdown",
+                    ] as RawSpanDisplayMode[]
                 }
                 return ["text", "markdown"] as RawSpanDisplayMode[]
             }
 
-            const modes: RawSpanDisplayMode[] = ["json", "yaml", "rendered-json"]
-            return modes
-        }, [viewModePreset, isStringValue, isObjectOrArrayValue, parsedStructuredString])
+            return ["json", "yaml", "decoded-json", "beautified-json"] as RawSpanDisplayMode[]
+        }, [viewModePreset, isStringValue, hasStructuredValue, parsedStructuredString])
         const [viewMode, setViewMode] = useState<RawSpanDisplayMode>(() =>
-            getDefaultRawSpanViewMode(availableViewModes),
+            getDefaultJsonViewMode(availableViewModes),
         )
 
-        const isCodeMode =
-            viewMode === "json" || viewMode === "yaml" || viewMode === "rendered-json"
+        const isCodeMode = viewMode === "json" || viewMode === "yaml" || viewMode === "decoded-json"
+        const isBeautifiedJson = viewMode === "beautified-json"
 
         const activeOutput =
             viewMode === "yaml"
                 ? yamlOutput
-                : viewMode === "rendered-json"
-                  ? renderedJsonOutput
-                  : viewMode === "json"
-                    ? jsonOutput
-                    : textOutput
+                : viewMode === "json"
+                  ? jsonOutput
+                  : viewMode === "decoded-json"
+                    ? decodedJsonOutput
+                    : viewMode === "beautified-json"
+                      ? JSON.stringify(beautifiedJsonSource, null, 2)
+                      : textOutput
 
         const closeSearch = useCallback(() => {
             setIsSearchOpen(false)
@@ -527,7 +431,7 @@ export const TraceSpanDrillInView = memo(
 
         useEffect(() => {
             if (!availableViewModes.includes(viewMode)) {
-                setViewMode(getDefaultRawSpanViewMode(availableViewModes))
+                setViewMode(getDefaultJsonViewMode(availableViewModes))
             }
         }, [availableViewModes, viewMode])
 
@@ -597,12 +501,11 @@ export const TraceSpanDrillInView = memo(
                         </div>
                     </div>
                     {(!allowSpanCollapse || !isCollapsed) && (
-                        <div className="relative">
+                        <div className="relative overflow-hidden">
                             {isSearchOpen && isCodeMode && (
-                                <div className="absolute right-4 top-3 z-20 flex items-center gap-2 rounded-xl border border-[rgba(5,23,41,0.14)] bg-white px-2 py-2 shadow-[0_8px_24px_rgba(5,23,41,0.12)]">
+                                <div className="absolute right-4 top-3 z-20 flex items-center gap-2 rounded-xl border border-[rgba(5,23,41,0.14)] bg-white px-2 py-2 shadow-[0_8px_24px_rgba(5,23,41,0.12)] max-w-[calc(100%-2rem)]">
                                     <Input
-                                        size="small"
-                                        className="w-[180px]"
+                                        className="w-[180px] min-w-[80px]"
                                         placeholder="Search..."
                                         value={searchTerm}
                                         onChange={(e) => {
@@ -638,7 +541,7 @@ export const TraceSpanDrillInView = memo(
                                 <DrillInProvider
                                     value={{
                                         enabled: false,
-                                        decodeEscapedJsonStrings: viewMode === "rendered-json",
+                                        decodeEscapedJsonStrings: viewMode === "decoded-json",
                                     }}
                                 >
                                     <EditorProvider
@@ -664,6 +567,13 @@ export const TraceSpanDrillInView = memo(
                                         />
                                     </EditorProvider>
                                 </DrillInProvider>
+                            ) : isBeautifiedJson ? (
+                                <div className="overflow-y-auto">
+                                    <BeautifiedJsonView
+                                        data={beautifiedJsonSource}
+                                        keyPrefix={`trace-span-${textViewerId}`}
+                                    />
+                                </div>
                             ) : (
                                 <div className="mx-1 my-2 rounded-md bg-[#F6F8FB]">
                                     <TextModeViewer
@@ -735,10 +645,10 @@ export const TraceSpanDrillInView = memo(
             )
         }
 
-        // Type assertion needed because traceSpan.drillIn is optional in the general type
+        // Type assertion needed because traceSpanMolecule.drillIn is optional in the general type
         // but we know it's configured for the trace entity
-        const entityWithDrillIn = traceSpan as typeof traceSpan & {
-            drillIn: NonNullable<typeof traceSpan.drillIn>
+        const entityWithDrillIn = traceSpan as typeof traceSpanMolecule & {
+            drillIn: NonNullable<typeof traceSpanMoleculeMolecule.drillIn>
         }
 
         return (

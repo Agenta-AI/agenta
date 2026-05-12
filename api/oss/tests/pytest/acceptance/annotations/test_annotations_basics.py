@@ -1,5 +1,7 @@
 from uuid import uuid4
 
+from utils.polling import wait_for_response
+
 
 class TestAnnotationsBasics:
     def test_create_annotations(self, authed_api):
@@ -24,9 +26,9 @@ class TestAnnotationsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/annotations/",
+            "/simple/traces/",
             json={
-                "annotation": {
+                "trace": {
                     "data": {
                         "outputs": annotation_data_outputs,
                     },
@@ -40,15 +42,55 @@ class TestAnnotationsBasics:
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
+        assert response.status_code in (200, 202)
+        response = response.json()
+        assert response["count"] == 1
+        assert response["trace"]["data"]["outputs"] == annotation_data_outputs
+        assert response["trace"]["references"]["evaluator"]["slug"] == evaluator_slug
+        assert response["trace"]["links"] == annotation_links
+
+        response = authed_api(
+            "POST",
+            "/simple/evaluators/query",
+            json={"evaluator": {"slug": evaluator_slug}},
+        )
+
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert response["annotation"]["data"]["outputs"] == annotation_data_outputs
-        assert (
-            response["annotation"]["references"]["evaluator"]["slug"] == evaluator_slug
-        )
-        assert response["annotation"]["links"] == annotation_links
+        assert response["evaluators"][0]["slug"] == evaluator_slug
         # ----------------------------------------------------------------------
+
+    def test_create_trace_without_links_does_not_create_evaluator(self, authed_api):
+        evaluator_slug = str(uuid4())
+
+        response = authed_api(
+            "POST",
+            "/simple/traces/",
+            json={
+                "trace": {
+                    "data": {"outputs": {"score": 1}},
+                    "references": {"evaluator": {"slug": evaluator_slug}},
+                    "links": {},
+                }
+            },
+        )
+
+        assert response.status_code in (200, 202)
+        response = response.json()
+        assert response["count"] == 1
+        assert response["trace"]["references"]["evaluator"]["slug"] == evaluator_slug
+        assert "id" not in response["trace"]["references"]["evaluator"]
+
+        response = authed_api(
+            "POST",
+            "/simple/evaluators/query",
+            json={"evaluator": {"slug": evaluator_slug}},
+        )
+
+        assert response.status_code == 200
+        response = response.json()
+        assert response["count"] == 0
 
     def test_fetch_annotations(self, authed_api):
         # ARRANGE --------------------------------------------------------------
@@ -72,9 +114,9 @@ class TestAnnotationsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/annotations/",
+            "/simple/traces/",
             json={
-                "annotation": {
+                "trace": {
                     "data": {
                         "outputs": annotation_data_outputs,
                     },
@@ -86,17 +128,18 @@ class TestAnnotationsBasics:
             },
         )
 
-        assert response.status_code == 200
+        assert response.status_code in (200, 202)
         response = response.json()
         assert response["count"] == 1
-        trace_id = response["annotation"]["trace_id"]
-        span_id = response["annotation"]["span_id"]
+        trace_id = response["trace"]["trace_id"]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        response = authed_api(
+        response = wait_for_response(
+            authed_api,
             "GET",
-            f"/preview/annotations/{trace_id}/{span_id}",
+            f"/simple/traces/{trace_id}",
+            condition_fn=lambda r: r.json().get("count", 0) == 1,
         )
         # ----------------------------------------------------------------------
 
@@ -104,13 +147,10 @@ class TestAnnotationsBasics:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert response["annotation"]["trace_id"] == trace_id
-        assert response["annotation"]["span_id"] == span_id
-        assert response["annotation"]["data"]["outputs"] == annotation_data_outputs
-        assert (
-            response["annotation"]["references"]["evaluator"]["slug"] == evaluator_slug
-        )
-        assert response["annotation"]["links"] == annotation_links
+        assert response["trace"]["trace_id"] == trace_id
+        assert response["trace"]["data"]["outputs"] == annotation_data_outputs
+        assert response["trace"]["references"]["evaluator"]["slug"] == evaluator_slug
+        assert response["trace"]["links"] == annotation_links
 
     def test_edit_annotations(self, authed_api):
         # ARRANGE --------------------------------------------------------------
@@ -134,9 +174,9 @@ class TestAnnotationsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/annotations/",
+            "/simple/traces/",
             json={
-                "annotation": {
+                "trace": {
                     "data": {
                         "outputs": annotation_data_outputs,
                     },
@@ -148,11 +188,18 @@ class TestAnnotationsBasics:
             },
         )
 
-        assert response.status_code == 200
+        assert response.status_code in (200, 202)
         response = response.json()
         assert response["count"] == 1
-        trace_id = response["annotation"]["trace_id"]
-        span_id = response["annotation"]["span_id"]
+        trace_id = response["trace"]["trace_id"]
+
+        # Wait for trace to be indexed before editing
+        wait_for_response(
+            authed_api,
+            "GET",
+            f"/simple/traces/{trace_id}",
+            condition_fn=lambda r: r.json().get("count", 0) == 1,
+        )
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -163,14 +210,16 @@ class TestAnnotationsBasics:
 
         response = authed_api(
             "PATCH",
-            f"/preview/annotations/{trace_id}/{span_id}",
+            f"/simple/traces/{trace_id}",
             json={
-                "annotation": {
+                "trace": {
                     "data": {
                         "outputs": new_annotation_data_outputs,
                     },
                     "tags": {"tag3": "value3"},
                     "meta": {"meta3": "value3"},
+                    "references": {"evaluator": {"slug": evaluator_slug}},
+                    "links": annotation_links,
                 }
             },
         )
@@ -180,12 +229,11 @@ class TestAnnotationsBasics:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert response["annotation"]["trace_id"] == trace_id
-        assert response["annotation"]["span_id"] == span_id
-        assert response["annotation"]["data"]["outputs"] == new_annotation_data_outputs
-        assert response["annotation"]["links"] == annotation_links
-        assert response["annotation"]["tags"] == {"tag3": "value3"}
-        assert response["annotation"]["meta"] == {"meta3": "value3"}
+        assert response["trace"]["trace_id"] == trace_id
+        assert response["trace"]["data"]["outputs"] == new_annotation_data_outputs
+        assert response["trace"]["links"] == annotation_links
+        assert response["trace"]["tags"] == {"tag3": "value3"}
+        assert response["trace"]["meta"] == {"meta3": "value3"}
         # ----------------------------------------------------------------------
 
     def test_delete_annotations(self, authed_api):
@@ -210,9 +258,9 @@ class TestAnnotationsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/annotations/",
+            "/simple/traces/",
             json={
-                "annotation": {
+                "trace": {
                     "data": {
                         "outputs": annotation_data_outputs,
                     },
@@ -224,17 +272,24 @@ class TestAnnotationsBasics:
             },
         )
 
-        assert response.status_code == 200
+        assert response.status_code in (200, 202)
         response = response.json()
         assert response["count"] == 1
-        trace_id = response["annotation"]["trace_id"]
-        span_id = response["annotation"]["span_id"]
+        trace_id = response["trace"]["trace_id"]
+
+        # Wait for trace to be indexed before deleting
+        wait_for_response(
+            authed_api,
+            "GET",
+            f"/simple/traces/{trace_id}",
+            condition_fn=lambda r: r.json().get("count", 0) == 1,
+        )
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/annotations/{trace_id}/{span_id}",
+            f"/simple/traces/{trace_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -242,14 +297,13 @@ class TestAnnotationsBasics:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert response["annotation_link"]["trace_id"] == trace_id
-        assert response["annotation_link"]["span_id"] == span_id
+        assert response["link"]["trace_id"] == trace_id
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/annotations/{trace_id}/{span_id}",
+            f"/simple/traces/{trace_id}",
         )
         # ----------------------------------------------------------------------
 

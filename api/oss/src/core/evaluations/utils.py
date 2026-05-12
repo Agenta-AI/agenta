@@ -1,15 +1,31 @@
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Any, Literal
 from uuid import UUID
 from asyncio import sleep
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.core.tracing.dtos import OTelSpansTree
 from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Trace
+from oss.src.core.shared.dtos import Traces
+from oss.src.core.tracing.utils.hashing import make_hash_id
+from oss.src.core.tracing.dtos import (
+    ComparisonOperator,
+    Condition,
+    Fields,
+    Filtering,
+    Focus,
+    Format,
+    Formatting,
+    ListOperator,
+    LogicalOperator,
+    TracingQuery,
+)
 
 # Divides cleanly into 1, 2, 3, 4, 5, 6, 8, 10, ...
 DEFAULT_BATCH_SIZE = 1 * 2 * 3 * 4 * 5
 
 log = get_module_logger(__name__)
+
+StepKind = Literal["application", "evaluator"]
 
 
 def paginate_ids(
@@ -203,14 +219,192 @@ def get_metrics_keys_from_schema(
     return metrics
 
 
+def _normalize_reference(reference: Any) -> Dict[str, str]:
+    if hasattr(reference, "model_dump"):
+        reference = reference.model_dump(mode="json", exclude_none=True)
+
+    if not isinstance(reference, dict):
+        return {}
+
+    entry = {}
+    for field in ("id", "slug", "version"):
+        value = reference.get(field)
+        if value is not None:
+            entry[field] = str(value)
+    return entry
+
+
+def _normalize_link(link: Any) -> Dict[str, str]:
+    if hasattr(link, "model_dump"):
+        link = link.model_dump(mode="json", exclude_none=True)
+
+    if not isinstance(link, dict):
+        return {}
+
+    entry = {}
+    for field in ("trace_id", "span_id"):
+        value = link.get(field)
+        if value is not None:
+            entry[field] = str(value)
+    return entry
+
+
+def make_hash(
+    *,
+    references: Optional[Dict[str, Any]] = None,
+    links: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    normalized_references = {
+        key: _normalize_reference(reference)
+        for key, reference in (references or {}).items()
+    }
+    normalized_links = {
+        key: _normalize_link(link) for key, link in (links or {}).items()
+    }
+
+    return make_hash_id(
+        references=normalized_references,
+        links=normalized_links,
+    )
+
+
+async def fetch_traces_by_hash(
+    tracing_service,
+    project_id: UUID,
+    *,
+    hash_id: str,
+    limit: Optional[int] = None,
+) -> Traces:
+    if not hash_id:
+        return []
+
+    return await tracing_service.query_traces(
+        project_id=project_id,
+        query=TracingQuery(
+            formatting=Formatting(
+                focus=Focus.TRACE,
+                format=Format.AGENTA,
+            ),
+            windowing=Windowing(
+                limit=limit,
+                order="descending",
+            ),
+            filtering=Filtering(
+                operator=LogicalOperator.AND,
+                conditions=[
+                    Condition(
+                        field=Fields.PARENT_ID,
+                        operator=ComparisonOperator.IS,
+                        value=None,
+                    ),
+                    Condition(
+                        field=Fields.HASHES,
+                        operator=ListOperator.IN,
+                        value=[{"id": hash_id}],
+                    ),
+                ],
+            ),
+        ),
+    )
+
+
+def select_traces_for_reuse(
+    *,
+    traces: Optional[Traces],
+    required_count: int,
+) -> Traces:
+    if not traces or required_count <= 0:
+        return []
+
+    reusable: Traces = []
+    for trace in traces:
+        if not trace:
+            continue
+        if not getattr(trace, "trace_id", None):
+            continue
+        reusable.append(trace)
+        if len(reusable) >= required_count:
+            break
+
+    return reusable
+
+
+def plan_missing_traces(
+    *,
+    required_count: int,
+    reusable_count: int,
+) -> int:
+    return max(0, required_count - max(0, reusable_count))
+
+
+def build_repeat_indices(
+    repeats: Optional[int],
+) -> List[int]:
+    count = repeats or 1
+    if count < 1:
+        count = 1
+    return list(range(count))
+
+
+def required_traces_for_step(
+    *,
+    repeats: Optional[int],
+    is_split: bool,
+    step_kind: StepKind,
+    has_evaluator_steps: bool = True,
+) -> int:
+    count = max(1, repeats or 1)
+
+    if step_kind == "application":
+        if not has_evaluator_steps:
+            return count
+        return count if is_split else 1
+
+    if step_kind == "evaluator":
+        return count
+
+    return count
+
+
+def effective_is_split(
+    *,
+    is_split: bool,
+    is_live: bool = False,
+    is_queue: bool = False,
+    has_application_steps: bool = False,
+    has_evaluator_steps: bool = False,
+) -> bool:
+    if is_live or is_queue:
+        return False
+    if not has_application_steps or not has_evaluator_steps:
+        return False
+    return is_split
+
+
+def _has_usable_root_span(trace: Any) -> bool:
+    spans = getattr(trace, "spans", None)
+    if not isinstance(spans, dict) or not spans:
+        return False
+
+    for span in spans.values():
+        if isinstance(span, list):
+            continue
+        if getattr(span, "span_id", None):
+            return True
+
+    return False
+
+
 async def fetch_trace(
     tracing_service,
     project_id: UUID,
     #
     trace_id: str,
-    max_retries: int = 5,
-    delay: float = 1.0,
-) -> Optional[OTelSpansTree]:
+    max_retries: int = 8,
+    delay: float = 0.5,
+    max_delay: float = 4.0,
+) -> Optional[Trace]:
+    current_delay = delay
     for attempt in range(max_retries):
         had_exception = False
         try:
@@ -218,8 +412,33 @@ async def fetch_trace(
                 project_id=project_id,
                 trace_id=trace_id,
             )
-            if trace:
-                return OTelSpansTree(spans=trace.spans)
+            # spans = getattr(trace, "spans", None) if trace else None
+            # log.debug(
+            #     "[EVAL] [trace] fetch attempt",
+            #     trace_id=trace_id,
+            #     attempt=attempt + 1,
+            #     found=bool(trace),
+            #     spans_type=type(spans).__name__ if spans is not None else None,
+            #     span_count=len(spans) if isinstance(spans, dict) else None,
+            #     usable_root_span=_has_usable_root_span(trace) if trace else False,
+            # )
+            if trace and _has_usable_root_span(trace):
+                if isinstance(trace, Trace):
+                    return trace
+
+                if hasattr(trace, "model_dump"):
+                    trace_payload = trace.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                    )
+                else:
+                    trace_payload = {
+                        key: value
+                        for key, value in vars(trace).items()
+                        if value is not None
+                    }
+
+                return Trace(**trace_payload)
 
         except Exception:  # pylint: disable=broad-exception-caught
             had_exception = True
@@ -232,10 +451,11 @@ async def fetch_trace(
                 )
 
         if attempt < max_retries - 1:
-            await sleep(delay)
+            await sleep(current_delay)
+            current_delay = min(current_delay * 2, max_delay)
         elif not had_exception:
             log.warning(
-                "[EVAL] [trace] empty trace response after retries",
+                "[EVAL] [trace] empty or incomplete trace response after retries",
                 trace_id=trace_id,
                 attempts=max_retries,
             )

@@ -2,8 +2,14 @@
 
 ## Dev Environment Tips
 - If you make changes to the frontend, make sure to run `pnpm lint-fix` within the web folder
-- If you make changes to the API or SDK, make sure to run `ruff format` and `ruff check --fix` within the SDK or API folder
+- If you make changes to the API or SDK, make sure to run `ruff format` and `ruff check --fix` within the SDK or API folder (run from the repo root: `ruff format` then `ruff check`; fix all errors before committing)
 - If you update Ant Design tokens, run `pnpm generate:tailwind-tokens` in the web folder and commit the generated file
+- The Fern-generated `@agentaai/api-client` ships as a compiled `dist/` (entry: `./dist/index.js`). `pnpm install` runs the package's `prepare` script which builds `dist/` automatically — so a fresh checkout works out of the box. **If you regenerate the client (`bash ./clients/scripts/generate.sh --language typescript`) or edit `web/packages/agenta-api-client/src/`, run `pnpm install` again or `pnpm --filter @agentaai/api-client build` so consumers (`@agenta/sdk`, `@agenta/entities`, `web/oss`, `web/ee`) see the update. The `.js` extensions in Fern's relative imports are intentional NodeNext-style emission and resolve only via the compiled `dist/`.**
+
+## Environment Config Conventions
+- For API configuration, add new environment variables to `api/oss/src/utils/env.py` and consume them via the shared `env` object.
+- Avoid calling `os.getenv(...)` directly in feature code when the value is part of application config.
+- Avoid local imports inside helper functions for configuration lookup; prefer module-level imports unless there is a proven circular dependency.
 
 
 ## Testing Instructions
@@ -157,7 +163,7 @@ References:
 Migration should preserve compatibility while moving to new APIs.
 
 - Keep old and new routes running in parallel until migration is complete.
-- New stack commonly ships under `/preview/*` while old endpoints remain mounted.
+- New stack commonly ships under `/*` while old endpoints remain mounted.
 - Prefer data compatibility adapters over breaking payload changes.
 - Preserve old IDs/shape when continuity is required.
 - If old storage temporarily carries new payload shape, mark it explicitly.

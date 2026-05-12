@@ -7,8 +7,8 @@
 
 import {memo, useState, useMemo, useEffect} from "react"
 
-import {Button, Modal} from "antd"
-import clsx from "clsx"
+import {EnhancedModal} from "@agenta/ui/components/modal"
+import {Button} from "antd"
 
 import {PresetContent} from "./PresetContent"
 import type {LoadEvaluatorPresetModalProps} from "./types"
@@ -53,16 +53,13 @@ export const LoadEvaluatorPresetModal = memo(function LoadEvaluatorPresetModal({
     )
 
     return (
-        <Modal
+        <EnhancedModal
             width={1150}
-            className={clsx(
-                "[&_.ant-modal-content]:h-full [&_.ant-modal-content]:overflow-y-auto",
-                "[&_.ant-modal-body]:h-[600px]",
-            )}
             title="Load Preset"
             footer={footer}
             open={open}
             onCancel={onCancel}
+            styles={{body: {height: 600}}}
             {...modalProps}
         >
             <PresetContent
@@ -71,7 +68,7 @@ export const LoadEvaluatorPresetModal = memo(function LoadEvaluatorPresetModal({
                 onSelectPreset={setSelectedPresetKey}
                 selectedPreset={selectedPreset}
             />
-        </Modal>
+        </EnhancedModal>
     )
 })
 

@@ -71,7 +71,7 @@ from oss.src.services.db_manager import (
     check_if_user_invitation_exists,
     is_first_user_signup,
     get_oss_organization,
-    setup_oss_organization_for_first_user,
+    get_or_bootstrap_oss_organization,
 )
 
 log = get_module_logger(__name__)
@@ -211,8 +211,12 @@ async def _create_account(email: str, uid: str) -> bool:
             # This avoids the FK violation where org.owner_id references non-existent user
             user_db = await create_accounts(payload)
 
-            # Now create organization with the real user ID
-            organization_db = await setup_oss_organization_for_first_user(
+            # Now create organization with the real user ID. The bootstrap
+            # is race-free at the org level: create_organization performs an
+            # INSERT ... ON CONFLICT (slug) DO NOTHING against the
+            # deterministic OSS singleton slug, so concurrent first-user
+            # signups all converge on the same org row.
+            organization_db = await get_or_bootstrap_oss_organization(
                 user_id=user_db.id,
                 user_email=auth_info.email,
             )
@@ -918,8 +922,14 @@ def override_passwordless_functions(
         auth_info = await ensure_auth_info_not_blocked(parse_auth_info(email))
         assert auth_info is not None
 
-        # Create internal user account first (idempotent - skips if exists)
-        is_new_user = await _create_account(auth_info.email, user_id_str)
+        # When invoked by an admin-managed path (e.g. /admin/simple/accounts/),
+        # skip _create_account: the admin caller has already provisioned the
+        # internal user, org membership, project, and api-key. Running the
+        # invitation/bootstrap branch here would 401 the alias signup.
+        if user_context.get("admin_managed"):
+            is_new_user = False
+        else:
+            is_new_user = await _create_account(auth_info.email, user_id_str)
         user_context["is_new_user"] = is_new_user
 
         # Create or update user_identity
@@ -1087,8 +1097,14 @@ def override_emailpassword_functions(
         # Method for email/password
         method = "email:password"
 
-        # Create internal user account first (idempotent - skips if exists)
-        is_new_user = await _create_account(auth_info.email, result.user.id)
+        # When invoked by an admin-managed path (e.g. /admin/simple/accounts/),
+        # skip _create_account: the admin caller has already provisioned the
+        # internal user, org membership, project, and api-key. Running the
+        # invitation/bootstrap branch here would 401 the alias signup.
+        if user_context.get("admin_managed"):
+            is_new_user = False
+        else:
+            is_new_user = await _create_account(auth_info.email, result.user.id)
         user_context["is_new_user"] = is_new_user
 
         # Create or update user_identity

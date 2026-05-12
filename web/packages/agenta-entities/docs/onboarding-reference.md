@@ -7,7 +7,7 @@ Quick reference for new contributors working with `@agenta/entities`.
 | Goal | Recommended API | Notes |
 | --- | --- | --- |
 | Execute data rows in playground | `loadableBridge` | Rows always come from `testcaseMolecule` (local or server). |
-| Run app revisions | `runnableBridge` | Wraps app/evaluator revisions for execution metadata. |
+| Run app revisions | `workflowMolecule` | Access revision data, input/output ports, configuration directly. |
 | Render testcase tables | `testcaseDataController` | Abstracts local vs server data sources. |
 | Get effective testcases for a revision | `revision.atoms.effectiveTestcases(id)` | Server rows + local pending rows merged. |
 | Edit entity metadata | `testsetMolecule`, `revisionMolecule`, `appRevisionMolecule` | Draft state is merged into `data`. |

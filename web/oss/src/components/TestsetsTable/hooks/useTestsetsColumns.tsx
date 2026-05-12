@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {GearSix, Note, Copy, PencilSimple, Trash} from "@phosphor-icons/react"
+import {ArchiveIcon, GearSix, Note, Copy, PencilSimple} from "@phosphor-icons/react"
 import {Button, Dropdown} from "antd"
 import type {ColumnsType} from "antd/es/table"
 
@@ -114,6 +114,19 @@ export const useTestsetsColumns = ({
                                             copyToClipboard(record._id)
                                         },
                                     },
+                                    ...(record.slug
+                                        ? [
+                                              {
+                                                  key: "copy-slug",
+                                                  label: "Copy Slug",
+                                                  icon: <Copy size={16} />,
+                                                  onClick: (e: any) => {
+                                                      e.domEvent.stopPropagation()
+                                                      copyToClipboard(record.slug!)
+                                                  },
+                                              },
+                                          ]
+                                        : []),
                                     {type: "divider"},
                                     {
                                         key: "rename",
@@ -126,8 +139,8 @@ export const useTestsetsColumns = ({
                                     },
                                     {
                                         key: "delete",
-                                        label: "Delete",
-                                        icon: <Trash size={16} />,
+                                        label: "Archive",
+                                        icon: <ArchiveIcon size={14} />,
                                         danger: true,
                                         onClick: (e) => {
                                             e.domEvent.stopPropagation()

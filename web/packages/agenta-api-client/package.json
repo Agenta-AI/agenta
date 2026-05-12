@@ -1,0 +1,34 @@
+{
+  "name": "@agentaai/api-client",
+  "version": "0.99.6",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "browser": {
+    "fs": false,
+    "stream": false,
+    "stream/web": false,
+    "buffer": false
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "generate": "bash ../../../clients/scripts/generate.sh --language typescript",
+    "build": "tsc -p tsconfig.json",
+    "prepare": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.20",
+    "typescript": "^5.9.3"
+  }
+}

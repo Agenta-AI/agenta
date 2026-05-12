@@ -34,7 +34,7 @@ The **embeds** feature enables workflow-in-workflow composition using `@ag.embed
 ### API Integration (100% Complete)
 
 **Endpoint:**
-- ✅ `POST /preview/workflows/revisions/resolve`
+- ✅ `POST /workflows/revisions/resolve`
 
 **Implementation:**
 - `api/oss/src/apis/fastapi/workflows/router.py` - Endpoint handler
@@ -98,7 +98,7 @@ The **embeds** feature enables workflow-in-workflow composition using `@ag.embed
 **Estimate:** 2-3 hours
 
 **Tasks:**
-- [ ] Add `POST /preview/environments/revisions/resolve` endpoint
+- [ ] Add `POST /environments/revisions/resolve` endpoint
 - [ ] Add request/response models in `environments/models.py`
 - [ ] Add `resolve_environment_revision()` in `EnvironmentsService`
 - [ ] Add unit tests for environments resolution
@@ -323,8 +323,8 @@ The **embeds** feature enables workflow-in-workflow composition using `@ag.embed
 - ✅ Depth and count limits enforced
 
 **Integration:**
-- ✅ Works with /preview/workflows endpoint
-- ⏳ Works with /preview/environments endpoint
+- ✅ Works with /workflows endpoint
+- ⏳ Works with /environments endpoint
 - ⏳ Legacy applications/evaluators compatible
 - ⏳ SDK resolution transparent
 

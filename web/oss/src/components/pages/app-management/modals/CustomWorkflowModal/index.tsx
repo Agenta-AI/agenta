@@ -9,10 +9,30 @@ const CustomWorkflowModalContent = dynamic(
     {ssr: false},
 )
 
-const CustomWorkflowModal = (props: CustomWorkflowModalProps) => {
+const CustomWorkflowModal = ({
+    open,
+    onCancel,
+    appId,
+    onSuccess,
+    onCreateApp,
+    ...rest
+}: CustomWorkflowModalProps) => {
     return (
-        <EnhancedModal title={null} width={480} closeIcon={null} footer={null} {...props}>
-            <CustomWorkflowModalContent {...props} />
+        <EnhancedModal
+            title={null}
+            width={480}
+            closeIcon={null}
+            footer={null}
+            open={open}
+            onCancel={onCancel}
+            {...rest}
+        >
+            <CustomWorkflowModalContent
+                appId={appId}
+                onCancel={onCancel}
+                onSuccess={onSuccess}
+                onCreateApp={onCreateApp}
+            />
         </EnhancedModal>
     )
 }

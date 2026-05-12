@@ -17,6 +17,10 @@ This guide covers how to create variants and commit changes to them using the Ag
 
 ## Creating and Managing Variants
 
+:::info REST API usage
+The REST endpoints used below identify applications, variants, and revisions by UUID. When you only have a slug, resolve it with a prior call to `POST /api/applications/query` (each example below shows the resolve step inline). The Python SDK handles this automatically.
+:::
+
 ### Create a New Variant
 
 Use `VariantManager.create` to create a new variant with initial configuration:
@@ -61,136 +65,120 @@ variant = ag.VariantManager.create(
   <TabItem value="JavaScript" label="JS/TS">
 
 ```javascript
-// Step 1: Add variant configuration (creates empty variant)
-const addConfigResponse = await fetch('https://cloud.agenta.ai/api/variants/configs/add', {
+const baseUrl = 'https://cloud.agenta.ai';
+const headers = {
+  'Content-Type': 'application/json',
+  'Authorization': 'ApiKey YOUR_API_KEY'
+};
+
+// Step 1: Resolve the application slug to a UUID
+const appLookup = await fetch(`${baseUrl}/api/applications/query`, {
+  method: 'POST', headers,
+  body: JSON.stringify({ application_refs: [{ slug: 'my-app-slug' }] })
+});
+const { applications } = await appLookup.json();
+const applicationId = applications[0].id;
+
+// Step 2: Create the variant under that application
+const createVariantResponse = await fetch(`${baseUrl}/api/applications/variants/`, {
   method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer YOUR_API_KEY'
-  },
+  headers,
   body: JSON.stringify({
-    variant_ref: {
+    application_variant: {
+      application_id: applicationId,
       slug: 'my-variant-slug',
-      version: null,
-      id: null
-    },
-    application_ref: {
-      slug: 'my-app-slug',
-      version: null,
-      id: null
+      name: 'my-variant-slug'
     }
   })
 });
+const { application_variant } = await createVariantResponse.json();
 
-const config = await addConfigResponse.json();
-
-// Step 2: Commit parameters to the variant
-const commitResponse = await fetch('https://cloud.agenta.ai/api/variants/configs/commit', {
+// Step 3: Commit the initial revision with parameters
+// `slug` must be unique within the variant's revision history.
+const commitResponse = await fetch(`${baseUrl}/api/applications/revisions/commit`, {
   method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer YOUR_API_KEY'
-  },
+  headers,
   body: JSON.stringify({
-    config: {
-      params: {
-        prompt: {
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an assistant that provides concise answers'
-            },
-            {
-              role: 'user',
-              content: 'Explain {{topic}} in simple terms'
+    application_revision_commit: {
+      application_variant_id: application_variant.id,
+      slug: 'initial',
+      message: 'Initial commit',
+      data: {
+        parameters: {
+          prompt: {
+            messages: [
+              { role: 'system', content: 'You are an assistant that provides concise answers' },
+              { role: 'user', content: 'Explain {{topic}} in simple terms' }
+            ],
+            llm_config: {
+              model: 'gpt-3.5-turbo',
+              max_tokens: 150,
+              temperature: 0.7,
+              top_p: 1.0,
+              frequency_penalty: 0.0,
+              presence_penalty: 0.0
             }
-          ],
-          llm_config: {
-            model: 'gpt-3.5-turbo',
-            max_tokens: 150,
-            temperature: 0.7,
-            top_p: 1.0,
-            frequency_penalty: 0.0,
-            presence_penalty: 0.0
           }
         }
-      },
-      variant_ref: {
-        slug: 'my-variant-slug',
-        version: null,
-        id: null
-      },
-      application_ref: {
-        slug: 'my-app-slug',
-        version: null,
-        id: null
       }
     }
   })
 });
 
-const result = await commitResponse.json();
-console.log(result);
+console.log(await commitResponse.json());
 ```
 
   </TabItem>
   <TabItem value="API">
 
 ```bash
-# Step 1: Add variant configuration (creates empty variant)
-curl -X POST "https://cloud.agenta.ai/api/variants/configs/add" \
+# Step 1: Resolve the application slug to a UUID
+curl -X POST "https://cloud.agenta.ai/api/applications/query" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
+  -d '{"application_refs":[{"slug":"my-app-slug"}]}'
+# → copy applications[0].id into APPLICATION_UUID below
+
+# Step 2: Create the variant under that application
+curl -X POST "https://cloud.agenta.ai/api/applications/variants/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
-    "variant_ref": {
+    "application_variant": {
+      "application_id": "APPLICATION_UUID",
       "slug": "my-variant-slug",
-      "version": null,
-      "id": null
-    },
-    "application_ref": {
-      "slug": "my-app-slug",
-      "version": null,
-      "id": null
+      "name": "my-variant-slug"
     }
   }'
+# → copy application_variant.id into VARIANT_UUID below
 
-# Step 2: Commit parameters to the variant
-curl -X POST "https://cloud.agenta.ai/api/variants/configs/commit" \
+# Step 3: Commit the initial revision with parameters
+# `slug` must be unique within the variant's revision history.
+curl -X POST "https://cloud.agenta.ai/api/applications/revisions/commit" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
-    "config": {
-      "params": {
-        "prompt": {
-          "messages": [
-            {
-              "role": "system",
-              "content": "You are an assistant that provides concise answers"
-            },
-            {
-              "role": "user", 
-              "content": "Explain {{topic}} in simple terms"
+    "application_revision_commit": {
+      "application_variant_id": "VARIANT_UUID",
+      "slug": "initial",
+      "message": "Initial commit",
+      "data": {
+        "parameters": {
+          "prompt": {
+            "messages": [
+              { "role": "system", "content": "You are an assistant that provides concise answers" },
+              { "role": "user",   "content": "Explain {{topic}} in simple terms" }
+            ],
+            "llm_config": {
+              "model": "gpt-3.5-turbo",
+              "max_tokens": 150,
+              "temperature": 0.7,
+              "top_p": 1.0,
+              "frequency_penalty": 0.0,
+              "presence_penalty": 0.0
             }
-          ],
-          "llm_config": {
-            "model": "gpt-3.5-turbo",
-            "max_tokens": 150,
-            "temperature": 0.7,
-            "top_p": 1.0,
-            "frequency_penalty": 0.0,
-            "presence_penalty": 0.0
           }
         }
-      },
-      "variant_ref": {
-        "slug": "my-variant-slug",
-        "version": null,
-        "id": null
-      },
-      "application_ref": {
-        "slug": "my-app-slug",
-        "version": null,
-        "id": null
       }
     }
   }'
@@ -289,46 +277,35 @@ print(variant)
   <TabItem value="JavaScript" label="JS/TS">
 
 ```javascript
-// Commit new version with updated parameters
-const commitResponse = await fetch('https://cloud.agenta.ai/api/variants/configs/commit', {
+// Commit a new revision on an existing variant
+const commitResponse = await fetch('https://cloud.agenta.ai/api/applications/revisions/commit', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': 'Bearer YOUR_API_KEY'
+    'Authorization': 'ApiKey YOUR_API_KEY'
   },
   body: JSON.stringify({
-    config: {
-      params: {
-        prompt: {
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an assistant that provides VERY concise answers'
-            },
-            {
-              role: 'user',
-              content: 'Explain {{topic}} in simple terms'
+    application_revision_commit: {
+      application_variant_id: 'VARIANT_UUID',
+      slug: 'switch-to-claude',
+      message: 'Switch to Claude',
+      data: {
+        parameters: {
+          prompt: {
+            messages: [
+              { role: 'system', content: 'You are an assistant that provides VERY concise answers' },
+              { role: 'user', content: 'Explain {{topic}} in simple terms' }
+            ],
+            llm_config: {
+              model: 'anthropic/claude-3-5-sonnet-20240620',
+              max_tokens: 150,
+              temperature: 0.7,
+              top_p: 1.0,
+              frequency_penalty: 0.0,
+              presence_penalty: 0.0
             }
-          ],
-          llm_config: {
-            model: 'anthropic/claude-3-5-sonnet-20240620',
-            max_tokens: 150,
-            temperature: 0.7,
-            top_p: 1.0,
-            frequency_penalty: 0.0,
-            presence_penalty: 0.0
           }
         }
-      },
-      variant_ref: {
-        slug: 'my-variant-slug',
-        version: null,
-        id: null
-      },
-      application_ref: {
-        slug: 'my-app-slug',
-        version: null,
-        id: null
       }
     }
   })
@@ -342,43 +319,32 @@ console.log(result);
   <TabItem value="API">
 
 ```bash
-# Commit new version with updated parameters
-curl -X POST "https://cloud.agenta.ai/api/variants/configs/commit" \
+# Commit a new revision on an existing variant
+curl -X POST "https://cloud.agenta.ai/api/applications/revisions/commit" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
-    "config": {
-      "params": {
-        "prompt": {
-          "messages": [
-            {
-              "role": "system",
-              "content": "You are an assistant that provides VERY concise answers"
-            },
-            {
-              "role": "user", 
-              "content": "Explain {{topic}} in simple terms"
+    "application_revision_commit": {
+      "application_variant_id": "VARIANT_UUID",
+      "slug": "switch-to-claude",
+      "message": "Switch to Claude",
+      "data": {
+        "parameters": {
+          "prompt": {
+            "messages": [
+              { "role": "system", "content": "You are an assistant that provides VERY concise answers" },
+              { "role": "user",   "content": "Explain {{topic}} in simple terms" }
+            ],
+            "llm_config": {
+              "model": "anthropic/claude-3-5-sonnet-20240620",
+              "max_tokens": 150,
+              "temperature": 0.7,
+              "top_p": 1.0,
+              "frequency_penalty": 0.0,
+              "presence_penalty": 0.0
             }
-          ],
-          "llm_config": {
-            "model": "anthropic/claude-3-5-sonnet-20240620",
-            "max_tokens": 150,
-            "temperature": 0.7,
-            "top_p": 1.0,
-            "frequency_penalty": 0.0,
-            "presence_penalty": 0.0
           }
         }
-      },
-      "variant_ref": {
-        "slug": "my-variant-slug",
-        "version": null,
-        "id": null
-      },
-      "application_ref": {
-        "slug": "my-app-slug",
-        "version": null,
-        "id": null
       }
     }
   }'
@@ -470,7 +436,7 @@ print(f"Deployed to {deployment['environment_slug']}")
 ```
 
 :::warning
-- Deploying a variant without specifying a `variant_version` deploys the latest version.
+- Omitting the revision (SDK `variant_version`, REST `application_revision_ref`) deploys the latest revision of the variant.
 - Only predefined environments with slugs `development`, `staging`, and `production` are currently supported.
 :::
 
@@ -672,31 +638,21 @@ print("Variant deleted successfully.")
   <TabItem value="JavaScript" label="JS/TS">
 
 ```javascript
-// Delete a variant
-const deleteResponse = await fetch('https://cloud.agenta.ai/api/variants/configs/delete', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer YOUR_API_KEY'
-  },
-  body: JSON.stringify({
-    variant_ref: {
-      slug: 'obsolete-variant',
-      version: null,
-      id: null
-    },
-    application_ref: {
-      slug: 'my-app',
-      version: null,
-      id: null
+// Archive a variant (soft-delete). Call /unarchive to restore.
+const archiveResponse = await fetch(
+  `https://cloud.agenta.ai/api/applications/variants/VARIANT_UUID/archive`,
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': 'ApiKey YOUR_API_KEY'
     }
-  })
-});
+  }
+);
 
-if (deleteResponse.status === 204) {
-  console.log('Variant deleted successfully.');
+if (archiveResponse.ok) {
+  console.log('Variant archived successfully.');
 } else {
-  console.error('Failed to delete variant:', deleteResponse.status);
+  console.error('Failed to archive variant:', archiveResponse.status);
 }
 ```
 
@@ -704,31 +660,21 @@ if (deleteResponse.status === 204) {
   <TabItem value="API">
 
 ```bash
-# Delete a variant
-curl -X POST "https://cloud.agenta.ai/api/variants/configs/delete" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -d '{
-    "variant_ref": {
-      "slug": "obsolete-variant",
-      "version": null,
-      "id": null
-    },
-    "application_ref": {
-      "slug": "my-app",
-      "version": null,
-      "id": null
-    }
-  }'
+# Archive a variant (soft-delete). Call /unarchive to restore.
+curl -X POST "https://cloud.agenta.ai/api/applications/variants/VARIANT_UUID/archive" \
+  -H "Authorization: ApiKey YOUR_API_KEY"
 ```
 
   </TabItem>
 </Tabs>
 
-:::warning
+:::info
+Archiving is a soft delete. The variant is hidden from queries (unless `include_archived: true` is passed) and can be restored with `POST /applications/variants/{variant_id}/unarchive`.
+:::
 
-- Deleting a variant removes all versions of the variant. This action is irreversible.
-- Attempting to delete a variant that is deployed to an environment will fail.
+:::warning
+- Archiving a variant hides all of its revisions.
+- Attempting to archive a variant that is deployed to an environment will fail.
 :::
 
 ## Listing All Variants
@@ -752,40 +698,53 @@ print(variants)
   <TabItem value="JavaScript" label="JS/TS">
 
 ```javascript
-// List all variants for an application
-const listResponse = await fetch('https://cloud.agenta.ai/api/variants/configs/list', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer YOUR_API_KEY'
-  },
+const baseUrl = 'https://cloud.agenta.ai';
+const headers = {
+  'Content-Type': 'application/json',
+  'Authorization': 'ApiKey YOUR_API_KEY'
+};
+
+// Step 1: Resolve the application slug to an id
+const appLookup = await fetch(`${baseUrl}/api/applications/query`, {
+  method: 'POST', headers,
+  body: JSON.stringify({ application_refs: [{ slug: 'my-app' }] })
+});
+const { applications } = await appLookup.json();
+const appId = applications[0].id;
+
+// Step 2: List variants under that application
+const listResponse = await fetch(`${baseUrl}/api/applications/variants/query`, {
+  method: 'POST', headers,
   body: JSON.stringify({
-    application_ref: {
-      slug: 'my-app',
-      version: null,
-      id: null
-    }
+    application_refs: [{ id: appId }],
+    include_archived: false,
+    windowing: { limit: 50 }
   })
 });
 
-const variants = await listResponse.json();
-console.log(variants);
+const { count, application_variants } = await listResponse.json();
+console.log(count, application_variants);
 ```
 
   </TabItem>
   <TabItem value="API">
 
 ```bash
-# List all variants for an application
-curl -X POST "https://cloud.agenta.ai/api/variants/configs/list" \
+# Step 1: Resolve the application slug to an id
+curl -X POST "https://cloud.agenta.ai/api/applications/query" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
+  -d '{"application_refs":[{"slug":"my-app"}]}'
+# → copy applications[0].id into APPLICATION_UUID below
+
+# Step 2: List variants under that application
+curl -X POST "https://cloud.agenta.ai/api/applications/variants/query" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
-    "application_ref": {
-      "slug": "my-app",
-      "version": null,
-      "id": null
-    }
+    "application_refs": [{ "id": "APPLICATION_UUID" }],
+    "include_archived": false,
+    "windowing": { "limit": 50 }
   }'
 ```
 
@@ -910,49 +869,35 @@ print(versions)
   <TabItem value="JavaScript" label="JS/TS">
 
 ```javascript
-// List all versions/history for a specific variant
-const historyResponse = await fetch('https://cloud.agenta.ai/api/variants/configs/history', {
+// List revisions for a specific variant
+const historyResponse = await fetch('https://cloud.agenta.ai/api/applications/revisions/log', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': 'Bearer YOUR_API_KEY'
+    'Authorization': 'ApiKey YOUR_API_KEY'
   },
   body: JSON.stringify({
-    variant_ref: {
-      slug: 'variant-slug',
-      version: null,
-      id: null
-    },
-    application_ref: {
-      slug: 'my-app',
-      version: null,
-      id: null
+    application: {
+      application_variant_id: 'VARIANT_UUID'
     }
   })
 });
 
-const versions = await historyResponse.json();
-console.log(versions);
+const { count, application_revisions } = await historyResponse.json();
+console.log(count, application_revisions);
 ```
 
   </TabItem>
   <TabItem value="API">
 
 ```bash
-# List all versions/history for a specific variant
-curl -X POST "https://cloud.agenta.ai/api/variants/configs/history" \
+# List revisions for a specific variant
+curl -X POST "https://cloud.agenta.ai/api/applications/revisions/log" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
-    "variant_ref": {
-      "slug": "variant-slug",
-      "version": null,
-      "id": null
-    },
-    "application_ref": {
-      "slug": "my-app",
-      "version": null,
-      "id": null
+    "application": {
+      "application_variant_id": "VARIANT_UUID"
     }
   }'
 ```

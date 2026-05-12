@@ -12,13 +12,12 @@
 
 import {memo, useMemo} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
 import {LabeledField} from "@agenta/ui/components/presentational"
+import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Select} from "antd"
-
-import {useDrillInUI} from "../context"
 
 import {getOptionsFromSchema} from "./schemaUtils"
 

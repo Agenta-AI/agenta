@@ -4,7 +4,7 @@ import {Plus, Trash} from "@phosphor-icons/react"
 import {Button, Form, FormListFieldData, Input, InputNumber, Select, Switch, Typography} from "antd"
 import dynamic from "next/dynamic"
 
-import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
+import {isSlugInputValid} from "@/oss/lib/helpers/utils"
 
 import {EVALUATOR_OPTIONS, NUMERIC_METRIC_TYPES} from "../../../constants"
 
@@ -131,7 +131,7 @@ const CreateNewMetric = ({
                             validator(_, value) {
                                 if (!value) {
                                     return Promise.resolve()
-                                } else if (!isAppNameInputValid(value)) {
+                                } else if (!isSlugInputValid(value)) {
                                     return Promise.reject(
                                         "Slug must contain only letters, numbers, underscore, or dash without any spaces.",
                                     )

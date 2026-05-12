@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.20
-FROM node:20.18.0-slim AS base
+FROM node:24-slim AS base
 
 WORKDIR /app
 
@@ -23,10 +23,18 @@ FROM base AS builder
 ENV NODE_OPTIONS="--max_old_space_size=4096"
 ENV TURBO_CACHE_DIR="/app/.turbo"
 
+COPY docker/run-turbo-build.sh /usr/local/bin/run-turbo-build.sh
+
+RUN chmod +x /usr/local/bin/run-turbo-build.sh
+
 # Copy package.json files first (changes less frequently than source)
 COPY ee/package.json ./ee/package.json
 COPY oss/package.json ./oss/package.json
 COPY --parents packages/*/package.json ./
+
+# agenta-api-client builds its dist/ via a `prepare` script during install,
+# so its source must be present before `pnpm install` runs.
+COPY packages/agenta-api-client/ ./packages/agenta-api-client/
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm fetch --frozen-lockfile
@@ -42,10 +50,12 @@ COPY ee/ ./ee/
 RUN --mount=type=cache,id=turbo-ee,target=/app/.turbo \
     --mount=type=cache,id=nextjs-ee,target=/app/ee/.next/cache \
     --mount=type=cache,id=nextjs-oss,target=/app/oss/.next/cache \
-    pnpm turbo run build --filter=@agenta/ee
+    --mount=type=secret,id=turbo_team,required=false \
+    --mount=type=secret,id=turbo_token,required=false \
+    /usr/local/bin/run-turbo-build.sh @agenta/ee
 
 
-FROM node:20.18.0-slim AS runner
+FROM node:24-slim AS runner
 
 ARG BUILD_DATE
 ARG VCS_REF

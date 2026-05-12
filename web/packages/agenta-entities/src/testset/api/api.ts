@@ -5,6 +5,7 @@
  * These are pure functions with no Jotai dependencies.
  */
 
+import {getAgentaSdkClient} from "@agenta/sdk"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 
 import {safeParseWithLogging} from "../../shared"
@@ -37,7 +38,7 @@ import type {
  * Fetch a single revision by ID
  */
 export async function fetchRevision({id, projectId}: RevisionDetailParams): Promise<Revision> {
-    const response = await axios.get(`${getAgentaApiUrl()}/preview/testsets/revisions/${id}`, {
+    const response = await axios.get(`${getAgentaApiUrl()}/testsets/revisions/${id}`, {
         params: {project_id: projectId, include_testcases: false},
     })
     const validated = safeParseWithLogging(
@@ -57,9 +58,27 @@ export async function fetchRevision({id, projectId}: RevisionDetailParams): Prom
 export async function fetchRevisionWithTestcases({
     id,
     projectId,
-}: RevisionDetailParams): Promise<Revision | null> {
+    testcaseLimit,
+}: RevisionDetailParams & {testcaseLimit?: number}): Promise<Revision | null> {
+    if (testcaseLimit) {
+        const response = await axios.post(
+            `${getAgentaApiUrl()}/testsets/revisions/retrieve`,
+            {
+                testset_revision_ref: {id},
+                include_testcases: true,
+                windowing: {limit: testcaseLimit},
+            },
+            {params: {project_id: projectId}},
+        )
+
+        const revision = response.data?.testset_revision ?? response.data
+        if (!revision) return null
+
+        return normalizeRevision(revision)
+    }
+
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+        `${getAgentaApiUrl()}/testsets/revisions/query`,
         {
             testset_revision_refs: [{id}],
             windowing: {limit: 1},
@@ -74,6 +93,31 @@ export async function fetchRevisionWithTestcases({
 }
 
 /**
+ * Fetch the latest revision for a testset with testcases included.
+ * Supports limiting embedded testcases when callers only need a column sample.
+ */
+export async function fetchLatestRevisionWithTestcases({
+    projectId,
+    testsetId,
+    testcaseLimit,
+}: RevisionListParams & {testcaseLimit?: number}): Promise<Revision | null> {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/testsets/revisions/retrieve`,
+        {
+            testset_ref: {id: testsetId},
+            include_testcases: true,
+            ...(testcaseLimit ? {windowing: {limit: testcaseLimit}} : {}),
+        },
+        {params: {project_id: projectId}},
+    )
+
+    const revision = response.data?.testset_revision ?? response.data
+    if (!revision) return null
+
+    return normalizeRevision(revision)
+}
+
+/**
  * Fetch revisions list for a testset
  */
 export async function fetchRevisionsList({
@@ -81,7 +125,7 @@ export async function fetchRevisionsList({
     testsetId,
 }: RevisionListParams): Promise<RevisionsResponse> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+        `${getAgentaApiUrl()}/testsets/revisions/query`,
         {
             testset_refs: [{id: testsetId}],
             windowing: {limit: 100, order: "descending"},
@@ -108,7 +152,7 @@ export async function fetchLatestRevision({
     testsetId,
 }: RevisionListParams): Promise<Revision | null> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+        `${getAgentaApiUrl()}/testsets/revisions/query`,
         {
             testset_refs: [{id: testsetId}],
             windowing: {limit: 1, order: "descending"},
@@ -143,7 +187,7 @@ export async function fetchLatestRevisionsBatch(
     if (!projectId || testsetIds.length === 0) return results
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+        `${getAgentaApiUrl()}/testsets/revisions/query`,
         {
             // Use per-ref limit to get exactly 1 revision per testset
             testset_refs: testsetIds.map((id) => ({id, limit: 1})),
@@ -189,7 +233,7 @@ export async function fetchRevisionsBatch(
     }
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+        `${getAgentaApiUrl()}/testsets/revisions/query`,
         requestBody,
         {params: {project_id: projectId, include_testcases: false}},
     )
@@ -212,7 +256,12 @@ export async function fetchRevisionsBatch(
 // ============================================================================
 
 /**
- * Fetch testsets list (metadata only)
+ * Fetch testsets list (metadata only).
+ *
+ * Migrated to consume the Fern-generated `@agentaai/api-client` via `@agenta/sdk`
+ * (v3 PoC). Zod validation stays at the boundary because Fern's compile-time
+ * types under-declare backend `extra="allow"` fields — drift detection still
+ * has independent value.
  */
 export async function fetchTestsetsList({
     projectId,
@@ -222,25 +271,17 @@ export async function fetchTestsetsList({
         return {testsets: [], count: 0}
     }
 
-    const queryPayload: Record<string, unknown> = {
-        windowing: {limit: 100, order: "descending"},
-    }
+    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
 
-    if (searchQuery && searchQuery.trim()) {
-        queryPayload.testset = {
-            name: searchQuery.trim(),
-        }
-    }
-
-    const response = await axios.post(`${getAgentaApiUrl()}/preview/testsets/query`, queryPayload, {
-        params: {project_id: projectId},
-    })
-
-    const validated = safeParseWithLogging(
-        testsetsResponseSchema,
-        response.data,
-        "[fetchTestsetsList]",
+    const data = await client.testsets.queryTestsets(
+        {
+            windowing: {limit: 100, order: "descending"},
+            ...(searchQuery && searchQuery.trim() ? {testset: {name: searchQuery.trim()}} : {}),
+        },
+        {queryParams: {project_id: projectId}},
     )
+
+    const validated = safeParseWithLogging(testsetsResponseSchema, data, "[fetchTestsetsList]")
     if (!validated) {
         return {testsets: [], count: 0}
     }
@@ -248,10 +289,44 @@ export async function fetchTestsetsList({
 }
 
 /**
+ * Fetch multiple testsets by ID in a single API call (metadata only).
+ * Uses POST /testsets/query with testset_refs.
+ */
+export async function fetchTestsetsBatch(
+    projectId: string,
+    testsetIds: string[],
+): Promise<Map<string, Testset>> {
+    const results = new Map<string, Testset>()
+    if (!projectId || testsetIds.length === 0) return results
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/testsets/query`,
+        {
+            testset_refs: testsetIds.map((id) => ({id})),
+            windowing: {limit: testsetIds.length},
+        },
+        {params: {project_id: projectId}},
+    )
+
+    const validated = safeParseWithLogging(
+        testsetsResponseSchema,
+        response.data,
+        "[fetchTestsetsBatch]",
+    )
+    if (validated) {
+        for (const testset of validated.testsets) {
+            results.set(testset.id, testset)
+        }
+    }
+
+    return results
+}
+
+/**
  * Fetch a single testset by ID (metadata only)
  */
 export async function fetchTestsetDetail({id, projectId}: TestsetDetailParams): Promise<Testset> {
-    const response = await axios.get(`${getAgentaApiUrl()}/preview/testsets/${id}`, {
+    const response = await axios.get(`${getAgentaApiUrl()}/testsets/${id}`, {
         params: {project_id: projectId},
     })
     const validated = safeParseWithLogging(
@@ -273,7 +348,7 @@ export async function fetchTestsetDetail({id, projectId}: TestsetDetailParams): 
  * Fetch a single variant by ID (contains name and description)
  */
 export async function fetchVariantDetail({id, projectId}: VariantDetailParams): Promise<Variant> {
-    const response = await axios.get(`${getAgentaApiUrl()}/preview/testsets/variants/${id}`, {
+    const response = await axios.get(`${getAgentaApiUrl()}/testsets/variants/${id}`, {
         params: {project_id: projectId},
     })
     const validated = safeParseWithLogging(

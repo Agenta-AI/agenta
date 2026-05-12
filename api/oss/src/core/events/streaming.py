@@ -6,11 +6,23 @@ from orjson import dumps, loads
 from pydantic import BaseModel
 from redis.asyncio import Redis
 
+try:
+    from asyncpg.pgproto.pgproto import UUID as AsyncpgUUID
+except ImportError:
+    AsyncpgUUID = None
+
 from oss.src.core.events.dtos import Event
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
+
+
+def _orjson_default(obj):
+    if AsyncpgUUID is not None and isinstance(obj, AsyncpgUUID):
+        return str(obj)
+    raise TypeError(f"Type is not JSON serializable: {type(obj)}")
+
 
 _redis: Optional[Redis] = None
 
@@ -67,13 +79,13 @@ async def publish_event(
 
     try:
         message = {
-            "organization_id": organization_id,
-            "project_id": project_id,
-            "user_id": user_id,
+            "organization_id": str(organization_id) if organization_id else None,
+            "project_id": str(project_id),
+            "user_id": str(user_id) if user_id else None,
             "event": event.model_dump(mode="json"),
         }
 
-        event_bytes = dumps(message)
+        event_bytes = dumps(message, default=_orjson_default)
         event_bytes = zlib.compress(event_bytes)
 
         await redis.xadd(

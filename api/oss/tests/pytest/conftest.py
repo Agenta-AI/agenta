@@ -1,5 +1,6 @@
 from utils.env import ag_env  # noqa: F401
 from utils.api import (
+    admin_api,  # noqa: F401
     authed_api,  # noqa: F401
     unauthed_api,  # noqa: F401
 )

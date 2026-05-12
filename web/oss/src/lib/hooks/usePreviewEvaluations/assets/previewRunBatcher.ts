@@ -1,5 +1,6 @@
+import {createBatchFetcher} from "@agenta/shared/utils"
+
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
 interface PreviewRunBatchKey {
     projectId: string
@@ -74,13 +75,9 @@ const getPreviewRunBatcherCore = () => {
                             },
                         }
 
-                        const response = await axios.post(
-                            `/preview/evaluations/runs/query`,
-                            payload,
-                            {
-                                params: {project_id: projectId},
-                            },
-                        )
+                        const response = await axios.post(`/evaluations/runs/query`, payload, {
+                            params: {project_id: projectId},
+                        })
 
                         const runs = Array.isArray(response?.data?.runs) ? response.data.runs : []
 

@@ -27,7 +27,11 @@ class SessionIdentitiesUpdate(BaseModel):
     session_identities: list[str]
 
 
-@auth_router.post("/discover", response_model=DiscoverResponse)
+@auth_router.post(
+    "/discover",
+    response_model=DiscoverResponse,
+    operation_id="discover_access",
+)
 async def discover(request: DiscoverRequest):
     """
     Discover authentication methods available for a given email.
@@ -47,7 +51,7 @@ async def discover(request: DiscoverRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@auth_router.get("/access")
+@auth_router.get("/access", operation_id="check_organization_access")
 async def check_organization_access(request: Request, organization_id: str):
     """
     Check if the current session satisfies the organization's auth policy.
@@ -121,7 +125,7 @@ async def check_organization_access(request: Request, organization_id: str):
     return {"ok": True}
 
 
-@auth_router.patch("/session/identities")
+@auth_router.patch("/session/identities", operation_id="update_session_identities")
 async def update_session_identities(request: Request, payload: SessionIdentitiesUpdate):
     try:
         session = await get_session(request)  # type: ignore
@@ -144,7 +148,10 @@ async def update_session_identities(request: Request, payload: SessionIdentities
     return {"session_identities": merged, "previous": current}
 
 
-@auth_router.get("/sso/callback/{organization_slug}/{provider_slug}")
+@auth_router.get(
+    "/sso/callback/{organization_slug}/{provider_slug}",
+    operation_id="sso_callback_redirect",
+)
 async def sso_callback_redirect(
     organization_slug: str, provider_slug: str, request: Request
 ):

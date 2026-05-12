@@ -5,6 +5,7 @@ import {Card, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
 
+import {isBillingEnabled} from "@/oss/lib/helpers/isEE"
 import {appIdentifiersAtom} from "@/oss/state/appState/atoms"
 
 const {Title, Text} = Typography
@@ -18,6 +19,7 @@ export const UpgradePrompt: FC<UpgradePromptProps> = ({title, description}) => {
     const identifiers = useAtomValue(appIdentifiersAtom)
     const workspaceId = identifiers.workspaceId
     const projectId = identifiers.projectId
+    const showBillingLink = isBillingEnabled()
 
     return (
         <Card>
@@ -33,7 +35,7 @@ export const UpgradePrompt: FC<UpgradePromptProps> = ({title, description}) => {
                 </Text>
                 <Text type="secondary" className="!text-sm">
                     Available on <strong>Business</strong> and <strong>Enterprise</strong> plans.{" "}
-                    {workspaceId && projectId && (
+                    {showBillingLink && workspaceId && projectId && (
                         <Link
                             href={`/w/${workspaceId}/p/${projectId}/settings?tab=billing&upgrade=true`}
                             className="font-medium"

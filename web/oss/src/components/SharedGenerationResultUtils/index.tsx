@@ -10,7 +10,7 @@ import {
     openTraceDrawerAtom,
     setTraceDrawerActiveSpanAtom,
 } from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import {useQueryParamState} from "@/oss/state/appState"
+import {requestNavigationAtom} from "@/oss/state/appState"
 
 const globalStore = getDefaultStore()
 
@@ -29,9 +29,6 @@ const SharedGenerationResultUtils = ({
     tree,
     ...rest
 }: SharedGenerationResultUtilsProps) => {
-    const [, setTraceQueryParam] = useQueryParamState("trace")
-    const [, setSpanQueryParam] = useQueryParamState("span")
-
     const effectiveTraceId = traceId ?? tree?.trace_id ?? null
 
     const onViewTrace = useCallback(
@@ -42,14 +39,20 @@ const SharedGenerationResultUtils = ({
                 activeSpanId: spanId ?? null,
             })
             globalStore.set(setTraceDrawerActiveSpanAtom, spanId ?? null)
-            setTraceQueryParam(nextTraceId, {shallow: true})
-            if (spanId) {
-                setSpanQueryParam(spanId, {shallow: true})
-            } else {
-                setSpanQueryParam(undefined, {shallow: true})
-            }
+            // Batch trace and span into a single navigation command to avoid
+            // a race where the second patch overwrites the first, and preserve
+            // the URL hash so the playground snapshot is not lost.
+            globalStore.set(requestNavigationAtom, {
+                type: "patch-query",
+                patch: {
+                    trace: nextTraceId,
+                    span: spanId ?? undefined,
+                },
+                shallow: true,
+                preserveHash: true,
+            })
         },
-        [setSpanQueryParam, setTraceQueryParam],
+        [],
     )
 
     return (

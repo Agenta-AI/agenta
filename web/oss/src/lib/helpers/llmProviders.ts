@@ -41,12 +41,13 @@ export const transformSecret = (secrets: CustomSecretDTO[] | StandardSecretDTO[]
                 alephalpha: "ALEPHALPHA_API_KEY",
                 groq: "GROQ_API_KEY",
                 mistral: "MISTRAL_API_KEY",
-                mistralai: "MISTRALAI_API_KEY",
+                mistralai: "MISTRAL_API_KEY",
                 anthropic: "ANTHROPIC_API_KEY",
                 perplexityai: "PERPLEXITYAI_API_KEY",
                 together_ai: "TOGETHERAI_API_KEY",
                 openrouter: "OPENROUTER_API_KEY",
                 gemini: "GEMINI_API_KEY",
+                minimax: "MINIMAX_API_KEY",
             }
 
             acc.push({
@@ -85,7 +86,7 @@ export const transformSecret = (secrets: CustomSecretDTO[] | StandardSecretDTO[]
 
 export const llmAvailableProviders: LlmProvider[] = [
     {title: "OpenAI", key: "", name: "OPENAI_API_KEY"},
-    {title: "Mistral AI", key: "", name: "MISTRALAI_API_KEY"},
+    {title: "Mistral AI", key: "", name: "MISTRAL_API_KEY"},
     {title: "Cohere", key: "", name: "COHERE_API_KEY"},
     {title: "Anthropic", key: "", name: "ANTHROPIC_API_KEY"},
     {title: "Anyscale", key: "", name: "ANYSCALE_API_KEY"},
@@ -96,6 +97,7 @@ export const llmAvailableProviders: LlmProvider[] = [
     {title: "OpenRouter", key: "", name: "OPENROUTER_API_KEY"},
     {title: "Groq", key: "", name: "GROQ_API_KEY"},
     {title: "Google Gemini", key: "", name: "GEMINI_API_KEY"},
+    {title: "MiniMax", key: "", name: "MINIMAX_API_KEY"},
 ]
 
 export const transformCustomProviderPayloadData = (values: LlmProvider) => {

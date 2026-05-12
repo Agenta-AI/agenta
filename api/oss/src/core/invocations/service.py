@@ -18,7 +18,6 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.tracing.dtos import (
     OTelFlatSpan,
-    TraceType,
     SpanType,
 )
 from oss.src.core.tracing.service import TracingService
@@ -42,6 +41,7 @@ from oss.src.core.invocations.types import (
     InvocationReferences,
     InvocationLinks,
     InvocationFlags,
+    InvocationQueryFlags,
     #
     Invocation,
     InvocationCreate,
@@ -174,11 +174,35 @@ class InvocationsService:
         if invocation_link is None:
             return None
 
-        invocation = await self._fetch_invocation(
-            project_id=project_id,
-            user_id=user_id,
+        _kind = (
+            InvocationKind.EVAL
+            if invocation_flags.is_evaluation
+            else InvocationKind.ADHOC
+        )
+
+        _channel = (
+            InvocationChannel.SDK
+            if invocation_flags.is_sdk
+            else InvocationChannel.WEB
+            if invocation_flags.is_web
+            else InvocationChannel.API
+        )
+
+        invocation = Invocation(
+            trace_id=invocation_link.trace_id,
+            span_id=invocation_link.span_id,
             #
-            invocation_link=invocation_link,
+            origin=InvocationOrigin.CUSTOM,
+            kind=_kind,
+            channel=_channel,
+            #
+            tags=invocation_create.tags,
+            meta=invocation_create.meta,
+            #
+            data=invocation_create.data,
+            #
+            references=invocation_references,
+            links=invocation_create.links,
         )
 
         return invocation
@@ -333,14 +357,45 @@ class InvocationsService:
         if invocation_link is None:
             return None
 
-        invocation = await self._fetch_invocation(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            invocation_link=invocation_link,
+        _kind = (
+            InvocationKind.EVAL
+            if invocation_flags.is_evaluation
+            else InvocationKind.ADHOC
         )
 
-        return invocation
+        _channel = (
+            InvocationChannel.SDK
+            if invocation_flags.is_sdk
+            else InvocationChannel.WEB
+            if invocation_flags.is_web
+            else InvocationChannel.API
+        )
+
+        updated_invocation = Invocation(
+            trace_id=invocation_link.trace_id,
+            span_id=invocation_link.span_id,
+            #
+            created_at=invocation.created_at,
+            updated_at=invocation.updated_at,
+            deleted_at=invocation.deleted_at,
+            created_by_id=invocation.created_by_id,
+            updated_by_id=invocation.updated_by_id,
+            deleted_by_id=invocation.deleted_by_id,
+            #
+            origin=invocation.origin,
+            kind=_kind,
+            channel=_channel,
+            #
+            tags=invocation_edit.tags,
+            meta=invocation_edit.meta,
+            #
+            data=invocation_edit.data,
+            #
+            references=invocation_references,
+            links=invocation.links,
+        )
+
+        return updated_invocation
 
     async def delete(
         self,
@@ -378,7 +433,7 @@ class InvocationsService:
         windowing: Optional[Windowing] = None,
     ):
         invocation = invocation_query if invocation_query else None
-        invocation_flags = InvocationFlags(is_evaluator=True)
+        invocation_flags = InvocationQueryFlags()
 
         if invocation:
             if invocation.channel:
@@ -439,8 +494,6 @@ class InvocationsService:
         links: Optional[InvocationLinks],
     ) -> Optional[Link]:
         trace_id = uuid4().hex
-        trace_type = TraceType.INVOCATION
-
         span_id = uuid4().hex[16:]
         span_type = SpanType.TASK
         span_name = name or references.application.slug or "invocation"
@@ -456,7 +509,6 @@ class InvocationsService:
         _flags = flags.model_dump(mode="json", exclude_none=True)
 
         _attributes = build_simple_trace_attributes(
-            trace_kind="invocation",
             flags=_flags,
             tags=tags,
             meta=meta,
@@ -471,7 +523,6 @@ class InvocationsService:
             spans=[
                 OTelFlatSpan(
                     trace_id=trace_id,
-                    trace_type=trace_type,
                     span_id=span_id,
                     span_type=span_type,
                     span_name=span_name,
@@ -479,7 +530,6 @@ class InvocationsService:
                     links=_links,
                 )
             ],
-            sync=True,  # Synchronous for user-facing invocations
         )
 
         _link = first_link(links)
@@ -594,7 +644,6 @@ class InvocationsService:
         _flags = flags.model_dump(mode="json", exclude_none=True)
 
         _attributes = build_simple_trace_attributes(
-            trace_kind="invocation",
             flags=_flags,
             tags=tags,
             meta=meta,
@@ -614,7 +663,6 @@ class InvocationsService:
                     links=_links,
                 )
             ],
-            sync=True,  # Synchronous for user-facing invocations
         )
 
         _link = first_link(links)

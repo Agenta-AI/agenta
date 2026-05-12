@@ -18,12 +18,6 @@ export interface InitialContentPayload {
     preventDefault: () => void
     /** Whether default handling has been prevented */
     isDefaultPrevented: () => boolean
-    /** Optional: Original content for diff computation */
-    originalContent?: string
-    /** Optional: Modified content for diff computation */
-    modifiedContent?: string
-    /** Optional: Flag to indicate this is a diff request */
-    isDiffRequest?: boolean
     /** Optional: Force update even if editor has focus (for undo/redo) */
     forceUpdate?: boolean
 }

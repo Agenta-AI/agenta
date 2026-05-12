@@ -450,12 +450,12 @@ Guarded environments (`is_guarded: true`) require explicit approval before deplo
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/preview/simple/environments/query` | List/query environments |
-| `POST` | `/preview/simple/environments/` | Create environment |
-| `PUT` | `/preview/simple/environments/{id}` | Edit environment |
-| `POST` | `/preview/simple/environments/{id}/archive` | Archive |
-| `POST` | `/preview/simple/environments/{id}/unarchive` | Unarchive |
-| `POST` | `/preview/simple/environments/{id}/guard` | Guard |
-| `POST` | `/preview/simple/environments/{id}/unguard` | Unguard |
-| `POST` | `/preview/environments/revisions/query` | Query revisions |
-| `POST` | `/preview/environments/revisions/commit` | Commit revision |
+| `POST` | `/simple/environments/query` | List/query environments |
+| `POST` | `/simple/environments/` | Create environment |
+| `PUT` | `/simple/environments/{id}` | Edit environment |
+| `POST` | `/simple/environments/{id}/archive` | Archive |
+| `POST` | `/simple/environments/{id}/unarchive` | Unarchive |
+| `POST` | `/simple/environments/{id}/guard` | Guard |
+| `POST` | `/simple/environments/{id}/unguard` | Unguard |
+| `POST` | `/environments/revisions/query` | Query revisions |
+| `POST` | `/environments/revisions/commit` | Commit revision |

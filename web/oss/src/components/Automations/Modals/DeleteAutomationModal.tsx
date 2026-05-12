@@ -8,7 +8,7 @@ import {deleteAutomationAtom} from "@/oss/state/automations/atoms"
 import {webhookToDeleteAtom} from "@/oss/state/automations/state"
 
 const DeleteAutomationModal = () => {
-    const deleteWebhook = useSetAtom(deleteAutomationAtom)
+    const deleteWebhookSubscription = useSetAtom(deleteAutomationAtom)
     const [webhookToDelete, setWebhookToDelete] = useAtom(webhookToDeleteAtom)
     const [isDeleteModalLoading, setIsDeleteModalLoading] = useState(false)
 
@@ -16,7 +16,7 @@ const DeleteAutomationModal = () => {
         if (!webhookToDelete) return
         setIsDeleteModalLoading(true)
         try {
-            await deleteWebhook(webhookToDelete.id)
+            await deleteWebhookSubscription(webhookToDelete.id)
             message.success("Automation deleted successfully")
             setWebhookToDelete(null)
         } catch (error) {

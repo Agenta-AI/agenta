@@ -11,4 +11,4 @@ ENV ALEMBIC_CFG_PATH_CORE=/app/oss/databases/postgres/migrations/core/alembic.in
 ENV ALEMBIC_CFG_PATH_TRACING=/app/oss/databases/postgres/migrations/tracing/alembic.ini
 
 # Run scheduled maintenance jobs via supercronic (non-root compatible)
-CMD ["supercronic", "/app/crontab"]
+CMD ["/usr/local/bin/supercronic", "/app/crontab"]

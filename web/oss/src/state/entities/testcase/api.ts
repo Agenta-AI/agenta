@@ -14,7 +14,7 @@ export const fetchTestcase = async (params: {
 
     try {
         const response = await axios.post(
-            `${getAgentaApiUrl()}/preview/testcases/query`,
+            `${getAgentaApiUrl()}/testcases/query`,
             {testcase_ids: [testcaseId]},
             {params: {project_id: projectId}},
         )

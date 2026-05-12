@@ -1,0 +1,7 @@
+interface:
+  display_name: "Sync Findings"
+  short_description: "Sync GitHub and local findings"
+  default_prompt: "Use $sync-findings with url=<github-pr-url> to sync PR comments, thread state, and local findings into the active findings record."
+
+policy:
+  allow_implicit_invocation: true

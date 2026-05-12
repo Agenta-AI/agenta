@@ -33,7 +33,7 @@ const ReferenceTag = ({
 
     const tagNode = (
         <Tag
-            bordered={false}
+            variant="filled"
             className={clsx(
                 "group flex items-center gap-1 border border-solid rounded px-2 py-0.5 text-xs transition-all",
                 toneColors

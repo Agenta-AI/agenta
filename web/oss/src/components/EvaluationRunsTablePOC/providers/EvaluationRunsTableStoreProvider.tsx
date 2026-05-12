@@ -1,7 +1,6 @@
 import type {PropsWithChildren} from "react"
 import {useEffect, useMemo} from "react"
 
-import {useQueryClient} from "@tanstack/react-query"
 import type {PrimitiveAtom} from "jotai"
 import {Provider, createStore, useStore} from "jotai"
 
@@ -40,7 +39,6 @@ const EvaluationRunsTableStoreProvider = ({
     children,
 }: EvaluationRunsTableStoreProviderProps) => {
     const parentStore = useStore()
-    const queryClient = useQueryClient()
     const resolvedOverrides = useMemo(
         () => ({
             ...defaultEvaluationRunsTableOverrides,
@@ -58,7 +56,7 @@ const EvaluationRunsTableStoreProvider = ({
         store.set(evaluationRunsTableOverridesAtom, resolvedOverrides)
         store.set(evaluationRunsTableFetchEnabledAtom, true)
         return store
-    }, [pageSize, parentStore, queryClient, resolvedOverrides])
+    }, [pageSize, parentStore, resolvedOverrides])
 
     useEffect(() => {
         const cleanups = MIRRORED_GLOBAL_ATOMS.map((atom) => {

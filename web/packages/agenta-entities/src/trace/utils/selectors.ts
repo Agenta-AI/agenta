@@ -39,6 +39,55 @@ function getAgDataFromAttributes(
     return null
 }
 
+function isMeaningfulOutput(value: unknown): boolean {
+    if (value === null || value === undefined) return false
+    if (typeof value === "string") return value.trim().length > 0
+    if (Array.isArray(value)) return value.length > 0
+    if (isRecord(value)) return Object.keys(value).length > 0
+    return true
+}
+
+function getSpanFailureOutput(span: TraceSpan | TraceSpanNode | null): unknown {
+    if (!span) return undefined
+
+    const exceptionEvent = span.events?.find((event) => event.name === "exception")
+    const exceptionAttributes = isRecord(exceptionEvent?.attributes)
+        ? exceptionEvent.attributes
+        : null
+
+    const exceptionType =
+        typeof exceptionAttributes?.["exception.type"] === "string"
+            ? exceptionAttributes["exception.type"]
+            : typeof exceptionAttributes?.type === "string"
+              ? exceptionAttributes.type
+              : null
+
+    const exceptionMessage =
+        typeof exceptionAttributes?.["exception.message"] === "string"
+            ? exceptionAttributes["exception.message"]
+            : typeof exceptionAttributes?.message === "string"
+              ? exceptionAttributes.message
+              : null
+
+    const statusMessage =
+        typeof span.status_message === "string" && span.status_message.trim().length > 0
+            ? span.status_message.trim()
+            : null
+
+    const errorMessage =
+        [exceptionType, exceptionMessage].filter(Boolean).join(": ") ||
+        exceptionMessage ||
+        statusMessage
+
+    if (!errorMessage && span.status_code !== "STATUS_CODE_ERROR") {
+        return undefined
+    }
+
+    return {
+        error: errorMessage || "Trace execution failed",
+    }
+}
+
 // ============================================================================
 // PATH EXTRACTION UTILITIES
 // ============================================================================
@@ -191,10 +240,18 @@ export const extractInputs = (span: TraceSpan | TraceSpanNode | null): Record<st
  * Extract output data from a span's attributes
  */
 export const extractOutputs = (span: TraceSpan | TraceSpanNode | null): unknown => {
-    if (!span?.attributes) return undefined
+    if (!span?.attributes) {
+        return getSpanFailureOutput(span)
+    }
 
     const agData = getAgDataFromAttributes(span.attributes)
-    return agData?.outputs
+    const outputs = agData?.outputs
+
+    if (isMeaningfulOutput(outputs)) {
+        return outputs
+    }
+
+    return getSpanFailureOutput(span)
 }
 
 /**

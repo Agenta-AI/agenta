@@ -20,7 +20,7 @@ const DeleteFolderModal = ({
     confirmLoading,
 }: DeleteFolderModalProps) => {
     return (
-        <Modal open={open} onCancel={onCancel} footer={null} destroyOnHidden>
+        <Modal open={open} onCancel={onCancel} footer={null} destroyOnHidden centered>
             <div className="flex flex-col gap-4">
                 <div className="text-xl font-semibold">Are you sure you want to delete?</div>
 

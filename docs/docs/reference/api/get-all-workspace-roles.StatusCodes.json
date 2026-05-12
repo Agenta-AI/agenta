@@ -1,0 +1,1 @@
+{"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"additionalProperties":{"type":"string"},"type":"object"},"type":"array","title":"Response Get All Workspace Roles"}}}}}}

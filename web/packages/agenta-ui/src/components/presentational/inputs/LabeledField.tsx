@@ -16,6 +16,7 @@
 
 import type {ReactNode} from "react"
 
+import {InfoCircleOutlined} from "@ant-design/icons"
 import {Tooltip, Typography} from "antd"
 
 import {cn, flexLayouts, gapClasses, textColors, textSizes} from "../../../utils/styles"
@@ -31,7 +32,7 @@ export interface LabeledFieldProps {
     label?: string
     /** Tooltip description */
     description?: string
-    /** Whether to show tooltip on label */
+    /** Whether to show tooltip */
     withTooltip?: boolean
     /** Tooltip placement */
     tooltipPlacement?: "top" | "right" | "bottom" | "left"
@@ -69,7 +70,10 @@ export function LabeledField({
         md: textSizes.base,
     }
 
-    const content = (
+    const isHorizontal = direction === "horizontal"
+    const showTooltipIcon = withTooltip && !!description && !!label
+
+    return (
         <div
             className={cn(
                 direction === "vertical"
@@ -79,23 +83,30 @@ export function LabeledField({
             )}
         >
             {label && (
-                <Text className={cn("font-medium", textColors.primary, sizeClassMap[size])}>
-                    {label}
-                </Text>
+                <div className="flex items-center gap-1">
+                    <Text
+                        className={cn(
+                            "font-medium",
+                            textColors.primary,
+                            sizeClassMap[size],
+                            isHorizontal && "flex-shrink-0",
+                        )}
+                    >
+                        {label}
+                    </Text>
+                    {showTooltipIcon && (
+                        <Tooltip title={description} placement={tooltipPlacement}>
+                            <InfoCircleOutlined
+                                className="text-gray-400 text-[11px] cursor-help"
+                                aria-hidden="true"
+                            />
+                        </Tooltip>
+                    )}
+                </div>
             )}
-            {children}
+            {isHorizontal ? <div className="flex-1 min-w-0">{children}</div> : children}
         </div>
     )
-
-    if (withTooltip && description && label) {
-        return (
-            <Tooltip title={description} placement={tooltipPlacement}>
-                {content}
-            </Tooltip>
-        )
-    }
-
-    return content
 }
 
 export default LabeledField

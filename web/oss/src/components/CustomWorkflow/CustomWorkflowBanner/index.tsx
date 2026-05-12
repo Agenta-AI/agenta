@@ -13,7 +13,7 @@ const CustomWorkflowBanner = ({
     layout = "banner",
 }: CustomWorkflowBannerProps) => {
     const showBanner = useAtomValue(customWorkflowBannerVisibleAtom)
-    const {openModal} = useCustomWorkflowConfig({configureWorkflow: true})
+    const {openModal} = useCustomWorkflowConfig({})
     const router = useRouter()
     const isPlaygroundPath =
         router.pathname.includes("/playground") || router.pathname.includes("/evaluations/results")

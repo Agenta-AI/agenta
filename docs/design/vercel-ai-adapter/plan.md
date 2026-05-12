@@ -156,7 +156,7 @@ Test categories:
 
 Tests that exercise the full OTLP → adapter → storage → query pipeline:
 
-1. **Ingest + query generateText span** — POST Vercel AI-style attributes via `/preview/tracing/spans/ingest`, poll until queryable, verify `ag.*` fields in returned span
+1. **Ingest + query generateText span** — POST Vercel AI-style attributes via `/tracing/spans/ingest`, poll until queryable, verify `ag.*` fields in returned span
 2. **Ingest + query streamText span** — Same but with streamText token naming
 3. **Ingest + query tool call span** — Verify tool inputs/outputs mapped
 

@@ -1,7 +1,7 @@
+import {getValueAtPath} from "@agenta/entities/trace"
 import {atom} from "jotai"
 
 import {currentRevisionIdAtom} from "@/oss/state/entities/testset"
-import {getValueAtPath} from "@/oss/state/entities/trace"
 
 import {cascaderValueAtom, resetCascaderStateAtom, selectedTestsetInfoAtom} from "./cascaderState"
 import {

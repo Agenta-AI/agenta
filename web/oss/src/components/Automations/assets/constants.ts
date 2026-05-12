@@ -49,7 +49,7 @@ export const AUTOMATION_SCHEMA: AutomationSchemaEntry[] = [
         fields: [
             {
                 key: "url",
-                label: "Webhook URL",
+                label: "Target URL",
                 component: "input",
                 placeholder: "https://example.com/webhook",
                 rules: [
@@ -62,14 +62,32 @@ export const AUTOMATION_SCHEMA: AutomationSchemaEntry[] = [
                 ],
             },
             {
+                key: "auth_mode",
+                label: "Authentication Mode",
+                component: "select",
+                initialValue: "signature",
+                extraByValue: {
+                    signature: "Computed HMAC signature sent in the X-Agenta-Signature header.",
+                },
+                options: [
+                    {label: "Signature (HMAC)", value: "signature"},
+                    {label: "Header", value: "authorization"},
+                ],
+            },
+            {
+                key: "auth_value",
+                label: "Secret",
+                component: "input.password",
+                secret: true,
+                required: true,
+                placeholder: "your-secret",
+                extra: "This secret will be sent in the Authorization header as 'Authorization: <secret>'",
+                visibleWhen: {field: "auth_mode", value: "authorization"},
+            },
+            {
                 key: "header_list",
                 label: "",
                 component: "headers",
-            },
-            {
-                key: "advance_config",
-                label: "",
-                component: "auth",
             },
         ],
     },
@@ -85,7 +103,7 @@ export const AUTOMATION_SCHEMA: AutomationSchemaEntry[] = [
         fields: [
             {
                 key: "github_sub_type",
-                label: "Dispatch",
+                label: "Trigger",
                 component: "select",
                 initialValue: "repository_dispatch",
                 placeholder: "Select dispatch",
@@ -102,7 +120,7 @@ export const AUTOMATION_SCHEMA: AutomationSchemaEntry[] = [
             },
             {
                 key: "github_repo",
-                label: "Target Repository",
+                label: "Repository",
                 component: "input",
                 placeholder: "owner/repo",
                 extra: "e.g. Agenta-AI/agenta",

@@ -4,21 +4,20 @@ import {atom} from "jotai"
 
 import type {TraceSpanNode} from "@/oss/services/tracing/types"
 
-import {closeTraceDrawerAtom} from "./traceDrawerStore"
-
 export type {OpenFromTraceResult}
 
 /**
- * Thin wrapper that delegates to playgroundController.actions.openFromTrace
- * and closes the trace drawer.
+ * Thin wrapper that delegates to playgroundController.actions.openFromTrace.
  *
- * Navigation to the playground page is handled by the calling component.
+ * The caller decides what happens next:
+ *   - If the result has an `appId`, the caller navigates to the app-scoped
+ *     playground page (and is responsible for closing the trace drawer).
+ *   - Otherwise, the caller opens the playground in the workflow revision
+ *     drawer overlaid on top of the trace drawer (which stays open behind).
  */
 export const openTraceInPlaygroundAtom = atom(
     null,
     (_get, set, activeSpan: TraceSpanNode): OpenFromTraceResult => {
-        const result = set(playgroundController.actions.openFromTrace, activeSpan)
-        set(closeTraceDrawerAtom)
-        return result
+        return set(playgroundController.actions.openFromTrace, activeSpan)
     },
 )

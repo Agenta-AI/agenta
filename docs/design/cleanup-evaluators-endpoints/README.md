@@ -36,8 +36,8 @@ The **entire legacy `/evaluators/*` router can be removed** except for `GET /eva
 
 Frontend only uses:
 - `GET /evaluators` → Evaluator templates (needs migration)
-- `POST /preview/simple/evaluators/*` → All config CRUD operations
-- `POST /preview/workflows/invoke` → Evaluator execution
+- `POST /simple/evaluators/*` → All config CRUD operations
+- `POST /workflows/invoke` → Evaluator execution
 
 ## Architecture Overview
 
@@ -60,12 +60,12 @@ Frontend only uses:
 │                          NEW ENDPOINTS (In Use)                              │
 │                  (api/oss/src/apis/fastapi/evaluators/router.py)            │
 │                                                                              │
-│  POST /preview/simple/evaluators/query    → List evaluator configs          │
-│  POST /preview/simple/evaluators/         → Create evaluator config         │
-│  PUT  /preview/simple/evaluators/{id}     → Update evaluator config         │
-│  POST /preview/simple/evaluators/{id}/archive → Archive evaluator config    │
-│  GET  /preview/simple/evaluators/{id}     → Get evaluator config by ID      │
+│  POST /simple/evaluators/query    → List evaluator configs          │
+│  POST /simple/evaluators/         → Create evaluator config         │
+│  PUT  /simple/evaluators/{id}     → Update evaluator config         │
+│  POST /simple/evaluators/{id}/archive → Archive evaluator config    │
+│  GET  /simple/evaluators/{id}     → Get evaluator config by ID      │
 │                                                                              │
-│  POST /preview/workflows/invoke           → Execute evaluators (via URI)    │
+│  POST /workflows/invoke           → Execute evaluators (via URI)    │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```

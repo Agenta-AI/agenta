@@ -1,18 +1,29 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {expect} from "@agenta/web-tests/utils"
 
+import {AppType} from "./assets/types"
 import type {AppFixtures, CreateAppResponse} from "./assets/types"
 
 /**
  * App-specific test fixtures extending the base test fixture.
  * Provides high-level actions for app management tests.
+ *
+ * NOTE: As of the app-create drawer alignment redesign, app creation
+ * goes through:
+ *   1. Click the "Create New Prompt" dropdown trigger on /apps
+ *   2. Pick "Chat" or "Completion" from the dropdown menu
+ *   3. The drawer opens with an ephemeral local-* entity
+ *   4. (optionally) edit the name in the drawer header
+ *   5. Click Commit inside the drawer to create the app
+ *   6. Drawer closes and user lands on /apps/<id>/playground
+ *
+ * Custom workflow uses a separate path (not covered by this fixture today).
  */
 const testWithAppFixtures = baseTest.extend<AppFixtures>({
     /**
      * Navigates to the apps dashboard and verifies page load.
-     * Uses base fixture's page navigation and text validation.
      */
-    navigateToApps: async ({page, uiHelpers}, use) => {
+    navigateToApps: async ({page, uiHelpers: _uiHelpers}, use) => {
         await use(async () => {
             await page.goto("/apps")
             await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
@@ -26,55 +37,75 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
     /**
      * Creates a new app and validates both UI flow and API response.
      *
-     * @param appName - Name for the new app
-     * @returns CreateAppResponse containing app details from API
+     * Drives the lazy-create-via-drawer flow:
+     *   open dropdown → pick type → drawer opens → set name → commit → wait for nav
      *
-     * Flow:
-     * 1. Setup API response listener
-     * 2. Execute UI interactions for app creation
-     * 3. Validate API response
-     * 4. Confirm navigation to playground
+     * @param appName - Name for the new app (set inline in the drawer header)
+     * @param appType - Chat or Completion
+     * @returns CreateAppResponse with the created workflow's id + name
      */
     createNewApp: async ({page, uiHelpers}, use) => {
-        await use(async (appName: string, appType) => {
-            await uiHelpers.clickButton("Create New Prompt")
+        await use(async (appName: string, appType: AppType) => {
+            // 1. Open the dropdown
+            const trigger = page.getByTestId("create-app-dropdown-trigger").first()
+            await expect(trigger).toBeVisible({timeout: 15000})
+            await trigger.click()
 
-            const input = page.getByRole("textbox", {name: "Enter a name"})
-            let dialog = page.getByRole("dialog")
+            // 2. Pick the matching menu item
+            const itemTestId =
+                appType === AppType.CHAT_PROMPT
+                    ? "create-app-dropdown-chat"
+                    : "create-app-dropdown-completion"
+            const menuItem = page.getByTestId(itemTestId).first()
+            await expect(menuItem).toBeVisible({timeout: 15000})
+            await menuItem.click()
 
-            // Wait for dialog with a short timeout
-            const isDialogVisible = await dialog.isVisible().catch(() => false)
+            // 3. Drawer opens with the ephemeral entity. Find the inline
+            //    name input in the drawer header and replace its value.
+            const drawer = page.getByRole("dialog").last()
+            await expect(drawer).toBeVisible({timeout: 15000})
 
-            // If dialog is not visible, click the button and wait for it
-            if (!isDialogVisible) {
-                await uiHelpers.clickButton("Create New Prompt")
-                dialog = page.getByRole("dialog")
-                await expect(dialog).toBeVisible()
-            }
-            await expect(input).toBeVisible()
-            const dialogTitle = dialog.getByText("Create New Prompt").first()
-            await expect(dialogTitle).toBeVisible()
-            await uiHelpers.typeWithDelay('input[placeholder="Enter a name"]', appName)
-            await page.getByText(appType).first().click()
+            const nameInput = page.getByTestId("app-create-name-input").first()
+            await expect(nameInput).toBeVisible({timeout: 15000})
+            await nameInput.click()
+            await nameInput.fill(appName)
+            // Blur so the workflow draft picks up the new name (the input
+            // commits on blur via the onBlur handler).
+            await nameInput.blur()
+
+            // 4. Set up the network listener BEFORE clicking commit, so we
+            //    capture the workflow create POST.
             const createAppPromise = page.waitForResponse((response) => {
                 if (
-                    !response.url().includes("/apps") ||
+                    !response.url().includes("/workflows") ||
                     response.request().method() !== "POST"
                 ) {
                     return false
                 }
-
-                const payload = response.request().postData() || ""
+                const payload = response.request().postData() ?? ""
                 return payload.includes(appName)
             })
-            await uiHelpers.clickButton("Create New Prompt", dialog)
+
+            // 5. Click the Commit button. The drawer's commit flow promotes
+            //    the ephemeral local-* entity to a real workflow. The
+            //    drawer typically opens a confirmation modal — accept it.
+            await uiHelpers.clickButton("Commit", drawer)
+            // Some drawer commit buttons open a confirmation modal first.
+            const confirmDialog = page.getByRole("dialog").last()
+            const confirmButton = confirmDialog.getByRole("button", {name: /commit|create/i})
+            const confirmVisible = await confirmButton.isVisible().catch(() => false)
+            if (confirmVisible) {
+                await confirmButton.click()
+            }
+
+            // 6. Wait for the response and the navigation.
             const createAppResponse = await createAppPromise
             expect(createAppResponse.ok()).toBe(true)
 
             const response = (await createAppResponse.json()) as CreateAppResponse
-            expect(response.app_id).toBeTruthy()
-            expect(response.app_name).toBe(appName)
-            expect(response.created_at).toBeTruthy()
+            expect(response.workflow.id).toBeTruthy()
+            expect(response.workflow.name).toBe(appName)
+            expect(response.workflow.created_at).toBeTruthy()
             await page.waitForURL(/\/apps\/.*\/playground/)
             return response
         })
@@ -82,13 +113,6 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
 
     /**
      * Verifies successful app creation in the UI.
-     *
-     * @param appName - Name of the created app to verify
-     *
-     * Checks:
-     * 1. Loading state appears and disappears
-     * 2. App name is visible in the UI
-     * 3. Loading indicator is gone
      */
     verifyAppCreation: async ({uiHelpers}, use) => {
         await use(async (appName: string) => {
@@ -99,7 +123,4 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
     },
 })
 
-// Then create auth-enabled test
-// export const test = testWithAppFixtures
-// createAuthTest<AppFixtures>(testWithAppFixtures);
 export {expect, testWithAppFixtures as test}

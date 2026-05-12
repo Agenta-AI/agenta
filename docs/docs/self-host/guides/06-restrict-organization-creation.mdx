@@ -1,0 +1,29 @@
+---
+title: Restrict Organization Creation
+sidebar_label: Restrict Org Creation
+description: Control which users can create organizations in your self-hosted Agenta Enterprise deployment.
+---
+
+import Admonition from "@theme/Admonition";
+
+<Admonition type="warning" title="Enterprise Feature">
+Organization creation restriction requires an Agenta Enterprise license. <a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo">Book a demo</a> or <a href="mailto:team@agenta.ai">contact our team</a> to get started.
+</Admonition>
+
+Set `AGENTA_ORG_CREATION_ALLOWLIST` to a comma-separated list of emails allowed to create organizations.
+
+```bash
+AGENTA_ORG_CREATION_ALLOWLIST=admin@company.com,ops@company.com
+```
+
+When this variable is set, only the listed emails can create organizations. Everyone else must be invited to an existing one. When it is not set, any user can create organizations (the default).
+
+Restart your Agenta deployment after changing this variable.
+
+:::caution First user must be in the allowlist
+The first user to sign up needs to be in the allowlist. Otherwise, they will not be able to create the initial organization.
+:::
+
+## How restricted users join
+
+Users not in the allowlist can still sign up, but they will not have an organization. You need to either enable auto-join for a domain from **Settings > Access & Security**, or invite users from **Settings > Workspace > Members** before they sign up.

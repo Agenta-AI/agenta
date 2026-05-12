@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {CopyButton} from "@agenta/ui"
 import {PythonOutlined} from "@ant-design/icons"
 import {ArrowLeft, FileCode, FileTs} from "@phosphor-icons/react"
 import {Button, Radio, Tabs, Typography} from "antd"
@@ -11,7 +12,6 @@ import tsCode from "@/oss/code_snippets/testsets/create_with_json/typescript"
 import cURLCodeUpload from "@/oss/code_snippets/testsets/create_with_upload/curl"
 import pythonCodeUpload from "@/oss/code_snippets/testsets/create_with_upload/python"
 import tsCodeUpload from "@/oss/code_snippets/testsets/create_with_upload/typescript"
-import CopyButton from "@/oss/components/CopyButton/CopyButton"
 import CodeBlock from "@/oss/components/DynamicCodeBlock/CodeBlock"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {JSSTheme} from "@/oss/lib/Types"
@@ -73,8 +73,8 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
     const [uploadType, setUploadType] = useState<"csv" | "json">("csv")
     const [selectedLang, setSelectedLang] = useState("python")
 
-    const uploadURI = `${getAgentaApiUrl()}/preview/simple/testsets/upload`
-    const jsonURI = `${getAgentaApiUrl()}/preview/simple/testsets/`
+    const uploadURI = `${getAgentaApiUrl()}/simple/testsets/upload`
+    const jsonURI = `${getAgentaApiUrl()}/simple/testsets/`
 
     const params = `{
     "testset": {

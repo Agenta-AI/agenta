@@ -8,6 +8,8 @@ export interface DeploymentsDrawerState {
     initialWidth: number
     revisionId: string
     deploymentRevisionId?: string
+    /** Environment revision version (the version number of the environment revision, not the deployed variant) */
+    envRevisionVersion?: number | null
     envName?: string
     mode: "deployment" | "variant"
 }
@@ -16,6 +18,7 @@ export const deploymentsDrawerStateAtom = atomWithImmer<DeploymentsDrawerState>(
     open: false,
     revisionId: "",
     deploymentRevisionId: "",
+    envRevisionVersion: null,
     envName: "",
     initialWidth: 720,
     mode: "deployment",
@@ -30,6 +33,7 @@ export const openDeploymentsDrawerAtom = atom(
             initialWidth?: number
             revisionId?: string
             deploymentRevisionId?: string
+            envRevisionVersion?: number | null
             envName?: string
             mode?: "deployment" | "variant"
         },
@@ -39,6 +43,7 @@ export const openDeploymentsDrawerAtom = atom(
             draft.initialWidth = payload?.initialWidth ?? draft.initialWidth
             draft.revisionId = payload?.revisionId ?? draft.revisionId
             draft.deploymentRevisionId = payload?.deploymentRevisionId ?? draft.deploymentRevisionId
+            draft.envRevisionVersion = payload?.envRevisionVersion ?? draft.envRevisionVersion
             draft.envName = payload?.envName ?? draft.envName
             draft.mode = payload?.mode ?? "deployment"
         })
@@ -50,6 +55,7 @@ export const closeDeploymentsDrawerAtom = atom(null, (get, set) => {
         draft.open = false
         draft.revisionId = ""
         draft.deploymentRevisionId = ""
+        draft.envRevisionVersion = null
         draft.envName = ""
         draft.mode = "deployment"
     })

@@ -1,3 +1,5 @@
+import {createBatchFetcher, type BatchFetcher} from "@agenta/shared/utils"
+import {uuidToSpanId, uuidToTraceId} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -5,9 +7,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {transformApiData} from "@/oss/lib/hooks/useAnnotations/assets/transformer"
 import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {uuidToTraceId, uuidToSpanId} from "@/oss/lib/traces/helpers"
 import {getProjectValues} from "@/oss/state/project"
-import createBatchFetcher, {BatchFetcher} from "@/oss/state/utils/createBatchFetcher"
 import {workspaceMembersAtom} from "@/oss/state/workspace/atoms/selectors"
 
 import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "./run"
@@ -62,15 +62,15 @@ export const evaluationAnnotationBatcherFamily = atomFamily(
 
                         try {
                             const response = await axios.post(
-                                `/preview/annotations/query`,
-                                {annotation_links: annotationLinks},
+                                `/simple/traces/query`,
+                                {links: annotationLinks},
                                 {
                                     params: {project_id: projectId},
                                 },
                             )
 
-                            const rawAnnotations = Array.isArray(response.data?.annotations)
-                                ? response.data.annotations
+                            const rawAnnotations = Array.isArray(response.data?.traces)
+                                ? response.data.traces
                                 : []
 
                             // Map normalized trace_id -> annotations (use Set to avoid duplicates)

@@ -7,9 +7,8 @@
 
 import {Fragment, useCallback, useMemo} from "react"
 
+import type {BreadcrumbSlotProps} from "@agenta/ui/drill-in"
 import {ArrowLeft, ChevronRight} from "lucide-react"
-
-import type {BreadcrumbSlotProps} from "../types"
 
 import {useDrillIn} from "./MoleculeDrillInContext"
 

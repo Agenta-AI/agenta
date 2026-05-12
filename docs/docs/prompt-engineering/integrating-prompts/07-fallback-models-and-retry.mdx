@@ -1,0 +1,65 @@
+---
+title: "Fallback Models and Retry"
+sidebar_position: 7
+sidebar_label: "Fallback Models and Retry"
+description: "Understand how fallback models and retry settings work when you invoke or fetch prompts from Agenta."
+---
+
+Fallback models and retry settings are part of a prompt configuration. They let a prompt retry failed calls and, when allowed, move to a backup model.
+
+To configure them in the UI, see [Fallback Models and Retry in the Playground](/prompt-engineering/playground/fallback-models-and-retry).
+
+## When you invoke through Agenta
+
+When you invoke a deployed prompt through Agenta, Agenta applies the saved retry and fallback settings for you.
+
+You only send the normal invoke request with your inputs and application reference. Agenta loads the deployed prompt configuration, formats the prompt, and runs the model call.
+
+The request flow is:
+
+1. Agenta calls the main model.
+2. If the call fails, Agenta retries the same model according to the retry settings.
+3. If the model still fails, Agenta checks the fallback policy.
+4. If the policy allows that error, Agenta calls the next fallback model.
+5. Agenta repeats the same retry behavior for each fallback model.
+6. Agenta returns the first successful response, or returns the final error.
+
+Retry and fallback are independent. A prompt can have retry without fallback models, fallback models without extra retries, or both.
+
+## When you fetch the configuration
+
+When you fetch a prompt configuration and call the provider from your own application, Agenta returns the retry and fallback settings in the configuration. Your application decides how to use them.
+
+Example fetched configuration:
+
+```json
+{
+  "prompt": {
+    "messages": [
+      {"role": "system", "content": "You are a helpful assistant."},
+      {"role": "user", "content": "Answer this: {{question}}"}
+    ],
+    "llm_config": {
+      "model": "openai/gpt-4o-mini",
+      "temperature": 0.2
+    },
+    "fallback_configs": [
+      {
+        "model": "anthropic/claude-3-5-haiku-latest",
+        "temperature": 0.2
+      }
+    ],
+    "retry_config": {
+      "max_retries": 1,
+      "base_delay": 500
+    },
+    "retry_policy": "capacity",
+    "fallback_policy": "capacity",
+    "template_format": "curly"
+  }
+}
+```
+
+Use these fields if you want your application to match the behavior tested in the playground.
+
+If a prompt has no fallback models, `fallback_configs` can be empty, `null`, or missing. If no fallback policy is set, fallback behavior is off. Retry is off unless `retry_policy` is explicitly set, and `retry_config` controls the retry count and base delay. The delay between retries doubles on each attempt (exponential backoff): the first retry waits `base_delay` ms, the second waits `base_delay * 2` ms, and so on.

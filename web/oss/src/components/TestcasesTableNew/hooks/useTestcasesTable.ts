@@ -29,6 +29,7 @@ import {
     testcasesSearchTermAtom,
 } from "../atoms/tableStore"
 
+import {isSystemColumnPath} from "./constants"
 import type {TestcaseTableRow, UseTestcasesTableOptions, UseTestcasesTableResult} from "./types"
 
 // Re-export types for external consumers
@@ -188,6 +189,14 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
     )
     const baseColumns = useAtomValue(columnsAtom) // Original columns (for drawer/editing)
     const columns = useAtomValue(expandedColumnsAtom) // Expanded columns (for table display)
+    const filteredBaseColumns = useMemo(
+        () => baseColumns.filter((column) => !isSystemColumnPath(column.key)),
+        [baseColumns],
+    )
+    const filteredColumns = useMemo(
+        () => columns.filter((column) => !isSystemColumnPath(column.key)),
+        [columns],
+    )
 
     // Check if revision data suggests columns should exist but haven't been derived yet
     // This catches the gap between data arriving and columns being populated
@@ -384,8 +393,8 @@ export function useTestcasesTable(options: UseTestcasesTableOptions = {}): UseTe
         // Data - row refs (optimized: cells read from entity atoms)
         rowRefs: displayRowRefs,
         testcaseIds, // IDs for entity atom access
-        columns, // Expanded columns for table display
-        baseColumns, // Original columns for drawer/editing
+        columns: filteredColumns, // Expanded columns for table display
+        baseColumns: filteredBaseColumns, // Original columns for drawer/editing
         // Use combined loading state (includes revisionQuery.isPending for columns)
         isLoading: combinedIsLoading,
         error: revisionQuery.error as Error | null,

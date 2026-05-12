@@ -1,6 +1,7 @@
 import {useCallback, useMemo} from "react"
 
 import {useAtom, useAtomValue} from "jotai"
+import {queryClientAtom} from "jotai-tanstack-query"
 
 import {
     searchQueryAtom,
@@ -9,7 +10,6 @@ import {
     sortAtom,
     selectedTraceIdAtom,
     selectedRowKeysAtom,
-    editColumnsAtom,
     testsetDrawerDataAtom,
     isAnnotationsSectionOpenAtom,
     selectedNodeAtom,
@@ -19,6 +19,7 @@ import {
 } from "../atoms/controls"
 import {
     tracesQueryAtom,
+    traceCountAtom,
     annotationsQueryAtom,
     tracesWithAnnotationsAtom,
     observabilityLoadingAtom,
@@ -34,7 +35,6 @@ export const useObservability = () => {
     const [sort, setSort] = useAtom(sortAtom)
     const [selectedTraceId, setSelectedTraceId] = useAtom(selectedTraceIdAtom)
     const [selectedRowKeys, setSelectedRowKeys] = useAtom(selectedRowKeysAtom)
-    const [editColumns, setEditColumns] = useAtom(editColumnsAtom)
     const [testsetDrawerData, setTestsetDrawerData] = useAtom(testsetDrawerDataAtom)
     const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useAtom(
         isAnnotationsSectionOpenAtom,
@@ -52,6 +52,8 @@ export const useObservability = () => {
             isLoading: isLoadingTraces,
             isFetching: isFetchingTraces,
             isRefetching: isRefetchingTraces,
+            isError: isTracesError,
+            error: tracesError,
         },
     ] = useAtom(tracesQueryAtom)
 
@@ -68,6 +70,7 @@ export const useObservability = () => {
     const isLoadingObservability = useAtomValue(observabilityLoadingAtom)
 
     const traces = useAtomValue(tracesWithAnnotationsAtom)
+    const traceCount = useAtomValue(traceCountAtom)
     const activeTraceIndex = useAtomValue(activeTraceIndexAtom)
     const activeTrace = useAtomValue(activeTraceAtom)
     const selectedItem = useAtomValue(selectedItemAtom)
@@ -81,6 +84,11 @@ export const useObservability = () => {
             isRefetchingAnnotations,
         [isFetchingTraces, isFetchingAnnotations, isRefetchingTraces, isRefetchingAnnotations],
     )
+
+    const isRateLimited = isTracesError && (tracesError as {status?: number})?.status === 429
+    const rateLimitMessage = isRateLimited
+        ? (tracesError as Error)?.message || "You have reached your monthly quota limit."
+        : undefined
 
     const fetchTraces = useCallback(async () => {
         const res = await refetchTraces()
@@ -99,6 +107,17 @@ export const useObservability = () => {
         return pages.length ? pages[pages.length - 1].traces : []
     }, [fetchNextPage, hasNextPage])
 
+    const queryClient = useAtomValue(queryClientAtom)
+
+    /**
+     * Resets the traces infinite query to its initial state (page 1 only).
+     * TanStack Query clears the cache and re-fetches page 1 on next render.
+     * Use this for auto-refresh so N loaded pages don't cause N API calls.
+     */
+    const resetTracePages = useCallback(() => {
+        queryClient.resetQueries({queryKey: ["traces"]})
+    }, [queryClient])
+
     const clearQueryStates = useCallback(() => {
         setSearchQuery("")
         setTraceTabs("trace")
@@ -108,14 +127,18 @@ export const useObservability = () => {
 
     return {
         traces,
+        traceCount,
         annotations,
         isLoading:
             isLoadingObservability || isLoadingTraces || isLoadingAnnotations || isRefreshing,
+        isRateLimited,
+        rateLimitMessage,
         fetchMoreTraces,
         hasMoreTraces: hasNextPage,
         isFetchingMore: isFetchingNextPage,
         fetchTraces,
         fetchAnnotations,
+        resetTracePages,
         clearQueryStates,
         searchQuery,
         setSearchQuery,
@@ -130,8 +153,6 @@ export const useObservability = () => {
         limit,
         selectedRowKeys,
         setSelectedRowKeys,
-        editColumns,
-        setEditColumns,
         testsetDrawerData,
         setTestsetDrawerData,
         isAnnotationsSectionOpen,

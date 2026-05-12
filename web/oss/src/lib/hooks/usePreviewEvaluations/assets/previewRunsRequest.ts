@@ -164,7 +164,7 @@ export const fetchPreviewRunsShared = async (
     }
 
     const request = axios
-        .post(`/preview/evaluations/runs/query`, payload, {
+        .post(`/evaluations/runs/query`, payload, {
             params: queryParams,
         })
         .then((response) => {

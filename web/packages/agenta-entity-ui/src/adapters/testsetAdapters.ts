@@ -12,18 +12,16 @@
  * - `entity.get.data(id)` - imperative read
  */
 
-// Clean entity imports from main package (preferred)
+import {derivedColumnChangesAtomFamily, loadableStateAtomFamily} from "@agenta/entities/loadable"
+import {testcaseMolecule as testcase, type Testcase} from "@agenta/entities/testcase"
 import {
-    testcase,
-    revision,
-    testset,
-    type Testcase,
+    revisionMolecule as revision,
+    testsetMolecule as testset,
+    latestRevisionForTestsetAtomFamily,
+    saveTestsetAtom,
     type Revision,
     type Testset,
-} from "@agenta/entities"
-// Specialized utilities require subpath imports
-import {derivedColumnChangesAtomFamily, loadableStateAtomFamily} from "@agenta/entities/loadable"
-import {latestRevisionForTestsetAtomFamily, saveTestsetAtom} from "@agenta/entities/testset"
+} from "@agenta/entities/testset"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 

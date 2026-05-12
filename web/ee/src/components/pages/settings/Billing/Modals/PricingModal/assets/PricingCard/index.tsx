@@ -32,7 +32,7 @@ const PricingCard = ({plan, currentPlan, onOptionClick, isLoading}: PricingCardP
         <Card
             hoverable
             key={plan.plan}
-            className={`relative w-full md:w-1/3`}
+            className={`relative w-full md:w-1/3 hover:z-10`}
             title={plan.title}
             classNames={{
                 body: "!p-3 flex-1",

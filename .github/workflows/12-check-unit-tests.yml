@@ -1,0 +1,238 @@
+name: "12 - check unit tests"
+
+on:
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'sdks/python/**'
+      - 'api/**'
+      - 'services/**'
+      - '.github/workflows/12-check-unit-tests.yml'
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: "Packages to test"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - web-only
+          - sdk-only
+          - api-only
+          - services-only
+          - none
+
+permissions:
+  contents: read
+
+concurrency:
+  group: application-unit-tests-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+
+  run-web-unit-tests:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes web
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Check for web unit tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: |
+          if ! find web/oss/tests/playwright/unit -type f ! -name '.gitkeep' | grep -q .; then
+            echo "No web unit tests found; skipping."
+            exit 0
+          fi
+
+          echo "Web unit tests exist but no dedicated no-deploy runner is wired yet."
+          exit 1
+
+  run-sdk-unit-tests:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    env:
+      AGENTA_LICENSE: oss
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes SDK
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","sdk-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Python
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
+        run: python -m pip install "uv==0.11.9"
+
+      - name: Cache Python dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-application-sdk-unit-uv-${{ hashFiles('sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-application-sdk-unit-uv-
+
+      - name: Install SDK dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
+        working-directory: sdks/python
+        run: |
+          uv sync --locked --python 3.13
+
+      - name: Run SDK unit tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
+        working-directory: sdks/python
+        run: uv run python run-tests.py -- oss/tests/pytest/unit
+
+      - name: Publish SDK unit test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: sdks/python/oss/tests/results/junit.xml
+          check_name: Application SDK Unit Test Results
+          comment_mode: off
+
+  run-api-unit-tests:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    env:
+      AGENTA_LICENSE: oss
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes API
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","api-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Python
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        run: python -m pip install "uv==0.11.9"
+
+      - name: Cache Python dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-application-api-unit-uv-${{ hashFiles('api/pyproject.toml', 'api/uv.lock', 'sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-application-api-unit-uv-
+
+      - name: Install API dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        working-directory: api
+        run: |
+          uv sync --locked --python 3.13
+          uv pip install --python .venv/bin/python --editable ../sdks/python/
+
+      - name: Run API unit tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        working-directory: api
+        run: uv run --no-sync python run-tests.py -- oss/tests/pytest/unit
+
+      - name: Publish API unit test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: api/oss/tests/results/junit.xml
+          check_name: Application API Unit Test Results
+          comment_mode: off
+
+  run-services-unit-tests:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    env:
+      AGENTA_LICENSE: oss
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes services
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Check for services unit tests
+        id: services-unit-tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: |
+          if ! find services/oss/tests/pytest/unit -type f ! -name '.gitkeep' | grep -q .; then
+            echo "No services unit tests found; skipping."
+            echo "has_tests=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "has_tests=true" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
+        run: python -m pip install "uv==0.11.9"
+
+      - name: Cache Python dependencies
+        if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-application-services-unit-uv-${{ hashFiles('services/pyproject.toml', 'services/uv.lock', 'sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-application-services-unit-uv-
+
+      - name: Install services dependencies
+        if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
+        working-directory: services
+        run: |
+          uv sync --locked --python 3.13
+          uv pip install --python .venv/bin/python --editable ../sdks/python/
+
+      - name: Run services unit tests
+        if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
+        working-directory: services
+        run: uv run --no-sync python run-tests.py -- oss/tests/pytest/unit
+
+      - name: Publish services unit test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: services/oss/tests/results/junit.xml
+          check_name: Application services Unit Test Results
+          comment_mode: off

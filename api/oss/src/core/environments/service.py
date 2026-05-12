@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 import uuid_utils.compat as uuid_compat
+from pydantic import BaseModel
 
 from oss.src.core.environments.dtos import (
     Environment,
@@ -60,6 +61,83 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
+def _to_jsonable(value: Any) -> Any:
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json", exclude_none=True)
+
+    if isinstance(value, dict):
+        return {
+            str(key): _to_jsonable(item)
+            for key, item in value.items()
+            if item is not None
+        }
+
+    if isinstance(value, list):
+        return [_to_jsonable(item) for item in value]
+
+    return value
+
+
+def _dump_flags(flags: Optional[object]) -> Dict[str, Any]:
+    normalized = _to_jsonable(flags)
+
+    if isinstance(normalized, dict):
+        return {
+            str(key): value for key, value in normalized.items() if value is not None
+        }
+
+    return {}
+
+
+def _normalize_environment_references(
+    references: Optional[Dict[str, Dict[str, Reference]]],
+) -> Dict[str, Dict[str, Any]]:
+    if not references:
+        return {}
+
+    normalized = _to_jsonable(references)
+    return normalized if isinstance(normalized, dict) else {}
+
+
+def _normalize_environment_revision_data(
+    data: Optional[EnvironmentRevisionData],
+) -> Dict[str, Any]:
+    if not data:
+        return {}
+
+    normalized = _to_jsonable(data)
+    return normalized if isinstance(normalized, dict) else {}
+
+
+def _build_environment_references_diff(
+    *,
+    old: Dict[str, Dict[str, Any]],
+    new: Dict[str, Dict[str, Any]],
+) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    created: Dict[str, Dict[str, Any]] = {}
+    updated: Dict[str, Dict[str, Any]] = {}
+    deleted: Dict[str, Dict[str, Any]] = {}
+
+    for key, new_value in new.items():
+        if key not in old:
+            created[key] = {"new": new_value}
+        elif old[key] != new_value:
+            updated[key] = {
+                "old": old[key],
+                "new": new_value,
+            }
+
+    for key, old_value in old.items():
+        if key not in new:
+            deleted[key] = {"old": old_value}
+
+    return {
+        "created": created,
+        "updated": updated,
+        "deleted": deleted,
+    }
+
+
 class EnvironmentsService:
     def __init__(
         self,
@@ -68,6 +146,32 @@ class EnvironmentsService:
     ):
         self.embeds_service = None  # Will be set later
         self.environments_dao = environments_dao
+
+    async def _get_previous_environment_references(
+        self,
+        *,
+        project_id: UUID,
+        environment_variant_id: Optional[UUID],
+    ) -> Dict[str, Dict[str, Any]]:
+        if environment_variant_id is None:
+            return {}
+
+        previous_revisions = await self.query_environment_revisions(
+            project_id=project_id,
+            environment_variant_refs=[Reference(id=environment_variant_id)],
+            windowing=Windowing(limit=1),
+        )
+
+        if not previous_revisions:
+            return {}
+
+        previous_revision = previous_revisions[0]
+        previous_references = (
+            previous_revision.data.references
+            if previous_revision.data and previous_revision.data.references
+            else None
+        )
+        return _normalize_environment_references(previous_references)
 
     # environments ---------------------------------------------------------
 
@@ -570,6 +674,110 @@ class EnvironmentsService:
 
         return environment_revision
 
+    async def retrieve_environment_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        environment_ref: Optional[Reference] = None,
+        environment_variant_ref: Optional[Reference] = None,
+        environment_revision_ref: Optional[Reference] = None,
+        #
+        resolve: bool = False,
+    ) -> tuple[Optional[EnvironmentRevision], Optional[ResolutionInfo]]:
+        """Retrieve the latest environment revision, resolving slug/id refs.
+
+        Uses fetch_environment to resolve the environment artifact (supports slug),
+        then fetches the default variant and latest revision.
+        Optionally resolves embedded references when resolve=True.
+        """
+        # log.info(
+        #     "retrieve_environment_revision: environment_ref=%r environment_variant_ref=%r environment_revision_ref=%r resolve=%r",
+        #     environment_ref,
+        #     environment_variant_ref,
+        #     environment_revision_ref,
+        #     resolve,
+        # )
+
+        if (
+            not environment_ref
+            and not environment_variant_ref
+            and not environment_revision_ref
+        ):
+            return None, None
+
+        # Resolve environment artifact → variant → revision
+        if (
+            environment_ref
+            and not environment_variant_ref
+            and not environment_revision_ref
+        ):
+            environment = await self.fetch_environment(
+                project_id=project_id,
+                environment_ref=environment_ref,
+            )
+            # log.info(
+            #     "retrieve_environment_revision: environment=%r",
+            #     environment and environment.id,
+            # )
+
+            if not environment:
+                return None, None
+
+            environment_variant = await self.fetch_environment_variant(
+                project_id=project_id,
+                environment_ref=Reference(id=environment.id),
+            )
+            # log.info(
+            #     "retrieve_environment_revision: environment_variant=%r",
+            #     environment_variant and environment_variant.id,
+            # )
+
+            if not environment_variant:
+                return None, None
+
+            environment_variant_ref = Reference(id=environment_variant.id)
+
+        revision = await self.environments_dao.fetch_revision(
+            project_id=project_id,
+            #
+            variant_ref=environment_variant_ref,
+            revision_ref=environment_revision_ref,
+        )
+        # log.info("retrieve_environment_revision: revision=%r", revision and revision.id)
+
+        if not revision:
+            return None, None
+
+        environment_revision = EnvironmentRevision(**revision.model_dump(mode="json"))
+
+        if not resolve:
+            return environment_revision, None
+
+        # Resolve embeds in revision data
+        if not self.embeds_service:
+            raise RuntimeError("EmbedsService not initialized")
+
+        (
+            resolved_config,
+            resolution_info,
+        ) = await self.embeds_service.resolve_configuration(
+            project_id=project_id,
+            configuration=environment_revision.data.model_dump(mode="json")
+            if environment_revision.data
+            else {},
+        )
+
+        if environment_revision.data:
+            environment_revision.data = EnvironmentRevisionData(**resolved_config)
+
+        # log.info(
+        #     "retrieve_environment_revision: resolved resolution_info=%r",
+        #     resolution_info,
+        # )
+
+        return environment_revision, resolution_info
+
     async def edit_environment_revision(
         self,
         *,
@@ -665,6 +873,8 @@ class EnvironmentsService:
         environment_variant_refs: Optional[List[Reference]] = None,
         environment_revision_refs: Optional[List[Reference]] = None,
         #
+        application_refs: Optional[List[Reference]] = None,
+        #
         include_archived: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
@@ -687,6 +897,8 @@ class EnvironmentsService:
             artifact_refs=environment_refs,
             variant_refs=environment_variant_refs,
             revision_refs=environment_revision_refs,
+            #
+            application_refs=application_refs,
             #
             include_archived=include_archived,
             #
@@ -716,12 +928,24 @@ class EnvironmentsService:
         environment_revision_commit: EnvironmentRevisionCommit,
     ) -> Optional[EnvironmentRevision]:
         # Route to delta handler if delta provided without data
-        if environment_revision_commit.delta and not environment_revision_commit.data:
+        if (
+            environment_revision_commit.delta is not None
+            and environment_revision_commit.data is None
+        ):
             return await self._commit_environment_revision_delta(
                 project_id=project_id,
                 user_id=user_id,
                 environment_revision_commit=environment_revision_commit,
             )
+
+        environment_variant_id = (
+            environment_revision_commit.environment_variant_id
+            or environment_revision_commit.variant_id
+        )
+        previous_references = await self._get_previous_environment_references(
+            project_id=project_id,
+            environment_variant_id=environment_variant_id,
+        )
 
         dumped = environment_revision_commit.model_dump(
             mode="json",
@@ -744,6 +968,16 @@ class EnvironmentsService:
             **revision.model_dump(
                 mode="json",
             ),
+        )
+        current_state = _normalize_environment_revision_data(environment_revision.data)
+        current_references = _normalize_environment_references(
+            environment_revision.data.references
+            if environment_revision.data and environment_revision.data.references
+            else None
+        )
+        references_diff = _build_environment_references_diff(
+            old=previous_references,
+            new=current_references,
         )
 
         # --- THIS WILL BE IMPROVED LATER ------------------------------------ #
@@ -770,6 +1004,8 @@ class EnvironmentsService:
                     version=environment_revision.version,
                 ),
             ),
+            state=current_state,
+            diff=references_diff,
         )
         # --- THIS WILL BE IMPROVED LATER ------------------------------------ #
 
@@ -894,7 +1130,6 @@ class EnvironmentsService:
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
         #
         environment_ref: Optional[Reference] = None,
         environment_variant_ref: Optional[Reference] = None,
@@ -1111,7 +1346,9 @@ class SimpleEnvironmentsService:
             description=environment.description,
             #
             flags=(
-                EnvironmentFlags(**environment.flags) if environment.flags else None
+                EnvironmentFlags(**_dump_flags(environment.flags))
+                if environment.flags
+                else None
             ),
             tags=environment.tags,
             meta=environment.meta,
@@ -1201,7 +1438,9 @@ class SimpleEnvironmentsService:
             description=environment.description,
             #
             flags=(
-                EnvironmentFlags(**environment.flags) if environment.flags else None
+                EnvironmentFlags(**_dump_flags(environment.flags))
+                if environment.flags
+                else None
             ),
             tags=environment.tags,
             meta=environment.meta,
@@ -1347,7 +1586,9 @@ class SimpleEnvironmentsService:
             description=environment.description,
             #
             flags=(
-                EnvironmentFlags(**environment.flags) if environment.flags else None
+                EnvironmentFlags(**_dump_flags(environment.flags))
+                if environment.flags
+                else None
             ),
             tags=environment.tags,
             meta=environment.meta,
@@ -1460,7 +1701,11 @@ class SimpleEnvironmentsService:
                 description=environment.description,
                 #
                 flags=(
-                    EnvironmentFlags(**environment.flags) if environment.flags else None
+                    environment.flags
+                    if isinstance(environment.flags, EnvironmentFlags)
+                    else EnvironmentFlags(**_dump_flags(environment.flags))
+                    if environment.flags
+                    else None
                 ),
                 tags=environment.tags,
                 meta=environment.meta,

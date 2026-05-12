@@ -1,15 +1,10 @@
 from typing import Any, List, Dict
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TestsetModel(BaseModel):
-    column_name: str = Field(...)
-    column_value: Any = Field(...)
-    testset_id: str = Field(...)
-    app_id: str = Field(...)
-
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "column_name": "column1",
                 "column_value": "value1",
@@ -17,6 +12,12 @@ class TestsetModel(BaseModel):
                 "app_id": "your-app-id",
             }
         }
+    )
+
+    column_name: str = Field(...)
+    column_value: Any = Field(...)
+    testset_id: str = Field(...)
+    app_id: str = Field(...)
 
 
 class TestsetSimpleResponse(BaseModel):
@@ -44,11 +45,10 @@ class NewTestset(BaseModel):
 
 
 class TestsetOutputResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str = Field(..., alias="_id")
     name: str
     created_at: str
     updated_at: str
     columns: List[str] = Field(default_factory=list)
-
-    class Config:
-        populate_by_name = True

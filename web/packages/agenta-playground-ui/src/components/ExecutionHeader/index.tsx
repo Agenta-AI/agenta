@@ -1,6 +1,11 @@
 import {memo, useMemo} from "react"
 
-import {executionController, executionItemController} from "@agenta/playground"
+import type {PlaygroundNode} from "@agenta/entities/runnable"
+import {
+    executionController,
+    executionItemController,
+    playgroundController,
+} from "@agenta/playground"
 import {CollapsibleGroupHeader, RunButton} from "@agenta/ui/components/presentational"
 import {useRunAllShortcut} from "@agenta/ui/hooks"
 import {ArrowsInLineVertical, ArrowsOutLineVertical} from "@phosphor-icons/react"
@@ -63,7 +68,7 @@ const ExecutionHeader = ({
 
     const runAll = useSetAtom(executionItemController.actions.runAll)
     const cancelAll = useSetAtom(executionItemController.actions.cancelAll)
-    const clearAllRuns = useSetAtom(executionItemController.actions.clearAllRuns)
+    const clearAll = useSetAtom(executionItemController.actions.clearAll)
     const canRunAllChat = useAtomValue(executionController.selectors.canRunAllChatComparison)
 
     // Collapse toggle (single view)
@@ -71,10 +76,23 @@ const ExecutionHeader = ({
         executionItemController.selectors.allRowsCollapsed,
     )
 
+    // Detect connected evaluators for dynamic tooltip
+    const nodes = useAtomValue(
+        useMemo(() => playgroundController.selectors.nodes(), []),
+    ) as PlaygroundNode[]
+    const hasEvaluators = useMemo(
+        () => nodes.some((n) => n.depth > 0 && n.entityType === "workflow"),
+        [nodes],
+    )
+
     const runTests = () => runAll(entityId ? {entityId} : undefined)
     const canRun = !isChatMode || !isComparisonView || canRunAllChat
 
     useRunAllShortcut({isRunning, canRun, onRun: runTests})
+
+    const runAllTooltip = hasEvaluators
+        ? "Run the prompt and evaluators on all test cases."
+        : "Run the prompt on all test cases."
 
     const showCollapseToggle = !isComparisonView
     // const showRunOptions = !isComparisonView && entityId
@@ -131,7 +149,7 @@ const ExecutionHeader = ({
 
             <div className="flex items-center gap-2">
                 <Tooltip title="Clear all">
-                    <Button size="small" onClick={() => clearAllRuns()} disabled={isRunning}>
+                    <Button size="small" onClick={() => clearAll()} disabled={isRunning}>
                         Clear
                     </Button>
                 </Tooltip>
@@ -140,7 +158,7 @@ const ExecutionHeader = ({
 
                 {!isRunning ? (
                     <div className="flex">
-                        <Tooltip title="Run all (Ctrl+Enter / ⌘+Enter)">
+                        <Tooltip title={`${runAllTooltip} (Ctrl+Enter / ⌘+Enter)`}>
                             <RunButton
                                 isRunAll
                                 type="primary"

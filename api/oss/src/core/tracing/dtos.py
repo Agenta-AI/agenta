@@ -24,6 +24,8 @@ from agenta.sdk.models.tracing import (  # noqa: F401
     TraceType,
     SpanType,
     AgMetricEntryAttributes,
+    AgVectorMetricEntryAttributes,
+    AgScalarMetricEntryAttributes,
     AgMetricsAttributes,
     AgTypeAttributes,
     AgDataAttributes,
@@ -84,6 +86,7 @@ class Fields(str, Enum):
     EVENTS = "events"
     LINKS = "links"
     REFERENCES = "references"
+    HASHES = "hashes"
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
     DELETED_AT = "deleted_at"
@@ -333,6 +336,8 @@ class SimpleTraceEdit(BaseModel):
     meta: Optional[Meta] = None
 
     data: Data
+    references: Optional[SimpleTraceReferences] = None
+    links: Optional[SimpleTraceLinks] = None
 
 
 class SimpleTraceQuery(BaseModel):

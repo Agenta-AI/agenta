@@ -1,20 +1,12 @@
-import {useEffect, useMemo} from "react"
+import {useMemo} from "react"
 
-import {atom} from "jotai"
-import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
+import {workflowMolecule} from "@agenta/entities/workflow"
+import {getDefaultStore, useAtomValue} from "jotai"
 
-import {variantConfigAtomFamily} from "@/oss/components/References/atoms/entityReferences"
-import type {VariantConfigReference} from "@/oss/components/References/atoms/entityReferences"
-import {projectIdAtom} from "@/oss/state/project"
-
-import {getCachedVariantConfig, setCachedVariantConfig} from "../cache/referenceCache"
-
-const idleVariantConfigQueryAtom = atom({
-    data: null as VariantConfigReference | null,
-    isLoading: false,
-    isFetching: false,
-    isPending: false,
-})
+interface VariantConfig {
+    variantName: string | null
+    revision: number | null
+}
 
 interface UsePreviewVariantConfigOptions {
     enabled?: boolean
@@ -22,7 +14,7 @@ interface UsePreviewVariantConfigOptions {
 
 const usePreviewVariantConfig = (
     {
-        projectId,
+        projectId: _projectId,
         revisionId,
     }: {
         projectId: string | null | undefined
@@ -31,49 +23,32 @@ const usePreviewVariantConfig = (
     options?: UsePreviewVariantConfigOptions,
 ) => {
     const enabled = options?.enabled ?? true
-    const globalProjectId = useAtomValueWithSchedule(projectIdAtom, {
-        priority: LOW_PRIORITY,
-    })
-    const effectiveProjectId = projectId ?? globalProjectId
+    const effectiveRevisionId = enabled && revisionId ? revisionId : ""
 
-    // Check cache first for instant display when scrolling back into view
-    const cachedConfig =
-        enabled && effectiveProjectId && revisionId
-            ? getCachedVariantConfig(effectiveProjectId, revisionId)
-            : undefined
+    const dataAtom = useMemo(
+        () => workflowMolecule.selectors.data(effectiveRevisionId),
+        [effectiveRevisionId],
+    )
+    const queryAtom = useMemo(
+        () => workflowMolecule.selectors.query(effectiveRevisionId),
+        [effectiveRevisionId],
+    )
 
-    const queryAtom = useMemo(() => {
-        if (!enabled || !effectiveProjectId || !revisionId) {
-            return idleVariantConfigQueryAtom
-        }
-        return variantConfigAtomFamily({projectId: effectiveProjectId, revisionId})
-    }, [enabled, effectiveProjectId, revisionId])
+    // Read from default store to bypass scoped store isolation
+    // (e.g. EvaluationRunsTableStoreProvider)
+    const defaultStore = getDefaultStore()
+    const data = useAtomValue(dataAtom, {store: defaultStore})
+    const query = useAtomValue(queryAtom, {store: defaultStore})
 
-    const query = useAtomValueWithSchedule(queryAtom, {
-        priority: LOW_PRIORITY,
-    })
-    const queryConfig =
-        enabled && effectiveProjectId && revisionId
-            ? ((query?.data as VariantConfigReference | null) ?? null)
+    const config: VariantConfig | null =
+        enabled && revisionId && data
+            ? {
+                  variantName: data.name ?? data.slug ?? null,
+                  revision: data.version ?? null,
+              }
             : null
 
-    // Update cache when we get new data
-    useEffect(() => {
-        if (!enabled || !effectiveProjectId || !revisionId || !queryConfig) return
-        setCachedVariantConfig(effectiveProjectId, revisionId, queryConfig)
-    }, [enabled, effectiveProjectId, revisionId, queryConfig])
-
-    // Return cached value if query is still loading
-    const config = queryConfig ?? cachedConfig ?? null
-    const hasConfig = Boolean(config)
-
-    const isLoading = Boolean(
-        enabled &&
-        effectiveProjectId &&
-        revisionId &&
-        !hasConfig &&
-        (query?.isLoading || query?.isFetching || query?.isPending),
-    )
+    const isLoading = Boolean(enabled && revisionId && !config && query.isPending)
 
     return {config, isLoading}
 }

@@ -32,7 +32,7 @@ from agenta.sdk.decorators.running import (  # noqa: E402
     workflow,
 )
 
-from agenta.sdk.workflows import builtin  # noqa: E402
+from agenta.sdk.engines.running import builtin  # noqa: E402
 
 
 custom_app = create_app()

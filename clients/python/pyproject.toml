@@ -1,0 +1,21 @@
+[project]
+name = "agenta-client"
+version = "0.99.6"
+description = "Fern-generated Python client for the Agenta API."
+requires-python = ">=3.11,<3.14"
+authors = [
+    { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
+    { name = "Juan Vega", email = "jp@agenta.ai" },
+]
+dependencies = [
+    "httpx>=0.28,<0.29",
+    "pydantic>=2,<3",
+]
+
+[tool.uv.build-backend]
+module-name = "agenta_client"
+module-root = ""
+
+[build-system]
+requires = ["uv_build>=0.11.9,<0.12.0"]
+build-backend = "uv_build"
