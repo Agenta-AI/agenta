@@ -18,6 +18,7 @@ import {
     parseEvaluatorKeyFromUri,
     evaluatorTemplatesMapAtom,
     workflowMolecule,
+    discardLocalServerDataAtom,
 } from "@agenta/entities/workflow"
 import {EntityPicker} from "@agenta/entity-ui"
 import {PlaygroundConfigSection} from "@agenta/entity-ui/drill-in"
@@ -36,7 +37,9 @@ import {
 import {type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {
     DrawerProvidersProvider,
+    isCreateContext,
     workflowRevisionDrawerAtom,
+    workflowRevisionDrawerContextAtom,
     closeWorkflowRevisionDrawerAtom,
     workflowRevisionDrawerCallbackAtom,
     workflowRevisionDrawerEntityIdAtom,
@@ -51,6 +54,7 @@ import {Rocket} from "@phosphor-icons/react"
 import {Button, Typography, message} from "antd"
 import {getDefaultStore, useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 
 import OSSdrillInUIProvider from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
@@ -62,12 +66,14 @@ import {
 } from "@/oss/components/Evaluators/components/ConfigureEvaluator/atoms"
 import EvaluatorPlaygroundHeader from "@/oss/components/Evaluators/components/ConfigureEvaluator/EvaluatorPlaygroundHeader"
 import {clearEvaluatorWorkflowCache} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
+import {invalidateAppManagementWorkflowQueries} from "@/oss/components/pages/app-management/store"
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "@/oss/components/Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
 import PlaygroundTestcaseEditor from "@/oss/components/Playground/Components/PlaygroundTestcaseEditor"
 import {OSSPlaygroundShell} from "@/oss/components/Playground/OSSPlaygroundShell"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
+import useURL from "@/oss/hooks/useURL"
 import {useQueryParamState} from "@/oss/state/appState"
 
 const PlaygroundMainView = dynamic(
@@ -397,10 +403,19 @@ const DrawerPlayground = memo(({entityId}: {entityId: string}) => {
 })
 
 // ================================================================
-// COMMIT CALLBACK (evaluator create mode)
+// COMMIT CALLBACK (evaluator + app create modes)
+//
+// Fires on commit-success inside the drawer for:
+//   - evaluator-create: closes drawer, callback receives new revision ID
+//   - evaluator-view:   updates drawer entityId to the newly committed revision
+//   - app-create:       closes drawer FIRST (sync atom resets), then callback
+//                       receives {newAppId, newRevisionId} so the dropdown
+//                       handler can router.push to /apps/<id>/playground.
+//                       Order: close → navigate (avoids drawer flicker on
+//                       destination page during Next.js async transition).
 // ================================================================
 
-const useEvaluatorCommitCallback = () => {
+const useDrawerCreateCommitCallback = () => {
     const {context} = useAtomValue(workflowRevisionDrawerAtom)
     const drawerCallback = useAtomValue(workflowRevisionDrawerCallbackAtom)
     const drawerCallbackRef = useRef(drawerCallback)
@@ -410,21 +425,65 @@ const useEvaluatorCommitCallback = () => {
     const closeDrawerRef = useRef(closeDrawer)
     closeDrawerRef.current = closeDrawer
 
+    const router = useRouter()
+    const routerRef = useRef(router)
+    routerRef.current = router
+
+    const {baseAppURL} = useURL()
+    const baseAppURLRef = useRef(baseAppURL)
+    baseAppURLRef.current = baseAppURL
+
     const isEvaluator = context === "evaluator-create" || context === "evaluator-view"
     const isEvaluatorCreate = context === "evaluator-create"
+    const isAppCreate = context === "app-create"
 
     useEffect(() => {
-        if (!isEvaluator) return
+        if (!isEvaluator && !isAppCreate) return
 
         const previousOnNewRevision = getWorkflowCommitCallbacks().onNewRevision
 
         registerWorkflowCommitCallbacks({
             onNewRevision: async (result, params) => {
-                clearEvaluatorWorkflowCache()
+                if (isEvaluator) {
+                    clearEvaluatorWorkflowCache()
+                }
                 await previousOnNewRevision?.(result, params)
 
                 if (isEvaluatorCreate) {
-                    drawerCallbackRef.current?.(result.newRevisionId)
+                    drawerCallbackRef.current?.({
+                        configId: result.newRevisionId,
+                        newRevisionId: result.newRevisionId,
+                    })
+                    closeDrawerRef.current()
+                } else if (isAppCreate) {
+                    const newWorkflow = result.workflow as
+                        | {workflow_id?: string; id?: string}
+                        | undefined
+                    const newAppId = newWorkflow?.workflow_id ?? newWorkflow?.id ?? undefined
+                    const newRevisionId = result.newRevisionId
+
+                    // Refresh the apps-page paginated table + count caches so
+                    // the new app shows up immediately on /apps when the user
+                    // navigates back. The shared workflow-list invalidation
+                    // (commit.ts:590) doesn't cover the app-management
+                    // paginated store.
+                    void invalidateAppManagementWorkflowQueries()
+
+                    // Fire the user callback first so any analytics/hooks
+                    // see the result. Then handle navigation + close inside
+                    // the wrapper itself — owning the routing here keeps the
+                    // contract simple for callers and avoids brittleness from
+                    // a callback closure capturing stale router references.
+                    drawerCallbackRef.current?.({
+                        newAppId,
+                        newRevisionId,
+                    })
+
+                    if (newAppId && newRevisionId) {
+                        routerRef.current.push(
+                            `${baseAppURLRef.current}/${newAppId}/playground?revisions=${newRevisionId}`,
+                        )
+                    }
                     closeDrawerRef.current()
                 } else {
                     // In evaluator-view mode, the selection change callback
@@ -437,9 +496,11 @@ const useEvaluatorCommitCallback = () => {
                 }
 
                 message.success(
-                    isEvaluatorCreate
-                        ? "Evaluator created successfully"
-                        : "Evaluator committed successfully",
+                    isAppCreate
+                        ? "App created successfully"
+                        : isEvaluatorCreate
+                          ? "Evaluator created successfully"
+                          : "Evaluator committed successfully",
                 )
             },
         })
@@ -449,19 +510,105 @@ const useEvaluatorCommitCallback = () => {
                 onNewRevision: previousOnNewRevision,
             })
         }
-    }, [isEvaluator, isEvaluatorCreate])
+    }, [isEvaluator, isEvaluatorCreate, isAppCreate])
 }
 
 // ================================================================
 // MAIN WRAPPER
 // ================================================================
 
+// ================================================================
+// CROSS-CONTEXT CLEANUP — release local-* on close (idle, no commit)
+//
+// Wires `closeWorkflowRevisionDrawerAtom` to also dispatch
+// `discardLocalServerDataAtom` for any local-* entity. Applies to all
+// drawer-create contexts (app-create, evaluator-create, trace-replay).
+//
+// Commit-in-flight gate: if a commit just succeeded, the close was
+// triggered BY the commit handler (above), and the entity has already
+// been promoted to a real ID. Releasing the local-* entry then is
+// safe — the new real entity is in a different atom family.
+//
+// If a commit is in-flight at the moment of close (e.g., user clicks
+// the X mid-commit), the existing close-handler runs synchronously
+// before the commit settles. Acceptable for v1: the commit will still
+// complete on the server and the user can find the new app in the
+// list. The orphan local-* would be cleared by the close, but the
+// commit's discardWorkflowDraftAtom call already clears the draft
+// layer; the local server data is dead either way.
+// ================================================================
+
+const useDrawerCloseCleanup = () => {
+    const isOpen = useAtomValue(workflowRevisionDrawerOpenAtom)
+    const entityIdRef = useRef<string | null>(null)
+    const entityId = useAtomValue(workflowRevisionDrawerEntityIdAtom)
+
+    // `closeWorkflowRevisionDrawerAtom` resets `isOpen` and `entityId`
+    // atomically in one Jotai write. React batches both updates into the
+    // same render, so a naive `entityIdRef.current = entityId` during
+    // render would clobber the ref with `null` BEFORE the cleanup effect
+    // fires. Only update the ref while the drawer is open, so we keep
+    // the last truthy ID around to discard on close.
+    if (isOpen && entityId && entityIdRef.current !== entityId) {
+        entityIdRef.current = entityId
+    }
+
+    const discard = useSetAtom(discardLocalServerDataAtom)
+    const discardRef = useRef(discard)
+    discardRef.current = discard
+
+    const prevOpenRef = useRef(isOpen)
+    useEffect(() => {
+        if (prevOpenRef.current && !isOpen) {
+            // Drawer just closed — release the entity that was open.
+            // Read from the ref captured BEFORE the close (since close
+            // resets entityId to null in the same render).
+            const id = entityIdRef.current
+            if (id) discardRef.current(id)
+            entityIdRef.current = null
+        }
+        prevOpenRef.current = isOpen
+    }, [isOpen])
+}
+
+// ================================================================
+// REFRESH WARNING — beforeunload guard for unsaved drawer edits
+//
+// Fires the standard browser "you have unsaved changes" warning when
+// the user tries to refresh / close tab while a drawer-create context
+// is open AND the entity has unsaved edits. Cross-context: covers
+// app-create, evaluator-create, trace-replay.
+// ================================================================
+
+const useUnsavedDrawerWarning = () => {
+    const isOpen = useAtomValue(workflowRevisionDrawerOpenAtom)
+    const context = useAtomValue(workflowRevisionDrawerContextAtom)
+    const entityId = useAtomValue(workflowRevisionDrawerEntityIdAtom)
+    const isDirty = useAtomValue(
+        useMemo(() => workflowMolecule.atoms.isDirty(entityId ?? "__none__"), [entityId]),
+    )
+
+    useEffect(() => {
+        if (!isOpen || !isCreateContext(context) || !isDirty) return
+        const handler = (e: BeforeUnloadEvent) => {
+            e.preventDefault()
+            // Modern browsers ignore the message, but setting returnValue
+            // is required to trigger the prompt at all.
+            e.returnValue = ""
+        }
+        window.addEventListener("beforeunload", handler)
+        return () => window.removeEventListener("beforeunload", handler)
+    }, [isOpen, context, isDirty])
+}
+
 const WorkflowRevisionDrawerWrapper = () => {
     const isOpen = useAtomValue(workflowRevisionDrawerOpenAtom)
     const entityId = useAtomValue(workflowRevisionDrawerEntityIdAtom)
     const [, setQueryRevision] = useQueryParamState("revisionId")
 
-    useEvaluatorCommitCallback()
+    useDrawerCreateCommitCallback()
+    useDrawerCloseCleanup()
+    useUnsavedDrawerWarning()
 
     // Clear revisionId from URL when drawer closes
     const prevOpenRef = useRef(isOpen)

@@ -13,7 +13,7 @@ import {Plus, WarningCircle} from "@phosphor-icons/react"
 import {Button, Form, Input, Typography} from "antd"
 import {useWatch} from "antd/lib/form/Form"
 
-import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
+import {isSlugInputValid} from "@/oss/lib/helpers/utils"
 
 import LabelInput from "../../../assets/LabelInput"
 
@@ -243,7 +243,7 @@ const ConfigureProviderDrawerContent = ({
                                                                   return Promise.reject(
                                                                       "Please enter name",
                                                                   )
-                                                              if (!isAppNameInputValid(value)) {
+                                                              if (!isSlugInputValid(value)) {
                                                                   return Promise.reject(
                                                                       "Name must contain only letters, numbers, underscore, or dash without any spaces.",
                                                                   )

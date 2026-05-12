@@ -10,6 +10,7 @@ import {generateRuntimeTestEmail, getTestmailClient, isTestmailInboxEmail} from 
 
 import {
     getChromiumLaunchOptions,
+    getOutputDir,
     getProjectMetadataPath,
     getStorageStatePath,
 } from "./config/runtime.ts"
@@ -398,7 +399,106 @@ async function getVisibleAuthFeedback(page: Page): Promise<string | null> {
     return null
 }
 
+async function captureAuthFailure(page: Page, label: string, err: unknown): Promise<void> {
+    const ts = new Date().toISOString().replace(/[:.]/g, "-")
+    const baseName = `auth-failure-${label}-${ts}`
+    const outDir = getOutputDir()
+    try {
+        if (!existsSync(outDir)) mkdirSync(outDir, {recursive: true})
+    } catch {}
+
+    console.log(`[global-setup] ===== AUTH FAILURE DEBUG (${label}) =====`)
+    try {
+        console.log(
+            `[global-setup] error: ${err instanceof Error ? err.stack || err.message : String(err)}`,
+        )
+    } catch {}
+    try {
+        console.log(`[global-setup] url: ${page.url()}`)
+    } catch (e) {
+        console.log(`[global-setup] url: <unavailable> (${e})`)
+    }
+    try {
+        console.log(`[global-setup] title: ${await page.title()}`)
+    } catch (e) {
+        console.log(`[global-setup] title: <unavailable> (${e})`)
+    }
+    try {
+        const screenshotPath = `${outDir}/${baseName}.png`
+        await page.screenshot({path: screenshotPath, fullPage: true})
+        console.log(`[global-setup] screenshot: ${screenshotPath}`)
+    } catch (e) {
+        console.log(`[global-setup] screenshot failed: ${e}`)
+    }
+    try {
+        const html = await page.content()
+        const htmlPath = `${outDir}/${baseName}.html`
+        writeFileSync(htmlPath, html)
+        console.log(`[global-setup] html: ${htmlPath}`)
+    } catch (e) {
+        console.log(`[global-setup] html capture failed: ${e}`)
+    }
+    try {
+        const text = await page.locator("body").innerText({timeout: 5000})
+        console.log(`[global-setup] visible text:\n${text}`)
+    } catch (e) {
+        console.log(`[global-setup] text capture failed: ${e}`)
+    }
+    console.log(`[global-setup] ===== END AUTH FAILURE DEBUG =====`)
+}
+
 async function authenticateUser({
+    page,
+    entryUrl,
+    email,
+    password,
+    authMode,
+    timeout,
+    inputDelay,
+    testmail,
+}: {
+    page: Page
+    entryUrl: string
+    email: string
+    password: string
+    authMode: AuthMode
+    timeout: number
+    inputDelay: number
+    testmail: TestmailClient | null
+}): Promise<void> {
+    const consoleLogs: string[] = []
+    page.on("console", (msg) => {
+        consoleLogs.push(`[${msg.type()}] ${msg.text()}`)
+    })
+    page.on("pageerror", (err) => {
+        consoleLogs.push(`[pageerror] ${err.message}`)
+    })
+    page.on("requestfailed", (req) => {
+        consoleLogs.push(
+            `[requestfailed] ${req.method()} ${req.url()} — ${req.failure()?.errorText}`,
+        )
+    })
+
+    try {
+        await authenticateUserImpl({
+            page,
+            entryUrl,
+            email,
+            password,
+            authMode,
+            timeout,
+            inputDelay,
+            testmail,
+        })
+    } catch (err) {
+        console.log(`[global-setup] page console log dump (${consoleLogs.length} entries):`)
+        for (const line of consoleLogs) console.log(`  ${line}`)
+        await captureAuthFailure(page, "authenticateUser", err)
+        throw err
+    }
+}
+
+async function authenticateUserImpl({
     page,
     entryUrl,
     email,
@@ -826,6 +926,7 @@ async function globalSetup() {
 
     console.log("[global-setup] Launching browser")
     const browser = await chromium.launch(getChromiumLaunchOptions())
+    console.log("[global-setup] Browser launched OK")
     let authenticatedContext: BrowserContext | null = null
     let authenticatedPage: Page | null = null
 
@@ -834,8 +935,11 @@ async function globalSetup() {
             let ownerContext: BrowserContext | null = null
 
             try {
+                console.log("[global-setup] Creating owner context")
                 ownerContext = await browser.newContext()
+                console.log("[global-setup] Owner context created, opening page")
                 const ownerPage = await ownerContext.newPage()
+                console.log("[global-setup] Owner page opened")
 
                 console.log(`[global-setup] Authenticating OSS owner: ${ownerEmail}`)
                 await authenticateUser({
@@ -938,6 +1042,27 @@ async function maybeCreateEphemeralProject(page: Page, baseURL: string): Promise
     try {
         const apiURL = getApiURL(baseURL)
         const projectMetadataPath = getProjectMetadataPath()
+
+        // The page.request context inherits cookies from the page, but the
+        // SuperTokens session cookie may not have propagated yet if the
+        // sign-in network response wasn't observed before the page settled.
+        // Poll GET /projects/ for up to 10s; 401 here just means the cookie
+        // hasn't been written to the request context yet.
+        const sessionReadyDeadline = Date.now() + 10_000
+        let sessionReady = false
+        while (Date.now() < sessionReadyDeadline) {
+            const probe = await page.request.get(`${apiURL}/projects/`).catch(() => null)
+            if (probe && probe.ok()) {
+                sessionReady = true
+                break
+            }
+            await page.waitForTimeout(500)
+        }
+        if (!sessionReady) {
+            console.warn(
+                "[global-setup] Session probe never returned 2xx within 10s; ephemeral project creation will likely 401",
+            )
+        }
 
         const projectsResponse = await page.request.get(`${apiURL}/projects/`)
         let originalDefaultProjectId: string | null = null

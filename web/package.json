@@ -1,6 +1,6 @@
 {
     "name": "agenta-web",
-    "version": "0.99.2",
+    "version": "0.99.6",
     "workspaces": [
         "ee",
         "oss",
@@ -63,8 +63,8 @@
         "test:playground-dev": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/run-playground-tests.ts",
         "test:observability": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-observability.ts",
         "test:datalayer": "pnpm test:revision-centric && pnpm test:apps && pnpm test:environments && pnpm test:deployments && pnpm test:orgs && pnpm test:profile && pnpm test:workspace && pnpm test:project && pnpm test:newPlayground && pnpm test:observability",
-        "format": "prettier --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
-        "format-fix": "prettier --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
+        "format": "prettier --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./.prettierignore --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
+        "format-fix": "prettier --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./.prettierignore --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
         "generate:tailwind-tokens": "tsx scripts/generate-tailwind-tokens.ts"
     },
     "pnpm": {

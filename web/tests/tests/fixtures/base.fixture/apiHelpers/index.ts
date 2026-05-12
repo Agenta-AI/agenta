@@ -577,13 +577,11 @@ export const getVariants = async (page: Page, appId: string) => {
     expect(variantsCount).toBeGreaterThan(0)
     expect(variants.length).toBeGreaterThan(0)
 
-    // Log the API response for debugging
     if (!variants.length) {
         console.error("[App Fixture] No variants found")
         throw new Error("No variants found")
     }
 
-    console.log("[Playground E2E] Variants API response:", JSON.stringify(variants, null, 2))
     return variants
 }
 
@@ -610,10 +608,6 @@ export const getEvaluationRuns = async (page: Page) => {
         throw new Error("No evaluation runs found")
     }
 
-    console.log(
-        "[Playground E2E] Evaluation runs API response:",
-        JSON.stringify(evaluationRuns, null, 2),
-    )
     return evaluationRuns.runs
 }
 

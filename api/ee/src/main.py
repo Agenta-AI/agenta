@@ -21,7 +21,6 @@ from ee.src.apis.fastapi.billing.router import BillingRouter
 from ee.src.apis.fastapi.organizations.router import (
     router as organization_router,
 )
-from oss.src.apis.fastapi.auth.router import auth_router
 
 # DBS --------------------------------------------------------------------------
 
@@ -70,7 +69,8 @@ def extend_main(app: FastAPI):
     app.include_router(
         router=billing_router.admin_router,
         prefix="/admin/billing",
-        tags=["Admin", "Billing"],
+        tags=["Admin"],
+        include_in_schema=False,
     )
 
     # ROUTES (more) ------------------------------------------------------------
@@ -93,14 +93,6 @@ def extend_main(app: FastAPI):
         tags=["Workspaces"],
     )
 
-    # Auth router at root level (no /api prefix) for OAuth callbacks
-    app.include_router(
-        auth_router,
-        prefix="/auth",
-        tags=["Auth"],
-        include_in_schema=False,
-    )
-
     # --------------------------------------------------------------------------
 
     return app
@@ -112,7 +104,6 @@ def extend_app_schema(app: FastAPI):
         EE-aware OpenAPI schema generator, replaces FastAPI's default.
 
         Extends the OSS schema with:
-        - Billing tag injected before Admin in the sidebar ordering
         - APIKeyHeader security scheme and global security requirement
         - Server URL pinned from config
 
@@ -121,17 +112,27 @@ def extend_app_schema(app: FastAPI):
         if app.openapi_schema:
             return app.openapi_schema
 
-        billing_tag = {
-            "name": "Billing",
-            "description": "Subscription management, plans, usage, and Stripe billing (EE only).",
-        }
-
         oss_tags = list(app.openapi_tags or [])
-        admin_index = next(
+        # Insert Access then Billing right before the Admin tag so the final
+        # order is: ...domain tags..., Access, Billing, Admin, Deprecated.
+        admin_idx = next(
             (i for i, t in enumerate(oss_tags) if t.get("name") == "Admin"),
             len(oss_tags),
         )
-        oss_tags.insert(admin_index, billing_tag)
+        oss_tags.insert(
+            admin_idx,
+            {
+                "name": "Access",
+                "description": "Authentication discovery, organization access checks, and SSO callback endpoints.",
+            },
+        )
+        oss_tags.insert(
+            admin_idx + 1,
+            {
+                "name": "Billing",
+                "description": "Subscription, plan, and usage endpoints for workspace billing.",
+            },
+        )
 
         schema = get_openapi(
             title="Agenta API",

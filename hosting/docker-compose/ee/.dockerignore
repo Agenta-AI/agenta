@@ -3,5 +3,4 @@ node_modules
 docker/
 db.schema
 tests/
-poetry.lock
 db.schema

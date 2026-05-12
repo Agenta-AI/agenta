@@ -92,6 +92,8 @@ const AnnotationSessionPage = () => {
                 router.push(`${projectURL}/evaluations/results/${runId}`),
             navigateToObservability: () => router.push(`${projectURL}/observability`),
             openTraceDetail: handleOpenTraceDetail,
+            navigateToTestset: (testsetId: string) =>
+                router.push(`${projectURL}/testsets/${encodeURIComponent(testsetId)}`),
         }),
         [router, projectURL, handleOpenTraceDetail],
     )

@@ -30,6 +30,7 @@ from oss.src.core.accounts.errors import (
     AdminUserNotFoundError,
     AdminValidationError,
     AdminWorkspaceNotFoundError,
+    OssMultiOrgNotSupportedError,
 )
 from oss.src.apis.fastapi.accounts.models import (
     AdminAccountsCreate,
@@ -76,6 +77,8 @@ def _handle_admin_error(exc: AdminError) -> None:
         raise BadRequestException(message=exc.message, **(exc.details or {}))
     if isinstance(exc, AdminInvalidReferenceError):
         raise BadRequestException(message=exc.message, **exc.details)
+    if isinstance(exc, OssMultiOrgNotSupportedError):
+        raise BadRequestException(message=exc.message, **(exc.details or {}))
     # Generic admin error → 400
     raise BadRequestException(message=exc.message)
 
@@ -97,22 +100,20 @@ class PlatformAdminAccountsRouter:
             "/accounts/",
             self.create_accounts,
             methods=["POST"],
-            operation_id="admin_create_accounts",
             status_code=status.HTTP_200_OK,
             response_model=AdminAccountsResponse,
             response_model_exclude_none=True,
-            summary="Create account graph",
+            summary="Create accounts",
         )
 
         self.router.add_api_route(
             "/accounts/",
             self.delete_accounts,
             methods=["DELETE"],
-            operation_id="admin_delete_accounts",
             status_code=status.HTTP_200_OK,
             response_model=AdminDeleteResponse,
             response_model_exclude_none=True,
-            summary="Delete account graph by selector",
+            summary="Delete accounts",
         )
 
         # ------------------------------------------------------------------
@@ -123,20 +124,18 @@ class PlatformAdminAccountsRouter:
             "/simple/accounts/",
             self.create_simple_accounts,
             methods=["POST"],
-            operation_id="admin_create_simple_accounts",
             status_code=status.HTTP_200_OK,
             response_model=AdminSimpleAccountsResponse,
             response_model_exclude_none=True,
-            summary="Create simple account",
+            summary="Create simple accounts",
         )
 
         self.router.add_api_route(
             "/simple/accounts/",
             self.delete_simple_accounts,
             methods=["DELETE"],
-            operation_id="admin_delete_simple_accounts",
             status_code=status.HTTP_204_NO_CONTENT,
-            summary="Delete simple accounts by user ref",
+            summary="Delete simple accounts",
         )
 
         # ------------------------------------------------------------------
@@ -147,11 +146,20 @@ class PlatformAdminAccountsRouter:
             "/simple/accounts/users/",
             self.create_user,
             methods=["POST"],
-            operation_id="admin_create_user",
             status_code=status.HTTP_200_OK,
             response_model=AdminAccountsResponse,
             response_model_exclude_none=True,
-            summary="Create user account",
+            summary="Create users",
+        )
+
+        self.router.add_api_route(
+            "/simple/accounts/users/{user_id}",
+            self.delete_user,
+            methods=["DELETE"],
+            status_code=status.HTTP_200_OK,
+            response_model=AdminDeleteResponse,
+            response_model_exclude_none=True,
+            summary="Delete user",
         )
 
         # ------------------------------------------------------------------
@@ -162,22 +170,20 @@ class PlatformAdminAccountsRouter:
             "/simple/accounts/users/identities/",
             self.create_user_identity,
             methods=["POST"],
-            operation_id="admin_create_user_identity",
             status_code=status.HTTP_200_OK,
             response_model=AdminAccountsResponse,
             response_model_exclude_none=True,
-            summary="Create user identity",
+            summary="Create user identities",
         )
 
         self.router.add_api_route(
-            "/simple/accounts/users/{user_id}/identities/{identity_id}/",
+            "/simple/accounts/users/{user_id}/identities/{identity_id}",
             self.delete_user_identity,
             methods=["DELETE"],
-            operation_id="admin_delete_user_identity",
             status_code=status.HTTP_200_OK,
             response_model=AdminDeleteResponse,
             response_model_exclude_none=True,
-            summary="Delete user identity by ID",
+            summary="Delete user identity",
         )
 
         # ------------------------------------------------------------------
@@ -188,22 +194,20 @@ class PlatformAdminAccountsRouter:
             "/simple/accounts/organizations/",
             self.create_organization,
             methods=["POST"],
-            operation_id="admin_create_organization",
             status_code=status.HTTP_200_OK,
             response_model=AdminAccountsResponse,
             response_model_exclude_none=True,
-            summary="Create organization",
+            summary="Create organizations",
         )
 
         self.router.add_api_route(
-            "/simple/accounts/organizations/{organization_id}/",
+            "/simple/accounts/organizations/{organization_id}",
             self.delete_organization,
             methods=["DELETE"],
-            operation_id="admin_delete_organization",
             status_code=status.HTTP_200_OK,
             response_model=AdminDeleteResponse,
             response_model_exclude_none=True,
-            summary="Delete organization by ID",
+            summary="Delete organization",
         )
 
         # ------------------------------------------------------------------
@@ -214,22 +218,20 @@ class PlatformAdminAccountsRouter:
             "/simple/accounts/organizations/memberships/",
             self.create_organization_membership,
             methods=["POST"],
-            operation_id="admin_create_organization_membership",
             status_code=status.HTTP_200_OK,
             response_model=AdminAccountsResponse,
             response_model_exclude_none=True,
-            summary="Create organization membership",
+            summary="Create organization memberships",
         )
 
         self.router.add_api_route(
-            "/simple/accounts/organizations/{organization_id}/memberships/{membership_id}/",
+            "/simple/accounts/organizations/{organization_id}/memberships/{membership_id}",
             self.delete_organization_membership,
             methods=["DELETE"],
-            operation_id="admin_delete_organization_membership",
             status_code=status.HTTP_200_OK,
             response_model=AdminDeleteResponse,
             response_model_exclude_none=True,
-            summary="Delete organization membership by ID",
+            summary="Delete organization membership",
         )
 
         # ------------------------------------------------------------------
@@ -240,22 +242,20 @@ class PlatformAdminAccountsRouter:
             "/simple/accounts/workspaces/",
             self.create_workspace,
             methods=["POST"],
-            operation_id="admin_create_workspace",
             status_code=status.HTTP_200_OK,
             response_model=AdminAccountsResponse,
             response_model_exclude_none=True,
-            summary="Create workspace",
+            summary="Create workspaces",
         )
 
         self.router.add_api_route(
-            "/simple/accounts/workspaces/{workspace_id}/",
+            "/simple/accounts/workspaces/{workspace_id}",
             self.delete_workspace,
             methods=["DELETE"],
-            operation_id="admin_delete_workspace",
             status_code=status.HTTP_200_OK,
             response_model=AdminDeleteResponse,
             response_model_exclude_none=True,
-            summary="Delete workspace by ID",
+            summary="Delete workspace",
         )
 
         # ------------------------------------------------------------------
@@ -266,22 +266,20 @@ class PlatformAdminAccountsRouter:
             "/simple/accounts/workspaces/memberships/",
             self.create_workspace_membership,
             methods=["POST"],
-            operation_id="admin_create_workspace_membership",
             status_code=status.HTTP_200_OK,
             response_model=AdminAccountsResponse,
             response_model_exclude_none=True,
-            summary="Create workspace membership",
+            summary="Create workspace memberships",
         )
 
         self.router.add_api_route(
-            "/simple/accounts/workspaces/{workspace_id}/memberships/{membership_id}/",
+            "/simple/accounts/workspaces/{workspace_id}/memberships/{membership_id}",
             self.delete_workspace_membership,
             methods=["DELETE"],
-            operation_id="admin_delete_workspace_membership",
             status_code=status.HTTP_200_OK,
             response_model=AdminDeleteResponse,
             response_model_exclude_none=True,
-            summary="Delete workspace membership by ID",
+            summary="Delete workspace membership",
         )
 
         # ------------------------------------------------------------------
@@ -292,22 +290,20 @@ class PlatformAdminAccountsRouter:
             "/simple/accounts/projects/",
             self.create_project,
             methods=["POST"],
-            operation_id="admin_create_project",
             status_code=status.HTTP_200_OK,
             response_model=AdminAccountsResponse,
             response_model_exclude_none=True,
-            summary="Create project",
+            summary="Create projects",
         )
 
         self.router.add_api_route(
-            "/simple/accounts/projects/{project_id}/",
+            "/simple/accounts/projects/{project_id}",
             self.delete_project,
             methods=["DELETE"],
-            operation_id="admin_delete_project",
             status_code=status.HTTP_200_OK,
             response_model=AdminDeleteResponse,
             response_model_exclude_none=True,
-            summary="Delete project by ID",
+            summary="Delete project",
         )
 
         # ------------------------------------------------------------------
@@ -318,22 +314,20 @@ class PlatformAdminAccountsRouter:
             "/simple/accounts/projects/memberships/",
             self.create_project_membership,
             methods=["POST"],
-            operation_id="admin_create_project_membership",
             status_code=status.HTTP_200_OK,
             response_model=AdminAccountsResponse,
             response_model_exclude_none=True,
-            summary="Create project membership",
+            summary="Create project memberships",
         )
 
         self.router.add_api_route(
-            "/simple/accounts/projects/{project_id}/memberships/{membership_id}/",
+            "/simple/accounts/projects/{project_id}/memberships/{membership_id}",
             self.delete_project_membership,
             methods=["DELETE"],
-            operation_id="admin_delete_project_membership",
             status_code=status.HTTP_200_OK,
             response_model=AdminDeleteResponse,
             response_model_exclude_none=True,
-            summary="Delete project membership by ID",
+            summary="Delete project membership",
         )
 
         # ------------------------------------------------------------------
@@ -344,22 +338,20 @@ class PlatformAdminAccountsRouter:
             "/simple/accounts/api-keys/",
             self.create_api_key,
             methods=["POST"],
-            operation_id="admin_create_api_key",
             status_code=status.HTTP_200_OK,
             response_model=AdminAccountsResponse,
             response_model_exclude_none=True,
-            summary="Create API key",
+            summary="Create API keys",
         )
 
         self.router.add_api_route(
-            "/simple/accounts/api-keys/{api_key_id}/",
+            "/simple/accounts/api-keys/{api_key_id}",
             self.delete_api_key,
             methods=["DELETE"],
-            operation_id="admin_delete_api_key",
             status_code=status.HTTP_200_OK,
             response_model=AdminDeleteResponse,
             response_model_exclude_none=True,
-            summary="Delete API key by ID",
+            summary="Delete API key",
         )
 
         # ------------------------------------------------------------------
@@ -370,7 +362,6 @@ class PlatformAdminAccountsRouter:
             "/simple/accounts/reset-password",
             self.reset_password,
             methods=["POST"],
-            operation_id="admin_reset_password",
             status_code=status.HTTP_204_NO_CONTENT,
             summary="Reset user password",
         )
@@ -379,7 +370,6 @@ class PlatformAdminAccountsRouter:
             "/simple/accounts/transfer-ownership",
             self.transfer_ownership,
             methods=["POST"],
-            operation_id="admin_transfer_ownership",
             status_code=status.HTTP_204_NO_CONTENT,
             responses={
                 status.HTTP_200_OK: {
@@ -400,7 +390,8 @@ class PlatformAdminAccountsRouter:
         payload: AdminAccountsCreate,
     ) -> AdminAccountsResponse:
         try:
-            return await self.accounts_service.create_accounts(dto=payload)
+            result = await self.accounts_service.create_accounts(dto=payload.to_dto())
+            return AdminAccountsResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -410,7 +401,8 @@ class PlatformAdminAccountsRouter:
         payload: AdminAccountsDelete,
     ) -> AdminDeleteResponse:
         try:
-            return await self.accounts_service.delete_accounts(dto=payload)
+            result = await self.accounts_service.delete_accounts(dto=payload.to_dto())
+            return AdminDeleteResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -424,7 +416,10 @@ class PlatformAdminAccountsRouter:
         payload: AdminSimpleAccountsCreate,
     ) -> AdminSimpleAccountsResponse:
         try:
-            return await self.accounts_service.create_simple_accounts(dto=payload)
+            result = await self.accounts_service.create_simple_accounts(
+                dto=payload.to_dto()
+            )
+            return AdminSimpleAccountsResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -434,7 +429,7 @@ class PlatformAdminAccountsRouter:
         payload: AdminSimpleAccountsDelete,
     ) -> None:
         try:
-            await self.accounts_service.delete_simple_accounts(dto=payload)
+            await self.accounts_service.delete_simple_accounts(dto=payload.to_dto())
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -448,7 +443,19 @@ class PlatformAdminAccountsRouter:
         payload: AdminSimpleAccountsUsersCreate,
     ) -> AdminAccountsResponse:
         try:
-            return await self.accounts_service.create_user(dto=payload)
+            result = await self.accounts_service.create_user(dto=payload.to_dto())
+            return AdminAccountsResponse.from_dto(result)
+        except AdminError as exc:
+            _handle_admin_error(exc)
+
+    @intercept_exceptions()
+    async def delete_user(
+        self,
+        user_id: str,
+    ) -> AdminDeleteResponse:
+        try:
+            result = await self.accounts_service.delete_user(user_id=user_id)
+            return AdminDeleteResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -462,7 +469,10 @@ class PlatformAdminAccountsRouter:
         payload: AdminSimpleAccountsUsersIdentitiesCreate,
     ) -> AdminAccountsResponse:
         try:
-            return await self.accounts_service.create_user_identity(dto=payload)
+            result = await self.accounts_service.create_user_identity(
+                dto=payload.to_dto()
+            )
+            return AdminAccountsResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -473,10 +483,11 @@ class PlatformAdminAccountsRouter:
         identity_id: str,
     ) -> AdminDeleteResponse:
         try:
-            return await self.accounts_service.delete_user_identity(
+            result = await self.accounts_service.delete_user_identity(
                 user_id=user_id,
                 identity_id=identity_id,
             )
+            return AdminDeleteResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -490,7 +501,10 @@ class PlatformAdminAccountsRouter:
         payload: AdminSimpleAccountsOrganizationsCreate,
     ) -> AdminAccountsResponse:
         try:
-            return await self.accounts_service.create_organization(dto=payload)
+            result = await self.accounts_service.create_organization(
+                dto=payload.to_dto()
+            )
+            return AdminAccountsResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -500,9 +514,10 @@ class PlatformAdminAccountsRouter:
         organization_id: str,
     ) -> AdminDeleteResponse:
         try:
-            return await self.accounts_service.delete_organization(
+            result = await self.accounts_service.delete_organization(
                 organization_id=organization_id
             )
+            return AdminDeleteResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -516,9 +531,10 @@ class PlatformAdminAccountsRouter:
         payload: AdminSimpleAccountsOrganizationsMembershipsCreate,
     ) -> AdminAccountsResponse:
         try:
-            return await self.accounts_service.create_organization_membership(
-                dto=payload
+            result = await self.accounts_service.create_organization_membership(
+                dto=payload.to_dto()
             )
+            return AdminAccountsResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -529,10 +545,11 @@ class PlatformAdminAccountsRouter:
         membership_id: str,
     ) -> AdminDeleteResponse:
         try:
-            return await self.accounts_service.delete_organization_membership(
+            result = await self.accounts_service.delete_organization_membership(
                 organization_id=organization_id,
                 membership_id=membership_id,
             )
+            return AdminDeleteResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -546,7 +563,8 @@ class PlatformAdminAccountsRouter:
         payload: AdminSimpleAccountsWorkspacesCreate,
     ) -> AdminAccountsResponse:
         try:
-            return await self.accounts_service.create_workspace(dto=payload)
+            result = await self.accounts_service.create_workspace(dto=payload.to_dto())
+            return AdminAccountsResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -556,9 +574,10 @@ class PlatformAdminAccountsRouter:
         workspace_id: str,
     ) -> AdminDeleteResponse:
         try:
-            return await self.accounts_service.delete_workspace(
+            result = await self.accounts_service.delete_workspace(
                 workspace_id=workspace_id
             )
+            return AdminDeleteResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -572,7 +591,10 @@ class PlatformAdminAccountsRouter:
         payload: AdminSimpleAccountsWorkspacesMembershipsCreate,
     ) -> AdminAccountsResponse:
         try:
-            return await self.accounts_service.create_workspace_membership(dto=payload)
+            result = await self.accounts_service.create_workspace_membership(
+                dto=payload.to_dto()
+            )
+            return AdminAccountsResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -583,10 +605,11 @@ class PlatformAdminAccountsRouter:
         membership_id: str,
     ) -> AdminDeleteResponse:
         try:
-            return await self.accounts_service.delete_workspace_membership(
+            result = await self.accounts_service.delete_workspace_membership(
                 workspace_id=workspace_id,
                 membership_id=membership_id,
             )
+            return AdminDeleteResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -600,7 +623,8 @@ class PlatformAdminAccountsRouter:
         payload: AdminSimpleAccountsProjectsCreate,
     ) -> AdminAccountsResponse:
         try:
-            return await self.accounts_service.create_project(dto=payload)
+            result = await self.accounts_service.create_project(dto=payload.to_dto())
+            return AdminAccountsResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -610,7 +634,8 @@ class PlatformAdminAccountsRouter:
         project_id: str,
     ) -> AdminDeleteResponse:
         try:
-            return await self.accounts_service.delete_project(project_id=project_id)
+            result = await self.accounts_service.delete_project(project_id=project_id)
+            return AdminDeleteResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -624,7 +649,10 @@ class PlatformAdminAccountsRouter:
         payload: AdminSimpleAccountsProjectsMembershipsCreate,
     ) -> AdminAccountsResponse:
         try:
-            return await self.accounts_service.create_project_membership(dto=payload)
+            result = await self.accounts_service.create_project_membership(
+                dto=payload.to_dto()
+            )
+            return AdminAccountsResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -635,10 +663,11 @@ class PlatformAdminAccountsRouter:
         membership_id: str,
     ) -> AdminDeleteResponse:
         try:
-            return await self.accounts_service.delete_project_membership(
+            result = await self.accounts_service.delete_project_membership(
                 project_id=project_id,
                 membership_id=membership_id,
             )
+            return AdminDeleteResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -652,7 +681,8 @@ class PlatformAdminAccountsRouter:
         payload: AdminSimpleAccountsApiKeysCreate,
     ) -> AdminAccountsResponse:
         try:
-            return await self.accounts_service.create_api_key(dto=payload)
+            result = await self.accounts_service.create_api_key(dto=payload.to_dto())
+            return AdminAccountsResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -662,7 +692,8 @@ class PlatformAdminAccountsRouter:
         api_key_id: str,
     ) -> AdminDeleteResponse:
         try:
-            return await self.accounts_service.delete_api_key(api_key_id=api_key_id)
+            result = await self.accounts_service.delete_api_key(api_key_id=api_key_id)
+            return AdminDeleteResponse.from_dto(result)
         except AdminError as exc:
             _handle_admin_error(exc)
 
@@ -677,7 +708,7 @@ class PlatformAdminAccountsRouter:
     ) -> None:
         try:
             await self.accounts_service.reset_password(
-                dto=payload,
+                dto=payload.to_dto(),
             )
         except AdminError as exc:
             _handle_admin_error(exc)
@@ -688,13 +719,20 @@ class PlatformAdminAccountsRouter:
         payload: AdminSimpleAccountsOrganizationsTransferOwnership,
     ) -> Response:
         try:
-            result = await self.accounts_service.transfer_ownership(dto=payload)
+            result = await self.accounts_service.transfer_ownership(
+                dto=payload.to_dto()
+            )
         except AdminError as exc:
             _handle_admin_error(exc)
 
         if result.errors:
+            response = (
+                AdminSimpleAccountsOrganizationsTransferOwnershipResponse.from_dto(
+                    result
+                )
+            )
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
-                content=result.model_dump(),
+                content=response.model_dump(),
             )
         return Response(status_code=status.HTTP_204_NO_CONTENT)

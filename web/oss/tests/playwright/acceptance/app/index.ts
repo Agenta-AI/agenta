@@ -9,6 +9,8 @@ import {
     TestSpeedType,
     TestLicenseType,
 } from "@agenta/web-tests/playwright/config/testTags"
+import {expect} from "@agenta/web-tests/utils"
+
 import {AppType} from "./assets/types"
 import {test as baseTest} from "./test"
 import {expectAuthenticatedSession} from "../utils/auth"
@@ -91,6 +93,72 @@ const tests = () => {
 
             await scenarios.then("the new chat prompt app is visible after creation", async () => {
                 await verifyAppCreation(appName)
+            })
+        },
+    )
+
+    baseTest(
+        `closing the create-app drawer without committing fires no /workflows POST`,
+        {tag: tags},
+        async ({page, navigateToApps}) => {
+            await scenarios.given("the user is authenticated", async () => {
+                await expectAuthenticatedSession(page)
+            })
+
+            await scenarios.and("the user is on the Prompts page", async () => {
+                await navigateToApps()
+            })
+
+            // Track every POST /workflows request that fires after the drawer
+            // opens. The lazy-create-before-commit shift means closing the
+            // drawer pre-commit must not hit the create endpoint.
+            const workflowPosts: string[] = []
+            page.on("request", (request) => {
+                if (
+                    request.method() === "POST" &&
+                    request.url().includes("/workflows") &&
+                    !request.url().includes("/query")
+                ) {
+                    workflowPosts.push(request.url())
+                }
+            })
+
+            await scenarios.when(
+                'the user opens the create-app dropdown and picks "Chat"',
+                async () => {
+                    const trigger = page.getByTestId("create-app-dropdown-trigger").first()
+                    await expect(trigger).toBeVisible({timeout: 15000})
+                    await trigger.click()
+
+                    const chatItem = page.getByTestId("create-app-dropdown-chat").first()
+                    await expect(chatItem).toBeVisible({timeout: 15000})
+                    await chatItem.click()
+
+                    const drawer = page.getByRole("dialog").last()
+                    await expect(drawer).toBeVisible({timeout: 15000})
+                    // Confirm the editable name input is present (drawer fully mounted)
+                    await expect(page.getByTestId("app-create-name-input").first()).toBeVisible({
+                        timeout: 15000,
+                    })
+                },
+            )
+
+            await scenarios.and("the user closes the drawer without committing", async () => {
+                const closeButton = page.getByTestId("workflow-revision-drawer-close").first()
+                await expect(closeButton).toBeVisible()
+                await closeButton.click()
+                // Wait long enough that any (incorrect) commit request would have
+                // fired. The factory's inspect call may hit /workflows/inspect or
+                // similar but the create endpoint is /workflows POST with a body.
+                await page.waitForTimeout(800)
+            })
+
+            await scenarios.then("no /workflows POST request was made", async () => {
+                expect(workflowPosts).toEqual([])
+            })
+
+            await scenarios.and("the user remains on the apps page", async () => {
+                await expect(page).toHaveURL(/\/apps$/)
             })
         },
     )

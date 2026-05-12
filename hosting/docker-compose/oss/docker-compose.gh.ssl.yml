@@ -311,10 +311,6 @@ services:
             --log-level info
             --access-logfile -
             --error-logfile -
-        # === STORAGE ============================================== #
-        volumes:
-            - ../../../services:/app
-            - ../../../sdk:/sdk
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}

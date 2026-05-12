@@ -310,13 +310,16 @@ async def accept_organization_invitation(
         if user_exists is None:
             raise HTTPException(status_code=400, detail="User does not exist")
 
-        project_db = await db_manager.get_project_by_organization_id(
+        # Use the default-project lookup so invitations always resolve
+        # against the OSS singleton's true default project, never an
+        # ephemeral per-account project that may have been created later.
+        project_db = await db_manager.get_default_project_by_organization_id(
             organization_id=organization_id
         )
         if not project_db:
             raise HTTPException(
                 status_code=400,
-                detail="Project not found for organization invitation was sent to.",
+                detail="Default project not found for organization invitation was sent to.",
             )
 
         invitation = await check_valid_invitation(str(project_db.id), email, token)

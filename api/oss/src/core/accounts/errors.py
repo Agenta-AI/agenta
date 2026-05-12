@@ -108,6 +108,17 @@ class AdminNotImplementedError(AdminError):
         )
 
 
+class OssMultiOrgNotSupportedError(AdminError):
+    def __init__(
+        self,
+        message: str = "OSS is single-tenant: organization, workspace, project, subscription, and explicit memberships cannot be specified.",
+    ):
+        super().__init__(
+            code="oss_multi_org_not_supported",
+            message=message,
+        )
+
+
 class AdminDryRunResult(Exception):
     """Raised to abort a dry-run after collecting what would be written."""
 

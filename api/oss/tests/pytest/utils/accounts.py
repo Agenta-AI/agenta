@@ -27,7 +27,11 @@ def create_account(ag_env):
                     "options": {
                         "create_api_keys": True,
                         "return_api_keys": True,
-                        "seed_defaults": True,
+                        # Default-seeded evaluators/environments leak into
+                        # query-count assertions in test classes that share
+                        # this fixture. Tests that need defaults should
+                        # create them explicitly.
+                        "seed_defaults": False,
                     },
                 }
             }
@@ -36,7 +40,9 @@ def create_account(ag_env):
     )
 
     assert response is not None, "Response should not be None"
-    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.status_code == 200, (
+        f"Expected 200, got {response.status_code}: {response.text}"
+    )
 
     json_data = response.json()
     assert isinstance(json_data, dict), "Response JSON should not be None"

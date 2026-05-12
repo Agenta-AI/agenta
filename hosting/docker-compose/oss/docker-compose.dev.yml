@@ -77,7 +77,9 @@ services:
                 "8000",
                 "--reload",
                 "--reload-dir",
-                "/sdk",
+                "/sdks/python",
+                "--reload-dir",
+                "/clients/python",
                 "--root-path",
                 "/api",
                 "--loop",
@@ -90,7 +92,8 @@ services:
             #
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -137,7 +140,8 @@ services:
             #
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -173,7 +177,8 @@ services:
             #
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -209,7 +214,8 @@ services:
             #
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -251,7 +257,8 @@ services:
             #
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -318,7 +325,8 @@ services:
             #
             - ../../../api/oss:/app/oss
             - ../../../api/entrypoints:/app/entrypoints
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -346,7 +354,9 @@ services:
                 "8080",
                 "--reload",
                 "--reload-dir",
-                "/sdk",
+                "/sdks/python",
+                "--reload-dir",
+                "/clients/python",
                 "--root-path",
                 "/services",
                 "--loop",
@@ -357,7 +367,8 @@ services:
         # === STORAGE ============================================== #
         volumes:
             - ../../../services:/app
-            - ../../../sdk:/sdk
+            - ../../../sdks/python:/sdks/python
+            - ../../../clients/python:/clients/python
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}

@@ -2,6 +2,7 @@ const TRACE_ENABLED_PATH_MATCHERS = [
     "/observability",
     "/traces",
     "/playground",
+    "/prompts",
     "/evaluations",
     "/annotations",
     "/evaluators",

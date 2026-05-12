@@ -45,7 +45,11 @@ COPY --chown=agenta:agenta ./ee /app/ee/
 COPY --chown=agenta:agenta ./oss /app/oss/
 COPY --chown=agenta:agenta ./entrypoints /app/entrypoints/
 
-ENV PYTHONPATH=/sdk:$PYTHONPATH
+ENV PYTHONPATH=/sdks/python:/clients/python:$PYTHONPATH
+
+RUN site_packages="$(python -c 'import site; print(site.getsitepackages()[0])')" \
+    && echo "/clients/python" > "${site_packages}/agenta_client_path.pth" \
+    && echo "/sdks/python" >> "${site_packages}/agenta_client_path.pth"
 
 COPY ./oss/src/crons/queries.sh /queries.sh
 COPY ./oss/src/crons/queries.txt /etc/cron.d/queries-cron

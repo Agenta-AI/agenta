@@ -73,6 +73,7 @@ class TracingRouter:
         self.service = tracing_service
 
         self.router = APIRouter()
+        self.legacy_router = APIRouter()
 
         ### SPANS
 
@@ -80,10 +81,11 @@ class TracingRouter:
             "/spans/ingest",
             self.ingest_spans,
             methods=["POST"],
-            operation_id="ingest_spans_rpc",
+            operation_id="ingest_spans",
             status_code=status.HTTP_202_ACCEPTED,
             response_model=OTelLinksResponse,
             response_model_exclude_none=True,
+            deprecated=True,
         )
 
         self.router.add_api_route(
@@ -96,7 +98,7 @@ class TracingRouter:
             response_model_exclude_none=True,
         )
 
-        self.router.add_api_route(
+        self.legacy_router.add_api_route(
             "/spans/analytics",
             self.fetch_legacy_analytics,
             methods=["POST"],
@@ -110,7 +112,7 @@ class TracingRouter:
             "/analytics/query",
             self.fetch_analytics,
             methods=["POST"],
-            operation_id="fetch_analytics",
+            operation_id="query_analytics",
             status_code=status.HTTP_200_OK,
             response_model=AnalyticsResponse,
             response_model_exclude_none=True,
@@ -164,7 +166,7 @@ class TracingRouter:
             "/sessions/query",
             self.list_sessions,
             methods=["POST"],
-            operation_id="list_sessions",
+            operation_id="query_sessions",
             status_code=status.HTTP_200_OK,
             response_model=SessionIdsResponse,
             response_model_exclude_none=True,
@@ -174,7 +176,7 @@ class TracingRouter:
             "/users/query",
             self.list_users,
             methods=["POST"],
-            operation_id="list_users",
+            operation_id="query_users",
             status_code=status.HTTP_200_OK,
             response_model=UserIdsResponse,
             response_model_exclude_none=True,
@@ -726,6 +728,36 @@ class SpansRouter:
         )
 
         self.router.add_api_route(
+            "/analytics/query",
+            self.query_analytics,
+            methods=["POST"],
+            operation_id="query_spans_analytics",
+            status_code=status.HTTP_200_OK,
+            response_model=AnalyticsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/sessions/query",
+            self.query_sessions,
+            methods=["POST"],
+            operation_id="query_spans_sessions",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionIdsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/users/query",
+            self.query_users,
+            methods=["POST"],
+            operation_id="query_spans_users",
+            status_code=status.HTTP_200_OK,
+            response_model=UserIdsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
             "/{trace_id}/{span_id}",
             self.fetch_span,
             methods=["GET"],
@@ -919,6 +951,111 @@ class SpansRouter:
             span=span,
         )
 
+    @intercept_exceptions()
+    @suppress_exceptions(default=AnalyticsResponse(), exclude=[HTTPException])
+    async def query_analytics(
+        self,
+        request: Request,
+        analytics: Tuple[Optional[TracingQuery], Optional[List[MetricSpec]]] = Depends(
+            parse_analytics_from_params_request
+        ),
+    ) -> AnalyticsResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        analytics_from_body = (None, None)
+        try:
+            body_json = await request.json()
+            if body_json:
+                analytics_from_body = parse_analytics_from_body_request(**body_json)
+        except Exception:  # pylint: disable=bare-except
+            pass
+
+        query, specs = self.service.merge_analytics(
+            analytics,
+            analytics_from_body,
+        )
+
+        buckets = await self.service.analytics(
+            project_id=UUID(request.state.project_id),
+            query=query,
+            specs=specs,
+        )
+
+        return AnalyticsResponse(
+            count=len(buckets),
+            buckets=buckets,
+            query=query,
+            specs=specs,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=SessionIdsResponse(), exclude=[HTTPException])
+    async def query_sessions(
+        self,
+        request: Request,
+        sessions_query_request: SessionsQueryRequest,
+    ) -> SessionIdsResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        session_ids, activity_cursor = await self.service.sessions(
+            project_id=request.state.project_id,
+            realtime=sessions_query_request.realtime,
+            windowing=sessions_query_request.windowing,
+        )
+        windowing = self.service.build_next_windowing(
+            input_windowing=sessions_query_request.windowing,
+            result_ids=session_ids,
+            activity_cursor=activity_cursor,
+        )
+        return SessionIdsResponse(
+            count=len(session_ids) if session_ids else 0,
+            session_ids=session_ids,
+            windowing=windowing,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=UserIdsResponse(), exclude=[HTTPException])
+    async def query_users(
+        self,
+        request: Request,
+        users_query_request: UsersQueryRequest,
+    ) -> UserIdsResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        user_ids, activity_cursor = await self.service.users(
+            project_id=request.state.project_id,
+            realtime=users_query_request.realtime,
+            windowing=users_query_request.windowing,
+        )
+        windowing = self.service.build_next_windowing(
+            input_windowing=users_query_request.windowing,
+            result_ids=user_ids,
+            activity_cursor=activity_cursor,
+        )
+        return UserIdsResponse(
+            count=len(user_ids) if user_ids else 0,
+            user_ids=user_ids,
+            windowing=windowing,
+        )
+
 
 class TracesRouter:
     def __init__(
@@ -930,6 +1067,7 @@ class TracesRouter:
         self.service = tracing_service
         self.queries_service = queries_service
         self.router = APIRouter()
+        self.deprecated_router = APIRouter()
 
         # TRACES ---------------------------------------------------------------
 
@@ -953,7 +1091,7 @@ class TracesRouter:
             response_model_exclude_none=True,
         )
 
-        self.router.add_api_route(
+        self.deprecated_router.add_api_route(
             "/ingest",
             self.ingest_traces,
             methods=["POST"],
@@ -961,6 +1099,7 @@ class TracesRouter:
             status_code=status.HTTP_202_ACCEPTED,
             response_model=TraceIdsResponse,
             response_model_exclude_none=True,
+            deprecated=True,
         )
 
         self.router.add_api_route(
@@ -988,6 +1127,16 @@ class TracesRouter:
             self.edit_trace,
             methods=["PUT"],
             operation_id="edit_trace",
+            status_code=status.HTTP_202_ACCEPTED,
+            response_model=TraceIdResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{trace_id}",
+            self.delete_trace,
+            methods=["DELETE"],
+            operation_id="delete_trace",
             status_code=status.HTTP_202_ACCEPTED,
             response_model=TraceIdResponse,
             response_model_exclude_none=True,
@@ -1344,4 +1493,36 @@ class TracesRouter:
         return TraceResponse(
             count=1 if trace else 0,
             trace=trace,
+        )
+
+    @intercept_exceptions()
+    async def delete_trace(  # DELETE
+        self,
+        request: Request,
+        trace_id: str,
+    ) -> TraceIdResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        try:
+            links = await self.service.delete_trace(
+                project_id=UUID(request.state.project_id),
+                trace_id=trace_id,
+            )
+        except TypeError as e:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid trace_id",
+            ) from e
+
+        trace_ids = self._trace_ids_from_links(links)
+        trace_id_out = trace_ids[0] if trace_ids else None
+        return TraceIdResponse(
+            count=1 if trace_id_out else 0,
+            trace_id=trace_id_out,
         )

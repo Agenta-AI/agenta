@@ -1,10 +1,11 @@
 {
     "name": "@agenta/ee",
-    "version": "0.99.2",
+    "version": "0.99.6",
     "private": true,
     "engines": {
-        "node": ">=18"
+        "node": "24.x"
     },
+    "packageManager": "pnpm@10.30.0",
     "scripts": {
         "dev": "next dev --turbopack",
         "dev:local": "ENV_FILE=.local.env next dev",

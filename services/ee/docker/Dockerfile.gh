@@ -36,13 +36,13 @@ RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
     && find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 
 # Copy and install SDK first (changes less frequently than app code)
-RUN mkdir -p /app/sdk
-COPY ./sd[k] /app/sdk/
+COPY ./sdks/python /sdks/python/
+COPY ./clients/python /clients/python/
 
 RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
     --mount=type=cache,id=uv-services,target=/root/.cache/uv \
-    if [ -f /app/sdk/pyproject.toml ]; then \
-        uv pip install --python /opt/venv/bin/python --editable /app/sdk; \
+    if [ -f /sdks/python/pyproject.toml ]; then \
+        uv pip install --python /opt/venv/bin/python --editable /sdks/python; \
     fi
 
 # Copy app code last (changes more frequently)
@@ -60,7 +60,7 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app:/app/sdk \
+    PYTHONPATH=/app:/sdks/python:/clients/python \
     PATH="/opt/venv/bin:${PATH}"
 
 RUN groupadd --gid 10001 agenta && \
@@ -69,7 +69,8 @@ RUN groupadd --gid 10001 agenta && \
 COPY --from=builder /opt/venv /opt/venv
 COPY --chown=agenta:agenta --from=builder /app/oss /app/oss
 COPY --chown=agenta:agenta --from=builder /app/entrypoints /app/entrypoints
-COPY --chown=agenta:agenta --from=builder /app/sdk /app/sdk
+COPY --chown=agenta:agenta --from=builder /sdks/python /sdks/python
+COPY --chown=agenta:agenta --from=builder /clients/python /clients/python
 
 USER 10001
 

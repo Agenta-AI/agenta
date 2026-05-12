@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - 'web/**'
-      - 'sdk/**'
+      - 'sdks/python/**'
       - 'api/**'
       - 'services/**'
       - '.github/workflows/12-check-unit-tests.yml'
@@ -38,7 +38,7 @@ jobs:
       !github.event.pull_request.draft
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Skip when package selection excludes web
         if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","web-only"]'), inputs.packages)
@@ -67,7 +67,7 @@ jobs:
     env:
       AGENTA_LICENSE: oss
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Skip when package selection excludes SDK
         if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","sdk-only"]'), inputs.packages)
@@ -77,7 +77,7 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
       - name: Install uv
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
@@ -88,26 +88,26 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
-          key: ${{ runner.os }}-application-sdk-unit-uv-${{ hashFiles('sdk/pyproject.toml', 'sdk/uv.lock') }}
+          key: ${{ runner.os }}-application-sdk-unit-uv-${{ hashFiles('sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
           restore-keys: |
             ${{ runner.os }}-application-sdk-unit-uv-
 
       - name: Install SDK dependencies
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
-        working-directory: sdk
+        working-directory: sdks/python
         run: |
-          uv sync --locked --python 3.11
+          uv sync --locked --python 3.13
 
       - name: Run SDK unit tests
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
-        working-directory: sdk
+        working-directory: sdks/python
         run: uv run python run-tests.py -- oss/tests/pytest/unit
 
       - name: Publish SDK unit test results
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages))
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: sdk/oss/tests/results/junit.xml
+          files: sdks/python/oss/tests/results/junit.xml
           check_name: Application SDK Unit Test Results
           comment_mode: off
 
@@ -123,7 +123,7 @@ jobs:
     env:
       AGENTA_LICENSE: oss
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Skip when package selection excludes API
         if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","api-only"]'), inputs.packages)
@@ -133,7 +133,7 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
       - name: Install uv
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
@@ -144,7 +144,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
-          key: ${{ runner.os }}-application-api-unit-uv-${{ hashFiles('api/pyproject.toml', 'api/uv.lock', 'sdk/pyproject.toml', 'sdk/uv.lock') }}
+          key: ${{ runner.os }}-application-api-unit-uv-${{ hashFiles('api/pyproject.toml', 'api/uv.lock', 'sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
           restore-keys: |
             ${{ runner.os }}-application-api-unit-uv-
 
@@ -152,8 +152,8 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
         working-directory: api
         run: |
-          uv sync --locked --python 3.11
-          uv pip install --python .venv/bin/python --editable ../sdk/
+          uv sync --locked --python 3.13
+          uv pip install --python .venv/bin/python --editable ../sdks/python/
 
       - name: Run API unit tests
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
@@ -180,7 +180,7 @@ jobs:
     env:
       AGENTA_LICENSE: oss
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Skip when package selection excludes services
         if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","services-only"]'), inputs.packages)
@@ -202,7 +202,7 @@ jobs:
         if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
       - name: Install uv
         if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
@@ -213,7 +213,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
-          key: ${{ runner.os }}-application-services-unit-uv-${{ hashFiles('services/pyproject.toml', 'services/uv.lock', 'sdk/pyproject.toml', 'sdk/uv.lock') }}
+          key: ${{ runner.os }}-application-services-unit-uv-${{ hashFiles('services/pyproject.toml', 'services/uv.lock', 'sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
           restore-keys: |
             ${{ runner.os }}-application-services-unit-uv-
 
@@ -221,8 +221,8 @@ jobs:
         if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
         working-directory: services
         run: |
-          uv sync --locked --python 3.11
-          uv pip install --python .venv/bin/python --editable ../sdk/
+          uv sync --locked --python 3.13
+          uv pip install --python .venv/bin/python --editable ../sdks/python/
 
       - name: Run services unit tests
         if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'

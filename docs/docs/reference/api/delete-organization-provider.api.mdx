@@ -1,11 +1,11 @@
 ---
 id: delete-organization-provider
-title: "Delete Organization Provider"
-description: "Delete an SSO provider from an organization."
-sidebar_label: "Delete Organization Provider"
+title: "Delete Provider"
+description: "Delete an SSO provider configuration."
+sidebar_label: "Delete Provider"
 hide_title: true
 hide_table_of_contents: true
-api: eJy9Vd9r2zAQ/lfMPW0g4qzsyU8La6ChHQ1NtpdgimpfbHW2pUpyaGb0v4+T7dhu2kJh7CnW/b7v7rs0YHlmINrBrc54Jf5wK2RlIGaQokm0UPSGCC6xQIsBr4LN5jZQWh5EijrYa1mSUI68Z8BAKtT+sUohgtQ734+N7vsQwEBxzUu0qKmQBipeIkQwsRYpMBBUiOI2BwYan2qhMYXI6hoZmCTHkkPUgD0qcjdWiyoDBlbYggTjBoNVCs6xU66+mH+RZ91j43PEFMIoWRk05HUxn9PPFNxNnSRozL4ugrvOGBgksrJYWTLnShUi8aWHj4Z8mqES55xj8PXi4jzwL16ItO14qbXUH4hKmCjUVrR1p2i5KOhLWCzNuUEhk4mWV8fbvZ/nFChCvZOIymKGGlzsWC/jWvPjCM0b2RYIjkFpsveA/4HG8AzhFOxtUw9GsCWto3mr2gPSq1de4Bgk9nkURj48YmJHYb4Tls+WVunMZlicncemLb+zi4cYw4jaCb0NxWU7gteS9SZX2+36LGC7HyXaXA5k9LSzOUQQjolmwuYF71zYk8OEzYgnDhgY1IeetbUuKBhXwo+4febWKhOFIdazpJB1OuMZVpbPuGgNY4qR1FrYow+yWK+u8XiFnA5DtIvHBhvazHbXpman+XAlrpEQ61i9qG0udddKz+u89XJ+7ns5HvvCFxcs1it4ef4mKqIQT/zG9Jm8GtiLtodugQGWnkBgkZffThqaN2HYppnPvszmJFLS2JJXoxTdAZ5csfVwQyflNgPLP3q4OyhprUNVcOGJ57tquoXZTS6zAQbR+ak+7Qypx9c1ZpBLYylM0zxwgz914RyJn2rUtAUxgwPXgj/QTHYNpMLQdwrRnhcG32n1013Huc/BW530m1LRmhx4UdMLGPzG4yt/ObTI/zH9GCd/E/OeCE1nsUgSVHbke3bCiTEnql8ub5bbJTj3F2u/tqA=
+api: eJyNVMFu2zAM/RWDpw0Q6q7oyacFa4AG7dCgyXYJjIK1GVudbamSHDQz9O8DZTtxmnVYLrHIR4l8fGQHDgsLyQYeTIGN/I1OqsZCKiAnmxmp+QwJ3FBFjiJsotXqIdJG7WROJspUs5VFa0LYBQhQmvrDIocE8hD1pCZ3P42xIECjwZocGc6ggwZrggRGwJPMQYDk1zW6EgQYem2loRwSZ1oSYLOSaoSkA7fXHGqdkU0BApx0FRuWY6KLHLxP+QqrVWPJctTV5TX/nVa6arOMrN22VfQ4gMELuL66Osf+xErmoaxobozimjLVOGocY1HrSmbBHb9YDugmKWvDXDnZp5KTQ1nxl3RU23NApbITLzb7h22g7bR2Lw4W2TgqyIBPvRhtaAzuJwTdqz5BLrG2xb+4/E7WYhHI6CEfQwMZ0Zq9nluo20DI6F4EgxeQubfJNer5hTI3ueYbc/nmwB/zP2COWtgEbvr0B1x6vOPYor5DH1Nx07fgb4+NkNv1enl2If8E1ORKddR8ULcrIYF4qn4bj+q2cTcRugcBlsxuHIXWVByKWoaG9sfSOZ3EcaUyrEplXe9OOTJrjXT7EDpbLu5of0vIM5Zs0ilgxerr9XQKO/QAtbwjZmUYxlnrSmWG7MdxLPsoH3q7VdPWzgpqHEaz5QLer5ATF48JZkEV40vBDWJSrE3iGIP5AmUMAqgOQwKOsP568HBPmbn+mcuLLxeXbNLKuhqbyRPDElseN9BJht1xeP973w20sUxjXaEMgxQq6AYBbOBEACyMUQIgIJluu1QA95Vjuu4ZLf0wlfdsfm3JcHtTATs0Ep+Z7E0HubT8nUOyxcrSPwr69DgMzOfoo7RHCTTc/x1WLZ9AwC/av1vLYaOUo8S6ATHLMtJuEnu2AFmLh0G5md/P13Pw/g/rJTrU
 sidebar_class_name: "delete api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -23,13 +23,13 @@ import Translate from "@docusaurus/Translate";
 <Heading
   as={"h1"}
   className={"openapi__heading"}
-  children={"Delete Organization Provider"}
+  children={"Delete Provider"}
 >
 </Heading>
 
 <MethodEndpoint
   method={"delete"}
-  path={"/organizations/{organization_id}/providers/{provider_id}"}
+  path={"/organizations/providers/{provider_id}"}
   context={"endpoint"}
 >
   
@@ -37,7 +37,7 @@ import Translate from "@docusaurus/Translate";
 
 
 
-Delete an SSO provider from an organization.
+Delete an SSO provider configuration.
 
 <Heading
   id={"request"}

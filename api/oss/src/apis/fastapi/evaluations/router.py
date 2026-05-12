@@ -140,6 +140,7 @@ class EvaluationsRouter:
             endpoint=self.create_runs,
             response_model=EvaluationRunsResponse,
             response_model_exclude_none=True,
+            operation_id="create_runs",
         )
 
         # PATCH /api/evaluations/runs/
@@ -149,6 +150,7 @@ class EvaluationsRouter:
             endpoint=self.edit_runs,
             response_model=EvaluationRunsResponse,
             response_model_exclude_none=True,
+            operation_id="edit_runs",
         )
 
         # DELETE /api/evaluations/runs/
@@ -158,6 +160,7 @@ class EvaluationsRouter:
             endpoint=self.delete_runs,
             response_model=EvaluationRunIdsResponse,
             response_model_exclude_none=True,
+            operation_id="delete_runs",
         )
 
         # POST /api/evaluations/runs/query
@@ -167,6 +170,7 @@ class EvaluationsRouter:
             endpoint=self.query_runs,
             response_model=EvaluationRunsResponse,
             response_model_exclude_none=True,
+            operation_id="query_runs",
         )
 
         # POST /api/evaluations/runs/close
@@ -176,6 +180,7 @@ class EvaluationsRouter:
             endpoint=self.close_runs,
             response_model=EvaluationRunsResponse,
             response_model_exclude_none=True,
+            operation_id="close_runs",
         )
 
         # POST /api/evaluations/runs/open
@@ -185,6 +190,7 @@ class EvaluationsRouter:
             endpoint=self.open_runs,
             response_model=EvaluationRunsResponse,
             response_model_exclude_none=True,
+            operation_id="open_runs",
         )
 
         # GET /api/evaluations/runs/{run_id}
@@ -194,6 +200,7 @@ class EvaluationsRouter:
             endpoint=self.fetch_run,
             response_model=EvaluationRunResponse,
             response_model_exclude_none=True,
+            operation_id="fetch_run",
         )
 
         # PATCH /api/evaluations/runs/{run_id}
@@ -203,6 +210,7 @@ class EvaluationsRouter:
             endpoint=self.edit_run,
             response_model=EvaluationRunResponse,
             response_model_exclude_none=True,
+            operation_id="edit_run",
         )
 
         # DELETE /api/evaluations/runs/{run_id}
@@ -212,6 +220,7 @@ class EvaluationsRouter:
             endpoint=self.delete_run,
             response_model=EvaluationRunIdResponse,
             response_model_exclude_none=True,
+            operation_id="delete_run",
         )
 
         # POST /api/evaluations/runs/{run_id}/close
@@ -221,6 +230,7 @@ class EvaluationsRouter:
             endpoint=self.close_run,
             response_model=EvaluationRunResponse,
             response_model_exclude_none=True,
+            operation_id="close_run",
         )
 
         # POST /api/evaluations/runs/{run_id}/close/{status}
@@ -230,6 +240,7 @@ class EvaluationsRouter:
             endpoint=self.close_run,
             response_model=EvaluationRunResponse,
             response_model_exclude_none=True,
+            operation_id="close_run_with_status",
         )
 
         # POST /api/evaluations/runs/{run_id}/open
@@ -239,6 +250,7 @@ class EvaluationsRouter:
             endpoint=self.open_run,
             response_model=EvaluationRunResponse,
             response_model_exclude_none=True,
+            operation_id="open_run",
         )
 
         # EVALUATION SCENARIOS -------------------------------------------------
@@ -250,6 +262,7 @@ class EvaluationsRouter:
             endpoint=self.create_scenarios,
             response_model=EvaluationScenariosResponse,
             response_model_exclude_none=True,
+            operation_id="create_scenarios",
         )
 
         # PATCH /api/evaluations/scenarios/
@@ -259,6 +272,7 @@ class EvaluationsRouter:
             endpoint=self.edit_scenarios,
             response_model=EvaluationScenariosResponse,
             response_model_exclude_none=True,
+            operation_id="edit_scenarios",
         )
 
         # DELETE /api/evaluations/scenarios/
@@ -268,6 +282,7 @@ class EvaluationsRouter:
             endpoint=self.delete_scenarios,
             response_model=EvaluationScenarioIdsResponse,
             response_model_exclude_none=True,
+            operation_id="delete_scenarios",
         )
 
         # POST /api/evaluations/scenarios/query
@@ -277,6 +292,7 @@ class EvaluationsRouter:
             endpoint=self.query_scenarios,
             response_model=EvaluationScenariosResponse,
             response_model_exclude_none=True,
+            operation_id="query_scenarios",
         )
 
         # GET /api/evaluations/scenarios/{scenario_id}
@@ -286,6 +302,7 @@ class EvaluationsRouter:
             endpoint=self.fetch_scenario,
             response_model=EvaluationScenarioResponse,
             response_model_exclude_none=True,
+            operation_id="fetch_scenario",
         )
 
         # PATCH /api/evaluations/scenarios/{scenario_id}
@@ -295,6 +312,7 @@ class EvaluationsRouter:
             endpoint=self.edit_scenario,
             response_model=EvaluationScenarioResponse,
             response_model_exclude_none=True,
+            operation_id="edit_scenario",
         )
 
         # DELETE /api/evaluations/scenarios/{scenario_id}
@@ -304,6 +322,7 @@ class EvaluationsRouter:
             endpoint=self.delete_scenario,
             response_model=EvaluationScenarioIdResponse,
             response_model_exclude_none=True,
+            operation_id="delete_scenario",
         )
 
         # EVALUATION RESULTS ---------------------------------------------------
@@ -315,6 +334,7 @@ class EvaluationsRouter:
             endpoint=self.create_results,
             response_model=EvaluationResultsResponse,
             response_model_exclude_none=True,
+            operation_id="create_results",
         )
 
         # PATCH /api/evaluations/results/
@@ -324,6 +344,7 @@ class EvaluationsRouter:
             endpoint=self.edit_results,
             response_model=EvaluationResultsResponse,
             response_model_exclude_none=True,
+            operation_id="edit_results",
         )
 
         # DELETE /api/evaluations/results/
@@ -333,6 +354,7 @@ class EvaluationsRouter:
             endpoint=self.delete_results,
             response_model=EvaluationResultIdsResponse,
             response_model_exclude_none=True,
+            operation_id="delete_results",
         )
 
         # POST /api/evaluations/results/query
@@ -342,6 +364,7 @@ class EvaluationsRouter:
             endpoint=self.query_results,
             response_model=EvaluationResultsResponse,
             response_model_exclude_none=True,
+            operation_id="query_results",
         )
 
         # GET /api/evaluations/results/{result_id}
@@ -351,6 +374,7 @@ class EvaluationsRouter:
             endpoint=self.fetch_result,
             response_model=EvaluationResultResponse,
             response_model_exclude_none=True,
+            operation_id="fetch_result",
         )
 
         # PATCH /api/evaluations/results/{result_id}
@@ -360,6 +384,7 @@ class EvaluationsRouter:
             endpoint=self.edit_result,
             response_model=EvaluationResultResponse,
             response_model_exclude_none=True,
+            operation_id="edit_result",
         )
 
         # DELETE /api/evaluations/results/{result_id}
@@ -369,6 +394,7 @@ class EvaluationsRouter:
             endpoint=self.delete_result,
             response_model=EvaluationResultIdResponse,
             response_model_exclude_none=True,
+            operation_id="delete_result",
         )
 
         # EVALUATION METRICS ---------------------------------------------------
@@ -380,6 +406,7 @@ class EvaluationsRouter:
             endpoint=self.refresh_metrics,
             response_model=EvaluationMetricsResponse,
             response_model_exclude_none=True,
+            operation_id="refresh_metrics",
         )
 
         # POST /api/evaluations/metrics/
@@ -389,6 +416,7 @@ class EvaluationsRouter:
             endpoint=self.create_metrics,
             response_model=EvaluationMetricsResponse,
             response_model_exclude_none=True,
+            operation_id="create_metrics",
         )
 
         # PATCH /api/evaluations/metrics/
@@ -398,6 +426,7 @@ class EvaluationsRouter:
             endpoint=self.edit_metrics,
             response_model=EvaluationMetricsResponse,
             response_model_exclude_none=True,
+            operation_id="edit_metrics",
         )
 
         # DELETE /api/evaluations/metrics/
@@ -407,6 +436,7 @@ class EvaluationsRouter:
             endpoint=self.delete_metrics,
             response_model=EvaluationMetricsIdsResponse,
             response_model_exclude_none=True,
+            operation_id="delete_metrics",
         )
 
         # POST /api/evaluations/metrics/query
@@ -416,6 +446,7 @@ class EvaluationsRouter:
             endpoint=self.query_metrics,
             response_model=EvaluationMetricsResponse,
             response_model_exclude_none=True,
+            operation_id="query_metrics",
         )
 
         # EVALUATION QUEUES ----------------------------------------------------
@@ -427,6 +458,7 @@ class EvaluationsRouter:
             endpoint=self.create_queues,
             response_model=EvaluationQueuesResponse,
             response_model_exclude_none=True,
+            operation_id="create_queues",
         )
 
         # PATCH /api/evaluations/queues/
@@ -436,6 +468,7 @@ class EvaluationsRouter:
             endpoint=self.edit_queues,
             response_model=EvaluationQueuesResponse,
             response_model_exclude_none=True,
+            operation_id="edit_queues",
         )
 
         # DELETE /api/evaluations/queues/
@@ -445,6 +478,7 @@ class EvaluationsRouter:
             endpoint=self.delete_queues,
             response_model=EvaluationQueueIdsResponse,
             response_model_exclude_none=True,
+            operation_id="delete_queues",
         )
 
         # POST /api/evaluations/queues/query
@@ -454,6 +488,7 @@ class EvaluationsRouter:
             endpoint=self.query_queues,
             response_model=EvaluationQueuesResponse,
             response_model_exclude_none=True,
+            operation_id="query_queues",
         )
 
         # GET /api/evaluations/queues/{queue_id}
@@ -463,6 +498,7 @@ class EvaluationsRouter:
             endpoint=self.fetch_queue,
             response_model=EvaluationQueueResponse,
             response_model_exclude_none=True,
+            operation_id="fetch_queue",
         )
 
         # PATCH /api/evaluations/queues/{queue_id}
@@ -472,6 +508,7 @@ class EvaluationsRouter:
             endpoint=self.edit_queue,
             response_model=EvaluationQueueResponse,
             response_model_exclude_none=True,
+            operation_id="edit_queue",
         )
 
         # DELETE /api/evaluations/queues/{queue_id}
@@ -481,6 +518,7 @@ class EvaluationsRouter:
             endpoint=self.delete_queue,
             response_model=EvaluationQueueIdResponse,
             response_model_exclude_none=True,
+            operation_id="delete_queue",
         )
 
         # POST /api/evaluations/queues/{queue_id}/scenarios/query
@@ -1763,6 +1801,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.create_evaluation,
             response_model=SimpleEvaluationResponse,
             response_model_exclude_none=True,
+            operation_id="create_simple_evaluation",
         )
 
         # GET /api/simple/evaluations/{evaluation_id}
@@ -1772,6 +1811,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.fetch_evaluation,
             response_model=SimpleEvaluationResponse,
             response_model_exclude_none=True,
+            operation_id="fetch_simple_evaluation",
         )
 
         # PATCH /api/simple/evaluations/{evaluation_id}
@@ -1781,6 +1821,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.edit_evaluation,
             response_model=SimpleEvaluationResponse,
             response_model_exclude_none=True,
+            operation_id="edit_simple_evaluation",
         )
 
         # DELETE /api/simple/evaluations/{evaluation_id}
@@ -1790,6 +1831,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.delete_evaluation,
             response_model=SimpleEvaluationIdResponse,
             response_model_exclude_none=True,
+            operation_id="delete_simple_evaluation",
         )
 
         # POST /api/simple/evaluations/query
@@ -1799,6 +1841,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.query_evaluations,
             response_model=SimpleEvaluationsResponse,
             response_model_exclude_none=True,
+            operation_id="query_simple_evaluations",
         )
 
         # POST /api/simple/evaluations/{evaluation_id}/start
@@ -1818,6 +1861,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.stop_evaluation,
             response_model=SimpleEvaluationResponse,
             response_model_exclude_none=True,
+            operation_id="stop_simple_evaluation",
         )
 
         # POST /api/simpleEvaluations/{evaluation_id}/close
@@ -1827,6 +1871,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.close_evaluation,
             response_model=SimpleEvaluationResponse,
             response_model_exclude_none=True,
+            operation_id="close_simple_evaluation",
         )
 
         # POST /api/simple/evaluations/{evaluation_id}/open
@@ -1836,6 +1881,7 @@ class SimpleEvaluationsRouter:
             endpoint=self.open_evaluation,
             response_model=SimpleEvaluationResponse,
             response_model_exclude_none=True,
+            operation_id="open_simple_evaluation",
         )
 
     # SIMPLE EVALUATIONS -------------------------------------------------------

@@ -7,6 +7,7 @@ export {
     // Revision
     fetchRevision,
     fetchRevisionWithTestcases,
+    fetchLatestRevisionWithTestcases,
     fetchRevisionsList,
     fetchLatestRevision,
     fetchLatestRevisionsBatch,

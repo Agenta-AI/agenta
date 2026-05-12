@@ -1,4 +1,4 @@
-FROM node:20.18-slim
+FROM node:24-slim
 
 ENV TURBO_TELEMETRY_DISABLED=1
 
@@ -28,6 +28,12 @@ COPY packages/agenta-playground/package.json ./packages/agenta-playground/
 COPY packages/agenta-playground-ui/package.json ./packages/agenta-playground-ui/
 COPY packages/agenta-annotation/package.json ./packages/agenta-annotation/
 COPY packages/agenta-annotation-ui/package.json ./packages/agenta-annotation-ui/
+COPY packages/agenta-sdk/package.json ./packages/agenta-sdk/
+
+# `agenta-api-client` runs `tsc` as a `prepare` lifecycle script during install.
+# Its source (src/, tsconfig.json) must be present before `pnpm i` runs, so we
+# copy the whole directory here rather than just the manifest.
+COPY packages/agenta-api-client/ ./packages/agenta-api-client/
 
 # Copy shared package config files (required by package tsconfigs)
 COPY packages/tsconfig.base.json ./packages/
@@ -38,7 +44,7 @@ COPY tests/package.json ./tests/
 
 COPY ./pnpm-workspace.yaml ./turbo.json ./
 
-COPY ./entrypoint.sh /app/entrypoint.sh   
+COPY ./entrypoint.sh /app/entrypoint.sh
 
 RUN groupadd --gid 10001 agenta && \
     useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta && \
@@ -49,6 +55,10 @@ USER 10001
 RUN pnpm i
 
 # Copy workspace package sources (after install to preserve layer caching)
+COPY --chown=agenta:agenta packages/agenta-sdk/src ./packages/agenta-sdk/src
+COPY --chown=agenta:agenta packages/agenta-sdk/tsconfig.json ./packages/agenta-sdk/
+# `agenta-api-client` was fully copied before install (for the prepare script)
+# so no second source copy is needed here.
 COPY --chown=agenta:agenta packages/agenta-shared/src ./packages/agenta-shared/src
 COPY --chown=agenta:agenta packages/agenta-shared/tsconfig.json ./packages/agenta-shared/
 COPY --chown=agenta:agenta packages/agenta-ui/src ./packages/agenta-ui/src

@@ -271,14 +271,14 @@ jobs:
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         if: steps.auth_bootstrap.outputs.enabled == 'true'
 
       - name: Setup Node.js
         if: steps.auth_bootstrap.outputs.enabled == 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install pnpm
         if: steps.auth_bootstrap.outputs.enabled == 'true'
@@ -331,18 +331,18 @@ jobs:
       AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
       AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
       - name: Cache Python dependencies
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
-          key: ${{ runner.os }}-railway-api-uv-${{ hashFiles('api/pyproject.toml', 'api/uv.lock', 'sdk/pyproject.toml', 'sdk/uv.lock') }}
+          key: ${{ runner.os }}-railway-api-uv-${{ hashFiles('api/pyproject.toml', 'api/uv.lock', 'sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
           restore-keys: |
             ${{ runner.os }}-railway-api-uv-
 
@@ -350,8 +350,8 @@ jobs:
         run: |
           pip install "uv==0.11.9"
           cd api
-          uv sync --locked --python 3.11
-          uv pip install --python .venv/bin/python --editable ../sdk/
+          uv sync --locked --python 3.13
+          uv pip install --python .venv/bin/python --editable ../sdks/python/
 
       - name: Run API tests
         run: |
@@ -432,30 +432,30 @@ jobs:
       AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
       AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
       - name: Cache Python dependencies
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
-          key: ${{ runner.os }}-railway-sdk-uv-${{ hashFiles('sdk/pyproject.toml', 'sdk/uv.lock') }}
+          key: ${{ runner.os }}-railway-sdk-uv-${{ hashFiles('sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
           restore-keys: |
             ${{ runner.os }}-railway-sdk-uv-
 
       - name: Install SDK dependencies
         run: |
           pip install "uv==0.11.9"
-          cd sdk
-          uv sync --locked --python 3.11
+          cd sdks/python
+          uv sync --locked --python 3.13
 
       - name: Run SDK tests
         run: |
-          cd sdk
+          cd sdks/python
 
           case "${{ matrix.layer }}" in
             acceptance) TARGET_PATH="oss/tests/pytest/acceptance" ;;
@@ -496,7 +496,7 @@ jobs:
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: sdk/oss/tests/results/junit.xml
+          files: sdks/python/oss/tests/results/junit.xml
           check_name: Railway SDK Test Results
           comment_mode: off
 
@@ -506,8 +506,8 @@ jobs:
         with:
           name: railway-sdk-test-results-${{ matrix.layer }}
           path: |
-            sdk/oss/tests/results/
-            sdk/pytest*.log
+            sdks/python/oss/tests/results/
+            sdks/python/pytest*.log
           retention-days: 14
 
   run-services-tests:
@@ -533,18 +533,18 @@ jobs:
       AGENTA_SERVICES_URL: ${{ needs.prepare.outputs.agenta_services_url }}
       AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
       - name: Cache Python dependencies
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
-          key: ${{ runner.os }}-railway-services-uv-${{ hashFiles('services/pyproject.toml', 'services/uv.lock', 'sdk/pyproject.toml', 'sdk/uv.lock') }}
+          key: ${{ runner.os }}-railway-services-uv-${{ hashFiles('services/pyproject.toml', 'services/uv.lock', 'sdks/python/pyproject.toml', 'sdks/python/uv.lock', 'clients/python/pyproject.toml') }}
           restore-keys: |
             ${{ runner.os }}-railway-services-uv-
 
@@ -552,8 +552,8 @@ jobs:
         run: |
           pip install "uv==0.11.9"
           cd services
-          uv sync --locked --python 3.11
-          uv pip install --python .venv/bin/python --editable ../sdk/
+          uv sync --locked --python 3.13
+          uv pip install --python .venv/bin/python --editable ../sdks/python/
 
       - name: Run services tests
         run: |
@@ -642,12 +642,12 @@ jobs:
       TESTMAIL_API_KEY: ${{ secrets.TESTMAIL_API_KEY }}
       TESTMAIL_NAMESPACE: ${{ secrets.TESTMAIL_NAMESPACE }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4

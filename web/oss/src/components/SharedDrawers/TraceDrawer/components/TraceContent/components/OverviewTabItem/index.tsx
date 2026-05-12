@@ -19,231 +19,7 @@ import {
 
 import AccordionTreePanel from "../../../AccordionTreePanel"
 
-interface RoleMessage {
-    role?: string
-    content?: unknown
-    contents?: {message_content?: {text?: string}}[]
-    [key: string]: unknown
-}
-
-interface MessageGroup {
-    key: string
-    path: string[]
-    messages: RoleMessage[]
-}
-
-const MESSAGE_KEY_HINTS = new Set(["messages", "prompt", "completion"])
-
-const isNullish = (value: unknown) => value === null || value === undefined
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-    !!value && typeof value === "object" && !Array.isArray(value)
-
-/** AI SDK content part types that represent message-like items */
-const AI_SDK_PART_TYPES = new Set(["text", "tool-call", "tool-result"])
-
-const isMessageLike = (value: unknown): value is RoleMessage => {
-    if (!isRecord(value)) return false
-
-    const hasRole = typeof value.role === "string"
-    const hasContent = value.content !== undefined
-    const hasMessageContentText =
-        Array.isArray(value.contents) &&
-        value.contents.some((item) => item?.message_content?.text !== undefined)
-
-    // AI SDK content parts: {type: "text", text: "..."}, {type: "tool-call", toolName: "..."},
-    // {type: "tool-result", output: {...}}
-    const isAISDKPart =
-        typeof value.type === "string" &&
-        AI_SDK_PART_TYPES.has(value.type) &&
-        (value.text !== undefined || value.toolName !== undefined || value.output !== undefined)
-
-    return hasRole || hasContent || hasMessageContentText || isAISDKPart
-}
-
-const isMessageArray = (value: unknown, keyHint = false): value is RoleMessage[] =>
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.every(isMessageLike) &&
-    (keyHint || value.some((item) => typeof item.role === "string"))
-
-/** Known chat role names for detecting flat {system: "...", user: "..."} objects */
-const KNOWN_ROLES = new Set(["system", "user", "assistant", "tool", "function"])
-
-/**
- * Detect flat role-keyed message objects like {system: "...", user: "..."}
- * and convert them to a standard [{role, content}] array.
- */
-const flatRoleObjectToMessages = (value: unknown): RoleMessage[] | null => {
-    if (!isRecord(value)) return null
-    const keys = Object.keys(value)
-    if (keys.length === 0) return null
-    // At least one key must be a known role
-    const roleKeys = keys.filter((k) => KNOWN_ROLES.has(k.toLowerCase()))
-    if (roleKeys.length === 0) return null
-    // Most keys should be roles (allow some non-role keys like "tool_calls")
-    if (roleKeys.length < keys.length / 2) return null
-
-    return roleKeys.map((k) => ({
-        role: k.toLowerCase(),
-        content: value[k],
-    }))
-}
-
-/** Try to parse a JSON string into an object/array. Returns null on failure. */
-const tryParseJson = (str: string): unknown => {
-    try {
-        const parsed = JSON.parse(str)
-        return typeof parsed === "object" ? parsed : null
-    } catch {
-        return null
-    }
-}
-
-const collectMessageGroups = (value: unknown, baseKey: string): MessageGroup[] => {
-    const groups: MessageGroup[] = []
-    const visited = new Set<unknown>()
-    const seenPaths = new Set<string>()
-
-    const walk = (current: unknown, path: string[]) => {
-        // If current is a string that looks like a JSON array/object, parse it first.
-        // This handles double-encoded messages from TS SDK spans where ag.data.inputs
-        // contains {"messages": "[{\"role\":\"system\",...}]"} (string, not array).
-        if (typeof current === "string" && current.length > 2) {
-            const trimmed = current.trim()
-            if (trimmed[0] === "[" || trimmed[0] === "{") {
-                const parsed = tryParseJson(trimmed)
-                if (parsed) {
-                    walk(parsed, path)
-                    return
-                }
-            }
-            return
-        }
-
-        if (!current || typeof current !== "object") return
-        if (visited.has(current)) return
-        visited.add(current)
-
-        if (Array.isArray(current)) {
-            const leaf = path[path.length - 1]?.toLowerCase()
-            const keyHint = leaf ? MESSAGE_KEY_HINTS.has(leaf) : false
-            if (isMessageArray(current, keyHint)) {
-                const serializedPath = path.join(".")
-                if (!seenPaths.has(serializedPath)) {
-                    seenPaths.add(serializedPath)
-                    groups.push({
-                        key: `${baseKey}.${serializedPath || "root"}`,
-                        path,
-                        messages: current,
-                    })
-                }
-                return
-            }
-
-            current.forEach((item, index) => walk(item, [...path, String(index)]))
-            return
-        }
-
-        // Detect flat role-keyed objects: {system: "...", user: "...", assistant: "..."}
-        // Common in AI SDK's ai.prompt.messages attribute format
-        const leaf = path[path.length - 1]?.toLowerCase()
-        if (leaf && MESSAGE_KEY_HINTS.has(leaf)) {
-            const converted = flatRoleObjectToMessages(current)
-            if (converted && converted.length > 0) {
-                const serializedPath = path.join(".")
-                if (!seenPaths.has(serializedPath)) {
-                    seenPaths.add(serializedPath)
-                    groups.push({
-                        key: `${baseKey}.${serializedPath || "root"}`,
-                        path,
-                        messages: converted,
-                    })
-                }
-                return
-            }
-        }
-
-        Object.entries(current).forEach(([key, nested]) => walk(nested, [...path, key]))
-    }
-
-    walk(value, [])
-    return groups
-}
-
-const deleteAtPath = (target: unknown, path: string[]) => {
-    if (!path.length || !target || typeof target !== "object") return
-
-    const removeAtSegment = (container: unknown, segment: string): boolean => {
-        if (Array.isArray(container)) {
-            const index = Number(segment)
-            if (
-                Number.isInteger(index) &&
-                String(index) === segment &&
-                index >= 0 &&
-                index < container.length
-            ) {
-                container.splice(index, 1)
-                return true
-            }
-        }
-
-        if (container && typeof container === "object" && segment in container) {
-            delete (container as Record<string, unknown>)[segment]
-            return true
-        }
-
-        return false
-    }
-
-    const isEmptyContainer = (value: unknown) =>
-        (Array.isArray(value) && value.length === 0) ||
-        (isRecord(value) && Object.keys(value).length === 0)
-
-    const ancestors: {parent: unknown; segment: string}[] = []
-    let cursor: any = target
-
-    for (let index = 0; index < path.length - 1; index += 1) {
-        const segment = path[index]
-        if (!cursor || typeof cursor !== "object" || !(segment in cursor)) return
-        ancestors.push({parent: cursor, segment})
-        cursor = cursor[segment]
-    }
-
-    const lastSegment = path[path.length - 1]
-    if (!removeAtSegment(cursor, lastSegment)) return
-
-    // Prune only containers emptied by this delete path.
-    for (let index = ancestors.length - 1; index >= 0; index -= 1) {
-        const {parent, segment} = ancestors[index]
-        const child = (parent as any)?.[segment]
-        if (!isEmptyContainer(child)) break
-        removeAtSegment(parent, segment)
-    }
-}
-
-const removeMessageGroupsFromData = (value: unknown, groups: MessageGroup[]): unknown => {
-    if (!groups.length || isNullish(value)) return value
-    if (groups.some((group) => group.path.length === 0)) return undefined
-
-    let cloned: any
-    try {
-        cloned = structuredClone(value)
-    } catch {
-        return value
-    }
-
-    groups.forEach((group) => deleteAtPath(cloned, group.path))
-
-    if (
-        (Array.isArray(cloned) && cloned.length === 0) ||
-        (isRecord(cloned) && Object.keys(cloned).length === 0)
-    ) {
-        return undefined
-    }
-
-    return cloned
-}
+import {prepareTraceOverviewPanels} from "./messagePanels"
 
 const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
     // Use trace drill-in API for data access while preserving existing UI rendering.
@@ -284,30 +60,16 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
         activeTrace?.span_id || activeTrace?.invocationIds?.span_id || activeTrace?.key
     const isEmbeddingSpan = activeTrace?.span_type === "embedding"
 
-    // Always attempt message detection for all span types (not just chat spans).
-    // collectMessageGroups safely returns [] when no messages are found, so the
-    // rendering falls through to the raw TraceSpanDrillInView for non-message data.
-    const {inputMessageGroups, outputMessageGroups, inputsPanelValue, outputsPanelValue} =
-        useMemo(() => {
-            if (isEmbeddingSpan) {
-                return {
-                    inputMessageGroups: [] as MessageGroup[],
-                    outputMessageGroups: [] as MessageGroup[],
-                    inputsPanelValue: inputs,
-                    outputsPanelValue: outputs,
-                }
-            }
-
-            const nextInputMessageGroups = collectMessageGroups(inputs, "inputs")
-            const nextOutputMessageGroups = collectMessageGroups(outputs, "outputs")
-
-            return {
-                inputMessageGroups: nextInputMessageGroups,
-                outputMessageGroups: nextOutputMessageGroups,
-                inputsPanelValue: removeMessageGroupsFromData(inputs, nextInputMessageGroups),
-                outputsPanelValue: removeMessageGroupsFromData(outputs, nextOutputMessageGroups),
-            }
-        }, [inputs, outputs, isEmbeddingSpan])
+    // Keep each side in one panel while switching message-like data to the readable view.
+    const panels = useMemo(
+        () =>
+            prepareTraceOverviewPanels({
+                inputs,
+                outputs,
+                isEmbeddingSpan,
+            }),
+        [inputs, outputs, isEmbeddingSpan],
+    )
 
     return (
         <div className="w-full flex flex-col gap-2">
@@ -329,132 +91,47 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                 </Space>
             )}
 
-            {inputs ? (
+            {panels.inputs ? (
                 <div className="flex flex-col gap-2">
-                    {/* Non-message data (if any remains after extraction) */}
-                    {!isNullish(inputsPanelValue) &&
-                        (spanEntityId ? (
-                            <TraceSpanDrillInView
-                                spanId={spanEntityId}
-                                title="inputs"
-                                editable={false}
-                                rootScope="span"
-                                spanDataOverride={inputsPanelValue}
-                            />
-                        ) : (
-                            <AccordionTreePanel
-                                label={"inputs"}
-                                value={inputsPanelValue as any}
-                                enableFormatSwitcher
-                            />
-                        ))}
-                    {/* Extracted message groups */}
-                    {inputMessageGroups.map((group) => {
-                        const groupLabel =
-                            isNullish(inputsPanelValue) && inputMessageGroups.length === 1
-                                ? "inputs"
-                                : group.path.length > 0
-                                  ? group.path[group.path.length - 1]
-                                  : "messages"
-                        return spanEntityId ? (
-                            <TraceSpanDrillInView
-                                key={group.key}
-                                spanId={spanEntityId}
-                                title={groupLabel}
-                                editable={false}
-                                rootScope="span"
-                                spanDataOverride={group.messages}
-                            />
-                        ) : (
-                            <AccordionTreePanel
-                                key={group.key}
-                                label={groupLabel}
-                                value={group.messages}
-                                enableFormatSwitcher
-                            />
-                        )
-                    })}
-                    {/* Fallback: no message groups extracted, no panel value — show raw */}
-                    {isNullish(inputsPanelValue) &&
-                        inputMessageGroups.length === 0 &&
-                        (spanEntityId ? (
-                            <TraceSpanDrillInView
-                                spanId={spanEntityId}
-                                title="inputs"
-                                editable={false}
-                                rootScope="span"
-                                spanDataOverride={inputs}
-                            />
-                        ) : (
-                            <AccordionTreePanel
-                                label={"inputs"}
-                                value={inputs as any}
-                                enableFormatSwitcher
-                            />
-                        ))}
+                    {spanEntityId ? (
+                        <TraceSpanDrillInView
+                            spanId={spanEntityId}
+                            title="inputs"
+                            editable={false}
+                            rootScope="span"
+                            spanDataOverride={panels.inputs.value}
+                            viewModePreset={panels.inputs.hasMessages ? "message" : "default"}
+                        />
+                    ) : (
+                        <AccordionTreePanel
+                            label={"inputs"}
+                            value={panels.inputs.value as any}
+                            enableFormatSwitcher
+                            viewModePreset={panels.inputs.hasMessages ? "message" : "default"}
+                        />
+                    )}
                 </div>
             ) : null}
 
-            {outputs ? (
+            {panels.outputs ? (
                 <div className="flex flex-col gap-2">
-                    {!isNullish(outputsPanelValue) &&
-                        (spanEntityId ? (
-                            <TraceSpanDrillInView
-                                spanId={spanEntityId}
-                                title="outputs"
-                                editable={false}
-                                rootScope="span"
-                                spanDataOverride={outputsPanelValue}
-                            />
-                        ) : (
-                            <AccordionTreePanel
-                                label={"outputs"}
-                                value={outputsPanelValue as any}
-                                enableFormatSwitcher
-                            />
-                        ))}
-                    {outputMessageGroups.map((group) => {
-                        const groupLabel =
-                            isNullish(outputsPanelValue) && outputMessageGroups.length === 1
-                                ? "outputs"
-                                : group.path.length > 0
-                                  ? group.path[group.path.length - 1]
-                                  : "messages"
-                        return spanEntityId ? (
-                            <TraceSpanDrillInView
-                                key={group.key}
-                                spanId={spanEntityId}
-                                title={groupLabel}
-                                editable={false}
-                                rootScope="span"
-                                spanDataOverride={group.messages}
-                            />
-                        ) : (
-                            <AccordionTreePanel
-                                key={group.key}
-                                label={groupLabel}
-                                value={group.messages}
-                                enableFormatSwitcher
-                            />
-                        )
-                    })}
-                    {isNullish(outputsPanelValue) &&
-                        outputMessageGroups.length === 0 &&
-                        (spanEntityId ? (
-                            <TraceSpanDrillInView
-                                spanId={spanEntityId}
-                                title="outputs"
-                                editable={false}
-                                rootScope="span"
-                                spanDataOverride={outputs}
-                            />
-                        ) : (
-                            <AccordionTreePanel
-                                label={"outputs"}
-                                value={outputs as any}
-                                enableFormatSwitcher
-                            />
-                        ))}
+                    {spanEntityId ? (
+                        <TraceSpanDrillInView
+                            spanId={spanEntityId}
+                            title="outputs"
+                            editable={false}
+                            rootScope="span"
+                            spanDataOverride={panels.outputs.value}
+                            viewModePreset={panels.outputs.hasMessages ? "message" : "default"}
+                        />
+                    ) : (
+                        <AccordionTreePanel
+                            label={"outputs"}
+                            value={panels.outputs.value as any}
+                            enableFormatSwitcher
+                            viewModePreset={panels.outputs.hasMessages ? "message" : "default"}
+                        />
+                    )}
                 </div>
             ) : null}
 

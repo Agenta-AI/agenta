@@ -140,7 +140,7 @@ Note: The `flags` field in requests is `Dict[str, Any]`, so adding to `WorkflowF
 
 #### 1b.3 Regenerate Fern Client
 
-Run `sdk/scripts/setup_fern.sh` after backend is deployed to regenerate:
+Run `sdk/scripts/setup.sh` after backend is deployed to regenerate:
 - `sdk/agenta/client/backend/types/workflow_flags.py`
 
 ---

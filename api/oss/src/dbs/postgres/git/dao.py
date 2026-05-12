@@ -1586,7 +1586,6 @@ class GitDAO(GitDAOInterface):
             return []
 
         depth = revisions_log.depth
-        version = int(revision.version) if revision.version else 0
 
         if depth is not None:
             if not isinstance(depth, int):
@@ -1595,40 +1594,51 @@ class GitDAO(GitDAOInterface):
             if depth < 1:
                 return []
 
-        offset = None
-        limit = None
-        order_by = self.RevisionDBE.id.desc()  # type: ignore
-
-        if depth is None:
-            offset = 0
-            limit = version + 1
-            order_by = self.RevisionDBE.id.asc()  # type: ignore
-        elif depth is not None:
-            offset = max(version - depth + 1, 0)
-            limit = min(depth, version + 1)
-            order_by = self.RevisionDBE.id.asc()  # type: ignore
-
+        # Window is "the target revision and the `depth - 1` rows preceding it
+        # within the variant," counted over the visibility set selected by
+        # `include_archived`. ROW_NUMBER() over that set gives us each row's
+        # 1-indexed position; we then keep rows up to the target's position
+        # and limit to `depth` from the tail.
         async with engine.core_session() as session:
-            stmt = select(self.RevisionDBE).filter(
-                self.RevisionDBE.project_id == project_id,  # type: ignore
+            visibility_filter = (
+                (self.RevisionDBE.deleted_at.is_(None),)  # type: ignore
+                if not include_archived
+                else ()
             )
-
-            stmt = stmt.filter(
-                self.RevisionDBE.variant_id == revision.variant_id,  # type: ignore
-            )
-
-            # Filter out archived/deleted revisions unless explicitly requested
-            if not include_archived:
-                stmt = stmt.filter(
-                    self.RevisionDBE.deleted_at.is_(None),  # type: ignore
+            positions = (
+                select(
+                    self.RevisionDBE.id.label("id"),  # type: ignore
+                    func.row_number()
+                    .over(
+                        partition_by=self.RevisionDBE.variant_id,  # type: ignore
+                        order_by=self.RevisionDBE.id.asc(),  # type: ignore
+                    )
+                    .label("pos"),
                 )
+                .where(
+                    self.RevisionDBE.project_id == project_id,  # type: ignore
+                    self.RevisionDBE.variant_id == revision.variant_id,  # type: ignore
+                    *visibility_filter,
+                )
+                .subquery()
+            )
 
-            stmt = stmt.order_by(order_by)
-            stmt = stmt.offset(offset)
-            stmt = stmt.limit(limit)
+            target_pos = (
+                select(positions.c.pos)
+                .where(positions.c.id == revision.id)
+                .scalar_subquery()
+            )
+
+            stmt = (
+                select(self.RevisionDBE)  # type: ignore
+                .join(positions, positions.c.id == self.RevisionDBE.id)  # type: ignore
+                .where(positions.c.pos <= target_pos)
+                .order_by(self.RevisionDBE.id.desc())  # type: ignore
+            )
+            if depth is not None:
+                stmt = stmt.limit(depth)
 
             result = await session.execute(stmt)
-
             revision_dbes = result.scalars().all()
 
             if not revision_dbes:
@@ -1641,9 +1651,6 @@ class GitDAO(GitDAOInterface):
                 )
                 for revision_dbe in revision_dbes
             ]
-
-            if order_by == self.RevisionDBE.id.asc():  # type: ignore
-                revisions.reverse()
 
             return revisions
 

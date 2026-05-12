@@ -39,12 +39,12 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: 3.11
+          python-version: 3.13
 
       - name: Install uv
         run: |
@@ -61,14 +61,14 @@ jobs:
           cd web
           pnpm version $BUMP_TYPE
           WEB_VERSION=$(pnpm pkg get version | tr -d '"')
-          
+
           cd ee
           current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
           pnpm pkg set version="$new_version"
           EE_VERSION=$new_version
           cd ..
-          
+
           cd oss
           current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
@@ -76,11 +76,22 @@ jobs:
           OSS_VERSION=$new_version
           cd ..
 
+          cd packages/agenta-api-client
+          current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')
+          new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
+          pnpm pkg set version="$new_version"
+          TS_CLIENT_VERSION=$new_version
+          cd ../..
+
           cd ..
 
-          cd sdk
-          SDK_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
-          cd ..
+          cd clients/python
+          PY_CLIENT_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
+          cd ../..
+
+          cd sdks/python
+          PY_SDK_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
+          cd ../..
 
           cd api
           API_VERSION=$(uv version --bump "$BUMP_TYPE" --short)
@@ -93,18 +104,22 @@ jobs:
           WEB_VERSION=$(echo "$WEB_VERSION" | tr -d '[:space:]')
           EE_VERSION=$(echo "$EE_VERSION" | tr -d '[:space:]')
           OSS_VERSION=$(echo "$OSS_VERSION" | tr -d '[:space:]')
-          SDK_VERSION=$(echo "$SDK_VERSION" | tr -d '[:space:]')
+          TS_CLIENT_VERSION=$(echo "$TS_CLIENT_VERSION" | tr -d '[:space:]')
+          PY_CLIENT_VERSION=$(echo "$PY_CLIENT_VERSION" | tr -d '[:space:]')
+          PY_SDK_VERSION=$(echo "$PY_SDK_VERSION" | tr -d '[:space:]')
           API_VERSION=$(echo "$API_VERSION" | tr -d '[:space:]')
           SERVICES_VERSION=$(echo "$SERVICES_VERSION" | tr -d '[:space:]')
 
           echo "WEB_VERSION='$WEB_VERSION'"
           echo "EE_VERSION='$EE_VERSION'"
           echo "OSS_VERSION='$OSS_VERSION'"
-          echo "SDK_VERSION='$SDK_VERSION'"
+          echo "TS_CLIENT_VERSION='$TS_CLIENT_VERSION'"
+          echo "PY_CLIENT_VERSION='$PY_CLIENT_VERSION'"
+          echo "PY_SDK_VERSION='$PY_SDK_VERSION'"
           echo "API_VERSION='$API_VERSION'"
           echo "SERVICES_VERSION='$SERVICES_VERSION'"
 
-          if [ "$EE_VERSION" = "$OSS_VERSION" ] && [ "$OSS_VERSION" = "$WEB_VERSION" ] && [ "$WEB_VERSION" = "$SDK_VERSION" ] && [ "$SDK_VERSION" = "$API_VERSION" ] && [ "$API_VERSION" = "$SERVICES_VERSION" ]; then
+          if [ "$EE_VERSION" = "$OSS_VERSION" ] && [ "$OSS_VERSION" = "$WEB_VERSION" ] && [ "$WEB_VERSION" = "$TS_CLIENT_VERSION" ] && [ "$TS_CLIENT_VERSION" = "$PY_CLIENT_VERSION" ] && [ "$PY_CLIENT_VERSION" = "$PY_SDK_VERSION" ] && [ "$PY_SDK_VERSION" = "$API_VERSION" ] && [ "$API_VERSION" = "$SERVICES_VERSION" ]; then
               echo "VERSIONS_MATCH=true" >> $GITHUB_OUTPUT
               echo "NEW_VERSION=$WEB_VERSION" >> $GITHUB_OUTPUT
           else
@@ -125,7 +140,9 @@ jobs:
             - (web)
             - web/oss
             - web/ee
-            - sdk
+            - clients/typescript
+            - clients/python
+            - sdks/python
             - api
             - services
 

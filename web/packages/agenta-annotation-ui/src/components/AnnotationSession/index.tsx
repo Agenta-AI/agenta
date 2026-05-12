@@ -1,153 +1,33 @@
-/**
- * AnnotationSession
- *
- * Main session view for annotating queue scenarios.
- * Two views, switchable via tabs:
- *
- * - **List**: Table showing all items with status indicators
- * - **Annotate** (Focus): One item at a time with annotation panel
- *
- * Layout uses PageLayout from @agenta/ui — same pattern as EvaluationsView:
- * ┌─────────────────────────────────────────────────────────────┐
- * │ ← queueName            progress   [List] [Annotate]  (ℹ️) │
- * ├─────────────────────────────────────────────────────────────┤
- * │ (Active view content fills remaining space)                 │
- * └─────────────────────────────────────────────────────────────┘
- *
- * Data flow:
- * - Queue data loaded via `simpleQueueMolecule` (auto-fetched by queueId)
- * - Scenarios loaded via `simpleQueueMolecule.selectors.scenarios(queueId)` (reactive query)
- * - All queue-level and per-task data accessed via `annotationSessionController`
- * - Active view state managed by `annotationSessionController.selectors.activeView()`
- */
+import {useCallback, useEffect, useMemo, useRef} from "react"
 
-import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
-
-import {annotationFormController, annotationSessionController} from "@agenta/annotation"
 import type {SessionView} from "@agenta/annotation"
+import {annotationFormController, annotationSessionController} from "@agenta/annotation"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
+import {
+    EntityCommitModal,
+    EntityPicker,
+    type CommitSubmitParams,
+    type CommitSubmitResult,
+} from "@agenta/entity-ui"
 import {PageLayout} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
-import {Tray} from "@phosphor-icons/react"
-import {Button, Spin, Tabs, Typography} from "antd"
+import {Spin, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context"
 
+import {
+    ADD_TO_TESTSET_COMMIT_MODES,
+    ADD_TO_TESTSET_TARGET_ADAPTER,
+    CREATE_TESTSET_FIELDS,
+} from "./assets/constants"
+import type {AddToTestsetTargetSelection, AnnotationSessionProps} from "./assets/type"
 import ConfigurationView from "./ConfigurationView"
+import EmptyQueueState from "./EmptyQueueState"
 import FocusView from "./FocusView"
 import ScenarioListView from "./ScenarioListView"
-
-// ============================================================================
-// TYPES
-// ============================================================================
-
-interface AnnotationSessionProps {
-    queueId: string
-    routeState: {
-        view: SessionView
-        scenarioId?: string
-    }
-    onActiveViewChange?: (view: SessionView) => void
-    canExportData?: boolean
-}
-
-// ============================================================================
-// TAB ITEMS
-// ============================================================================
-
-const SESSION_TABS: {key: SessionView; label: string}[] = [
-    {key: "annotate", label: "Annotate"},
-    {key: "list", label: "All Annotations"},
-    {key: "configuration", label: "Configuration"},
-]
-
-const TAB_ITEMS = SESSION_TABS.map((t) => ({key: t.key, label: t.label}))
-
-// ============================================================================
-// HEADER TITLE
-// ============================================================================
-
-const SessionTitle = memo(function SessionTitle({queueName}: {queueName: string}) {
-    return <span className="truncate">{queueName}</span>
-})
-
-// ============================================================================
-// HEADER RIGHT SECTION
-// ============================================================================
-
-const SessionHeaderRight = memo(function SessionHeaderRight({
-    activeView,
-    onTabChange,
-}: {
-    activeView: SessionView
-    onTabChange: (key: string) => void
-}) {
-    return (
-        <div className="flex items-center gap-4">
-            <Tabs
-                activeKey={activeView}
-                onChange={onTabChange}
-                items={TAB_ITEMS}
-                className="[&_.ant-tabs-nav]:!mb-0"
-                size="small"
-            />
-        </div>
-    )
-})
-
-// ============================================================================
-// EMPTY QUEUE STATE
-// ============================================================================
-
-const EmptyQueueState = memo(function EmptyQueueState({
-    onViewChange,
-}: {
-    onViewChange: (view: SessionView) => void
-}) {
-    const navigation = useAnnotationNavigation()
-    const queueKind = useAtomValue(annotationSessionController.selectors.queueKind())
-    const isTraces = queueKind === "traces"
-
-    return (
-        <div className="flex flex-col flex-1 items-center justify-center gap-4 min-h-0">
-            <div className="flex items-center justify-center size-20 rounded-full bg-[var(--ant-color-fill-quaternary)]">
-                <Tray size={32} className="text-[var(--ant-color-text-secondary)]" />
-            </div>
-
-            <div className="flex flex-col items-center gap-2 text-center">
-                <Typography.Text strong className="!text-base">
-                    There&apos;s nothing to see here
-                </Typography.Text>
-                <Typography.Text type="secondary" className="text-sm">
-                    Currently there are no runs &amp; annotations in this queue,
-                    <br />
-                    {isTraces ? "please add runs from traces." : "please add items from test sets."}
-                </Typography.Text>
-            </div>
-
-            <div className="flex items-center gap-2">
-                <Button size="small" onClick={() => onViewChange("list")}>
-                    View previous annotations
-                </Button>
-                {isTraces && navigation.navigateToObservability && (
-                    <Button
-                        size="small"
-                        type="primary"
-                        className="!bg-[#051729] !border-[#051729] hover:!bg-[#0a2540] hover:!border-[#0a2540]"
-                        onClick={() => navigation.navigateToObservability?.()}
-                    >
-                        Go to observability
-                    </Button>
-                )}
-            </div>
-        </div>
-    )
-})
-
-// ============================================================================
-// MAIN COMPONENT
-// ============================================================================
+import SessionHeaderRight from "./SessionHeaderRight"
+import SessionTitle from "./SessionTitle"
 
 const AnnotationSession = ({
     queueId,
@@ -155,6 +35,8 @@ const AnnotationSession = ({
     onActiveViewChange,
     canExportData = true,
 }: AnnotationSessionProps) => {
+    const navigation = useAnnotationNavigation()
+
     // Queue data from molecule (auto-fetched by queueId)
     const queueQuery = useAtomValue(simpleQueueMolecule.selectors.query(queueId))
     const queue = useAtomValue(simpleQueueMolecule.selectors.data(queueId))
@@ -169,19 +51,37 @@ const AnnotationSession = ({
     const applyRouteState = useSetAtom(annotationSessionController.actions.applyRouteState)
     const setActiveView = useSetAtom(annotationSessionController.actions.setActiveView)
     const syncScenarioOrder = useSetAtom(annotationSessionController.actions.syncScenarioOrder)
-    const syncToTestsets = useSetAtom(annotationSessionController.actions.syncToTestsets)
-
-    // Sync to testset state
-    const [isSyncing, setIsSyncing] = useState(false)
+    const closeAddToTestsetModal = useSetAtom(
+        annotationSessionController.actions.closeAddToTestsetModal,
+    )
+    const setPendingTestsetSelection = useSetAtom(
+        annotationSessionController.actions.setPendingTestsetSelection,
+    )
+    const addScenariosToTestset = useSetAtom(
+        annotationSessionController.actions.addScenariosToTestset,
+    )
 
     // Session controller selectors — queue-level
     const queueName = useAtomValue(annotationSessionController.selectors.queueName())
     const controllerActiveView = useAtomValue(annotationSessionController.selectors.activeView())
     const resolvedActiveView = controllerActiveView
-
+    const isAddToTestsetModalOpen = useAtomValue(
+        annotationSessionController.selectors.isAddToTestsetModalOpen(),
+    )
+    const pendingTestsetSelection = useAtomValue(
+        annotationSessionController.selectors.pendingTestsetSelection(),
+    )
+    const addToTestsetExportJob = useAtomValue(
+        annotationSessionController.selectors.addToTestsetExportJob(),
+    )
+    const isAddToTestsetExporting = useAtomValue(
+        annotationSessionController.selectors.isAddToTestsetExporting(),
+    )
     // Scenarios — derived reactively from simpleQueueMolecule via the controller
-    const scenarioCount = useAtomValue(annotationSessionController.selectors.scenarioIds()).length
+    const allScenarioIds = useAtomValue(annotationSessionController.selectors.scenarioIds())
+    const scenarioCount = allScenarioIds.length
     const scenariosQuery = useAtomValue(annotationSessionController.selectors.scenariosQuery())
+    const notifiedExportJobIdRef = useRef<string | null>(null)
 
     // Open the session when queueId is set
     useEffect(() => {
@@ -217,7 +117,7 @@ const AnnotationSession = ({
         message.success("Annotations saved")
     }, [])
 
-    const handleCompleted = useCallback((scenarioId: string) => {
+    const handleCompleted = useCallback((_scenarioId: string) => {
         message.success("Scenario completed")
     }, [])
 
@@ -238,60 +138,110 @@ const AnnotationSession = ({
         [handleActiveViewChange],
     )
 
-    const handleSyncToTestset = useCallback(async () => {
-        setIsSyncing(true)
-        try {
-            const result = await syncToTestsets()
+    useEffect(() => {
+        if (!addToTestsetExportJob.id) return
+        if (notifiedExportJobIdRef.current === addToTestsetExportJob.id) return
 
-            const summary = `Created ${result.revisionsCreated} revision${
-                result.revisionsCreated === 1 ? "" : "s"
-            }, exported ${result.rowsExported} row${result.rowsExported === 1 ? "" : "s"}`
-
-            if (result.failedTargets.length > 0) {
-                message.warning(summary)
-            } else {
-                message.success(summary)
-            }
-        } catch (err) {
-            const errorMessage =
-                err instanceof Error && err.message
-                    ? err.message
-                    : "Failed to save annotations to testsets"
-            message.error(errorMessage)
-            console.error("[syncToTestsets]", err)
-        } finally {
-            setIsSyncing(false)
+        if (addToTestsetExportJob.status === "success") {
+            notifiedExportJobIdRef.current = addToTestsetExportJob.id
+            const {processed, targetRevisionId, targetTestsetName} = addToTestsetExportJob
+            const label = targetTestsetName ?? "testset"
+            message.success({
+                content: `Added ${processed} row${processed === 1 ? "" : "s"} to ${label}.`,
+                onNavigate:
+                    targetRevisionId && navigation.navigateToTestset
+                        ? () => navigation.navigateToTestset!(targetRevisionId)
+                        : undefined,
+                linkText: `View "${label}"`,
+                duration: 5,
+            })
         }
-    }, [syncToTestsets])
+    }, [addToTestsetExportJob])
 
-    // Header title (queue name)
-    const headerTitle = useMemo(
-        () => (
-            <div className="flex flex-col items-start">
-                <div className="flex items-center">
-                    <SessionTitle queueName={queueName || "Untitled Queue"} />
-                </div>
-                {/* Progress */}
-                {/* <div className="flex items-center gap-2 shrink-0">
-                    <Typography.Text type="secondary" className="text-xs whitespace-nowrap">
-                        {progress.completed} / {progress.total} complete
-                    </Typography.Text>
-                    <Progress
-                        percent={percent}
-                        size="small"
-                        className="w-24 !mb-0"
-                        showInfo={false}
+    const handleTestsetSelect = useCallback(
+        (selection: AddToTestsetTargetSelection) => {
+            setPendingTestsetSelection({
+                testsetId: selection.metadata.testsetId,
+                testsetName: selection.metadata.testsetName,
+            })
+        },
+        [setPendingTestsetSelection],
+    )
+
+    const handleTestsetDeselect = useCallback(() => {
+        setPendingTestsetSelection({testsetId: null})
+    }, [setPendingTestsetSelection])
+
+    const handleAddToTestsetModeChange = useCallback(
+        (mode: string | undefined) => {
+            if (mode === "new") {
+                setPendingTestsetSelection({testsetId: null})
+            }
+        },
+        [setPendingTestsetSelection],
+    )
+
+    const handleAddToTestsetSubmit = useCallback(
+        async (params: CommitSubmitParams): Promise<CommitSubmitResult> => {
+            try {
+                await addScenariosToTestset({
+                    targetMode: params.mode === "new" ? "new" : "existing",
+                    commitMessage: params.message,
+                    newTestsetName: params.entityName,
+                    newTestsetSlug: params.entitySlug,
+                })
+                return {success: true}
+            } catch (error) {
+                return {
+                    success: false,
+                    error:
+                        error instanceof Error && error.message
+                            ? error.message
+                            : "Failed to start testset export",
+                }
+            }
+        },
+        [addScenariosToTestset],
+    )
+
+    const canSubmitAddToTestset = useCallback(
+        ({mode}: {mode?: string}) => {
+            if (isAddToTestsetExporting) return false
+            if (mode === "new") return true
+            return Boolean(pendingTestsetSelection)
+        },
+        [isAddToTestsetExporting, pendingTestsetSelection],
+    )
+
+    const renderAddToTestsetModeContent = useCallback(
+        ({mode}: {mode?: string}) => (
+            <div className="flex flex-col gap-3">
+                {mode !== "new" && (
+                    <EntityPicker<AddToTestsetTargetSelection>
+                        variant="cascading"
+                        adapter={ADD_TO_TESTSET_TARGET_ADAPTER}
+                        initialSelections={[pendingTestsetSelection]}
+                        showLabels
+                        showAutoIndicator={false}
+                        placeholders={["Select testset"]}
+                        onSelect={handleTestsetSelect}
+                        onDeselect={handleTestsetDeselect}
                     />
-                </div> */}
+                )}
             </div>
         ),
-        [queueName],
+        [handleTestsetSelect, handleTestsetDeselect, pendingTestsetSelection],
     )
 
     // Header right section (tabs + sync button)
     const headerTabs = useMemo(
         () => <SessionHeaderRight activeView={resolvedActiveView} onTabChange={handleTabChange} />,
         [resolvedActiveView, handleTabChange],
+    )
+
+    const headerTitle = useMemo(
+        () => <SessionTitle queueName={queueName || "Untitled Queue"} />,
+        [queueName],
     )
 
     // Loading state — queue query or scenarios query pending
@@ -341,11 +291,26 @@ const AnnotationSession = ({
                         queueId={queueId}
                         onCompleted={handleCompleted}
                         onViewChange={handleActiveViewChange}
-                        onSyncToTestset={handleSyncToTestset}
-                        isSyncing={isSyncing}
                     />
                 )}
             </div>
+            <EntityCommitModal
+                open={isAddToTestsetModalOpen}
+                onClose={closeAddToTestsetModal}
+                entity={{
+                    type: "simpleQueue",
+                    id: queueId,
+                }}
+                onSubmit={handleAddToTestsetSubmit}
+                commitModes={ADD_TO_TESTSET_COMMIT_MODES}
+                defaultCommitMode="existing"
+                onModeChange={handleAddToTestsetModeChange}
+                renderModeContent={renderAddToTestsetModeContent}
+                canSubmit={canSubmitAddToTestset}
+                createEntityFields={CREATE_TESTSET_FIELDS}
+                submitLabel="Add"
+                actionLabel="Add to Testset"
+            />
         </PageLayout>
     )
 }
