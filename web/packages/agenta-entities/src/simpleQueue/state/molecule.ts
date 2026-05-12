@@ -46,7 +46,6 @@ import {
 import type {SimpleQueue, SimpleQueueKind, EvaluationStatus, EvaluationScenario} from "../core"
 
 import {simpleQueuePaginatedStore} from "./paginatedStore"
-import {taskQueueIdAtom} from "./tasksPaginatedStore"
 
 // ============================================================================
 // HELPERS
@@ -304,10 +303,6 @@ export const deleteSimpleQueueAtom = atom(
         if (result.queue_id) {
             set(simpleQueueDraftAtomFamily(queueId), null)
 
-            if (get(taskQueueIdAtom) === queueId) {
-                set(taskQueueIdAtom, null)
-            }
-
             queryClient.removeQueries({queryKey: ["simpleQueue", queueId], exact: false})
             queryClient.removeQueries({
                 queryKey: ["simpleQueue", "scenarioProgress", queueId],
@@ -348,11 +343,6 @@ export const deleteSimpleQueuesAtom = atom(
                     exact: false,
                 })
             })
-
-            const selectedTaskQueueId = get(taskQueueIdAtom)
-            if (selectedTaskQueueId && deletedQueueIds.includes(selectedTaskQueueId)) {
-                set(taskQueueIdAtom, null)
-            }
 
             await queryClient.invalidateQueries({queryKey: ["simpleQueues", "list"], exact: false})
             set(simpleQueuePaginatedStore.refreshAtom)

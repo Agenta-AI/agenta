@@ -1,0 +1,45 @@
+---
+title: "Chat Template Kwargs"
+sidebar_position: 8
+sidebar_label: "Chat Template Kwargs"
+description: "Understand how chat_template_kwargs behaves when you invoke or fetch prompts from Agenta."
+---
+
+`chat_template_kwargs` is part of a prompt's `llm_config`. It contains provider-specific chat template options that Agenta passes through unchanged.
+
+To configure it in the UI, see [Chat Template Kwargs in the Playground](/prompt-engineering/playground/chat-template-kwargs).
+
+## When you invoke through Agenta
+
+When you invoke a deployed prompt through Agenta, Agenta applies the saved `chat_template_kwargs` for the selected model. You do not need to add anything to the invoke request.
+
+If the prompt falls back to another model, Agenta uses the fallback model's own `chat_template_kwargs`.
+
+## When you fetch the configuration
+
+When you fetch a prompt configuration and call a provider from your own application, Agenta returns `chat_template_kwargs` under `llm_config`.
+
+Example fetched configuration:
+
+```json
+{
+  "prompt": {
+    "messages": [
+      {"role": "system", "content": "You are a helpful assistant."},
+      {"role": "user", "content": "Answer this: {{question}}"}
+    ],
+    "llm_config": {
+      "model": "qwen/qwen3",
+      "temperature": 0.2,
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      }
+    },
+    "template_format": "curly"
+  }
+}
+```
+
+Pass this field only to provider clients that support it. If `chat_template_kwargs` is `null` or missing, there are no chat template options to forward.
+
+Agenta does not format prompt variables inside `chat_template_kwargs`; its values are provider options, not prompt text.

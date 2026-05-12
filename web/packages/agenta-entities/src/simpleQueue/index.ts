@@ -117,10 +117,4 @@ export {
     simpleQueueKindFilterAtom,
     simpleQueueSearchTermAtom,
     type SimpleQueueTableRow,
-    // Paginated store (tasks)
-    simpleQueueTasksPaginatedStore,
-    taskQueueIdAtom,
-    taskStatusFilterAtom,
-    taskUserIdAtom,
-    type SimpleQueueTaskRow,
 } from "./state"

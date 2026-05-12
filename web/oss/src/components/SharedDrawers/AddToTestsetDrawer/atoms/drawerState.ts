@@ -1,19 +1,19 @@
-import {atom} from "jotai"
-
-import {addColumnAtom, currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
 import {
     collectKeyPaths,
     extractAgData,
-    filterDataPaths,
     matchColumnsWithSuggestions,
-    traceSpan,
+    traceSpanMolecule,
     type TraceSpan,
-} from "@/oss/state/entities/trace"
+} from "@agenta/entities/trace"
+import {atom} from "jotai"
+
+import {addColumnAtom, currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
 import {
     resetSelectionAtom,
     selectedRevisionIdAtom as sharedSelectedRevisionIdAtom,
 } from "@/oss/state/testsetSelection"
 
+import {MAX_TRACE_ANALYSIS_SAMPLE_SIZE} from "../assets/constants"
 import {createMappingId, type Mapping, type TestsetTraceData} from "../assets/types"
 
 import {
@@ -103,9 +103,9 @@ export const previewEntityIdsAtom = atom<string[]>([])
  *
  * This is the reactive source of truth for trace data. It reads from:
  * - traceSpanIdsAtom: list of span IDs to render
- * - traceSpan.selectors.data: entity state (server data + draft merged)
- * - traceSpan.selectors.isDirty: whether span has been edited
- * - traceSpan.selectors.query: query state with server data (for originalData field)
+ * - traceSpanMolecule.selectors.data: entity state (server data + draft merged)
+ * - traceSpanMolecule.selectors.isDirty: whether span has been edited
+ * - traceSpanMolecule.selectors.query: query state with server data (for originalData field)
  *
  * When entities update (e.g., from fetch completing or drafts being set),
  * this atom automatically re-computes, and all dependent components re-render.
@@ -116,8 +116,8 @@ export const traceDataFromEntitiesAtom = atom((get): TestsetTraceData[] => {
     const spanIds = get(traceSpanIdsAtom)
 
     return spanIds.map((spanId, index) => {
-        const entity = get(traceSpan.selectors.data(spanId))
-        const isDirty = get(traceSpan.selectors.isDirty(spanId))
+        const entity = get(traceSpanMolecule.selectors.data(spanId))
+        const isDirty = get(traceSpanMolecule.selectors.isDirty(spanId))
 
         if (!entity) {
             // Entity not yet loaded - return placeholder
@@ -130,13 +130,17 @@ export const traceDataFromEntitiesAtom = atom((get): TestsetTraceData[] => {
             }
         }
 
-        // Extract ag.data from entity attributes
+        // Testcase mirrors the source workflow's envelope: `inputs` and `outputs`
+        // columns hold ag.data.inputs and ag.data.outputs verbatim. For evaluator
+        // annotation spans that means `inputs` naturally contains the nested
+        // subject data — that's the evaluator workflow's actual input shape,
+        // and preserving it keeps replay honest.
         const agData = extractAgData(entity)
 
-        // Get original data for comparison/revert if dirty
+        // Get original data for comparison/revert if dirty.
         let originalData: Record<string, any> | null = null
         if (isDirty) {
-            const queryState = get(traceSpan.selectors.query(spanId))
+            const queryState = get(traceSpanMolecule.selectors.query(spanId))
             const serverData = queryState.data
             if (serverData) {
                 originalData = extractAgData(serverData)
@@ -249,7 +253,7 @@ export const removeTraceDataAtom = atom(null, (get, set, traceKey: string) => {
     set(traceSpanIdsAtom, remainingSpanIds)
 
     // Discard any draft for the removed span
-    set(traceSpan.actions.discard, traceKey)
+    set(traceSpanMolecule.actions.discard, traceKey)
 
     if (remainingSpanIds.length > 0) {
         // Find the next span to preview
@@ -278,7 +282,7 @@ export const removeTraceDataAtom = atom(null, (get, set, traceKey: string) => {
  *
  * Flow:
  * 1. Store span IDs in traceSpanIdsAtom
- * 2. Components read from traceSpan.selectors.data(spanId) which triggers fetch
+ * 2. Components read from traceSpanMolecule.selectors.data(spanId) which triggers fetch
  * 3. traceDataFromEntitiesAtom derives data from entity controller (reactive)
  *
  * Note: traceDataAtom is deprecated - use traceDataFromEntitiesAtom instead
@@ -453,19 +457,11 @@ export const updateEditedTraceAtom = atom(
     ) => {
         const {updatedData, format, parseYaml, getValueAtPath} = params
         const spanId = get(rowDataPreviewAtom)
-        const currentEntity = get(traceSpan.selectors.data(spanId))
-        const queryState = get(traceSpan.selectors.query(spanId))
+        const currentEntity = get(traceSpanMolecule.selectors.data(spanId))
+        const queryState = get(traceSpanMolecule.selectors.query(spanId))
         const serverState = queryState.data
 
-        console.log("[updateEditedTraceAtom] Called", {
-            hasUpdatedData: !!updatedData,
-            spanId,
-            hasEntity: !!currentEntity,
-            hasGetValueAtPath: !!getValueAtPath,
-        })
-
         if (!updatedData || !spanId || !currentEntity) {
-            console.log("[updateEditedTraceAtom] Early return - no data or entity")
             return {success: false, error: "No data to update"}
         }
 
@@ -481,10 +477,6 @@ export const updateEditedTraceAtom = atom(
             // Extract the data property (editor wraps in {data: ...})
             const newAgData = (parsedUpdatedData as {data: Record<string, any>}).data
 
-            console.log("[updateEditedTraceAtom] Parsed data", {
-                newAgData,
-            })
-
             // Get current and original ag.data for comparison
             const currentAgData = extractAgData(currentEntity)
             const originalAgData = serverState ? extractAgData(serverState) : currentAgData
@@ -498,22 +490,14 @@ export const updateEditedTraceAtom = atom(
             const currentString = JSON.stringify(normalizedCurrent)
             const originalString = JSON.stringify(normalizedOriginal)
 
-            console.log("[updateEditedTraceAtom] Comparing data", {
-                updatedPreview: updatedString.slice(0, 100),
-                currentPreview: currentString.slice(0, 100),
-                isEqual: updatedString === currentString,
-            })
-
             // No change
             if (updatedString === currentString) {
-                console.log("[updateEditedTraceAtom] No changes detected")
                 return {success: false, error: "No changes detected"}
             }
 
             // If reverting to original, discard draft instead
             if (updatedString === originalString) {
-                console.log("[updateEditedTraceAtom] Reverting to original - discarding draft")
-                set(traceSpan.actions.discard, spanId)
+                set(traceSpanMolecule.actions.discard, spanId)
             } else {
                 // Update entity draft with new ag.data
                 // The draft system expects attributes, so we build the new attributes
@@ -522,18 +506,13 @@ export const updateEditedTraceAtom = atom(
                     "ag.data": newAgData,
                 }
 
-                console.log("[updateEditedTraceAtom] Setting entity draft", {spanId})
-                set(traceSpan.actions.update, spanId, newAttributes)
+                set(traceSpanMolecule.actions.update, spanId, newAttributes)
             }
 
             // Update local entities to reflect the edited data in preview table
             if (getValueAtPath) {
                 const mappings = get(mappingDataAtom)
                 const traceData = get(traceDataFromEntitiesAtom)
-
-                console.log("[updateEditedTraceAtom] Updating local entities", {
-                    mappingsCount: mappings.length,
-                })
 
                 // eslint-disable-next-line @typescript-eslint/no-require-imports
                 const {updateAllLocalEntitiesAtom} = require("./localEntities")
@@ -542,7 +521,6 @@ export const updateEditedTraceAtom = atom(
                     mappings,
                     getValueAtPath,
                 })
-                console.log("[updateEditedTraceAtom] Local entities updated")
             }
 
             return {success: true}
@@ -575,16 +553,14 @@ export const revertEditedTraceAtom = atom(
     ) => {
         const {getValueAtPath} = params
         const spanId = get(rowDataPreviewAtom)
-        const isDirty = get(traceSpan.selectors.isDirty(spanId))
+        const isDirty = get(traceSpanMolecule.selectors.isDirty(spanId))
 
         if (!spanId || !isDirty) {
             return {success: false, error: "No changes to revert"}
         }
 
         // Discard the entity draft to revert to server state
-        set(traceSpan.actions.discard, spanId)
-
-        console.log("[revertEditedTraceAtom] Discarded draft for span", spanId)
+        set(traceSpanMolecule.actions.discard, spanId)
 
         // Update local entities to reflect the reverted data
         if (getValueAtPath) {
@@ -617,7 +593,7 @@ export const cachedSpansAtom = atom((get) => {
     const spans = new Map<string, TraceSpan>()
 
     for (const spanId of spanIds) {
-        const span = get(traceSpan.selectors.data(spanId))
+        const span = get(traceSpanMolecule.selectors.data(spanId))
         if (span) {
             spans.set(spanId, span)
         }
@@ -630,7 +606,7 @@ export const cachedSpansAtom = atom((get) => {
  * Derived: Get a specific span from the entity cache
  * Usage: const span = useAtomValue(spanByIdAtomFamily(spanId))
  */
-export const spanByIdAtomFamily = traceSpan.selectors.data
+export const spanByIdAtomFamily = traceSpanMolecule.selectors.data
 
 // ============================================================================
 // AUTO-MAPPING DERIVED ATOMS
@@ -644,9 +620,10 @@ export const spanByIdAtomFamily = traceSpan.selectors.data
  */
 export const allTracePathsAtom = atom((get) => {
     const traceData = get(traceDataFromEntitiesAtom)
+    const sampledTraceData = traceData.slice(0, MAX_TRACE_ANALYSIS_SAMPLE_SIZE)
 
     const uniquePaths = new Set<string>()
-    traceData.forEach((traceItem) => {
+    sampledTraceData.forEach((traceItem) => {
         // Include object paths (true) so users can manually select them
         const traceKeys = collectKeyPaths(traceItem?.data, "data", true)
         traceKeys.forEach((key) => uniquePaths.add(key))
@@ -665,30 +642,30 @@ export const allTracePathsSelectOptionsAtom = atom((get) => {
 })
 
 /**
- * Derived: Leaf-only paths from trace data (no intermediate object paths)
- * Used for auto-mapping logic to avoid duplicate column mappings
- * Uses entity-derived trace data for reactive updates
+ * Derived: Canonical auto-mapping paths — `data.inputs` and `data.outputs`
+ * if present in any sampled trace.
+ *
+ * A testcase is a snapshot of one workflow invocation's envelope, so the
+ * default mapping is exactly the envelope's two top-level slots. Users can
+ * still manually select deeper paths via the AutoComplete dropdown
+ * (`allTracePathsAtom`), but we never auto-suggest leaf expansions — that
+ * shreds the envelope and breaks replay.
  */
-export const leafTracePathsAtom = atom((get) => {
+export const canonicalTracePathsAtom = atom((get) => {
     const traceData = get(traceDataFromEntitiesAtom)
+    const sampledTraceData = traceData.slice(0, MAX_TRACE_ANALYSIS_SAMPLE_SIZE)
 
-    const uniquePaths = new Set<string>()
-    traceData.forEach((traceItem) => {
-        // Don't include object paths (false) for auto-mapping
-        const traceKeys = collectKeyPaths(traceItem?.data, "data", false)
-        traceKeys.forEach((key) => uniquePaths.add(key))
-    })
+    const hasInputs = sampledTraceData.some(
+        (item) => item?.data && (item.data as Record<string, unknown>).inputs !== undefined,
+    )
+    const hasOutputs = sampledTraceData.some(
+        (item) => item?.data && (item.data as Record<string, unknown>).outputs !== undefined,
+    )
 
-    return Array.from(uniquePaths)
-})
-
-/**
- * Derived: Filtered data paths from trace data (inputs/outputs/internals only)
- * Used for auto-mapping logic - uses leaf paths only to avoid duplicates
- */
-export const traceDataPathsAtom = atom((get) => {
-    const leafPaths = get(leafTracePathsAtom)
-    return filterDataPaths(leafPaths)
+    const paths: string[] = []
+    if (hasInputs) paths.push("data.inputs")
+    if (hasOutputs) paths.push("data.outputs")
+    return paths
 })
 
 /**
@@ -715,7 +692,7 @@ export const availableColumnsAtom = atom((get) => {
  * Returns suggested mappings that match data paths to existing or new columns
  */
 export const autoMappingSuggestionsAtom = atom((get) => {
-    const dataPaths = get(traceDataPathsAtom)
+    const dataPaths = get(canonicalTracePathsAtom)
     const availableColumns = get(availableColumnsAtom)
     const testsetInfo = get(selectedTestsetInfoAtom)
 
@@ -745,7 +722,7 @@ export const autoMappedTestsetIdAtom = atom<string | null>(null)
  * This is a pure derivation - no side effects
  */
 export const computedMappingSuggestionsAtom = atom((get) => {
-    const dataPaths = get(traceDataPathsAtom)
+    const dataPaths = get(canonicalTracePathsAtom)
     const testsetInfo = get(selectedTestsetInfoAtom)
     const isNewTestset = get(isNewTestsetAtom)
     const entityColumns = get(currentColumnsAtom)
@@ -813,7 +790,7 @@ export const applyAutoMappingAtom = atom(
             return null
         }
 
-        const dataPaths = get(traceDataPathsAtom)
+        const dataPaths = get(canonicalTracePathsAtom)
         const isNewTestset = get(isNewTestsetAtom)
         const currentMappings = get(mappingDataAtom)
 
@@ -941,11 +918,13 @@ export const executeAutoMappingAtom = atom(null, (get, set) => {
  */
 export const hasDifferentStructureAtom = atom((get) => {
     const traceData = get(traceDataFromEntitiesAtom)
-    if (traceData.length <= 1) return false
+    const sampledTraceData = traceData.slice(0, MAX_TRACE_ANALYSIS_SAMPLE_SIZE)
 
-    const referencePaths = collectKeyPaths(traceData[0].data).sort().join(",")
-    for (let i = 1; i < traceData.length; i++) {
-        const currentPaths = collectKeyPaths(traceData[i].data).sort().join(",")
+    if (sampledTraceData.length <= 1) return false
+
+    const referencePaths = collectKeyPaths(sampledTraceData[0].data).sort().join(",")
+    for (let i = 1; i < sampledTraceData.length; i++) {
+        const currentPaths = collectKeyPaths(sampledTraceData[i].data).sort().join(",")
         if (currentPaths !== referencePaths) {
             return true
         }

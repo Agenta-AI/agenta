@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from supertokens_python import get_all_cors_headers as get_all_supertokens_cors_headers
 from supertokens_python.framework.fastapi import (
     get_middleware as get_supertokens_middleware,
@@ -10,8 +11,6 @@ from supertokens_python.framework.fastapi import (
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
-
-from oss.src.open_api import open_api_tags_metadata
 
 from oss.databases.postgres.migrations.core.utils import (
     check_for_new_migrations as check_for_new_core_migrations,
@@ -22,10 +21,6 @@ from oss.databases.postgres.migrations.tracing.utils import (
 
 from oss.src.services.auth_service import authentication_middleware
 from oss.src.services.analytics_service import analytics_middleware
-from oss.src.services.legacy_adapter import (
-    configure_legacy_adapter,
-    configure_legacy_environments_adapter,
-)
 
 from oss.src.core.auth.supertokens.config import init_supertokens
 
@@ -69,8 +64,6 @@ from oss.src.core.secrets.services import VaultService
 from oss.src.core.webhooks.service import WebhooksService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.events.service import EventsService
-from oss.src.core.invocations.service import InvocationsService
-from oss.src.core.annotations.service import AnnotationsService
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.testsets.service import SimpleTestsetsService
@@ -80,6 +73,7 @@ from oss.src.core.applications.service import ApplicationsService
 from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.service import SimpleWorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.environments.service import EnvironmentsService
@@ -88,6 +82,7 @@ from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.service import SimpleEvaluationsService
 from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.evaluations.service import SimpleQueuesService
+from oss.src.core.tracing.service import SimpleTracesService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
@@ -98,8 +93,6 @@ from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.tracing.router import TracesRouter
 from oss.src.apis.fastapi.tracing.router import SpansRouter
 from oss.src.apis.fastapi.events.router import EventsRouter
-from oss.src.apis.fastapi.invocations.router import InvocationsRouter
-from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.testcases.router import TestcasesRouter
 from oss.src.apis.fastapi.testsets.router import TestsetsRouter
 from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
@@ -109,16 +102,26 @@ from oss.src.apis.fastapi.applications.router import ApplicationsRouter
 from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.apis.fastapi.folders.router import FoldersRouter
 from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
+from oss.src.apis.fastapi.workflows.router import SimpleWorkflowsRouter
 from oss.src.apis.fastapi.evaluators.router import EvaluatorsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 from oss.src.apis.fastapi.environments.router import EnvironmentsRouter
 from oss.src.apis.fastapi.environments.router import SimpleEnvironmentsRouter
+from oss.src.apis.fastapi.legacy_variants.router import LegacyVariantsRouter
 from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
+from oss.src.apis.fastapi.traces.router import SimpleTracesRouter
+from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
+from oss.src.apis.fastapi.invocations.router import InvocationsRouter
+from oss.src.core.annotations.service import AnnotationsService
+from oss.src.core.invocations.service import InvocationsService
 
 from oss.src.core.ai_services.service import AIServicesService
 from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
+
+from oss.src.core.accounts.service import PlatformAdminAccountsService
+from oss.src.apis.fastapi.accounts.router import PlatformAdminAccountsRouter
 from oss.src.dbs.postgres.tools.dao import ToolsDAO
 from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
@@ -127,19 +130,13 @@ from oss.src.apis.fastapi.tools.router import ToolsRouter
 
 
 from oss.src.routers import (
-    admin_router,
-    app_router,
-    environment_router,
     user_profile,
-    variants_router,
-    configs_router,
     health_router,
     permissions_router,
     projects_router,
     api_key_router,
     organization_router,
     workspace_router,
-    container_router,
 )
 
 from oss.src.utils.env import env
@@ -186,9 +183,134 @@ async def lifespan(*args, **kwargs):
         await adapter.close()
 
 
+_OPENAPI_TAGS = [
+    {
+        "name": "Status",
+        "description": "API server liveness and readiness status.",
+    },
+    # --
+    {
+        "name": "Organizations",
+        "description": "Manage organizations, workspaces, SSO domains, and identity providers.",
+    },
+    {
+        "name": "Workspaces",
+        "description": "Manage workspaces within an organization and their members.",
+    },
+    {
+        "name": "Projects",
+        "description": "Manage projects within a workspace.",
+    },
+    # --
+    {
+        "name": "Users",
+        "description": "User profile and account management — view profile, update username, reset password.",
+    },
+    # --
+    {
+        "name": "Keys",
+        "description": "Create and revoke API keys used to authenticate programmatic requests.",
+    },
+    # --
+    {
+        "name": "Workflows",
+        "description": "Workflow definitions — the runnable pipelines that back an application.",
+    },
+    {
+        "name": "Applications",
+        "description": "LLM applications — create, update, list, and delete apps.",
+    },
+    {
+        "name": "Evaluators",
+        "description": "Evaluator definitions — the metrics and judges used in evaluation runs.",
+    },
+    # --
+    {
+        "name": "Testsets",
+        "description": "Test datasets — collections of input/output pairs used in evaluations.",
+    },
+    {
+        "name": "Testcases",
+        "description": "Individual test cases within a testset.",
+    },
+    # --
+    {
+        "name": "Queries",
+        "description": "Saved query definitions used to filter and retrieve trace data.",
+    },
+    {
+        "name": "Traces",
+        "description": "Ingest and query traces, spans, and metrics from running applications.",
+    },
+    {
+        "name": "Invocations",
+        "description": "Run an application against a payload and capture the resulting trace.",
+    },
+    {
+        "name": "Annotations",
+        "description": "Attach evaluator-style feedback to existing traces and spans.",
+    },
+    # --
+    {
+        "name": "Evaluations",
+        "description": "Evaluation runs — execute evaluators against variants and testsets.",
+    },
+    # --
+    {
+        "name": "Environments",
+        "description": "Deployment environments (e.g. production, staging) and their active variants.",
+    },
+    # --
+    {
+        "name": "Secrets",
+        "description": "Manage provider credentials and secret values stored in the vault.",
+    },
+    # --
+    {
+        "name": "Tools",
+        "description": "External tool connections and OAuth integrations available to applications.",
+    },
+    # --
+    {
+        "name": "Folders",
+        "description": "Organize applications and other resources into folder hierarchies.",
+    },
+    # --
+    # {
+    #     "name": "Events",
+    #     "description": "Structured event ingestion for analytics and audit purposes.",
+    # },
+    {
+        "name": "Webhooks",
+        "description": "Register and manage webhooks that fire on platform events.",
+    },
+    # --
+    {
+        "name": "OpenTelemetry",
+        "description": "OTLP-compatible endpoints for ingesting traces directly from OpenTelemetry-instrumented services.",
+    },
+    # --
+    # Billing inserted here by EE (extend_app_schema)
+    # --
+    {
+        "name": "Admin",
+        "description": "Internal administration endpoints — restricted to platform operators.",
+    },
+    # --
+    {
+        "name": "Legacy",
+        "description": "Stable legacy endpoints retained for existing integrations — not deprecated, but new integrations should prefer the canonical surface.",
+    },
+    # --
+    {
+        "name": "Deprecated",
+        "description": "Deprecated endpoints kept for backwards compatibility — avoid in new integrations.",
+    },
+]
+
 app = FastAPI(
     lifespan=lifespan,
-    openapi_tags=open_api_tags_metadata,
+    openapi_tags=_OPENAPI_TAGS,
     root_path="/api",
 )
 # MIDDLEWARE -------------------------------------------------------------------
@@ -201,6 +323,8 @@ if is_ee():
 
 app.middleware("http")(authentication_middleware)
 app.middleware("http")(analytics_middleware)
+
+app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 
 app.add_middleware(
     get_supertokens_middleware(),
@@ -341,7 +465,8 @@ embeds_service = EmbedsService(
     evaluators_service=evaluators_service,
 )
 
-# Inject embeds_service into all services that need it
+# Inject cross-service dependencies
+workflows_service.environments_service = environments_service
 workflows_service.embeds_service = embeds_service
 environments_service.embeds_service = embeds_service
 applications_service.embeds_service = embeds_service
@@ -351,19 +476,18 @@ simple_evaluators_service = SimpleEvaluatorsService(
     evaluators_service=evaluators_service,
 )
 
-simple_environments_service = SimpleEnvironmentsService(
-    environments_service=environments_service,
+simple_traces_service = SimpleTracesService(
+    tracing_service=tracing_service,
+    evaluators_service=evaluators_service,
+    simple_evaluators_service=simple_evaluators_service,
 )
 
-# Ensure legacy adapters reuse the same pre-wired services (including embeds_service).
-configure_legacy_adapter(
-    applications_service=applications_service,
-    simple_applications_service=simple_applications_service,
+simple_workflows_service = SimpleWorkflowsService(
+    workflows_service=workflows_service,
 )
-configure_legacy_environments_adapter(
+
+simple_environments_service = SimpleEnvironmentsService(
     environments_service=environments_service,
-    simple_environments_service=simple_environments_service,
-    applications_service=applications_service,
 )
 
 evaluations_service = EvaluationsService(
@@ -419,7 +543,9 @@ webhooks = WebhooksRouter(
     webhooks_service=webhooks_service,
 )
 
-otlp = OTLPRouter()
+otlp = OTLPRouter(
+    tracing_service=tracing_service,
+)
 
 tracing = TracingRouter(
     tracing_service=tracing_service,
@@ -462,6 +588,7 @@ simple_queries = SimpleQueriesRouter(
 
 applications = ApplicationsRouter(
     applications_service=applications_service,
+    environments_service=environments_service,
 )
 
 simple_applications = SimpleApplicationsRouter(
@@ -474,10 +601,16 @@ folders = FoldersRouter(
 
 workflows = WorkflowsRouter(
     workflows_service=workflows_service,
+    environments_service=environments_service,
+)
+
+simple_workflows = SimpleWorkflowsRouter(
+    simple_workflows_service=simple_workflows_service,
 )
 
 evaluators = EvaluatorsRouter(
     evaluators_service=evaluators_service,
+    environments_service=environments_service,
 )
 
 simple_evaluators = SimpleEvaluatorsRouter(
@@ -490,6 +623,11 @@ environments = EnvironmentsRouter(
 
 simple_environments = SimpleEnvironmentsRouter(
     simple_environments_service=simple_environments_service,
+)
+
+legacy_variants = LegacyVariantsRouter(
+    applications_service=applications_service,
+    environments_service=environments_service,
 )
 
 evaluations = EvaluationsRouter(
@@ -509,24 +647,26 @@ tools = ToolsRouter(
     tools_service=tools_service,
 )
 
-invocations_service = InvocationsService(
-    tracing_service=tracing_service,
-    applications_service=applications_service,
-    simple_applications_service=simple_applications_service,
+simple_traces = SimpleTracesRouter(
+    simple_traces_service=simple_traces_service,
 )
 
 annotations_service = AnnotationsService(
-    tracing_service=tracing_service,
     evaluators_service=evaluators_service,
     simple_evaluators_service=simple_evaluators_service,
+    tracing_service=tracing_service,
 )
-
-invocations = InvocationsRouter(
-    invocations_service=invocations_service,
-)
-
 annotations = AnnotationsRouter(
     annotations_service=annotations_service,
+)
+
+invocations_service = InvocationsService(
+    applications_service=applications_service,
+    simple_applications_service=simple_applications_service,
+    tracing_service=tracing_service,
+)
+invocations = InvocationsRouter(
+    invocations_service=invocations_service,
 )
 
 # AI SERVICES ------------------------------------------------------------------
@@ -536,13 +676,27 @@ ai_services = AIServicesRouter(
     ai_services_service=ai_services_service,
 )
 
+# PLATFORM ADMIN ---------------------------------------------------------------
+
+platform_admin_accounts_service = PlatformAdminAccountsService()
+platform_admin_accounts = PlatformAdminAccountsRouter(
+    accounts_service=platform_admin_accounts_service,
+)
+
 # MOUNTING ROUTERS TO APP ROUTES -----------------------------------------------
 
 app.include_router(
     router=secrets.router,
-    prefix="/vault/v1",
     tags=["Secrets"],
 )
+
+## DEPRECATED
+app.include_router(
+    router=secrets.router,
+    prefix="/vault/v1",
+    include_in_schema=False,
+)
+## DEPRECATED
 
 app.include_router(
     router=webhooks.router,
@@ -553,13 +707,13 @@ app.include_router(
 app.include_router(
     router=otlp.router,
     prefix="/otlp/v1",
-    tags=["Observability"],
+    tags=["OpenTelemetry"],
 )
 
 app.include_router(
     router=auth_router,
     prefix="/auth",
-    tags=["Auth"],
+    tags=["Access"],
 )
 
 ## DEPRECATED
@@ -567,6 +721,7 @@ app.include_router(
     router=tracing.router,
     prefix="/preview/tracing",
     tags=["Deprecated"],
+    deprecated=True,
     include_in_schema=False,
 )
 ## DEPRECATED
@@ -574,25 +729,68 @@ app.include_router(
 app.include_router(
     router=tracing.router,
     prefix="/tracing",
-    tags=["Observability"],
+    tags=["Deprecated"],
+    deprecated=True,
+)
+
+app.include_router(
+    router=tracing.legacy_router,
+    prefix="/tracing",
+    tags=["Legacy"],
+)
+
+app.include_router(
+    router=traces.router,
+    prefix="/traces",
+    tags=["Traces"],
+)
+
+app.include_router(
+    router=traces.deprecated_router,
+    prefix="/traces",
+    tags=["Deprecated"],
 )
 
 app.include_router(
     router=traces.router,
     prefix="/preview/traces",
-    tags=["Observability"],
+    tags=["Deprecated"],
+    deprecated=True,
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=spans.router,
+    prefix="/spans",
+    tags=["Traces"],
 )
 
 app.include_router(
     router=spans.router,
     prefix="/preview/spans",
-    tags=["Observability"],
+    tags=["Deprecated"],
+    deprecated=True,
+    include_in_schema=False,
 )
 
 app.include_router(
     router=events.router,
     prefix="/events",
     tags=["Events"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_traces.router,
+    prefix="/simple/traces",
+    tags=["Traces"],
+)
+
+app.include_router(
+    router=simple_traces.router,
+    prefix="/preview/simple/traces",
+    tags=["Traces"],
+    include_in_schema=False,
 )
 
 app.include_router(
@@ -732,9 +930,22 @@ app.include_router(
 )
 
 app.include_router(
+    router=simple_workflows.router,
+    prefix="/simple/workflows",
+    tags=["Workflows"],
+)
+
+app.include_router(
+    router=simple_workflows.router,
+    prefix="/preview/simple/workflows",
+    tags=["Workflows"],
+    include_in_schema=False,
+)
+
+app.include_router(
     router=ai_services.router,
     prefix="/ai/services",
-    tags=["AI Services"],
+    include_in_schema=False,
 )
 
 app.include_router(
@@ -765,7 +976,20 @@ app.include_router(
 
 app.include_router(
     router=environments.router,
+    prefix="/environments",
+    tags=["Environments"],
+)
+
+app.include_router(
+    router=environments.router,
     prefix="/preview/environments",
+    tags=["Environments"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_environments.router,
+    prefix="/simple/environments",
     tags=["Environments"],
 )
 
@@ -773,18 +997,33 @@ app.include_router(
     router=simple_environments.router,
     prefix="/preview/simple/environments",
     tags=["Environments"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=legacy_variants.router,
+    prefix="/variants",
+    tags=["Deprecated"],
+)
+
+app.include_router(
+    router=tools.router,
+    prefix="/tools",
+    tags=["Tools"],
 )
 
 app.include_router(
     router=tools.router,
     prefix="/preview/tools",
     tags=["Tools"],
+    include_in_schema=False,
 )
 
 app.include_router(
     router=evaluations.admin_router,
     prefix="/admin/evaluations",
     tags=["Evaluations", "Admin"],
+    include_in_schema=False,
 )
 
 app.include_router(
@@ -815,12 +1054,19 @@ app.include_router(
 
 app.include_router(
     router=simple_queues.router,
-    prefix="/preview/simple/queues",
+    prefix="/simple/queues",
     tags=["Evaluations"],
 )
 
 app.include_router(
-    admin_router.router,
+    router=simple_queues.router,
+    prefix="/preview/simple/queues",
+    tags=["Evaluations"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=platform_admin_accounts.router,
     prefix="/admin",
     tags=["Admin"],
 )
@@ -828,71 +1074,42 @@ app.include_router(
 app.include_router(
     health_router.router,
     prefix="/health",
+    tags=["Status"],
 )
 
 app.include_router(
     permissions_router.router,
     prefix="/permissions",
-    tags=["Access Control"],
+    tags=["Access"],
 )
 
 app.include_router(
     projects_router.router,
     prefix="/projects",
-    tags=["Scopes"],
+    tags=["Projects"],
 )
 
 app.include_router(
     user_profile.router,
     prefix="/profile",
-)
-
-app.include_router(
-    app_router.router,
-    prefix="/apps",
-    tags=["Apps"],
-)
-
-app.include_router(
-    variants_router.router,
-    prefix="/variants",
-    tags=["Variants"],
-)
-
-app.include_router(
-    container_router.router,
-    prefix="/containers",
-    tags=["Containers"],
-)
-
-app.include_router(
-    environment_router.router,
-    prefix="/environments",
-    tags=["Environments"],
-)
-
-app.include_router(
-    configs_router.router,
-    prefix="/configs",
-    tags=["Configs"],
+    tags=["Users"],
 )
 
 app.include_router(
     api_key_router.router,
-    prefix="/keys",
-    tags=["Api Keys"],
+    tags=["Keys"],
 )
 
 app.include_router(
     organization_router.router,
     prefix="/organizations",
-    tags=["Organization"],
+    tags=["Organizations"],
 )
 
 app.include_router(
     workspace_router.router,
     prefix="/workspaces",
-    tags=["Workspace"],
+    tags=["Workspaces"],
 )
 
 # ------------------------------------------------------------------------------

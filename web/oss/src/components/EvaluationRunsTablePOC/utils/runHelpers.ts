@@ -25,7 +25,7 @@ export const resolveRowAppId = (
 
 export const deletePreviewRuns = async (projectId: string | null | undefined, runIds: string[]) => {
     if (!projectId || runIds.length === 0) return
-    await axios.delete(`/preview/evaluations/runs/`, {
+    await axios.delete(`/evaluations/runs/`, {
         params: {project_id: projectId},
         data: {run_ids: runIds},
     })

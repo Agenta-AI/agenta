@@ -5,7 +5,7 @@ description: "Get Projects"
 sidebar_label: "Get Projects"
 hide_title: true
 hide_table_of_contents: true
-api: eJytVU1v2zAM/SsGz0KS7ejTAmzoggJr0a7YITACRmZitbKl6qNbZvi/D/RXHK8ohm25JLEeHx8fKbqGgEcP6RbupbHkIRNgLDkMylSbHFI4UthZZx5JBg8CHHlrKk8e0hrer1b8lZOXTlkOgRTuo5Tk/SHq5K4HgwBpqkBVYDhaq5VsMywfPcfU4GVBJfIvFahsya1jIUF1qYw7YqV+tlE7lbc81enmAOm2hnCyBCn44FR1BAEH40oMkEKMKodGjIgqag1NJiCooPnBzYQ22TD2MlOFJb2V64+5vzBRI+C7cU/eoqT/WMS3gbOv4JzjX+SfWQft/Rj0yt/We+a57aJ6bQPHoGzOMo8aciu/y+mAUY/TOIneG6MJq0n4xicfO3jSM4GAngDSA2pPjYDoye2c0X/t0YMnl9wxwSCxNK9yDQrfIms1lwaaRgwYs++lO3qOylHON3XShpmf2W/++fEKnknROTxNvBogyRWNbnlo+CNmd/sCIaCkUJh+SbAWDAWksJysC0/uhZxvrYhO8yla1drQ/S1CsD5dLikupDYxX+CRqoALVB0wYw4ZnQqnlmR9u7mm02fCnByk22wKuOcl0q2LS9joOVp1TVx7N36wjqEwrr+jIEBxkUUXxdWr6tD2c7Bq3YpL1rcbEMCFdbasFu8WK5ibdQHm/Yfd0A6522MQMyPG+kEAlaj4LBCWH84HrMwaH0qsJnyz3lxoGQ0I9CMsrUbFo9hlrvu+jYPVvgQK4wM/q+s9enpwumn48XMkx43IBLygU7hnW7ZZIwbXuEdPdOL6pCTLY/GCOnbmz/Y+924coatPX6FpfgFwRj4u
+api: eJytVNtu00AQ/RVrnld14NFPRAJBVIlWLRUPkRVN7Em87dq73UshWP53NOtLHIMqBOQlyc7MmTNnLi14PDrItnBr9SMV3kEuQBuy6KVuNiVkcCS/M6NVgCVndOPIQdbC29WKv0pyhZWGQyCD+1AU5NwhqORucAYBhW48NZ7d0Rgli5ghfXQc04IrKqqRf0lPdQQ3lol42afS9oiN/BGjdrKMOM3p5gDZtgV/MgQZOG9lcwQBB21r9JBBCLKETkweTVAKulyAl17xw80MNtmw72WmBmt6LdcfY39moE7AN22fnMGC/mMRX0fMoYJzjn+hf0YduQ9jMDB/ne8ZZxitgduIMTJboiyjxtzS7Uo6YFDTNM6i91orwmYWvnHJ+949GZBAwAAA2QGVo05AcGR3Vqu/1ujBkU3uGGCkWOvfYo0MXwOLnGsNXSdGH70fqFt6DtJSybs6a8NCz/wX/dy0gmdQtBZPM61Gl+QjTWo56PgjFrt94SGgJl/p4UgwF/QVZJDOzoUj+0LWRSmCVWxFI6MM/d/Ke5OlqdIFqko735tzjiyClf4UQ9e3m2s6fSIsyUK2zecO93w6+iNx6TYpjUZeE1fcDx2sg6+0HTYTBEgureqjuGbZHGIXR4HWR2o8JuvbDSwFuTDxjcN+MMdM0QxiVqzL0hTj8xXKFARQjZKNnrB+N1m4X6xcn2Z19eZqFddHO19jM0uxaMkFvUkBT999ahRKnsCeTDu0a5qnePu5BfzWtnt09GBV1/HzcyDLncgFvKCVuGddtnknRtm4SU904pKLggxPwwuq0Ku/OPfcvGlyPn74Al33EybQO9s=
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -45,16 +46,13 @@ Get Projects
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./get-projects.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"properties":{"organization_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Organization Id"},"organization_name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Organization Name"},"workspace_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Workspace Id"},"workspace_name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Workspace Name"},"project_id":{"type":"string","format":"uuid","title":"Project Id"},"project_name":{"type":"string","title":"Project Name"},"is_default_project":{"type":"boolean","title":"Is Default Project","default":false},"user_role":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"User Role"},"is_demo":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Is Demo"}},"type":"object","required":["project_id","project_name"],"title":"ProjectsResponse"},"type":"array","title":"Response Get Projects"}}}}}}
+  {...require("./get-projects.StatusCodes.json")}
 >
   
 </StatusCodes>

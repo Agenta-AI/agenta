@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {executionController} from "@agenta/playground"
 import {useAtomValue} from "jotai"
 
@@ -39,7 +39,9 @@ const PlaygroundGenerations: React.FC<PlaygroundGenerationsProps> = ({
 }) => {
     // Use app-level chat mode detection (first revision) for rendering mode
     const isChat = useAtomValue(useMemo(() => executionController.selectors.isChatMode, []))
-    const runnableQuery = useAtomValue(useMemo(() => runnableBridge.query(entityId), [entityId]))
+    const runnableQuery = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.query(entityId), [entityId]),
+    )
     const isExecutionLoading = runnableQuery.isPending || isChat === undefined
 
     if (isExecutionLoading) {

@@ -11,13 +11,13 @@ This PR aligns loadables retrieval behavior across testsets/queries, removes sta
 1. Fixed `_populate_testcases(...)` call-site argument binding bugs by switching to keyword arguments.
 2. Added deterministic ID-level windowing support for testset revision retrieval (`order`, `next`, `limit`) when enumerating `testcase_ids`.
 3. Kept revision retrieval semantics where `include_testcases=true` returns both `testcases` and `testcase_ids`.
-4. Updated `/preview/testsets/revisions/retrieve` caching policy to cache only when `include_testcases=false`.
+4. Updated `/testsets/revisions/retrieve` caching policy to cache only when `include_testcases=false`.
 
 ## API: Queries
 
 1. Extended query revision population to merge request pagination (`next`, `limit`) into stored windowing.
 2. Kept revision retrieval semantics where trace expansion can return both `traces` and `trace_ids`.
-3. Updated `/preview/queries/revisions/retrieve` caching policy to cache only when both `include_trace_ids=false` and `include_traces=false`.
+3. Updated `/queries/revisions/retrieve` caching policy to cache only when both `include_trace_ids=false` and `include_traces=false`.
 4. Added permission coupling: query revision retrieve with trace expansion requires trace-view permission in addition to query-view permission.
 
 ## API: Traces Router
@@ -27,10 +27,10 @@ This PR aligns loadables retrieval behavior across testsets/queries, removes sta
    - `TracesResponse`
    - `TracesQueryRequest`
 2. Removed `formatting` from `TracesQueryRequest`.
-3. Forced `/preview/traces/query` to always return Agenta trace trees (never spans/opentelemetry formatting).
+3. Forced `/traces/query` to always return Agenta trace trees (never spans/opentelemetry formatting).
 4. Removed external `TracingQuery` request contract from `TracesRouter.query_traces`; traces endpoint now consumes only `TracesQueryRequest`.
 5. Added query permission coupling for ref-dereferenced traces query (`query_ref`, `query_variant_ref`, `query_revision_ref`).
-6. Added native traces router fetch handler (`GET /preview/traces/{trace_id}`) returning `TraceResponse`.
+6. Added native traces router fetch handler (`GET /traces/{trace_id}`) returning `TraceResponse`.
 
 ## Docs
 
@@ -45,7 +45,7 @@ This PR aligns loadables retrieval behavior across testsets/queries, removes sta
 ## Behavior Summary
 
 1. Revision endpoints remain the control surface for ID/item expansion.
-2. Record endpoints (`/preview/testcases`, `/preview/traces`) remain record-returning endpoints without extra top-level ID arrays.
+2. Record endpoints (`/testcases`, `/traces`) remain record-returning endpoints without extra top-level ID arrays.
 3. Traces router now has a clean traces-only contract and response types.
 
 ## Validation

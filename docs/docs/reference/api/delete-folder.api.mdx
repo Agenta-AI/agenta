@@ -5,7 +5,7 @@ description: "Delete Folder"
 sidebar_label: "Delete Folder"
 hide_title: true
 hide_table_of_contents: true
-api: eJydVcFu2zAM/ZWApw0QkqzYyacFa4sG7bCi7XYJgkK1mVidbKkSVTQz/O8DJdtxmraHnWKbTxT53iPTAMmth2wF50YX6DysBRiLTpIy9bKADArUSHi/iXEQYKWTFRJjs1UDtawQMkjhe1WAAFVDBlZSCQIcPgXlsICMXEABPi+xkpA1QDvLBz05VW9BwMa4ShJkEELMQoo0A1Jhk2UBbbvmhN6a2qPnHCfzOf8U6HOnLJcMGdyGPEfvN0FPbjowCMhNTVgTw6W1WuWxw9mj5zPNqC7ruH9S6YbchHSoK1fVhNvIQ1/f94gQUOBGBk2QzVsBqogX1bufm8jSx822YkDUQWvgPvv0sW/Rh83DI+Z0xM6yGDptW4Z/PTk5Jua31KqIbU/OnDPu/1kpkKTS/KQIK38M0CY/iL7HxKjzntl2vW9XOid3o26vTCoQWgGV375lox76A72XW4Qh2fvQSMbkjqMsXW1DUrxXIH5oBeT0MkpzJMV35vKF3pRrPwaryE0qv8ON1N5LlBR6n4rTJMFH3ri4u7s+Spj8cWiM0zjik/N+xCuk0uxnPw49lZDBLI25nzXDvLcgwKN77vdBcJqB0qoobnotiazPZjMM01ybUEzlFmuSU6kScM058uAU7WKSxfXyEncXKLmebLUeA27Zk8llh7BBGWnVJTJX3W5aBCqNU3+Tdbr9VKZTbVR8Y8aCL2Jxk8X1EgRwY4ml+fTLdA6vuTsA8zjJPLqnvzuGQbwiYugfBGAVZwkIZfVtH+DKrPFUyXqU77VUB8UMDLAPZ1ZLFSclXt10Gq66Ve1BQLbf2msBpfHE8aZ5kB5/Od22/PkpoGNV1gKepVPygTlaNVAoz88FZBupPR6VMqwW+HTTuf/zBMTbJfbK1Szbs9SB30DAH9wd/LnE5VD2vmi6+CLP0dLo5NEuYwMNrj49uzq7O4O2/QcDYF1W
+api: eJydlU1v2zAMhv9KwNMGaHVW7OTTgn6gQTusaLNdgqBQbSZWJ1uqRBfNDP/3gZLtOE1bFDvZFl9RJB+KboDkxkO6hHOjc3QeVgKMRSdJmWqeQwo5aiS8Wwc7CLDSyRKJtemygUqWCClE853KQYCqIAUrqQABDh9r5TCHlFyNAnxWYCkhbYC2ljd6cqragIC1caUkSKGugxdSpFkQA5vMc2jbFTv01lQePfs4nk75kaPPnLIcMqRwW2cZer+u9eSmE4OAzFSEFbFcWqtVFjJMHjzvaUZxWcf5k4on+Npa44gT453V9uc6pL0ffSuGlarWGjjQPv7b6CEkIAZ/5N/zN6pGLgm/kCrxQ4csPB+SmTpm2slVRbgJ8Hr9SVAIyHEta02QTlsB7+f4ktB74QRYojeb+wfM6ADpPB/wtC3Lvx0fH9L8LbXKA6vJmXPG/T/KHEkqzW+KsPSHAm2yPesHaPeVbVe7dKVzcjvK9srEAJlM6Tev9X4v/YHeyw2j7iRvS0MxJgu2MrrK1pF4TyAscC/Q88jNAYoTruUzvYprd3eXoTYx/E43or1DFAm9XYrTiOC93rhYLK4PHMb+2G+M0zCXJuf9XCqRCrMbWGFSUQEpJHE2+aQZhlQLAjy6p36I1U6zUFoV4MbPgsimSaJNJnVhPEXzindmtVO0DVtn1/NL3F6g5CjS5WosuOVOjL21Lxt4SKsukSvUjdFZTYVx6m9smG6UFnFXGzivzRjzbIMVycnseg4v67Nn4isjs9Ah/UnBDGKUrE+TRIblI6kSEIBluDBAKMvvg4X5cuXiMdOjr0dTXrLGUymr0REvCe3FN5SA2y+xWqpwQUI0TYdu2f1WPAhId3+YlQDmwfamuZcefzndtrz8WKNjLCsBT9Ipec9FWjaQK8/vOaRrqT0ehDJMFPh00zX95wmI10Ps0VXM7Unqmr9AwB/c7v0Iw0wo+sZoOvssy9DSaOfBCOMOGpr59OzqbHEGbfsPHPuYJw==
 sidebar_class_name: "delete api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -42,27 +43,24 @@ Delete Folder
   id={"request"}
   as={"h2"}
   className={"openapi-tabs__heading"}
-  children={"Request"}
 >
+  <Translate id="theme.openapi.request.title">Request</Translate>
 </Heading>
 
 <ParamsDetails
-  parameters={[{"name":"folder_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Folder Id"}}]}
+  {...require("./delete-folder.ParamsDetails.json")}
 >
   
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./delete-folder.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"FolderIdResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  {...require("./delete-folder.StatusCodes.json")}
 >
   
 </StatusCodes>

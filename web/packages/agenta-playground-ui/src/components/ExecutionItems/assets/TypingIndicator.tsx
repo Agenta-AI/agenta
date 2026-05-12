@@ -11,14 +11,18 @@ const TypingIndicator: FC<{label?: string; className?: string; size?: "small" | 
 }) => {
     return (
         <div
-            className={clsx(
-                "w-full px-3 py-2 rounded-md bg-[#fafafa] text-[13px] text-gray-600",
-                "border border-solid border-[rgba(5,23,41,0.06)]",
-                className,
-            )}
+            className={clsx("w-full px-3 py-2 rounded-md text-[13px] text-[#667085bf]", className)}
         >
             <Spin
-                indicator={<LoadingOutlined style={{fontSize: size === "small" ? 12 : 14}} spin />}
+                indicator={
+                    <LoadingOutlined
+                        style={{
+                            fontSize: size === "small" ? 12 : 14,
+                            color: "rgba(102,112,133,0.75)",
+                        }}
+                        spin
+                    />
+                }
                 size={size === "small" ? "small" : "default"}
             />
             <span className="ml-2 align-middle">{label}</span>

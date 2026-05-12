@@ -68,7 +68,7 @@ const ExecutionHeader = ({
 
     const runAll = useSetAtom(executionItemController.actions.runAll)
     const cancelAll = useSetAtom(executionItemController.actions.cancelAll)
-    const clearAllRuns = useSetAtom(executionItemController.actions.clearAllRuns)
+    const clearAll = useSetAtom(executionItemController.actions.clearAll)
     const canRunAllChat = useAtomValue(executionController.selectors.canRunAllChatComparison)
 
     // Collapse toggle (single view)
@@ -149,7 +149,7 @@ const ExecutionHeader = ({
 
             <div className="flex items-center gap-2">
                 <Tooltip title="Clear all">
-                    <Button size="small" onClick={() => clearAllRuns()} disabled={isRunning}>
+                    <Button size="small" onClick={() => clearAll()} disabled={isRunning}>
                         Clear
                     </Button>
                 </Tooltip>

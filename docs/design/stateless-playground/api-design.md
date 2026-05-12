@@ -35,7 +35,7 @@ interface UriInfo {
 **App Adapter** (existing behavior):
 - `schemaAtom` = `playgroundAppSchemaAtom`
 - `uriInfoAtom` = `playgroundAppUriInfoAtom`
-- `draftPromptAtom` = `legacyAppRevisionMolecule.atoms.data(revisionId)`
+- `draftPromptAtom` = `workflowMolecule.atoms.data(revisionId)`
 - `execute` = triggers web worker with `application_id`
 
 **Stateless Adapter** (new):

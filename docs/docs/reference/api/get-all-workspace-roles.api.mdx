@@ -5,7 +5,7 @@ description: "Get all workspace roles."
 sidebar_label: "Get All Workspace Roles"
 hide_title: true
 hide_table_of_contents: true
-api: eJztVE1v2zAM/SsCz0KS7ejTcijaoDsEaYcd0qBgFSZWK0ueRKfNDP/3gUrsfABb/8B8sSU9kXyPj26BcZugWMLPEN9SjYZgpWFNyURbsw0eCrglVuiceu8hKgZHafTkn/yCuIk+KVTOJlZhk5G4Q+vwxdG/7hRPXimlvtvEyyH7IjhaUKqDT7Qq1HQIe4FQ4eWVDCcVqY6UyLP1W8UlfZYZbaI+8d3j4/zmw1CmWajZRqFXFGOIKhjTxKTeS+tIReJoaddnuI4LGkJNESXKbA0FbImf0bnnAficgaAhHoklKFr4OpnI61Lqh8YYSmnTONWrABpM8EyeBY517azJycavSe60kExJFcqXZapycFyvrWDQzaNUx/aQlPc1QQGJo/Vb6HS/cdDzbANjxD1oYMtO1n01Sswwde7UD7XI7Dp5NFTEZTiqABpq5BIKGA9apHEvRqK4oyjea6GJTlBYW+h0vyyZ61SMx9SMjAvNeoRb8owjtAfgSmKYJlre5yDT+eye9neEa4pQLFfngAeR6CDBJWyQBGt7T8LYYyXracNliPZ3lho0WGlPebglRK3fhHz9KNA0F6em8xloEGKHhk5GX0YTuJ6oC7B0F03ubp87H4O+EmLgDxqoQitnTFh9Ox1IZXVIXKE/i/e3nl2V1Z6M9n/mP5v5o22YPnhcO7Rehif3qz26fgkn18vwZ8lXGsqQWE7b9gUT/Yiu62T7V0NRjLzSsMNohU92se5dJx5/o734wwgD8Rm65mDeq7+CeH8YxdubR+i6P1O9FCA=
+api: eJztVMFuGjEQ/RVrzhZLe9xTOUQJSg+IUPVAUDQxA+vE2Ft7loSu9t+r8bIEkNr8QLmAZ954/N68oQXGbYJyCT9DfE01Gkqw0rCmZKKt2QYPJdwSK3ROvQ0YFYOjNHr0j35O3ESfFCpnE6uwyUjco3X47OhfNeWjV0qp7zbx8tR+HhzNKdXBJ1qVanK69gKhwvMLGU4qUh0pkWfrt4or+qwz2kRD47vFYnbzbijTLNV0o9ArijFEFYxpYlJvlXWkInG0tB86XN8LGkJNEeWW6RpK2BI/oXNPJ+BTBoKGeCSWoGzh63gsX5dSPzTGUEqbxqlBBdBggmfyLHCsa2dNbla8JKlpIZmKdii/LNMuX47rtRUMulmU17Htm/KhJighcbR+C50eAr2eZwGMEQ+ggS07OQ+vUWKGiXMf81DzzK6Tj4YdcRWOKoCGGrmCEoqTFqkYxEgU9xTFfC000QkKawudHo4Vc10WhQsGXRUS9+mVVJomWj7k0slsek+HO8I1RSiXq3PAgwjTE7+EnYTA2t6T8PS4k/Ok4SpE+zsLDBqsDKXqq4Se9ZuQy4+yTLbkGdVkNoXrrblIyQTR5AkOnXIa9BnZVBYF5vAIbQEaaIdWkky4+3bKyJREub7NePRlNJZQHRLv0J+1+Nuorl7afvjr/6p/tupH3zC9c1E7tF6kzyNsj2ZfwofZZeez5CsNYmHJtu0zJvoRXddJ+FdDUZy80rDHaIVPtrEebCcmf6WDWMYIAxCga3r3Xv0ZiPlPG3h7s4Cu+wOjSBFj
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -53,16 +54,13 @@ Raises:
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./get-all-workspace-roles.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"additionalProperties":{"type":"string"},"type":"object"},"type":"array","title":"Response Get All Workspace Roles"}}}}}}
+  {...require("./get-all-workspace-roles.StatusCodes.json")}
 >
   
 </StatusCodes>

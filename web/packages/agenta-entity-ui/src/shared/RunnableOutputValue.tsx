@@ -14,7 +14,7 @@
 
 import {memo} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
 import {Tag} from "antd"
 import clsx from "clsx"
 

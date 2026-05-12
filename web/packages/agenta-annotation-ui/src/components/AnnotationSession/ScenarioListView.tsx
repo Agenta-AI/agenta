@@ -8,17 +8,24 @@
  * Follows the same IVT pattern used in AnnotationQueuesView and EvalRunDetails.
  */
 
-import {memo, useCallback, useMemo, useState} from "react"
+import {memo, useCallback, useMemo, useState, type Key} from "react"
 
-import {annotationSessionController, OUTPUT_KEYS} from "@agenta/annotation"
+import {
+    annotationSessionController,
+    getTraceInputDisplayKeys,
+    getTraceInputDisplayValue,
+    OUTPUT_KEYS,
+} from "@agenta/annotation"
 import type {AnnotationColumnDef, ScenarioListColumnDef, SessionView} from "@agenta/annotation"
-import {evaluatorMolecule} from "@agenta/entities/evaluator"
+import type {EvaluationStatus} from "@agenta/entities/simpleQueue"
 import {
     traceEntityAtomFamily,
     traceRootSpanAtomFamily,
     traceInputsAtomFamily,
     traceOutputsAtomFamily,
 } from "@agenta/entities/trace"
+import {workflowMolecule} from "@agenta/entities/workflow"
+import {EnhancedButton} from "@agenta/ui"
 import {
     SmartCellContent,
     MetricCellContent,
@@ -31,15 +38,25 @@ import {
     EXPORT_RESOLVE_SKIP,
     InfiniteVirtualTableFeatureShell,
     createActionsColumn,
+    type InfiniteVirtualTableRowSelection,
     type TableScopeConfig,
     type TableExportColumnContext,
 } from "@agenta/ui/table"
-import {ArrowSquareOut, CaretDown, CaretRight, Check, NotePencil, Eye} from "@phosphor-icons/react"
-import {Button, Drawer, Tag, Tooltip, Typography, message} from "antd"
+import {
+    ArrowSquareOut,
+    CaretDown,
+    CaretRight,
+    Check,
+    NotePencil,
+    Eye,
+    Plus,
+} from "@phosphor-icons/react"
+import {Button, Drawer, Input, Skeleton, Tag, Tooltip, Typography, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {useAnnotationNavigation, useMetricPopoverWrapper} from "../../context/AnnotationUIContext"
+import AnnotationStatusFilterSelect from "../AnnotationStatusFilterSelect"
 import ScenarioContent from "../ScenarioContent"
 
 /** Only binary and categorical metric types should render distribution bars */
@@ -78,7 +95,7 @@ const TestcaseDataCell = memo(function TestcaseDataCell({
     const testcase = testcaseQuery?.data
 
     if (!testcaseRef.testcaseId || testcaseQuery?.isPending) {
-        return <Typography.Text type="secondary">...</Typography.Text>
+        return <Skeleton.Button active size="small" block className="!h-4 !min-w-[60px] !w-full" />
     }
 
     const value = testcase?.data?.[dataKey] ?? null
@@ -108,6 +125,7 @@ interface ScenarioListViewProps {
     onSaved: () => void
     onCompleted: (scenarioId: string) => void
     onViewChange?: (view: SessionView) => void
+    canExportData?: boolean
 }
 
 /** Row shape for the IVT. Extends scenario data with table-required fields. */
@@ -181,25 +199,27 @@ interface WaitResult<T> {
 }
 
 async function waitForQueryState<T>(
-    atomToWatch: {read: (get: never) => T},
+    atomToWatch: unknown,
     isReady: (value: T) => boolean,
     timeoutMs = 5000,
 ): Promise<WaitResult<T>> {
     const store = getDefaultStore()
-    const current = store.get(atomToWatch as Parameters<typeof store.get>[0]) as T
+    const atomRef = atomToWatch as unknown as Parameters<typeof store.get>[0]
+    const subRef = atomToWatch as unknown as Parameters<typeof store.sub>[0]
+    const current = store.get(atomRef) as T
     if (isReady(current)) return {value: current, timedOut: false}
 
     return await new Promise<WaitResult<T>>((resolve) => {
         const timeout = window.setTimeout(() => {
             unsubscribe()
             resolve({
-                value: store.get(atomToWatch as Parameters<typeof store.get>[0]) as T,
+                value: store.get(atomRef) as T,
                 timedOut: true,
             })
         }, timeoutMs)
 
-        const unsubscribe = store.sub(atomToWatch as Parameters<typeof store.sub>[0], () => {
-            const next = store.get(atomToWatch as Parameters<typeof store.get>[0]) as T
+        const unsubscribe = store.sub(subRef, () => {
+            const next = store.get(atomRef) as T
             if (isReady(next)) {
                 window.clearTimeout(timeout)
                 unsubscribe()
@@ -242,7 +262,7 @@ const TraceInputKeyCell = memo(function TraceInputKeyCell({
     const effectiveTraceId = directTraceId || traceRef.traceId || ""
 
     const inputs = useAtomValue(traceInputsAtomFamily(effectiveTraceId || null))
-    const value = inputs?.[inputKey] ?? null
+    const value = getTraceInputDisplayValue(inputs, inputKey)
 
     if (!effectiveTraceId || value === null || value === undefined) {
         return <Typography.Text type="secondary">—</Typography.Text>
@@ -254,6 +274,8 @@ const TraceInputKeyCell = memo(function TraceInputKeyCell({
             keyPrefix={`trace-input-${inputKey}-${scenarioId}`}
             maxLines={3}
             chatPreference="input"
+            chatPreviewStrategy="last-user"
+            beautifyJson
         />
     )
 })
@@ -273,11 +295,31 @@ const TraceInputCell = memo(function TraceInputCell({
 
     const inputs = useAtomValue(traceInputsAtomFamily(effectiveTraceId || null))
 
-    if (!effectiveTraceId || !inputs || Object.keys(inputs).length === 0) {
+    const displayInputs = getTraceInputDisplayKeys(inputs).reduce<Record<string, unknown>>(
+        (acc, inputKey) => {
+            const value = getTraceInputDisplayValue(inputs, inputKey)
+            if (value !== null) {
+                acc[inputKey] = value
+            }
+            return acc
+        },
+        {},
+    )
+
+    if (!effectiveTraceId || Object.keys(displayInputs).length === 0) {
         return <Typography.Text type="secondary">—</Typography.Text>
     }
 
-    return <SmartCellContent value={inputs} keyPrefix={`trace-input-${scenarioId}`} maxLines={3} />
+    return (
+        <SmartCellContent
+            value={displayInputs}
+            keyPrefix={`trace-input-${scenarioId}`}
+            maxLines={3}
+            chatPreference="input"
+            chatPreviewStrategy="last-user"
+            beautifyJson
+        />
+    )
 })
 
 const TraceOutputCell = memo(function TraceOutputCell({
@@ -326,7 +368,8 @@ const TraceNameCell = memo(function TraceNameCell({
     const rootSpan = useAtomValue(traceRootSpanAtomFamily(effectiveTraceId || null))
 
     if (!effectiveTraceId) return <Typography.Text type="secondary">—</Typography.Text>
-    if (traceQuery.isPending) return <Typography.Text type="secondary">...</Typography.Text>
+    if (traceQuery.isPending)
+        return <Skeleton.Button active size="small" block className="!h-4 !min-w-[60px] !w-full" />
 
     return (
         <div className="flex items-center gap-1.5">
@@ -354,8 +397,8 @@ const AnnotationColumnHeader = memo(function AnnotationColumnHeader({
 }: {
     def: AnnotationColumnDef
 }) {
-    const name = useAtomValue(evaluatorMolecule.selectors.name(def.evaluatorId ?? ""))
-    const slug = useAtomValue(evaluatorMolecule.selectors.slug(def.evaluatorId ?? ""))
+    const name = useAtomValue(workflowMolecule.selectors.name(def.evaluatorId ?? ""))
+    const slug = useAtomValue(workflowMolecule.selectors.slug(def.evaluatorId ?? ""))
     const displayName = name || slug || def.evaluatorSlug || def.columnName || def.stepKey
 
     return (
@@ -380,8 +423,8 @@ const AnnotationGroupHeader = memo(function AnnotationGroupHeader({
     isCollapsed: boolean
     onToggle: () => void
 }) {
-    const name = useAtomValue(evaluatorMolecule.selectors.name(def.evaluatorId ?? ""))
-    const slug = useAtomValue(evaluatorMolecule.selectors.slug(def.evaluatorId ?? ""))
+    const name = useAtomValue(workflowMolecule.selectors.name(def.evaluatorId ?? ""))
+    const slug = useAtomValue(workflowMolecule.selectors.slug(def.evaluatorId ?? ""))
     const displayName = name || slug || def.evaluatorSlug || def.columnName || def.stepKey
 
     const handleClick = useCallback(
@@ -495,7 +538,7 @@ const AnnotationColumnCell = memo(function AnnotationColumnCell({
             <MetricValueDisplay value={value} />
         )
     ) : isPending && fallbackDataKey ? (
-        <Typography.Text type="secondary">...</Typography.Text>
+        <Skeleton.Button active size="small" block className="!h-4 !min-w-[60px] !w-full" />
     ) : fallbackValue !== null && fallbackValue !== undefined ? (
         <SmartCellContent
             value={fallbackValue}
@@ -575,7 +618,7 @@ const AnnotationOutputKeyCell = memo(function AnnotationOutputKeyCell({
             <MetricValueDisplay value={value} />
         )
     ) : isPending && fallbackDataKey ? (
-        <Typography.Text type="secondary">...</Typography.Text>
+        <Skeleton.Button active size="small" block className="!h-4 !min-w-[60px] !w-full" />
     ) : fallbackValue !== null && fallbackValue !== undefined ? (
         <SmartCellContent
             value={fallbackValue}
@@ -835,15 +878,21 @@ function mapDefToColumn(
 
         case "annotation": {
             const annotDef = def.annotationDef
-            const outputKeys = def.outputKeys
+            const outputColumns =
+                def.outputColumns ??
+                def.outputKeys.map((outputKey) => ({
+                    key: `${def.key}_${outputKey}`,
+                    title: outputKey,
+                    annotationDef: annotDef,
+                }))
 
-            // Multiple output keys → foldable column group with sub-columns per key
-            if (outputKeys.length > 1) {
+            // Evaluator outputs render as parent evaluator + child metric columns.
+            if (outputColumns.length > 0) {
                 const isCollapsed = collapsedGroups.has(def.key)
                 const groupHeader = (
                     <AnnotationGroupHeader
                         def={annotDef}
-                        childCount={outputKeys.length}
+                        childCount={outputColumns.length}
                         isCollapsed={isCollapsed}
                         onToggle={() => toggleGroupCollapse(def.key)}
                     />
@@ -874,10 +923,10 @@ function mapDefToColumn(
                     title: groupHeader,
                     key: def.key,
                     onHeaderCell: () => ({style: {textAlign: "left" as const}}),
-                    children: outputKeys.map((outputKey) => ({
-                        title: outputKey,
-                        key: `${def.key}_${outputKey}`,
-                        dataIndex: `${def.key}_${outputKey}`,
+                    children: outputColumns.map((outputColumn) => ({
+                        title: outputColumn.title,
+                        key: outputColumn.key,
+                        dataIndex: outputColumn.key,
                         width: 150,
                         minWidth: 150,
                         onHeaderCell: () => ({
@@ -886,28 +935,12 @@ function mapDefToColumn(
                         render: (_value: unknown, record: ScenarioTableRow) => (
                             <AnnotationOutputKeyCell
                                 scenarioId={record.scenarioId}
-                                def={annotDef}
-                                outputKey={outputKey}
+                                def={outputColumn.annotationDef}
+                                outputKey={outputColumn.annotationDef.path ?? outputColumn.title}
                                 fallbackDataKey={def.fallbackDataKey}
                             />
                         ),
                     })),
-                }
-            }
-
-            // Single output key → flat column reading that key directly
-            if (outputKeys.length === 1) {
-                return {
-                    ...base,
-                    title: <AnnotationColumnHeader def={annotDef} />,
-                    render: (_value: unknown, record: ScenarioTableRow) => (
-                        <AnnotationOutputKeyCell
-                            scenarioId={record.scenarioId}
-                            def={annotDef}
-                            outputKey={outputKeys[0]}
-                            fallbackDataKey={def.fallbackDataKey}
-                        />
-                    ),
                 }
             }
 
@@ -985,8 +1018,6 @@ const AnnotationDrawer = memo(function AnnotationDrawer({
     queueId,
     open,
     onClose,
-    onSaved,
-    onCompleted,
 }: AnnotationDrawerProps) {
     const navigation = useAnnotationNavigation()
     const scenarios = useAtomValue(
@@ -1060,12 +1091,11 @@ const AnnotationDrawer = memo(function AnnotationDrawer({
                     </div>
 
                     {/* Right panel: Annotation form */}
-                    <div className="w-[340px] min-w-[280px] shrink-0 border border-solid border-[var(--ant-color-border-secondary)] rounded-lg overflow-hidden">
+                    <div className="w-[340px] min-w-[280px] shrink-0 border border-solid border-[rgba(5,23,41,0.06)] rounded-lg overflow-hidden bg-white">
                         <AnnotationPanel
                             scenarioId={scenarioId}
                             queueId={queueId}
-                            onSaved={onSaved}
-                            onCompleted={onCompleted}
+                            showMarkComplete
                         />
                     </div>
                 </div>
@@ -1083,8 +1113,46 @@ interface ExportColumnState {
     traceInputKeyByColumnKey: Map<string, string>
     annotationOutputByColumnKey: Map<
         string,
-        {def: Extract<ScenarioListColumnDef, {columnType: "annotation"}>; outputKey: string}
+        {
+            def: Extract<ScenarioListColumnDef, {columnType: "annotation"}>
+            annotationDef: AnnotationColumnDef
+            outputKey: string
+            title: string
+        }
     >
+}
+
+function getSearchableColumnKeys(state: ExportColumnState): string[] {
+    const keys: string[] = []
+
+    state.defByKey.forEach((def, key) => {
+        if (def.columnType === "actions") return
+        keys.push(key)
+    })
+
+    state.traceInputKeyByColumnKey.forEach((_value, key) => {
+        keys.push(key)
+    })
+
+    state.annotationOutputByColumnKey.forEach((_value, key) => {
+        keys.push(key)
+    })
+
+    return keys
+}
+
+function stringifySearchValue(value: unknown): string {
+    if (value === null || value === undefined || value === EXPORT_RESOLVE_SKIP) return ""
+    if (typeof value === "string") return value
+    if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+        return String(value)
+    }
+
+    try {
+        return JSON.stringify(value)
+    } catch {
+        return String(value)
+    }
 }
 
 function resolveExportColumnLabel(
@@ -1099,10 +1167,10 @@ function resolveExportColumnLabel(
         if (def.columnType === "annotation") {
             const annotationDef = def.annotationDef
             const name = annotationDef.evaluatorId
-                ? store.get(evaluatorMolecule.selectors.name(annotationDef.evaluatorId))
+                ? store.get(workflowMolecule.selectors.name(annotationDef.evaluatorId))
                 : null
             const slug = annotationDef.evaluatorId
-                ? store.get(evaluatorMolecule.selectors.slug(annotationDef.evaluatorId))
+                ? store.get(workflowMolecule.selectors.slug(annotationDef.evaluatorId))
                 : null
             return (
                 name ||
@@ -1122,7 +1190,7 @@ function resolveExportColumnLabel(
     if (traceInputKey) return traceInputKey
 
     const annotationOutput = state.annotationOutputByColumnKey.get(columnKey)
-    if (annotationOutput) return annotationOutput.outputKey
+    if (annotationOutput) return annotationOutput.title
 
     return undefined
 }
@@ -1130,10 +1198,10 @@ function resolveExportColumnLabel(
 function resolveMetricValue(
     store: ReturnType<typeof getDefaultStore>,
     scenarioId: string,
-    evaluatorId: string,
-    evaluatorSlug: string,
-    path: string,
-    stepKey: string,
+    evaluatorId: string | null | undefined,
+    evaluatorSlug: string | null | undefined,
+    path: string | null | undefined,
+    stepKey: string | null | undefined,
 ): unknown {
     const metric = store.get(
         annotationSessionController.selectors.scenarioMetricForEvaluator({
@@ -1181,8 +1249,20 @@ function resolveExportCellValue(
             case "trace-input-group": {
                 if (!effectiveTraceId) return ""
                 const inputs = store.get(traceInputsAtomFamily(effectiveTraceId))
-                if (def.inputKeys.length === 1) return inputs?.[def.inputKeys[0]] ?? ""
-                return inputs ?? ""
+                if (def.inputKeys.length === 1) {
+                    return getTraceInputDisplayValue(inputs, def.inputKeys[0]) ?? ""
+                }
+
+                return getTraceInputDisplayKeys(inputs).reduce<Record<string, unknown>>(
+                    (acc, inputKey) => {
+                        const value = getTraceInputDisplayValue(inputs, inputKey)
+                        if (value !== null) {
+                            acc[inputKey] = value
+                        }
+                        return acc
+                    },
+                    {},
+                )
             }
             case "trace-output":
                 return effectiveTraceId
@@ -1219,7 +1299,12 @@ function resolveExportCellValue(
     const traceInputKey = state.traceInputKeyByColumnKey.get(columnKey)
     if (traceInputKey) {
         if (!effectiveTraceId) return ""
-        return store.get(traceInputsAtomFamily(effectiveTraceId))?.[traceInputKey] ?? ""
+        return (
+            getTraceInputDisplayValue(
+                store.get(traceInputsAtomFamily(effectiveTraceId)),
+                traceInputKey,
+            ) ?? ""
+        )
     }
 
     // Expanded sub-columns for multi-key annotation outputs
@@ -1228,16 +1313,16 @@ function resolveExportCellValue(
         const resolved = resolveMetricValue(
             store,
             scenarioId,
-            annotationOutput.def.annotationDef.evaluatorId,
-            annotationOutput.def.annotationDef.evaluatorSlug,
+            annotationOutput.annotationDef.evaluatorId,
+            annotationOutput.annotationDef.evaluatorSlug,
             annotationOutput.outputKey,
-            annotationOutput.def.annotationDef.stepKey,
+            annotationOutput.annotationDef.stepKey,
         )
         if (resolved !== null) return resolved
         if (!annotationOutput.def.fallbackDataKey) return ""
         const fallbackValue = getTestcaseValue(testcase, annotationOutput.def.fallbackDataKey)
         return fallbackValue && typeof fallbackValue === "object" && !Array.isArray(fallbackValue)
-            ? ((fallbackValue as Record<string, unknown>)[annotationOutput.outputKey] ?? "")
+            ? ((fallbackValue as Record<string, unknown>)[annotationOutput.title] ?? "")
             : ""
     }
 
@@ -1356,10 +1441,35 @@ const ScenarioListView = memo(function ScenarioListView({
     onSaved,
     onCompleted,
     onViewChange,
+    canExportData = true,
 }: ScenarioListViewProps) {
     const setActiveView = useSetAtom(annotationSessionController.actions.setActiveView)
     const navigateToIndex = useSetAtom(annotationSessionController.actions.navigateToIndex)
     const listColumnDefs = useAtomValue(annotationSessionController.selectors.listColumnDefs())
+    const canAddToTestset = useAtomValue(annotationSessionController.selectors.canAddToTestset())
+    const isAddToTestsetExporting = useAtomValue(
+        annotationSessionController.selectors.isAddToTestsetExporting(),
+    )
+    const selectedScenarioIds = useAtomValue(
+        annotationSessionController.selectors.selectedScenarioIds(),
+    )
+    const setSelectedScenarioIds = useSetAtom(
+        annotationSessionController.actions.setSelectedScenarioIds,
+    )
+    const openAddToTestsetModal = useSetAtom(
+        annotationSessionController.actions.openAddToTestsetModal,
+    )
+
+    const [searchTerm, setSearchTerm] = useState("")
+    const [statusFilter, setStatusFilter] = useState<EvaluationStatus | null>(null)
+
+    const handleAddToTestset = useCallback(() => {
+        if (selectedScenarioIds.length > 0) {
+            openAddToTestsetModal({scope: "selected", scenarioIds: selectedScenarioIds})
+            return
+        }
+        openAddToTestsetModal({scope: "all"})
+    }, [openAddToTestsetModal, selectedScenarioIds])
     const handleViewChange = useCallback(
         (view: SessionView) => {
             if (onViewChange) {
@@ -1394,18 +1504,45 @@ const ScenarioListView = memo(function ScenarioListView({
     }, [])
 
     // Build table rows
-    const rows: ScenarioTableRow[] = useMemo(() => {
+    const allRows: ScenarioTableRow[] = useMemo(() => {
         return scenarios.map((scenario, index) => {
             const id = scenario.id as string
+            // Extract the visible display ID (trace_id or testcase_id) for search
+            const raw = scenario as Record<string, unknown>
+            const getRef = (key: string): string => {
+                const direct = raw[key]
+                if (typeof direct === "string" && direct) return direct
+                const tags = raw.tags as Record<string, unknown> | null | undefined
+                if (typeof tags?.[key] === "string") return tags[key] as string
+                const meta = raw.meta as Record<string, unknown> | null | undefined
+                if (typeof meta?.[key] === "string") return meta[key] as string
+                return ""
+            }
+            const displayId = getRef("trace_id") || getRef("testcase_id")
             return {
                 key: id || String(index),
                 scenarioIndex: index,
                 scenarioId: id,
+                displayId,
                 status: scenarioStatuses[id] ?? null,
                 raw: scenario,
             }
         })
     }, [scenarios, scenarioStatuses])
+
+    const primaryActionsNode = useMemo(
+        () => (
+            <EnhancedButton
+                size="small"
+                icon={<Plus size={14} />}
+                onClick={handleAddToTestset}
+                disabled={!canAddToTestset}
+                loading={isAddToTestsetExporting}
+                label="Add to Testset"
+            />
+        ),
+        [canAddToTestset, handleAddToTestset, isAddToTestsetExporting],
+    )
 
     // Map column defs to AntD columns (purely presentational mapping)
     const columns = useMemo(() => {
@@ -1431,7 +1568,12 @@ const ScenarioListView = memo(function ScenarioListView({
         const traceInputKeyByColumnKey = new Map<string, string>()
         const annotationOutputByColumnKey = new Map<
             string,
-            {def: Extract<ScenarioListColumnDef, {columnType: "annotation"}>; outputKey: string}
+            {
+                def: Extract<ScenarioListColumnDef, {columnType: "annotation"}>
+                annotationDef: AnnotationColumnDef
+                outputKey: string
+                title: string
+            }
         >()
 
         listColumnDefs.forEach((def) => {
@@ -1441,15 +1583,79 @@ const ScenarioListView = memo(function ScenarioListView({
                     traceInputKeyByColumnKey.set(`__trace_input_${inputKey}`, inputKey)
                 })
             }
-            if (def.columnType === "annotation" && def.outputKeys.length > 1) {
-                def.outputKeys.forEach((outputKey) => {
-                    annotationOutputByColumnKey.set(`${def.key}_${outputKey}`, {def, outputKey})
+            if (def.columnType === "annotation" && def.outputKeys.length > 0) {
+                const outputColumns =
+                    def.outputColumns ??
+                    def.outputKeys.map((outputKey) => ({
+                        key: `${def.key}_${outputKey}`,
+                        title: outputKey,
+                        annotationDef: def.annotationDef,
+                    }))
+
+                outputColumns.forEach((outputColumn) => {
+                    annotationOutputByColumnKey.set(outputColumn.key, {
+                        def,
+                        annotationDef: outputColumn.annotationDef,
+                        outputKey: outputColumn.annotationDef.path ?? outputColumn.title,
+                        title: outputColumn.title,
+                    })
                 })
             }
         })
 
         return {defByKey, traceInputKeyByColumnKey, annotationOutputByColumnKey}
     }, [listColumnDefs])
+
+    const searchableColumnKeys = useMemo(
+        () => getSearchableColumnKeys(exportColumnState),
+        [exportColumnState],
+    )
+
+    const rows = useMemo(() => {
+        let filtered = allRows
+        if (statusFilter) {
+            filtered = filtered.filter((row) => row.status === statusFilter)
+        }
+        if (searchTerm.trim()) {
+            const term = searchTerm.toLowerCase()
+            filtered = filtered.filter((row) => {
+                if (
+                    (row.displayId as string).toLowerCase().includes(term) ||
+                    row.scenarioId.toLowerCase().includes(term)
+                ) {
+                    return true
+                }
+
+                return searchableColumnKeys.some((columnKey) =>
+                    stringifySearchValue(resolveExportCellValue(columnKey, row, exportColumnState))
+                        .toLowerCase()
+                        .includes(term),
+                )
+            })
+        }
+        return filtered
+    }, [allRows, statusFilter, searchTerm, searchableColumnKeys, exportColumnState])
+
+    const filtersNode = useMemo(
+        () => (
+            <div className="flex items-center gap-2">
+                <Input
+                    placeholder="Search"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    allowClear
+                    className="!w-60"
+                />
+                <AnnotationStatusFilterSelect
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                    size="small"
+                    popupMatchSelectWidth={false}
+                />
+            </div>
+        ),
+        [searchTerm, statusFilter],
+    )
 
     // Pagination (in-memory — all rows, no server pagination)
     const pagination = useMemo(
@@ -1487,6 +1693,18 @@ const ScenarioListView = memo(function ScenarioListView({
         [handleRowClick],
     )
 
+    const rowSelection = useMemo<InfiniteVirtualTableRowSelection<ScenarioTableRow>>(
+        () => ({
+            type: "checkbox",
+            selectedRowKeys: selectedScenarioIds,
+            onChange: (keys: Key[]) => {
+                setSelectedScenarioIds(keys.map(String))
+            },
+            columnWidth: 48,
+        }),
+        [selectedScenarioIds, setSelectedScenarioIds],
+    )
+
     const exportOptions = useMemo(
         () => ({
             filename: "annotation-queue-scenarios.csv",
@@ -1505,7 +1723,7 @@ const ScenarioListView = memo(function ScenarioListView({
     )
 
     return (
-        <div className="flex flex-col h-full w-full min-h-0">
+        <div className="flex flex-col h-full w-full min-h-0 px-4">
             <InfiniteVirtualTableFeatureShell<ScenarioTableRow>
                 tableScope={TABLE_SCOPE}
                 columns={columns}
@@ -1518,6 +1736,11 @@ const ScenarioListView = memo(function ScenarioListView({
                 tableClassName="agenta-scenario-table"
                 className="flex-1 min-h-0"
                 exportOptions={exportOptions}
+                exportAction={{label: "Export as CSV"}}
+                enableExport={canExportData}
+                rowSelection={rowSelection}
+                filters={filtersNode}
+                primaryActions={primaryActionsNode}
                 store={getDefaultStore()}
             />
 

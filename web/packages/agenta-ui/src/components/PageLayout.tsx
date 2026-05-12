@@ -15,7 +15,7 @@ export interface PageLayoutProps {
 
 const PageLayout = ({
     title,
-    titleLevel = 5,
+    titleLevel = 3,
     headerTabs,
     headerTabsProps,
     children,

@@ -1,12 +1,14 @@
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional
 
 from oss.src.core.auth.types import MethodKind
 
 
 class UserIdentity(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
 
     method: str
@@ -22,9 +24,6 @@ class UserIdentity(BaseModel):
     deleted_by_id: Optional[UUID] = None
 
     user_id: UUID
-
-    class Config:
-        from_attributes = True
 
     @field_validator("method")
     @classmethod

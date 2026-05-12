@@ -11,6 +11,7 @@ import {ModalContent, ModalFooter, message} from "@agenta/ui"
 import {Divider, Drawer, Form, Input, Select, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import {useAnnotationNavigationSafe} from "../../context"
 import {
     createQueueDrawerOpenAtom,
     createQueueDrawerDefaultKindAtom,
@@ -50,6 +51,8 @@ interface CreateQueueDrawerContentProps {
     selection: {itemType: "traces" | "testcases"; itemIds: string[]} | null
     onClearSelection: () => void
     onItemsAdded?: () => void
+    feedbackOnCreate?: () => void
+    feedbackCreateLabel?: string
 }
 
 const INITIAL_FORM_VALUES: Pick<FormValues, "kind"> = {
@@ -94,8 +97,12 @@ function CreateQueueDrawerContent({
     selection,
     onClearSelection,
     onItemsAdded,
+    feedbackOnCreate,
+    feedbackCreateLabel,
 }: CreateQueueDrawerContentProps) {
     const projectId = useAtomValue(projectIdAtom)
+    const contextNavigation = useAnnotationNavigationSafe()
+    const navigateToQueue = contextNavigation?.navigateToQueue
     const createQueue = useSetAtom(createSimpleQueueAtom)
     const addTraces = useSetAtom(simpleQueueMolecule.actions.addTraces)
     const addTestcases = useSetAtom(simpleQueueMolecule.actions.addTestcases)
@@ -227,7 +234,17 @@ function CreateQueueDrawerContent({
                 }
 
                 onClearSelection()
-                message.success("Annotation queue created")
+                const projectURL = window.location.pathname.match(/^(\/w\/[^/]+\/p\/[^/]+)/)?.[1]
+                message.success({
+                    content: "Annotation queue created.",
+                    onNavigate: navigateToQueue ? () => navigateToQueue(result.id) : undefined,
+                    url:
+                        !navigateToQueue && projectURL
+                            ? `${projectURL}/annotations/${result.id}`
+                            : undefined,
+                    linkText: `View "${result.name ?? "queue"}"`,
+                    duration: 5,
+                })
                 onSetSubmitting(false)
                 onClose()
             } catch (error) {
@@ -248,6 +265,7 @@ function CreateQueueDrawerContent({
             projectId,
             selectedEvaluators,
             selection,
+            navigateToQueue,
         ],
     )
 
@@ -346,6 +364,8 @@ function CreateQueueDrawerContent({
                                         <EntityEvaluatorSelector
                                             onSelect={handleEvaluatorSelect}
                                             instanceId="queue-evaluator"
+                                            onCreate={feedbackOnCreate}
+                                            createLabel={feedbackCreateLabel}
                                             disabled={isSubmitting}
                                             disabledRevisionIds={selectedRevisionIds}
                                             selectedEvaluatorId={
@@ -378,9 +398,15 @@ function CreateQueueDrawerContent({
 
 interface CreateQueueDrawerProps {
     onItemsAdded?: () => void
+    feedbackOnCreate?: () => void
+    feedbackCreateLabel?: string
 }
 
-const CreateQueueDrawer = ({onItemsAdded}: CreateQueueDrawerProps) => {
+const CreateQueueDrawer = ({
+    onItemsAdded,
+    feedbackOnCreate,
+    feedbackCreateLabel,
+}: CreateQueueDrawerProps) => {
     const [open, setOpen] = useAtom(createQueueDrawerOpenAtom)
     const defaultKind = useAtomValue(createQueueDrawerDefaultKindAtom)
     const [selection, setSelection] = useAtom(createQueueDrawerSelectionAtom)
@@ -455,6 +481,8 @@ const CreateQueueDrawer = ({onItemsAdded}: CreateQueueDrawerProps) => {
                     selection={selection}
                     onClearSelection={handleClearSelection}
                     onItemsAdded={onItemsAdded}
+                    feedbackOnCreate={feedbackOnCreate}
+                    feedbackCreateLabel={feedbackCreateLabel}
                 />
             ) : null}
         </Drawer>

@@ -510,7 +510,7 @@ class ToolRefreshResponse(BaseModel):
 
 ## 5. Endpoints
 
-Base path: `/preview/tools`
+Base path: `/tools`
 
 ### 5.1 `GET /catalog` — Browse Tools
 

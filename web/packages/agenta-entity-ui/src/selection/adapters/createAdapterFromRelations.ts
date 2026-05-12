@@ -83,6 +83,8 @@ export interface LevelOverride<T = unknown> {
     getGroupKey?: (entity: T) => string | null | undefined
     /** Map a group key to a human-readable display label */
     getGroupLabel?: (key: string) => string
+    /** Function to derive tab definitions from loaded items */
+    buildTabs?: (items: T[]) => import("../types").TabDefinition[]
 }
 
 /**
@@ -230,6 +232,7 @@ function applyOverrides<T>(
         filterItems: overrides.filterItems ?? baseLevel.filterItems,
         getGroupKey: overrides.getGroupKey ?? baseLevel.getGroupKey,
         getGroupLabel: overrides.getGroupLabel ?? baseLevel.getGroupLabel,
+        buildTabs: overrides.buildTabs ?? baseLevel.buildTabs,
     }
 }
 
@@ -354,6 +357,7 @@ export function createAdapterFromRelations<
             | ((entity: unknown) => string | null | undefined)
             | undefined,
         getGroupLabel: rootLevel.getGroupLabel,
+        buildTabs: rootLevel.buildTabs,
     })
     levels.push(rootLevelConfig)
 

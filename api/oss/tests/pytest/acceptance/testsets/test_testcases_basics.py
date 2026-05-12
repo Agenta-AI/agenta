@@ -32,7 +32,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/simple/testsets/",
+        "/simple/testsets/",
         json={
             "testset": testset,
         },
@@ -60,7 +60,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/simple/testsets/",
+        "/simple/testsets/",
         json={
             "testset": testset,
         },
@@ -72,7 +72,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        f"/preview/simple/testsets/{testset_2['id']}/archive",
+        f"/simple/testsets/{testset_2['id']}/archive",
     )
 
     assert response.status_code == 200
@@ -95,7 +95,7 @@ class TestTestcasesBasics:
 
         response = authed_api(
             "GET",
-            f"/preview/testcases/{testcase_id}",
+            f"/testcases/{testcase_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -113,7 +113,7 @@ class TestTestcasesBasics:
 
         response = authed_api(
             "POST",
-            "/preview/testcases/query",
+            "/testcases/query",
             json={
                 "testset_id": testset_id,
             },
@@ -134,7 +134,7 @@ class TestTestcasesBasics:
 
         response = authed_api(
             "POST",
-            "/preview/testcases/query",
+            "/testcases/query",
             json={
                 "testcase_ids": testcase_ids,
             },
@@ -154,7 +154,7 @@ class TestTestcasesBasics:
 
         response = authed_api(
             "POST",
-            "/preview/testcases/query",
+            "/testcases/query",
             json={
                 "testset_id": testset_id,
             },
@@ -169,7 +169,7 @@ class TestTestcasesBasics:
 
     def test_query_testcases_by_testset_revision_ref(self, authed_api, mock_data):
         """
-        POST /preview/testcases/query with testset_revision_ref should resolve
+        POST /testcases/query with testset_revision_ref should resolve
         the revision's stored testcase_ids list and return those testcases.
         This exercises the B.2 loadable strategy for testsets.
         """
@@ -179,7 +179,7 @@ class TestTestcasesBasics:
 
         response = authed_api(
             "POST",
-            "/preview/testcases/query",
+            "/testcases/query",
             json={
                 "testset_revision_ref": {"id": testset_revision_id},
                 "windowing": {"limit": 100},
@@ -198,14 +198,14 @@ class TestTestcasesBasics:
 
     def test_query_testcases_without_filter_returns_400(self, authed_api):
         """
-        POST /preview/testcases/query with no filter fields returns 400 —
+        POST /testcases/query with no filter fields returns 400 —
         the endpoint requires at least one of: testcase_ids, testset_id,
         or a testset_ref.
         """
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/testcases/query",
+            "/testcases/query",
             json={},
         )
         # ----------------------------------------------------------------------
@@ -216,7 +216,7 @@ class TestTestcasesBasics:
 
     def test_fetch_testcases_by_ids_query_param(self, authed_api, mock_data):
         """
-        GET /preview/testcases/?testcase_ids=<id1>,<id2> fetches testcases
+        GET /testcases/?testcase_ids=<id1>,<id2> fetches testcases
         by comma-separated query param.
         """
         # ACT ------------------------------------------------------------------
@@ -226,7 +226,7 @@ class TestTestcasesBasics:
 
         response = authed_api(
             "GET",
-            f"/preview/testcases/?testcase_ids={ids_csv}",
+            f"/testcases/?testcase_ids={ids_csv}",
         )
         # ----------------------------------------------------------------------
 
@@ -238,10 +238,10 @@ class TestTestcasesBasics:
 
     def test_fetch_testcases_no_ids_returns_400(self, authed_api):
         """
-        GET /preview/testcases/ with no id params returns 400.
+        GET /testcases/ with no id params returns 400.
         """
         # ACT ------------------------------------------------------------------
-        response = authed_api("GET", "/preview/testcases/")
+        response = authed_api("GET", "/testcases/")
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------

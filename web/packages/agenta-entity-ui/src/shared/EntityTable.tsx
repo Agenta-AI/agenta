@@ -138,6 +138,8 @@ export interface EntityTableProps<
     rowHeightConfig?: RowHeightFeatureConfig
     /** Show settings dropdown (default: true) */
     showSettings?: boolean
+    /** Enable table export action (default: true) */
+    enableExport?: boolean
     /** Jotai store for entity atom access (default: global store) */
     store?: ReturnType<typeof getDefaultStore>
     /** Page size for table scope (default: 100) */
@@ -207,6 +209,7 @@ export function EntityTable<
     appendColumns,
     rowHeightConfig = DEFAULT_ROW_HEIGHT_CONFIG,
     showSettings = true,
+    enableExport = true,
     store,
     pageSize,
     emptyMessage = "No data found",
@@ -467,6 +470,7 @@ export function EntityTable<
                 rowKey="id"
                 autoHeight={autoHeight}
                 useSettingsDropdown={showSettings}
+                enableExport={enableExport}
                 store={globalStore}
                 tableProps={{
                     size: "small",

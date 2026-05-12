@@ -2,8 +2,7 @@
  * Queue Controller
  *
  * Unified controller that bridges SimpleQueue and EvaluationQueue molecules
- * into a single API. Follows the same probing + type-hint pattern as
- * `createRunnableBridge` for runnables.
+ * into a single API. Uses a probing + type-hint pattern for multi-type dispatch.
  *
  * ## How It Works
  *

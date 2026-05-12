@@ -1,9 +1,9 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
 import type {CSSProperties, Key, ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Trash} from "@phosphor-icons/react"
-import {Button, Grid, Tabs, Tooltip} from "antd"
+import {Export, Trash} from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
+import {Button, Grid, Pagination, Tabs, Tooltip} from "antd"
 
 import {cn} from "../../utils/styles"
 import ColumnVisibilityPopoverContent from "../components/columnVisibility/ColumnVisibilityPopoverContent"
@@ -45,6 +45,13 @@ export interface TableFeaturePagination<Row extends InfiniteTableRowBase> {
     rows: Row[]
     loadNextPage: () => void
     resetPages: () => void
+    paginationInfo?: {
+        hasMore: boolean
+        nextCursor: string | null
+        nextOffset: number | null
+        isFetching: boolean
+        totalCount: number | null
+    }
 }
 
 export type TableFeatureExportOptions<Row extends InfiniteTableRowBase> = TableExportOptions<Row>
@@ -205,6 +212,27 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      * ```
      */
     rowHeightConfig?: RowHeightFeatureConfig
+    /**
+     * Pagination display mode:
+     * - `"infinite"` (default): Rows load progressively via infinite scroll.
+     * - `"paginated"`: Renders antd `Pagination` below the table with page numbers.
+     *    Rows are sliced client-side by page. Works with both all-in-memory data
+     *    and cursor-paginated server data.
+     */
+    paginationMode?: "infinite" | "paginated"
+    /**
+     * Page size for the UI pagination component when `paginationMode="paginated"`.
+     * Defaults to `tableScope.pageSize`. Use this when the store's pageSize
+     * (which controls fetch batch size / skeleton slots) differs from the
+     * desired number of rows per UI page.
+     */
+    paginatedPageSize?: number
+    /**
+     * Total item count for the paginated UI when the server's windowed response
+     * doesn't include a global total. When provided, this overrides the count
+     * derived from loaded rows or the store's totalCount.
+     */
+    paginatedTotalCount?: number
 }
 
 const DEFAULT_ROW_HEIGHT = 48
@@ -283,8 +311,12 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         tableRef,
         store,
         rowHeightConfig,
+        paginationMode = "infinite",
+        paginatedPageSize: paginatedPageSizeProp,
+        paginatedTotalCount,
     } = props
     const {scopeId, pageSize, enableInfiniteScroll = true} = tableScope
+    const uiPageSize = paginatedPageSizeProp ?? pageSize
 
     // Built-in row height feature (when rowHeightConfig is provided)
     const rowHeightFeature = rowHeightConfig ? useRowHeightFeature(rowHeightConfig) : null
@@ -304,6 +336,10 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
     const screens = Grid.useBreakpoint()
     const isNarrowScreen = !screens.lg
 
+    // Hide built-in export/delete buttons when settings dropdown is active
+    // (either forced via prop or responsive narrow screen)
+    const hideBuiltInButtons = useSettingsDropdown || isNarrowScreen
+
     useEffect(() => {
         onPaginationStateChange?.({
             resetPages: pagination.resetPages,
@@ -316,22 +352,75 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
     }, [onRowsChange, pagination.rows])
 
     const handleLoadMore = useCallback(() => {
-        if (!enableInfiniteScroll) return
+        if (!enableInfiniteScroll || paginationMode === "paginated") return
         pagination.loadNextPage()
-    }, [enableInfiniteScroll, pagination.loadNextPage])
+    }, [enableInfiniteScroll, paginationMode, pagination.loadNextPage])
+
+    // Paginated mode: track current page and slice rows
+    const isPaginated = paginationMode === "paginated"
+    const [currentPage, setCurrentPage] = useState(1)
+
+    // Reset to page 1 when scope changes (e.g., different entity context)
+    useEffect(() => {
+        if (isPaginated) setCurrentPage(1)
+    }, [isPaginated, scopeId])
+
+    const paginatedSlice = useMemo(() => {
+        if (!isPaginated) return null
+        const realRows = pagination.rows.filter((r) => !r.__isSkeleton)
+        const start = (currentPage - 1) * uiPageSize
+        const total =
+            paginatedTotalCount ?? pagination.paginationInfo?.totalCount ?? realRows.length
+        return {
+            rows: realRows.slice(start, start + uiPageSize) as Row[],
+            total,
+        }
+    }, [
+        isPaginated,
+        pagination.rows,
+        pagination.paginationInfo?.totalCount,
+        paginatedTotalCount,
+        currentPage,
+        uiPageSize,
+    ])
+
+    // In paginated mode, proactively load next pages when user navigates beyond loaded rows
+    useEffect(() => {
+        if (!isPaginated) return
+        const realRows = pagination.rows.filter((r) => !r.__isSkeleton)
+        const neededRows = currentPage * uiPageSize
+        const {hasMore} = pagination.paginationInfo ?? {}
+        if (neededRows > realRows.length && hasMore) {
+            pagination.loadNextPage()
+        }
+    }, [isPaginated, currentPage, uiPageSize, pagination])
+
+    const handlePageChange = useCallback((page: number) => {
+        setCurrentPage(page)
+    }, [])
 
     const [controlsHeight, setControlsHeight] = useState(0)
     const [tableHeaderHeight, setTableHeaderHeight] = useState<number | null>(null)
 
     const resolvedControlsHeight = controlsHeight || fallbackControlsHeight
     const resolvedTableHeaderHeight = tableHeaderHeight ?? fallbackHeaderHeight
-    const visibleRowCount = pagination.rows.length || pageSize
-    const bodyHeight = autoHeight ? null : rowHeight * Math.max(visibleRowCount, 1)
+    // In paginated mode, always use fixed height to prevent collapse during page transitions
+    const effectiveAutoHeight = isPaginated ? false : autoHeight
+    // In paginated mode, use the current page's row count for height calculation
+    const visibleRowCount = isPaginated
+        ? paginatedSlice?.rows.length || uiPageSize
+        : pagination.rows.length || pageSize
+    const bodyHeight = effectiveAutoHeight ? null : rowHeight * Math.max(visibleRowCount, 1)
     const headerHeight = resolvedControlsHeight + resolvedTableHeaderHeight + 32
-    const fixedHeight = !autoHeight && bodyHeight !== null ? bodyHeight + headerHeight : undefined
+    // Pagination bar: py-2 (16px) + antd Pagination (~32px) = ~48px
+    const paginationBarHeight = isPaginated ? 48 : 0
+    const fixedHeight =
+        !effectiveAutoHeight && bodyHeight !== null
+            ? bodyHeight + headerHeight + paginationBarHeight
+            : undefined
     const resolvedContainerClassName =
         containerClassName ??
-        (autoHeight ? "w-full grow min-h-0 overflow-hidden" : "w-full overflow-hidden")
+        (effectiveAutoHeight ? "w-full grow min-h-0 overflow-hidden" : "w-full overflow-hidden")
 
     const tableExport = useTableExport<Row>()
     const [isExporting, setIsExporting] = useState(false)
@@ -405,7 +494,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
 
     // Built-in delete button (wide screens only)
     const builtInDeleteButton = useMemo(() => {
-        if (!deleteAction || isNarrowScreen) return null
+        if (!deleteAction || hideBuiltInButtons) return null
         const {onDelete, disabled, disabledTooltip, label = "Delete"} = deleteAction
         const button = (
             <Button
@@ -423,14 +512,20 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             return <Tooltip title={disabledTooltip}>{button}</Tooltip>
         }
         return button
-    }, [deleteAction, isNarrowScreen])
+    }, [deleteAction, hideBuiltInButtons])
 
     // Built-in export button (wide screens only, when exportAction is provided)
     const builtInExportButton = useMemo(() => {
-        if (!enableExport || !exportAction || isNarrowScreen) return null
+        if (!enableExport || !exportAction || hideBuiltInButtons) return null
         const {disabled, disabledTooltip, label = "Export CSV"} = exportAction
         const button = (
-            <Button disabled={disabled} onClick={exportHandler} loading={isExporting}>
+            <Button
+                disabled={disabled}
+                onClick={exportHandler}
+                loading={isExporting}
+                icon={<Export size={14} />}
+                type="text"
+            >
                 {label}
             </Button>
         )
@@ -442,11 +537,11 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             )
         }
         return button
-    }, [enableExport, exportAction, exportHandler, isExporting, isNarrowScreen])
+    }, [enableExport, exportAction, exportHandler, isExporting, hideBuiltInButtons])
 
     // Resolve settings dropdown delete config (prefer deleteAction over legacy prop)
     const resolvedSettingsDropdownDelete = useMemo(() => {
-        if (deleteAction && isNarrowScreen) {
+        if (deleteAction && hideBuiltInButtons) {
             return {
                 onDelete: deleteAction.onDelete,
                 disabled: deleteAction.disabled,
@@ -454,7 +549,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             }
         }
         return settingsDropdownDelete
-    }, [deleteAction, isNarrowScreen, settingsDropdownDelete])
+    }, [deleteAction, hideBuiltInButtons, settingsDropdownDelete])
 
     // Combine secondary actions: built-in buttons + custom secondaryActions + export button
     const resolvedSecondaryActions = useMemo(() => {
@@ -583,12 +678,16 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         )
     }, [tabs, headerExtra])
 
-    const effectiveDataSource = dataSource ?? pagination.rows
+    const effectiveDataSource = dataSource ?? paginatedSlice?.rows ?? pagination.rows
 
     // Content to render (may be wrapped with RowHeightContext.Provider)
     const tableContent = (
         <div
-            className={cn("flex flex-col", autoHeight ? "h-full min-h-0" : "min-h-0", className)}
+            className={cn(
+                "flex flex-col",
+                effectiveAutoHeight ? "h-full min-h-0" : "min-h-0",
+                className,
+            )}
             style={fixedHeight ? {height: fixedHeight} : undefined}
         >
             <TableShell
@@ -621,6 +720,18 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                     onHeaderHeightChange={setTableHeaderHeight}
                     tableRef={tableRef}
                 />
+                {isPaginated && paginatedSlice && (
+                    <div className="flex justify-end px-4 py-2">
+                        <Pagination
+                            total={paginatedSlice.total}
+                            showTotal={(total) => `Total ${total} items`}
+                            pageSize={uiPageSize}
+                            current={currentPage}
+                            onChange={handlePageChange}
+                            size="small"
+                        />
+                    </div>
+                )}
                 {afterTable}
             </TableShell>
         </div>

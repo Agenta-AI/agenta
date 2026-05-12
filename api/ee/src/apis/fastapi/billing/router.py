@@ -53,6 +53,40 @@ FORBIDDEN_RESPONSE = JSONResponse(
 )
 
 
+def _stripe_get(
+    value: Any,
+    key: str,
+    default: Any = None,
+) -> Any:
+    if value is None:
+        return default
+
+    if isinstance(value, dict):
+        return value.get(key, default)
+
+    try:
+        return getattr(value, key)
+    except AttributeError:
+        return default
+
+
+def _stripe_has(
+    value: Any,
+    key: str,
+) -> bool:
+    if value is None:
+        return False
+
+    if isinstance(value, dict):
+        return key in value
+
+    try:
+        getattr(value, key)
+        return True
+    except AttributeError:
+        return False
+
+
 class BillingRouter:
     def __init__(
         self,
@@ -131,28 +165,24 @@ class BillingRouter:
             "/stripe/portals/",
             self.create_portal_admin_route,
             methods=["POST"],
-            operation_id="admin_create_portal",
         )
 
         self.admin_router.add_api_route(
             "/stripe/checkouts/",
             self.create_checkout_admin_route,
             methods=["POST"],
-            operation_id="admin_create_checkout",
         )
 
         self.admin_router.add_api_route(
             "/plans/switch",
             self.switch_plans_admin_route,
             methods=["POST"],
-            operation_id="admin_switch_plans",
         )
 
         self.admin_router.add_api_route(
             "/subscription/cancel",
             self.cancel_subscription_admin_route,
             methods=["POST"],
-            operation_id="admin_cancel_subscription",
         )
 
         # DOESN'T REQUIRE 'organization_id'
@@ -160,21 +190,18 @@ class BillingRouter:
             "/usage/report",
             self.report_usage,
             methods=["POST"],
-            operation_id="admin_report_usage",
         )
 
         self.admin_router.add_api_route(
             "/usage/report/unlock",
             self.unlock_report_usage,
             methods=["POST"],
-            operation_id="admin_unlock_report_usage",
         )
 
         self.admin_router.add_api_route(
             "/usage/flush",
             self.flush_usage,
             methods=["POST"],
-            operation_id="admin_flush_usage",
         )
 
     async def _reset_organization_flags(self, organization_id: str) -> None:
@@ -256,21 +283,22 @@ class BillingRouter:
         metadata = None
 
         if not stripe_event.type.startswith("invoice"):
-            if not hasattr(stripe_event.data.object, "metadata"):
+            if not _stripe_has(stripe_event.data.object, "metadata"):
                 log.warn("Skipping stripe event: %s (no metadata)", stripe_event.type)
                 return JSONResponse(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     content={"status": "error", "message": "Metadata not found"},
                 )
             else:
-                metadata = stripe_event.data.object.metadata
+                metadata = _stripe_get(stripe_event.data.object, "metadata")
 
         if stripe_event.type.startswith("invoice"):
-            if not hasattr(
-                stripe_event.data.object, "subscription_details"
-            ) and not hasattr(
-                stripe_event.data.object.subscription_details, "metadata"
-            ):
+            subscription_details = _stripe_get(
+                stripe_event.data.object,
+                "subscription_details",
+            )
+
+            if not _stripe_has(subscription_details, "metadata"):
                 log.warn("Skipping stripe event: %s (no metadata)", stripe_event.type)
 
                 return JSONResponse(
@@ -278,16 +306,16 @@ class BillingRouter:
                     content={"status": "error", "message": "Metadata not found"},
                 )
             else:
-                metadata = stripe_event.data.object.subscription_details.metadata
+                metadata = _stripe_get(subscription_details, "metadata")
 
-        if "target" not in metadata:
+        if not _stripe_has(metadata, "target"):
             log.warn("Skipping stripe event: %s (no target)", stripe_event.type)
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 content={"status": "error", "message": "Target not found"},
             )
 
-        target = metadata.get("target")
+        target = _stripe_get(metadata, "target")
 
         if target != env.stripe.webhook_target:
             log.warn(
@@ -300,14 +328,14 @@ class BillingRouter:
                 content={"status": "skip", "message": "Target mismatch"},
             )
 
-        if "organization_id" not in metadata:
+        if not _stripe_has(metadata, "organization_id"):
             log.warn("Skipping stripe event: %s (no organization)", stripe_event.type)
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 content={"status": "error", "message": "Organization ID not found"},
             )
 
-        organization_id = metadata.get("organization_id")
+        organization_id = _stripe_get(metadata, "organization_id")
 
         log.info(
             "[billing] [stripe]   %s | %s | %s",
@@ -325,7 +353,7 @@ class BillingRouter:
             if stripe_event.type == "customer.subscription.created":
                 event = Event.SUBSCRIPTION_CREATED
 
-                if "id" not in stripe_event.data.object:
+                if not _stripe_has(stripe_event.data.object, "id"):
                     log.warn(
                         "Skipping stripe event: %s (no subscription)",
                         stripe_event.type,
@@ -338,9 +366,9 @@ class BillingRouter:
                         },
                     )
 
-                subscription_id = stripe_event.data.object.id
+                subscription_id = _stripe_get(stripe_event.data.object, "id")
 
-                if "plan" not in metadata:
+                if not _stripe_has(metadata, "plan"):
                     log.warn("Skipping stripe event: %s (no plan)", stripe_event.type)
                     return JSONResponse(
                         status_code=status.HTTP_400_BAD_REQUEST,
@@ -350,9 +378,9 @@ class BillingRouter:
                         },
                     )
 
-                plan = Plan(metadata.get("plan"))
+                plan = Plan(_stripe_get(metadata, "plan"))
 
-                if "billing_cycle_anchor" not in stripe_event.data.object:
+                if not _stripe_has(stripe_event.data.object, "billing_cycle_anchor"):
                     log.warn("Skipping stripe event: %s (no anchor)", stripe_event.type)
                     return JSONResponse(
                         status_code=status.HTTP_400_BAD_REQUEST,
@@ -363,7 +391,7 @@ class BillingRouter:
                     )
 
                 anchor = datetime.fromtimestamp(
-                    stripe_event.data.object.billing_cycle_anchor,
+                    _stripe_get(stripe_event.data.object, "billing_cycle_anchor"),
                     tz=timezone.utc,
                 ).day
 
@@ -541,7 +569,7 @@ class BillingRouter:
                 },
             },
             #
-            ui_mode="hosted",
+            ui_mode="hosted_page",
             success_url=success_url,
         )
 
@@ -677,12 +705,21 @@ class BillingRouter:
 
         if _subscription:
             # Get period dates from the first subscription item
-            items = _subscription.get("items")
-            if items and items.get("data") and len(items["data"]) > 0:
-                item = items["data"][0]
-                _status["period_start"] = int(item.get("current_period_start"))
-                _status["period_end"] = int(item.get("current_period_end"))
-            _status["free_trial"] = _subscription.status == "trialing"
+            items = _stripe_get(_subscription, "items")
+            data = _stripe_get(items, "data") or []
+
+            if len(data) > 0:
+                item = data[0]
+                period_start = _stripe_get(item, "current_period_start")
+                period_end = _stripe_get(item, "current_period_end")
+
+                if period_start is not None:
+                    _status["period_start"] = int(period_start)
+
+                if period_end is not None:
+                    _status["period_end"] = int(period_end)
+
+            _status["free_trial"] = _stripe_get(_subscription, "status") == "trialing"
 
             return _status
 

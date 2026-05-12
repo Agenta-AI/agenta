@@ -184,7 +184,6 @@ Update to pull `storageState` from the worker-scoped user fixture instead of fro
 
 **`global-teardown.ts`:**
 - Remove ephemeral project deletion (now handled by test-scoped fixture teardown)
-- Keep the optional destructive `delete-all` for CI cleanup
 - Keep model hub secret cleanup (or move it to fixture teardown too)
 
 ### Phase 5: Auth helper consolidation
@@ -261,7 +260,6 @@ No new env vars are required. Existing vars continue to work:
 | `AGENTA_TEST_AUTH_MODE` | auth flows | Force password/otp/auto |
 | `AGENTA_TEST_OSS_OWNER_EMAIL` | global-setup (OSS) | Admin email override |
 | `AGENTA_TEST_OSS_OWNER_PASSWORD` | global-setup (OSS) | Admin password |
-| `AGENTA_TEST_ALLOW_DESTRUCTIVE_TEARDOWN` | global-teardown | Enable delete-all |
 
 ---
 

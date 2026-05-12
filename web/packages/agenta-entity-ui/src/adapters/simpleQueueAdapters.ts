@@ -5,7 +5,7 @@
  * This enables EntityDeleteModal to work with annotation queues.
  */
 
-import {simpleQueue, type SimpleQueue} from "@agenta/entities"
+import {simpleQueueMolecule as simpleQueue, type SimpleQueue} from "@agenta/entities/simpleQueue"
 import {atom} from "jotai"
 
 import {createAndRegisterEntityAdapter, type EntityModalAdapter} from "../modals"

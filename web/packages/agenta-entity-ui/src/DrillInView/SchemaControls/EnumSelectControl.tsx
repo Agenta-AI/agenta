@@ -7,7 +7,7 @@
 
 import {memo, useMemo} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
 import {formatEnumLabel} from "@agenta/shared/utils"
 import {LabeledField, SimpleDropdownSelect} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"

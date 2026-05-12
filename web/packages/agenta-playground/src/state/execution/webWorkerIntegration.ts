@@ -86,7 +86,7 @@ function getSharedConcurrencyLimiter(): <T>(fn: () => Promise<T>) => Promise<T> 
 /**
  * Injectable function that returns auth headers for worker HTTP requests.
  *
- * OSS sets this once in OSSPlaygroundEntityProvider.tsx with a function
+ * OSS sets this once in AppGlobalWrappers with a function
  * that calls `getJWT()` and returns `{Authorization: \`Bearer ${jwt}\`}`.
  *
  * @example
@@ -341,19 +341,21 @@ export const triggerExecutionAtom = atom(
                 session: {
                     id: sessionId,
                     runnableId: rootEntityId,
-                    runnableType: (effectiveRootNode.entityType ||
-                        "legacyAppRevision") as RunnableType,
+                    runnableType: (effectiveRootNode.entityType || "workflow") as RunnableType,
                     mode,
                 },
                 data: testcaseData,
                 nodes: executionNodes,
                 allConnections: executionConnections,
-                sessionOptions: {
-                    [sessionId]: {
-                        headers,
-                        ...(projectId ? {projectId} : {}),
-                    },
-                },
+                sessionOptions: Object.fromEntries(
+                    executionNodes.map((n) => [
+                        n.depth === 0 ? sessionId : `sess:${rootEntityId}:${n.entityId}`,
+                        {
+                            headers,
+                            ...(projectId ? {projectId} : {}),
+                        },
+                    ]),
+                ),
                 repetitionCount,
                 targetNodeId: params.targetNodeId,
                 lifecycle: {
@@ -392,7 +394,18 @@ export const triggerExecutionAtom = atom(
                                     stepId: rowId,
                                     sessionId: stageSessionId,
                                     result: {
-                                        output: {response: stageResult.structuredOutput},
+                                        output: {
+                                            response: {
+                                                data:
+                                                    stageResult.output !== undefined
+                                                        ? stageResult.output
+                                                        : (
+                                                              stageResult.structuredOutput as
+                                                                  | Record<string, unknown>
+                                                                  | undefined
+                                                          )?.data,
+                                            },
+                                        },
                                         structuredOutput: stageResult.structuredOutput,
                                         traceId: stageResult.traceId,
                                         metrics: stageResult.metrics,
@@ -402,10 +415,20 @@ export const triggerExecutionAtom = atom(
                         }
                     },
                     onComplete: ({result}) => {
-                        // Wrap output in {response: structuredOutput} to match the
-                        // result shape that deriveToolViewModelFromResult expects
-                        // (it reads result.response.data for display text).
-                        const wrappedOutput = {response: result.structuredOutput}
+                        // Wrap output in {response: {data: ...}} to match the shape
+                        // that deriveToolViewModelFromResult expects (reads result.response.data).
+                        // Use result.output (normalized) as data so invoke-format responses
+                        // display correctly — structuredOutput contains the raw API response
+                        // which may have a nested data.outputs shape that the viewer can't read.
+                        const wrappedOutput = {
+                            response: {
+                                data:
+                                    result.output !== undefined
+                                        ? result.output
+                                        : (result.structuredOutput as Record<string, unknown>)
+                                              ?.data,
+                            },
+                        }
 
                         // Chat mode: route through handleExecutionResultAtom to
                         // write assistant/tool messages to the chat message store.
@@ -483,7 +506,18 @@ export const triggerExecutionAtom = atom(
                                     stepId: rowId,
                                     sessionId: stageSessionId,
                                     result: {
-                                        output: {response: stageResult.structuredOutput},
+                                        output: {
+                                            response: {
+                                                data:
+                                                    stageResult.output !== undefined
+                                                        ? stageResult.output
+                                                        : (
+                                                              stageResult.structuredOutput as
+                                                                  | Record<string, unknown>
+                                                                  | undefined
+                                                          )?.data,
+                                            },
+                                        },
                                         structuredOutput: stageResult.structuredOutput,
                                         traceId: stageResult.traceId,
                                         metrics: stageResult.metrics,

@@ -5,7 +5,7 @@ Date: 2026-02-25
 ## Overall
 
 - State: Phase 1 implemented for all safe-now families.
-- Immediate next step: migrate frontend and SDK callers from `/preview/*` to canonical paths.
+- Immediate next step: migrate frontend and SDK callers from `/*` to canonical paths.
 
 ## Add canonical routes (API)
 

@@ -297,7 +297,12 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
     }, [evaluatorQuery])
 
     const hasInvocationOutput =
-        invocationSteps.some((step) => Boolean(extractOutputs(step))) || outputColumns.length > 0
+        invocationSteps.some(
+            (step) =>
+                Boolean(extractOutputs(step)) ||
+                (INVOCATION_SUCCESS_STATUSES.has(normalizeStatus(step.status)) &&
+                    Boolean(step?.traceId || step?.trace_id)),
+        ) || outputColumns.length > 0
 
     // Check if all invocations are successful
     const allInvocationsSuccessful = useMemo(() => {

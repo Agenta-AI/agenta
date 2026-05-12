@@ -7,7 +7,7 @@
 
 import {memo, useCallback, useEffect, useState} from "react"
 
-import type {SchemaProperty} from "@agenta/entities"
+import type {SchemaProperty} from "@agenta/entities/shared"
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {Input, Typography} from "antd"
@@ -125,16 +125,13 @@ export const TextInputControl = memo(function TextInputControl({
         />
     )
 
-    // Use horizontal layout for single-line inputs, vertical for multiline
-    const layoutDirection = isMultiline ? "vertical" : "horizontal"
-
     return (
         <LabeledField
             label={label}
             description={tooltipText}
             withTooltip={withTooltip && !!label}
-            direction={layoutDirection}
-            className={cn(layoutDirection === "horizontal" ? "justify-between" : "", className)}
+            direction="vertical"
+            className={cn(className)}
         >
             {inputContent}
             {(maxLength || minLength) && (

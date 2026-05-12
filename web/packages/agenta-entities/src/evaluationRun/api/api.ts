@@ -4,7 +4,7 @@
  * HTTP API functions for EvaluationRun entities.
  * These are pure functions with no Jotai dependencies.
  *
- * Base endpoint: `/preview/evaluations/runs/`
+ * Base endpoint: `/evaluations/runs/`
  */
 
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
@@ -31,7 +31,7 @@ import type {
 /**
  * Fetch a single evaluation run by ID.
  *
- * Endpoint: `GET /preview/evaluations/runs/{run_id}`
+ * Endpoint: `GET /evaluations/runs/{run_id}`
  */
 export async function fetchEvaluationRun({
     id,
@@ -39,7 +39,7 @@ export async function fetchEvaluationRun({
 }: EvaluationRunDetailParams): Promise<EvaluationRun | null> {
     if (!projectId || !id) return null
 
-    const response = await axios.get(`${getAgentaApiUrl()}/preview/evaluations/runs/${id}`, {
+    const response = await axios.get(`${getAgentaApiUrl()}/evaluations/runs/${id}`, {
         params: {project_id: projectId},
     })
 
@@ -58,7 +58,7 @@ export async function fetchEvaluationRun({
 /**
  * Query evaluation runs by a list of IDs.
  *
- * Endpoint: `POST /preview/evaluations/runs/query`
+ * Endpoint: `POST /evaluations/runs/query`
  */
 export async function queryEvaluationRuns({
     projectId,
@@ -72,7 +72,7 @@ export async function queryEvaluationRuns({
         body.run = {ids}
     }
 
-    const response = await axios.post(`${getAgentaApiUrl()}/preview/evaluations/runs/query`, body, {
+    const response = await axios.post(`${getAgentaApiUrl()}/evaluations/runs/query`, body, {
         params: {project_id: projectId},
     })
 
@@ -94,7 +94,7 @@ export async function queryEvaluationRuns({
  * Each result represents one step's output for a scenario.
  * Results contain `trace_id` and `span_id` that link scenarios to traces.
  *
- * Endpoint: `POST /preview/evaluations/results/query`
+ * Endpoint: `POST /evaluations/results/query`
  */
 export async function queryEvaluationResults({
     projectId,
@@ -115,11 +115,9 @@ export async function queryEvaluationResults({
         windowing: {},
     }
 
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/evaluations/results/query`,
-        body,
-        {params: {project_id: projectId}},
-    )
+    const response = await axios.post(`${getAgentaApiUrl()}/evaluations/results/query`, body, {
+        params: {project_id: projectId},
+    })
 
     const validated = safeParseWithLogging(
         evaluationResultsResponseSchema,

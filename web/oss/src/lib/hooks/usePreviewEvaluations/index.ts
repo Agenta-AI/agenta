@@ -1,7 +1,7 @@
 /* eslint-disable import/order */
-import {useCallback, useEffect, useMemo} from "react"
+import {useCallback, useMemo} from "react"
 
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 import {useSWRConfig} from "swr"
@@ -16,7 +16,6 @@ import {slugify} from "@/oss/lib/utils/slugify"
 import {createEvaluationRunConfig} from "@/oss/services/evaluationRuns/api"
 import {CreateEvaluationRunInput} from "@/oss/services/evaluationRuns/api/types"
 import {getProjectValues} from "@/oss/state/project"
-import {setProjectVariantReferencesAtom} from "@/oss/state/projectVariantConfig"
 import {fetchRevision} from "@/oss/state/entities/testset"
 import {
     testcasesResponseSchema,
@@ -25,7 +24,6 @@ import {
 
 import {primePreviewRunCache} from "./assets/previewRunBatcher"
 import {fetchPreviewRunsShared} from "./assets/previewRunsRequest"
-import {collectProjectVariantReferences} from "./projectVariantConfigs"
 
 const EMPTY_RUNS: any[] = []
 export interface PreviewEvaluationRunsData {
@@ -129,7 +127,7 @@ interface PreviewEvaluationsQueryState {
 import {searchQueryAtom} from "./states/queryFilterAtoms"
 import {EnrichedEvaluationRun, EvaluationRun} from "./types"
 
-const SCENARIOS_ENDPOINT = "/preview/evaluations/scenarios/"
+const SCENARIOS_ENDPOINT = "/evaluations/scenarios/"
 
 /**
  * Custom hook to manage and enrich preview evaluation runs.
@@ -262,21 +260,6 @@ const usePreviewEvaluations = ({
             error: queryEnabled ? evaluationRunsQuery.error : undefined,
         }
     }, [evaluationRunsQuery, queryEnabled, isEnrichmentPending])
-    const setProjectVariantReferences = useSetAtom(setProjectVariantReferencesAtom)
-
-    useEffect(() => {
-        if (!projectId) {
-            setProjectVariantReferences([])
-            return
-        }
-        if (appId) {
-            setProjectVariantReferences([])
-            return
-        }
-        const references = collectProjectVariantReferences(rawRuns, projectId)
-        setProjectVariantReferences(references)
-        // prefetchProjectVariantConfigs(references)
-    }, [appId, projectId, rawRuns, setProjectVariantReferences])
 
     /**
      * Helper to create scenarios for a given run and testset.
@@ -304,7 +287,11 @@ const usePreviewEvaluations = ({
             }
 
             // 2. Invoke the scenario endpoint
-            const response = await axios.post(SCENARIOS_ENDPOINT, payload)
+            const currentProjectId = getProjectValues().projectId
+            const response = await axios.post(
+                `${SCENARIOS_ENDPOINT}?project_id=${currentProjectId}`,
+                payload,
+            )
 
             // Extract and return new scenario IDs
             return response.data.scenarios.map((s: any) => s.id)
@@ -362,10 +349,10 @@ const usePreviewEvaluations = ({
                 const allTestcases: PreviewTestcase[] = []
                 let cursor: string | null = null
 
-                // Paginate through /preview/testcases/query until no more pages
+                // Paginate through /testcases/query until no more pages
                 do {
                     const response = await axios.post(
-                        "/preview/testcases/query",
+                        "/testcases/query",
                         {
                             testset_revision_ref: {id: revision.id},
                             windowing: {
@@ -413,10 +400,7 @@ const usePreviewEvaluations = ({
             })
 
             // 3. Invoke preview run endpoint (include project for backend routing)
-            const response = await axios.post(
-                `/preview/evaluations/runs/?project_id=${projectId}`,
-                params,
-            )
+            const response = await axios.post(`/evaluations/runs/?project_id=${projectId}`, params)
 
             // 4. Refresh preview runs list and return created run
             await evaluationRunsState.mutate()
@@ -496,7 +480,7 @@ const usePreviewEvaluations = ({
                 )
                 // 7. Invoke the /results endpoint
                 await axios
-                    .post(`/preview/evaluations/results/?project_id=${projectId}`, {
+                    .post(`/evaluations/results/?project_id=${projectId}`, {
                         results: allSteps,
                     })
                     // .then((res) => {

@@ -1,9 +1,8 @@
-// @ts-nocheck
 import {memo, useState} from "react"
 
 import {PageLayout} from "@agenta/ui"
 import {MoreOutlined} from "@ant-design/icons"
-import {PencilSimple, Trash} from "@phosphor-icons/react"
+import {Copy, PencilSimple, Trash} from "@phosphor-icons/react"
 // TEMPORARY: Disabling name editing
 // import {PencilLine} from "@phosphor-icons/react"
 import {Button, Dropdown, Space, Typography} from "antd"
@@ -16,6 +15,7 @@ import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/moda
 // import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import DeploymentOverview from "@/oss/components/pages/overview/deployments/DeploymentOverview"
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
+import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {useAppsData} from "@/oss/state/app"
 
 const CustomWorkflowHistory: any = dynamic(
@@ -37,13 +37,12 @@ const AppDetailsSection = memo(() => {
     const {currentApp, mutate: mutateApps} = useAppsData()
     const {openModal} = useCustomWorkflowConfig({
         afterConfigSave: mutateApps,
-        configureWorkflow: true,
     })
     return (
         <>
             <Space className="flex items-center gap-3">
                 <Title level={3} className="!m-0">
-                    {currentApp?.app_name || ""}
+                    {currentApp?.name ?? currentApp?.slug ?? ""}
                 </Title>
 
                 <Dropdown
@@ -55,7 +54,7 @@ const AppDetailsSection = memo(() => {
                     }}
                     menu={{
                         items: [
-                            ...(currentApp?.app_type === "custom"
+                            ...(currentApp?.flags?.is_custom
                                 ? [
                                       {
                                           key: "configure",
@@ -81,11 +80,31 @@ const AppDetailsSection = memo(() => {
                                       // },
                                   ]),
                             {
+                                key: "copy_id",
+                                label: "Copy ID",
+                                icon: <Copy size={16} />,
+                                onClick: () => copyToClipboard(currentApp!.id),
+                            },
+                            ...(currentApp?.slug
+                                ? [
+                                      {
+                                          key: "copy_slug",
+                                          label: "Copy Slug",
+                                          icon: <Copy size={16} />,
+                                          onClick: () => copyToClipboard(currentApp!.slug!),
+                                      },
+                                  ]
+                                : []),
+                            {
                                 key: "delete_app",
                                 label: "Delete",
                                 icon: <Trash size={16} />,
                                 danger: true,
-                                onClick: () => openDeleteAppModal(currentApp!),
+                                onClick: () =>
+                                    openDeleteAppModal({
+                                        id: currentApp!.id,
+                                        name: currentApp!.name ?? currentApp!.slug ?? "",
+                                    }),
                             },
                         ],
                     }}
@@ -99,7 +118,7 @@ const AppDetailsSection = memo(() => {
 
 const OverviewPage = () => {
     const {currentApp} = useAppsData()
-    const appId = currentApp?.app_id ?? null
+    const appId = currentApp?.id ?? null
     const [isCustomWorkflowHistoryDrawerOpen, setIsCustomWorkflowHistoryDrawerOpen] =
         useState(false)
 

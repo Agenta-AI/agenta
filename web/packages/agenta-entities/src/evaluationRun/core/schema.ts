@@ -2,7 +2,7 @@
  * EvaluationRun Entity Schemas
  *
  * Zod schemas for evaluation run entities returned by the
- * `/preview/evaluations/runs/` API.
+ * `/evaluations/runs/` API.
  *
  * @packageDocumentation
  */
@@ -117,7 +117,7 @@ export type EvaluationRun = z.infer<typeof evaluationRunSchema>
 
 /**
  * Single run response envelope.
- * `GET /preview/evaluations/runs/{run_id}`
+ * `GET /evaluations/runs/{run_id}`
  */
 export const evaluationRunResponseSchema = z.object({
     count: z.number(),
@@ -127,7 +127,7 @@ export type EvaluationRunResponse = z.infer<typeof evaluationRunResponseSchema>
 
 /**
  * Multi-run query response envelope.
- * `POST /preview/evaluations/runs/query`
+ * `POST /evaluations/runs/query`
  */
 export const evaluationRunsResponseSchema = z.object({
     count: z.number(),
@@ -143,7 +143,7 @@ export type EvaluationRunsResponse = z.infer<typeof evaluationRunsResponseSchema
  * A single evaluation result — represents one step's output for a scenario.
  * Each result links a scenario to a trace via `trace_id` and `span_id`.
  *
- * Fetched via `POST /preview/evaluations/results/query`.
+ * Fetched via `POST /evaluations/results/query`.
  */
 export const evaluationResultSchema = z.object({
     id: z.string().optional(),

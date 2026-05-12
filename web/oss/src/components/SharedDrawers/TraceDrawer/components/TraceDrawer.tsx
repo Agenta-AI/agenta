@@ -3,7 +3,6 @@ import {useCallback, useState} from "react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import {useQueryParamState} from "@/oss/state/appState"
 import {clearTraceParamAtom} from "@/oss/state/url"
 
 import {closeTraceDrawerAtom, isDrawerOpenAtom} from "../store/traceDrawerStore"
@@ -14,7 +13,6 @@ const TraceDrawer = () => {
     const open = useAtomValue(isDrawerOpenAtom)
     const closeDrawer = useSetAtom(closeTraceDrawerAtom)
     const clearTraceParam = useSetAtom(clearTraceParamAtom)
-    const [, setSpanQueryParam] = useQueryParamState("span")
 
     const initialWidth = 1200
     const [drawerWidth, setDrawerWidth] = useState(initialWidth)
@@ -22,11 +20,11 @@ const TraceDrawer = () => {
     const handleAfterOpenChange = useCallback(
         (isOpen: boolean) => {
             if (!isOpen) {
+                // clearTraceQueryParam already removes both trace and span params
                 clearTraceParam()
-                setSpanQueryParam(undefined, {shallow: true})
             }
         },
-        [clearTraceParam, setSpanQueryParam],
+        [clearTraceParam],
     )
 
     const toggleWidth = useCallback(() => {

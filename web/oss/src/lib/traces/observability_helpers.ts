@@ -1,13 +1,12 @@
+import {sortSpansByStartTime} from "@agenta/entities/trace"
+import {uuidToSpanId, uuidToTraceId} from "@agenta/shared/utils"
+
 import {
     _AgentaRootsResponse,
     AgentaNodeDTO,
     AgentaTreeDTO,
 } from "@/oss/services/observability/types"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
-
-import {uuidToSpanId, uuidToTraceId} from "../traces/helpers"
-
-import {sortSpansByStartTime} from "./tracing"
 
 const normalizeContentFields = (obj: any): void => {
     if (Array.isArray(obj)) {

@@ -8,18 +8,17 @@
 import {createContext, useContext, useMemo, useState, useCallback, type ReactNode} from "react"
 
 import {type DataPath, setValueAtPath, deleteValueAtPath} from "@agenta/shared/utils"
-import {useAtomValue, useSetAtom} from "jotai"
-
-import {defaultFieldBehaviors} from "../context"
-import type {DrillInContextValue} from "../context"
+import type {DrillInContextValue} from "@agenta/ui/drill-in"
 import type {
     DrillInClassNames,
     DrillInFieldBehaviors,
     DrillInSlots,
     DrillInStyles,
     MoleculeDrillInAdapter,
-} from "../types"
-import {mergeClassNames} from "../utils/classNames"
+} from "@agenta/ui/drill-in"
+import {defaultFieldBehaviors} from "@agenta/ui/drill-in"
+import {mergeClassNames} from "@agenta/ui/drill-in"
+import {useAtomValue, useSetAtom} from "jotai"
 
 // ============================================================================
 // CONTEXT
@@ -42,6 +41,16 @@ export function useDrillIn<TEntity = unknown>(): DrillInContextValue<TEntity> {
         throw new Error("useDrillIn must be used within MoleculeDrillInView")
     }
     return ctx as DrillInContextValue<TEntity>
+}
+
+/**
+ * Safe variant of {@link useDrillIn} that returns `null` when called outside a
+ * DrillInProvider. Useful for controls that may be rendered both inside and
+ * outside the drill-in tree (e.g. shared schema controls).
+ */
+export function useOptionalDrillIn<TEntity = unknown>(): DrillInContextValue<TEntity> | null {
+    const ctx = useContext(DrillInContext)
+    return ctx as DrillInContextValue<TEntity> | null
 }
 
 // ============================================================================

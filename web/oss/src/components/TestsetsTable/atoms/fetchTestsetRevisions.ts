@@ -19,7 +19,7 @@ import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {getProjectValues} from "@/oss/state/project"
 
 /**
- * Testset revision from /preview/testsets/revisions/query
+ * Testset revision from /testsets/revisions/query
  *
  * Note: We skip the variant layer entirely. The frontend works directly with
  * testsets and their revisions (2-level hierarchy instead of 3-level).
@@ -71,7 +71,7 @@ export const fetchTestsetRevisions = async ({
 
     try {
         const response = await axios.post(
-            `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+            `${getAgentaApiUrl()}/testsets/revisions/query`,
             {
                 testset_refs: [{id: testsetId}],
                 windowing: {

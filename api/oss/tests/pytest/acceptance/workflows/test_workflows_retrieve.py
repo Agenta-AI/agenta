@@ -14,7 +14,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/",
+        "/workflows/",
         json={"workflow": workflow_0},
     )
 
@@ -30,7 +30,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/",
+        "/workflows/",
         json={"workflow": workflow_1},
     )
 
@@ -42,7 +42,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"workflow-variant-{workflow_0_variant_0_slug}",
@@ -59,7 +59,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/workflows/revisions/",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_0_variant_0_revision_0_slug}",
@@ -77,7 +77,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"workflow-variant-{workflow_1_variant_0_slug}",
@@ -94,7 +94,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/workflows/revisions/",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_1_variant_0_revision_0_slug}",
@@ -110,7 +110,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"workflow-variant-{workflow_1_variant_1_slug}",
@@ -125,7 +125,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/workflows/revisions/",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_1_variant_1_revision_0_slug}",
@@ -143,7 +143,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/workflows/revisions/",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_1_variant_1_revision_1_slug}",
@@ -199,7 +199,7 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/retrieve",
+            "/workflows/revisions/retrieve",
             json={
                 "workflow_revision_ref": {"id": revision_id},
             },
@@ -221,7 +221,7 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/retrieve",
+            "/workflows/revisions/retrieve",
             json={
                 "workflow_revision_ref": {"slug": revision_slug},
             },
@@ -246,7 +246,7 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/retrieve",
+            "/workflows/revisions/retrieve",
             json={
                 "workflow_variant_ref": {"id": variant_id},
                 "workflow_revision_ref": {"version": revision_version},
@@ -272,7 +272,7 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/retrieve",
+            "/workflows/revisions/retrieve",
             json={
                 "workflow_variant_ref": {"slug": variant_slug},
                 "workflow_revision_ref": {"version": revision_version},
@@ -295,7 +295,7 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/retrieve",
+            "/workflows/revisions/retrieve",
             json={
                 "workflow_variant_ref": {"id": variant_id},
             },
@@ -317,7 +317,7 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/retrieve",
+            "/workflows/revisions/retrieve",
             json={
                 "workflow_variant_ref": {"slug": variant_slug},
             },

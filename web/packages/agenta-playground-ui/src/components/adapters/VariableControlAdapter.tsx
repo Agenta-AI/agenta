@@ -57,6 +57,24 @@ const MarkdownToggleRegistrar: React.FC<{
 }
 
 /**
+ * Focuses the Lexical editor on mount when `armedRef.current` is true, then
+ * disarms. Used so that a mode-flip-triggered remount (paste or Cmd+A+Delete)
+ * returns focus to the newly-mounted editor — preserving the user's editing
+ * context across the swap.
+ */
+const FocusOnMountWhenArmed: React.FC<{
+    armedRef: React.MutableRefObject<boolean>
+}> = ({armedRef}) => {
+    const [editor] = useLexicalComposerContext()
+    useEffect(() => {
+        if (!armedRef.current) return
+        armedRef.current = false
+        editor.focus()
+    }, [editor, armedRef])
+    return null
+}
+
+/**
  * Shared header for all variable control types.
  * Renders the variable name label and optional header actions.
  */
@@ -116,17 +134,24 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
         ),
     ) as string
     const variableKeys = useAtomValue(executionItemController.selectors.variableKeys) as string[]
-    const name = useMemo(
-        () => (variableKeys.includes(variableKey) ? variableKey : undefined),
-        [variableKeys, variableKey],
-    )
 
-    // Schema-aware type detection from input port definitions
+    // Schema-aware type detection from input port definitions — also source of
+    // the display label so path-style variable keys (`$.inputs.country`,
+    // `/inputs/country`, `inputs.country`) render as their last segment instead
+    // of the raw path. The key stays unchanged for request-payload identity.
     const schemaMap = useAtomValue(executionItemController.selectors.inputPortSchemaMap) as Record<
         string,
-        {type: string; schema?: unknown}
+        {type: string; name?: string; schema?: unknown}
     >
     const portType = schemaMap[variableKey]?.type ?? "string"
+    const portSchema = schemaMap[variableKey]?.schema
+    const name = useMemo(
+        () =>
+            variableKeys.includes(variableKey)
+                ? (schemaMap[variableKey]?.name ?? variableKey)
+                : undefined,
+        [variableKeys, variableKey, schemaMap],
+    )
 
     // Custom app variable gating: disable controls for names not in schema keys
     const schemaKeys = useAtomValue(
@@ -140,28 +165,88 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
 
     const setCellValue = useSetAtom(executionItemController.actions.setTestcaseCellValue)
 
-    // For object/array types, provide a sensible default when value is empty
+    // For object/array types, derive an "expected shape" hint from the port's
+    // synthetic schema. For grouped envelope-path variables (e.g.
+    // `$.inputs.test.country`) the schema lists the known sub-keys; rendered
+    // outside the editor as help text so the user can see which fields the
+    // template references without us pre-filling the editor with content
+    // that won't actually be submitted.
     const isJsonType = portType === "object" || portType === "array"
-    const jsonDefault = portType === "array" ? "[]" : "{}"
+    const shapeHint = useMemo(() => {
+        if (portType === "array") return null
+        const props =
+            portSchema && typeof portSchema === "object"
+                ? (portSchema as {properties?: Record<string, unknown>}).properties
+                : null
+        if (!props || typeof props !== "object") return null
+        const keys = Object.keys(props)
+        if (keys.length === 0) return null
+        const obj: Record<string, string> = {}
+        for (const k of keys) obj[k] = ""
+        return JSON.stringify(obj)
+    }, [portType, portSchema])
 
-    // Capture whether the initial value looks like JSON at mount time.
-    // This is safe because codeOnly is set once before Lexical initialises.
-    // Switching codeOnly dynamically at runtime crashes Lexical
-    // (MarkdownShortcuts: missing dependency code), so the flag is immutable.
-    const initialValueLooksLikeJson = useRef(
-        typeof value === "string" && !!value && isJsonString(value),
-    ).current
-
-    const isJsonEditor = isJsonType || initialValueLooksLikeJson
-    const effectiveValue =
-        isJsonEditor && isJsonType && (!value || value === "") ? jsonDefault : value
-
-    // Seed the default back to the store so the execution payload has the correct value
+    // Detect whether the value looks like JSON. Derived during render (no
+    // useState + useEffect indirection) so the mode is correct on the very
+    // first render after a paste/edit — avoids a flicker where the content
+    // briefly appears in the wrong editor before an effect-driven sync runs.
+    //
+    // Sticky during character-by-character edits: once detected as JSON, a
+    // single-keystroke change that transiently breaks the JSON shape (e.g.
+    // deleting the closing `}`) keeps the editor in JSON mode rather than
+    // remounting Lexical mid-edit. Bulk replacements (paste, Cmd+A+Delete,
+    // programmatic resets) skip stickiness because their length delta exceeds
+    // 1 — they re-detect freshly from the new value.
+    //
+    // The EditorProvider downstream is keyed on this flag, so every flip
+    // triggers a clean Lexical remount (avoiding the MarkdownShortcuts
+    // dependency crash that earlier blocked downgrades on the same instance).
+    const valStr = typeof value === "string" ? value : ""
+    const prevValueRef = useRef<string>("")
+    const prevDetectedRef = useRef<boolean>(false)
+    let detectedAsJson: boolean
+    if (!valStr) {
+        detectedAsJson = false
+    } else if (isJsonString(valStr)) {
+        detectedAsJson = true
+    } else {
+        const isCharEdit = Math.abs(valStr.length - prevValueRef.current.length) <= 1
+        detectedAsJson = isCharEdit && prevDetectedRef.current
+    }
     useEffect(() => {
-        if (isJsonType && (!value || value === "")) {
-            setCellValue({testcaseId: rowId, column: variableKey, value: jsonDefault})
+        prevValueRef.current = valStr
+        prevDetectedRef.current = detectedAsJson
+    })
+
+    const isJsonEditor = isJsonType || detectedAsJson
+    const isCellEmpty = !value || value === ""
+    // The editor reflects the actual cell content. Earlier the empty cell was
+    // back-filled with a schema-derived default for display only, but that
+    // looked populated while the run payload stayed empty — surface the
+    // expected shape as a help-text hint instead (see `shapeHint` below).
+    const effectiveValue = value
+
+    // Identity key for remounting the editor on SCHEMA changes only.
+    // Using `isCellEmpty` here (earlier approach) caused a cursor reset on
+    // the first keystroke: the cell flipped non-empty mid-edit, the editor
+    // key changed, Lexical remounted. Anchoring on the schema instead keeps
+    // the key stable across typing and only flips when the prompt itself
+    // introduces a new shape (different sub-paths, different slot).
+    const schemaKey = useMemo(() => {
+        if (!portSchema) return "no-schema"
+        try {
+            return JSON.stringify(portSchema)
+        } catch {
+            return "schema-err"
         }
-    }, [isJsonType, value, jsonDefault, setCellValue, rowId, variableKey])
+    }, [portSchema])
+
+    // The expected-shape hint is rendered as separate help text (not as the
+    // editor's initial value). Earlier the seed was the editor's content,
+    // which made empty cells look populated while the run payload stayed
+    // empty. Showing the shape outside the editor keeps the editor honest
+    // about what's submitted while still letting the user see which fields
+    // the template references.
 
     const handleChange = useCallback(
         (nextText: unknown) => {
@@ -169,6 +254,72 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
             setCellValue({testcaseId: rowId, column: variableKey, value: nextVal})
         },
         [setCellValue, rowId, variableKey],
+    )
+
+    // Intercept Cmd/Ctrl+A followed by Delete/Backspace — the most common
+    // "nuke everything and retype" flow — so the mode flip happens without
+    // the old editor briefly painting its cleared state. We track a ref that
+    // arms on select-all keydown and fires on the next delete/backspace.
+    // Any other key resets the arm. This doesn't cover backspace-until-empty
+    // (each keystroke individually can't reliably predict the final empty
+    // state without reading editor internals), so that flow still flashes
+    // for 1 frame — acceptable tradeoff for the uncommon path.
+    const selectAllArmedRef = useRef(false)
+    const handleKeyDownCapture = useCallback(
+        (e: React.KeyboardEvent<HTMLDivElement>) => {
+            const key = e.key.toLowerCase()
+            if ((e.metaKey || e.ctrlKey) && key === "a") {
+                selectAllArmedRef.current = true
+                return
+            }
+            if (selectAllArmedRef.current && (key === "delete" || key === "backspace")) {
+                selectAllArmedRef.current = false
+                // Only preempt if the clear would actually flip the mode —
+                // for plain-text cells already in text mode, let the editor
+                // handle the delete normally (no flash to avoid).
+                if (isJsonEditor) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    shouldFocusAfterMountRef.current = true
+                    handleChange("")
+                }
+                return
+            }
+            selectAllArmedRef.current = false
+        },
+        [handleChange, isJsonEditor],
+    )
+
+    // Armed when we take over an input action that causes a mode flip, so the
+    // newly-mounted editor can steal focus back from the unmounted one. Without
+    // this, any interception (paste, Cmd+A+Delete) that flips the mode would
+    // leave the user without a focused editor — frustrating mid-edit.
+    const shouldFocusAfterMountRef = useRef(false)
+
+    // Intercept paste at the container (capture phase, before Lexical sees it)
+    // when the pasted content would cause a mode flip (text ↔ JSON). The old
+    // editor then never receives the paste event and never shows the pasted
+    // content in the wrong mode — we route it straight to the cell, and the
+    // EditorProvider remounts in the correct mode with the pasted value as
+    // the initial content. For same-mode pastes we let the editor handle the
+    // event normally so cursor/selection/IME behavior is preserved.
+    const handlePasteCapture = useCallback(
+        (e: React.ClipboardEvent<HTMLDivElement>) => {
+            // Schema-typed fields (object/array) are pinned to JSON mode —
+            // no paste can cause a mode flip, so let Lexical handle it normally
+            // (preserves cursor position and avoids clobbering existing JSON).
+            if (isJsonType) return
+            const pasted = e.clipboardData?.getData("text")
+            if (!pasted) return
+            const pastedLooksLikeJson = isJsonString(pasted)
+            if (pastedLooksLikeJson === detectedAsJson) return
+            // Cross-mode paste — bypass the editor.
+            e.preventDefault()
+            e.stopPropagation()
+            shouldFocusAfterMountRef.current = true
+            handleChange(pasted)
+        },
+        [isJsonType, detectedAsJson, handleChange],
     )
 
     const {isComparisonView} = useAtomValue(
@@ -188,7 +339,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     if (portType === "number" || portType === "integer") {
         const numValue = value !== "" && value != null ? Number(value) : undefined
         return (
-            <div ref={containerRef} style={getCollapseStyle(collapsed)}>
+            <div ref={containerRef} className="w-full" style={getCollapseStyle(collapsed)}>
                 <div
                     className={clsx(
                         "relative flex flex-col gap-1",
@@ -220,7 +371,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     // Boolean type → Switch
     if (portType === "boolean") {
         return (
-            <div ref={containerRef} style={getCollapseStyle(collapsed)}>
+            <div ref={containerRef} className="w-full" style={getCollapseStyle(collapsed)}>
                 <div
                     className={clsx(
                         "relative flex flex-col gap-1",
@@ -253,9 +404,25 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
         ? {codeOnly: true, language: "json", enableResize: false, boundWidth: true, ...editorProps}
         : {enableResize: false, boundWidth: true, ...editorProps}
 
+    // Show the schema-derived shape as help text on empty object cells, so
+    // the user knows which fields the template references without us
+    // pre-filling the editor with a value that wouldn't get submitted.
+    const showShapeHint = isJsonType && isCellEmpty && !!shapeHint
+
     return (
-        <div ref={containerRef} style={getCollapseStyle(collapsed)}>
+        <div
+            ref={containerRef}
+            className="w-full"
+            style={getCollapseStyle(collapsed)}
+            onPasteCapture={handlePasteCapture}
+            onKeyDownCapture={handleKeyDownCapture}
+        >
             <EditorProvider
+                // Stable across user keystrokes (cell value changes don't
+                // remount — preserves cursor position). Flips only when the
+                // port's schema changes, which happens when the prompt
+                // introduces new sub-paths or a different envelope root.
+                key={`${editorId}-${isJsonEditor}-${schemaKey}`}
                 id={editorId}
                 initialValue={effectiveValue}
                 placeholder={effectivePlaceholder}
@@ -265,6 +432,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 enableTokens={!isJsonEditor && !editorProps?.codeOnly}
                 disabled={isEffectivelyDisabled}
             >
+                <FocusOnMountWhenArmed armedRef={shouldFocusAfterMountRef} />
                 <MarkdownToggleRegistrar onMarkdownToggleReady={onMarkdownToggleReady} />
                 <SharedEditor
                     id={editorId}
@@ -303,6 +471,11 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                     editorProps={mergedEditorProps}
                 />
             </EditorProvider>
+            {showShapeHint && (
+                <Typography.Text type="secondary" className="block mt-1 px-1 text-[11px] font-mono">
+                    Expected shape: <code>{shapeHint}</code>
+                </Typography.Text>
+            )}
         </div>
     )
 }

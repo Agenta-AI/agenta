@@ -12,6 +12,7 @@ export const TestScope = {
     SETTINGS: "settings", // Settings flows
     DEPLOYMENT: "deployment", // Deployment flows
     OBSERVABILITY: "observability",
+    MEMBERS: "members", // Workspace membership flows
 } as const
 
 /**
@@ -37,7 +38,10 @@ export const TestPath = {
  */
 export const TestRoleType = {
     Owner: "owner",
+    Admin: "admin",
+    Developer: "developer",
     Editor: "editor",
+    Annotator: "annotator",
     Viewer: "viewer",
 } as const
 

@@ -163,6 +163,7 @@ const getEnvNameMap = (): Record<string, any> => ({
     TOGETHERAI_API_KEY: SecretDTOProvider.TOGETHERAI,
     OPENROUTER_API_KEY: SecretDTOProvider.OPENROUTER,
     GEMINI_API_KEY: SecretDTOProvider.GEMINI,
+    MINIMAX_API_KEY: SecretDTOProvider.MINIMAX,
 })
 
 /**
@@ -187,7 +188,6 @@ export const createStandardSecretAtom = atom(null, async (get, set, provider: Ll
         const payload = {
             header: {
                 name: provider.title,
-                description: "",
             },
             secret: {
                 kind: SecretDTOKind.PROVIDER_KEY,

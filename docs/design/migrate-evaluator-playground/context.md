@@ -23,8 +23,8 @@ The Evaluator Playground frontend currently uses legacy endpoints:
 
 The backend (PR #3527) has:
 1. Migrated all evaluator configs to the new workflow-based model via DB migrations
-2. Created new `SimpleEvaluators` endpoints at `/preview/simple/evaluators/`
-3. Native workflow execution available at `/preview/workflows/invoke`
+2. Created new `SimpleEvaluators` endpoints at `/simple/evaluators/`
+3. Native workflow execution available at `/workflows/invoke`
 4. Kept legacy endpoints as thin wrappers (to be deprecated)
 
 **The frontend needs to migrate to use the new endpoints directly.**
@@ -32,7 +32,7 @@ The backend (PR #3527) has:
 ## Goals
 
 1. **Replace legacy evaluator config CRUD** with new `SimpleEvaluator` endpoints
-2. **Replace legacy evaluator run** with native workflow invoke (`/preview/workflows/invoke`)
+2. **Replace legacy evaluator run** with native workflow invoke (`/workflows/invoke`)
 3. **Update data models** in frontend to match new `SimpleEvaluator` shape (no adapters)
 4. **Preserve UX** - no user-facing changes to the Evaluator Playground functionality
 5. **Remove all legacy endpoint usage** - clean migration, no dual-path code
@@ -63,8 +63,8 @@ The backend (PR #3527) has:
 
 | PR | Scope | Endpoints |
 |----|-------|-----------|
-| PR 1 | CRUD | `/preview/simple/evaluators/*` |
-| PR 2 | Run | `/preview/workflows/invoke` |
+| PR 1 | CRUD | `/simple/evaluators/*` |
+| PR 2 | Run | `/workflows/invoke` |
 
 This approach:
 - Avoids tech debt from adapter layers

@@ -48,7 +48,7 @@ print(f"Slug: {testset.slug}")
   <TabItem value="REST API">
 
 ```bash
-curl -X POST "https://cloud.agenta.ai/api/preview/simple/testsets/" \
+curl -X POST "https://cloud.agenta.ai/api/simple/testsets/" \
   -H "Content-Type: application/json" \
   -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
@@ -150,7 +150,7 @@ testset = await ag.testsets.aupsert(
 Use the PUT endpoint with the testset ID to replace all testcases:
 
 ```bash
-curl -X PUT "https://cloud.agenta.ai/api/preview/simple/testsets/{testset_id}" \
+curl -X PUT "https://cloud.agenta.ai/api/simple/testsets/{testset_id}" \
   -H "Content-Type: application/json" \
   -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
@@ -207,7 +207,7 @@ for testset in testsets:
   <TabItem value="REST API">
 
 ```bash
-curl -X POST "https://cloud.agenta.ai/api/preview/simple/testsets/query" \
+curl -X POST "https://cloud.agenta.ai/api/simple/testsets/query" \
   -H "Content-Type: application/json" \
   -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{}'
@@ -269,7 +269,7 @@ if testset:
   <TabItem value="REST API">
 
 ```bash
-curl -X GET "https://cloud.agenta.ai/api/preview/simple/testsets/{testset_id}" \
+curl -X GET "https://cloud.agenta.ai/api/simple/testsets/{testset_id}" \
   -H "Authorization: ApiKey YOUR_API_KEY"
 ```
 
@@ -300,7 +300,7 @@ if testset:
   <TabItem value="REST API">
 
 ```bash
-curl -X POST "https://cloud.agenta.ai/api/preview/testsets/revisions/retrieve" \
+curl -X POST "https://cloud.agenta.ai/api/testsets/revisions/retrieve" \
   -H "Content-Type: application/json" \
   -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{
@@ -366,7 +366,7 @@ else:
   <TabItem value="REST API">
 
 ```bash
-curl -X POST "https://cloud.agenta.ai/api/preview/simple/testsets/query" \
+curl -X POST "https://cloud.agenta.ai/api/simple/testsets/query" \
   -H "Content-Type: application/json" \
   -H "Authorization: ApiKey YOUR_API_KEY" \
   -d '{

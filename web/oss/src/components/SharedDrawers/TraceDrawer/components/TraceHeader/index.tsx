@@ -1,5 +1,11 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {
+    isSpansResponse,
+    isTracesResponse,
+    transformTracesResponseToTree,
+    transformTracingResponse,
+} from "@agenta/entities/trace"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
@@ -12,12 +18,6 @@ import {
     traceDrawerIsLinkedViewAtom,
 } from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {fetchAllPreviewTraces} from "@/oss/services/tracing/api"
-import {
-    isSpansResponse,
-    isTracesResponse,
-    transformTracesResponseToTree,
-    transformTracingResponse,
-} from "@/oss/services/tracing/lib/helpers"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {useObservability} from "@/oss/state/newObservability"

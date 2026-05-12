@@ -2,7 +2,7 @@ import type {EvaluationStatus} from "@agenta/entities/simpleQueue"
 import {Select} from "antd"
 
 const STATUS_OPTIONS: {value: EvaluationStatus | ""; label: string}[] = [
-    {value: "", label: "All statuses"},
+    {value: "", label: "All status"},
     {value: "pending", label: "Pending"},
     {value: "queued", label: "Queued"},
     {value: "running", label: "Running"},

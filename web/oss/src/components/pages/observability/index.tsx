@@ -73,13 +73,14 @@ const ObservabilityTabs = () => {
     return (
         <PageLayout
             title={"Observability"}
+            className="h-full overflow-hidden"
             headerTabsProps={{
                 items: tabItems,
                 activeKey: activeTab,
                 onChange: (key) => setTabParam(key),
             }}
         >
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
                 {activeTab === "traces" ? <ObservabilityTable /> : <SessionsTable />}
             </div>
             <SetupTracingModal

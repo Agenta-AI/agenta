@@ -5,7 +5,7 @@ description: "Delete a connection by ID."
 sidebar_label: "Delete Connection"
 hide_title: true
 hide_table_of_contents: true
-api: eJx9VMFu2zAM/RWDpw0Q4q7oyacFTYAG7bCizXYJjEKxmVidbakSnTUz/O8DZTu2m7a5xKIeKfKRjzWQ3DuINrDWOncQC0jRJVYZUrqECBaYI2Egg0SXJSZsDbbHYLWYgQBt0Eo2rVKIIPXQJ9I6fxrQIMBIKwsktPxQDaUsECIYIE8qBQGKnzOSMhBg8aVSFlOIyFYowCUZFhKiGuho2NmRVeUeBOy0LSRBBFXlo5CinAHXQ7qrFJom5qDO6NKh4ziXF1f8Ny32sUoSdG5X5cFDB4ZGwNXl5Tn2t8xV6osPltZqC4IrIiyJsdKYXCX+Onx27FCPijCWmSPVppIiSZXzlyIs3Dkg18nkVpbHnztP5ZSNRpwsqiTco4UmbkRvk9bK44iiO90myCUWbv8euz30Bzon956MFvIx1JMRrPm24aaayhPSX6+8oRGQ0OsojN4+Y0LT/hG+EjRD/ifMMB0bz02bfoeLhxhDi9oOfUzFom3Be4/1kJv1+v4sIP8EFEiZHhTgJ54yiCA0Fg8K/4asCRcOE+/CejL+DQhwaA+9RCqbs7s0yje1PWZExkVhiNUsyXWVzuQeS5IzqVpgzDGSyio6+iDz+9UtHm9Qpmgh2sRjwCPPYjtdU9ipI9KoW2SOOrnOK8q0Vf9kJ2ov16z1anynd3rc6LlPLpjfr0AAF9bK5mL2bXYBb7fMBMwykomfmv5tfw3iDRGn+kEAFl5DQCiL78MFZ2a0o0KWo3jdUrseL6lJQvWg5c83YEcWj2pocqm8mHyWdTcEG+iGgNF+x4rR6uNTNN2EsYBMO2LPut5Kh79s3jRsfqnQcmtjAQdpldwy0ZsaUuX4O4VoJ3OHn9Ty5aGTztfgo+T79pfc+4PMKz6BgD94PFvafrtk/YDVHWaeJGho5H22DHkST6JZLO+W6yU0zX+B6ToK
+api: eJx9VFFvm0AM/ivIT5t0Cl3VJ54WNZEatdOqNttLFFUOOOE64OidqZoh/vvkAwIsbXkB7M939vfZroHx4CDawNqYzMFWQUIutrpkbQqIYEEZMQUYxKYoKBZrsDsGq8UMFJiSLIpplUAEiYc+sTHZ04AGBSVazInJykU1FJgTRDBAnnQCCrRcVyKnoMDSS6UtJRCxrUiBi1PKEaIa+FhKsGOriwMo2BubI0MEVeVPYc2ZAK6HdFcJNM1WDnWlKRw5Oefy4kpe02Ifqzgm5/ZVFjx0YGgUXF1enmN/Y6YTX3ywtNZYUFIRU8GCxbLMdOzd4bOTgHpURGmFOdZtKgkx6ky+NFPuzgGZiSdeLI4/957KKRuNOll0wXQgC822Ub0NrcXjiKI70yYoJebu8B67PfQHOYcHT0YL+RjqyQjW4m1E1LLyhPTulTc0CmJ+Gx1jds8U81Q/pjeGZsj/hBm6Y+O5adPvcNvhjEGiVqGPqVi0Erx3WQ+5Wa/vzw6UR0FOnJphAnzHcwoRhDILLhw63YX1pO0bUODIvvajUdlMwrDUXsz2N2UuozDMTIxZahy37q1ExpXVfPSh8/vVLR1vCBOyEG22Y8CjdF7bS1PYiX8s9S0JI91wzitOjdV/sRthP5xpG9V4XfdmLOv8QAVjML9fwf8bZOKSEcHYd0R/k3eDGhXrojBEb56hDkEB5X5AgAnz7yeP6CnMtddczL7NLsRUGsc5FqMruh12Pd5JkxzrYXQ/X3gdW9KZYZmh9rPjE687zTfgNW9L7VUHBdF03W0ViJSCr+sdOvpls6YR80tFVhTdKnhFq3En/G5qSLST7wSiPWaOPqngy0M3H1+Dj1LuVS9E8lfMKvkDBX/oeLaZ/QpJ+76qO8w8jqnkUfTZxpMGPE3GYnm3XC+haf4BaSUwNw==
 sidebar_class_name: "delete api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -28,7 +29,7 @@ import Heading from "@theme/Heading";
 
 <MethodEndpoint
   method={"delete"}
-  path={"/preview/tools/connections/{connection_id}"}
+  path={"/tools/connections/{connection_id}"}
   context={"endpoint"}
 >
   
@@ -42,27 +43,24 @@ Delete a connection by ID.
   id={"request"}
   as={"h2"}
   className={"openapi-tabs__heading"}
-  children={"Request"}
 >
+  <Translate id="theme.openapi.request.title">Request</Translate>
 </Heading>
 
 <ParamsDetails
-  parameters={[{"name":"connection_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Connection Id"}}]}
+  {...require("./delete-tool-connection.ParamsDetails.json")}
 >
   
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./delete-tool-connection.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"204":{"description":"Successful Response"},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  {...require("./delete-tool-connection.StatusCodes.json")}
 >
   
 </StatusCodes>

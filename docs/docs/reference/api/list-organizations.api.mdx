@@ -5,7 +5,7 @@ description: "Returns a list of organizations associated with the user's session
 sidebar_label: "List Organizations"
 hide_title: true
 hide_table_of_contents: true
-api: eJztVcFy0zAQ/RXNXrhoksLRJzJDoZkC7dAyHNJMZ2tvEoEtGWnVNmT078zKSWqHlkOBGz7EsbT7drX79mkDjMsAxQzO/BKt+YFsnIW5hopC6U2bPwv4RBy9DQpVbQIrt1CuZx8UhuBKg0yVujO8UrwiFQP5F0EFCsE4O7qyV3YLU1xZpVSGmvXjzgs1+cMAaALt8E8uL8+P70vKhyjUdCFenpQJCq0i751XntgbujV2mSGHQRfeNXm5QsYbDDQCDa4ln/enFRQg2V4PvECDp9A6GyhAsYFXR0fyGtbzIpYlhbCItfq0NQYNpbNMlsUc27Y2ZUYcfw3is4FQrqhB+WeYmgzeekmHTRfKVPLL65aggMDe2CVoYMO1LEwrSBpCHZc5gF2fLaCYHdonvV+xsa4hzR8QLsQ3abDY0HMxPopvOuDX86De9CCShkWdqdzHwqoyso31ea9Q7CPpHaq7+Uol/zbO2wyc9HZW/n6Ayy1+Q4z/Av+D4CYN7s6Sv36cJQvnG2QoIEZT9VhzJj6q405DzQ35MGDgYbt2C+g9rqGfQ+ebNBh7a3g7LD2op32nPYek4c75b6HFkp6XyZcH95QOyyjD+z0aT5WIYq7Evmq9ig7U8ulQu9lW70XUzgYykeTJPV85UZIlSfQWeQUFjA8lJZC/zaWfbSD6WkywNbnr3eeKuQ3FeExxVNYuViNckmUcoekM54JRRm94nUEm59NTWp8QVuShmM37BhciNF11h2b7ImNrTklO2kkBTCKvnN8VRFosKXVeKbd84bL7tjCTnJyanE9Bgxysk8Wj0cvRERxePgNj0Ugss0buYudt0AeF2J8fNFCDRvaYsHn9sCGZtS5wg7aH90ivfpGrvVL/vxkfbsYtN5juedzWaPJk5KZstryewZDXcw0rF1g2NhuB+ezrlGT5eyQvRJ1ruEVv8EZoM5snvWOVcPgbraX/pRxEeIR17Mh5cHcKt/dz9u74ElL6CUFwHbE=
+api: eJztVsFyGjEM/RWPLr14IO1xT2WmacOkbZiETg+EyYhdAU527Y2tJaGM/70jL5CFpjmk7a0cYFfSe7KlZ5kNMC4CZBO48Au05geycTbAVENBIfemlnfI4JK48TYoVKUJrNxcuS5AYQguN8hUqAfDS8VLUk0g/yaoQCEYZ3vX9tpuabJrq5RKVJNu4mmmBn+YAE2gHf/ZeDw6fcwpbSJTw7mgPCkTFFpF3juvPLE3tDJ2kSgPk869q5K5QMYZBuqBBleTT/5hARnIam8OUKDBU6idDRQg28C7kxP5OaznVZPnFMK8KdXlNhg05M4yWZZwrOvS5ImxfxsEs4GQL6lCeTJMVSKvvSyHTZvKFPLN65ogg8De2AVoYMOlGIYFRA2hbBYpgV1fzCGbHMdHvbfYpiwhTp8YrgQbNVis6LUcXwUbj/T1OqoPHYqoYV4mLXe5sCiMuLEcdQrFviG9Y3WzW8r5xTwfE3HU28Py9xOMt/wVMf4L/i/CGzW4B0v+5nmVzJ2vkCGDpjFFRzUXglGtdiqqZuTDgQKP27UzoPe4hu4aWmzUYOzK8PawdKh+jx12AFHDg/N3ocacXreS70/wGI/LKIf3vjGeCpmKqRL7qnUq2p1aL6TanW31WYba4YyN8kk9XzqZJAuS7DXyEjLoH4+UQH6VSj/ZQONLCcHapK63r0vmOuv3S5djuXSBW/dUkHnjDa8TdDAantP6jLAgD9lk2g24kvHS1vQwbF9arM05yf7aAQCDhpfO78ogjZWFtKiYGj13Cb4tx2BBllENRkM4vmAOXDIHMU9zcJcpuUF3Nhuyfh+TuYemDxqoQiNOJqze7z3SHalcm+ak97Z3IqbaBa7QdlI806JfptR+QP+/EJ8uxK04mB65X5do0oFIfdps5TwBd/z3QiQqjs1GaL75MkYx3zfkRalTDSv0Bmeim8k06p2sRMR3tBZJ5LIRkMCyadV5dGWKuPfH69PpGGL8CZ6HGvQ=
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -51,16 +52,13 @@ Raises:
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./list-organizations.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"properties":{"id":{"type":"string","title":"Id"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"flags":{"anyOf":[{"additionalProperties":true,"type":"object"},{"type":"null"}],"title":"Flags"},"tags":{"anyOf":[{"additionalProperties":true,"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":true,"type":"object"},{"type":"null"}],"title":"Meta"},"owner_id":{"type":"string","format":"uuid","title":"Owner Id"},"members":{"items":{"type":"string"},"type":"array","title":"Members"},"invitations":{"items":{},"type":"array","title":"Invitations"},"workspaces":{"items":{"type":"string"},"type":"array","title":"Workspaces"}},"type":"object","required":["id","owner_id"],"title":"Organization"},"type":"array","title":"Response List Organizations"}}}}}}
+  {...require("./list-organizations.StatusCodes.json")}
 >
   
 </StatusCodes>

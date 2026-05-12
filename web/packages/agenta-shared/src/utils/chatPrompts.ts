@@ -40,6 +40,44 @@ export function normalizeEnhancedMessages(configMessages: unknown[]): SimpleChat
     })
 }
 
+/** Extract variable names from template strings (e.g., "Hello {{name}}" → ["name"]) */
+function extractVariablesFromText(text: string, format: TemplateFormat): string[] {
+    const patterns: Record<TemplateFormat, RegExp> = {
+        curly: /\{\{(\w+)\}\}/g,
+        fstring: /\{(\w+)\}/g,
+        jinja2: /\{\{(\w+)\}\}/g,
+    }
+    const regex = patterns[format]
+    const vars = new Set<string>()
+    let match
+    while ((match = regex.exec(text)) !== null) {
+        vars.add(match[1])
+    }
+    return Array.from(vars)
+}
+
+/** Collect all text from messages for variable extraction */
+function collectMessageTexts(messages: unknown[]): string[] {
+    const texts: string[] = []
+    for (const msg of messages || []) {
+        if (!msg || typeof msg !== "object") continue
+        const m = msg as Record<string, unknown>
+        const rawContent = unwrapValue(m.content as {value?: unknown} | unknown)
+        if (typeof rawContent === "string") {
+            texts.push(rawContent)
+        } else if (Array.isArray(rawContent)) {
+            for (const part of rawContent) {
+                if (!part || typeof part !== "object") continue
+                const node = part as Record<string, unknown>
+                const textSource = node.text as {value?: unknown} | string | undefined
+                const text = unwrapValue(textSource)
+                if (typeof text === "string") texts.push(text)
+            }
+        }
+    }
+    return texts
+}
+
 export function extractPromptTemplateContext(prompts: unknown[]): {
     templateFormat: TemplateFormat
     tokens: string[]
@@ -64,6 +102,27 @@ export function extractPromptTemplateContext(prompts: unknown[]): {
             tokens = keys.filter((k): k is string => typeof k === "string")
             break
         }
+    }
+
+    // Fallback: scan message content for template variables when inputKeys is absent
+    if (tokens.length === 0) {
+        const allMessages = (prompts || []).flatMap((prompt) => {
+            const p = (prompt || {}) as Record<string, unknown>
+            const msgs = p.messages
+            return Array.isArray(msgs)
+                ? msgs
+                : Array.isArray(unwrapValue(msgs))
+                  ? (unwrapValue(msgs) as unknown[])
+                  : []
+        })
+        const texts = collectMessageTexts(allMessages)
+        const vars = new Set<string>()
+        for (const text of texts) {
+            for (const v of extractVariablesFromText(text, templateFormat)) {
+                vars.add(v)
+            }
+        }
+        tokens = Array.from(vars)
     }
 
     return {templateFormat, tokens}

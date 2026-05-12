@@ -4,16 +4,13 @@ import {dirname} from "path"
 import {chromium, type BrowserContext, type Page} from "@playwright/test"
 
 import {waitForApiResponse} from "../tests/fixtures/base.fixture/apiHelpers"
-import {
-    clickButton,
-    selectOption,
-    typeWithDelay,
-} from "../tests/fixtures/base.fixture/uiHelpers/helpers"
+import {clickButton, typeWithDelay} from "../tests/fixtures/base.fixture/uiHelpers/helpers"
 import {AuthResponse} from "../tests/fixtures/user.fixture/authHelpers/types"
 import {generateRuntimeTestEmail, getTestmailClient, isTestmailInboxEmail} from "../utils/testmail"
 
 import {
     getChromiumLaunchOptions,
+    getOutputDir,
     getProjectMetadataPath,
     getStorageStatePath,
 } from "./config/runtime.ts"
@@ -61,6 +58,120 @@ async function fillOTPDigits(page: Page, otp: string, delay: number): Promise<vo
     await page.keyboard.type(otp, {delay})
 }
 
+async function clickVisibleSurveyChoice(page: Page, choice: string): Promise<boolean> {
+    const radio = page.getByRole("radio", {name: choice, exact: true}).first()
+    if (await radio.isVisible().catch(() => false)) {
+        await radio.check().catch(async () => {
+            await radio.click({force: true})
+        })
+        return true
+    }
+
+    const checkbox = page.getByRole("checkbox", {name: choice, exact: true}).first()
+    if (await checkbox.isVisible().catch(() => false)) {
+        await checkbox.check().catch(async () => {
+            await checkbox.click({force: true})
+        })
+        return true
+    }
+
+    const text = page.getByText(choice, {exact: true}).first()
+    if (await text.isVisible().catch(() => false)) {
+        await text.click({force: true})
+        return true
+    }
+
+    return false
+}
+
+async function fillVisiblePostSignupFields(page: Page): Promise<void> {
+    const preferredChoices = [
+        "2-10",
+        "Hobbyist",
+        "Just exploring",
+        "Evaluating LLM Applications",
+        "Github",
+    ]
+
+    for (const choice of preferredChoices) {
+        await clickVisibleSurveyChoice(page, choice)
+    }
+
+    const formItems = page.locator(".ant-form-item")
+    const formItemCount = await formItems.count()
+
+    for (let index = 0; index < formItemCount; index++) {
+        const item = formItems.nth(index)
+        if (!(await item.isVisible().catch(() => false))) {
+            continue
+        }
+
+        const checkedRadio = item.getByRole("radio", {checked: true}).first()
+        if (!(await checkedRadio.isVisible().catch(() => false))) {
+            const radio = item.getByRole("radio").first()
+            if (await radio.isVisible().catch(() => false)) {
+                await radio.check().catch(async () => {
+                    await radio.click({force: true})
+                })
+                continue
+            }
+        }
+
+        const checkedCheckbox = item.getByRole("checkbox", {checked: true}).first()
+        if (!(await checkedCheckbox.isVisible().catch(() => false))) {
+            const checkbox = item.getByRole("checkbox").first()
+            if (await checkbox.isVisible().catch(() => false)) {
+                await checkbox.check().catch(async () => {
+                    await checkbox.click({force: true})
+                })
+                continue
+            }
+        }
+
+        const textArea = item.locator("textarea").first()
+        if (await textArea.isVisible().catch(() => false)) {
+            const value = await textArea.inputValue().catch(() => "")
+            if (!value.trim()) {
+                await textArea.fill("E2E signup bootstrap")
+            }
+            continue
+        }
+
+        const textInput = item
+            .locator('input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"])')
+            .first()
+        if (await textInput.isVisible().catch(() => false)) {
+            const value = await textInput.inputValue().catch(() => "")
+            if (!value.trim()) {
+                await textInput.fill("E2E signup bootstrap")
+            }
+            continue
+        }
+    }
+}
+
+async function advanceVisiblePostSignupStep(page: Page): Promise<boolean> {
+    const submitButton = page.getByRole("button", {name: "Submit", exact: true}).first()
+    if (await submitButton.isVisible().catch(() => false)) {
+        if (await submitButton.isDisabled().catch(() => true)) {
+            return false
+        }
+        await submitButton.click()
+        return true
+    }
+
+    const continueButton = page.getByRole("button", {name: "Continue", exact: true}).first()
+    if (await continueButton.isVisible().catch(() => false)) {
+        if (await continueButton.isDisabled().catch(() => true)) {
+            return false
+        }
+        await continueButton.click()
+        return true
+    }
+
+    return false
+}
+
 async function handlePostSignup(page: Page): Promise<void> {
     try {
         await page.waitForURL("**/post-signup", {
@@ -74,38 +185,65 @@ async function handlePostSignup(page: Page): Promise<void> {
 
     console.log("[global-setup] New user detected, on post-signup page")
 
-    const tellUsAboutYourselfLocator = page.getByText("Tell us about yourself")
-    const redirected = page.waitForURL((url) => !url.pathname.endsWith("/post-signup"), {
-        timeout: 15000,
+    const settleTimeoutMs = 15_000
+    const deadline = Date.now() + settleTimeoutMs
+    let completedSurveyStep = false
+
+    while (Date.now() < deadline) {
+        const pathname = await getCurrentPathname(page)
+        if (!pathname.endsWith("/post-signup")) {
+            console.log("[global-setup] Post-signup redirected, continuing")
+            return
+        }
+
+        const surveyTitle = page
+            .getByRole("heading", {name: /Tell us about yourself|Almost done/i})
+            .first()
+        const surveyVisible = await surveyTitle.isVisible().catch(() => false)
+        const hasActionButton = await page
+            .getByRole("button", {name: /Continue|Submit/})
+            .first()
+            .isVisible()
+            .catch(() => false)
+
+        if (!surveyVisible && !hasActionButton) {
+            await page.waitForTimeout(500)
+            continue
+        }
+
+        await fillVisiblePostSignupFields(page)
+        const advanced = await advanceVisiblePostSignupStep(page)
+        completedSurveyStep = completedSurveyStep || advanced
+
+        if (!advanced) {
+            await page.waitForTimeout(500)
+            continue
+        }
+
+        await page.waitForTimeout(1000)
+    }
+
+    const finalPathname = await getCurrentPathname(page).catch(() => "unknown")
+    if (!finalPathname.endsWith("/post-signup")) {
+        console.log("[global-setup] Post-signup left after final check, continuing")
+        return
+    }
+
+    const fallbackUrl = new URL("/get-started", page.url()).toString()
+    console.log(`[global-setup] Post-signup is still stuck, forcing fallback to ${fallbackUrl}`)
+    await page.goto(fallbackUrl, {
         waitUntil: "domcontentloaded",
+        timeout: 15000,
     })
-    const surveyLoaded = tellUsAboutYourselfLocator
-        .waitFor({state: "visible", timeout: 15000})
-        .then(() => "survey" as const)
 
-    const result = await Promise.race([surveyLoaded, redirected.then(() => "redirected" as const)])
-
-    if (result === "redirected") {
-        console.log("[global-setup] Post-signup redirected (no PostHog survey), continuing")
+    if (completedSurveyStep) {
+        console.log("[global-setup] Continued after forced get-started fallback")
         return
     }
 
-    const isOptionVisible = await page.getByRole("option", {name: "Hobbyist"}).isVisible()
-    if (!isOptionVisible) {
-        console.log("[global-setup] Post-signup flow not completed due to missing options")
-        return
-    }
-
-    await selectOption(page, {text: "2-10"})
-    await selectOption(page, {text: "Hobbyist"})
-    await selectOption(page, {text: "Just exploring"})
-    await clickButton(page, "Continue")
-
-    await page.getByText("What brings you here?").waitFor({state: "visible"})
-
-    await selectOption(page, {text: "Evaluating LLM Applications"})
-    await selectOption(page, {text: "Github"})
-    await clickButton(page, "Continue")
+    console.log(
+        "[global-setup] Post-signup did not render an actionable survey; continued with get-started fallback",
+    )
 }
 
 async function getCurrentPathname(page: Page): Promise<string> {
@@ -261,7 +399,106 @@ async function getVisibleAuthFeedback(page: Page): Promise<string | null> {
     return null
 }
 
+async function captureAuthFailure(page: Page, label: string, err: unknown): Promise<void> {
+    const ts = new Date().toISOString().replace(/[:.]/g, "-")
+    const baseName = `auth-failure-${label}-${ts}`
+    const outDir = getOutputDir()
+    try {
+        if (!existsSync(outDir)) mkdirSync(outDir, {recursive: true})
+    } catch {}
+
+    console.log(`[global-setup] ===== AUTH FAILURE DEBUG (${label}) =====`)
+    try {
+        console.log(
+            `[global-setup] error: ${err instanceof Error ? err.stack || err.message : String(err)}`,
+        )
+    } catch {}
+    try {
+        console.log(`[global-setup] url: ${page.url()}`)
+    } catch (e) {
+        console.log(`[global-setup] url: <unavailable> (${e})`)
+    }
+    try {
+        console.log(`[global-setup] title: ${await page.title()}`)
+    } catch (e) {
+        console.log(`[global-setup] title: <unavailable> (${e})`)
+    }
+    try {
+        const screenshotPath = `${outDir}/${baseName}.png`
+        await page.screenshot({path: screenshotPath, fullPage: true})
+        console.log(`[global-setup] screenshot: ${screenshotPath}`)
+    } catch (e) {
+        console.log(`[global-setup] screenshot failed: ${e}`)
+    }
+    try {
+        const html = await page.content()
+        const htmlPath = `${outDir}/${baseName}.html`
+        writeFileSync(htmlPath, html)
+        console.log(`[global-setup] html: ${htmlPath}`)
+    } catch (e) {
+        console.log(`[global-setup] html capture failed: ${e}`)
+    }
+    try {
+        const text = await page.locator("body").innerText({timeout: 5000})
+        console.log(`[global-setup] visible text:\n${text}`)
+    } catch (e) {
+        console.log(`[global-setup] text capture failed: ${e}`)
+    }
+    console.log(`[global-setup] ===== END AUTH FAILURE DEBUG =====`)
+}
+
 async function authenticateUser({
+    page,
+    entryUrl,
+    email,
+    password,
+    authMode,
+    timeout,
+    inputDelay,
+    testmail,
+}: {
+    page: Page
+    entryUrl: string
+    email: string
+    password: string
+    authMode: AuthMode
+    timeout: number
+    inputDelay: number
+    testmail: TestmailClient | null
+}): Promise<void> {
+    const consoleLogs: string[] = []
+    page.on("console", (msg) => {
+        consoleLogs.push(`[${msg.type()}] ${msg.text()}`)
+    })
+    page.on("pageerror", (err) => {
+        consoleLogs.push(`[pageerror] ${err.message}`)
+    })
+    page.on("requestfailed", (req) => {
+        consoleLogs.push(
+            `[requestfailed] ${req.method()} ${req.url()} — ${req.failure()?.errorText}`,
+        )
+    })
+
+    try {
+        await authenticateUserImpl({
+            page,
+            entryUrl,
+            email,
+            password,
+            authMode,
+            timeout,
+            inputDelay,
+            testmail,
+        })
+    } catch (err) {
+        console.log(`[global-setup] page console log dump (${consoleLogs.length} entries):`)
+        for (const line of consoleLogs) console.log(`  ${line}`)
+        await captureAuthFailure(page, "authenticateUser", err)
+        throw err
+    }
+}
+
+async function authenticateUserImpl({
     page,
     entryUrl,
     email,
@@ -665,6 +902,9 @@ async function globalSetup() {
     const baseURL = process.env.AGENTA_WEB_URL || "http://localhost:3000"
     const apiURL = getApiURL(baseURL)
     const license = process.env.AGENTA_LICENSE || "oss"
+    const ossAuthUser = (process.env.AGENTA_TEST_OSS_AUTH_USER || "owner").trim().toLowerCase()
+    const useOssInvitedUser =
+        ossAuthUser === "invite" || ossAuthUser === "invitee" || ossAuthUser === "invited"
     const storageState = getStorageStatePath()
     console.log(`[global-setup] Base URL: ${baseURL}, License: ${license}`)
 
@@ -686,6 +926,7 @@ async function globalSetup() {
 
     console.log("[global-setup] Launching browser")
     const browser = await chromium.launch(getChromiumLaunchOptions())
+    console.log("[global-setup] Browser launched OK")
     let authenticatedContext: BrowserContext | null = null
     let authenticatedPage: Page | null = null
 
@@ -694,8 +935,11 @@ async function globalSetup() {
             let ownerContext: BrowserContext | null = null
 
             try {
+                console.log("[global-setup] Creating owner context")
                 ownerContext = await browser.newContext()
+                console.log("[global-setup] Owner context created, opening page")
                 const ownerPage = await ownerContext.newPage()
+                console.log("[global-setup] Owner page opened")
 
                 console.log(`[global-setup] Authenticating OSS owner: ${ownerEmail}`)
                 await authenticateUser({
@@ -709,28 +953,35 @@ async function globalSetup() {
                     testmail,
                 })
 
-                console.log(`[global-setup] Inviting OSS test user: ${userEmail}`)
-                const inviteUrl = await inviteOssUser({
-                    page: ownerPage,
-                    apiURL,
-                    baseURL,
-                    email: userEmail,
-                })
+                if (useOssInvitedUser) {
+                    console.log(`[global-setup] Inviting OSS test user: ${userEmail}`)
+                    const inviteUrl = await inviteOssUser({
+                        page: ownerPage,
+                        apiURL,
+                        baseURL,
+                        email: userEmail,
+                    })
 
-                authenticatedContext = await browser.newContext()
-                authenticatedPage = await authenticatedContext.newPage()
+                    authenticatedContext = await browser.newContext()
+                    authenticatedPage = await authenticatedContext.newPage()
 
-                console.log(`[global-setup] Authenticating invited OSS user: ${userEmail}`)
-                await authenticateUser({
-                    page: authenticatedPage,
-                    entryUrl: inviteUrl,
-                    email: userEmail,
-                    password: userPassword,
-                    authMode,
-                    timeout,
-                    inputDelay,
-                    testmail,
-                })
+                    console.log(`[global-setup] Authenticating invited OSS user: ${userEmail}`)
+                    await authenticateUser({
+                        page: authenticatedPage,
+                        entryUrl: inviteUrl,
+                        email: userEmail,
+                        password: userPassword,
+                        authMode,
+                        timeout,
+                        inputDelay,
+                        testmail,
+                    })
+                } else {
+                    console.log("[global-setup] Reusing OSS owner session for tests")
+                    authenticatedContext = ownerContext
+                    authenticatedPage = ownerPage
+                    ownerContext = null
+                }
             } finally {
                 await ownerContext?.close()
             }
@@ -791,6 +1042,27 @@ async function maybeCreateEphemeralProject(page: Page, baseURL: string): Promise
     try {
         const apiURL = getApiURL(baseURL)
         const projectMetadataPath = getProjectMetadataPath()
+
+        // The page.request context inherits cookies from the page, but the
+        // SuperTokens session cookie may not have propagated yet if the
+        // sign-in network response wasn't observed before the page settled.
+        // Poll GET /projects/ for up to 10s; 401 here just means the cookie
+        // hasn't been written to the request context yet.
+        const sessionReadyDeadline = Date.now() + 10_000
+        let sessionReady = false
+        while (Date.now() < sessionReadyDeadline) {
+            const probe = await page.request.get(`${apiURL}/projects/`).catch(() => null)
+            if (probe && probe.ok()) {
+                sessionReady = true
+                break
+            }
+            await page.waitForTimeout(500)
+        }
+        if (!sessionReady) {
+            console.warn(
+                "[global-setup] Session probe never returned 2xx within 10s; ephemeral project creation will likely 401",
+            )
+        }
 
         const projectsResponse = await page.request.get(`${apiURL}/projects/`)
         let originalDefaultProjectId: string | null = null

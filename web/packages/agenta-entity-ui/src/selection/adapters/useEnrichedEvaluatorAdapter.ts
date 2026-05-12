@@ -4,7 +4,7 @@
  * Package-level hooks that provide evaluator-aware browse/select adapters
  * with colored type tags. Replaces the OSS-only `useEvaluatorBrowseAdapter.ts`.
  *
- * Data sources (all from `@agenta/entities/evaluator`):
+ * Data sources (all from `@agenta/entities/workflow`):
  * - `evaluatorKeyMapAtom` — Map<workflowId, evaluatorKey> derived from batch-fetched revisions
  * - `evaluatorTemplatesMapAtom` — Map<evaluatorKey, displayName> from template definitions
  *
@@ -15,9 +15,16 @@
 import type React from "react"
 import {useMemo, useRef} from "react"
 
-import {evaluatorKeyMapAtom, evaluatorTemplatesMapAtom} from "@agenta/entities/evaluator"
-import {workflowsListDataAtom} from "@agenta/entities/workflow"
-import {useAtomValue} from "jotai"
+import {
+    evaluatorKeyMapAtom,
+    evaluatorTemplatesMapAtom,
+    evaluatorTemplatesDataAtom,
+    evaluatorConfigsQueryStateAtom,
+    humanEvaluatorsListQueryAtom,
+    workflowAppTypeAtomFamily,
+    workflowsListDataAtom,
+} from "@agenta/entities/workflow"
+import {atom, getDefaultStore, useAtomValue} from "jotai"
 
 import {renderEvaluatorPickerLabelNode} from "./evaluatorLabelUtils"
 import {
@@ -42,12 +49,20 @@ export function useEvaluatorEnrichedData() {
     return {evaluatorKeyMap, evaluatorDefsByKey}
 }
 
+/**
+ * Map of workflow ID → isHuman, derived from the latest revision's type.
+ * Workflow-level flags don't have is_feedback — it only exists at the revision level.
+ */
 function useWorkflowHumanMap() {
     const workflows = useAtomValue(workflowsListDataAtom)
 
     return useMemo(() => {
+        const store = getDefaultStore()
         return new Map(
-            workflows.map((workflow) => [workflow.id, Boolean(workflow.flags?.is_human)]),
+            workflows.map((workflow) => [
+                workflow.id,
+                store.get(workflowAppTypeAtomFamily(workflow.id)) === "human",
+            ]),
         )
     }, [workflows])
 }
@@ -64,11 +79,14 @@ function useWorkflowHumanMap() {
  */
 export function useEnrichedEvaluatorBrowseAdapter() {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
+    const workflowHumanMap = useWorkflowHumanMap()
     const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
     const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
+    const workflowHumanMapRef = useRef(workflowHumanMap)
 
     evaluatorKeyMapRef.current = evaluatorKeyMap
     evaluatorDefsByKeyRef.current = evaluatorDefsByKey
+    workflowHumanMapRef.current = workflowHumanMap
 
     return useMemo(() => {
         const getLabelNode = (entity: unknown): React.ReactNode =>
@@ -82,10 +100,8 @@ export function useEnrichedEvaluatorBrowseAdapter() {
             skipVariantLevel: true,
             excludeRevisionZero: true,
             filterWorkflows: (entity: unknown) => {
-                const w = entity as {
-                    flags?: {is_human?: boolean} | null
-                }
-                return !w.flags?.is_human
+                const w = entity as {id: string}
+                return !workflowHumanMapRef.current.get(w.id)
             },
             grandparentOverrides: {
                 getLabelNode,
@@ -110,6 +126,7 @@ export function useEnrichedEvaluatorOnlyAdapter(
     revisionLabelOverride?: (entity: unknown) => React.ReactNode,
 ) {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
+    const templates = useAtomValue(evaluatorTemplatesDataAtom)
     const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
     const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
     const revisionLabelOverrideRef = useRef(revisionLabelOverride)
@@ -120,6 +137,35 @@ export function useEnrichedEvaluatorOnlyAdapter(
 
     const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
 
+    // Build a stable Map<evaluatorKey, primaryCategory> from template data
+    const templateCategoryMap = useMemo(() => {
+        const map = new Map<string, string>()
+        for (const t of templates) {
+            if (t.key && t.categories?.length) {
+                map.set(t.key, t.categories[0].toLowerCase())
+            }
+        }
+        return map
+    }, [templates])
+    const templateCategoryMapRef = useRef(templateCategoryMap)
+    templateCategoryMapRef.current = templateCategoryMap
+
+    // Stable atom that wraps evaluatorConfigsQueryStateAtom into ListQueryState<unknown>.
+    // Uses a proper Jotai atom so filtering reactively updates when revision data resolves.
+    const autoEvaluatorsListAtom = useMemo(
+        () =>
+            atom((get) => {
+                const state = get(evaluatorConfigsQueryStateAtom)
+                return {
+                    data: state.data as unknown[],
+                    isPending: state.isPending,
+                    isError: state.isError,
+                    error: state.error ?? null,
+                }
+            }),
+        [],
+    )
+
     return useMemo(() => {
         const getLabelNode = (entity: unknown): React.ReactNode =>
             renderEvaluatorPickerLabelNode(
@@ -128,12 +174,51 @@ export function useEnrichedEvaluatorOnlyAdapter(
                 evaluatorDefsByKeyRef.current,
             )
 
-        const options: Parameters<typeof createWorkflowRevisionAdapter>[0] = {
+        // Resolve workflowId → evaluatorKey → primary category
+        const getGroupKey = (entity: unknown): string | null | undefined => {
+            const w = entity as {id: string}
+            const key = evaluatorKeyMapRef.current.get(w.id)
+            if (!key) return "custom"
+            return templateCategoryMapRef.current.get(key) ?? "custom"
+        }
+
+        const CATEGORY_LABELS: Record<string, string> = {
+            ai_llm: "AI / LLM",
+            classifiers: "Classifiers",
+            similarity: "Similarity",
+            custom: "Custom",
+            rag: "RAG",
+        }
+
+        const getGroupLabel = (key: string): string => CATEGORY_LABELS[key] ?? key
+
+        const options: NonNullable<Parameters<typeof createWorkflowRevisionAdapter>[0]> = {
             skipVariantLevel: true,
-            flags: {is_evaluator: true, is_human: false},
             excludeRevisionZero: true,
+            workflowListAtom: autoEvaluatorsListAtom,
             grandparentOverrides: {
                 getLabelNode,
+                getGroupKey,
+                getGroupLabel,
+                buildTabs: (entities: unknown[]) => {
+                    const ORDERED_CATEGORIES = ["ai_llm", "classifiers", "similarity", "custom"]
+                    const categorySeen = new Set<string>()
+                    for (const e of entities) {
+                        const w = e as {id: string}
+                        const key = evaluatorKeyMapRef.current.get(w.id)
+                        const cat = key
+                            ? (templateCategoryMapRef.current.get(key) ?? "custom")
+                            : "custom"
+                        categorySeen.add(cat)
+                    }
+                    const result: {key: string; label: string}[] = [{key: "all", label: "All"}]
+                    for (const cat of ORDERED_CATEGORIES) {
+                        if (categorySeen.has(cat)) {
+                            result.push({key: cat, label: CATEGORY_LABELS[cat]})
+                        }
+                    }
+                    return result
+                },
             },
         }
 
@@ -147,7 +232,7 @@ export function useEnrichedEvaluatorOnlyAdapter(
         }
 
         return createWorkflowRevisionAdapter(options)
-    }, [hasRevisionLabelOverride])
+    }, [hasRevisionLabelOverride, autoEvaluatorsListAtom])
 }
 
 type AnnotationWorkflowRevisionSelectionResult = WorkflowRevisionSelectionResult & {
@@ -174,6 +259,22 @@ export function useEnrichedHumanEvaluatorAdapter(
 
     const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
 
+    // Stable atom that wraps humanEvaluatorsListQueryAtom into ListQueryState<unknown>.
+    // Uses a proper Jotai atom so filtering reactively updates when revision data resolves.
+    const humanEvaluatorsListAtom = useMemo(
+        () =>
+            atom((get) => {
+                const query = get(humanEvaluatorsListQueryAtom)
+                return {
+                    data: (query.data?.refs ?? []) as unknown[],
+                    isPending: query.isPending ?? false,
+                    isError: query.isError ?? false,
+                    error: (query.error as Error | null) ?? null,
+                }
+            }),
+        [],
+    )
+
     return useMemo(() => {
         const getLabelNode = (entity: unknown): React.ReactNode =>
             renderEvaluatorPickerLabelNode(
@@ -182,10 +283,10 @@ export function useEnrichedHumanEvaluatorAdapter(
                 evaluatorDefsByKeyRef.current,
             )
 
-        const options: Parameters<typeof createWorkflowRevisionAdapter>[0] = {
+        const options: NonNullable<Parameters<typeof createWorkflowRevisionAdapter>[0]> = {
             skipVariantLevel: true,
-            flags: {is_human: true},
             excludeRevisionZero: true,
+            workflowListAtom: humanEvaluatorsListAtom,
             grandparentOverrides: {
                 getLabelNode,
             },
@@ -223,7 +324,7 @@ export function useEnrichedHumanEvaluatorAdapter(
         }
 
         return createWorkflowRevisionAdapter(options)
-    }, [hasRevisionLabelOverride])
+    }, [hasRevisionLabelOverride, humanEvaluatorsListAtom])
 }
 
 /**
@@ -261,10 +362,10 @@ export function useEnrichedAnnotationEvaluatorAdapter(
             excludeRevisionZero: true,
             filterWorkflows: (entity: unknown) => {
                 const workflow = entity as {
-                    flags?: {is_evaluator?: boolean; is_human?: boolean} | null
+                    flags?: {is_evaluator?: boolean; is_feedback?: boolean} | null
                 }
 
-                return Boolean(workflow.flags?.is_evaluator || workflow.flags?.is_human)
+                return Boolean(workflow.flags?.is_evaluator || workflow.flags?.is_feedback)
             },
             grandparentOverrides: {
                 getLabelNode,

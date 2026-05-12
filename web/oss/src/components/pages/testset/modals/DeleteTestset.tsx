@@ -1,12 +1,14 @@
 import {Dispatch, SetStateAction, useMemo, useState} from "react"
 
-import {DeleteOutlined} from "@ant-design/icons"
-import {Modal, ModalProps} from "antd"
+import {testsetMolecule} from "@agenta/entities/testset"
+import {ArchiveIcon} from "@phosphor-icons/react"
+import {message, Modal, ModalProps} from "antd"
 import {KeyedMutator} from "swr"
 
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
 import {testset} from "@/oss/lib/Types"
-import {archiveTestsetRevision, deleteTestsets} from "@/oss/services/testsets/api"
+import {archiveTestsetRevision} from "@/oss/services/testsets/api"
+import {getProjectValues} from "@/oss/state/project"
 
 interface DeleteTestsetProps extends ModalProps {
     selectedTestsetToDelete: testset[]
@@ -59,7 +61,8 @@ const DeleteTestset = ({
                 )
                     return
 
-                await deleteTestsets(testsetsIds)
+                const {projectId} = getProjectValues()
+                await testsetMolecule.lifecycle.archive(testsetsIds, {projectId})
             }
 
             // Delete individual revisions
@@ -75,6 +78,22 @@ const DeleteTestset = ({
             onAfterDelete?.({testsets, revisions})
             setSelectedTestsetToDelete([])
             props.onCancel?.({} as any)
+
+            const archivedCount = testsets.length + revisions.length
+            const archiveLabel =
+                testsets.length > 0 && revisions.length > 0
+                    ? "items"
+                    : revisions.length > 0
+                      ? "revisions"
+                      : "testsets"
+
+            message.success(
+                archivedCount === 1
+                    ? archiveLabel === "revisions"
+                        ? "Revision archived"
+                        : "Testset archived"
+                    : `${archivedCount} ${archiveLabel} archived`,
+            )
         } catch (error) {
             console.error(error)
         } finally {
@@ -86,7 +105,7 @@ const DeleteTestset = ({
     const renderContent = () => {
         return (
             <div className="flex flex-col gap-3">
-                <p className="m-0">Are you sure you want to delete the following?</p>
+                <p className="m-0">Are you sure you want to archive the following?</p>
 
                 {testsets.length > 0 && (
                     <div>
@@ -133,8 +152,8 @@ const DeleteTestset = ({
         <Modal
             destroyOnHidden
             title="Are you sure?"
-            okText="Delete"
-            okButtonProps={{danger: true, icon: <DeleteOutlined />, loading: isLoading}}
+            okText="Archive"
+            okButtonProps={{danger: true, icon: <ArchiveIcon size={14} />, loading: isLoading}}
             centered
             cancelText="Cancel"
             onOk={onDelete}

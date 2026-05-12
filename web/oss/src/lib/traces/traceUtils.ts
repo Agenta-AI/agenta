@@ -1,6 +1,7 @@
+import type {TraceSpan} from "@agenta/entities/trace"
+import {uuidToTraceId} from "@agenta/shared/utils"
+
 import type {TraceTree} from "@/oss/lib/evaluations"
-import {uuidToTraceId} from "@/oss/lib/traces/helpers"
-import type {TraceSpan} from "@/oss/state/entities/trace"
 
 export function findTraceForStep(traces: any[] | undefined, traceId?: string): any | undefined {
     if (!traces?.length || !traceId) return undefined

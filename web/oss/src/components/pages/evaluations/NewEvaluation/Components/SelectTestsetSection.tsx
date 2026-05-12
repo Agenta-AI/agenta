@@ -1,9 +1,9 @@
 import {memo, useMemo} from "react"
 
+import type {Workflow} from "@agenta/entities/workflow"
 import clsx from "clsx"
 
 import TestsetsTable from "@/oss/components/TestsetsTable/TestsetsTable"
-import type {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 
 import type {SelectTestsetSectionProps} from "../types"
 
@@ -26,10 +26,10 @@ const extractVariables = (content: string): string[] => {
  * Extract input_keys from variant's parameters (ag_config)
  * This is used for completion/custom apps where inputs are defined in the config
  */
-const extractInputKeysFromParameters = (variant: EnhancedVariant): string[] => {
+const extractInputKeysFromParameters = (variant: Workflow): string[] => {
     try {
-        const params = (variant as any)?.parameters
-        const agConfig = params?.ag_config ?? params ?? {}
+        const params = variant.data?.parameters ?? {}
+        const agConfig = (params as any)?.ag_config ?? params ?? {}
         const keys = new Set<string>()
 
         Object.values(agConfig || {}).forEach((cfg: any) => {
@@ -48,13 +48,15 @@ const extractInputKeysFromParameters = (variant: EnhancedVariant): string[] => {
 }
 
 /**
- * Extract input variables from an EnhancedVariant's prompts ({{variable}} patterns)
+ * Extract input variables from a workflow's prompts ({{variable}} patterns)
  * This is used for chat apps where variables are embedded in message templates
  */
-const extractVariablesFromPrompts = (variant: EnhancedVariant): string[] => {
+const extractVariablesFromPrompts = (variant: Workflow): string[] => {
     const vars = new Set<string>()
 
-    ;(variant.prompts || []).forEach((prompt: any) => {
+    const params = variant.data?.parameters ?? {}
+    const prompts = (params as any)?.ag_config?.prompt ?? (params as any)?.prompts ?? []
+    ;(Array.isArray(prompts) ? prompts : [prompts]).forEach((prompt: any) => {
         const messages = prompt?.messages?.value || []
         messages.forEach((message: any) => {
             const content = message?.content?.value
@@ -75,10 +77,10 @@ const extractVariablesFromPrompts = (variant: EnhancedVariant): string[] => {
 }
 
 /**
- * Extract input variables from an EnhancedVariant
+ * Extract input variables from a Workflow revision
  * Combines both input_keys from parameters and {{variables}} from prompts
  */
-const extractVariablesFromVariant = (variant: EnhancedVariant): string[] => {
+const extractVariablesFromVariant = (variant: Workflow): string[] => {
     const vars = new Set<string>()
 
     // First, try to get input_keys from parameters (for completion/custom apps)

@@ -5,7 +5,7 @@ description: "Verify Permissions"
 sidebar_label: "Verify Permissions"
 hide_title: true
 hide_table_of_contents: true
-api: eJy9VsFuGjEQ/RU0Zwto1NOeitqoQWlVlNBe0CpyvAM49a4d2xuFIv97NfbusguJRKQ2J8B+M2/y3sw4e/B84yBbwUwIdG70WVfeagU5A23Qci91NS8ggye0cr27M2hL6ZzUlQMGhlteokdLKfZQ8RIhAy4oChjICjJ4rNHugIHFx1paLCBbc+WQgRNbLDlke+DV7sc6ZvA7Qxmct7LaQGDdSVUrBSFn4KVXdDBLJIEwDa8T2uBdDPi/3LdENFrS7Sm/LP4BO4O1tiX3kEFdy+KMaubFoBaLTtdWvIscNw3XqSJdFe8uSldT1CUnPmd05dARw8V0Sh8FOmGliY2UwW0dR2Bdq9FNAwYGQlceKx/rMkZJEUdi8uAoZn+oOoQQGHy8uDhN/IsrWcSw0aW12r4hKxhLY+hlqrtAz6Wib9Jj6U4BSovB7Rl2ysrjBi2EPLD2jFvLyaRWzW86FQiBQek2lPnYmhb6HZ3jG4Qu2evQKEbTNNQdpo6CtNfzeBAYCP/cS6PvH1D4XhpaWfjsqfFOMIcuW0VtUvkNrtcuB4uSQ69L8SVZ8BJZC7laLhcnCVN/HDVG3KmjxWCnlui3mjbuBn1csX4LGUx6i3eSdjEwcGif2uVbW0U4bmR0N/3cem9cNplgPRZK18WYb7DyfMxlAuaUQ9RW+l1MMlvMr3F3hbxAC9kq7wNuqSlTmw1hnTXcyGukuprxn9V+q638w/vvwTZFhWj5Wvcdn8XiRrPFHBg9OC7JNB1/GE/hWLwBmOaJi9g+LXe8BnYkRPf3AwMs4zCBR15+OlxQZUY7X/Kql+9FrwYVdTJQN06M4jLOS+TfNz6uYPiANk7mDLbaebrf7++5w59WhUDHaV2SNYV0/F71FuZv3PUf2yeuamKP7r8CHryQ5wfE7X0O/PjVeVPMEUtOP6ykkNiJrO0cEiOF0v8sxveiTnYpZekG6uvlEkL4Cy0yCiM=
+api: eJy9Vt9P2zAQ/leqe7ZIh/aUp1UbGhWbVkG3lypCxrm2Zk5sbAfRVf7fp7OTkLQgFWnjqe39+o77vjuzB883DvIVzIRA56BgoA1a7qWu5yXk8IhWrne3Bm0lnZO6dsDAcMsr9GgpdQ81rxBy4IKygIGsIYeHBu0OGFh8aKTFEvI1Vw4ZOLHFikO+B17vfqxjBb8zVMF5K+sNBNZb6kYpCAUDL70iwyyBBIppcZ3QBm9jwv/FviGgyZK8x/iy/AfoDNbaVtxDDk0jyxO6mZejXiw63VjxLuO4brGOJ9J38e5D6XuKcykIzxldO3SEcD6d0keJTlhpopByuGmi9NeNmly3wcBA6Npj7WNfxigp4kpk945y9s9dhxACg4/n58eFf3Ely5g2ubBW2zdUBWNpDb1MfZfouVT0TXqs3HGA0mLkPYFOWXvcoIVQBNbZuLWcSOqm+U2nBiEwqNyGKh9S04V+R+f4BqEv9npoHEYrGlKHaeJAOvc8GgID4Z8GZfTdPQo/KPOZZvnkSXhHMc8qW8XZpPbbuIFcnilKDL0+ii+JgpfAupDL5XJxVDDp40AY8aZOFqObWqHfarq4G/TxxPot5JANDm+WbjEwcGgfu+PbWEVx3MjIbvq59d7kWaa04GqrnU/ugjJFY6XfxdTZYn6Fu0vkJVrIV8Uw4IakmMQ1DusJ4UZeIXXTLv2s8Vtt5R8+fAW2KStEotd6yPNsg7Xnk9liDocDGrloZ7iIEumQohvY4I91eZbxaD7jMgMGWMWNAY+8+tR7iGCaXIKZnn04m5LJaOcrXg8gXqRo1GQ/BxJhZhSXcU1iS/uWvhWM382WwIIBkUL+/f6OO/xpVQhkTleSuCml43dqcCd/4274xj5y1RB6JP2V4NHDeHpCPNqnhB8+Nm/KOUAp6IeVlBKlyDrp0DBSKv2LYvwg6+iEUpV+j75eLCGEvzbxA/I=
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -42,27 +43,24 @@ Verify Permissions
   id={"request"}
   as={"h2"}
   className={"openapi-tabs__heading"}
-  children={"Request"}
 >
+  <Translate id="theme.openapi.request.title">Request</Translate>
 </Heading>
 
 <ParamsDetails
-  parameters={[{"name":"action","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Action"}},{"name":"scope_type","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Scope Type"}},{"name":"scope_id","in":"query","required":false,"schema":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Scope Id"}},{"name":"resource_type","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Resource Type"}},{"name":"resource_id","in":"query","required":false,"schema":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Resource Id"}}]}
+  {...require("./verify-permissions.ParamsDetails.json")}
 >
   
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./verify-permissions.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  {...require("./verify-permissions.StatusCodes.json")}
 >
   
 </StatusCodes>

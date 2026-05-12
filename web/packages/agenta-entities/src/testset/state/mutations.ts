@@ -6,6 +6,7 @@
  */
 
 import {projectIdAtom} from "@agenta/shared/state"
+import {preserveResponseStatus} from "@agenta/shared/utils"
 import {atom} from "jotai"
 
 import {isRecord} from "../../shared"
@@ -418,6 +419,10 @@ export const saveTestsetAtom = atom(
 export interface SaveNewTestsetParams {
     projectId: string
     testsetName: string
+    /** Slug for the new testset. When provided, overrides API fallback generation. */
+    slug?: string
+    /** Optional initial commit message for the created revision. */
+    commitMessage?: string
     /**
      * Optional explicit testcase data. When provided, this data is used directly
      * instead of reading from newEntityIdsAtom. Used by the loadable controller
@@ -444,7 +449,7 @@ export interface SaveNewTestsetResult {
 export const saveNewTestsetAtom = atom(
     null,
     async (get, set, params: SaveNewTestsetParams): Promise<SaveNewTestsetResult> => {
-        const {projectId, testsetName, explicitTestcaseData} = params
+        const {projectId, testsetName, slug, commitMessage, explicitTestcaseData} = params
 
         if (!projectId || !testsetName.trim()) {
             return {success: false, error: new Error("Missing projectId or testsetName")}
@@ -484,7 +489,9 @@ export const saveNewTestsetAtom = atom(
             const response = await createTestset({
                 projectId,
                 name: testsetName,
+                slug,
                 testcases: testcaseData,
+                commitMessage,
             })
 
             if (response?.revisionId) {
@@ -513,7 +520,7 @@ export const saveNewTestsetAtom = atom(
 
             return {success: false, error: new Error("No revision ID returned from API")}
         } catch (error) {
-            return {success: false, error: error as Error}
+            return {success: false, error: preserveResponseStatus(error)}
         }
     },
 )

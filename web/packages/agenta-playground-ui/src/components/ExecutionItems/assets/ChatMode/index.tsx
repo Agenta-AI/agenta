@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {executionItemController} from "@agenta/playground"
 import {extractPromptTemplateContext, normalizeEnhancedMessages} from "@agenta/shared/utils"
 import {ChatMessageList} from "@agenta/ui/chat-message"
@@ -66,7 +66,7 @@ const ChatMode = ({entityId, renderLastTurnFooter, renderControlsBar}: ChatModeP
     )
     // Config messages (read-only) — read configuration from the runnable bridge
     const entityConfig = useAtomValue(
-        useMemo(() => runnableBridge.configuration(entityId || ""), [entityId]),
+        useMemo(() => workflowMolecule.selectors.configuration(entityId || ""), [entityId]),
     )
     const agConfig = useMemo(() => {
         const params = entityConfig as Record<string, unknown> | undefined
@@ -128,7 +128,7 @@ const ChatMode = ({entityId, renderLastTurnFooter, renderControlsBar}: ChatModeP
                                         disabled
                                         showControls={false}
                                         allowFileUpload={false}
-                                        enableTokens={tokens.length > 0}
+                                        enableTokens
                                         templateFormat={templateFormat}
                                         tokens={tokens}
                                     />

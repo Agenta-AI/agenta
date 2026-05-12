@@ -135,6 +135,7 @@ export type {
     CommitSubmitParams,
     CommitSubmitResult,
     CommitModeOption,
+    CommitCreateFieldsConfig,
     UseEntityCommitReturn,
     UseBoundCommitOptions,
     UseBoundCommitReturn,

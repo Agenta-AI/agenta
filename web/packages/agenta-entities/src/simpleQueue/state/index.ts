@@ -48,15 +48,3 @@ export {
     simpleQueueSearchTermAtom,
     type SimpleQueueTableRow,
 } from "./paginatedStore"
-
-// ============================================================================
-// TASKS PAGINATED STORE
-// ============================================================================
-
-export {
-    simpleQueueTasksPaginatedStore,
-    taskQueueIdAtom,
-    taskStatusFilterAtom,
-    taskUserIdAtom,
-    type SimpleQueueTaskRow,
-} from "./tasksPaginatedStore"

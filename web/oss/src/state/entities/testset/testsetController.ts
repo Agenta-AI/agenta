@@ -34,6 +34,8 @@
  */
 
 import {
+    getTestsetTableState,
+    invalidateTestsetManagementQueries,
     testsetPaginatedStore,
     testsetsSearchTermAtom,
     testsetsDateCreatedFilterAtom,
@@ -235,6 +237,9 @@ export type {TestsetListParams, TestsetDetailParams} from "./store"
 export type {
     TestsetApiRow,
     TestsetTableRow,
+    TestsetTableMode,
     TestsetDateRange,
     TestsetPaginatedMeta,
 } from "./paginatedStore"
+
+export {getTestsetTableState, invalidateTestsetManagementQueries}

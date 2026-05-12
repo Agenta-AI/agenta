@@ -7,7 +7,7 @@ class TestEvaluationMetricsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/",
+            "/evaluations/runs/",
             json={"runs": runs},
         )
 
@@ -32,7 +32,7 @@ class TestEvaluationMetricsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/",
+            "/evaluations/metrics/",
             json={"metrics": metrics},
         )
         # ----------------------------------------------------------------------
@@ -51,7 +51,7 @@ class TestEvaluationMetricsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/",
+            "/evaluations/runs/",
             json={"runs": runs},
         )
 
@@ -74,7 +74,7 @@ class TestEvaluationMetricsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/",
+            "/evaluations/metrics/",
             json={"metrics": metrics},
         )
         assert response.status_code == 200
@@ -90,7 +90,7 @@ class TestEvaluationMetricsBasics:
 
         response = authed_api(
             "PATCH",
-            "/preview/evaluations/metrics/",
+            "/evaluations/metrics/",
             json={"metrics": metrics},
         )
         # ----------------------------------------------------------------------
@@ -113,7 +113,7 @@ class TestEvaluationMetricsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/",
+            "/evaluations/runs/",
             json={"runs": runs},
         )
 
@@ -136,7 +136,7 @@ class TestEvaluationMetricsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/",
+            "/evaluations/metrics/",
             json={"metrics": metrics},
         )
         assert response.status_code == 200
@@ -147,7 +147,7 @@ class TestEvaluationMetricsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            "/preview/evaluations/metrics/",
+            "/evaluations/metrics/",
             json={"metrics_ids": [metrics[0]["id"]]},
         )
         # ----------------------------------------------------------------------
@@ -162,7 +162,7 @@ class TestEvaluationMetricsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            "/preview/evaluations/metrics/",
+            "/evaluations/metrics/",
             json={"metrics_ids": [metrics[0]["id"]]},
         )
         # ----------------------------------------------------------------------
@@ -181,7 +181,7 @@ class TestEvaluationMetricsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/",
+            "/evaluations/runs/",
             json={"runs": runs},
         )
 
@@ -204,7 +204,7 @@ class TestEvaluationMetricsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/",
+            "/evaluations/metrics/",
             json={"metrics": metrics},
         )
         assert response.status_code == 200
@@ -217,7 +217,7 @@ class TestEvaluationMetricsBasics:
         # NOTE: GET /metrics/{id} does not exist, use POST /metrics/query
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/query",
+            "/evaluations/metrics/query",
             json={
                 "metrics": {
                     "run_id": run_id,
@@ -247,7 +247,7 @@ class TestEvaluationMetricsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/",
+            "/evaluations/runs/",
             json={"runs": runs},
         )
 
@@ -270,7 +270,7 @@ class TestEvaluationMetricsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/",
+            "/evaluations/metrics/",
             json={"metrics": metrics},
         )
         assert response.status_code == 200
@@ -287,7 +287,7 @@ class TestEvaluationMetricsBasics:
 
         response = authed_api(
             "PATCH",
-            "/preview/evaluations/metrics/",
+            "/evaluations/metrics/",
             json={"metrics": [metric]},
         )
         # ----------------------------------------------------------------------
@@ -310,7 +310,7 @@ class TestEvaluationMetricsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/runs/",
+            "/evaluations/runs/",
             json={"runs": runs},
         )
 
@@ -333,7 +333,7 @@ class TestEvaluationMetricsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/evaluations/metrics/",
+            "/evaluations/metrics/",
             json={"metrics": metrics},
         )
         assert response.status_code == 200
@@ -345,7 +345,7 @@ class TestEvaluationMetricsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            "/preview/evaluations/metrics/",
+            "/evaluations/metrics/",
             json={"metrics_ids": [metric["id"]]},
         )
         # ----------------------------------------------------------------------
@@ -360,7 +360,7 @@ class TestEvaluationMetricsBasics:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            "/preview/evaluations/metrics/",
+            "/evaluations/metrics/",
             json={"metrics_ids": [metric["id"]]},
         )
         # ----------------------------------------------------------------------

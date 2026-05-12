@@ -1,41 +1,97 @@
 /**
- * Publish Mutation — Entity-agnostic deployment atom
+ * Publish Mutation — Entity-based deployment atom
  *
- * Publishes a revision (or legacy variant) to an environment.
- * Uses the router app_id or explicit application_id in the payload
- * rather than entity-type-specific molecule lookups.
+ * Publishes a revision to an environment using the new SimpleEnvironment API.
+ * Resolves environment by slug/name from the list cache, then commits a
+ * revision delta with full application references.
  */
 
-import {axios, getAgentaApiUrl, queryClient} from "@agenta/shared/api"
+import {queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
+import {getDefaultStore} from "jotai"
 import {atomWithMutation} from "jotai-tanstack-query"
 
-import {invalidateEnvironmentsListCache} from "../environment"
+import {deployToEnvironment} from "../environment/api/mutations"
+import type {Environment} from "../environment/core"
+import {invalidateEnvironmentsListCache} from "../environment/state/environmentMolecule"
+import {environmentsListQueryAtomFamily} from "../environment/state/store"
 
-export interface PublishRevisionPayload {
-    type: "revision"
-    revision_id: string
-    environment_ref: string
+// ============================================================================
+// PAYLOAD TYPES
+// ============================================================================
+
+export interface PublishPayload {
+    /** Workflow revision ID to deploy */
+    revisionId: string
+    /** Environment slug or name (e.g., "production") */
+    environmentSlug: string
+    /** Optional deployment note/message */
     note?: string
-    revision_number?: number
-    application_id?: string
+    /** Application (workflow) ID — required to build references */
+    applicationId: string
+    /** Optional: Workflow variant ID (if not provided, resolved from revision data) */
+    workflowVariantId?: string
+    /** Optional: Variant slug (for building appKey) */
+    variantSlug?: string
+    /** Optional: Application slug */
+    applicationSlug?: string
+    /** Optional: Revision version number */
+    revisionVersion?: number | string
 }
 
-export interface PublishVariantPayload {
-    type: "variant"
-    variant_id: string
-    revision_id?: string
-    environment_name: string
-    note?: string
-}
-
-export type PublishPayload = PublishRevisionPayload | PublishVariantPayload
+// ============================================================================
+// HELPERS
+// ============================================================================
 
 /**
- * Entity-agnostic publish mutation used by deployment UIs.
+ * Resolve environment from the list cache by slug or name.
+ */
+function resolveEnvironmentBySlug(
+    environments: Environment[],
+    slugOrName: string,
+): Environment | null {
+    const lower = slugOrName.toLowerCase()
+    return (
+        environments.find((env) => env.slug === slugOrName) ??
+        environments.find((env) => env.name?.toLowerCase() === lower) ??
+        null
+    )
+}
+
+/**
+ * Derive the appKey from environment references or construct one.
  *
- * For "revision" payloads, `application_id` MUST be provided in the payload.
- * For "variant" payloads, the legacy `/environments/deploy` endpoint is used.
+ * Backend convention: keys are `{appSlug}.revision` (see EnvironmentRevisionData docs).
+ * For existing deployments, reuse the current key to avoid duplicates.
+ */
+function resolveAppKey(env: Environment, applicationId: string, applicationSlug?: string): string {
+    // Try to find existing appKey in the environment's references
+    const refs = env.data?.references
+    if (refs) {
+        for (const [appKey, entityRefs] of Object.entries(refs)) {
+            if (entityRefs?.application?.id === applicationId) {
+                return appKey
+            }
+        }
+    }
+
+    // New deployment: use standard "{appSlug}.revision" format
+    if (applicationSlug) {
+        return `${applicationSlug}.revision`
+    }
+
+    return `${applicationId}.revision`
+}
+
+// ============================================================================
+// PUBLISH MUTATION
+// ============================================================================
+
+/**
+ * Entity-based publish mutation used by deployment UIs.
+ *
+ * Resolves the environment from the list cache and calls `deployToEnvironment`
+ * with full application references.
  */
 export const publishMutationAtom = atomWithMutation<void, PublishPayload>((get) => ({
     mutationFn: async (payload) => {
@@ -44,50 +100,51 @@ export const publishMutationAtom = atomWithMutation<void, PublishPayload>((get) 
             throw new Error("No project ID available for publish")
         }
 
-        if (payload.type === "variant") {
-            const {note, ...rest} = payload
-            await axios.post(
-                `${getAgentaApiUrl()}/environments/deploy`,
-                {
-                    ...rest,
-                    commit_message: note,
-                },
-                {params: {project_id: projectId}},
-            )
-            return
-        }
+        // Resolve environment from list cache
+        const listQuery = get(environmentsListQueryAtomFamily(false))
+        const environments = listQuery.data?.environments ?? []
+        const env = resolveEnvironmentBySlug(environments, payload.environmentSlug)
 
-        const applicationId = payload.application_id
-
-        if (!applicationId) {
+        if (!env) {
             throw new Error(
-                "No application_id provided in publish payload. " +
-                    "Pass application_id explicitly for entity-agnostic publishing.",
+                `Environment "${payload.environmentSlug}" not found. ` +
+                    `Available: ${environments.map((e) => e.slug ?? e.name).join(", ")}`,
             )
         }
 
-        await axios.post(
-            `${getAgentaApiUrl()}/variants/configs/deploy`,
-            {
-                application_ref: {
-                    id: applicationId,
-                    version: null,
-                    slug: null,
+        if (!env.variant_id) {
+            throw new Error(
+                `Environment "${payload.environmentSlug}" has no variant_id. ` +
+                    `Cannot commit a revision without an environment variant.`,
+            )
+        }
+
+        const appKey = resolveAppKey(env, payload.applicationId, payload.applicationSlug)
+
+        await deployToEnvironment({
+            projectId,
+            environmentId: env.id,
+            environmentVariantId: env.variant_id,
+            appKey,
+            references: {
+                application: {
+                    id: payload.applicationId,
+                    slug: payload.applicationSlug,
                 },
-                variant_ref: {
-                    id: payload.revision_id,
-                    version: payload.revision_number || null,
-                    slug: null,
+                application_variant: {
+                    id: payload.workflowVariantId || payload.applicationId,
+                    slug: payload.variantSlug,
                 },
-                environment_ref: {
-                    slug: payload.environment_ref,
-                    version: null,
-                    id: null,
-                    commit_message: payload.note || null,
+                application_revision: {
+                    id: payload.revisionId,
+                    version:
+                        payload.revisionVersion != null
+                            ? String(payload.revisionVersion)
+                            : undefined,
                 },
             },
-            {params: {project_id: projectId}},
-        )
+            message: payload.note,
+        })
     },
     onSuccess: async () => {
         queryClient.invalidateQueries({queryKey: ["environments"]})
@@ -95,5 +152,67 @@ export const publishMutationAtom = atomWithMutation<void, PublishPayload>((get) 
         queryClient.invalidateQueries({queryKey: ["environment"], exact: false})
         invalidateEnvironmentsListCache()
         queryClient.invalidateQueries({queryKey: ["deploymentRevisions"]})
+        queryClient.invalidateQueries({
+            queryKey: ["deploymentRevision-paginated"],
+            exact: false,
+        })
     },
 }))
+
+/**
+ * Imperative deploy helper for use outside React/atom context.
+ *
+ * Resolves environment from store, builds references, and calls `deployToEnvironment`.
+ */
+export async function publishToEnvironment(payload: PublishPayload): Promise<void> {
+    const store = getDefaultStore()
+    const projectId = store.get(projectIdAtom)
+    if (!projectId) {
+        throw new Error("No project ID available for publish")
+    }
+
+    const listQuery = store.get(environmentsListQueryAtomFamily(false))
+    const environments = listQuery.data?.environments ?? []
+    const env = resolveEnvironmentBySlug(environments, payload.environmentSlug)
+
+    if (!env) {
+        throw new Error(`Environment "${payload.environmentSlug}" not found.`)
+    }
+
+    if (!env.variant_id) {
+        throw new Error(`Environment "${payload.environmentSlug}" has no variant_id.`)
+    }
+
+    const appKey = resolveAppKey(env, payload.applicationId, payload.applicationSlug)
+
+    await deployToEnvironment({
+        projectId,
+        environmentId: env.id,
+        environmentVariantId: env.variant_id,
+        appKey,
+        references: {
+            application: {
+                id: payload.applicationId,
+                slug: payload.applicationSlug,
+            },
+            application_variant: {
+                id: payload.workflowVariantId || payload.applicationId,
+                slug: payload.variantSlug,
+            },
+            application_revision: {
+                id: payload.revisionId,
+                version:
+                    payload.revisionVersion != null ? String(payload.revisionVersion) : undefined,
+            },
+        },
+        message: payload.note,
+    })
+
+    // Invalidate caches
+    queryClient.invalidateQueries({queryKey: ["environments"]})
+    queryClient.invalidateQueries({queryKey: ["environments-list"], exact: false})
+    queryClient.invalidateQueries({queryKey: ["environment"], exact: false})
+    invalidateEnvironmentsListCache()
+    queryClient.invalidateQueries({queryKey: ["deploymentRevisions"]})
+    queryClient.invalidateQueries({queryKey: ["deploymentRevision-paginated"], exact: false})
+}

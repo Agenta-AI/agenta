@@ -6,6 +6,11 @@ from uuid import UUID
 from oss.src.core.tracing.dtos import OTelSpan
 from oss.src.core.tracing.utils.attributes import REFERENCE_KEYS
 
+HASH_REFERENCE_KEYS = set(REFERENCE_KEYS) - {
+    "testset_variant",
+    "testset_revision",
+}
+
 
 def _trace_id_from_uuid(trace_id: Union[UUID, str]) -> str:
     if isinstance(trace_id, UUID):
@@ -27,7 +32,7 @@ def extract_references_and_links_from_span(span: OTelSpan) -> Tuple[Dict, Dict]:
             "version": str(ref.version) if ref.version else None,
         }
         for ref in span.references or []
-        if ref.attributes.get("key") in REFERENCE_KEYS
+        if ref.attributes.get("key") in HASH_REFERENCE_KEYS
     }
     links = {
         link.attributes["key"]: {
@@ -50,7 +55,7 @@ def make_hash_id(
 
     payload = dict()
     for k, v in (references or {}).items():
-        if k in REFERENCE_KEYS:
+        if k in HASH_REFERENCE_KEYS:
             entry = {}
             if v.get("id") is not None:
                 entry["id"] = v["id"]

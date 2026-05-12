@@ -12,11 +12,21 @@ if ! command -v pip3 >/dev/null 2>&1; then
   echo "❌ pip3 is required but not installed."
   exit 1
 fi
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "❌ pnpm is required but not installed."
+  exit 1
+fi
 
 # --- install pre-commit globally if missing ---
 if ! command -v pre-commit >/dev/null 2>&1; then
   echo "📦 Installing pre-commit..."
   pip3 install pre-commit
+fi
+
+# --- install ruff globally if missing ---
+if ! command -v ruff >/dev/null 2>&1; then
+  echo "📦 Installing ruff..."
+  pip3 install ruff
 fi
 
 # --- install gitleaks globally if missing ---
@@ -34,17 +44,26 @@ if ! command -v gitleaks >/dev/null 2>&1; then
   fi
 fi
 
+# --- install turbo globally if missing ---
+if ! command -v turbo >/dev/null 2>&1; then
+  echo "📦 Installing turbo globally..."
+  pnpm add -g turbo
+fi
+
+# --- install web workspace dependencies (prettier, eslint, etc.) ---
+echo "📦 Installing web workspace dependencies..."
+(cd web && pnpm install)
+
 # --- install hooks into .git/hooks/ ---
 echo "⚙️  Installing pre-commit hooks..."
 pre-commit install --install-hooks
 pre-commit install --hook-type pre-push
 
-# --- one-time full scans ---
-echo "🔍 Running one-time gitleaks scans..."
-
-gitleaks --config .gitleaks.toml --exit-code 1 --verbose detect --no-git --source . || {
-  echo "❌ Gitleaks detected potential secrets in the working directory."
+# --- verify all hooks pass ---
+echo "🔍 Running all pre-commit hooks to verify setup..."
+pre-commit run --all-files || {
+  echo "❌ Some hooks failed. Please fix the issues above and re-run."
   exit 1
 }
 
-echo "✅ Setup complete! Hooks installed and initial scan passed. You are safe to commit."
+echo "✅ Setup complete! Hooks installed and all checks passed. You are safe to commit."

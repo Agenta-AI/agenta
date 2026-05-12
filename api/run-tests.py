@@ -7,12 +7,16 @@ import click
 from dotenv import load_dotenv
 
 
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+LOCAL_SDK_DIR = os.path.join(ROOT_DIR, "sdk")
+
+
 TYPES = {
     "license": ["ee", "oss"],
     "coverage": ["smoke", "full"],
     "lens": ["functional", "performance", "security"],
     "plan": ["hobby", "pro", "business", "enterprise"],
-    "role": ["owner", "admin", "editor", "viewer"],
+    "role": ["owner", "admin", "developer", "editor", "annotator", "viewer"],
     "path": ["happy", "grumpy"],
     "case": ["typical", "edge"],
     "speed": ["fast", "slow"],
@@ -25,6 +29,18 @@ def _has_pytest_option(pytest_args: Optional[tuple], option: str) -> bool:
         return False
 
     return any(arg == option or arg.startswith(f"{option}=") for arg in pytest_args)
+
+
+def _resolve_license() -> str:
+    return "ee" if os.getenv("AGENTA_LICENSE") == "ee" else "oss"
+
+
+def _prepend_pythonpath(path: str) -> None:
+    current = os.environ.get("PYTHONPATH")
+    paths = [path]
+    if current:
+        paths.append(current)
+    os.environ["PYTHONPATH"] = os.pathsep.join(paths)
 
 
 @click.command()
@@ -46,14 +62,6 @@ def _has_pytest_option(pytest_args: Optional[tuple], option: str) -> bool:
     envvar="AGENTA_AUTH_KEY",
 )
 @click.option(
-    "--license",
-    default="oss",
-    type=click.Choice(TYPES["license"]),
-    help="License [oss|ee]",
-    envvar="AGENTA_LICENSE",
-    show_default=True,
-)
-@click.option(
     "--coverage",
     type=click.Choice(TYPES["coverage"]),
     help="Coverage [smoke|full] (full = no coverage marker filter)",
@@ -73,7 +81,7 @@ def _has_pytest_option(pytest_args: Optional[tuple], option: str) -> bool:
 @click.option(
     "--role",
     type=click.Choice(TYPES["role"]),
-    help="Role [owner|admin|editor|viewer]",
+    help="Role [owner|admin|developer|editor|annotator|viewer]",
 )
 @click.option(
     "--path",
@@ -105,7 +113,6 @@ def _has_pytest_option(pytest_args: Optional[tuple], option: str) -> bool:
     type=click.UNPROCESSED,
 )
 def run_tests(
-    license: str,  # pylint: disable=redefined-builtin
     env_file: Optional[str] = None,
     api_url: Optional[str] = None,
     auth_key: Optional[str] = None,
@@ -130,9 +137,6 @@ def run_tests(
     if env_file:
         load_dotenv(env_file)
         click.echo(f"Loaded environment variables from {env_file}")
-        _license = os.getenv("AGENTA_LICENSE")
-        if _license in TYPES["license"]:
-            license = _license
         if not api_url:
             api_url = os.getenv("AGENTA_API_URL")
         if not auth_key:
@@ -147,6 +151,12 @@ def run_tests(
         L = len(auth_key)
         message = f"AGENTA_AUTH_KEY={auth_key[:2]}" + "." * (L - 4) + f"{auth_key[-2:]}"
         click.echo(message)
+
+    license = _resolve_license()
+    click.echo(f"AGENTA_LICENSE={license}")
+
+    if os.path.isdir(LOCAL_SDK_DIR):
+        _prepend_pythonpath(LOCAL_SDK_DIR)
 
     # Set optional dimensions
     for name, value in [

@@ -97,7 +97,6 @@ See `features/README.md` for the full mapping and caveats.
 - Keep current auth-via-UI design (password and OTP flows both supported).
 - Use project-scoped URLs when the route contract is stable. Never use unscoped workspace routes like `/settings` or `/prompts`.
 - Keep the known Playground workaround. Enter the app through Overview first, then use the app sidebar to open Playground.
-- `AGENTA_TEST_ALLOW_DESTRUCTIVE_TEARDOWN` defaults to `false`; only enable on disposable CI environments.
 - Testset test skips gracefully when no testsets exist rather than failing.
 - Local verification must stay serial while `global-setup.ts` and `global-teardown.ts` share `test-project.json`. Two local Playwright invocations in parallel are not a valid signal.
 

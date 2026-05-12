@@ -26,7 +26,6 @@ function getSessionToken(statePath: string): string | null {
  * Runs after tests complete.
  * 1. Deletes the ephemeral project created during setup (if any).
  * 2. Cleans up model hub secrets (OpenAI keys added during tests).
- * 3. Optionally deletes all accounts on disposable CI environments.
  */
 /**
  * Derives the API base URL from AGENTA_WEB_URL.
@@ -47,43 +46,13 @@ async function globalTeardown() {
     const baseURL = process.env.AGENTA_WEB_URL || "http://localhost:3000"
     console.log(`[global-teardown] Using web-url: ${baseURL}`)
 
-    const token = process.env.AGENTA_AUTH_KEY
     const apiURL = getApiURL(baseURL)
-    const allowDestructiveTeardown =
-        String(process.env.AGENTA_TEST_ALLOW_DESTRUCTIVE_TEARDOWN).toLowerCase() === "true"
     console.log(`[global-teardown] Using api-url: ${apiURL}`)
-
-    const license = process.env.AGENTA_LICENSE || "oss"
-    console.log(
-        `[global-teardown] Environment variables - token: ${token ? "present" : "absent"}, AGENTA_LICENSE: ${license}, AGENTA_TEST_ALLOW_DESTRUCTIVE_TEARDOWN: ${allowDestructiveTeardown}`,
-    )
 
     // --- Phase 1: Delete ephemeral project ---
     await deleteEphemeralProject(apiURL)
 
-    // --- Phase 2: Delete all accounts (destructive, CI-only) ---
-    if (allowDestructiveTeardown && token && license === "oss") {
-        console.log(
-            "[global-teardown] Conditions met for deleting all accounts, sending request...",
-        )
-        try {
-            await fetch(`${apiURL}/admin/accounts/delete-all`, {
-                method: "POST",
-                headers: {
-                    Authorization: `Access ${token}`,
-                },
-            })
-            console.log("[global-teardown] Deleted all accounts successfully")
-        } catch (error) {
-            console.error("[global-teardown] Error deleting accounts:", error)
-        }
-    } else {
-        console.log(
-            "[global-teardown] Skipping delete-all accounts (set AGENTA_TEST_ALLOW_DESTRUCTIVE_TEARDOWN=true to enable)",
-        )
-    }
-
-    // --- Phase 3: Clean up model hub secrets ---
+    // --- Phase 2: Clean up model hub secrets ---
     await cleanupModelHubSecrets(apiURL)
 }
 

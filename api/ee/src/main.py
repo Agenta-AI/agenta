@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.openapi.utils import get_openapi
 
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -20,7 +21,6 @@ from ee.src.apis.fastapi.billing.router import BillingRouter
 from ee.src.apis.fastapi.organizations.router import (
     router as organization_router,
 )
-from oss.src.apis.fastapi.auth.router import auth_router
 
 # DBS --------------------------------------------------------------------------
 
@@ -69,7 +69,8 @@ def extend_main(app: FastAPI):
     app.include_router(
         router=billing_router.admin_router,
         prefix="/admin/billing",
-        tags=["Admin", "Billing"],
+        tags=["Admin"],
+        include_in_schema=False,
     )
 
     # ROUTES (more) ------------------------------------------------------------
@@ -83,19 +84,13 @@ def extend_main(app: FastAPI):
     app.include_router(
         _organization_router.router,
         prefix="/organizations",
+        tags=["Organizations"],
     )
 
     app.include_router(
         workspace_router.router,
         prefix="/workspaces",
-    )
-
-    # Auth router at root level (no /api prefix) for OAuth callbacks
-    app.include_router(
-        auth_router,
-        prefix="/auth",
-        tags=["Auth"],
-        include_in_schema=False,
+        tags=["Workspaces"],
     )
 
     # --------------------------------------------------------------------------
@@ -104,29 +99,66 @@ def extend_main(app: FastAPI):
 
 
 def extend_app_schema(app: FastAPI):
-    app.openapi()["info"]["title"] = "Agenta API"
-    app.openapi()["info"]["description"] = "Agenta API"
-    app.openapi()["info"]["contact"] = {
-        "name": "Agenta",
-        "url": "https://agenta.ai",
-        "email": "team@agenta.ai",
-    }
-    app.openapi()["components"]["securitySchemes"] = {
-        "APIKeyHeader": {
-            "type": "apiKey",
-            "name": "Authorization",
-            "in": "header",
-        }
-    }
-    app.openapi()["security"] = [
-        {
-            "APIKeyHeader": [],
-        },
-    ]
-    app.openapi()["servers"] = [
-        {
-            "url": env.agenta.api_url,
-        },
-    ]
+    def custom_openapi():
+        """
+        EE-aware OpenAPI schema generator, replaces FastAPI's default.
 
+        Extends the OSS schema with:
+        - APIKeyHeader security scheme and global security requirement
+        - Server URL pinned from config
+
+        Result is cached on app.openapi_schema and built only once per lifetime.
+        """
+        if app.openapi_schema:
+            return app.openapi_schema
+
+        oss_tags = list(app.openapi_tags or [])
+        # Insert Access then Billing right before the Admin tag so the final
+        # order is: ...domain tags..., Access, Billing, Admin, Deprecated.
+        admin_idx = next(
+            (i for i, t in enumerate(oss_tags) if t.get("name") == "Admin"),
+            len(oss_tags),
+        )
+        oss_tags.insert(
+            admin_idx,
+            {
+                "name": "Access",
+                "description": "Authentication discovery, organization access checks, and SSO callback endpoints.",
+            },
+        )
+        oss_tags.insert(
+            admin_idx + 1,
+            {
+                "name": "Billing",
+                "description": "Subscription, plan, and usage endpoints for workspace billing.",
+            },
+        )
+
+        schema = get_openapi(
+            title="Agenta API",
+            version=app.version,
+            description="Agenta API",
+            contact={
+                "name": "Agenta",
+                "url": "https://agenta.ai",
+                "email": "team@agenta.ai",
+            },
+            routes=app.routes,
+            tags=oss_tags,
+        )
+        schema.setdefault("components", {})
+        schema["components"]["securitySchemes"] = {
+            "APIKeyHeader": {
+                "type": "apiKey",
+                "name": "Authorization",
+                "in": "header",
+            }
+        }
+        schema["security"] = [{"APIKeyHeader": []}]
+        schema["servers"] = [{"url": env.agenta.api_url}]
+
+        app.openapi_schema = schema
+        return app.openapi_schema
+
+    app.openapi = custom_openapi  # type: ignore
     return app

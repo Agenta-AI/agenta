@@ -52,7 +52,6 @@ Operational rule:
 
 Optional:
 - Auth mode is inferred from the rendered frontend flow.
-- `AGENTA_TEST_ALLOW_DESTRUCTIVE_TEARDOWN=true` (only for disposable CI environments)
 - `TESTMAIL_API_KEY` + `TESTMAIL_NAMESPACE` (required for OTP auth flow)
 
 ## Test Coverage Map

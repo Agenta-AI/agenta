@@ -5,6 +5,7 @@ import pytest
 from oss.src.core.tracing.dtos import (
     ComparisonOperator,
     Condition,
+    DictOperator,
     ExistenceOperator,
     Fields,
     Filtering,
@@ -97,6 +98,59 @@ def test_parse_condition_for_links_references_and_events_list_values():
     ]
     assert references.value == [{"id": TRACE_UUID}, {"slug": "slug"}, {"version": "v1"}]
     assert events.value == [{"name": "123"}]
+
+
+def test_parse_condition_for_hashes_supports_string_and_partial_hash_values():
+    hashes = Condition(
+        field=Fields.HASHES,
+        operator=ListOperator.IN,
+        value=["hash-1", {"id": "hash-2", "attributes": {"key": "indirect"}}],
+    )
+    hash_key = Condition(
+        field=Fields.HASHES,
+        key="id",
+        operator=DictOperator.HAS,
+        value="hash-3",
+    )
+
+    parse_condition(hashes)
+    parse_condition(hash_key)
+
+    assert hashes.value == [
+        {"id": "hash-1"},
+        {"id": "hash-2", "attributes": {"key": "indirect"}},
+    ]
+    assert hash_key.value == "hash-3"
+
+
+@pytest.mark.parametrize(
+    "condition,expected_message",
+    [
+        (
+            Condition(
+                field=Fields.HASHES,
+                key="id",
+                operator=ListOperator.IN,
+                value=["hash-1"],
+            ),
+            "'hashes' key is only supported for dict operators.",
+        ),
+        (
+            Condition(
+                field=Fields.HASHES,
+                key="id",
+                operator=ExistenceOperator.EXISTS,
+                value=None,
+            ),
+            "'hashes' key is only supported for dict operators.",
+        ),
+    ],
+)
+def test_parse_condition_for_hashes_rejects_invalid_key_operator_combinations(
+    condition, expected_message
+):
+    with pytest.raises(FilteringException, match=escape(expected_message)):
+        parse_condition(condition)
 
 
 def test_parse_condition_for_enum_timestamp_uuid_and_string_fields():
@@ -209,6 +263,10 @@ def test_parse_ingest_is_currently_a_noop():
         (
             Condition(field=Fields.EVENTS, operator=ListOperator.IN, value="bad"),
             "'events' value must be one or more (possibly partial) events.",
+        ),
+        (
+            Condition(field=Fields.HASHES, operator=ListOperator.IN, value="bad"),
+            "'hashes' value must be one or more hash ids or partial hashes.",
         ),
         (
             Condition(field=Fields.CONTENT, operator=ComparisonOperator.IS, value="x"),

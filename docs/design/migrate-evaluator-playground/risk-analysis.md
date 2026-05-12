@@ -131,7 +131,7 @@ const runResponse = await createEvaluatorRunExecution(
 ```
 
 **Impact:**
-- Must migrate to `/preview/workflows/invoke`
+- Must migrate to `/workflows/invoke`
 - Need to construct `WorkflowServiceRequest`
 - Different error handling (workflow status vs HTTP errors)
 

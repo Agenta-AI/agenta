@@ -20,7 +20,7 @@ import type {
 //  - delete: DELETE data from server
 //  - query: POST query with filters
 
-const BASE = () => `${getAgentaApiUrl()}/preview/tools`
+const BASE = () => `${getAgentaApiUrl()}/tools`
 
 // --- Catalog browse ---
 

@@ -2,7 +2,7 @@
  * SimpleQueue Entity Schemas
  *
  * Zod schemas for validation and type safety of SimpleQueue entities.
- * Maps to the backend `SimpleQueue` DTO at `POST /preview/simple/queues/`.
+ * Maps to the backend `SimpleQueue` DTO at `POST /simple/queues/`.
  *
  * @packageDocumentation
  */

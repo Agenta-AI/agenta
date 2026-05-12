@@ -1,78 +1,91 @@
 import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
 
 import {expect} from "@agenta/web-tests/utils"
+import {expectAuthenticatedSession} from "../utils/auth"
+import {createScenarios} from "../utils/scenarios"
+import {buildAcceptanceTags} from "../utils/tags"
 import {
-    createTagString,
     TestCoverage,
+    TestcaseType,
     TestPath,
     TestScope,
     TestLensType,
     TestCostType,
     TestLicenseType,
+    TestRoleType,
+    TestSpeedType,
 } from "@agenta/web-tests/playwright/config/testTags"
 import {APIKey} from "@/oss/lib/Types"
 
+const scenarios = createScenarios(test)
+
+const tags = buildAcceptanceTags({
+    scope: [TestScope.SETTINGS],
+    coverage: [TestCoverage.LIGHT, TestCoverage.FULL],
+    path: TestPath.HAPPY,
+    lens: TestLensType.FUNCTIONAL,
+    cost: TestCostType.Free,
+    license: TestLicenseType.OSS,
+    role: TestRoleType.Owner,
+    caseType: TestcaseType.TYPICAL,
+    speed: TestSpeedType.SLOW,
+})
+
 const apiKeysTests = () => {
-    test(
-        "should allow full API key flow",
-        {
-            tag: [
-                createTagString("scope", TestScope.SETTINGS),
-                createTagString("coverage", TestCoverage.LIGHT),
-                createTagString("coverage", TestCoverage.FULL),
-                createTagString("path", TestPath.HAPPY),
-                createTagString("lens", TestLensType.FUNCTIONAL),
-                createTagString("cost", TestCostType.Free),
-                createTagString("license", TestLicenseType.OSS),
-            ],
-        },
-        async ({page, apiHelpers, uiHelpers}) => {
-            // 1. Navigate to settings and fetch provider data from API
+    test("should allow full API key flow", {tag: tags}, async ({page, apiHelpers, uiHelpers}) => {
+        let apiKeys: APIKey[] = []
+
+        await scenarios.given("the user is authenticated", async () => {
+            await expectAuthenticatedSession(page)
+        })
+
+        await scenarios.and("the user is on the Settings page", async () => {
             await page.goto("/settings")
+        })
 
-            // 2. API Keys tab: create new key
+        await scenarios.when("the user creates a new API key", async () => {
             await uiHelpers.clickTab("API Keys")
-
             await uiHelpers.clickButton("Create New")
-
             await expect(page.locator(".ant-modal")).toBeVisible()
 
-            // Per UTILITIES_AND_FIXTURES_GUIDE: Initiate waitForApiResponse BEFORE the UI action triggers the API call
             const apiKeysPromise = apiHelpers.waitForApiResponse<APIKey[]>({
                 route: "/api/keys",
                 method: "GET",
             })
 
-            // Assert drawer is visible after clicking Create New
             await uiHelpers.confirmModal("Done")
-
             await expect(page.locator(".ant-modal")).not.toBeVisible()
+            apiKeys = await apiKeysPromise
+        })
 
-            const apiKeys = await apiKeysPromise
+        await scenarios.then("the fresh API keys list contains the created key", async () => {
             expect(apiKeys.length).toBeGreaterThan(0)
+        })
 
-            // 3. Usage & Billing tab
+        await scenarios.when("the user deletes the first API key from the list", async () => {
             await uiHelpers.clickTab("Usage & Billing")
-
             await uiHelpers.clickTab("API Keys")
-
-            // Click the delete icon for the first API key row
             await uiHelpers.clickTableRowIcon({rowText: apiKeys[0].prefix, icon: "delete"})
-            // Assert drawer is visible for edit (if implemented as a drawer)
             await expect(page.locator(".ant-modal")).toBeVisible()
+
             const apiKeyDeletePromise = apiHelpers.waitForApiResponse<{message: string}>({
-                route: new RegExp(`/api/keys`),
+                route: /\/api\/keys/,
                 method: "DELETE",
             })
+
             await uiHelpers.confirmModal("Yes")
             const apiKeyDeleteResponse = await apiKeyDeletePromise
-
             expect(apiKeyDeleteResponse?.message).toBe("API key deleted successfully")
-            await expect(page.locator(".ant-modal")).not.toBeVisible()
+        })
 
-            await expect(page).toHaveURL(/settings(\?tab=.*)?/)
-        },
-    )
+        await scenarios.then(
+            "the delete confirmation closes and the user remains on Settings",
+            async () => {
+                await expect(page.locator(".ant-modal")).not.toBeVisible()
+                await expect(page).toHaveURL(/settings(\?tab=.*)?/)
+            },
+        )
+    })
 }
 
 export default apiKeysTests

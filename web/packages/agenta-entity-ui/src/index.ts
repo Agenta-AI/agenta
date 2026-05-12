@@ -53,6 +53,7 @@ export {
     PlaygroundConfigSection,
     useDrillIn,
     type PlaygroundConfigSectionProps,
+    type ConfigViewMode,
     type ConfigSectionMoleculeAdapter,
     type EvaluatorPresetConfig,
     // Types - Molecule Config
@@ -215,6 +216,9 @@ export {
     type ToolFunction,
     type ObjectSchemaControlProps,
     type SchemaPropertyRendererProps,
+    FieldsDetectionProvider,
+    useFieldsDetection,
+    type FieldsDetectionContextValue,
 } from "./DrillInView"
 
 // ============================================================================
@@ -285,6 +289,7 @@ export {
     type CommitSubmitParams,
     type CommitSubmitResult,
     type CommitModeOption,
+    type CommitCreateFieldsConfig,
     // Commit modal state atoms
     commitModalOpenAtom,
     commitModalEntityAtom,
@@ -399,10 +404,7 @@ export {
     type CreateHierarchyLevelOptions,
     type CreateSelectionAdapterOptions,
     type EvaluatorSelectionResult,
-    type LegacyAppRevisionSelectionResult,
-    type LegacyEvaluatorSelectionResult,
-    type EvaluatorRevisionSelectionResult,
-    type EvaluatorRevisionRelationSelectionResult,
+    type WorkflowRevisionSelectionResult,
     type TestsetSelectionResult,
     // Adapter factory
     createAdapter as createSelectionAdapter,
@@ -414,14 +416,9 @@ export {
     createAndRegisterAdapter as createAndRegisterSelectionAdapter,
     resolveAdapter as resolveSelectionAdapter,
     // Pre-built adapters
-    legacyAppRevisionAdapter,
+    workflowRevisionAdapter,
     evaluatorAdapter,
     setEvaluatorAtoms,
-    legacyEvaluatorAdapter,
-    setLegacyEvaluatorAtoms,
-    evaluatorRevisionAdapter,
-    setEvaluatorRevisionAtoms,
-    evaluatorRevisionRelationAdapter,
     testsetAdapter,
     // State
     selectionMolecule,
@@ -490,8 +487,6 @@ export {
     resetSelectionSystem,
     isSelectionSystemInitialized,
     type SelectionSystemConfig,
-    type LegacyEvaluatorSelectionConfig,
-    type EvaluatorRevisionSelectionConfig,
 } from "./selection"
 
 // ============================================================================
@@ -510,3 +505,28 @@ export {
     simpleQueueModalAdapter,
     variantModalAdapter,
 } from "./adapters"
+
+// ============================================================================
+// VARIANT DISPLAY COMPONENTS
+// ============================================================================
+
+export {
+    VariantNameCell,
+    VariantDetailsWithStatus,
+    EnvironmentStatus,
+    VariantDetails,
+    statusMap,
+    type VariantNameCellProps,
+    type VariantStatusInfo,
+} from "./variant"
+
+// ============================================================================
+// WORKFLOW DISPLAY COMPONENTS
+// ============================================================================
+
+export {
+    WorkflowTypeTag,
+    type WorkflowTypeTagProps,
+    WorkflowKindTag,
+    type WorkflowKindTagProps,
+} from "./workflow"

@@ -7,7 +7,7 @@ on:
   pull_request:
     paths:
       - 'api/**'
-      - 'sdk/**'
+      - 'sdks/python/**'
       - 'web/**'
       - '.github/workflows/11-check-code-styling.yml'
   workflow_dispatch:
@@ -17,15 +17,15 @@ jobs:
     name: Python format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       - name: Install Ruff
-        run: pip install ruff==0.14.0
+        run: pip install ruff==0.15.12
 
       - name: Run Ruff formatting check
         run: ruff format --check
@@ -34,15 +34,15 @@ jobs:
     name: Python lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       - name: Install Ruff
-        run: pip install ruff==0.14.0
+        run: pip install ruff==0.15.12
 
       - name: Run Ruff linting check
         run: ruff check
@@ -51,7 +51,7 @@ jobs:
     name: TypeScript format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -61,7 +61,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: 'pnpm'
           cache-dependency-path: web/pnpm-lock.yaml
 
@@ -75,7 +75,7 @@ jobs:
     name: TypeScript lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -85,7 +85,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: 'pnpm'
           cache-dependency-path: web/pnpm-lock.yaml
 

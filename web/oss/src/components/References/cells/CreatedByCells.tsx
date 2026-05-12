@@ -1,9 +1,7 @@
-import {memo, useMemo} from "react"
+import {memo} from "react"
 
+import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {Typography} from "antd"
-import {useAtomValue} from "jotai"
-import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
-import dynamic from "next/dynamic"
 
 import {
     useRunRowDetails,
@@ -11,12 +9,6 @@ import {
 } from "@/oss/components/EvaluationRunsTablePOC/context/RunRowDataContext"
 import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
 import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
-import {userAtom} from "@/oss/state/profile/selectors/user"
-import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
-
-const UserAvatarTag = dynamic(() => import("@/oss/components/CustomUIs/UserAvatarTag"), {
-    ssr: false,
-})
 
 const CELL_CLASS =
     "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2 whitespace-nowrap overflow-hidden"
@@ -51,24 +43,6 @@ const resolvePreviewCreatorName = (run: any): string | null => {
     return null
 }
 
-const resolveWorkspaceMemberName = (member: any | null | undefined) => {
-    if (!member) return null
-    const candidate =
-        member.user?.username ?? member.user?.name ?? member.user?.email ?? member.user?.id
-    return typeof candidate === "string" && candidate.trim().length > 0 ? candidate.trim() : null
-}
-
-const normalize = (value: string | null | undefined) =>
-    typeof value === "string" && value.trim().length ? value.trim().toLowerCase() : null
-
-const normalizeMemberFullName = (member?: {user?: unknown} | null) => {
-    const raw =
-        member && member.user && typeof member.user === "object"
-            ? ((member.user as {name?: string | null})?.name ?? null)
-            : null
-    return normalize(raw)
-}
-
 const PreviewCreatedByCellContent = ({
     record,
     isVisible,
@@ -78,7 +52,10 @@ const PreviewCreatedByCellContent = ({
 }) => {
     const {summary, isLoading: summaryLoading} = useRunRowSummary(record, isVisible)
     const {camelRun, isLoading: detailsLoading} = useRunRowDetails(record, isVisible)
-    // const store = useStore()
+
+    if (summaryLoading || detailsLoading) {
+        return <PreviewCreatedByCellSkeleton />
+    }
 
     const candidateUserId =
         summary?.createdById ??
@@ -90,56 +67,21 @@ const PreviewCreatedByCellContent = ({
         camelRun?.created_by_user?.id ??
         null
 
-    const memberAtom = useMemo(
-        () => workspaceMemberByIdFamily(candidateUserId ?? null),
-        [candidateUserId],
-    )
-    // const member = useAtomValueWithSchedule(memberAtom, {priority: LOW_PRIORITY})
-    const member = useAtomValue(memberAtom)
-    const currentUser = useAtomValueWithSchedule(userAtom, {priority: LOW_PRIORITY})
+    const fallbackName = resolvePreviewCreatorName(camelRun)
 
-    if (summaryLoading || detailsLoading) {
-        return <PreviewCreatedByCellSkeleton />
-    }
-
-    const memberName = resolveWorkspaceMemberName(member)
-    const runName = resolvePreviewCreatorName(camelRun)
-
-    const createdBy = memberName ?? runName ?? null
-    const createdByNormalized = normalize(createdBy)
-
-    const candidateIds = (
-        [
-            candidateUserId,
-            member?.user?.id ?? null,
-            camelRun?.createdById ?? null,
-            camelRun?.created_by_id ?? null,
-        ].filter(Boolean) as string[]
-    ).map((value) => value.trim())
-
-    const candidateNames = [
-        createdByNormalized,
-        normalize(member?.user?.username),
-        normalize(member?.user?.email),
-        normalizeMemberFullName(member),
-        normalize(runName),
-    ].filter(Boolean) as string[]
-
-    const currentUsername = normalize(currentUser?.username)
-    const currentEmail = normalize(currentUser?.email)
-
-    const isCurrentUser = Boolean(
-        currentUser &&
-        ((currentUser.id && candidateIds.includes(currentUser.id)) ||
-            (currentUsername && candidateNames.includes(currentUsername)) ||
-            (currentEmail && candidateNames.includes(currentEmail))),
-    )
-
-    if (!createdBy) {
+    if (!candidateUserId && !fallbackName) {
         return <Typography.Text>—</Typography.Text>
     }
 
-    return <UserAvatarTag modifiedBy={createdBy} isCurrentUser={isCurrentUser} />
+    return (
+        <UserAuthorLabel
+            userId={candidateUserId}
+            name={fallbackName}
+            showAvatar
+            showYouLabel
+            fallback="—"
+        />
+    )
 }
 
 export const PreviewCreatedByCell = memo(

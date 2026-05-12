@@ -825,7 +825,7 @@ class WorkspaceRole(str, Enum):
     EDITOR = "editor"
     EVALUATOR = "evaluator"
     WORKSPACE_ADMIN = "workspace_admin"
-    DEPLOYMENT_MANAGER = "deployment_manager"
+    DEPLOYMENT_DEVELOPER = "deployment_manager"
 ```
 
 Organization membership has a separate concept: `"owner"` or `"member"` (string, not enum, DB default is `"member"`).
@@ -872,7 +872,7 @@ The check flow:
 | **OWNER** | All permissions |
 | **WORKSPACE_ADMIN** | All except: delete workspace/org, edit org, add to org, edit billing |
 | **EDITOR** | Most except: destructive ops, org management, billing, role mgmt, deployments |
-| **DEPLOYMENT_MANAGER** | Viewer + deploy |
+| **DEPLOYMENT_DEVELOPER** | Viewer + deploy |
 | **EVALUATOR** | Viewer + create/run evaluations |
 | **VIEWER** | Read-only |
 

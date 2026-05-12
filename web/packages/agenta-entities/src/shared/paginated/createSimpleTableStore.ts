@@ -115,8 +115,22 @@ export function createSimpleTableStore<
         excludeRowIdsAtom,
     } = config
 
-    // Create row helpers
-    const rowHelpers = createTableRowHelpers<TRow, TApiRow>(rowHelpersConfig)
+    const {apiToRow} = rowHelpersConfig
+
+    // When apiToRow is provided, we apply it inside fetchPage so TanStack Query
+    // caches lean TRow objects instead of full TApiRow objects. mergeRow then
+    // receives an already-transformed TRow — use customMerge to preserve the key
+    // set by transformRow rather than calling getRowId (which expects TApiRow).
+    const rowHelpers = apiToRow
+        ? createTableRowHelpers<TRow, TApiRow>({
+              ...rowHelpersConfig,
+              apiToRow: undefined,
+              customMerge: (_skeleton, apiRow) => ({
+                  ...(apiRow as unknown as TRow),
+                  __isSkeleton: false,
+              }),
+          })
+        : createTableRowHelpers<TRow, TApiRow>(rowHelpersConfig)
 
     // Create refresh trigger atom
     const refreshTriggerAtom = atom(0)
@@ -142,7 +156,27 @@ export function createSimpleTableStore<
                 }
             }
 
-            return fetchData({meta, limit, offset, cursor, windowing})
+            const result = await fetchData({meta, limit, offset, cursor, windowing})
+
+            // If a row transformer is provided, apply it here so TanStack Query
+            // caches the lean TRow shape instead of the full TApiRow objects.
+            if (apiToRow) {
+                const transformed = result.rows.map(apiToRow)
+
+                if (process.env.NODE_ENV === "development") {
+                    const cachedSize = JSON.stringify(transformed).length
+                    console.debug(
+                        `[${key}] query cache: ${result.rows.length} rows, ${cachedSize}B stored in TanStack Query cache`,
+                    )
+                }
+
+                return {
+                    ...result,
+                    rows: transformed as unknown as TApiRow[],
+                }
+            }
+
+            return result
         },
     })
 

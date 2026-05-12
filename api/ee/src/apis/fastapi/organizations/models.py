@@ -2,7 +2,7 @@ from typing import Optional
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # Domain Verification Models
@@ -26,6 +26,8 @@ class OrganizationDomainVerify(BaseModel):
 class OrganizationDomainResponse(BaseModel):
     """Response model for a domain."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     slug: str
 
@@ -40,9 +42,6 @@ class OrganizationDomainResponse(BaseModel):
     updated_at: Optional[datetime]
 
     organization_id: UUID
-
-    class Config:
-        from_attributes = True
 
 
 # SSO Provider Models
@@ -77,6 +76,8 @@ class OrganizationProviderUpdate(BaseModel):
 class OrganizationProviderResponse(BaseModel):
     """Response model for an SSO provider."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     slug: str
 
@@ -91,6 +92,3 @@ class OrganizationProviderResponse(BaseModel):
     updated_at: Optional[datetime]
 
     organization_id: UUID
-
-    class Config:
-        from_attributes = True

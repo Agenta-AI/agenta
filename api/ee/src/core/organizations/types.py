@@ -56,6 +56,8 @@ class OrganizationUpdate(BaseModel):
 
 
 class OrganizationDomain(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     slug: str
 
@@ -72,9 +74,6 @@ class OrganizationDomain(BaseModel):
     updated_at: Optional[datetime] = None
 
     organization_id: UUID
-
-    class Config:
-        from_attributes = True
 
 
 class OrganizationDomainCreate(BaseModel):
@@ -98,6 +97,8 @@ class OrganizationDomainCreate(BaseModel):
 
 
 class OrganizationProvider(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     slug: str
 
@@ -114,9 +115,6 @@ class OrganizationProvider(BaseModel):
     updated_at: Optional[datetime] = None
 
     organization_id: UUID
-
-    class Config:
-        from_attributes = True
 
 
 class OrganizationProviderCreate(BaseModel):

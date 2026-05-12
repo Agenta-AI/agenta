@@ -10,39 +10,6 @@ import {fetchJson, getBaseUrl} from "../../lib/api/assets/fetchClient"
 import {User} from "../../lib/Types"
 
 /**
- * Fetch user profile using modern fetchJson
- * Replaces the old axios-based fetchProfile
- */
-export const fetchProfile = async (): Promise<User> => {
-    const base = getBaseUrl()
-    const url = new URL("api/profile", base)
-
-    console.log("🔍 Profile fetcher debug:", {
-        base,
-        url: url.toString(),
-    })
-
-    try {
-        console.log("🚀 Calling fetchJson with URL:", url.toString())
-        const data = await fetchJson(url)
-        console.log("✅ Profile fetcher success:", {
-            username: data?.username,
-            email: data?.email,
-        })
-        return data
-    } catch (error: any) {
-        console.error("❌ Profile fetcher failed:", {
-            message: error?.message,
-            status: error?.status,
-            statusText: error?.statusText,
-            url: url.toString(),
-            stack: error?.stack?.split("\n").slice(0, 3).join("\n"),
-        })
-        throw error
-    }
-}
-
-/**
  * Update user profile via REST
  * Returns an axios-like object with `data` for compatibility
  */

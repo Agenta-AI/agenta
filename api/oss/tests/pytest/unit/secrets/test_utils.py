@@ -34,6 +34,15 @@ class _FakeVaultService:
                     }
                 },
             ),
+            SimpleNamespace(
+                kind="provider_key",
+                model_dump=lambda include=None: {
+                    "data": {
+                        "kind": StandardProviderKind.MINIMAX,
+                        "provider": {"key": "minimax-vault-key"},
+                    }
+                },
+            ),
         ]
 
 
@@ -51,6 +60,7 @@ async def test_get_user_llm_providers_secrets_normalizes_legacy_provider_slugs(
     assert "MISTRALAI_API_KEY" not in secrets
     assert secrets["TOGETHERAI_API_KEY"] == "together-key"
     assert "TOGETHER_AI_API_KEY" not in secrets
+    assert secrets["MINIMAX_API_KEY"] == "minimax-vault-key"
 
 
 @pytest.mark.asyncio

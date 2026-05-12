@@ -5,7 +5,7 @@ description: "Ingest traces via OTLP"
 sidebar_label: "Ingest traces via OTLP"
 hide_title: true
 hide_table_of_contents: true
-api: eJx1k8GO2jAQhl8Fzdki0GNORb0UbSVQ2Z5QVA1mlnjr2F57jEqjvHs1MWQXpM0lsf3PeOb7Jz0wnhLUe9gcEsUzHow1fIFGgQ8UkY136yPU4NmG38adKDEoiJSCd4kS1D18WSzkdaSkowkSATXsstaU0ku2s59XMSjQ3jE5FjmGYI0eL6hek8T0kHRLHcpXiHI9m3JDYuQ8fvElENSQOBp3AgVs2MrGriiGQd0k/vBKutT6lk2kozR5TdS8B37z1pLmEj9VOsijHlpaj93POKKmNDsbnG2ef2xBQUfceoEU/EgnILdQQyXMqvOyKhGgQAhTFNw95GhFg8HAoG7Lljmkuqooz7X1+TjHEznGOZoibCSHzlEskiSr7fqJLt8JjxSh3jcfBTuBWfjdyyaKGMwTXUCBw07Wq8ytj+bfaAooMNJ1W6IEh3Evfgy/sluNxc1W2zUokMYKp8V8OV/AI707scwB6nEObnePx6AeQEz9gwLq0MgZE3Zf3w+kMgHfofuQ71Oz7qqaUDD95SpYNA6Gaw391cf9OPvS4VIGrnjZKGjF7HoPfX/ARL+iHQbZfssUxZxGwRmjwYOg2jeDupEU3/7QRXrWmoIMzBltLoY8/BPi5zRd283uGYbhP0E3Qc4=
+api: eJyNU8Fu2zAM/ZWAZy1Od/RpwS4LOiDBmp0Co2BkJlYnS6pEB/MM//tAOTXSACvmiy3xPT75PWoAxnOC8gDbQG5Pllri2EOlwAeKyMa7TQ0leLbh2bgzJQYFkVLwLlGCcoDPq5W8ako6miAMKOGp05pSOnV28eMKBgXaOybHAscQrNFZoHhJwhkg6YZalK8QRZ7NpJC6EHzkZ1Nnpuu3JygPA3AfCEpIHI07w6jmHddZC2OlgA1bysfJHRabGkY19+P0UT8FJx9bZCihRqZPbFr6L5F9yiKM3GWB+7YzfkKMo3qD+OML6cng185EqiWZa6Mboa/eWtI88Wd7R3nUXQ6bHNmCI2pKi4vBxXb/fQcKWuLGS7LB50gDcgMlFBJ0cXkoJgYoSBQvFFM2qItWMBhMNmJaNsyhLArrNdrGJ57KlTB1Fw33mbrebR6p/0ZYU4TyUN0CniT3Ker3sNk7DOaRelDgsJX1uuPGR/Mnzw8oMPKvzcQSE4w7+Uy/OrY+k2NcrHcbuHfoXUkGFHUe0DelXAZ187OpLArM20s0BSigFo0UmbD9MldkCMS5SWa1fFiuZEv8btHdSPwzo3cHnb1g+s1FsGictMvHGq7xHfI9BQWXB5mzKcJKgcQi1WE4YqKf0Y6jbL92FCWdSsEFo8GjeHWoRvVmpQT3i3qxQWsKMicXtN2UyN39lUDnodptn/Ywjn8BAwN8jQ==
 sidebar_class_name: "post api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -18,6 +18,7 @@ import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
 
 <Heading
   as={"h1"}
@@ -45,16 +46,13 @@ Ingest traces via OTLP
 </ParamsDetails>
 
 <RequestSchema
-  title={"Body"}
-  body={undefined}
+  {...require("./otlp-ingest.RequestSchema.json")}
 >
   
 </RequestSchema>
 
 <StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"status":{"type":"string","title":"Status"}},"type":"object","required":["status"],"title":"CollectStatusResponse"}}}}}}
+  {...require("./otlp-ingest.StatusCodes.json")}
 >
   
 </StatusCodes>

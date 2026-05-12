@@ -126,7 +126,7 @@ export const revisionWithTestcasesQueryAtomFamily = atomFamily(
 
                     try {
                         const response = await axios.post(
-                            `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+                            `${getAgentaApiUrl()}/testsets/revisions/query`,
                             {
                                 testset_revision_refs: [{id: revisionId}],
                                 windowing: {limit: 1},

@@ -8,7 +8,7 @@ from uuid import UUID
 
 import httpx
 
-from agenta.sdk.workflows.handlers import resolve_json_selector
+from agenta.sdk.utils.resolvers import resolve_json_selector
 
 from oss.src.core.webhooks.types import (
     EVENT_CONTEXT_FIELDS,

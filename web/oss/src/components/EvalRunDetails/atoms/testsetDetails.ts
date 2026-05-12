@@ -78,7 +78,7 @@ export const simpleTestsetDetailsAtomFamily = atomFamily((testsetId: string | nu
                 if (!enabled || !projectId || !testsetId) return null
 
                 try {
-                    const response = await axios.get(`/preview/simple/testsets/${testsetId}`, {
+                    const response = await axios.get(`/simple/testsets/${testsetId}`, {
                         params: {project_id: projectId},
                         _ignoreError: true,
                     } as any)

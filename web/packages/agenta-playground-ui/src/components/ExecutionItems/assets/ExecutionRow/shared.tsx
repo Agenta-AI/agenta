@@ -1,7 +1,7 @@
 import React, {useCallback, useMemo} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {DropdownButton} from "@agenta/ui/components"
 import type {DropdownButtonOption} from "@agenta/ui/components"
 import {RunButton} from "@agenta/ui/components/presentational"
@@ -16,7 +16,7 @@ export const usePlaygroundNodeLabels = (nodes: PlaygroundNode[] | null) => {
                 if (!nodes) return {} as Record<string, string>
                 const names: Record<string, string> = {}
                 for (const node of nodes) {
-                    const data = get(runnableBridge.dataForType(node.entityType, node.entityId))
+                    const data = get(workflowMolecule.selectors.data(node.entityId))
                     if (data?.name) {
                         names[node.id] = data.name
                     }

@@ -10,16 +10,6 @@ import {
 } from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
-// Re-export evaluator config functions from the canonical source
-// This maintains backward compatibility for existing imports
-export {
-    fetchAllEvaluatorConfigs,
-    createEvaluatorConfig,
-    updateEvaluatorConfig,
-    deleteEvaluatorConfig,
-    type CreateEvaluatorConfigData,
-} from "@/oss/services/evaluators"
-
 //Prefix convention:
 //  - fetch: GET single entity from server
 //  - fetchAll: GET all entities from server
@@ -72,7 +62,7 @@ export const fetchEvaluation = async (evaluationId: string) => {
     const id = assertValidId(evaluationId)
 
     // Use preview API to query single evaluation by ID
-    const response = await axios.post(`/preview/evaluations/runs/query?project_id=${projectId}`, {
+    const response = await axios.post(`/evaluations/runs/query?project_id=${projectId}`, {
         run: {
             ids: [id],
         },
@@ -140,7 +130,7 @@ export const fetchEvaluationStatus = async (evaluationId: string) => {
     const id = assertValidId(evaluationId)
 
     // Use preview API to query single evaluation by ID
-    const response = await axios.post(`/preview/evaluations/runs/query?project_id=${projectId}`, {
+    const response = await axios.post(`/evaluations/runs/query?project_id=${projectId}`, {
         run: {
             ids: [id],
         },
@@ -159,7 +149,7 @@ export type CreateEvaluationData =
           testset_id: string
           testset_revision_id?: string
           variant_ids?: string[]
-          evaluator_ids: string[]
+          evaluator_revision_ids: string[]
           rate_limit: LLMRunRateLimit
           lm_providers_keys?: KeyValuePair
           correct_answer_column: string
@@ -168,7 +158,7 @@ export type CreateEvaluationData =
           testset_id: string
           testset_revision_id?: string
           revisions_ids?: string[]
-          evaluator_ids: string[]
+          evaluator_revision_ids: string[]
           rate_limit: LLMRunRateLimit
           lm_providers_keys?: KeyValuePair
           correct_answer_column: string
@@ -186,12 +176,12 @@ export const createEvaluation = async (appId: string, evaluation: CreateEvaluati
               : undefined
     const name = "name" in evaluation ? evaluation.name : "Evaluation" // Default name for legacy variant
 
-    // Use simple evaluations endpoint which auto-starts execution
-    return await axios.post(`/preview/simple/evaluations/?project_id=${projectId}`, {
+    // Frontend provides revision IDs directly.
+    return await axios.post(`/simple/evaluations/?project_id=${projectId}`, {
         evaluation: {
             name,
             data: {
-                // Simple evaluations API expects Target = Dict[UUID, Origin] for auto-evaluations
+                // All steps use revision IDs directly.
                 testset_steps: evaluation.testset_revision_id
                     ? {[evaluation.testset_revision_id]: "auto"}
                     : undefined,
@@ -200,7 +190,7 @@ export const createEvaluation = async (appId: string, evaluation: CreateEvaluati
                         (acc, id) => ({...acc, [id]: "auto"}),
                         {} as Record<string, "auto">,
                     ) || {},
-                evaluator_steps: evaluation.evaluator_ids.reduce(
+                evaluator_steps: evaluation.evaluator_revision_ids.reduce(
                     (acc, id) => ({...acc, [id]: "auto"}),
                     {} as Record<string, "auto">,
                 ),
@@ -211,7 +201,6 @@ export const createEvaluation = async (appId: string, evaluation: CreateEvaluati
                 is_closed: false,
             },
         },
-        jit: true,
     })
 }
 
@@ -219,7 +208,7 @@ export const deleteEvaluations = async (evaluationsIds: string[]) => {
     const {projectId} = getProjectValues()
 
     // Use preview API to delete runs
-    return axios.delete(`/preview/evaluations/runs/?project_id=${projectId}`, {
+    return axios.delete(`/evaluations/runs/?project_id=${projectId}`, {
         data: {run_ids: evaluationsIds},
     })
 }
@@ -234,7 +223,7 @@ export const fetchAllEvaluationScenarios = async (evaluationId: string) => {
 
     // Fetch evaluation and scenarios in parallel using preview API
     const [{data: scenariosResponse}, evaluation] = await Promise.all([
-        axios.post(`/preview/evaluations/scenarios/query?project_id=${projectId}`, {
+        axios.post(`/evaluations/scenarios/query?project_id=${projectId}`, {
             scenario: {
                 references: [{evaluation_run: {id}}],
             },
@@ -260,7 +249,7 @@ export const updateScenarioStatus = async (
     status: EvaluationStatus,
 ) => {
     const {projectId} = getProjectValues()
-    return axios.patch(`/preview/evaluations/scenarios/?project_id=${projectId}`, {
+    return axios.patch(`/evaluations/scenarios/?project_id=${projectId}`, {
         scenarios: [{...scenario, status}],
     })
 }
@@ -290,7 +279,7 @@ export const fetchEvaluatonIdsByResource = async ({
     })
 
     // Use preview API to query runs by references
-    const response = await axios.post(`/preview/evaluations/runs/query?project_id=${projectId}`, {
+    const response = await axios.post(`/evaluations/runs/query?project_id=${projectId}`, {
         run: {
             references,
         },

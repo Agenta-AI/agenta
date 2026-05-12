@@ -2353,17 +2353,16 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             created_by_id=user_id,
         )
 
-        if _queue.data and _queue.data.user_ids:
-            _queue.data.user_ids = [  # type: ignore
-                [str(repeat_user_id) for repeat_user_id in repeat_user_ids]
-                for repeat_user_ids in _queue.data.user_ids
-            ]
-
         queue_dbe = create_dbe_from_dto(
             DBE=EvaluationQueueDBE,
             project_id=project_id,
-            dto=_queue,  # use _queue: has string UUIDs in data (JSON-safe)
+            dto=_queue,
         )
+        if _queue.data:
+            queue_dbe.data = _queue.data.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
         queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
         try:
@@ -2403,36 +2402,23 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     run_id=queue.run_id,
                 )
 
-        _queues = [
-            EvaluationQueue(
-                **queue.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                ),
-                created_at=datetime.now(timezone.utc),
-                created_by_id=user_id,
-            )
-            for queue in queues
-        ]
-
-        for _queue in _queues:
-            if _queue.data and _queue.data.user_ids:
-                _queue.data.user_ids = [  # type: ignore
-                    [str(repeat_user_id) for repeat_user_id in repeat_user_ids]
-                    for repeat_user_ids in _queue.data.user_ids
-                ]
-
         queue_dbes = [
             create_dbe_from_dto(
                 DBE=EvaluationQueueDBE,
                 project_id=project_id,
                 dto=queue,
                 #
+                created_at=datetime.now(timezone.utc),
                 created_by_id=user_id,
             )
             for queue in queues
         ]
         for queue_dbe, queue in zip(queue_dbes, queues):
+            if queue.data is not None:
+                queue_dbe.data = queue.data.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                )
             queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
         try:
@@ -2568,6 +2554,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 updated_by_id=user_id,
             )
             if queue.data is not None:
+                queue_dbe.data = queue.data.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                )
                 queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
             await session.commit()
@@ -2633,6 +2623,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         updated_by_id=user_id,
                     )
                     if queue.data is not None:
+                        queue_dbe.data = queue.data.model_dump(
+                            mode="json",
+                            exclude_none=True,
+                        )
                         queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
             await session.commit()

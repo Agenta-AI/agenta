@@ -11,7 +11,7 @@ def create_account(ag_env):
     auth_key = ag_env["auth_key"]
 
     headers = {"Authorization": f"Access {auth_key}"}
-    url = f"{api_url}/admin/account"
+    url = f"{api_url}/admin/simple/accounts/"
 
     unique_id = uuid4().hex[:12]
 
@@ -19,34 +19,47 @@ def create_account(ag_env):
         url=url,
         headers=headers,
         json={
-            "user": {
-                "email": f"{unique_id}@test.agenta.ai",
-            },
-            "subscription": {
-                "plan": "cloud_v0_business",  # Use BUSINESS plan to avoid quota limits in tests
-            },
+            "accounts": {
+                "user": {
+                    "user": {
+                        "email": f"{unique_id}@test.agenta.ai",
+                    },
+                    "options": {
+                        "create_api_keys": True,
+                        "return_api_keys": True,
+                        # Default-seeded evaluators/environments leak into
+                        # query-count assertions in test classes that share
+                        # this fixture. Tests that need defaults should
+                        # create them explicitly.
+                        "seed_defaults": False,
+                    },
+                }
+            }
         },
         timeout=BASE_TIMEOUT,
     )
 
     assert response is not None, "Response should not be None"
-    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+    assert response.status_code == 200, (
+        f"Expected 200, got {response.status_code}: {response.text}"
+    )
 
     json_data = response.json()
     assert isinstance(json_data, dict), "Response JSON should not be None"
 
-    scopes = json_data.get("scopes")
-    assert scopes and len(scopes) > 0, "No scopes returned in response"
+    accounts = json_data.get("accounts")
+    assert accounts, "No accounts in response"
 
-    scope_data = scopes[0]
-    assert isinstance(scope_data, dict), "Scope should be a dictionary"
+    account = next(iter(accounts.values()))
+    api_keys = account.get("api_keys")
+    assert api_keys and "key" in api_keys, "No api_keys.key in account"
 
-    credentials = scope_data.get("credentials")
-    assert credentials, "No credentials in scopes"
+    raw_key = api_keys["key"]
+    assert raw_key, "No value in api_keys.key"
 
     return {
         "api_url": api_url,
-        "credentials": credentials,
+        "credentials": f"ApiKey {raw_key}",
     }
 
 

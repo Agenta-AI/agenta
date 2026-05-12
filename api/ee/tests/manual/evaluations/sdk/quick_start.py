@@ -20,7 +20,7 @@ import random  # noqa: E402
 from agenta.sdk.evaluations import aevaluate  # noqa: E402
 
 import agenta as ag  # noqa: E402
-from agenta.sdk.workflows import builtin  # noqa: E402
+from agenta.sdk.engines.running import builtin  # noqa: E402
 
 # Initialize Agenta SDK
 ag.init()

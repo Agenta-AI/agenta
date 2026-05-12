@@ -143,15 +143,11 @@ export const fetchEvaluationScenarioWindow = async ({
         windowing: buildWindowingPayload({cursor, limit, windowing, order}),
     }
 
-    const response = await axios.post<ScenariosResponse>(
-        `/preview/evaluations/scenarios/query`,
-        payload,
-        {
-            params: {
-                project_id: projectId,
-            },
+    const response = await axios.post<ScenariosResponse>(`/evaluations/scenarios/query`, payload, {
+        params: {
+            project_id: projectId,
         },
-    )
+    })
 
     const rawScenarios = Array.isArray(response.data?.scenarios) ? response.data.scenarios : []
 

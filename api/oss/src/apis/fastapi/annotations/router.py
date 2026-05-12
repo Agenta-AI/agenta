@@ -59,17 +59,6 @@ class AnnotationsRouter:
             "/{trace_id}",
             self.fetch_annotation,
             methods=["GET"],
-            operation_id="fetch_annotation_by_trace_id",
-            status_code=status.HTTP_200_OK,
-            response_model=AnnotationResponse,
-            response_model_exclude_none=True,
-        )
-
-        # GET /api/annotations/{trace_id}/{span_id}
-        self.router.add_api_route(
-            "/{trace_id}/{span_id}",
-            self.fetch_annotation,
-            methods=["GET"],
             operation_id="fetch_annotation",
             status_code=status.HTTP_200_OK,
             response_model=AnnotationResponse,
@@ -81,17 +70,6 @@ class AnnotationsRouter:
             "/{trace_id}",
             self.edit_annotation,
             methods=["PATCH"],
-            operation_id="edit_annotation_by_trace_id",
-            status_code=status.HTTP_200_OK,
-            response_model=AnnotationResponse,
-            response_model_exclude_none=True,
-        )
-
-        # PUT /api/annotations/{trace_id}/{span_id}
-        self.router.add_api_route(
-            "/{trace_id}/{span_id}",
-            self.edit_annotation,
-            methods=["PATCH"],
             operation_id="edit_annotation",
             status_code=status.HTTP_200_OK,
             response_model=AnnotationResponse,
@@ -101,17 +79,6 @@ class AnnotationsRouter:
         # DELETE /api/annotations/{trace_id}
         self.router.add_api_route(
             "/{trace_id}",
-            self.delete_annotation,
-            methods=["DELETE"],
-            operation_id="delete_annotation_by_trace_id",
-            status_code=status.HTTP_200_OK,
-            response_model=AnnotationLinkResponse,
-            response_model_exclude_none=True,
-        )
-
-        # DELETE /api/annotations/{trace_id}/{span_id}
-        self.router.add_api_route(
-            "/{trace_id}/{span_id}",
             self.delete_annotation,
             methods=["DELETE"],
             operation_id="delete_annotation",

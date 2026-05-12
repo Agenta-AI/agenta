@@ -10,6 +10,8 @@
 export {
     annotationSessionController,
     type AnnotationSessionController,
+    type AddToTestsetExportJob,
+    type AddToTestsetScope,
     registerAnnotationCallbacks,
     annotationFormController,
     type AnnotationFormController,
@@ -18,6 +20,8 @@ export {
     getMetricsFromAnnotation,
     isEmptyValue,
     OUTPUT_KEYS,
+    getTraceInputDisplayKeys,
+    getTraceInputDisplayValue,
 } from "./state"
 
 export type {
@@ -31,6 +35,8 @@ export type {
     ScenarioContext,
     UpdateMetricPayload,
     SubmitAnnotationsPayload,
+    EvaluatorStepRef,
+    EvaluatorResolutionState,
     SessionView,
     ScenarioEvaluatorKey,
     ScenarioMetricForEvaluator,

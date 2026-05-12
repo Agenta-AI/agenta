@@ -111,3 +111,45 @@ export function StatusTag({status, label, size = "default", className}: StatusTa
         </Tag>
     )
 }
+
+// ============================================================================
+// ENVIRONMENT TAG
+// ============================================================================
+
+export type EnvironmentName = "production" | "staging" | "development"
+
+export const environmentColors: Record<
+    EnvironmentName,
+    {bgColor: string; textColor: string; label: string}
+> = {
+    production: {bgColor: "#D9F7BE", textColor: "#237804", label: "Production"},
+    staging: {bgColor: "#FFF2E8", textColor: "#FA541C", label: "Staging"},
+    development: {bgColor: "#F9F0FF", textColor: "#722ED1", label: "Development"},
+}
+
+export interface EnvironmentTagProps {
+    environment: string
+    className?: string
+}
+
+export function EnvironmentTag({environment, className}: EnvironmentTagProps) {
+    const known = environmentColors[environment.toLowerCase() as EnvironmentName]
+    const label = known?.label ?? (environment || "Unknown")
+
+    return (
+        <Tag
+            className={`w-fit ${className ?? ""}`}
+            style={
+                known
+                    ? {
+                          backgroundColor: known.bgColor,
+                          color: known.textColor,
+                          borderColor: known.bgColor,
+                      }
+                    : undefined
+            }
+        >
+            {label}
+        </Tag>
+    )
+}

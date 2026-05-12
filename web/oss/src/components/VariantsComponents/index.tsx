@@ -1,19 +1,18 @@
-// @ts-nocheck
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
-import {
-    variantsListQueryStateAtomFamily,
-    revisionsListQueryStateAtomFamily,
-    invalidateEntityQueries,
-} from "@agenta/entities/legacyAppRevision"
+import {environmentsListQueryAtomFamily} from "@agenta/entities/environment"
+import type {Environment as EntityEnvironment} from "@agenta/entities/environment"
+import {workflowRevisionDrawerNavigationIdsAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {PageLayout} from "@agenta/ui"
 import {SwapOutlined} from "@ant-design/icons"
 import {CloudArrowUpIcon, CodeSimpleIcon, LightningIcon} from "@phosphor-icons/react"
-import {Button, Flex, Input, Radio, Space, Typography} from "antd"
-import {atom, useAtomValue, useSetAtom} from "jotai"
+import {Button, Flex, Input, Radio, Typography} from "antd"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import EnvironmentCardRow from "@/oss/components/DeploymentsDashboard/components/DeploymentCard/EnvironmentCardRow"
+import {selectedEnvironmentIdAtom} from "@/oss/components/DeploymentsDashboard/store/deploymentFilterAtoms"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQueryParam} from "@/oss/hooks/useQuery"
@@ -21,23 +20,26 @@ import useURL from "@/oss/hooks/useURL"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {useQueryParamState} from "@/oss/state/appState"
-import {deploymentRevisionsWithAppIdQueryAtomFamily} from "@/oss/state/deployment/atoms/revisions"
-import {useEnvironments} from "@/oss/state/environment/hooks/useEnvironments"
+import {useAppEnvironments} from "@/oss/state/environment/useAppEnvironments"
 
-import DeploymentsDashboard from "../DeploymentsDashboard"
-import {envRevisionsAtom} from "../DeploymentsDashboard/atoms"
 import {openDeploymentsDrawerAtom} from "../DeploymentsDashboard/modals/store/deploymentDrawerStore"
+import {openDeleteVariantModalAtom} from "../Playground/Components/Modals/DeleteVariantModal/store/deleteVariantModalStore"
 import DeployVariantButton from "../Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
+import {openDeployVariantModalAtom} from "../Playground/Components/Modals/DeployVariantModal/store/deployVariantModalStore"
 
 import {
-    comparisonAllRevisionsAtom,
     comparisonSelectionScopeAtom,
     openComparisonModalAtom,
 } from "./Modals/VariantComparisonModal/store/comparisonModalStore"
-import {selectedVariantsCountAtom, variantTableSelectionAtomFamily} from "./store/selectionAtoms"
-import VariantsTable from "./Table"
+import {registrySearchTermAtom, registryDisplayModeAtom} from "./store/registryFilterAtoms"
+import {registryPaginatedStore, type RegistryRevisionRow} from "./store/registryStore"
+import type {RegistryColumnActions} from "./Table/assets/registryColumns"
+import RegistryTable from "./Table/RegistryTable"
 
-// Comparison modal is opened via atoms; no local deploy/delete modals here
+const DeploymentsDashboard = dynamic(() => import("../DeploymentsDashboard"), {ssr: false})
+
+const SCOPE_ID = "registry-revisions"
+const CONTROLLER_PARAMS = {scopeId: SCOPE_ID, pageSize: 50}
 
 const VariantsDashboard = () => {
     const appId = useAppId()
@@ -45,59 +47,76 @@ const VariantsDashboard = () => {
     const [, setQueryVariant] = useQueryParamState("revisionId")
     const [activeTab, setActiveTab] = useQueryParam("tab", "variants")
     const [selectedEnv, setSelectedEnv] = useQueryParam("selectedEnvName", "development")
-    const [displayMode, setDisplayMode] = useQueryParam("displayMode", "flat")
-    const [searchTerm, setSearchTerm] = useState("")
+    const [displayMode, setDisplayMode] = useAtom(registryDisplayModeAtom)
+    const [searchTerm, setSearchTerm] = useAtom(registrySearchTermAtom)
     const {baseAppURL} = useURL()
-    // Data: use all revisions list and map once to table rows (no slicing)
-    const emptyListAtom = useMemo(
-        () => atom({data: [], isPending: false, isError: false, error: null}),
+
+    // Deployments data
+    const {environments, isEnvironmentsLoading} = useAppEnvironments({appId})
+    const setSelectedEnvironmentId = useSetAtom(selectedEnvironmentIdAtom)
+    const openDeploymentsDrawer = useSetAtom(openDeploymentsDrawerAtom)
+
+    // Resolve selected environment name → entity ID from the entity list query
+    const entityEnvironments = useAtomValue(environmentsListQueryAtomFamily(false))
+    const selectedEnvironmentEntity = useMemo<EntityEnvironment | null>(() => {
+        if (!selectedEnv) return null
+        const envs = entityEnvironments.data?.environments ?? []
+        return (
+            envs.find(
+                (e) =>
+                    e.name === selectedEnv ||
+                    e.slug === selectedEnv ||
+                    e.name?.toLowerCase() === selectedEnv.toLowerCase(),
+            ) ?? null
+        )
+    }, [selectedEnv, entityEnvironments.data])
+
+    const selectedEnvironmentId = selectedEnvironmentEntity?.id ?? null
+
+    // Extract the currently deployed revision ID for the selected environment and current app
+    const currentDeployedRevisionId = useMemo(() => {
+        if (!selectedEnvironmentEntity?.data?.references || !appId) return null
+        const refs = selectedEnvironmentEntity.data.references as Record<
+            string,
+            {application?: {id?: string}; application_revision?: {id?: string}}
+        >
+        // Find the reference matching the current app by ID
+        for (const ref of Object.values(refs)) {
+            if (ref?.application?.id === appId) {
+                return ref.application_revision?.id ?? null
+            }
+        }
+        return null
+    }, [selectedEnvironmentEntity, appId])
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
+
+    // Selection from paginated store
+    const selectionAtom = useMemo(
+        () => registryPaginatedStore.selectors.selection(CONTROLLER_PARAMS),
         [],
     )
-    const variantsListAtom = useMemo(
-        () => (appId ? variantsListQueryStateAtomFamily(appId) : emptyListAtom),
-        [appId, emptyListAtom],
-    )
-    const variantsQuery = useAtomValue(variantsListAtom)
-    const variants = variantsQuery.data ?? []
-    const revisionsListAtom = useMemo(
-        () =>
-            atom((get) => {
-                if (!appId) {
-                    return {data: [], isPending: false}
-                }
-                const listQuery = get(variantsListQueryStateAtomFamily(appId))
-                const list = listQuery.data ?? []
-                let isPending = listQuery.isPending ?? false
-                const revisions = list.flatMap((variant: any) => {
-                    const revisionsQuery = get(revisionsListQueryStateAtomFamily(variant.id))
-                    if (revisionsQuery.isPending) {
-                        isPending = true
-                    }
-                    return revisionsQuery.data ?? []
-                })
-                return {data: revisions, isPending}
-            }),
-        [appId],
-    )
-    const revisionsState = useAtomValue(revisionsListAtom)
-    const revisions = revisionsState.data ?? []
-    const isVariantLoading = revisionsState.isPending ?? false
-    const {environments, isEnvironmentsLoading} = useEnvironments({appId})
-
-    const deploymentRevisionsAtom = useMemo(
-        () => deploymentRevisionsWithAppIdQueryAtomFamily({appId, envName: selectedEnv ?? ""}),
-        [appId, selectedEnv],
-    )
-    const {data: envRevisions} = useAtomValue(deploymentRevisionsAtom)
-    const setEnvRevisions = useSetAtom(envRevisionsAtom)
-    const openDeploymentsDrawer = useSetAtom(openDeploymentsDrawerAtom)
-    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
-    const selectionScope = "variants/dashboard"
-    const selectedRowKeys = useAtomValue(variantTableSelectionAtomFamily(selectionScope))
+    const selectedRowKeys = useAtomValue(selectionAtom)
+    const selectedCount = selectedRowKeys.length
     const selectedRevisionId = useMemo(() => {
         const key = selectedRowKeys?.[0]
         return key ? String(key) : undefined
     }, [selectedRowKeys])
+
+    // Comparison modal atoms
+    const openComparisonModal = useSetAtom(openComparisonModalAtom)
+    const setComparisonSelectionScope = useSetAtom(comparisonSelectionScopeAtom)
+
+    // Delete / Deploy modal atoms
+    const openDeleteVariantModal = useSetAtom(openDeleteVariantModalAtom)
+    const openDeployVariantModal = useSetAtom(openDeployVariantModalAtom)
+
+    // Navigation
+    const {goToPlayground} = usePlaygroundNavigation()
+    const prefetchPlayground = useCallback(async () => {
+        if (appId) {
+            router.prefetch(`${baseAppURL}/${appId}/playground`).catch(() => {})
+        }
+    }, [appId, baseAppURL, router])
 
     const registryHref = useMemo(() => {
         if (!appId || !baseAppURL) return null
@@ -119,103 +138,43 @@ const VariantsDashboard = () => {
         [registryHref, tabBreadcrumbLabel],
     )
 
-    // Force fresh data on mount — works around jotai-tanstack-query's observer
-    // caching which can serve stale data after cross-page mutations (e.g. variant
-    // created on playground page).
+    // Sync selected environment ID to the deployment store's filter atom
     useEffect(() => {
-        void invalidateEntityQueries()
-    }, [])
-
-    useEffect(() => {
-        setEnvRevisions(envRevisions)
-    }, [envRevisions, setEnvRevisions])
+        setSelectedEnvironmentId(selectedEnvironmentId)
+    }, [selectedEnvironmentId, setSelectedEnvironmentId])
 
     useEffect(() => {
         recordWidgetEvent("registry_page_viewed")
     }, [recordWidgetEvent])
 
-    const variantNameMap = useMemo(() => {
-        const map: Record<string, string> = {}
-        variants.forEach((variant: any) => {
-            if (!variant?.id) return
-            map[variant.id] = (variant.name as string) || (variant.baseName as string) || variant.id
-        })
-        return map
-    }, [variants])
+    // Navigation: keep drawer prev/next list in sync with visible table rows.
+    // Uses an effect so navigation works even when the drawer is opened via URL.
+    const tableState = useAtomValue(registryPaginatedStore.selectors.state(CONTROLLER_PARAMS))
+    const setNavigationIds = useSetAtom(workflowRevisionDrawerNavigationIdsAtom)
 
-    const baseRows = useMemo(() => {
-        return (revisions || [])
-            .map((r: any) => {
-                if (Number(r?.revision ?? 0) <= 0) return null
-                const timestamp = r.createdAt ? new Date(r.createdAt).valueOf() : Date.now()
-                const variantName = variantNameMap[r.variantId] ?? "-"
-                return {
-                    id: r.id,
-                    variantId: r.variantId,
-                    variantName,
-                    commitMessage: r.commitMessage ?? r.commit_message ?? null,
-                    createdAtTimestamp: timestamp,
-                    updatedAtTimestamp: timestamp,
-                    modifiedBy: r.author ?? r.modifiedBy ?? r.modified_by ?? null,
-                    parameters: r.parameters ?? null,
-                    _revisionId: r.id,
-                }
-            })
-            .filter(Boolean)
-    }, [revisions, variantNameMap])
-
-    const filteredRows = useMemo(() => {
-        if (!searchTerm) return baseRows
-        const q = searchTerm.toLowerCase()
-        return baseRows.filter((r: any) => (r.variantName || "").toLowerCase().includes(q))
-    }, [baseRows, searchTerm])
-
-    const tableRows = useMemo(() => {
-        if (displayMode !== "grouped") {
-            return [...filteredRows].sort(
-                (a: any, b: any) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0),
-            )
+    useEffect(() => {
+        const navIds = tableState.rows
+            .map((r) => r.revisionId)
+            .filter((id): id is string => Boolean(id))
+        if (navIds.length > 0) {
+            setNavigationIds(navIds)
         }
-        // Group revisions by variantId; parent row uses latest revision id
-        const byVariant: Record<string, any[]> = {}
-        filteredRows.forEach((r: any) => {
-            ;(byVariant[r.variantId] ||= []).push(r)
-        })
-        const groups: any[] = []
-        Object.values(byVariant).forEach((arr) => {
-            const sorted = [...arr].sort(
-                (a, b) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0),
-            )
-            const latest = sorted[0]
-            const children = sorted.slice(1)
-            groups.push({
-                ...latest,
-                _isParentRow: true,
-                children,
-            })
-        })
-        // Sort variant groups by latest revision timestamp (newest first)
-        groups.sort((a, b) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0))
-        return groups
-    }, [filteredRows, displayMode])
+    }, [tableState.rows, setNavigationIds])
 
-    // Selection/compare using global atoms with a stable scope
-    const selectedCount = useAtomValue(selectedVariantsCountAtom(selectionScope))
-    const openComparisonModal = useSetAtom(openComparisonModalAtom)
-    const setComparisonSelectionScope = useSetAtom(comparisonSelectionScopeAtom)
-    const setComparisonAllRevisions = useSetAtom(comparisonAllRevisionsAtom)
-    const {goToPlayground} = usePlaygroundNavigation()
-    const prefetchPlayground = useCallback(async () => {
-        if (appId) {
-            router.prefetch(`${baseAppURL}/${appId}/playground`).catch(() => {})
-        }
-    }, [appId, baseAppURL, router])
+    // Handlers
+    const handleOpenDetails = useCallback(
+        (record: RegistryRevisionRow) => {
+            const revId = record.revisionId
+            if (!revId) return
+            setQueryVariant(revId, {shallow: true})
+        },
+        [setQueryVariant],
+    )
 
-    const handleNavigation = useCallback(
-        async (record?: any) => {
-            // Try to prefetch chunks before navigating for a seamless transition
+    const handleOpenInPlayground = useCallback(
+        (record: RegistryRevisionRow) => {
             prefetchPlayground()
-            const revId = record?._revisionId ?? record?.id
+            const revId = record.revisionId
             if (revId) {
                 goToPlayground(revId)
             } else {
@@ -225,16 +184,41 @@ const VariantsDashboard = () => {
         [goToPlayground, prefetchPlayground],
     )
 
-    const handleOpenDetails = useCallback(
-        (record: any) => {
-            const revId = record._revisionId ?? record.id
-            if (!revId) return
-            // Shallow URL patch lets the route listener atom open the drawer
-            setQueryVariant(revId, {shallow: true})
+    const handleDeploy = useCallback(
+        (record: RegistryRevisionRow) => {
+            openDeployVariantModal({
+                parentVariantId: null,
+                revisionId: record.revisionId,
+                variantName: record.variantName,
+                revision: record.version ?? 0,
+            })
         },
-        [setQueryVariant],
+        [openDeployVariantModal],
     )
 
+    const handleDelete = useCallback(
+        (record: RegistryRevisionRow) => {
+            const isVariantGroup = !!(record as Record<string, unknown>).__isVariantGroup
+            openDeleteVariantModal({
+                revisionIds: [record.revisionId],
+                forceVariantIds: isVariantGroup ? [record.variantId] : [],
+                workflowId: record.workflowId,
+            })
+        },
+        [openDeleteVariantModal],
+    )
+
+    const columnActions = useMemo<RegistryColumnActions>(
+        () => ({
+            handleOpenDetails,
+            handleOpenInPlayground,
+            handleDeploy,
+            handleDelete,
+        }),
+        [handleOpenDetails, handleOpenInPlayground, handleDeploy, handleDelete],
+    )
+
+    // Tab items
     const tabItems = useMemo(
         () => [
             {
@@ -267,90 +251,97 @@ const VariantsDashboard = () => {
         [activeTab, setActiveTab, tabItems],
     )
 
-    const variantContent = (
-        <Space orientation="vertical" className="w-full">
-            <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 flex-1">
-                    <Input.Search
-                        placeholder="Search"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="md:max-w-[300px] lg:max-w-[400px] lg:w-[400px]"
-                        allowClear
-                    />
-                    <Radio.Group
-                        value={displayMode}
-                        onChange={(e) => setDisplayMode(e.target.value)}
-                        className="flex-shrink-0"
-                    >
-                        <Radio.Button value="grouped">Variants</Radio.Button>
-                        <Radio.Button value="flat">Revisions</Radio.Button>
-                    </Radio.Group>
-                </div>
-
-                <div className="flex items-center gap-3">
-                    {selectedCount > 0 && (
-                        <Typography.Text type="secondary" className="flex-shrink-0">
-                            {selectedCount} selected
-                        </Typography.Text>
-                    )}
-
-                    <Button
-                        type="link"
-                        disabled={selectedCount !== 2}
-                        icon={<SwapOutlined />}
-                        onClick={() => {
-                            setComparisonAllRevisions(baseRows as any)
-                            setComparisonSelectionScope(selectionScope)
-                            openComparisonModal()
-                        }}
-                    >
-                        Compare
-                    </Button>
-
-                    <DeployVariantButton
-                        type="default"
-                        label="Deploy"
-                        disabled={!selectedRevisionId || selectedCount > 1}
-                        revisionId={selectedRevisionId}
-                    />
-
-                    <Button
-                        type="primary"
-                        disabled={!envRevisions}
-                        icon={<CodeSimpleIcon size={14} />}
-                        data-tour="api-code-button"
-                        onClick={() => {
-                            openDeploymentsDrawer({
-                                initialWidth: 1200,
-                                revisionId: selectedRevisionId,
-                                mode: "variant",
-                            })
-                            recordWidgetEvent("integration_snippet_viewed")
-                        }}
-                    >
-                        Use API
-                    </Button>
-                </div>
+    const filtersNode = useMemo(
+        () => (
+            <div className="flex gap-2 flex-1 items-center">
+                <Input.Search
+                    placeholder="Search"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="max-w-[320px]"
+                    allowClear
+                />
+                <Radio.Group
+                    value={displayMode}
+                    onChange={(e) => setDisplayMode(e.target.value)}
+                    className="flex-shrink-0"
+                >
+                    <Radio.Button value="grouped">Variants</Radio.Button>
+                    <Radio.Button value="flat">Revisions</Radio.Button>
+                </Radio.Group>
             </div>
+        ),
+        [searchTerm, setSearchTerm, displayMode, setDisplayMode],
+    )
 
-            <VariantsTable
-                enableColumnResize
-                showEnvBadges
-                showStableName
-                variants={tableRows}
-                isLoading={isVariantLoading}
-                selectionScope={selectionScope}
+    const actionsNode = useMemo(
+        () => (
+            <div className="flex items-center gap-2">
+                {selectedCount > 0 && (
+                    <Typography.Text type="secondary" className="flex-shrink-0">
+                        {selectedCount} selected
+                    </Typography.Text>
+                )}
+                <Button
+                    type="link"
+                    disabled={selectedCount !== 2}
+                    icon={<SwapOutlined />}
+                    onClick={() => {
+                        setComparisonSelectionScope(SCOPE_ID)
+                        openComparisonModal()
+                    }}
+                >
+                    Compare
+                </Button>
+                <DeployVariantButton
+                    type="default"
+                    label="Deploy"
+                    disabled={!selectedRevisionId || selectedCount > 1}
+                    revisionId={selectedRevisionId}
+                />
+                <Button
+                    type="primary"
+                    icon={<CodeSimpleIcon size={14} />}
+                    data-tour="api-code-button"
+                    onClick={() => {
+                        openDeploymentsDrawer({
+                            initialWidth: 1200,
+                            revisionId: selectedRevisionId,
+                            mode: "variant",
+                        })
+                        recordWidgetEvent("integration_snippet_viewed")
+                    }}
+                >
+                    Use API
+                </Button>
+            </div>
+        ),
+        [
+            selectedCount,
+            selectedRevisionId,
+            setComparisonSelectionScope,
+            openComparisonModal,
+            openDeploymentsDrawer,
+            recordWidgetEvent,
+        ],
+    )
+
+    const variantContent = (
+        <div className="flex flex-col h-full min-h-0 grow">
+            <RegistryTable
                 onRowClick={handleOpenDetails}
-                handleOpenDetails={handleOpenDetails}
-                handleOpenInPlayground={(record) => handleNavigation(record)}
+                actions={columnActions}
+                searchDeps={[searchTerm]}
+                filters={filtersNode}
+                primaryActions={actionsNode}
+                displayMode={displayMode}
             />
-        </Space>
+        </div>
     )
 
     const deploymentsContent = (
-        <div className="flex flex-col gap-4">
-            <Flex align="center" gap={16}>
+        <div className="flex flex-col gap-4 h-full min-h-0 grow">
+            <Flex align="center" gap={16} className="flex-shrink-0">
                 <EnvironmentCardRow
                     environments={environments}
                     isLoading={isEnvironmentsLoading}
@@ -360,9 +351,9 @@ const VariantsDashboard = () => {
             </Flex>
 
             <DeploymentsDashboard
-                selectedEnvName={selectedEnv || ""}
-                envRevisions={envRevisions}
-                isLoading={isEnvironmentsLoading}
+                environmentId={selectedEnvironmentId}
+                environmentName={selectedEnv || ""}
+                currentDeployedRevisionId={currentDeployedRevisionId}
             />
         </div>
     )

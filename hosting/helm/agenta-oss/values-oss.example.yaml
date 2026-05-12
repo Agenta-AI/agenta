@@ -1,0 +1,27 @@
+global:
+  agentaLicense: oss
+  webUrl: "https://agenta.example.com"
+  apiUrl: "https://agenta.example.com/api"
+  servicesUrl: "https://agenta.example.com/services"
+
+secrets:
+  agentaAuthKey: "replace-me"
+  agentaCryptKey: "replace-me"
+  postgresPassword: "replace-me"
+
+ingress:
+  enabled: true
+  className: "traefik"
+  host: "agenta.example.com"
+
+api:
+  image:
+    tag: "v0.95.1"
+
+web:
+  image:
+    tag: "v0.95.1"
+
+services:
+  image:
+    tag: "v0.95.1"

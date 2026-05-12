@@ -9,7 +9,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {getValueAtPath, generateId} from "@agenta/shared/utils"
 import {getDefaultStore} from "jotai/vanilla"
 
-import {parseEvaluatorKeyFromUri} from "../evaluator/core"
+import {parseEvaluatorKeyFromUri} from "../workflow/core"
 
 import type {
     RunnableType,
@@ -814,14 +814,6 @@ export function buildEvaluatorExecutionInputs(ctx: EvaluatorInputContext): Recor
             ? (inputSchema.properties as Record<string, unknown>)
             : null
 
-    console.debug("[buildEvaluatorExecutionInputs]", {
-        hasInputSchema: !!schemaProperties,
-        schemaPropertyKeys: schemaProperties ? Object.keys(schemaProperties) : [],
-        testcaseDataKeys: Object.keys(testcaseData),
-        settingsKeys: Object.keys(settings),
-        upstreamOutputType: typeof upstreamOutput,
-    })
-
     if (schemaProperties) {
         return buildFromSchema({
             schemaProperties,
@@ -901,11 +893,6 @@ function buildFromSchema(ctx: {
         inputs.outputs = upstreamOutput
     }
 
-    console.debug("[buildEvaluatorExecutionInputs] schema-driven result", {
-        keys: Object.keys(inputs),
-        inputs,
-    })
-
     return inputs
 }
 
@@ -931,13 +918,6 @@ function buildLegacy(ctx: {
     const rawGT = groundTruthKey ? testcaseData[groundTruthKey] : undefined
     const ground_truth = normalizeCompact(rawGT)
 
-    console.debug("[buildEvaluatorExecutionInputs] legacy fallback", {
-        correct_answer_key: correctAnswerKey ?? "(not set)",
-        groundTruthKey: groundTruthKey ?? "(none)",
-        rawGT,
-        ground_truth,
-    })
-
     const inputs: Record<string, unknown> = {
         ...testcaseData,
         prediction,
@@ -947,11 +927,6 @@ function buildLegacy(ctx: {
         inputs.ground_truth = ground_truth
         inputs[groundTruthKey] = ground_truth
     }
-
-    console.debug("[buildEvaluatorExecutionInputs] legacy result", {
-        keys: Object.keys(inputs),
-        inputs,
-    })
 
     return inputs
 }
@@ -1185,8 +1160,9 @@ export async function executeRunnable(
     const executionId = generateId()
     const startedAt = new Date().toISOString()
 
-    // Route evaluator execution to the evaluator run endpoint
-    if ((type === "evaluator" || type === "evaluatorRevision") && !data.invocationUrl && data.uri) {
+    // Route built-in evaluator execution to the legacy evaluator run endpoint
+    // when no invocation URL is available but a URI is present
+    if (!data.invocationUrl && data.uri && parseEvaluatorKeyFromUri(data.uri)) {
         return executeEvaluator(data, options, executionId, startedAt)
     }
 

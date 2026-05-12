@@ -2,7 +2,7 @@
  * Types for LoadEvaluatorPresetModal
  */
 
-import type {ModalProps} from "antd"
+import type {EnhancedModalProps} from "@agenta/ui/components/modal"
 
 /**
  * Evaluator preset definition
@@ -16,7 +16,7 @@ export interface EvaluatorPreset {
 /**
  * Props for LoadEvaluatorPresetModal
  */
-export interface LoadEvaluatorPresetModalProps extends Omit<ModalProps, "onOk"> {
+export interface LoadEvaluatorPresetModalProps extends Omit<EnhancedModalProps, "onOk"> {
     /** Available presets to choose from */
     presets: EvaluatorPreset[]
     /** Currently selected preset (for highlighting) */

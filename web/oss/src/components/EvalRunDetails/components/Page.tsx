@@ -49,7 +49,7 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
         const typeMap: Record<string, {label: string; kind: string}> = {
             auto: {label: "Auto Evals", kind: "auto"},
             human: {label: "Human Evals", kind: "human"},
-            online: {label: "Online Evals", kind: "online"},
+            online: {label: "Live Evals", kind: "online"},
         }
         const config = typeMap[evaluationType] ?? {label: "Evaluations", kind: "auto"}
         return {
@@ -130,7 +130,6 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     return (
         <PageLayout
             className="!p-0 h-full min-h-0"
-            titleLevel={3}
             title={runDisplayName}
             headerTabs={
                 <PreviewEvalRunTabs

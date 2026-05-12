@@ -1,3 +1,4 @@
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from fastapi import APIRouter, Request, status
@@ -16,14 +17,14 @@ from oss.src.utils.common import is_ee
 from oss.src.apis.fastapi.otlp.models import CollectStatusResponse
 from oss.src.apis.fastapi.otlp.opentelemetry.otlp import parse_otlp_stream
 from oss.src.apis.fastapi.otlp.utils.processing import parse_from_otel_span_dto
-from oss.src.core.tracing.utils.trees import calculate_and_propagate_metrics_by_trace
 
 if is_ee():
     from ee.src.utils.entitlements import check_entitlements, Counter
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
 
-from oss.src.core.tracing.streaming import publish_spans
+if TYPE_CHECKING:
+    from oss.src.core.tracing.service import TracingService
 
 
 MAX_OTLP_BATCH_SIZE = env.otlp.max_batch_bytes
@@ -34,7 +35,12 @@ log = get_module_logger(__name__)
 
 
 class OTLPRouter:
-    def __init__(self):
+    def __init__(
+        self,
+        tracing_service: "TracingService",
+    ):
+        self.tracing_service = tracing_service
+
         self.sdk_router = APIRouter()
         self.router = APIRouter()
 
@@ -169,16 +175,6 @@ class OTLPRouter:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        if spans:
-            try:
-                spans = calculate_and_propagate_metrics_by_trace(spans)
-            except Exception:
-                log.error(
-                    "[OTLP] Failed to calculate tracing metrics before queueing",
-                    project_id=str(request.state.project_id),
-                    exc_info=True,
-                )
-
         # -------------------------------------------------------------------- #
         # Layer 1 Soft Check: Validate quota using cached meter
         # -------------------------------------------------------------------- #
@@ -217,12 +213,12 @@ class OTLPRouter:
                 )
 
         # -------------------------------------------------------------------- #
-        # Write spans to Redis Streams for async processing
+        # Preprocess and publish spans to Redis Streams for async processing
         # Layer 2 Hard Check and database storage deferred to worker
         # -------------------------------------------------------------------- #
         if spans:
             try:
-                await publish_spans(
+                await self.tracing_service.ingest_span_dtos(
                     organization_id=UUID(request.state.organization_id),
                     project_id=UUID(request.state.project_id),
                     user_id=UUID(request.state.user_id),
@@ -230,7 +226,7 @@ class OTLPRouter:
                 )
             except Exception as e:
                 log.error(
-                    f"[OTLP] Failed to write spans to Redis Stream: {e}",
+                    f"[OTLP] Failed to preprocess and queue spans: {e}",
                     exc_info=True,
                 )
                 err_status = ProtoStatus(

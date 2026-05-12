@@ -1,0 +1,946 @@
+from agenta.sdk.models.workflows import WorkflowRevisionData
+
+
+JSON_SCHEMA = "https://json-schema.org/draft/2020-12/schema"
+
+
+def obj(
+    *,
+    description: str | None = None,
+    properties: dict | None = None,
+    required: list[str] | None = None,
+    additional_properties: bool | dict = False,
+    defs: dict | None = None,
+    **extra,
+) -> dict:
+    schema = {
+        "$schema": JSON_SCHEMA,
+        "type": "object",
+        "properties": properties or {},
+        "additionalProperties": additional_properties,
+    }
+    if description:
+        schema["description"] = description
+    if required is not None:
+        schema["required"] = required
+    if defs:
+        schema["$defs"] = defs
+    schema.update(extra)
+    return schema
+
+
+def arr(
+    *,
+    items: dict,
+    description: str | None = None,
+    default=None,
+    **extra,
+) -> dict:
+    schema = {
+        "type": "array",
+        "items": items,
+    }
+    if description:
+        schema["description"] = description
+    if default is not None:
+        schema["default"] = default
+    schema.update(extra)
+    return schema
+
+
+def scalar(
+    *,
+    jtype,
+    description: str | None = None,
+    default=None,
+    enum: list | None = None,
+    **extra,
+) -> dict:
+    schema = {"type": jtype}
+    if description:
+        schema["description"] = description
+    if default is not None:
+        schema["default"] = default
+    if enum is not None:
+        schema["enum"] = enum
+    schema.update(extra)
+    return schema
+
+
+def ag_field(
+    *,
+    base: dict,
+    x_ag_type: str | None = None,
+    x_ag_type_ref: str | None = None,
+    x_ag_ui_advanced: bool | None = None,
+) -> dict:
+    field = dict(base)
+    if x_ag_type is not None:
+        field["x-ag-type"] = x_ag_type
+    if x_ag_type_ref is not None:
+        field["x-ag-type-ref"] = x_ag_type_ref
+    if x_ag_ui_advanced is not None:
+        field["x-ag-ui-advanced"] = x_ag_ui_advanced
+    return field
+
+
+def semantic_field(
+    *,
+    x_ag_type: str | None = None,
+    x_ag_type_ref: str | dict | None = None,
+    jtype: str | list[str] | None = None,
+    defs: dict | None = None,
+    **extra,
+) -> dict:
+    schema = {}
+    if x_ag_type is None and x_ag_type_ref is None:
+        raise ValueError("semantic_field requires x_ag_type or x_ag_type_ref")
+    if x_ag_type is not None:
+        schema["x-ag-type"] = x_ag_type
+    if x_ag_type_ref is not None:
+        schema["x-ag-type-ref"] = x_ag_type_ref
+    if jtype is not None:
+        schema["type"] = jtype
+    if defs is not None:
+        schema["$defs"] = defs
+    schema.update(extra)
+    return schema
+
+
+def single_prompt_parameters_schema(
+    *,
+    prompt_default: dict,
+) -> dict:
+    return obj(
+        properties={
+            "prompt": semantic_field(
+                x_ag_type_ref="prompt-template",
+                jtype="object",
+                description="A template for generating prompts with formatting capabilities",
+                default=prompt_default,
+            ),
+        },
+        additional_properties=True,
+    )
+
+
+def llm_inputs_schema(
+    *,
+    include_messages: bool,
+) -> dict:
+    properties = {}
+
+    if include_messages:
+        properties["messages"] = semantic_field(
+            x_ag_type_ref="messages",
+            jtype="array",
+            description="Ordered list of normalized chat messages.",
+        )
+
+    return obj(
+        properties=properties,
+        additional_properties=True,
+    )
+
+
+SUCCESS_ONLY_OUTPUTS_SCHEMA = obj(
+    properties={"success": scalar(jtype="boolean")},
+    required=["success"],
+    additional_properties=False,
+)
+
+SCORE_SUCCESS_OUTPUTS_SCHEMA = obj(
+    properties={
+        "score": scalar(jtype="number"),
+        "success": scalar(jtype="boolean"),
+    },
+    required=[],
+    additional_properties=False,
+)
+
+
+# --- NEW URI
+
+feedback_v0_interface = WorkflowRevisionData(
+    uri="agenta:custom:feedback:v0",
+    schemas=None,
+)
+
+hook_v0_interface = WorkflowRevisionData(
+    uri="agenta:custom:hook:v0",
+    schemas=None,
+)
+
+code_v0_interface = WorkflowRevisionData(
+    uri="agenta:custom:code:v0",
+    schemas=None,
+)
+
+config_v0_interface = WorkflowRevisionData(
+    uri="agenta:custom:config:v0",
+    schemas=None,
+)
+
+match_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:match:v0",
+    schemas=dict(  # type: ignore
+        parameters={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "description": "Matcher configuration payload.",
+            "properties": {
+                "matchers": {
+                    "type": "array",
+                    "items": {"$ref": "#/$defs/matcher"},
+                    "description": "Recursive list of matcher nodes to execute.",
+                },
+                "score": {
+                    "type": "string",
+                    "enum": ["weighted", "min", "max"],
+                    "default": "weighted",
+                    "description": "How root-level matcher scores are aggregated. 'weighted': weighted mean (uses weight per matcher, defaults to 1). 'min': minimum score. 'max': maximum score.",
+                },
+                "success": {
+                    "type": "string",
+                    "enum": ["all", "any", "threshold"],
+                    "default": "threshold",
+                    "description": "How root-level matcher successes are combined. 'all': all must pass. 'any': at least one must pass. 'threshold': aggregated score >= threshold.",
+                },
+                "threshold": {
+                    "type": "number",
+                    "default": 1.0,
+                    "description": "Minimum score for success when success='threshold'.",
+                },
+            },
+            "required": ["matchers"],
+            "$defs": {
+                "matcher": {
+                    "type": "object",
+                    "properties": {
+                        "key": {"type": "string"},
+                        "target": {"type": "string"},
+                        "mode": {
+                            "type": "string",
+                            "enum": ["text", "json"],
+                        },
+                        "match": {
+                            "type": "string",
+                            "enum": [
+                                "valid",
+                                "exact",
+                                "starts_with",
+                                "ends_with",
+                                "contains",
+                                "regex",
+                                "similarity",
+                                "diff",
+                            ],
+                        },
+                        "reference": {"type": "string"},
+                        "references": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                        "contains": {
+                            "type": "string",
+                            "enum": ["all", "any"],
+                        },
+                        "case_sensitive": {"type": "boolean"},
+                        "similarity": {
+                            "type": "string",
+                            "enum": ["jaccard", "levenshtein", "cosine"],
+                        },
+                        "diff": {
+                            "type": "string",
+                            "enum": ["full", "schema", "strict"],
+                        },
+                        "score": {
+                            "type": "string",
+                            "enum": ["weighted", "min", "max"],
+                            "description": "How child matcher scores are aggregated when this node has sub-matchers.",
+                        },
+                        "success": {
+                            "type": "string",
+                            "enum": ["all", "any", "threshold"],
+                            "description": "How child matcher successes are combined when this node has sub-matchers.",
+                        },
+                        "threshold": {"type": "number"},
+                        "weight": {"type": "number"},
+                        "matchers": {
+                            "type": "array",
+                            "items": {"$ref": "#/$defs/matcher"},
+                        },
+                    },
+                    "required": ["target"],
+                    "additionalProperties": True,
+                }
+            },
+            "additionalProperties": True,
+        },
+        outputs={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "description": "Flat result dict: root-level matcher keys plus score/success. Child matcher keys are merged directly into each parent result node.",
+            "properties": {
+                "score": {
+                    "type": "number",
+                    "description": "Weighted mean score across all root-level matchers.",
+                },
+                "success": {"type": "boolean"},
+            },
+            "required": ["score", "success"],
+            "$defs": {
+                "result": {
+                    "type": "object",
+                    "properties": {
+                        "success": {"type": "boolean"},
+                        "score": {"type": "number"},
+                        "error": {
+                            "type": ["string", "null"],
+                            "description": "Error message if evaluation failed, null otherwise.",
+                        },
+                    },
+                    "required": ["success", "score"],
+                    "additionalProperties": {"$ref": "#/$defs/result"},
+                }
+            },
+            "additionalProperties": {"$ref": "#/$defs/result"},
+        },
+    ),
+)
+
+llm_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:llm:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            description="Canonical stored configuration for prompt and agent-style managed workflows.",
+            properties={
+                "llms": semantic_field(
+                    x_ag_type_ref="llms",
+                    jtype="array",
+                    items=obj(
+                        properties={
+                            "model": ag_field(
+                                base=scalar(
+                                    jtype="string",
+                                    description="Model identifier to use for execution.",
+                                ),
+                                x_ag_type_ref="model",
+                            ),
+                            "temperature": scalar(
+                                jtype="number", minimum=0.0, maximum=2.0
+                            ),
+                            "max_tokens": scalar(jtype="integer", minimum=0),
+                            "top_p": scalar(jtype="number", minimum=0.0, maximum=1.0),
+                            "frequency_penalty": scalar(
+                                jtype="number", minimum=-2.0, maximum=2.0
+                            ),
+                            "presence_penalty": scalar(
+                                jtype="number", minimum=-2.0, maximum=2.0
+                            ),
+                            "reasoning_effort": ag_field(
+                                base=scalar(
+                                    jtype="string",
+                                    enum=["none", "low", "medium", "high"],
+                                ),
+                                x_ag_type="choice",
+                            ),
+                            "chat_template_kwargs": obj(additional_properties=True),
+                            "tool_choice": {
+                                "oneOf": [
+                                    scalar(jtype="string", enum=["none", "auto"]),
+                                    obj(additional_properties=True),
+                                ]
+                            },
+                            "template_format": scalar(
+                                jtype="string",
+                                enum=["curly", "fstring", "jinja2"],
+                                default="curly",
+                            ),
+                        },
+                        additional_properties=False,
+                    ),
+                ),
+                "loop": semantic_field(
+                    x_ag_type_ref="loop",
+                    jtype="object",
+                    properties={
+                        "max_iterations": scalar(jtype="integer", minimum=1),
+                        "max_internal_tool_calls": scalar(jtype="integer", minimum=0),
+                        "max_consecutive_errors": scalar(jtype="integer", minimum=0),
+                        "allow_implicit_stop": scalar(jtype="boolean"),
+                        "require_terminate_tool": scalar(jtype="boolean"),
+                    },
+                    additional_properties=False,
+                ),
+                "files": obj(
+                    properties={
+                        "enabled": scalar(jtype="boolean"),
+                        "read_only": scalar(jtype="boolean"),
+                        "roots": arr(items=scalar(jtype="string")),
+                        "allow_globs": arr(items=scalar(jtype="string")),
+                        "deny_globs": arr(items=scalar(jtype="string")),
+                        "max_file_bytes": scalar(jtype="integer", minimum=0),
+                        "max_total_bytes_per_turn": scalar(jtype="integer", minimum=0),
+                        "include_hidden": scalar(jtype="boolean"),
+                    },
+                    additional_properties=False,
+                ),
+                "tools": semantic_field(
+                    x_ag_type_ref="tools",
+                    jtype="object",
+                    properties={
+                        "internal": arr(items=scalar(jtype="string")),
+                        "external": arr(items=scalar(jtype="string")),
+                    },
+                    additional_properties=False,
+                ),
+                "messages": semantic_field(
+                    x_ag_type_ref="messages",
+                    jtype="array",
+                    description="Ordered list of normalized chat messages.",
+                    default=[],
+                ),
+                "context": semantic_field(
+                    x_ag_type_ref="context",
+                    jtype="object",
+                    additional_properties=True,
+                ),
+                "permissions": semantic_field(
+                    x_ag_type_ref="permissions",
+                    jtype="object",
+                    additional_properties=True,
+                ),
+                "response": semantic_field(
+                    x_ag_type_ref="response",
+                    jtype="object",
+                    properties={
+                        "stream": scalar(jtype="boolean", default=False),
+                        "format": scalar(
+                            jtype="string",
+                            enum=["messages", "message", "text", "json"],
+                            default="messages",
+                        ),
+                        "schema": obj(additional_properties=True),
+                    },
+                    additional_properties=False,
+                ),
+            },
+            additional_properties=False,
+        ),
+        inputs=obj(
+            description="Canonical runtime inputs for llm_v0 handlers.",
+            properties={
+                "messages": semantic_field(
+                    x_ag_type_ref="messages",
+                    jtype="array",
+                    description="Ordered list of normalized chat messages.",
+                    default=[],
+                ),
+                "message": semantic_field(
+                    x_ag_type_ref="message",
+                    jtype="object",
+                ),
+                "content": arr(items={"type": "object"}, **{"x-ag-content": True}),
+                "context": semantic_field(
+                    x_ag_type_ref="context",
+                    jtype="object",
+                    additional_properties=True,
+                ),
+                "permissions": semantic_field(
+                    x_ag_type_ref="permissions",
+                    jtype="object",
+                    additional_properties=True,
+                ),
+            },
+            additional_properties=True,
+        ),
+        outputs={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "description": "Unified output envelope for prompt and agent runs.",
+            "properties": {
+                "status": {
+                    "type": "object",
+                    "properties": {
+                        "code": {"type": "integer"},
+                        "type": {"type": "string"},
+                        "message": {"type": "string"},
+                    },
+                    "required": ["code", "type", "message"],
+                },
+                "messages": semantic_field(
+                    x_ag_type_ref="messages",
+                    jtype="array",
+                ),
+                "context": {"type": "object"},
+                "consent": {"type": "object"},
+                "usage": {"type": "object"},
+            },
+            "required": ["status", "messages", "context", "consent", "usage"],
+            "additionalProperties": False,
+        },
+    ),
+)
+
+# --- OLD URI
+
+chat_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:chat:v0",
+    schemas=dict(  # type: ignore
+        parameters=single_prompt_parameters_schema(
+            prompt_default={
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a helpful customer service chatbot. Please help "
+                            "the user with their query.\nUse the following context if "
+                            "available:\n<context>{{context}}</context>"
+                        ),
+                    }
+                ],
+                "template_format": "curly",
+                "input_keys": None,
+                "llm_config": {"model": "gpt-4o-mini"},
+            },
+        ),
+        inputs=llm_inputs_schema(
+            include_messages=True,
+        ),
+        outputs={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            **semantic_field(
+                x_ag_type_ref="message",
+                jtype="object",
+                description="Final chat message returned by the workflow.",
+            ),
+        },
+    ),
+)
+
+completion_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:completion:v0",
+    schemas=dict(  # type: ignore
+        parameters=single_prompt_parameters_schema(
+            prompt_default={
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an expert in geography",
+                    },
+                    {
+                        "role": "user",
+                        "content": "What is the capital of {{country}}?",
+                    },
+                ],
+                "template_format": "curly",
+                "input_keys": None,
+                "llm_config": {"model": "gpt-4o-mini"},
+            },
+        ),
+        inputs=llm_inputs_schema(
+            include_messages=False,
+        ),
+        outputs={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": ["string", "object", "array"],
+            "description": "Generated response, which may be text or structured data.",
+        },
+    ),
+)
+
+
+echo_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:echo:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(additional_properties=True),
+        outputs={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "description": "The echoed response object.",
+            "properties": {
+                "got": {
+                    "type": "string",
+                    "description": "The input value passed back unchanged.",
+                }
+            },
+            "required": ["got"],
+            "additionalProperties": False,
+        },
+    ),
+)
+
+auto_exact_match_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:auto_exact_match:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                "correct_answer_key": ag_field(
+                    base=scalar(jtype="string", default="correct_answer"),
+                    x_ag_type="text",
+                    x_ag_ui_advanced=True,
+                ),
+            },
+            additional_properties=False,
+        ),
+        outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
+    ),
+)
+
+auto_regex_test_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:auto_regex_test:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                "regex_pattern": ag_field(
+                    base=scalar(jtype="string", default=""), x_ag_type="regex"
+                ),
+                "regex_should_match": ag_field(
+                    base=scalar(jtype="boolean", default=True), x_ag_type="bool"
+                ),
+            },
+            required=["regex_pattern"],
+            additional_properties=False,
+        ),
+        outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
+    ),
+)
+
+field_match_test_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:field_match_test:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                "json_field": ag_field(base=scalar(jtype="string"), x_ag_type="text"),
+                "correct_answer_key": ag_field(
+                    base=scalar(jtype="string", default="correct_answer"),
+                    x_ag_type="text",
+                    x_ag_ui_advanced=True,
+                ),
+            },
+            required=["json_field"],
+            additional_properties=False,
+        ),
+        outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
+    ),
+)
+
+json_multi_field_match_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:json_multi_field_match:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                "fields": ag_field(
+                    base=arr(
+                        items=scalar(jtype="string"),
+                        default=[],
+                        description="Fields to compare using dot notation.",
+                    ),
+                    x_ag_type="fields_tags_editor",
+                ),
+                "correct_answer_key": ag_field(
+                    base=scalar(jtype="string", default="correct_answer"),
+                    x_ag_type="text",
+                    x_ag_ui_advanced=True,
+                ),
+            },
+            required=["fields", "correct_answer_key"],
+            additional_properties=False,
+        ),
+        outputs={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "description": "Per-field match scores and aggregate score. Each field produces a 0 or 1 output.",
+            "properties": {
+                "aggregate_score": {
+                    "type": "number",
+                    "description": "Percentage of matched fields (0-1).",
+                },
+            },
+            "required": ["aggregate_score"],
+            "additionalProperties": True,
+        },
+    ),
+)
+
+auto_webhook_test_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:auto_webhook_test:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                "webhook_url": ag_field(base=scalar(jtype="string"), x_ag_type="text"),
+            },
+            required=["webhook_url"],
+            additional_properties=False,
+        ),
+        outputs=SCORE_SUCCESS_OUTPUTS_SCHEMA,
+    ),
+)
+
+auto_custom_code_run_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:auto_custom_code_run:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                "code": ag_field(base=scalar(jtype="string"), x_ag_type="code"),
+                "runtime": ag_field(
+                    base=scalar(
+                        jtype="string",
+                        default="python",
+                        enum=["python", "javascript", "typescript"],
+                    ),
+                    x_ag_type="choice",
+                ),
+                "version": ag_field(
+                    base=scalar(jtype="string", default="2"), x_ag_type="hidden"
+                ),
+            },
+            required=["code"],
+            additional_properties=False,
+        ),
+        outputs=SCORE_SUCCESS_OUTPUTS_SCHEMA,
+    ),
+)
+
+auto_ai_critique_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:auto_ai_critique:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                "prompt_template": semantic_field(
+                    x_ag_type_ref="messages",
+                    jtype="array",
+                    description="Ordered list of normalized chat messages.",
+                    default=[],
+                ),
+                "model": ag_field(
+                    base=scalar(
+                        jtype="string",
+                        description="Model identifier to use for execution.",
+                    ),
+                    x_ag_type_ref="model",
+                ),
+                "response_type": ag_field(
+                    base=scalar(jtype="string", default="json_schema"),
+                    x_ag_type="hidden",
+                    x_ag_ui_advanced=True,
+                ),
+                "json_schema": ag_field(
+                    base=obj(
+                        properties={
+                            "name": scalar(jtype="string", default="schema"),
+                            "schema": obj(additional_properties=True),
+                            "strict": scalar(jtype=["boolean", "null"], default=True),
+                        },
+                        additional_properties=False,
+                    ),
+                    x_ag_type="llm_response_schema",
+                ),
+                "version": ag_field(
+                    base=scalar(jtype="string", default="4"),
+                    x_ag_type="hidden",
+                ),
+            },
+            required=["prompt_template"],
+            additional_properties=False,
+        ),
+        inputs=llm_inputs_schema(include_messages=False),
+        outputs={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "description": "Output schema derived from the configured response schema.",
+            "properties": {
+                "score": {
+                    "type": "boolean",
+                    "description": "Default score field from the configured response schema.",
+                },
+            },
+            "required": ["score"],
+            "additionalProperties": False,
+        },
+    ),
+)
+
+auto_starts_with_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:auto_starts_with:v0",
+    schemas=dict(  # type: ignore  # type: ignore
+        parameters=obj(
+            properties={
+                "prefix": ag_field(base=scalar(jtype="string"), x_ag_type="text"),
+                "case_sensitive": ag_field(
+                    base=scalar(jtype="boolean", default=True), x_ag_type="bool"
+                ),
+            },
+            required=["prefix"],
+            additional_properties=False,
+        ),
+        outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
+    ),
+)
+
+auto_ends_with_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:auto_ends_with:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                "case_sensitive": ag_field(
+                    base=scalar(jtype="boolean", default=True), x_ag_type="bool"
+                ),
+                "suffix": ag_field(base=scalar(jtype="string"), x_ag_type="text"),
+            },
+            required=["suffix"],
+            additional_properties=False,
+        ),
+        outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
+    ),
+)
+
+auto_contains_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:auto_contains:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                "case_sensitive": ag_field(
+                    base=scalar(jtype="boolean", default=True), x_ag_type="bool"
+                ),
+                "substring": ag_field(base=scalar(jtype="string"), x_ag_type="text"),
+            },
+            required=["substring"],
+            additional_properties=False,
+        ),
+        outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
+    ),
+)
+
+auto_contains_any_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:auto_contains_any:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                "case_sensitive": ag_field(
+                    base=scalar(jtype="boolean", default=True), x_ag_type="bool"
+                ),
+                "substrings": ag_field(base=scalar(jtype="string"), x_ag_type="text"),
+            },
+            required=["substrings"],
+            additional_properties=False,
+        ),
+        outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
+    ),
+)
+
+auto_contains_all_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:auto_contains_all:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                "case_sensitive": ag_field(
+                    base=scalar(jtype="boolean", default=True), x_ag_type="bool"
+                ),
+                "substrings": ag_field(base=scalar(jtype="string"), x_ag_type="text"),
+            },
+            required=["substrings"],
+            additional_properties=False,
+        ),
+        outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
+    ),
+)
+
+auto_contains_json_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:auto_contains_json:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(additional_properties=False),
+        outputs=SUCCESS_ONLY_OUTPUTS_SCHEMA,
+    ),
+)
+
+auto_json_diff_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:auto_json_diff:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                "compare_schema_only": ag_field(
+                    base=scalar(jtype="boolean", default=False),
+                    x_ag_type="bool",
+                    x_ag_ui_advanced=True,
+                ),
+                "predict_keys": ag_field(
+                    base=scalar(jtype="boolean", default=False),
+                    x_ag_type="bool",
+                    x_ag_ui_advanced=True,
+                ),
+                "case_insensitive_keys": ag_field(
+                    base=scalar(jtype="boolean", default=False),
+                    x_ag_type="bool",
+                    x_ag_ui_advanced=True,
+                ),
+                "correct_answer_key": ag_field(
+                    base=scalar(jtype="string", default="correct_answer"),
+                    x_ag_type="text",
+                    x_ag_ui_advanced=True,
+                ),
+            },
+            additional_properties=False,
+        ),
+        outputs=SCORE_SUCCESS_OUTPUTS_SCHEMA,
+    ),
+)
+
+auto_levenshtein_distance_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:auto_levenshtein_distance:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                "threshold": ag_field(base=scalar(jtype="number"), x_ag_type="float"),
+                "correct_answer_key": ag_field(
+                    base=scalar(jtype="string", default="correct_answer"),
+                    x_ag_type="text",
+                    x_ag_ui_advanced=True,
+                ),
+            },
+            additional_properties=False,
+        ),
+        outputs=SCORE_SUCCESS_OUTPUTS_SCHEMA,
+    ),
+)
+
+auto_similarity_match_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:auto_similarity_match:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                "similarity_threshold": ag_field(
+                    base=scalar(jtype="number", default=0.5, minimum=0, maximum=1),
+                    x_ag_type="float",
+                ),
+                "correct_answer_key": ag_field(
+                    base=scalar(jtype="string", default="correct_answer"),
+                    x_ag_type="text",
+                    x_ag_ui_advanced=True,
+                ),
+            },
+            required=["similarity_threshold"],
+            additional_properties=False,
+        ),
+        outputs=SCORE_SUCCESS_OUTPUTS_SCHEMA,
+    ),
+)
+
+auto_semantic_similarity_v0_interface = WorkflowRevisionData(
+    uri="agenta:builtin:auto_semantic_similarity:v0",
+    schemas=dict(  # type: ignore
+        parameters=obj(
+            properties={
+                "correct_answer_key": ag_field(
+                    base=scalar(jtype="string", default="correct_answer"),
+                    x_ag_type="text",
+                    x_ag_ui_advanced=True,
+                ),
+            },
+            required=["correct_answer_key"],
+            additional_properties=False,
+        ),
+        outputs=SCORE_SUCCESS_OUTPUTS_SCHEMA,
+    ),
+)

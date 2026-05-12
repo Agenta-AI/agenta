@@ -35,7 +35,7 @@ jobs:
     if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.pr_number != '')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Railway CLI
         run: |
@@ -107,7 +107,7 @@ jobs:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.pr_number == '')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Railway CLI
         run: |

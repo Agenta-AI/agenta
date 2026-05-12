@@ -1,0 +1,81 @@
+---
+id: sso-callback-redirect
+title: "Sso Callback Redirect"
+description: "Custom SSO callback endpoint that redirects to SuperTokens."
+sidebar_label: "Sso Callback Redirect"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVk1v3EYM/SsDnmJAWDluTjrVdY3ESAob3k0v9mIxlrjSxNKMMqRcbwX994AjaVfq2gHaoj3l5BWHn498pFtgnRMkd3CepkgE6wgypNSbmo2zkMBFQ+wqtVxeq1SX5YNOHxXarHbGsuJCs/KYGY8pk2Knlk2NfuUe0dLi3t7bVWFor5/c27cLJZFqJpWWqK36fPtJ1ZqLRMW64SImcvEYKG6dz7U1f2pJZkNlk3dxW3v3ZDL0/fe9PVuo33VpMs1IigtUUyOlbaZGC4XPhvje/rRQvzSmzGiaruLC+OxGe95dZYkicskL4ZOj8O8W6vYVBPaIjcUdCpsG6wSoeSZoVaFtViL1mF0+p4W2OarUZai2zivuVd80ZGyuXONVtrO6Mumh2tTZrclPAkLvkVVD6JWxWxcQuNBlGezI5HZj7KaplXtC702G6k3qMeApNhuToWXDu0jpLJvLDIaiCYmMsyczOORh651ltJn6w3AxqqnUuUeDEIGr0Qd0rzJIgMhtRog241hBBLX2ukJGL5PagtUVQgJHzYEIjIysjBNE4PFrYzxmkLBvMAJKC6w0JC3wrhYHxN5YsWLDpQiup4OzFI9dF+3jzRr/r2PdjF0a4qzFCdXOEpLYnZ2eyp85GZdNYOm2KdXtoAwRpAFiFnVd16VJQwHxFxKb9pBL13VdBO/Ozo4dDwSSui+9d/5veBVcavQyCb1f1qaUX4axomOF0qWzV21319vQ1zlUgvwgMZYxRw/duotGmfZe7yZ4fnJ9gtBFUFH+Peh/QyKdI+ydva4awFAree2k43UTABmfr4KgiyDl54kb9/ClH9xR70KwfGYZpyOdw+jcBWz69Ae99cHHoUV9h16H4te+BS8FG1U+rFY3Rw77+aiQCydszLHnHheQwD9bzhABoX8aidv4MriqTehu/1kw10kcly7VZeGI++e1WKaNN7wLpuc3Vx9x9wF1hh6Su/VUYSmj2A/XXG3fEF2bjygQDVQ+b7hwfkh9pHLRW3Wh0Vs37fN5jpa1Or+5gr/ex9mTcEanYUTGSOEZokmxlMSxDuKFNjFEgFVgDDDq6uf9izRYkOvDnC7eLk5FVDviSttJiCW5sMzDab49bM1Znu2Bzz9O+o+T/h+e9IFysu/iutQmbOQw/e2wTO5AkJPdQE5IMyAIESQv3fRkfnjXEciaEDdt+6AJP/uy60T8tUEv22IdwZP2Rj8Id+9ayAzJ7wySrS4Jv8OMN7fDMj5Rr1UybhQr6+RJl418QQSPuHvxfxJZdP9jAnOswsEsxqXZDjo9WyfWR/ddtuv+Dry/XEHXfQM/d01s
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Sso Callback Redirect"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/auth/sso/callback/{organization_slug}/{provider_slug}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Custom SSO callback endpoint that redirects to SuperTokens.
+
+This endpoint:
+1. Accepts clean URL path: /auth/sso/callback/\{organization_slug\}/\{provider_slug\}
+2. Validates the organization and provider exist
+3. Builds SuperTokens thirdPartyId: sso:\{organization_slug\}:\{provider_slug\}
+4. Redirects to SuperTokens callback: /auth/callback/\{thirdPartyId\}
+
+SuperTokens then handles:
+1. Exchange code for tokens (using our dynamic provider config)
+2. Get user info
+3. Call our sign_in_up override (creates user_identity, adds user_identities to session)
+4. Redirect to frontend with session cookie
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./sso-callback-redirect.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./sso-callback-redirect.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./sso-callback-redirect.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

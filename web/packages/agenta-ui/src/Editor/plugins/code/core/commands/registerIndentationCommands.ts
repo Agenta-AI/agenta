@@ -26,12 +26,11 @@ const log = createLogger("IndentationPlugin", {
 const DEBUG_LOGS = false
 const DEBUG_ENTER_TRACE = true
 
-/**
- * Line count above which we skip Lexical's built-in scroll-into-view
- * (which forces synchronous getBoundingClientRect on every scrollable
- * ancestor) and handle scroll manually in a rAF instead.
- */
 const LARGE_DOC_SKIP_SCROLL_THRESHOLD = 500
+
+interface IndentationCommandOptions {
+    skipScroll?: boolean
+}
 
 function getNow(): number {
     if (typeof performance !== "undefined" && typeof performance.now === "function") {
@@ -174,7 +173,10 @@ function $insertLinesAfter(baseLine: CodeLineNode, lines: CodeLineNode[]): void 
     }
 }
 
-export function registerIndentationCommands(editor: LexicalEditor): () => void {
+export function registerIndentationCommands(
+    editor: LexicalEditor,
+    options: IndentationCommandOptions = {},
+): () => void {
     return mergeRegister(
         editor.registerCommand(
             KEY_DOWN_COMMAND,
@@ -204,11 +206,8 @@ export function registerIndentationCommands(editor: LexicalEditor): () => void {
                 const absoluteOffset = $getAbsoluteOffsetInLine(lineNode, anchorNode, anchorOffset)
                 const blockLineCount = $getLineCount(blockNode)
 
-                // For large documents, skip Lexical's built-in scroll-into-view.
-                // It calls getBoundingClientRect() on the cursor target + every
-                // scrollable ancestor, forcing synchronous layout on a huge DOM.
-                // We handle scroll manually in a rAF after reconciliation instead.
-                const skipScroll = blockLineCount >= LARGE_DOC_SKIP_SCROLL_THRESHOLD
+                const skipScroll =
+                    options.skipScroll || blockLineCount >= LARGE_DOC_SKIP_SCROLL_THRESHOLD
                 if (skipScroll) {
                     $addUpdateTag(SKIP_SCROLL_INTO_VIEW_TAG)
                 }

@@ -23,7 +23,7 @@ class TestWorkflowEnvironmentEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={
                 "workflow": {"slug": referenced_workflow_slug, "name": "Shared Config"}
             },
@@ -33,7 +33,7 @@ class TestWorkflowEnvironmentEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{referenced_workflow_slug}-v",
@@ -47,7 +47,21 @@ class TestWorkflowEnvironmentEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
+            json={
+                "workflow_revision": {
+                    "slug": uuid4().hex[-12:],
+                    "workflow_id": referenced_workflow_id,
+                    "workflow_variant_id": referenced_variant_id,
+                    "message": "Initial commit",
+                }
+            },
+        )
+        assert response.status_code == 200
+
+        response = authed_api(
+            "POST",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{referenced_workflow_slug}-v1",
@@ -64,7 +78,7 @@ class TestWorkflowEnvironmentEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/environments/",
+            "/environments/",
             json={"environment": {"slug": env_slug, "name": "Environment References"}},
         )
         assert response.status_code == 200
@@ -72,7 +86,7 @@ class TestWorkflowEnvironmentEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/environments/variants/",
+            "/environments/variants/",
             json={
                 "environment_variant": {
                     "slug": f"{env_slug}-v",
@@ -86,7 +100,22 @@ class TestWorkflowEnvironmentEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/environments/revisions/commit",
+            "/environments/revisions/commit",
+            json={
+                "environment_revision_commit": {
+                    "slug": uuid4().hex[-12:],
+                    "environment_id": env_id,
+                    "environment_variant_id": env_variant_id,
+                    "message": "Initial commit",
+                    "data": {"references": {}},
+                }
+            },
+        )
+        assert response.status_code == 200
+
+        response = authed_api(
+            "POST",
+            "/environments/revisions/commit",
             json={
                 "environment_revision_commit": {
                     "slug": f"{env_slug}-v1",
@@ -113,7 +142,7 @@ class TestWorkflowEnvironmentEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={"workflow": {"slug": workflow_slug, "name": "App with Environment"}},
         )
         assert response.status_code == 200
@@ -121,7 +150,7 @@ class TestWorkflowEnvironmentEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{workflow_slug}-v",
@@ -135,7 +164,21 @@ class TestWorkflowEnvironmentEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
+            json={
+                "workflow_revision": {
+                    "slug": uuid4().hex[-12:],
+                    "workflow_id": workflow_id,
+                    "workflow_variant_id": variant_id,
+                    "message": "Initial commit",
+                }
+            },
+        )
+        assert response.status_code == 200
+
+        response = authed_api(
+            "POST",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{workflow_slug}-v1",
@@ -170,7 +213,7 @@ class TestWorkflowEnvironmentEmbeds:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/resolve",
+            "/workflows/revisions/resolve",
             json={
                 "workflow_revision_ref": {"id": revision_id},
             },
@@ -199,7 +242,7 @@ class TestWorkflowEnvironmentEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/environments/",
+            "/environments/",
             json={"environment": {"slug": env_slug, "name": "Auth Config"}},
         )
         assert response.status_code == 200
@@ -207,7 +250,7 @@ class TestWorkflowEnvironmentEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/environments/variants/",
+            "/environments/variants/",
             json={
                 "environment_variant": {
                     "slug": f"{env_slug}-v",
@@ -221,7 +264,22 @@ class TestWorkflowEnvironmentEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/environments/revisions/commit",
+            "/environments/revisions/commit",
+            json={
+                "environment_revision_commit": {
+                    "slug": uuid4().hex[-12:],
+                    "environment_id": env_id,
+                    "environment_variant_id": env_variant_id,
+                    "message": "Initial commit",
+                    "data": {"references": {}},
+                }
+            },
+        )
+        assert response.status_code == 200
+
+        response = authed_api(
+            "POST",
+            "/environments/revisions/commit",
             json={
                 "environment_revision_commit": {
                     "slug": f"{env_slug}-v1",
@@ -247,7 +305,7 @@ class TestWorkflowEnvironmentEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={"workflow": {"slug": workflow_slug, "name": "App with Auth"}},
         )
         assert response.status_code == 200
@@ -255,7 +313,7 @@ class TestWorkflowEnvironmentEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{workflow_slug}-v",
@@ -269,7 +327,21 @@ class TestWorkflowEnvironmentEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
+            json={
+                "workflow_revision": {
+                    "slug": uuid4().hex[-12:],
+                    "workflow_id": workflow_id,
+                    "workflow_variant_id": variant_id,
+                    "message": "Initial commit",
+                }
+            },
+        )
+        assert response.status_code == 200
+
+        response = authed_api(
+            "POST",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{workflow_slug}-v1",
@@ -303,7 +375,7 @@ class TestWorkflowEnvironmentEmbeds:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/resolve",
+            "/workflows/revisions/resolve",
             json={
                 "workflow_revision_ref": {"id": revision_id},
             },
@@ -332,7 +404,7 @@ class TestEnvironmentWorkflowEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={"workflow": {"slug": workflow_slug, "name": "Shared Config"}},
         )
         assert response.status_code == 200
@@ -340,7 +412,7 @@ class TestEnvironmentWorkflowEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{workflow_slug}-v",
@@ -354,7 +426,21 @@ class TestEnvironmentWorkflowEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
+            json={
+                "workflow_revision": {
+                    "slug": uuid4().hex[-12:],
+                    "workflow_id": workflow_id,
+                    "workflow_variant_id": variant_id,
+                    "message": "Initial commit",
+                }
+            },
+        )
+        assert response.status_code == 200
+
+        response = authed_api(
+            "POST",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{workflow_slug}-v1",
@@ -370,7 +456,7 @@ class TestEnvironmentWorkflowEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/environments/",
+            "/environments/",
             json={
                 "environment": {
                     "slug": env_slug,
@@ -383,7 +469,7 @@ class TestEnvironmentWorkflowEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/environments/variants/",
+            "/environments/variants/",
             json={
                 "environment_variant": {
                     "slug": f"{env_slug}-v",
@@ -397,7 +483,22 @@ class TestEnvironmentWorkflowEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/environments/revisions/commit",
+            "/environments/revisions/commit",
+            json={
+                "environment_revision_commit": {
+                    "slug": uuid4().hex[-12:],
+                    "environment_id": env_id,
+                    "environment_variant_id": env_variant_id,
+                    "message": "Initial commit",
+                    "data": {"references": {}},
+                }
+            },
+        )
+        assert response.status_code == 200
+
+        response = authed_api(
+            "POST",
+            "/environments/revisions/commit",
             json={
                 "environment_revision_commit": {
                     "slug": f"{env_slug}-v1",
@@ -424,7 +525,7 @@ class TestEnvironmentWorkflowEmbeds:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/environments/revisions/resolve",
+            "/environments/revisions/resolve",
             json={
                 "environment_revision_ref": {"id": env_revision_id},
             },
@@ -465,7 +566,7 @@ class TestChainedCrossEntityEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={"workflow": {"slug": base_workflow_slug, "name": "Base Config"}},
         )
         assert response.status_code == 200
@@ -473,7 +574,7 @@ class TestChainedCrossEntityEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{base_workflow_slug}-v",
@@ -487,7 +588,21 @@ class TestChainedCrossEntityEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
+            json={
+                "workflow_revision": {
+                    "slug": uuid4().hex[-12:],
+                    "workflow_id": base_workflow_id,
+                    "workflow_variant_id": base_variant_id,
+                    "message": "Initial commit",
+                }
+            },
+        )
+        assert response.status_code == 200
+
+        response = authed_api(
+            "POST",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{base_workflow_slug}-v1",
@@ -508,7 +623,7 @@ class TestChainedCrossEntityEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/environments/",
+            "/environments/",
             json={"environment": {"slug": env_slug, "name": "Environment Middle"}},
         )
         assert response.status_code == 200
@@ -516,7 +631,7 @@ class TestChainedCrossEntityEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/environments/variants/",
+            "/environments/variants/",
             json={
                 "environment_variant": {
                     "slug": f"{env_slug}-v",
@@ -530,7 +645,22 @@ class TestChainedCrossEntityEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/environments/revisions/commit",
+            "/environments/revisions/commit",
+            json={
+                "environment_revision_commit": {
+                    "slug": uuid4().hex[-12:],
+                    "environment_id": env_id,
+                    "environment_variant_id": env_variant_id,
+                    "message": "Initial commit",
+                    "data": {"references": {}},
+                }
+            },
+        )
+        assert response.status_code == 200
+
+        response = authed_api(
+            "POST",
+            "/environments/revisions/commit",
             json={
                 "environment_revision_commit": {
                     "slug": f"{env_slug}-v1",
@@ -556,7 +686,7 @@ class TestChainedCrossEntityEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/",
+            "/workflows/",
             json={"workflow": {"slug": top_workflow_slug, "name": "Top Workflow"}},
         )
         assert response.status_code == 200
@@ -564,7 +694,7 @@ class TestChainedCrossEntityEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/variants/",
+            "/workflows/variants/",
             json={
                 "workflow_variant": {
                     "slug": f"{top_workflow_slug}-v",
@@ -578,7 +708,21 @@ class TestChainedCrossEntityEmbeds:
 
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/commit",
+            "/workflows/revisions/commit",
+            json={
+                "workflow_revision": {
+                    "slug": uuid4().hex[-12:],
+                    "workflow_id": top_workflow_id,
+                    "workflow_variant_id": top_variant_id,
+                    "message": "Initial commit",
+                }
+            },
+        )
+        assert response.status_code == 200
+
+        response = authed_api(
+            "POST",
+            "/workflows/revisions/commit",
             json={
                 "workflow_revision": {
                     "slug": f"{top_workflow_slug}-v1",
@@ -610,7 +754,7 @@ class TestChainedCrossEntityEmbeds:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/resolve",
+            "/workflows/revisions/resolve",
             json={
                 "workflow_revision_ref": {"id": top_revision_id},
                 "max_depth": 10,

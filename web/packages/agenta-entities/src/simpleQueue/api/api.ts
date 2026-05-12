@@ -4,7 +4,7 @@
  * HTTP API functions for SimpleQueue entities.
  * These are pure functions with no Jotai dependencies.
  *
- * Base endpoint: `/preview/simple/queues/`
+ * Base endpoint: `/simple/queues/`
  */
 
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
@@ -58,7 +58,7 @@ export interface CreateSimpleQueuePayload {
 /**
  * Create a new simple queue.
  *
- * Endpoint: `POST /preview/simple/queues/`
+ * Endpoint: `POST /simple/queues/`
  */
 export async function createSimpleQueue(
     projectId: string,
@@ -67,7 +67,7 @@ export async function createSimpleQueue(
     if (!projectId) return null
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/queues/`,
+        `${getAgentaApiUrl()}/simple/queues/`,
         {queue: payload},
         {params: {project_id: projectId}},
     )
@@ -87,7 +87,7 @@ export async function createSimpleQueue(
 /**
  * Query simple queues with filters and cursor-based pagination.
  *
- * Endpoint: `POST /preview/simple/queues/query`
+ * Endpoint: `POST /simple/queues/query`
  */
 export async function querySimpleQueues({
     projectId,
@@ -106,7 +106,7 @@ export async function querySimpleQueues({
     if (name) queueFilter.name = name
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/queues/query`,
+        `${getAgentaApiUrl()}/simple/queues/query`,
         {
             queue: Object.keys(queueFilter).length > 0 ? queueFilter : undefined,
             windowing: windowing ?? undefined,
@@ -132,7 +132,7 @@ export async function querySimpleQueues({
 /**
  * Fetch a single simple queue by ID.
  *
- * Endpoint: `GET /preview/simple/queues/{queue_id}`
+ * Endpoint: `GET /simple/queues/{queue_id}`
  */
 export async function fetchSimpleQueue({
     id,
@@ -140,7 +140,7 @@ export async function fetchSimpleQueue({
 }: SimpleQueueDetailParams): Promise<SimpleQueue | null> {
     if (!projectId || !id) return null
 
-    const response = await axios.get(`${getAgentaApiUrl()}/preview/simple/queues/${id}`, {
+    const response = await axios.get(`${getAgentaApiUrl()}/simple/queues/${id}`, {
         params: {project_id: projectId},
     })
 
@@ -212,7 +212,7 @@ export async function deleteSimpleQueues(
 /**
  * Query scenarios for a simple queue.
  *
- * Endpoint: `POST /preview/simple/queues/{queue_id}/scenarios/query`
+ * Endpoint: `POST /simple/queues/{queue_id}/scenarios/query`
  */
 export async function querySimpleQueueScenarios({
     queueId,
@@ -231,7 +231,7 @@ export async function querySimpleQueueScenarios({
     if (windowing) body.windowing = windowing
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/queues/${queueId}/scenarios/query`,
+        `${getAgentaApiUrl()}/simple/queues/${queueId}/scenarios/query`,
         body,
         {params: {project_id: projectId}},
     )
@@ -254,7 +254,7 @@ export async function querySimpleQueueScenarios({
 /**
  * Add trace IDs to a simple queue.
  *
- * Endpoint: `POST /preview/simple/queues/{queue_id}/traces/`
+ * Endpoint: `POST /simple/queues/{queue_id}/traces/`
  */
 export async function addSimpleQueueTraces(
     projectId: string,
@@ -266,7 +266,7 @@ export async function addSimpleQueueTraces(
     }
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/queues/${queueId}/traces/`,
+        `${getAgentaApiUrl()}/simple/queues/${queueId}/traces/`,
         {trace_ids: traceIds},
         {params: {project_id: projectId}},
     )
@@ -282,7 +282,7 @@ export async function addSimpleQueueTraces(
 /**
  * Add testcase IDs to a simple queue.
  *
- * Endpoint: `POST /preview/simple/queues/{queue_id}/testcases/`
+ * Endpoint: `POST /simple/queues/{queue_id}/testcases/`
  */
 export async function addSimpleQueueTestcases(
     projectId: string,
@@ -294,7 +294,7 @@ export async function addSimpleQueueTestcases(
     }
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/queues/${queueId}/testcases/`,
+        `${getAgentaApiUrl()}/simple/queues/${queueId}/testcases/`,
         {testcase_ids: testcaseIds},
         {params: {project_id: projectId}},
     )

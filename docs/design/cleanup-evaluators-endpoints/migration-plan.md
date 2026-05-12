@@ -76,7 +76,7 @@ $ grep -rn "evaluators/configs" sdk/ --include="*.py" | grep -v raw_client
 
 ### Proposed Solution: Add Templates Endpoint to New API
 
-**Option A: Add `/preview/simple/evaluators/templates` endpoint**
+**Option A: Add `/simple/evaluators/templates` endpoint**
 
 ```python
 # Add to api/oss/src/apis/fastapi/evaluators/router.py
@@ -119,7 +119,7 @@ export const EVALUATOR_TEMPLATES: Evaluator[] = [
 
 export const fetchEvaluatorTemplates = async () => {
     const response = await axios.get(
-        `${getAgentaApiUrl()}/preview/simple/evaluators/templates?project_id=${projectId}`
+        `${getAgentaApiUrl()}/simple/evaluators/templates?project_id=${projectId}`
     )
     return response.data
 }
@@ -158,7 +158,7 @@ export const fetchEvaluatorTemplates = async () => {
 
 ### Phase 2 (Templates Migration) ✅ COMPLETED
 
-- [x] Add `/preview/simple/evaluators/templates` endpoint
+- [x] Add `/simple/evaluators/templates` endpoint
 - [x] Update `fetchAllEvaluators()` to use new endpoint
 - [x] Remove `GET /evaluators/` legacy endpoint and router
 - [x] Move `BUILTIN_EVALUATORS` to shared location (`get_builtin_evaluators()`)

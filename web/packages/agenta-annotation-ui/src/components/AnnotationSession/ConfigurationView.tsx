@@ -11,13 +11,13 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 import type {KeyboardEvent, PropsWithChildren} from "react"
 
 import {annotationSessionController} from "@agenta/annotation"
-import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
-import {useEntityDelete} from "@agenta/entity-ui"
+import {resolveOutputSchema, resolveParameters, workflowMolecule} from "@agenta/entities/workflow"
+import {EntityDeleteModal} from "@agenta/entity-ui"
 import {Editor} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {ArrowSquareOut, CaretDown} from "@phosphor-icons/react"
-import {Button, Divider, Form, Input, Segmented, Skeleton, Tag, Typography} from "antd"
+import {Button, Form, Input, Segmented, Skeleton, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
@@ -30,13 +30,7 @@ const {Text} = Typography
 // ============================================================================
 
 function SectionCard({children, className}: PropsWithChildren<{className?: string}>) {
-    return (
-        <div
-            className={`flex flex-col gap-4 border-[0.5px] border-solid border-[#EAEFF5] bg-white p-4 ${className ?? ""}`}
-        >
-            {children}
-        </div>
-    )
+    return <div className={`flex flex-col gap-4 p-4 ${className ?? ""}`}>{children}</div>
 }
 
 function CollapsibleSection({
@@ -58,10 +52,10 @@ function CollapsibleSection({
     )
 
     return (
-        <div className="flex flex-col">
+        <div className="flex flex-col bg-white rounded-lg border border-solid border-[rgba(5,23,41,0.06)] overflow-hidden">
             <div
-                className="flex items-center justify-between py-1 px-3 h-10 cursor-pointer bg-[#05172905] rounded-t-lg"
-                style={{borderBottom: "1px solid #EAEFF5"}}
+                className="flex items-center justify-between px-4 h-11 cursor-pointer bg-[rgba(5,23,41,0.02)]"
+                style={{borderBottom: collapsed ? undefined : "1px solid rgba(5,23,41,0.06)"}}
                 role="button"
                 tabIndex={0}
                 onClick={toggle}
@@ -69,7 +63,7 @@ function CollapsibleSection({
             >
                 <Text className="text-sm font-semibold text-[#344054]">{title}</Text>
                 <Button
-                    type="link"
+                    type="text"
                     size="small"
                     icon={
                         <CaretDown
@@ -86,7 +80,7 @@ function CollapsibleSection({
                     }}
                 />
             </div>
-            {!collapsed && <div className="pb-2">{children}</div>}
+            {!collapsed && <div>{children}</div>}
         </div>
     )
 }
@@ -181,75 +175,26 @@ interface ParameterEntry {
     isMultiline: boolean
 }
 
-/** Safely access a nested path on an object */
-function getNestedValue(obj: unknown, ...keys: string[]): unknown {
-    let current: unknown = obj
-    for (const key of keys) {
-        if (!current || typeof current !== "object") return undefined
-        current = (current as Record<string, unknown>)[key]
-    }
-    return current
-}
-
-/** Extract displayable parameters from evaluator data (checks multiple legacy paths) */
+/** Extract displayable parameters from evaluator data. */
 function extractParameters(data: Record<string, unknown> | null | undefined): ParameterEntry[] {
-    if (!data) return []
+    const parameters = resolveParameters(data)
+    if (!parameters) return []
 
-    // Try multiple parameter sources (matching OSS evaluatorDetails.ts pattern)
-    const candidates = [
-        data.parameters,
-        getNestedValue(data, "service", "configuration", "parameters"),
-        getNestedValue(data, "configuration", "parameters"),
-    ]
-
-    for (const source of candidates) {
-        if (!source || typeof source !== "object") continue
-        const entries = Object.entries(source as Record<string, unknown>)
-            .filter(([key, v]) => {
-                if (v === null || v === undefined) return false
-                return !PARAM_KEYS_TO_HIDE.has(key) && !PARAM_KEYS_TO_HIDE.has(key.toLowerCase())
-            })
-            .map(([key, value]) => {
-                const displayValue = stringifyParamValue(value)
-                return {
-                    key,
-                    label: formatParameterLabel(key),
-                    displayValue,
-                    isMultiline: displayValue.includes("\n"),
-                }
-            })
-            .filter((entry) => entry.displayValue.trim().length > 0)
-        if (entries.length > 0) return entries
-    }
-
-    return []
-}
-
-/**
- * Resolve output metrics schema from evaluator data.
- * Checks multiple paths matching the OSS evaluatorDetails.ts pattern:
- *   data.schemas.outputs
- *   data.service.format.properties.outputs
- *   data.service.configuration.outputs
- *   data.configuration.outputs
- */
-function resolveOutputSchema(data: Record<string, unknown> | null | undefined): unknown {
-    if (!data) return null
-    const candidates = [
-        getNestedValue(data, "schemas", "outputs"),
-        getNestedValue(data, "service", "format", "properties", "outputs"),
-        getNestedValue(data, "service", "configuration", "outputs"),
-        getNestedValue(data, "configuration", "outputs"),
-        getNestedValue(data, "service", "configuration", "format", "properties", "outputs"),
-        getNestedValue(data, "configuration", "format", "properties", "outputs"),
-    ]
-    for (const candidate of candidates) {
-        if (candidate && typeof candidate === "object") {
-            const metrics = parseOutputMetrics(candidate)
-            if (metrics.length > 0) return candidate
-        }
-    }
-    return null
+    return Object.entries(parameters)
+        .filter(([key, value]) => {
+            if (value === null || value === undefined) return false
+            return !PARAM_KEYS_TO_HIDE.has(key) && !PARAM_KEYS_TO_HIDE.has(key.toLowerCase())
+        })
+        .map(([key, value]) => {
+            const displayValue = stringifyParamValue(value)
+            return {
+                key,
+                label: formatParameterLabel(key),
+                displayValue,
+                isMultiline: displayValue.includes("\n"),
+            }
+        })
+        .filter((entry) => entry.displayValue.trim().length > 0)
 }
 
 /** Derive evaluator type label from URI (e.g. "agenta:builtin:auto_exact_match:v0" → "Exact Match") */
@@ -299,22 +244,21 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
     const [collapsed, setCollapsed] = useState(false)
     const [view, setView] = useState<"details" | "json">("details")
 
-    const query = useAtomValue(evaluatorMolecule.selectors.query(evaluatorId))
-    const evaluator = useAtomValue(evaluatorMolecule.selectors.data(evaluatorId))
+    const query = useAtomValue(workflowMolecule.selectors.query(evaluatorId))
+    const evaluator = useAtomValue(workflowMolecule.selectors.data(evaluatorId))
 
     const displayName = evaluator?.name || evaluator?.slug || evaluatorId.slice(0, 8)
-    const isHuman = evaluator?.flags?.is_human ?? false
+    const isHuman = evaluator?.flags?.is_feedback ?? false
     const isCustom = evaluator?.flags?.is_custom ?? false
     const version = evaluator?.version
     const description = evaluator?.description
     const uri = evaluator?.data?.uri
     const typeLabel = deriveTypeLabel(uri)
-    const workflowId = evaluator?.workflow_id ?? evaluatorId
 
     const evaluatorHref = useMemo(() => {
         const base = getProjectBaseUrl()
-        return base ? `${base}/evaluators/configure/${workflowId}` : undefined
-    }, [workflowId])
+        return base ? `${base}/evaluators/playground?revisions=${evaluatorId}` : undefined
+    }, [evaluatorId])
 
     const paramEntries = useMemo(
         () => extractParameters(evaluator?.data as Record<string, unknown> | null),
@@ -561,7 +505,7 @@ const EvaluatorsSection = memo(function EvaluatorsSection() {
     }
 
     return (
-        <div className="flex flex-col">
+        <div className="flex flex-col divide-y divide-[rgba(5,23,41,0.06)]">
             {evaluatorIds.map((id) => (
                 <EvaluatorCard key={id} evaluatorId={id} />
             ))}
@@ -692,31 +636,45 @@ const DeleteSection = memo(function DeleteSection({
     queueName?: string | null
 }) {
     const navigation = useAnnotationNavigation()
-    const {deleteEntity} = useEntityDelete()
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false)
 
-    const handleDelete = useCallback(() => {
-        deleteEntity("simpleQueue", queueId, queueName ?? undefined, {
-            onSuccess: () => {
-                navigation.navigateToQueueList()
-            },
-        })
-    }, [deleteEntity, navigation, queueId, queueName])
+    const handleDeleteClick = useCallback(() => {
+        setDeleteModalOpen(true)
+    }, [])
+
+    const handleDeleteClose = useCallback(() => {
+        setDeleteModalOpen(false)
+    }, [])
+
+    const handleDeleteSuccess = useCallback(() => {
+        setDeleteModalOpen(false)
+        navigation.navigateToQueueList?.()
+    }, [navigation])
 
     return (
-        <SectionCard className="border-[#FEE4E2] bg-[#FFFBFA]">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex flex-col gap-1">
-                    <Text className="text-sm font-semibold text-[#B42318]">Delete queue</Text>
-                    <Text type="secondary">
-                        Permanently remove this annotation queue and return to the queue list.
-                    </Text>
-                </div>
+        <>
+            <div className="flex flex-col gap-4 p-4 rounded-lg border border-solid border-[#FEE4E2] bg-[#FFFBFA]">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="flex flex-col gap-1">
+                        <Text className="text-sm font-semibold text-[#B42318]">Delete queue</Text>
+                        <Text type="secondary">
+                            Permanently remove this annotation queue and return to the queue list.
+                        </Text>
+                    </div>
 
-                <Button danger onClick={handleDelete}>
-                    Delete queue
-                </Button>
+                    <Button danger onClick={handleDeleteClick}>
+                        Delete queue
+                    </Button>
+                </div>
             </div>
-        </SectionCard>
+
+            <EntityDeleteModal
+                open={deleteModalOpen}
+                onClose={handleDeleteClose}
+                onSuccess={handleDeleteSuccess}
+                entities={[{type: "simpleQueue", id: queueId, name: queueName ?? undefined}]}
+            />
+        </>
     )
 })
 
@@ -739,40 +697,40 @@ const ConfigurationView = memo(function ConfigurationView({queueId}: Configurati
     }
 
     return (
-        <div className="flex flex-col flex-1 overflow-y-auto px-2 pb-6 bg-[var(--ant-color-bg-layout)]">
-            {/* ── General ── */}
-            <CollapsibleSection title="General">
-                <GeneralSection queueId={queueId} />
-            </CollapsibleSection>
+        <div className="flex flex-col flex-1 overflow-y-auto bg-[#f5f7fa] py-6">
+            <div className="w-full max-w-[560px] mx-auto flex flex-col gap-4 px-4">
+                {/* ── General ── */}
+                <CollapsibleSection title="General">
+                    <GeneralSection queueId={queueId} />
+                </CollapsibleSection>
 
-            {/* ── Evaluators ── */}
-            <CollapsibleSection title="Evaluators">
-                <EvaluatorsSection />
-            </CollapsibleSection>
+                {/* ── Evaluators ── */}
+                <CollapsibleSection title="Evaluators">
+                    <EvaluatorsSection />
+                </CollapsibleSection>
 
-            {/* ── Collaborator settings ── */}
-            <CollapsibleSection title="Collaborator settings">
-                <SectionCard>
-                    <Form layout="vertical" requiredMark={false}>
-                        <Form.Item label="Number of reviews per run" style={{marginBottom: 12}}>
-                            <Text>{repeats}</Text>
-                        </Form.Item>
+                {/* ── Collaborator settings ── */}
+                <CollapsibleSection title="Collaborator settings">
+                    <SectionCard>
+                        <Form layout="vertical" requiredMark={false}>
+                            <Form.Item label="Number of reviews per run" style={{marginBottom: 12}}>
+                                <Text>{repeats}</Text>
+                            </Form.Item>
 
-                        <Form.Item label="Assignees" style={{marginBottom: 0}}>
-                            {assignments && assignments.length > 0 ? (
-                                <AssignmentsCell assignments={assignments} />
-                            ) : (
-                                <EmptyValue />
-                            )}
-                        </Form.Item>
-                    </Form>
-                </SectionCard>
-            </CollapsibleSection>
+                            <Form.Item label="Assignees" style={{marginBottom: 0}}>
+                                {assignments && assignments.length > 0 ? (
+                                    <AssignmentsCell assignments={assignments} />
+                                ) : (
+                                    <EmptyValue />
+                                )}
+                            </Form.Item>
+                        </Form>
+                    </SectionCard>
+                </CollapsibleSection>
 
-            <Divider className="!my-4" />
-            <CollapsibleSection title="Delete">
+                {/* ── Delete ── */}
                 <DeleteSection queueId={queueId} queueName={queue.name} />
-            </CollapsibleSection>
+            </div>
         </div>
     )
 })
