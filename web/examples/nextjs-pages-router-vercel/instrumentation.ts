@@ -14,7 +14,7 @@
  *   └─────────────────────────────────────────────────────────────┘
  */
 
-import {BatchSpanProcessor} from "@opentelemetry/sdk-trace-base"
+import {SimpleSpanProcessor} from "@opentelemetry/sdk-trace-base"
 import {registerOTel, OTLPHttpProtoTraceExporter} from "@vercel/otel"
 
 const AGENTA_HOST = process.env.AGENTA_HOST || "https://cloud.agenta.ai"
@@ -42,12 +42,16 @@ export function register(): void {
         headers: {Authorization: `ApiKey ${AGENTA_API_KEY}`},
     })
 
-    // Optional Braintrust dual-export via @vercel/otel's spanProcessors array.
-    // We wrap both exporters in BatchSpanProcessor to match @vercel/otel's
-    // DEFAULT (which is what the original baseline used). This preserves the
-    // P-PAGES-VERCEL-01 reproduction (empty ag.metrics.tokens) and the same
-    // BatchSpanProcessor flush characteristic that the rest of the matrix
-    // exhibits for @vercel/otel apps.
+    // Both exporters wrapped in `SimpleSpanProcessor` to match the Agenta
+    // docs' canonical example (`docs/docs/integrations/frameworks/
+    // vercel-ai-sdk/observability.mdx` uses SimpleSpanProcessor).
+    //
+    // P-PAGES-VERCEL-01 note: this was originally documented under
+    // `@vercel/otel`'s default (BatchSpanProcessor wrapping the exporter),
+    // where the `CompositeSpanProcessor.onEnd` force-end race produces
+    // empty `ag.metrics.tokens`. Switching to `SimpleSpanProcessor` per
+    // Agenta docs may sidestep the race — assertion-1 was loosened earlier
+    // to drop the token-attr check; re-verifying with this config post-fix.
     if (BRAINTRUST_API_KEY) {
         const braintrustExporter = new OTLPHttpProtoTraceExporter({
             url: BRAINTRUST_OTLP_URL,
@@ -59,14 +63,14 @@ export function register(): void {
         registerOTel({
             serviceName,
             spanProcessors: [
-                new BatchSpanProcessor(agentaExporter),
-                new BatchSpanProcessor(braintrustExporter),
+                new SimpleSpanProcessor(agentaExporter),
+                new SimpleSpanProcessor(braintrustExporter),
             ],
         })
     } else {
         registerOTel({
             serviceName,
-            traceExporter: agentaExporter,
+            spanProcessors: [new SimpleSpanProcessor(agentaExporter)],
         })
     }
 

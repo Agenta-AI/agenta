@@ -166,24 +166,34 @@ Added Braintrust as a second OTLP destination alongside Agenta in 8 of the 9 spi
 
 **Wiring shape:** each app's instrumentation file gained a conditional second `SimpleSpanProcessor(OTLPTraceExporter(braintrust))` (or `BatchSpanProcessor` for the `@vercel/otel` variants — see accidental finding below), reading `BRAINTRUST_API_KEY` + `BRAINTRUST_OTLP_URL` from env. When the key is unset, the second processor is omitted and behaviour matches the original baseline. Braintrust accepts standard OTLP at `https://api.braintrust.dev/otel/v1/traces` with `Authorization: Bearer <key>` + `x-bt-parent: project_name:<service>` headers.
 
-**Assertion results (29/32 PASS):**
+**Assertion results after final docs-aligned config (32/32 PASS, with one loosened check):**
 
 | App | Agenta side | Notes |
 |---|---|---|
 | `examples/node/observability-vercel-ai/` (root v4) | ✓ trace exported | Both backends populated |
 | `web/examples/node-vercel-ai-v6/` (Phase 1) | 4/4 PASS | |
 | `web/examples/nextjs-app-router-raw/` (Phase 2a) | 4/4 PASS | |
-| `web/examples/nextjs-app-router-vercel/` (Phase 2b) | 3/4 (a2 expected FAIL) | P-APP-VERCEL-01 preserved with `BatchSpanProcessor` wrapping |
+| `web/examples/nextjs-app-router-vercel/` (Phase 2b) | 4/4 PASS | **Was 3/4 with the default Batch processor (P-APP-VERCEL-01). Now follows Agenta docs' `SimpleSpanProcessor` recommendation and passes.** |
 | `web/examples/nextjs-pages-router-raw/` (Phase 3a) | 4/4 PASS | |
-| `web/examples/nextjs-pages-router-vercel/` (Phase 3b) | 4/4 PASS (a1 loosened) | |
+| `web/examples/nextjs-pages-router-vercel/` (Phase 3b) | 4/4 PASS (a1 token check loosened) | **P-PAGES-VERCEL-01 reproduces under BOTH Batch AND Simple** — the force-end race in `CompositeSpanProcessor.onEnd` is independent of processor choice. Token check kept loose. |
 | `web/examples/react-tanstack-start/` (Phase 4) | 4/4 PASS | |
 | `web/examples/nuxt-raw/` (Phase 5) | 4/4 PASS | |
 
-**Accidental finding worth recording:** when I first wired Phase 2b's dual-export I switched `@vercel/otel` from `traceExporter: agentaExporter` (which uses its default `BatchSpanProcessor` internally) to `spanProcessors: [SimpleSpanProcessor(agenta), SimpleSpanProcessor(braintrust)]`. **Assertion-2 went from FAIL to PASS** — the documented P-APP-VERCEL-01 silent failure (mid-stream-abort streamText loss) disappeared. Switching to `SimpleSpanProcessor` sidesteps the bug because each ended span exports synchronously, before `BatchProcessor`'s flush window would have closed.
+**Methodology correction (2026-05-12):** initial Phase 7 wiring of `@vercel/otel` apps used `BatchSpanProcessor` because that's `@vercel/otel`'s default when `traceExporter` is used. Reverted to `SimpleSpanProcessor` after the user pointed out the Agenta docs (`docs/docs/integrations/frameworks/vercel-ai-sdk/observability.mdx` line 74) ALREADY use `SimpleSpanProcessor` in the canonical example. The spike should follow the docs, not @vercel/otel's defaults.
 
-This is a **legitimate user-visible workaround**: users on `@vercel/otel` who experience P-APP-VERCEL-01 can override the default processor by passing `spanProcessors: [new SimpleSpanProcessor(exporter)]` explicitly. The trade-off is the SimpleSpanProcessor per-span HTTP round-trip latency tax (~50-200ms per call) — fine for low-volume apps, expensive for production chat. I reverted to `BatchSpanProcessor` in both vercel-otel variants to preserve P-APP-VERCEL-01 + P-PAGES-VERCEL-01 reproduction for the spike's baseline, with a comment explaining why. Worth adding to the P-APP-VERCEL-01 entry's notes as an interim workaround alongside the SDK-side recommendation.
+**Two cleanly-separated findings drop out:**
 
-**Strategic implication:** the dual-export pattern itself works cleanly with raw OTel + `@vercel/otel`. **Customers on Agenta who want side-by-side comparison with Braintrust can wire it in 8-10 lines of additional instrumentation code with no application-level changes.** That's a meaningful "we don't make you choose" story.
+1. **P-APP-VERCEL-01 is processor-dependent.** It reproduces under `BatchSpanProcessor` (`@vercel/otel`'s default) and disappears under `SimpleSpanProcessor` (Agenta docs' recommendation). Users who follow Agenta's docs end-to-end won't hit it. Users who follow `@vercel/otel`'s docs in isolation (without reading Agenta's) will. **This is primarily a documentation gap** — Agenta's docs don't have a `@vercel/otel`-specific section explaining the processor override.
+
+2. **P-PAGES-VERCEL-01 is processor-independent.** Verified empirically: the bug reproduces with both `BatchSpanProcessor` AND `SimpleSpanProcessor`. The mechanism is in `@vercel/otel`'s `CompositeSpanProcessor.onEnd` force-end logic (force-ends the streamText span before AI SDK writes `ai.usage.*`) — which runs regardless of which processor wraps the exporter. **Following Agenta's docs does NOT save users from this bug.** Genuine JS-side wedge (or backend-side trace-level enrichment).
+
+**Strategic implication:** the dual-export pattern itself works cleanly with raw OTel + `@vercel/otel` in SimpleSpanProcessor mode. **Customers on Agenta who want side-by-side comparison with Braintrust can wire it in 8-10 lines of additional instrumentation code with no application-level changes.** That's a meaningful "we don't make you choose" story.
+
+**Doc-coverage findings to action (the Vercel AI SDK docs at `docs/docs/integrations/frameworks/vercel-ai-sdk/observability.mdx`):**
+- Line 74's `SimpleSpanProcessor` is shown by example but never explained. Users won't know they MUST keep it to avoid P-NODE-02 / P-APP-VERCEL-01.
+- No `@vercel/otel`-specific section. Users on the Vercel ecosystem default to Batch and hit P-APP-VERCEL-01.
+- No mention of `pipeUIMessageStreamToResponse` ↔ `toUIMessageStreamResponse` semantic difference. Users on Pages Router won't know that the sink choice triggers P-PAGES-VERCEL-01.
+- Tool calling section says "Each tool call appears as a separate `ai.toolCall` span with its inputs and outputs" but doesn't mention metadata-to-toolCall propagation gap (P-NODE-03). Users will reasonably expect `userId` to be on `ai.toolCall` and find it missing.
 
 **What is NOT covered:** Mastra (`web/examples/mastra-node/`) — no Braintrust key was provided for it, and the integration shape is different (would need a Braintrust-flavoured Mastra `BaseExporter` similar to our `AgentaMastraExporter`, or Braintrust's own `wrapAISDK` path layered on Mastra's vendored AI SDK). Tracked as open work below.
 

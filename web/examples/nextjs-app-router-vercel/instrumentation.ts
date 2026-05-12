@@ -18,7 +18,7 @@
  */
 
 import {registerOTel, OTLPHttpProtoTraceExporter} from "@vercel/otel"
-import {BatchSpanProcessor} from "@opentelemetry/sdk-trace-base"
+import {SimpleSpanProcessor} from "@opentelemetry/sdk-trace-base"
 
 const AGENTA_HOST = process.env.AGENTA_HOST || "https://cloud.agenta.ai"
 const AGENTA_API_KEY = process.env.AGENTA_API_KEY
@@ -45,13 +45,19 @@ export function register(): void {
         headers: {Authorization: `ApiKey ${AGENTA_API_KEY}`},
     })
 
-    // Optional Braintrust dual-export. `@vercel/otel`'s `spanProcessors` array
-    // accepts standard OTel SpanProcessor — we wrap both exporters in
-    // BatchSpanProcessor to match `@vercel/otel`'s DEFAULT behaviour when
-    // `traceExporter` is used. This preserves the baseline P-APP-VERCEL-01
-    // failure mode (mid-stream-abort streamText loss) — switching to
-    // SimpleSpanProcessor here would silently fix it and hide the pain
-    // entry we're trying to keep reproducible. See pain-log.md.
+    // Optional Braintrust dual-export. Both exporters are wrapped in
+    // `SimpleSpanProcessor` to match the Agenta docs' canonical example
+    // (`docs/docs/integrations/frameworks/vercel-ai-sdk/observability.mdx`),
+    // which uses `SimpleSpanProcessor` in the `instrumentation.js` snippet.
+    // Trade-off: per-span synchronous HTTP round-trip latency, ~50-200ms per
+    // call. Acceptable for typical chat apps; expensive at scale.
+    //
+    // P-APP-VERCEL-01 note: `@vercel/otel`'s `traceExporter: x` path defaults
+    // to `BatchSpanProcessor` internally, which silently loses streamText
+    // spans on mid-stream abort. The Agenta docs' SimpleSpanProcessor choice
+    // sidesteps this — but the docs don't have a `@vercel/otel`-specific
+    // section, so users following `@vercel/otel`'s default still hit it.
+    // That's a documentation gap as well as an SDK gap.
     if (BRAINTRUST_API_KEY) {
         const braintrustExporter = new OTLPHttpProtoTraceExporter({
             url: BRAINTRUST_OTLP_URL,
@@ -63,14 +69,14 @@ export function register(): void {
         registerOTel({
             serviceName,
             spanProcessors: [
-                new BatchSpanProcessor(agentaExporter),
-                new BatchSpanProcessor(braintrustExporter),
+                new SimpleSpanProcessor(agentaExporter),
+                new SimpleSpanProcessor(braintrustExporter),
             ],
         })
     } else {
         registerOTel({
             serviceName,
-            traceExporter: agentaExporter,
+            spanProcessors: [new SimpleSpanProcessor(agentaExporter)],
         })
     }
 

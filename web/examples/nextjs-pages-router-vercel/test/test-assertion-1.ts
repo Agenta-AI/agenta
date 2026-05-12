@@ -43,12 +43,13 @@ async function main(): Promise<void> {
         filterAttribute: {path: "ag.user.id", value: RUN_ID},
         expectSpans: ["ai.streamText"],
         expectAttributes: {
-            // NOTE: Pages Router + @vercel/otel + pipeUIMessageStreamToResponse
-            // produces spans with EMPTY `ag.metrics.tokens` — the parent
-            // streamText span doesn't carry token counts the way other apps
-            // do. Captured as P-PAGES-VERCEL-01. Assertion-1 here covers
-            // cold-start trace completeness via metadata + model — token
-            // verification is deferred to that pain entry.
+            // P-PAGES-VERCEL-01 still reproduces under SimpleSpanProcessor
+            // (verified 2026-05-12). The bug is in @vercel/otel's
+            // `CompositeSpanProcessor.onEnd` force-end logic — independent
+            // of whether the wrapped processor is Batch or Simple. The
+            // CompositeSpanProcessor force-ends ai.streamText before AI SDK
+            // writes ai.usage.*, so token attrs never land regardless of
+            // export timing. Hence token check stays disabled in this app.
             "ag.user.id": RUN_ID,
             "ag.session.id": RUN_ID,
             "ag.meta.request.model": "gpt-4o-mini",
