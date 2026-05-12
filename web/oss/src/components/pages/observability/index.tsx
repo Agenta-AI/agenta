@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {PageLayout} from "@agenta/ui"
 import {Chats, TreeStructure} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -11,8 +12,6 @@ import {
 } from "@/oss/lib/onboarding"
 import {useQueryParamState} from "@/oss/state/appState"
 import {observabilityTabAtom} from "@/oss/state/newObservability/atoms/controls"
-
-import PageLayout from "../../PageLayout/PageLayout"
 
 import ObservabilityTable from "./components/ObservabilityTable"
 import SessionsTable from "./components/SessionsTable"
@@ -74,13 +73,14 @@ const ObservabilityTabs = () => {
     return (
         <PageLayout
             title={"Observability"}
+            className="h-full overflow-hidden"
             headerTabsProps={{
                 items: tabItems,
                 activeKey: activeTab,
                 onChange: (key) => setTabParam(key),
             }}
         >
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
                 {activeTab === "traces" ? <ObservabilityTable /> : <SessionsTable />}
             </div>
             <SetupTracingModal

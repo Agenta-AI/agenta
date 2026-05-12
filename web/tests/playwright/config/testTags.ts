@@ -12,6 +12,7 @@ export const TestScope = {
     SETTINGS: "settings", // Settings flows
     DEPLOYMENT: "deployment", // Deployment flows
     OBSERVABILITY: "observability",
+    MEMBERS: "members", // Workspace membership flows
 } as const
 
 /**
@@ -37,7 +38,10 @@ export const TestPath = {
  */
 export const TestRoleType = {
     Owner: "owner",
+    Admin: "admin",
+    Developer: "developer",
     Editor: "editor",
+    Annotator: "annotator",
     Viewer: "viewer",
 } as const
 
@@ -105,9 +109,4 @@ export const createTagString = (type: PlaywrightConfig.TestTagType, value: strin
     `${TAG_ARGUMENTS[type].prefix}${value}`
 
 // Re-export types from the types module for backward compatibility
-export type {
-    TestTagType,
-    TestTag,
-    TagArgument,
-    ProjectFeatureConfig,
-} from "./types"
+export type {TestTagType, TestTag, TagArgument, ProjectFeatureConfig} from "./types"

@@ -99,6 +99,10 @@ export interface ActionsColumnDef<T> {
     showCopyId?: boolean
     /** Custom ID extractor for copy action */
     getRecordId?: (record: T) => string
+    /** Show copy slug action (default: false — requires getSlug to yield a value) */
+    showCopySlug?: boolean
+    /** Slug extractor for copy-slug action */
+    getSlug?: (record: T) => string | null | undefined
     /** Export row callback */
     onExportRow?: (record: T) => void
     /** Whether export is currently in progress */
@@ -162,12 +166,13 @@ function createTextColumn<T>(def: TextColumnDef<T>): ColumnType<T> {
         dataIndex: def.key,
         key: def.key,
         width: def.width,
+        minWidth: def.width,
         fixed: def.fixed,
         render: def.render as ColumnType<T>["render"],
         // Lock column from being toggled in visibility menu (explicit or derived from fixed)
         columnVisibilityLocked: def.columnVisibilityLocked ?? Boolean(def.fixed),
         onHeaderCell: () => ({
-            style: {minWidth: def.width || 220},
+            style: {minWidth: def.width},
         }),
     } as ColumnType<T>
 }
@@ -188,30 +193,34 @@ const formatDateCell = (value?: string | null) => {
 }
 
 function createDateColumn<T>(def: DateColumnDef): ColumnType<T> {
+    const width = def.width || 200
     return {
         title: def.title,
         dataIndex: def.key,
         key: def.key,
-        width: def.width || 200,
+        width,
+        minWidth: width,
         render: (date: string) => {
             const formatted = !date ? "—" : def.format ? def.format(date) : formatDateCell(date)
             return <div className="h-full flex items-center">{formatted}</div>
         },
         onHeaderCell: () => ({
-            style: {minWidth: def.width || 180},
+            style: {minWidth: width},
         }),
     }
 }
 
 function createActionsColumn<T extends InfiniteTableRowBase>(
     def: ActionsColumnDef<T>,
-): ColumnType<T> & {columnVisibilityLocked?: boolean} {
+): ColumnType<T> & {columnVisibilityLocked?: boolean; exportEnabled?: boolean} {
     const {
         items,
         width = 56, // TODO: try 61px here
         maxWidth,
         showCopyId = true,
         getRecordId,
+        showCopySlug = false,
+        getSlug,
         onExportRow,
         isExporting,
     } = def
@@ -233,6 +242,8 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
         align: "center",
         // Lock actions column from being toggled in visibility menu
         columnVisibilityLocked: true,
+        // Exclude actions column from CSV export
+        exportEnabled: false,
         render: (_, record) => {
             if (record.__isSkeleton) return null
 
@@ -314,6 +325,22 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                 }
             }
 
+            // Add copy slug if enabled
+            if (showCopySlug && getSlug) {
+                const slug = getSlug(record)
+                if (slug) {
+                    menuItems.push({
+                        key: "copy-slug",
+                        label: "Copy Slug",
+                        icon: <Copy size={16} />,
+                        onClick: (e: MenuInfo) => {
+                            e.domEvent.stopPropagation()
+                            copyToClipboard(slug)
+                        },
+                    })
+                }
+            }
+
             return (
                 <div className="h-full flex items-center justify-center">
                     <Dropdown
@@ -344,6 +371,7 @@ function createUserColumn<T extends InfiniteTableRowBase>(def: UserColumnDef<T>)
         dataIndex: key,
         key,
         width,
+        minWidth: width,
         render: (value: string | null | undefined, record: T) => {
             if (record.__isSkeleton) return null
             const userId = getUserId ? getUserId(record) : value
@@ -359,5 +387,5 @@ function createUserColumn<T extends InfiniteTableRowBase>(def: UserColumnDef<T>)
     }
 }
 
-// Export individual column creators for custom use
-export {createTextColumn, createDateColumn, createUserColumn, createActionsColumn}
+// Export individual column creators and utilities for custom use
+export {createTextColumn, createDateColumn, createUserColumn, createActionsColumn, formatDateCell}

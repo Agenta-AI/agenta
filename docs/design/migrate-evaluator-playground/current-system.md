@@ -94,22 +94,22 @@ evaluatorByKeyAtomFamily        // Find evaluator by key
 fetchAllEvaluators()           // GET /evaluators
 
 // Evaluator Configs
-fetchAllEvaluatorConfigs()     // POST /preview/simple/evaluators/query
-createEvaluatorConfig()        // POST /preview/simple/evaluators/
-updateEvaluatorConfig()        // PUT /preview/simple/evaluators/{id}
-deleteEvaluatorConfig()        // POST /preview/simple/evaluators/{id}/archive
+fetchAllEvaluatorConfigs()     // POST /simple/evaluators/query
+createEvaluatorConfig()        // POST /simple/evaluators/
+updateEvaluatorConfig()        // PUT /simple/evaluators/{id}
+deleteEvaluatorConfig()        // POST /simple/evaluators/{id}/archive
 
 // Custom/Human Evaluators
-createEvaluator()              // POST /preview/simple/evaluators/
-updateEvaluator()              // PUT /preview/simple/evaluators/{id}
-fetchEvaluatorById()           // GET /preview/simple/evaluators/{id}
-deleteHumanEvaluator()         // POST /preview/simple/evaluators/{id}/archive
+createEvaluator()              // POST /simple/evaluators/
+updateEvaluator()              // PUT /simple/evaluators/{id}
+fetchEvaluatorById()           // GET /simple/evaluators/{id}
+deleteHumanEvaluator()         // POST /simple/evaluators/{id}/archive
 ```
 
 #### Evaluator Run Service (`/web/oss/src/services/workflows/invoke.ts`)
 
 ```typescript
-invokeEvaluator()              // POST /preview/workflows/invoke
+invokeEvaluator()              // POST /workflows/invoke
 ```
 
 ## Data Flow
@@ -129,7 +129,7 @@ invokeEvaluator()              // POST /preview/workflows/invoke
 │  /evaluators → EvaluatorsRegistry                                           │
 │       ├─ Uses useEvaluatorsRegistryData() hook                              │
 │       │     ├─ Calls fetchAllEvaluators() → GET /evaluators                 │
-│       │     └─ Calls fetchAllEvaluatorConfigs() → POST /preview/simple/evaluators/query │
+│       │     └─ Calls fetchAllEvaluatorConfigs() → POST /simple/evaluators/query │
 │       │                                                                      │
 │       ├─ "Create new" → SelectEvaluatorModal → /evaluators/configure/new    │
 │       └─ Click row → /evaluators/configure/{id}                             │
@@ -152,13 +152,13 @@ invokeEvaluator()              // POST /preview/workflows/invoke
 │  └─────────────────────────────┘  └─────────────────────────────┘           │
 │                                                                              │
 │  Commit Actions:                                                             │
-│  - Create: POST /preview/simple/evaluators → createEvaluatorConfig()        │
-│  - Update: PUT /preview/simple/evaluators/{id} → updateEvaluatorConfig()    │
+│  - Create: POST /simple/evaluators → createEvaluatorConfig()        │
+│  - Update: PUT /simple/evaluators/{id} → updateEvaluatorConfig()    │
 │                                                                              │
 │  Test Actions:                                                               │
 │  - Run Variant: callVariant() → POST to variant URL                         │
 │  - Run Evaluator: invokeEvaluator()                                         │
-│                   → POST /preview/workflows/invoke                          │
+│                   → POST /workflows/invoke                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -174,16 +174,16 @@ invokeEvaluator()              // POST /preview/workflows/invoke
 
 | Endpoint | Method | Frontend Function | Purpose |
 |----------|--------|-------------------|---------|
-| `/preview/simple/evaluators/query` | POST | `fetchAllEvaluatorConfigs()` | List evaluator configs |
-| `/preview/simple/evaluators/` | POST | `createEvaluatorConfig()` | Create evaluator config |
-| `/preview/simple/evaluators/{id}` | PUT | `updateEvaluatorConfig()` | Update evaluator config |
-| `/preview/simple/evaluators/{id}/archive` | POST | `deleteEvaluatorConfig()` | Archive evaluator config |
+| `/simple/evaluators/query` | POST | `fetchAllEvaluatorConfigs()` | List evaluator configs |
+| `/simple/evaluators/` | POST | `createEvaluatorConfig()` | Create evaluator config |
+| `/simple/evaluators/{id}` | PUT | `updateEvaluatorConfig()` | Update evaluator config |
+| `/simple/evaluators/{id}/archive` | POST | `deleteEvaluatorConfig()` | Archive evaluator config |
 
 ### Evaluator Run (Playground)
 
 | Endpoint | Method | Frontend Function | Purpose |
 |----------|--------|-------------------|---------|
-| `/preview/workflows/invoke` | POST | `invokeEvaluator()` | Run evaluator using workflow invocation |
+| `/workflows/invoke` | POST | `invokeEvaluator()` | Run evaluator using workflow invocation |
 
 ## Data Types
 

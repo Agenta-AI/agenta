@@ -1,15 +1,16 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {PageLayout} from "@agenta/ui"
 import {Link} from "@phosphor-icons/react"
 import {Tag, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import PageLayout from "@/oss/components/PageLayout/PageLayout"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-import {isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
+import {isBillingEnabled, isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
@@ -53,16 +54,18 @@ const Settings: React.FC = () => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
     const settingsTab = useAtomValue(settingsTabAtom)
     const tab = tabQuery ?? settingsTab ?? "workspace"
+    const {canViewApiKeys} = useProjectPermissions()
     const canShowOrganization = isEE()
     const {user} = useProfileData()
     const {selectedOrg} = useOrgData()
     const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
-    const canShowBilling = isEE() && isOwner
+    const canShowBilling = isEE() && isBillingEnabled() && isOwner
     const canShowTools = isToolsEnabled()
     const resolvedTab =
         (tab === "organization" && !canShowOrganization) ||
         (tab === "billing" && !canShowBilling) ||
-        (tab === "tools" && !canShowTools)
+        (tab === "tools" && !canShowTools) ||
+        (tab === "apiKeys" && !canViewApiKeys)
             ? "workspace"
             : tab
     const {project} = useProjectData()
@@ -120,9 +123,9 @@ const Settings: React.FC = () => {
                 })(),
             },
         }
-    }, [resolvedTab])
+    }, [canViewApiKeys, resolvedTab])
 
-    useBreadcrumbsEffect({breadcrumbs, type: "new", condition: !!tab}, [tab])
+    useBreadcrumbsEffect({breadcrumbs, type: "new", condition: !!tab}, [tab, resolvedTab])
 
     const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
 

@@ -1,8 +1,8 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
-import {ArrowsClockwiseIcon, DatabaseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
-import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Typography} from "antd"
+import {ArrowsClockwiseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
+import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -10,8 +10,10 @@ import dynamic from "next/dynamic"
 
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {SortResult} from "@/oss/components/Filters/Sort"
+import AddActionsDropdown from "@/oss/components/SharedActions/AddActionsDropdown"
 import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {downloadCsv} from "@/oss/lib/helpers/fileManipulations"
 import {getNodeById} from "@/oss/lib/traces/observability_helpers"
 import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
@@ -29,7 +31,6 @@ import getFilterColumns from "../../assets/getFilterColumns"
 import {ObservabilityHeaderProps} from "../../assets/types"
 import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
-const EditColumns = dynamic(() => import("@/oss/components/Filters/EditColumns"), {ssr: false})
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
 
@@ -43,9 +44,8 @@ const DeleteTraceModal = dynamic(
 const AutoRefreshControl: React.FC<{
     checked: boolean
     onChange: (checked: boolean) => void
-    isScrolled?: boolean
     resetTrigger?: number
-}> = ({checked, onChange, isScrolled, resetTrigger}) => {
+}> = ({checked, onChange, resetTrigger}) => {
     const [progress, setProgress] = useState(0)
     const [key, setKey] = useState(0)
 
@@ -105,11 +105,11 @@ const ObservabilityHeader = ({
     setAutoRefresh: propsSetAutoRefresh,
     refreshTrigger: propsRefreshTrigger,
 }: ObservabilityHeaderProps) => {
-    const [isScrolled, setIsScrolled] = useState(false)
     const [internalRefreshTrigger, setInternalRefreshTrigger] = useState(0)
     const [isExporting, setIsExporting] = useState(false)
     const exportAbortRef = useRef<AbortController | null>(null)
     const setDeleteModalState = useSetAtom(deleteTraceModalAtom)
+    const {canExportData} = useProjectPermissions()
 
     const {
         traces,
@@ -125,7 +125,6 @@ const ObservabilityHeader = ({
         selectedRowKeys,
         setSelectedRowKeys,
         setTestsetDrawerData,
-        setEditColumns,
         fetchAnnotations,
         fetchTraces,
         autoRefresh: hookAutoRefresh,
@@ -143,18 +142,17 @@ const ObservabilityHeader = ({
         () => getFilterColumns(attributeKeyOptions),
         [attributeKeyOptions],
     )
-
-    useEffect(() => {
-        const handleScroll = () => {
-            setIsScrolled(window.scrollY > 180)
-        }
-
-        window.addEventListener("scroll", handleScroll)
-
-        return () => {
-            window.removeEventListener("scroll", handleScroll)
-        }
-    }, [])
+    const selectedTraceIds = useMemo(
+        () =>
+            Array.from(
+                new Set(
+                    selectedRowKeys
+                        .map((key) => getNodeById(traces, String(key))?.trace_id || "")
+                        .filter((traceId): traceId is string => Boolean(traceId)),
+                ),
+            ),
+        [traces, selectedRowKeys],
+    )
 
     useEffect(
         () => () => {
@@ -278,11 +276,12 @@ const ObservabilityHeader = ({
         const exportKey = "observability-export"
 
         try {
+            if (!canExportData) return
             if (!traces.length) return
 
             const {currentApp} = getAppValues()
-            const appId = currentApp?.app_id || ""
-            const filename = `${currentApp?.app_name || ""}_observability.csv`
+            const appId = currentApp?.id || ""
+            const filename = `${currentApp?.name ?? currentApp?.slug ?? ""}_observability.csv`
 
             const {
                 params,
@@ -369,7 +368,7 @@ const ObservabilityHeader = ({
             exportAbortRef.current = null
             setIsExporting(false)
         }
-    }, [columns, filters, sort, traceTabs, traces])
+    }, [canExportData, columns, filters, sort, traceTabs, traces])
 
     const handleRefresh = async () => {
         if (componentType === "sessions") {
@@ -400,33 +399,73 @@ const ObservabilityHeader = ({
         })
     }, [traces, selectedRowKeys, setDeleteModalState, setSelectedRowKeys, handleRefresh])
 
+    const handleQueueItemsAdded = useCallback(() => {
+        setSelectedRowKeys([])
+    }, [setSelectedRowKeys])
+
+    const handleExportClick = useCallback(() => {
+        if (isExporting) {
+            exportAbortRef.current?.abort()
+            return
+        }
+
+        void onExport()
+    }, [isExporting, onExport])
+
+    const renderTraceSecondaryActions = (size: "small" | "middle" = "middle") => {
+        if (componentType !== "traces") return null
+
+        return (
+            <Space size="small">
+                {canExportData ? (
+                    <Button
+                        type="text"
+                        size={size}
+                        aria-label={isExporting ? "Cancel export" : "Export traces"}
+                        onClick={handleExportClick}
+                        icon={<ExportIcon size={14} />}
+                        disabled={!isExporting && traces.length === 0}
+                    >
+                        {isExporting ? "Cancel export" : "Export"}
+                    </Button>
+                ) : null}
+                <Tooltip
+                    title={selectedRowKeys.length === 0 ? "Select traces to delete" : undefined}
+                >
+                    <span>
+                        <Button
+                            type="text"
+                            size={size}
+                            danger
+                            aria-label="Delete selected traces"
+                            onClick={onDelete}
+                            icon={<TrashIcon size={14} />}
+                            disabled={selectedRowKeys.length === 0}
+                        >
+                            Delete
+                        </Button>
+                    </span>
+                </Tooltip>
+            </Space>
+        )
+    }
+
     return (
         <>
-            <section
-                className={clsx([
-                    "flex justify-between gap-2 flex-col transition-[transform,opacity] duration-200 ease-linear",
-                    {
-                        "!flex-row sticky top-2 z-10 bg-white py-2 px-2 border border-solid border-gray-200 rounded-lg mx-2 shadow-md":
-                            isScrolled,
-                        "translate-y-0 opacity-100": isScrolled,
-                    },
-                ])}
-            >
+            <section className="flex justify-between gap-2 flex-col">
                 <div className="w-full flex items-center gap-2 justify-between">
                     <div className="flex items-center gap-1">
-                        {!isScrolled && (
-                            <EnhancedButton
-                                aria-label="Refresh data"
-                                icon={
-                                    <ArrowsClockwiseIcon
-                                        size={14}
-                                        className={clsx("mt-[0.8px]", {"animate-spin": isLoading})}
-                                    />
-                                }
-                                onClick={handleRefresh}
-                                tooltipProps={{title: "Refresh data"}}
-                            />
-                        )}
+                        <EnhancedButton
+                            aria-label="Refresh data"
+                            icon={
+                                <ArrowsClockwiseIcon
+                                    size={14}
+                                    className={clsx("mt-[0.8px]", {"animate-spin": isLoading})}
+                                />
+                            }
+                            onClick={handleRefresh}
+                            tooltipProps={{title: "Refresh data"}}
+                        />
                         <Input.Search
                             aria-label="Search observability data"
                             placeholder="Search"
@@ -434,9 +473,7 @@ const ObservabilityHeader = ({
                             onChange={onSearchChange}
                             onPressEnter={onSearchQueryApply}
                             onSearch={onSearchClear}
-                            className={clsx("w-[320px] shrink-0", {
-                                "!w-[200px] xl:!w-[260px]": isScrolled,
-                            })}
+                            className="w-[320px] shrink-0"
                             allowClear
                         />
 
@@ -449,58 +486,14 @@ const ObservabilityHeader = ({
 
                         <Sort onSortApply={onSortApply} defaultSortValue="24 hours" />
 
-                        {!isScrolled && (
-                            <AutoRefreshControl
-                                checked={autoRefresh}
-                                onChange={setAutoRefresh}
-                                resetTrigger={refreshTrigger}
-                            />
-                        )}
-
-                        {isScrolled && componentType === "traces" ? (
-                            <>
-                                <Space>
-                                    <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
-                                        <Radio.Button value="trace">Root</Radio.Button>
-                                        <Radio.Button value="chat">LLM</Radio.Button>
-                                        <Radio.Button value="span">All</Radio.Button>
-                                    </Radio.Group>
-                                </Space>
-
-                                <EnhancedButton
-                                    aria-label="Add selected traces to testset"
-                                    onClick={() => getTestsetTraceData()}
-                                    icon={<DatabaseIcon size={14} />}
-                                    disabled={traces.length === 0 || selectedRowKeys.length === 0}
-                                    tooltipProps={{title: "Add to testset"}}
-                                    data-tour="create-testset-button"
-                                />
-                            </>
-                        ) : null}
-                        {isScrolled && componentType === "sessions" && setRealtimeMode ? (
-                            <Space>
-                                <Radio.Group
-                                    value={realtimeMode ? "latest" : "all"}
-                                    onChange={(e) => setRealtimeMode(e.target.value === "latest")}
-                                    size="small"
-                                >
-                                    <Radio.Button value="all">All activity</Radio.Button>
-                                    <Radio.Button value="latest">Latest activity</Radio.Button>
-                                </Radio.Group>
-                            </Space>
-                        ) : null}
-
-                        {isScrolled && (
-                            <AutoRefreshControl
-                                checked={autoRefresh}
-                                onChange={setAutoRefresh}
-                                isScrolled
-                                resetTrigger={refreshTrigger}
-                            />
-                        )}
+                        <AutoRefreshControl
+                            checked={autoRefresh}
+                            onChange={setAutoRefresh}
+                            resetTrigger={refreshTrigger}
+                        />
                     </div>
                 </div>
-                {!isScrolled && componentType === "traces" ? (
+                {componentType === "traces" ? (
                     <div className="w-full flex items-center justify-between">
                         <Space>
                             <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
@@ -510,49 +503,24 @@ const ObservabilityHeader = ({
                             </Radio.Group>
                         </Space>
                         <Space>
-                            <Button
-                                type="text"
-                                onClick={() => {
-                                    if (isExporting) {
-                                        exportAbortRef.current?.abort()
-                                        return
-                                    }
-
-                                    onExport()
+                            {renderTraceSecondaryActions()}
+                            <AddActionsDropdown
+                                dataTour="create-testset-button"
+                                testsetAction={{
+                                    onSelect: getTestsetTraceData,
+                                    disabled: traces.length === 0 || selectedRowKeys.length === 0,
                                 }}
-                                icon={<ExportIcon size={14} className="mt-0.5" />}
-                                disabled={!isExporting && traces.length === 0}
-                            >
-                                {isExporting ? "Cancel export" : "Export"}
-                            </Button>
-
-                            <EditColumns
-                                columns={columns}
-                                uniqueKey="observability-table-columns"
-                                onChange={(keys) => {
-                                    setEditColumns(keys)
+                                queueAction={{
+                                    itemType: "traces",
+                                    itemIds: selectedTraceIds,
+                                    disabled: traces.length === 0 || selectedTraceIds.length === 0,
+                                    onItemsAdded: handleQueueItemsAdded,
                                 }}
                             />
-                            <Button
-                                onClick={onDelete}
-                                icon={<TrashIcon size={14} />}
-                                disabled={selectedRowKeys.length === 0}
-                                danger
-                            >
-                                Delete
-                            </Button>
-                            <Button
-                                onClick={() => getTestsetTraceData()}
-                                icon={<DatabaseIcon size={14} />}
-                                disabled={traces.length === 0 || selectedRowKeys.length === 0}
-                                data-tour="create-testset-button"
-                            >
-                                Add to testset
-                            </Button>
                         </Space>
                     </div>
                 ) : null}
-                {!isScrolled && componentType === "sessions" && setRealtimeMode ? (
+                {componentType === "sessions" && setRealtimeMode ? (
                     <div className="w-full flex items-center justify-end">
                         <Space>
                             <Radio.Group
@@ -566,8 +534,6 @@ const ObservabilityHeader = ({
                     </div>
                 ) : null}
             </section>
-            {/* This element is to reduce the pixel shift of the table */}
-            {isScrolled && <div className="w-full h-[10px]"></div>}
             <DeleteTraceModal />
         </>
     )

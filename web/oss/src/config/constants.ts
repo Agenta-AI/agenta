@@ -1,1 +1,0 @@
-export const COMMIT_MESSAGE_MAX_LENGTH = 255

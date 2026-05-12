@@ -46,6 +46,14 @@ const TraceReferences = () => {
         [references],
     )
 
+    // Find application_revision reference to get the revision ID for variant lookup.
+    // Traces store both application_variant (with variant ID) and application_revision (with revision ID).
+    // The workflowMolecule resolves by revision ID, so we need the revision reference.
+    const applicationRevisionReference = useMemo(
+        () => references.find((ref) => ref?.key === "application_revision"),
+        [references],
+    )
+
     const groupedReferences = useMemo(() => {
         const validReferences = references?.filter(
             (reference) => (reference as any)?.id || (reference as any)?.slug,
@@ -106,20 +114,23 @@ const TraceReferences = () => {
                 )
             case "application_variant": {
                 const applicationId = applicationReference?.id || applicationReference?.slug
+                // Use the revision ID from application_revision reference for molecule lookup.
+                // The variant reference stores a variant ID, but the molecule resolves by revision ID.
+                const revisionId = (applicationRevisionReference as any)?.id || id
                 const href =
-                    projectURL && applicationId && id
+                    projectURL && applicationId && revisionId
                         ? `${projectURL}/apps/${encodeURIComponent(
                               applicationId,
-                          )}/variants?revisionId=${encodeURIComponent(id)}`
+                          )}/variants?revisionId=${encodeURIComponent(revisionId)}`
                         : null
 
                 return (
                     <VariantReferenceLabel
-                        revisionId={id}
+                        revisionId={revisionId}
                         projectId={projectId}
                         showVersionPill
                         href={href || undefined}
-                        label={slug}
+                        fallbackLabel={slug}
                         openExternally
                     />
                 )

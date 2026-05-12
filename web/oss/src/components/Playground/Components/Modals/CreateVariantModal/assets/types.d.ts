@@ -2,8 +2,6 @@ import {Dispatch, SetStateAction} from "react"
 
 import {type AddButtonProps} from "@agenta/ui/components/presentational"
 
-import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
-
 export interface NewVariantButtonProps extends AddButtonProps {
     children?: React.ReactNode
     onClick?: () => void
@@ -16,7 +14,7 @@ export interface CreateVariantModalContentProps {
     newVariantName: string
     setNewVariantName: (value: string) => void
     setNameExists: Dispatch<SetStateAction<boolean>>
-    variants: Pick<EnhancedVariant, "variantName">[]
+    variants: {variantName: string}[]
     nameExists: boolean
     note: string
     setNote: Dispatch<SetStateAction<string>>

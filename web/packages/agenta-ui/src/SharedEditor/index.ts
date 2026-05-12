@@ -15,7 +15,7 @@
  * ```
  */
 
-export {default as SharedEditor} from "./SharedEditor"
+export {default as SharedEditor} from "./SharedEditorImpl"
 export type {SharedEditorProps, BaseContainerProps} from "./types"
 
 // Re-export useDebounceInput from @agenta/shared

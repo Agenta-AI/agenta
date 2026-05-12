@@ -360,7 +360,7 @@ import { loadableBridge } from '@agenta/entities/loadable'
 
 // Connect loadable to testset revision
 const connect = useSetAtom(loadableBridge.actions.connectToSource)
-connect(loadableId, revisionId, 'MyTestset v1', 'testcase')
+connect(loadableId, revisionId, 'MyTestset v1')
 
 // Rows are now derived from testcaseMolecule
 const rows = useAtomValue(loadableBridge.selectors.rows(loadableId))
@@ -373,23 +373,28 @@ See [Loadable README](../loadable/README.md) for the full controller pattern and
 
 ## Commit Flow
 
-Testcases don't have individual commit actions - they are committed as part of a revision commit. The commit flow works as follows:
+Testcases don't have individual commit actions. They are committed as part of a revision save flow.
 
 1. **Edit testcases** using `testcaseMolecule.actions.update` or `testcaseMolecule.actions.add`
 2. **Track changes** via `testcaseMolecule.atoms.hasUnsavedChanges`
-3. **Commit via revision** using `revisionMolecule` from `@agenta/entities/testset`
+3. **Create a new revision** using `saveTestsetAtom` from `@agenta/entities/testset`
 
 ```typescript
-import { revisionMolecule } from '@agenta/entities/testset'
+import { saveTestsetAtom } from '@agenta/entities/testset'
 import { testcaseMolecule } from '@agenta/entities/testcase'
+import { useSetAtom, useAtomValue } from 'jotai'
 
 // Check for unsaved testcase changes
 const hasChanges = useAtomValue(testcaseMolecule.atoms.hasUnsavedChanges)
 
-// Commit is handled at revision level
-// The revision commit will include all testcase changes
-const commit = useSetAtom(revisionMolecule.actions.commit)
-await commit({ revisionId, message: 'Updated testcases' })
+// Save creates a new revision containing all testcase changes
+const saveTestset = useSetAtom(saveTestsetAtom)
+const result = await saveTestset({
+    projectId,
+    testsetId,
+    revisionId,
+    commitMessage: 'Updated testcases',
+})
 ```
 
 For the unified save/commit modal pattern, use `useSaveOrCommit` from `@agenta/entity-ui`:

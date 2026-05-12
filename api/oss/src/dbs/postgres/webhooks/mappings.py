@@ -9,7 +9,6 @@ from oss.src.core.webhooks.types import (
     WebhookSubscriptionCreate,
     WebhookSubscriptionData,
     WebhookSubscriptionEdit,
-    WebhookSubscriptionFlags,
 )
 
 from oss.src.dbs.postgres.webhooks.dbes import (
@@ -37,11 +36,6 @@ def map_subscription_dto_to_dbe_create(
         #
         name=subscription.name,
         description=subscription.description,
-        #
-        flags=(subscription.flags or WebhookSubscriptionFlags()).model_dump(
-            mode="json",
-            exclude_none=True,
-        ),
         tags=subscription.tags,
         meta=subscription.meta,
         #
@@ -73,9 +67,6 @@ def map_subscription_dbe_to_dto(
         name=subscription_dbe.name,
         description=subscription_dbe.description,
         #
-        flags=WebhookSubscriptionFlags.model_validate(subscription_dbe.flags)
-        if subscription_dbe.flags
-        else None,
         tags=subscription_dbe.tags,
         meta=subscription_dbe.meta,
         #
@@ -94,26 +85,14 @@ def map_subscription_dto_to_dbe_edit(
     user_id: UUID,
     #
     subscription: WebhookSubscriptionEdit,
+    #
+    secret_id: UUID | None = None,
 ) -> None:
     subscription_dbe.updated_by_id = user_id
 
     subscription_dbe.name = subscription.name
     subscription_dbe.description = subscription.description
 
-    # Preserve existing flags by default; user edits only overwrite provided values.
-    existing_flags = dict(subscription_dbe.flags or {})
-    incoming_flags = (
-        subscription.flags.model_dump(mode="json", exclude_none=True)
-        if subscription.flags
-        else {}
-    )
-    merged_flags = {**existing_flags, **incoming_flags}
-
-    # Preserve system-set is_valid; user edits must not overwrite it.
-    if "is_valid" in existing_flags:
-        merged_flags["is_valid"] = existing_flags["is_valid"]
-
-    subscription_dbe.flags = merged_flags
     subscription_dbe.tags = subscription.tags
     subscription_dbe.meta = subscription.meta
 
@@ -125,6 +104,9 @@ def map_subscription_dto_to_dbe_edit(
         if subscription.data
         else None
     )
+
+    if secret_id is not None:
+        subscription_dbe.secret_id = secret_id
 
 
 # --- Delivery --------------------------------------------------------------- #

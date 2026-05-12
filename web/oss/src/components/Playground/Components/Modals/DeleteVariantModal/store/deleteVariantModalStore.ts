@@ -4,17 +4,20 @@ interface DeleteVariantModalState {
     open: boolean
     revisionIds: string[]
     forceVariantIds: string[]
+    workflowId: string | null
 }
 
 export interface OpenDeleteVariantModalPayload {
     revisionIds: string | string[]
     forceVariantIds?: string[]
+    workflowId?: string | null
 }
 
 export const deleteVariantModalAtom = atom<DeleteVariantModalState>({
     open: false,
     revisionIds: [],
     forceVariantIds: [],
+    workflowId: null,
 })
 
 export const openDeleteVariantModalAtom = atom(
@@ -35,12 +38,18 @@ export const openDeleteVariantModalAtom = atom(
             open: true,
             revisionIds: uniqueRevisionIds,
             forceVariantIds: uniqueForceVariantIds,
+            workflowId: payload.workflowId ?? null,
         })
     },
 )
 
 export const closeDeleteVariantModalAtom = atom(null, (get, set) => {
-    set(deleteVariantModalAtom, {open: false, revisionIds: [], forceVariantIds: []})
+    set(deleteVariantModalAtom, {
+        open: false,
+        revisionIds: [],
+        forceVariantIds: [],
+        workflowId: null,
+    })
 })
 
 export const deleteVariantModalOpenAtom = atom((get) => get(deleteVariantModalAtom).open)
@@ -49,4 +58,7 @@ export const deleteVariantModalRevisionIdsAtom = atom(
 )
 export const deleteVariantModalForceVariantIdsAtom = atom(
     (get) => get(deleteVariantModalAtom).forceVariantIds,
+)
+export const deleteVariantModalWorkflowIdAtom = atom(
+    (get) => get(deleteVariantModalAtom).workflowId,
 )

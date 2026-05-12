@@ -330,10 +330,12 @@ export function deriveToolViewModelFromResult(result: unknown): {
     const contentCandidate =
         typeof dataField === "string"
             ? dataField
-            : dataField && typeof dataField === "object"
+            : dataField && typeof dataField === "object" && !Array.isArray(dataField)
               ? ((dataField as Record<string, unknown>).content ??
                 (dataField as Record<string, unknown>).data ??
-                "")
+                // No content/data field — the object IS the output (e.g. JSON Schema
+                // evaluator returning {score, reasoning}). Serialize for JSON editor.
+                JSON.stringify(dataField, null, 2))
               : ""
 
     // Tool-call candidates — check explicit tool_calls field first, then fall

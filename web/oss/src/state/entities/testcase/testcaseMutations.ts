@@ -2,7 +2,7 @@ import {atom} from "jotai"
 
 import {addColumnAtom, currentColumnsAtom} from "./columnState"
 import {testsetIdAtom} from "./queries"
-import type {FlattenedTestcase} from "./schema"
+import {extractTestcaseUserData, type FlattenedTestcase} from "./schema"
 import {
     addNewEntityIdAtom,
     markDeletedAtom,
@@ -12,6 +12,10 @@ import {
     testcaseEntityAtomFamily,
     testcaseIdsAtom,
 } from "./testcaseEntity"
+
+const toCanonicalRowData = (row: Record<string, unknown>): Record<string, unknown> => {
+    return extractTestcaseUserData(row) ?? {}
+}
 
 // ============================================================================
 // DELETE TESTCASES MUTATION
@@ -142,6 +146,7 @@ export const createTestcasesAtom = atom(
             return {ids: [], count: 0, skipped: 0}
         }
 
+        const canonicalRows = rows.map((row) => toCanonicalRowData(row))
         const testsetId = testsetIdOverride ?? get(testsetIdAtom) ?? ""
         const columns = get(currentColumnsAtom)
 
@@ -180,7 +185,7 @@ export const createTestcasesAtom = atom(
         // Add new columns if needed
         if (!skipColumnSync) {
             const existingColumnKeys = new Set(columns.map((c) => c.key))
-            for (const row of rows) {
+            for (const row of canonicalRows) {
                 for (const key of Object.keys(row)) {
                     if (!existingColumnKeys.has(key)) {
                         set(addColumnAtom, key)
@@ -195,12 +200,12 @@ export const createTestcasesAtom = atom(
         let skipped = 0
         const timestamp = Date.now()
 
-        for (let i = 0; i < rows.length; i++) {
-            const row = rows[i]
+        for (let i = 0; i < canonicalRows.length; i++) {
+            const rowData = canonicalRows[i]
 
             // Check deduplication
             if (existingDataSet) {
-                const rowDataStr = JSON.stringify(row)
+                const rowDataStr = JSON.stringify(rowData)
                 if (existingDataSet.has(rowDataStr)) {
                     skipped++
                     continue
@@ -212,7 +217,7 @@ export const createTestcasesAtom = atom(
             const flattenedRow: FlattenedTestcase = {
                 id: entityId,
                 testset_id: testsetId,
-                ...row,
+                ...rowData,
             }
 
             // Register and create draft

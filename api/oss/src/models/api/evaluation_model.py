@@ -153,7 +153,6 @@ class LLMRunRateLimit(BaseModel):
 class LMProvidersEnum(str, Enum):
     openai = "OPENAI_API_KEY"
     mistral = "MISTRAL_API_KEY"
-    mistralai = "MISTRALAI_API_KEY"
     cohere = "COHERE_API_KEY"
     anthropic = "ANTHROPIC_API_KEY"
     anyscale = "ANYSCALE_API_KEY"
@@ -164,6 +163,7 @@ class LMProvidersEnum(str, Enum):
     openrouter = "OPENROUTER_API_KEY"
     groq = "GROQ_API_KEY"
     gemini = "GEMINI_API_KEY"
+    minimax = "MINIMAX_API_KEY"
 
 
 class NewEvaluation(BaseModel):

@@ -76,7 +76,7 @@ export async function fetchAllPreviewTraces(
     })
 
     const response = await axios.post(
-        `${baseUrl}/preview/tracing/spans/query?${queryParams.toString()}`,
+        `${baseUrl}/tracing/spans/query?${queryParams.toString()}`,
         payload,
     )
 
@@ -107,7 +107,7 @@ export async function fetchPreviewTrace(
     if (projectId) queryParams.set("project_id", projectId)
 
     const response = await axios.get(
-        `${baseUrl}/preview/tracing/traces/${traceId}?${queryParams.toString()}`,
+        `${baseUrl}/tracing/traces/${traceId}?${queryParams.toString()}`,
     )
 
     // API returns TracesResponse format with count and traces record
@@ -128,7 +128,7 @@ export async function deletePreviewTrace(traceId: string, projectId: string): Pr
     if (projectId) queryParams.set("project_id", projectId)
 
     const response = await axios.delete(
-        `${baseUrl}/preview/tracing/traces/${traceId}?${queryParams.toString()}`,
+        `${baseUrl}/tracing/traces/${traceId}?${queryParams.toString()}`,
     )
 
     return response.data

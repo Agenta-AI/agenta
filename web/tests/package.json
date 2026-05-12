@@ -3,8 +3,9 @@
     "version": "0.1.0",
     "type": "module",
     "engines": {
-        "node": ">=18"
+        "node": "24.x"
     },
+    "packageManager": "pnpm@10.30.0",
     "scripts": {
         "test:acceptance": "tsx playwright/scripts/run-tests.ts",
         "test:acceptance:ui": "tsx playwright/scripts/run-tests.ts --ui",
@@ -19,6 +20,6 @@
         "typescript": "^5.8.3"
     },
     "dependencies": {
-        "axios": "^1.13.5"
+        "axios": "1.16.0"
     }
 }

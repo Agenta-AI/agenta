@@ -1,6 +1,6 @@
 import {type FC, useState, useCallback, useMemo} from "react"
 
-import {appRevisionsWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -30,24 +30,24 @@ const CreateVariantModal: FC<CreateVariantModalProps> = ({
 
     // Use URL-based app ID only — creating a variant requires an app context
     const appId = useAtomValue(routerAppIdAtom)
-    const revisions = useAtomValue(appRevisionsWithDraftsAtomFamily(appId || ""))
+    const revisions = useAtomValue(workflowRevisionsByWorkflowListDataAtomFamily(appId || ""))
     const createVariant = useSetAtom(playgroundController.actions.createVariant)
     const currentSelectedVariants = useAtomValue(playgroundController.selectors.entityIds())
 
     const {baseVariant, variantOptions} = useMemo(() => {
-        const parents = groupBy(revisions, "variantId")
-        const baseVariant = revisions.find((variant) => variant.variantName === baseVariantName)
+        const parents = groupBy(revisions, "workflow_variant_id")
+        const baseVariant = revisions.find((variant) => variant.name === baseVariantName)
 
         return {
             baseVariant: {
-                id: baseVariant?.variantId,
-                variantName: baseVariant?.variantName,
+                id: baseVariant?.workflow_variant_id,
+                variantName: baseVariant?.name,
             },
             variantOptions: Object.values(parents).map((variantRevisions) => {
                 const rev = variantRevisions[0]
                 return {
                     id: rev.id,
-                    variantName: rev.variantName,
+                    variantName: rev.name,
                 }
             }),
         }

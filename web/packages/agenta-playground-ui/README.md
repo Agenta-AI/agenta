@@ -131,7 +131,7 @@ import { LoadableEntityPanel } from '@agenta/playground-ui/loadable'
        ↑
 @agenta/ui            ← UI primitives (EnhancedModal, styles)
        ↑
-@agenta/entities      ← Entity state (loadable, runnable bridges)
+@agenta/entities      ← Entity state (loadable bridge, workflow molecule)
        ↑
 @agenta/entity-ui     ← Entity UI (EntityPicker, SchemaPropertyRenderer)
        ↑
@@ -267,15 +267,16 @@ const addPrimaryNode = useSetAtom(playgroundController.actions.addPrimaryNode)
 const disconnectAndReset = useSetAtom(playgroundController.actions.disconnectAndResetToLocal)
 ```
 
-### Bridge-Based Entity Access
+### Entity Data Access
 
-Access entity data via bridges:
+Access entity data via bridges and molecules:
 
 ```typescript
-import { loadableBridge, runnableBridge } from '@agenta/entities'
+import { loadableBridge } from '@agenta/entities'
+import { workflowMolecule } from '@agenta/entities/workflow'
 
 const rows = useAtomValue(loadableBridge.selectors.rows(loadableId))
-const inputPorts = useAtomValue(runnableBridge.selectors.inputPorts(runnableId))
+const inputPorts = useAtomValue(workflowMolecule.selectors.inputPorts(revisionId))
 ```
 
 ### UI-Only Principle
@@ -341,7 +342,7 @@ const { EntityDrillInView, CommitVariantChangesButton } = usePlaygroundUI()
 ## Dependencies
 
 - `@agenta/playground` - State management (controllers, hooks)
-- `@agenta/entities` - Entity state management (runnable, loadable, testset)
+- `@agenta/entities` - Entity state management (workflow molecule, loadable bridge, testset)
 - `@agenta/entity-ui` - Entity-specific UI components
 - `@agenta/ui` - Shared UI components and styling tokens
 - `@agenta/shared` - Shared utilities (formatters, API)

@@ -163,7 +163,7 @@ export const updateWorkspace = async (
     const {projectId} = getProjectValues()
 
     const response = await axios.put(
-        `${getAgentaApiUrl()}/organizations/${organizationId}/workspaces/${workspaceId}/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/organizations/${organizationId}/workspaces/${workspaceId}?project_id=${projectId}`,
         {name},
         {_ignoreError: ignoreAxiosError} as any,
     )

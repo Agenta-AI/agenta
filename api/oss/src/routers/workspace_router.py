@@ -86,8 +86,8 @@ async def get_all_workspace_roles(request: Request) -> List[Dict[str, str]]:
                 "role_description": "Can fully manage the workspace, including adding and removing members.",
             },
             {
-                "role_name": "editor",
-                "role_description": "Can edit workspace content, but cannot manage members or roles.",
+                "role_name": "admin",
+                "role_description": "Can manage workspace settings and members but cannot delete the workspace.",
             },
         ]
 
@@ -116,7 +116,7 @@ async def remove_user_from_workspace(
         has_permission = await check_rbac_permission(
             user_org_workspace_data=user_org_workspace_data,
             project_id=str(project.id),
-            role=WorkspaceRole.WORKSPACE_ADMIN,
+            role=WorkspaceRole.ADMIN,
         )
         if not has_permission:
             return JSONResponse(

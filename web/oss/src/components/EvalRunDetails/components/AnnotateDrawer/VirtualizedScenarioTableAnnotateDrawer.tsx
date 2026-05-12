@@ -1,5 +1,7 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {resolveOutputSchema} from "@agenta/entities/workflow"
+import {uuidToSpanId} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
 import {Button, DrawerProps, Spin} from "antd"
@@ -17,7 +19,6 @@ import {
 import type {UpdatedMetricsType} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/types"
 import {virtualScenarioTableAnnotateDrawerAtom} from "@/oss/lib/atoms/virtualTable"
 import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
-import {uuidToSpanId} from "@/oss/lib/traces/helpers"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
 import {upsertStepResultWithAnnotation} from "@/oss/services/evaluations/results/api"
 import {
@@ -265,8 +266,8 @@ const PreviewAnnotateContent = ({
             if (!slug) continue
 
             // Get required fields from evaluator schema
-            const requiredKeys: string[] =
-                evaluator?.data?.service?.format?.properties?.outputs?.required ?? []
+            const requiredKeys =
+                (resolveOutputSchema(evaluator?.data)?.required as string[] | undefined) ?? []
 
             if (requiredKeys.length === 0) continue
 

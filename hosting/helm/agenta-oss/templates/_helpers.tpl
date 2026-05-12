@@ -81,10 +81,120 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/* ================================================================
+   Agenta edition
+   ================================================================ */}}
+{{- define "agenta.edition" -}}
+{{- default "oss" .Values.global.agentaLicense -}}
+{{- end }}
+
+{{/* ================================================================
    API image (shared by api, workers, cron, alembic)
    ================================================================ */}}
+{{- define "agenta.apiImageRepository" -}}
+{{- if .Values.api.image.repository -}}
+{{- .Values.api.image.repository -}}
+{{- else if eq (include "agenta.edition" .) "ee" -}}
+ghcr.io/agenta-ai/internal-ee-agenta-api
+{{- else -}}
+ghcr.io/agenta-ai/agenta-api
+{{- end -}}
+{{- end }}
+
 {{- define "agenta.apiImage" -}}
-{{ .Values.api.image.repository }}:{{ .Values.api.image.tag | default .Chart.AppVersion }}
+{{ include "agenta.apiImageRepository" . }}:{{ .Values.api.image.tag | default .Chart.AppVersion }}
+{{- end }}
+
+{{- define "agenta.webImageRepository" -}}
+{{- if .Values.web.image.repository -}}
+{{- .Values.web.image.repository -}}
+{{- else if eq (include "agenta.edition" .) "ee" -}}
+ghcr.io/agenta-ai/internal-ee-agenta-web
+{{- else -}}
+ghcr.io/agenta-ai/agenta-web
+{{- end -}}
+{{- end }}
+
+{{- define "agenta.webImage" -}}
+{{ include "agenta.webImageRepository" . }}:{{ .Values.web.image.tag | default .Chart.AppVersion }}
+{{- end }}
+
+{{- define "agenta.servicesImageRepository" -}}
+{{- if .Values.services.image.repository -}}
+{{- .Values.services.image.repository -}}
+{{- else if eq (include "agenta.edition" .) "ee" -}}
+ghcr.io/agenta-ai/internal-ee-agenta-services
+{{- else -}}
+ghcr.io/agenta-ai/agenta-services
+{{- end -}}
+{{- end }}
+
+{{- define "agenta.servicesImage" -}}
+{{ include "agenta.servicesImageRepository" . }}:{{ .Values.services.image.tag | default .Chart.AppVersion }}
+{{- end }}
+
+{{/* ================================================================
+   Edition-specific paths and database names
+   ================================================================ */}}
+{{- define "agenta.webServerPath" -}}
+{{- if eq (include "agenta.edition" .) "ee" -}}
+./ee/server.js
+{{- else -}}
+./oss/server.js
+{{- end -}}
+{{- end }}
+
+{{- define "agenta.alembicRunnerModule" -}}
+{{- if eq (include "agenta.edition" .) "ee" -}}
+ee.databases.postgres.migrations.runner
+{{- else -}}
+oss.databases.postgres.migrations.runner
+{{- end -}}
+{{- end }}
+
+{{- define "agenta.alembicCfgPathCore" -}}
+{{- if eq (include "agenta.edition" .) "ee" -}}
+/app/ee/databases/postgres/migrations/core/alembic.ini
+{{- else -}}
+/app/oss/databases/postgres/migrations/core/alembic.ini
+{{- end -}}
+{{- end }}
+
+{{- define "agenta.alembicCfgPathTracing" -}}
+{{- if eq (include "agenta.edition" .) "ee" -}}
+/app/ee/databases/postgres/migrations/tracing/alembic.ini
+{{- else -}}
+/app/oss/databases/postgres/migrations/tracing/alembic.ini
+{{- end -}}
+{{- end }}
+
+{{- define "agenta.postgresDbCore" -}}
+{{- if .Values.postgresql.databases.core -}}
+{{- .Values.postgresql.databases.core -}}
+{{- else if eq (include "agenta.edition" .) "ee" -}}
+agenta_ee_core
+{{- else -}}
+agenta_oss_core
+{{- end -}}
+{{- end }}
+
+{{- define "agenta.postgresDbTracing" -}}
+{{- if .Values.postgresql.databases.tracing -}}
+{{- .Values.postgresql.databases.tracing -}}
+{{- else if eq (include "agenta.edition" .) "ee" -}}
+agenta_ee_tracing
+{{- else -}}
+agenta_oss_tracing
+{{- end -}}
+{{- end }}
+
+{{- define "agenta.postgresDbSupertokens" -}}
+{{- if .Values.postgresql.databases.supertokens -}}
+{{- .Values.postgresql.databases.supertokens -}}
+{{- else if eq (include "agenta.edition" .) "ee" -}}
+agenta_ee_supertokens
+{{- else -}}
+agenta_oss_supertokens
+{{- end -}}
 {{- end }}
 
 {{/* ================================================================
@@ -138,7 +248,7 @@ imagePullSecrets:
 {{- if and (not .Values.postgresql.enabled) .Values.postgresql.external.uriCore }}
 {{- .Values.postgresql.external.uriCore }}
 {{- else }}
-{{- $base := printf "postgresql+asyncpg://%s:$(POSTGRES_PASSWORD)@%s:%s/%s" (include "agenta.postgresUsername" .) (include "agenta.postgresHost" .) (include "agenta.postgresPort" . | toString) .Values.postgresql.databases.core }}
+{{- $base := printf "postgresql+asyncpg://%s:$(POSTGRES_PASSWORD)@%s:%s/%s" (include "agenta.postgresUsername" .) (include "agenta.postgresHost" .) (include "agenta.postgresPort" . | toString) (include "agenta.postgresDbCore" .) }}
 {{- if and (not .Values.postgresql.enabled) .Values.postgresql.external.sslmode }}
 {{- printf "%s?ssl=%s" $base .Values.postgresql.external.sslmode }}
 {{- else }}
@@ -154,7 +264,7 @@ imagePullSecrets:
 {{- if and (not .Values.postgresql.enabled) .Values.postgresql.external.uriTracing }}
 {{- .Values.postgresql.external.uriTracing }}
 {{- else }}
-{{- $base := printf "postgresql+asyncpg://%s:$(POSTGRES_PASSWORD)@%s:%s/%s" (include "agenta.postgresUsername" .) (include "agenta.postgresHost" .) (include "agenta.postgresPort" . | toString) .Values.postgresql.databases.tracing }}
+{{- $base := printf "postgresql+asyncpg://%s:$(POSTGRES_PASSWORD)@%s:%s/%s" (include "agenta.postgresUsername" .) (include "agenta.postgresHost" .) (include "agenta.postgresPort" . | toString) (include "agenta.postgresDbTracing" .) }}
 {{- if and (not .Values.postgresql.enabled) .Values.postgresql.external.sslmode }}
 {{- printf "%s?ssl=%s" $base .Values.postgresql.external.sslmode }}
 {{- else }}
@@ -170,7 +280,7 @@ imagePullSecrets:
 {{- if and (not .Values.postgresql.enabled) .Values.postgresql.external.uriSupertokens }}
 {{- .Values.postgresql.external.uriSupertokens }}
 {{- else }}
-{{- $base := printf "postgresql://%s:$(POSTGRES_PASSWORD)@%s:%s/%s" (include "agenta.postgresUsername" .) (include "agenta.postgresHost" .) (include "agenta.postgresPort" . | toString) .Values.postgresql.databases.supertokens }}
+{{- $base := printf "postgresql://%s:$(POSTGRES_PASSWORD)@%s:%s/%s" (include "agenta.postgresUsername" .) (include "agenta.postgresHost" .) (include "agenta.postgresPort" . | toString) (include "agenta.postgresDbSupertokens" .) }}
 {{- if and (not .Values.postgresql.enabled) .Values.postgresql.external.sslmode }}
 {{- printf "%s?sslmode=%s" $base .Values.postgresql.external.sslmode }}
 {{- else }}
@@ -223,11 +333,131 @@ imagePullSecrets:
 {{- end }}
 
 {{/* ================================================================
+   Shared web env vars (public-facing / derived flags)
+   ================================================================ */}}
+{{- define "agenta.webOptionalEnv" -}}
+- name: POSTHOG_API_KEY
+  value: {{ .Values.global.posthogApiKey | quote }}
+{{- with .Values.secrets.oauth }}
+{{- range $key, $val := . }}
+- name: {{ $key }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" $ }}
+      key: {{ $key }}
+      optional: true
+{{- end }}
+{{- end }}
+{{- if .Values.email.sendgrid.apiKey }}
+- name: SENDGRID_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: SENDGRID_API_KEY
+      optional: true
+{{- end }}
+- name: SENDGRID_FROM_ADDRESS
+  value: {{ .Values.email.sendgrid.fromAddress | quote }}
+{{- if .Values.integrations.composio.apiKey }}
+- name: COMPOSIO_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: COMPOSIO_API_KEY
+      optional: true
+{{- end }}
+- name: CLOUDFLARE_TURNSTILE_SITE_KEY
+  value: {{ .Values.captcha.turnstile.siteKey | quote }}
+{{- if .Values.captcha.turnstile.secretKey }}
+- name: CLOUDFLARE_TURNSTILE_SECRET_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: CLOUDFLARE_TURNSTILE_SECRET_KEY
+      optional: true
+{{- end }}
+{{- end }}
+
+{{/* ================================================================
+   Shared backend env vars (typed self-host config + escape hatches)
+   ================================================================ */}}
+{{- define "agenta.backendOptionalEnv" -}}
+- name: POSTHOG_API_KEY
+  value: {{ .Values.global.posthogApiKey | quote }}
+- name: SENDGRID_FROM_ADDRESS
+  value: {{ .Values.email.sendgrid.fromAddress | quote }}
+- name: COMPOSIO_API_URL
+  value: {{ .Values.integrations.composio.apiUrl | quote }}
+- name: CLOUDFLARE_TURNSTILE_SITE_KEY
+  value: {{ .Values.captcha.turnstile.siteKey | quote }}
+- name: AGENTA_ALLOWED_DOMAINS
+  value: {{ .Values.accessControl.allowedDomains | quote }}
+- name: AGENTA_BLOCKED_DOMAINS
+  value: {{ .Values.accessControl.blockedDomains | quote }}
+- name: AGENTA_BLOCKED_EMAILS
+  value: {{ .Values.accessControl.blockedEmails | quote }}
+- name: AGENTA_ORG_CREATION_ALLOWLIST
+  value: {{ .Values.accessControl.orgCreationAllowlist | quote }}
+{{- with .Values.secrets.oauth }}
+{{- range $key, $val := . }}
+- name: {{ $key }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" $ }}
+      key: {{ $key }}
+      optional: true
+{{- end }}
+{{- end }}
+{{- with .Values.secrets.llmProviders }}
+{{- range $key, $val := . }}
+- name: {{ $key }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" $ }}
+      key: {{ $key }}
+      optional: true
+{{- end }}
+{{- end }}
+{{- if .Values.email.sendgrid.apiKey }}
+- name: SENDGRID_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: SENDGRID_API_KEY
+      optional: true
+{{- end }}
+{{- if .Values.integrations.composio.apiKey }}
+- name: COMPOSIO_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: COMPOSIO_API_KEY
+      optional: true
+{{- end }}
+{{- if .Values.observability.newRelic.licenseKey }}
+- name: NEW_RELIC_LICENSE_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: NEW_RELIC_LICENSE_KEY
+      optional: true
+{{- end }}
+{{- if .Values.captcha.turnstile.secretKey }}
+- name: CLOUDFLARE_TURNSTILE_SECRET_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "agenta.secretName" . }}
+      key: CLOUDFLARE_TURNSTILE_SECRET_KEY
+      optional: true
+{{- end }}
+{{- end }}
+
+{{/* ================================================================
    Common environment variables shared by api, workers, cron, alembic
    ================================================================ */}}
 {{- define "agenta.commonEnv" -}}
 - name: AGENTA_LICENSE
-  value: "oss"
+  value: {{ include "agenta.edition" . | quote }}
 - name: POSTGRES_PASSWORD
   valueFrom:
     secretKeyRef:
@@ -283,28 +513,7 @@ imagePullSecrets:
       name: {{ include "agenta.secretName" . }}
       key: SUPERTOKENS_API_KEY
       optional: true
-- name: POSTHOG_API_KEY
-  value: {{ .Values.global.posthogApiKey | quote }}
-{{- with .Values.secrets.oauth }}
-{{- range $key, $val := . }}
-- name: {{ $key }}
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "agenta.secretName" $ }}
-      key: {{ $key }}
-      optional: true
-{{- end }}
-{{- end }}
-{{- with .Values.secrets.llmProviders }}
-{{- range $key, $val := . }}
-- name: {{ $key }}
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "agenta.secretName" $ }}
-      key: {{ $key }}
-      optional: true
-{{- end }}
-{{- end }}
+{{ include "agenta.backendOptionalEnv" . }}
 {{- end }}
 
 {{/* ================================================================

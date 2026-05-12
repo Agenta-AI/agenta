@@ -6,8 +6,11 @@
  */
 
 import {projectIdAtom} from "@agenta/shared/state"
+import {preserveResponseStatus} from "@agenta/shared/utils"
 import {atom} from "jotai"
 
+import {isRecord} from "../../shared"
+import {SYSTEM_FIELDS} from "../../testcase/core"
 // Testcase atoms - import directly from internal modules (not public index)
 import {
     currentRevisionIdAtom,
@@ -48,8 +51,13 @@ import {
 // INTERNAL HELPERS
 // ============================================================================
 
-// System fields to exclude from column operations
-const SYSTEM_FIELDS = new Set(["id", "__id", "__isSkeleton", "key", "created_at", "updated_at"])
+/** Fields that should never appear as user columns inside entity.data */
+const DATA_INTERNAL_FIELDS = new Set([
+    "__isSkeleton",
+    "__isNew",
+    "__dedup_id__",
+    "testcase_dedup_id",
+])
 
 interface Column {
     key: string
@@ -75,7 +83,7 @@ const currentColumnsAtom = atom<Column[]>((get) => {
         const entity = get(testcaseEntityAtomFamily(id))
         if (!entity?.data) continue
         for (const key of Object.keys(entity.data)) {
-            if (!SYSTEM_FIELDS.has(key)) {
+            if (!DATA_INTERNAL_FIELDS.has(key)) {
                 keySet.add(key)
             }
         }
@@ -130,27 +138,6 @@ export interface SaveTestsetResult {
     error?: Error
 }
 
-const TESTCASE_SYSTEM_FIELDS = new Set([
-    "id",
-    "flags",
-    "tags",
-    "meta",
-    "created_at",
-    "updated_at",
-    "deleted_at",
-    "created_by_id",
-    "updated_by_id",
-    "deleted_by_id",
-    "testset_id",
-    "set_id",
-    "testset_variant_id",
-    "revision_id",
-    "testcase_dedup_id",
-])
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-    !!value && typeof value === "object" && !Array.isArray(value)
-
 const normalizeCommittedRows = (
     testcases: unknown,
 ): {id: string; data: Record<string, unknown>}[] => {
@@ -169,7 +156,7 @@ const normalizeCommittedRows = (
             data = testcase.data
         } else {
             for (const [key, value] of Object.entries(testcase)) {
-                if (!TESTCASE_SYSTEM_FIELDS.has(key) && key !== "data") {
+                if (!SYSTEM_FIELDS.has(key) && key !== "data") {
                     data[key] = value
                 }
             }
@@ -432,6 +419,10 @@ export const saveTestsetAtom = atom(
 export interface SaveNewTestsetParams {
     projectId: string
     testsetName: string
+    /** Slug for the new testset. When provided, overrides API fallback generation. */
+    slug?: string
+    /** Optional initial commit message for the created revision. */
+    commitMessage?: string
     /**
      * Optional explicit testcase data. When provided, this data is used directly
      * instead of reading from newEntityIdsAtom. Used by the loadable controller
@@ -458,7 +449,7 @@ export interface SaveNewTestsetResult {
 export const saveNewTestsetAtom = atom(
     null,
     async (get, set, params: SaveNewTestsetParams): Promise<SaveNewTestsetResult> => {
-        const {projectId, testsetName, explicitTestcaseData} = params
+        const {projectId, testsetName, slug, commitMessage, explicitTestcaseData} = params
 
         if (!projectId || !testsetName.trim()) {
             return {success: false, error: new Error("Missing projectId or testsetName")}
@@ -498,7 +489,9 @@ export const saveNewTestsetAtom = atom(
             const response = await createTestset({
                 projectId,
                 name: testsetName,
+                slug,
                 testcases: testcaseData,
+                commitMessage,
             })
 
             if (response?.revisionId) {
@@ -527,7 +520,7 @@ export const saveNewTestsetAtom = atom(
 
             return {success: false, error: new Error("No revision ID returned from API")}
         } catch (error) {
-            return {success: false, error: error as Error}
+            return {success: false, error: preserveResponseStatus(error)}
         }
     },
 )

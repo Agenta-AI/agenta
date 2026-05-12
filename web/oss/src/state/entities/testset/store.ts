@@ -41,6 +41,7 @@ export const isNewTestsetId = (id: string | null | undefined): boolean => {
 export interface RevisionListParams {
     projectId: string
     testsetId: string
+    includeArchived?: boolean
 }
 
 /**
@@ -83,8 +84,8 @@ export interface VariantDetailParams {
  * Fetch a single revision by ID
  */
 export async function fetchRevision({id, projectId}: RevisionDetailParams): Promise<Revision> {
-    const response = await axios.get(`${getAgentaApiUrl()}/preview/testsets/revisions/${id}`, {
-        params: {project_id: projectId, include_testcases: false},
+    const response = await axios.get(`${getAgentaApiUrl()}/testsets/revisions/${id}`, {
+        params: {project_id: projectId, include_testcases: false, include_archived: true},
     })
     return revisionSchema.parse(response.data?.testset_revision ?? response.data)
 }
@@ -95,13 +96,15 @@ export async function fetchRevision({id, projectId}: RevisionDetailParams): Prom
 export async function fetchRevisionsList({
     projectId,
     testsetId,
+    includeArchived = false,
 }: RevisionListParams): Promise<RevisionsResponse> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+        `${getAgentaApiUrl()}/testsets/revisions/query`,
         {
             testset_refs: [{id: testsetId}],
             windowing: {limit: 100, order: "descending"},
             include_testcases: false,
+            include_archived: includeArchived,
         },
         {params: {project_id: projectId}},
     )
@@ -132,7 +135,7 @@ export async function fetchTestsetsList({
         }
     }
 
-    const response = await axios.post(`${getAgentaApiUrl()}/preview/testsets/query`, queryPayload, {
+    const response = await axios.post(`${getAgentaApiUrl()}/testsets/query`, queryPayload, {
         params: {project_id: projectId},
     })
 
@@ -146,7 +149,7 @@ export async function fetchTestsetsList({
  * Fetch a single testset by ID (metadata only)
  */
 export async function fetchTestsetDetail({id, projectId}: TestsetDetailParams): Promise<Testset> {
-    const response = await axios.get(`${getAgentaApiUrl()}/preview/testsets/${id}`, {
+    const response = await axios.get(`${getAgentaApiUrl()}/testsets/${id}`, {
         params: {project_id: projectId},
     })
     return testsetSchema.parse(response.data?.testset ?? response.data)
@@ -156,7 +159,7 @@ export async function fetchTestsetDetail({id, projectId}: TestsetDetailParams): 
  * Fetch a single variant by ID (contains name and description)
  */
 export async function fetchVariantDetail({id, projectId}: VariantDetailParams): Promise<Variant> {
-    const response = await axios.get(`${getAgentaApiUrl()}/preview/testsets/variants/${id}`, {
+    const response = await axios.get(`${getAgentaApiUrl()}/testsets/variants/${id}`, {
         params: {project_id: projectId},
     })
     return variantSchema.parse(response.data?.testset_variant ?? response.data)
@@ -358,6 +361,7 @@ export const testsetsListQueryAtomFamily = atomFamily(
                 enabled: Boolean(projectId),
                 staleTime: 60_000,
                 gcTime: 5 * 60_000,
+                refetchOnMount: "always",
             }
         }),
     (a, b) => a === b,

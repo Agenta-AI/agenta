@@ -39,7 +39,7 @@ The `input_keys` field is **never being updated** during editing or before commi
 ### Timeline
 
 1. **`430575a25`** — `syncInputKeysInPrompts` utility created
-2. **`9dd49e1ca`** — Added `syncInputKeysInPrompts` calls in `setEnhancedPromptsAtom`, `mutateEnhancedPromptsAtom`, and `updatePropertyAtom` in the legacyAppRevision store
+2. **`9dd49e1ca`** — Added `syncInputKeysInPrompts` calls in `setEnhancedPromptsAtom`, `mutateEnhancedPromptsAtom`, and `updatePropertyAtom` in the legacy app revision store (since removed)
 3. **`56bd5e329`** — Major refactor: removed enhanced prompts mechanism entirely from `store.ts`, including `setEnhancedPromptsAtom`, `mutateEnhancedPromptsAtom`, etc. The `syncInputKeysInPrompts` call sites were removed with these atoms
 4. **`8e57e69c9`** — Lint fix removed the now-unused import of `syncInputKeysInPrompts`
 

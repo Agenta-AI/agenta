@@ -65,9 +65,6 @@ const DebugPlugin = lazy(importDebugPlugin)
 const SingleLinePlugin = lazy(importSingleLinePlugin)
 const CodeEditorPlugin = lazy(importCodeEditorPlugin)
 const NativeCodeOnlyPlugin = lazy(importNativeCodeOnlyPlugin)
-// const TokenPlugin = lazy(importTokenPlugin)
-// const AutoCloseTokenBracesPlugin = lazy(importAutoCloseTokenBracesPlugin)
-// const TokenTypeaheadPlugin = lazy(importTokenTypeaheadPlugin)
 
 const EditorPlugins = ({
     id,
@@ -75,6 +72,7 @@ const EditorPlugins = ({
     showMarkdownToggleButton,
     singleLine,
     codeOnly,
+    largeDocumentMode = false,
     debug,
     language,
     placeholder,
@@ -126,13 +124,14 @@ const EditorPlugins = ({
                                 "markdown-view": markdown,
                             },
                         )}
-                        spellCheck={!codeOnly}
-                        autoCorrect={codeOnly ? "off" : undefined}
-                        autoCapitalize={codeOnly ? "off" : undefined}
-                        translate={codeOnly ? "no" : undefined}
-                        data-gramm={codeOnly ? "false" : undefined}
-                        data-gramm_editor={codeOnly ? "false" : undefined}
-                        data-enable-grammarly={codeOnly ? "false" : undefined}
+                        spellCheck={!codeOnly && !largeDocumentMode}
+                        autoCorrect={codeOnly || largeDocumentMode ? "off" : undefined}
+                        autoCapitalize={codeOnly || largeDocumentMode ? "off" : undefined}
+                        translate={codeOnly || largeDocumentMode ? "no" : undefined}
+                        data-gramm="false"
+                        data-gramm_editor="false"
+                        data-enable-grammarly="false"
+                        data-agenta-large-doc={largeDocumentMode ? "true" : "false"}
                     />
                 }
                 placeholder={
@@ -142,7 +141,7 @@ const EditorPlugins = ({
                 }
                 ErrorBoundary={LexicalErrorBoundary}
             />
-            <HistoryPlugin />
+            {!isDiffView && <HistoryPlugin />}
             {autoFocus ? <AutoFocusPlugin /> : null}
             {hasOnChange && <OnChangePlugin onChange={handleUpdate} ignoreSelectionChange={true} />}
             {showToolbar && !singleLine && !codeOnly && <ToolbarPlugin />}
@@ -157,7 +156,7 @@ const EditorPlugins = ({
                     ) : (
                         <CodeEditorPlugin
                             initialValue={value !== undefined ? value : initialValue}
-                            language={language === "yaml" ? "yaml" : "json"}
+                            language={language ?? "json"}
                             onPropertyClick={onPropertyClick}
                             disableLongText={disableLongText}
                         />
@@ -166,7 +165,9 @@ const EditorPlugins = ({
                 </>
             )}
             {debug && <DebugPlugin />}
-            {singleLine || codeOnly ? null : <MarkdownPlugin id={id} />}
+            {singleLine || codeOnly ? null : (
+                <MarkdownPlugin id={id} largeDocumentMode={largeDocumentMode} />
+            )}
         </Suspense>
     )
 }

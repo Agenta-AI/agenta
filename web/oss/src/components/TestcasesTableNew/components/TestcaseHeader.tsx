@@ -26,6 +26,7 @@ export interface TestcaseHeaderProps {
     loadingRevisions: boolean
     isIdCopied: boolean
     isRevisionSlugCopied: boolean
+    canExportData: boolean
     revisionIdParam: string | undefined
     /** Whether this is a new testset (not yet saved) - disables server-dependent features */
     isNewTestset?: boolean
@@ -77,6 +78,7 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
         loadingRevisions,
         isIdCopied,
         isRevisionSlugCopied,
+        canExportData,
         isNewTestset = false,
         isExporting = false,
         onCopyId,
@@ -189,23 +191,27 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
                 icon: <PencilSimple size={16} />,
                 onClick: onOpenRenameModal,
             },
-            {
-                type: "divider" as const,
-            },
-            {
-                key: "export-csv",
-                label: isExporting ? "Exporting..." : "Export as CSV",
-                icon: <Export size={16} />,
-                onClick: () => onExport("csv"),
-                disabled: isExporting,
-            },
-            {
-                key: "export-json",
-                label: isExporting ? "Exporting..." : "Export as JSON",
-                icon: <Export size={16} />,
-                onClick: () => onExport("json"),
-                disabled: isExporting,
-            },
+            ...(canExportData
+                ? [
+                      {
+                          type: "divider" as const,
+                      },
+                      {
+                          key: "export-csv",
+                          label: isExporting ? "Exporting..." : "Export as CSV",
+                          icon: <Export size={16} />,
+                          onClick: () => onExport("csv"),
+                          disabled: isExporting,
+                      },
+                      {
+                          key: "export-json",
+                          label: isExporting ? "Exporting..." : "Export as JSON",
+                          icon: <Export size={16} />,
+                          onClick: () => onExport("json"),
+                          disabled: isExporting,
+                      },
+                  ]
+                : []),
             {
                 type: "divider" as const,
             },
@@ -220,6 +226,7 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
             },
         ],
         [
+            canExportData,
             onOpenRenameModal,
             onDeleteRevision,
             isDeleteDisabled,

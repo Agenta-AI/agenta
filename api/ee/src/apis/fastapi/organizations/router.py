@@ -83,8 +83,9 @@ async def require_domains_and_auto_join_disabled(organization_id: str) -> None:
 
 
 @router.post(
-    "/domains",
+    "/domains/",
     response_model=OrganizationDomainResponse,
+    operation_id="create_organization_domain",
 )
 async def create_domain(
     payload: OrganizationDomainCreate,
@@ -133,6 +134,7 @@ async def create_domain(
 @router.post(
     "/domains/verify",
     response_model=OrganizationDomainResponse,
+    operation_id="verify_organization_domain",
 )
 async def verify_domain(
     payload: OrganizationDomainVerify,
@@ -165,8 +167,9 @@ async def verify_domain(
 
 
 @router.get(
-    "/domains",
+    "/domains/",
     response_model=List[OrganizationDomainResponse],
+    operation_id="list_organization_domains",
 )
 async def list_domains(
     request: Request,
@@ -191,6 +194,7 @@ async def list_domains(
 @router.post(
     "/domains/{domain_id}/refresh",
     response_model=OrganizationDomainResponse,
+    operation_id="refresh_organization_domain_token",
 )
 async def refresh_domain_token(
     domain_id: str,
@@ -223,6 +227,7 @@ async def refresh_domain_token(
 @router.post(
     "/domains/{domain_id}/reset",
     response_model=OrganizationDomainResponse,
+    operation_id="reset_organization_domain",
 )
 async def reset_domain(
     domain_id: str,
@@ -255,6 +260,7 @@ async def reset_domain(
 @router.delete(
     "/domains/{domain_id}",
     status_code=204,
+    operation_id="delete_organization_domain",
 )
 async def delete_domain(
     domain_id: str,
@@ -284,8 +290,9 @@ async def delete_domain(
 
 
 @router.post(
-    "/providers",
+    "/providers/",
     response_model=OrganizationProviderResponse,
+    operation_id="create_organization_provider",
 )
 async def create_provider(
     payload: OrganizationProviderCreate,
@@ -330,6 +337,7 @@ async def create_provider(
 @router.patch(
     "/providers/{provider_id}",
     response_model=OrganizationProviderResponse,
+    operation_id="update_organization_provider",
 )
 async def update_provider(
     provider_id: str,
@@ -367,8 +375,9 @@ async def update_provider(
 
 
 @router.get(
-    "/providers",
+    "/providers/",
     response_model=List[OrganizationProviderResponse],
+    operation_id="list_organization_providers",
 )
 async def list_providers(
     request: Request,
@@ -393,6 +402,7 @@ async def list_providers(
 @router.post(
     "/providers/{provider_id}/test",
     response_model=OrganizationProviderResponse,
+    operation_id="test_organization_provider",
 )
 async def test_provider(
     provider_id: str,
@@ -427,6 +437,7 @@ async def test_provider(
 @router.delete(
     "/providers/{provider_id}",
     status_code=204,
+    operation_id="delete_organization_provider",
 )
 async def delete_provider(
     provider_id: str,

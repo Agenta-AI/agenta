@@ -403,7 +403,13 @@ export function createPaginatedEntityStore<
             entityName,
             skeletonDefaults: rowConfig.skeletonDefaults as Omit<TRow, "key" | "__isSkeleton">,
             getRowId: rowConfig.getRowId,
-            ...(transformRow && {apiToRow: transformRow}),
+            ...(transformRow && {
+                customMerge: (skeleton: TRow, apiRow: TApiRow) => ({
+                    ...skeleton,
+                    ...transformRow(apiRow),
+                    __isSkeleton: false,
+                }),
+            }),
         },
         fetchData: fetchPage,
         isEnabled,

@@ -91,6 +91,8 @@ export const testsetAdapter = createTwoLevelAdapter<TestsetSelectionResult>({
         onBeforeLoad: (testsetId: string) => {
             testsetSelectionConfig.enableRevisionsQuery(testsetId)
         },
+        // Hide v0 revisions in selection UIs (placeholder revisions with no displayable data).
+        filterItems: (entity: unknown) => (entity as {version?: number}).version !== 0,
         getLabelNode: (entity: unknown) => {
             const r = entity as {
                 version?: number

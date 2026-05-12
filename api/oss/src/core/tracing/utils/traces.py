@@ -41,7 +41,6 @@ class ParsedSimpleTrace(NamedTuple):
 
 def build_simple_trace_attributes(
     *,
-    trace_kind: str,
     flags: Optional[Mapping[str, Any]],
     tags: Optional[Tags],
     meta: Optional[Meta],
@@ -49,7 +48,7 @@ def build_simple_trace_attributes(
     references: Mapping[str, Any],
 ) -> Dict[str, Any]:
     return parse_into_attributes(
-        type={"trace": trace_kind, "span": "task"},
+        type={"span": "task"},
         flags=dict(flags) if flags else None,
         tags=tags,
         meta=meta,

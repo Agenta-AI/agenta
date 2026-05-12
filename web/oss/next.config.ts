@@ -65,6 +65,8 @@ const COMMON_CONFIG: NextConfig = {
             "@agenta/entity-ui",
             "@agenta/playground",
             "@agenta/playground-ui",
+            "@agenta/annotation",
+            "@agenta/annotation-ui",
             // Icon libraries - ensure tree-shaking works for individual icon imports
             "@phosphor-icons/react",
             "lucide-react",
@@ -72,12 +74,16 @@ const COMMON_CONFIG: NextConfig = {
     },
     // Always transpile workspace packages to ensure proper module resolution
     transpilePackages: [
+        "@agenta/sdk",
+        "@agentaai/api-client",
         "@agenta/shared",
         "@agenta/ui",
         "@agenta/entities",
         "@agenta/entity-ui",
         "@agenta/playground",
         "@agenta/playground-ui",
+        "@agenta/annotation",
+        "@agenta/annotation-ui",
         ...(!isDevelopment
             ? [
                   "rc-util",

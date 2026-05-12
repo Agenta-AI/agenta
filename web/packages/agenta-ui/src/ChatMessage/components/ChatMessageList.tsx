@@ -14,7 +14,9 @@ import {Copy, MinusCircle, Plus} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 
 import {CollapseToggleButton, getCollapseStyle} from "../../components/presentational/buttons"
+import {message, modal} from "../../utils/appMessageContext"
 import {cn, flexLayouts, gapClasses} from "../../utils/styles"
+import {createSnippetPdfAttachment} from "../utils/snippetAttachment"
 
 import AttachmentButton from "./AttachmentButton"
 import ChatMessageEditor from "./ChatMessageEditor"
@@ -25,6 +27,7 @@ import ToolMessageHeader from "./ToolMessageHeader"
 const ChatMessageItem: React.FC<{
     msg: SimpleChatMessage
     index: number
+    editorId: string
     disabled?: boolean
     messageClassName?: string
     placeholder: string
@@ -37,6 +40,7 @@ const ChatMessageItem: React.FC<{
     templateFormat?: "curly" | "fstring" | "jinja2"
     tokens?: string[]
     loadingFallback: "skeleton" | "none" | "static"
+    maxPasteChars?: number
     ImagePreview?: React.ComponentType<{
         src: string
         alt: string
@@ -53,6 +57,7 @@ const ChatMessageItem: React.FC<{
 }> = ({
     msg,
     index,
+    editorId,
     disabled,
     messageClassName,
     placeholder,
@@ -65,6 +70,7 @@ const ChatMessageItem: React.FC<{
     templateFormat,
     tokens,
     loadingFallback,
+    maxPasteChars,
     ImagePreview,
     onRoleChange,
     onTextChange,
@@ -84,6 +90,53 @@ const ChatMessageItem: React.FC<{
     const attachments = getAttachments(msg.content ?? null)
     const hasAttachmentsFlag = attachments.length > 0
 
+    const handleCreateSnippetFromPaste = useCallback(
+        ({
+            pastedText,
+            maxPasteChars,
+            overBy,
+        }: {
+            pastedText: string
+            maxPasteChars: number
+            overBy: number
+        }) => {
+            if (!allowFileUpload || !modal) {
+                return false
+            }
+
+            const limitSummary =
+                overBy > 0
+                    ? `This paste is ${overBy.toLocaleString()} characters over the ${maxPasteChars.toLocaleString()}-character limit.`
+                    : `This paste exceeds the ${maxPasteChars.toLocaleString()}-character limit.`
+
+            modal.confirm({
+                title: "That's too long to paste",
+                content: `${limitSummary} To keep the editor responsive, you can attach the pasted content as a snippet instead.`,
+                okText: "Create Snippet",
+                cancelText: "Dismiss",
+                centered: true,
+                onOk: async () => {
+                    try {
+                        const {fileData, filename, mimeType} =
+                            await createSnippetPdfAttachment(pastedText)
+                        onAddFile(index, fileData, filename, mimeType)
+                        message?.success(`Attached ${filename} as a snippet.`)
+                    } catch (error) {
+                        message?.error(
+                            error instanceof Error
+                                ? error.message
+                                : "Failed to create snippet attachment.",
+                        )
+                        throw error
+                    }
+                },
+            })
+
+            return true
+        },
+        [allowFileUpload, index, onAddFile],
+    )
+
     return (
         <div
             className={cn(flexLayouts.column)}
@@ -91,7 +144,7 @@ const ChatMessageItem: React.FC<{
             style={getCollapseStyle(isMinimized, 72)}
         >
             <ChatMessageEditor
-                id={`chat-msg-${index}`}
+                id={editorId}
                 role={msg.role}
                 text={textContent}
                 disabled={disabled}
@@ -103,6 +156,10 @@ const ChatMessageItem: React.FC<{
                 templateFormat={templateFormat}
                 tokens={tokens}
                 loadingFallback={loadingFallback}
+                maxPasteChars={maxPasteChars}
+                onPasteLimitExceeded={({pastedText, maxPasteChars, overBy}) =>
+                    handleCreateSnippetFromPaste({pastedText, maxPasteChars, overBy})
+                }
                 headerBottom={
                     isToolResponse && (msg.name || msg.tool_call_id) ? (
                         <ToolMessageHeader name={msg.name} toolCallId={msg.tool_call_id} />
@@ -116,7 +173,7 @@ const ChatMessageItem: React.FC<{
                             "invisible group-hover/item:visible",
                         )}
                     >
-                        <MarkdownToggleButton id={`chat-msg-${index}`} />
+                        <MarkdownToggleButton id={editorId} />
                         {allowFileUpload && !disabled && (
                             <AttachmentButton
                                 onAddImage={(url) => onAddImage(index, url)}
@@ -211,6 +268,8 @@ export interface ChatMessageListProps {
     defaultMinimized?: boolean
     /** Suspense fallback mode for editor plugins */
     loadingFallback?: "skeleton" | "none" | "static"
+    /** Block paste operations that would make a message exceed this many characters. */
+    maxPasteChars?: number
 }
 
 /**
@@ -240,7 +299,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     ImagePreview,
     defaultMinimized = false,
     loadingFallback = "skeleton",
+    maxPasteChars,
 }) => {
+    const listInstanceIdRef = useRef(generateKey())
     // Maintain stable React keys for each message position.
     // This prevents React from reusing the wrong component instance
     // when messages are added or removed from the middle of the list.
@@ -359,36 +420,46 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 
     return (
         <div className={cn(flexLayouts.column, gapClasses.sm, className)}>
-            {messages.map((msg, index) => (
-                <ChatMessageItem
-                    key={stableKeys[index]}
-                    msg={msg}
-                    index={index}
-                    disabled={disabled}
-                    messageClassName={messageClassName}
-                    placeholder={placeholder}
-                    isMinimized={minimizedMessages[stableKeys[index]] ?? false}
-                    showControls={showControls}
-                    showRemoveButton={showRemoveButton}
-                    showCopyButton={showCopyButton}
-                    allowFileUpload={allowFileUpload}
-                    enableTokens={enableTokens}
-                    templateFormat={templateFormat}
-                    tokens={tokens}
-                    loadingFallback={loadingFallback}
-                    ImagePreview={ImagePreview}
-                    onRoleChange={handleRoleChange}
-                    onTextChange={handleTextChange}
-                    onRemove={handleRemoveMessage}
-                    onAddImage={handleAddImage}
-                    onAddFile={handleAddFile}
-                    onRemoveAttachment={handleRemoveAttachment}
-                    onToggleMinimize={(i) => {
-                        const key = stableKeys[i]
-                        setMinimizedMessages((prev) => ({...prev, [key]: !prev[key]}))
-                    }}
-                />
-            ))}
+            {messages.map((msg, index) => {
+                const rowKey = stableKeys[index]
+                // Scope editor ids to the list instance so markdown-view state,
+                // Lexical namespaces, and other editor-local caches never bleed
+                // across separate prompt/message lists that share the same row index.
+                const editorId = `chat-msg-${listInstanceIdRef.current}-${rowKey}`
+
+                return (
+                    <ChatMessageItem
+                        key={rowKey}
+                        msg={msg}
+                        index={index}
+                        editorId={editorId}
+                        disabled={disabled}
+                        messageClassName={messageClassName}
+                        placeholder={placeholder}
+                        isMinimized={minimizedMessages[rowKey] ?? false}
+                        showControls={showControls}
+                        showRemoveButton={showRemoveButton}
+                        showCopyButton={showCopyButton}
+                        allowFileUpload={allowFileUpload}
+                        enableTokens={enableTokens}
+                        templateFormat={templateFormat}
+                        tokens={tokens}
+                        loadingFallback={loadingFallback}
+                        maxPasteChars={maxPasteChars}
+                        ImagePreview={ImagePreview}
+                        onRoleChange={handleRoleChange}
+                        onTextChange={handleTextChange}
+                        onRemove={handleRemoveMessage}
+                        onAddImage={handleAddImage}
+                        onAddFile={handleAddFile}
+                        onRemoveAttachment={handleRemoveAttachment}
+                        onToggleMinimize={(i) => {
+                            const key = stableKeys[i]
+                            setMinimizedMessages((prev) => ({...prev, [key]: !prev[key]}))
+                        }}
+                    />
+                )
+            })}
             {showControls && !disabled && (
                 <Button
                     variant="outlined"

@@ -154,7 +154,7 @@ const GenerationComparisonChatOutputCell = ({
                                         "!p-0 [&_.agenta-editor-wrapper]:!p-3 !mt-0 [&:nth-child(1)]:!mt-0 mt-2",
                                     editorClassName: "!p-3",
                                     headerClassName:
-                                        "min-h-[48px] px-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                                        "min-h-[48px] px-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
                                     footerClassName: "px-2",
                                     editorType: "borderless",
                                 }}
@@ -191,7 +191,7 @@ const GenerationComparisonChatOutputCell = ({
                     "border-0 border-r border-b border-solid border-[rgba(5,23,41,0.06)]",
                 ])}
             >
-                <div className="!w-full shrink-0 sticky top-9 z-[1]">
+                <div className="!w-full shrink-0 sticky top-9 z-[1] p-3">
                     <ChatTurnView
                         turnId={turnId}
                         entityId={entityId}
@@ -203,7 +203,7 @@ const GenerationComparisonChatOutputCell = ({
                             editorClassName: "!p-3",
                             headerClassName:
                                 "min-h-[48px] border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
-                            footerClassName: "px-3 !m-0",
+                            footerClassName: "px-2 !m-0",
                             editorType: "borderless",
                         }}
                     />

@@ -44,6 +44,7 @@ function MyEditor() {
 | `debounceDelay` | `number` | `300` | Debounce delay in ms |
 | `containerVariant` | `"bordered" \| "borderless" \| "textarea"` | `"bordered"` | Container style |
 | `editorProps` | `Partial<EditorProps>` | - | Props passed to Editor |
+| `maxPasteChars` | `number` | `50000` for non-code editors | Blocks paste operations that would make the content exceed this many characters |
 
 ### Container Variants
 

@@ -67,7 +67,7 @@ Key observation: string metrics have only `type` and `count`. No `mean`, `freq`,
 
 ## Frontend data flow
 
-1. `previewRunMetricStatsLoadableFamily` fetches metrics via `POST /preview/evaluations/metrics/query`.
+1. `previewRunMetricStatsLoadableFamily` fetches metrics via `POST /evaluations/metrics/query`.
 
 2. `normalizeStatValue()` in `runMetrics.ts` processes the response. The `type` field is preserved (not in `STAT_KEYS_TO_DROP`).
 

@@ -1,9 +1,9 @@
 import {memo, useEffect, useMemo, useRef, type ReactNode} from "react"
 
+import {EvaluatorMetricBar} from "@agenta/ui/cell-renderers"
 import {Typography} from "antd"
 import {useSetAtomWithSchedule, LOW_PRIORITY} from "jotai-scheduler"
 
-import EvaluatorMetricBar from "@/oss/components/Evaluations/EvaluatorMetricBar"
 import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 import {resolvedMetricLabelsAtomFamily} from "@/oss/components/References/atoms/resolvedMetricLabels"
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"

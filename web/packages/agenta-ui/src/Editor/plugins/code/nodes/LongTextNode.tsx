@@ -4,7 +4,7 @@
  * A custom Lexical node for rendering long text strings in a collapsed/truncated view.
  * Shows a preview with character count and allows viewing the full content via drill-in.
  */
-import React, {useCallback, useMemo, useState} from "react"
+import React, {type KeyboardEvent, useCallback, useMemo, useState} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {TextAlignLeft, ArrowSquareOut} from "@phosphor-icons/react"
@@ -149,6 +149,11 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
         setPopoverOpen(false)
     }, [])
 
+    const handleExpand = useCallback(() => {
+        setExpanded(true)
+        setPopoverOpen(false)
+    }, [])
+
     const handleDrillIn = useCallback(() => {
         // console.log("[LongTextNode] handleDrillIn called")
         // console.log("[LongTextNode] spanRef.current:", spanRef.current)
@@ -180,9 +185,49 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
         }
     }, [])
 
-    // Collapsed state popover content
-    const collapsedPopoverContent = (
-        <div className="max-w-[500px]">
+    const handleCollapsedKeyDown = useCallback(
+        (event: KeyboardEvent<HTMLSpanElement>) => {
+            if (event.key !== "Enter" && event.key !== " ") {
+                return
+            }
+
+            event.preventDefault()
+            handleExpand()
+        },
+        [handleExpand],
+    )
+
+    const handleExpandedKeyDown = useCallback(
+        (event: KeyboardEvent<HTMLSpanElement>) => {
+            if (event.key !== "Enter" && event.key !== " ") {
+                return
+            }
+
+            event.preventDefault()
+            handleCollapse()
+        },
+        [handleCollapse],
+    )
+
+    const actionLabel = !drillInEnabled && expanded ? "Collapse" : "Expand"
+
+    const handleAction = useCallback(() => {
+        if (drillInEnabled) {
+            handleDrillIn()
+            return
+        }
+
+        if (expanded) {
+            handleCollapse()
+            return
+        }
+
+        handleExpand()
+    }, [drillInEnabled, expanded, handleCollapse, handleDrillIn, handleExpand])
+
+    // Shared hover popover content
+    const popoverContent = (
+        <div className="max-w-[500px]" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between gap-4 mb-3">
                 <div className="flex items-center gap-2">
                     <TextAlignLeft size={16} className="text-gray-500" />
@@ -200,20 +245,13 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
                             size="small"
                             type="primary"
                             icon={<ArrowSquareOut size={14} />}
-                            onClick={handleDrillIn}
+                            onClick={handleAction}
                         >
                             Drill In
                         </Button>
                     ) : (
-                        <Button
-                            size="small"
-                            type="primary"
-                            onClick={() => {
-                                setExpanded(true)
-                                setPopoverOpen(false)
-                            }}
-                        >
-                            Expand
+                        <Button size="small" type="primary" onClick={handleAction}>
+                            {actionLabel}
                         </Button>
                     )}
                 </div>
@@ -228,43 +266,55 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
         </div>
     )
 
-    // When expanded, show clickable text with inline collapse button at the start
+    // When expanded, show the full text inline while preserving a clear interactive state.
     if (expanded) {
         return (
-            <span className="inline-flex items-start gap-1">
-                {/* Small inline collapse button */}
-                <Button
-                    size="small"
-                    type="text"
-                    onClick={handleCollapse}
-                    className="text-xs opacity-60 hover:opacity-100 transition-opacity px-1 h-auto leading-none"
-                    style={{marginTop: "2px"}}
-                >
-                    [−]
-                </Button>
-                {/* The text itself - also clickable to collapse */}
+            <Popover
+                content={popoverContent}
+                title={null}
+                trigger={["hover"]}
+                open={popoverOpen}
+                onOpenChange={setPopoverOpen}
+                placement="topLeft"
+                mouseEnterDelay={0.3}
+                mouseLeaveDelay={0.2}
+                overlayStyle={{pointerEvents: "auto"}}
+                arrow={{pointAtCenter: false}}
+            >
                 <span
-                    ref={spanRef}
-                    className="token token-string whitespace-pre-wrap break-words cursor-pointer hover:opacity-70 transition-opacity"
-                    data-lexical-longtext="true"
-                    data-node-key={nodeKey}
+                    className="inline-flex items-start gap-1 cursor-pointer rounded border border-dashed border-blue-300 bg-blue-50/40 px-1 py-[1px] hover:border-blue-400 hover:bg-blue-50/60 transition-colors"
                     onClick={handleCollapse}
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded
+                    onKeyDown={handleExpandedKeyDown}
                     title="Click to collapse"
                 >
-                    &quot;{parsed.fullValue}&quot;
+                    <span className="text-[10px] text-blue-500 mt-[2px] select-none">[-]</span>
+                    <span className="text-[10px] text-blue-500 mt-[2px] shrink-0 select-none">
+                        [{formatCharCount(parsed.charCount)}]
+                    </span>
+                    <span
+                        ref={spanRef}
+                        className="token token-string whitespace-pre-wrap break-words hover:opacity-80 transition-opacity"
+                        data-lexical-longtext="true"
+                        data-node-key={nodeKey}
+                    >
+                        &quot;{parsed.fullValue}&quot;
+                    </span>
                 </span>
-            </span>
+            </Popover>
         )
     }
 
-    // Collapsed state with popover
+    // Collapsed state with hover actions and click-to-expand
     return (
         <Popover
-            content={collapsedPopoverContent}
+            content={popoverContent}
             title={null}
             open={popoverOpen}
             onOpenChange={setPopoverOpen}
-            trigger={["hover", "click"]}
+            trigger={["hover"]}
             placement="topLeft"
             mouseEnterDelay={0.3}
             mouseLeaveDelay={0.2}
@@ -273,9 +323,14 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
         >
             <span
                 ref={spanRef}
-                className="token token-string cursor-help border-b border-dashed border-blue-400"
+                className="token token-string cursor-pointer border-b border-dashed border-blue-400"
                 data-lexical-longtext="true"
                 data-node-key={nodeKey}
+                onClick={handleExpand}
+                onKeyDown={handleCollapsedKeyDown}
+                role="button"
+                tabIndex={0}
+                aria-expanded={false}
             >
                 &quot;{parsed.preview}...&quot;
                 <span className="text-[10px] text-blue-500 ml-1">

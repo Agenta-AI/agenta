@@ -1,8 +1,10 @@
-from typing import Any, Optional, Union, Dict, List
+from typing import Optional, List
 from uuid import UUID
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, model_validator
 from fastapi import HTTPException
+
+from oss.src.utils.exceptions import Support
 
 from oss.src.core.shared.dtos import (
     Windowing,
@@ -81,72 +83,48 @@ class EvaluationClosedException(HTTPException):
         self.queue_id = queue_id
 
 
-JIT = Optional[Union[bool, Dict]]
-
-
-def _coerce_jit(v: Any) -> bool:
-    """Coerce jit value to bool. Dicts (e.g. legacy SDK payloads) become False."""
-    if isinstance(v, dict):
-        return False
-    if v is None:
-        return True
-    return bool(v)
-
-
 # EVALUATION RUNS --------------------------------------------------------------
 
 
 class EvaluationRunsCreateRequest(BaseModel):
     runs: List[EvaluationRunCreate]
-    jit: JIT = True
-
-    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class EvaluationRunEditRequest(BaseModel):
     run: EvaluationRunEdit
-    jit: JIT = True
-
-    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class EvaluationRunsEditRequest(BaseModel):
     runs: List[EvaluationRunEdit]
-    jit: JIT = True
-
-    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class EvaluationRunQueryRequest(BaseModel):
     run: Optional[EvaluationRunQuery] = None
     #
     windowing: Optional[Windowing] = None
-    jit: JIT = True
-
-    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class EvaluationRunIdsRequest(BaseModel):
     run_ids: List[UUID]
 
 
-class EvaluationRunResponse(BaseModel):
+class EvaluationRunResponse(Support):
     count: int = 0
     run: Optional[EvaluationRun] = None
 
 
-class EvaluationRunsResponse(BaseModel):
+class EvaluationRunsResponse(Support):
     count: int = 0
     runs: List[EvaluationRun] = []
     windowing: Optional[Windowing] = None
 
 
-class EvaluationRunIdResponse(BaseModel):
+class EvaluationRunIdResponse(Support):
     count: int = 0
     run_id: Optional[UUID] = None
 
 
-class EvaluationRunIdsResponse(BaseModel):
+class EvaluationRunIdsResponse(Support):
     count: int = 0
     run_ids: List[UUID] = []
 
@@ -176,24 +154,24 @@ class EvaluationScenarioIdsRequest(BaseModel):
     scenario_ids: List[UUID]
 
 
-class EvaluationScenarioResponse(BaseModel):
+class EvaluationScenarioResponse(Support):
     count: int = 0
     scenario: Optional[EvaluationScenario] = None
 
 
-class EvaluationScenariosResponse(BaseModel):
+class EvaluationScenariosResponse(Support):
     count: int = 0
     scenarios: List[EvaluationScenario] = []
     #
     windowing: Optional[Windowing] = None
 
 
-class EvaluationScenarioIdResponse(BaseModel):
+class EvaluationScenarioIdResponse(Support):
     count: int = 0
     scenario_id: Optional[UUID] = None
 
 
-class EvaluationScenarioIdsResponse(BaseModel):
+class EvaluationScenarioIdsResponse(Support):
     count: int = 0
     scenario_ids: List[UUID] = []
 
@@ -223,22 +201,22 @@ class EvaluationResultIdsRequest(BaseModel):
     result_ids: List[UUID]
 
 
-class EvaluationResultResponse(BaseModel):
+class EvaluationResultResponse(Support):
     count: int = 0
     result: Optional[EvaluationResult] = None
 
 
-class EvaluationResultsResponse(BaseModel):
+class EvaluationResultsResponse(Support):
     count: int = 0
     results: List[EvaluationResult] = []
 
 
-class EvaluationResultIdResponse(BaseModel):
+class EvaluationResultIdResponse(Support):
     count: int = 0
     result_id: Optional[UUID] = None
 
 
-class EvaluationResultIdsResponse(BaseModel):
+class EvaluationResultIdsResponse(Support):
     count: int = 0
     result_ids: List[UUID] = []
 
@@ -268,12 +246,12 @@ class EvaluationMetricsIdsRequest(BaseModel):
     metrics_ids: List[UUID]
 
 
-class EvaluationMetricsResponse(BaseModel):
+class EvaluationMetricsResponse(Support):
     count: int = 0
     metrics: List[EvaluationMetrics] = []
 
 
-class EvaluationMetricsIdsResponse(BaseModel):
+class EvaluationMetricsIdsResponse(Support):
     count: int = 0
     metrics_ids: List[UUID] = []
 
@@ -303,27 +281,27 @@ class EvaluationQueueIdsRequest(BaseModel):
     queue_ids: List[UUID]
 
 
-class EvaluationQueueResponse(BaseModel):
+class EvaluationQueueResponse(Support):
     count: int = 0
     queue: Optional[EvaluationQueue] = None
 
 
-class EvaluationQueuesResponse(BaseModel):
+class EvaluationQueuesResponse(Support):
     count: int = 0
     queues: List[EvaluationQueue] = []
 
 
-class EvaluationQueueIdResponse(BaseModel):
+class EvaluationQueueIdResponse(Support):
     count: int = 0
     queue_id: Optional[UUID] = None
 
 
-class EvaluationQueueIdsResponse(BaseModel):
+class EvaluationQueueIdsResponse(Support):
     count: int = 0
     queue_ids: List[UUID] = []
 
 
-class EvaluationQueueScenarioIdsResponse(BaseModel):
+class EvaluationQueueScenarioIdsResponse(Support):
     count: int = 0
     scenario_ids: List[List[UUID]] = []
 
@@ -341,38 +319,29 @@ class EvaluationQueueScenariosQueryRequest(BaseModel):
 
 class SimpleEvaluationCreateRequest(BaseModel):
     evaluation: SimpleEvaluationCreate
-    jit: JIT = True
-
-    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class SimpleEvaluationEditRequest(BaseModel):
     evaluation: SimpleEvaluationEdit
-    jit: JIT = True
-
-    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
 class SimpleEvaluationQueryRequest(BaseModel):
     evaluation: Optional[SimpleEvaluationQuery] = None
     #
     windowing: Optional[Windowing] = None
-    jit: JIT = True
-
-    _coerce_jit = field_validator("jit", mode="before")(_coerce_jit)
 
 
-class SimpleEvaluationResponse(BaseModel):
+class SimpleEvaluationResponse(Support):
     count: int = 0
     evaluation: Optional[SimpleEvaluation] = None
 
 
-class SimpleEvaluationsResponse(BaseModel):
+class SimpleEvaluationsResponse(Support):
     count: int = 0
     evaluations: List[SimpleEvaluation] = []
 
 
-class SimpleEvaluationIdResponse(BaseModel):
+class SimpleEvaluationIdResponse(Support):
     count: int = 0
     evaluation_id: Optional[UUID] = None
 
@@ -382,6 +351,23 @@ class SimpleEvaluationIdResponse(BaseModel):
 
 class SimpleQueueCreateRequest(BaseModel):
     queue: SimpleQueueCreate
+
+    @model_validator(mode="after")
+    def validate_queue_sources(self):
+        queue_data = self.queue.data if self.queue else None
+        if queue_data is None:
+            return self
+
+        has_kind = queue_data.kind is not None
+        has_queries = bool(queue_data.queries)
+        has_testsets = bool(queue_data.testsets)
+
+        if has_kind and (has_queries or has_testsets):
+            raise ValueError(
+                "simple queue source must not include kind alongside queries or testsets"
+            )
+
+        return self
 
 
 class SimpleQueueQueryRequest(BaseModel):
@@ -406,24 +392,24 @@ class SimpleQueueTestcasesCreateRequest(BaseModel):
     testcase_ids: List[UUID]
 
 
-class SimpleQueueResponse(BaseModel):
+class SimpleQueueResponse(Support):
     count: int = 0
     queue: Optional[SimpleQueue] = None
 
 
-class SimpleQueuesResponse(BaseModel):
+class SimpleQueuesResponse(Support):
     count: int = 0
     queues: List[SimpleQueue] = []
     #
     windowing: Optional[Windowing] = None
 
 
-class SimpleQueueIdResponse(BaseModel):
+class SimpleQueueIdResponse(Support):
     count: int = 0
     queue_id: Optional[UUID] = None
 
 
-class SimpleQueueScenariosResponse(BaseModel):
+class SimpleQueueScenariosResponse(Support):
     count: int = 0
     scenarios: List[EvaluationScenario] = []
     #

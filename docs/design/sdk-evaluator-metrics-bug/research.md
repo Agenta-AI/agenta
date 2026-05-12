@@ -44,7 +44,7 @@ aevaluate()
 
 | File | Purpose |
 |------|---------|
-| `sdk/agenta/sdk/evaluations/preview/evaluate.py` | Main evaluation orchestration |
+| `sdk/agenta/sdk/evaluations/evaluate.py` | Main evaluation orchestration |
 | `sdk/agenta/sdk/evaluations/runs.py` | Create/close evaluation runs |
 | `sdk/agenta/sdk/evaluations/results.py` | Log evaluation results |
 | `sdk/agenta/sdk/managers/evaluators.py` | `aupsert_evaluator()` - creates revisions |

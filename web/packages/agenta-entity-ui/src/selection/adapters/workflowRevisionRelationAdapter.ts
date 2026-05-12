@@ -75,7 +75,7 @@ function getWorkflowGroupKey(entity: unknown): string {
     if (flags?.is_evaluator) return "evaluator"
     if (flags?.is_chat) return "chat"
     if (flags?.is_custom) return "custom"
-    if (flags?.is_human) return "human"
+    if (flags?.is_feedback) return "human"
     return "completion"
 }
 
@@ -88,8 +88,12 @@ function getWorkflowGroupLabel(key: string): string {
  * Shows: "workflow name" + [Completion] / [Chat] / etc.
  * Only shows the tag when it's NOT the default "completion" type.
  */
+function getWorkflowDisplayName(entity: unknown): string {
+    const w = entity as {name?: string; slug?: string}
+    return w.name?.trim() || w.slug?.trim() || "Unnamed"
+}
+
 function renderWorkflowLabelNode(entity: unknown): React.ReactNode {
-    const w = entity as {name?: string; flags?: Record<string, boolean> | null}
     const groupKey = getWorkflowGroupKey(entity)
     const tag =
         groupKey !== "completion"
@@ -103,7 +107,7 @@ function renderWorkflowLabelNode(entity: unknown): React.ReactNode {
             : undefined
 
     return React.createElement(EntityListItemLabel, {
-        label: w.name ?? "Unnamed",
+        label: getWorkflowDisplayName(entity),
         trailing: tag,
     })
 }
@@ -175,7 +179,7 @@ export interface WorkflowRevisionSelectionResult extends EntitySelectionResult {
  *
  * Hierarchy: Workflow → Variant → Revision
  *
- * Uses the workflow backend API via `/preview/workflows/` endpoints.
+ * Uses the workflow backend API via `/workflows/` endpoints.
  * Fetches all workflows (no flag filter) by default.
  */
 export const workflowRevisionAdapter = createThreeLevelAdapter<WorkflowRevisionSelectionResult>({
@@ -185,7 +189,7 @@ export const workflowRevisionAdapter = createThreeLevelAdapter<WorkflowRevisionS
     grandparentListAtom: workflowsListQueryStateAtom as Atom<ListQueryState<unknown>>,
     grandparentOverrides: {
         getId: (entity: unknown) => (entity as {id: string}).id,
-        getLabel: (entity: unknown) => (entity as {name?: string}).name ?? "Unnamed",
+        getLabel: getWorkflowDisplayName,
         getLabelNode: renderWorkflowLabelNode,
         getGroupKey: getWorkflowGroupKey,
         getGroupLabel: getWorkflowGroupLabel,
@@ -198,11 +202,11 @@ export const workflowRevisionAdapter = createThreeLevelAdapter<WorkflowRevisionS
     parentOverrides: {
         autoSelectSingle: true,
         getId: (entity: unknown) => (entity as {id: string}).id ?? "",
-        getLabel: (entity: unknown) => (entity as {name?: string}).name ?? "Unnamed",
+        getLabel: (entity: unknown) => getWorkflowDisplayName(entity),
         getLabelNode: (entity: unknown) => {
             const v = entity as {name?: string}
             return React.createElement(EntityListItemLabel, {
-                label: v.name ?? "Unnamed",
+                label: v.name?.trim() || (v as {slug?: string}).slug?.trim() || "Unnamed",
                 subtitle: getWorkflowVariantSubtitle(entity),
             })
         },
@@ -289,8 +293,9 @@ export interface CreateWorkflowRevisionAdapterOptions {
      */
     grandparentOverrides?: {
         getLabelNode?: (entity: unknown) => React.ReactNode
-        getGroupKey?: (entity: unknown) => string
+        getGroupKey?: (entity: unknown) => string | null | undefined
         getGroupLabel?: (key: string) => string
+        buildTabs?: (items: unknown[]) => import("../types").TabDefinition[]
     }
 
     /**
@@ -352,21 +357,34 @@ export interface CreateWorkflowRevisionAdapterOptions {
      * ```typescript
      * // Exclude human evaluators from the list
      * filterWorkflows: (entity) => {
-     *     const w = entity as { flags?: { is_human?: boolean } }
-     *     return !w.flags?.is_human
+     *     const w = entity as { flags?: { is_feedback?: boolean } }
+     *     return !w.flags?.is_feedback
      * }
      * ```
      */
     filterWorkflows?: (entity: unknown) => boolean
 
     /**
-     * Skip the variant level in the hierarchy.
-     * When true, creates a 2-level adapter: Workflow → Revision (skipping variant).
-     * Useful when each workflow has only one variant (e.g., evaluators).
-     * Uses the `workflowToRevisionRelation` to fetch revisions directly by workflow ID.
+     * When true, collapses the 3-level hierarchy (Workflow → Variant → Revision)
+     * into a 2-level hierarchy (Workflow → Revision) by using the direct
+     * workflow-to-revision relation.
+     *
+     * Use this when each workflow has a single variant and the variant level
+     * adds no value to the selection UI.
+     *
      * @default false
      */
     skipVariantLevel?: boolean
+
+    /**
+     * Custom workflow list atom override.
+     * When provided, uses this atom instead of the default `workflowsListQueryStateAtom`
+     * (and skips `flags`/`filterWorkflows` since the atom already provides filtered data).
+     *
+     * Use this when filtering depends on async/reactive data (e.g., revision-level flags)
+     * that can't be reliably read via a synchronous `filterWorkflows` callback.
+     */
+    workflowListAtom?: Atom<ListQueryState<unknown>>
 }
 
 /**
@@ -406,6 +424,7 @@ export function createWorkflowRevisionAdapter(
         flags,
         filterWorkflows,
         skipVariantLevel = false,
+        workflowListAtom,
     } = options
 
     const emptyListState: ListQueryState<unknown> = {
@@ -417,37 +436,48 @@ export function createWorkflowRevisionAdapter(
 
     // Skip-variant mode: Workflow → Revision (2-level, uses workflowToRevisionRelation)
     if (skipVariantLevel && !workflowId && !workflowIdAtom) {
-        const needsFiltering = !!flags || !!filterWorkflows
-        const filteredWorkflowsListAtom = needsFiltering
-            ? atom<ListQueryState<unknown>>((get) => {
-                  const state = get(workflowsListQueryStateAtom as Atom<ListQueryState<unknown>>)
-                  const filtered = (state.data ?? []).filter((w) => {
-                      if (flags) {
-                          const wf = w as {flags?: Record<string, boolean> | null}
-                          if (!wf.flags) return false
-                          const flagsMatch = Object.entries(flags).every(
-                              ([key, val]) => wf.flags?.[key] === val,
-                          )
-                          if (!flagsMatch) return false
-                      }
-                      if (filterWorkflows && !filterWorkflows(w)) return false
-                      return true
-                  })
-                  return {...state, data: filtered}
-              })
-            : (workflowsListQueryStateAtom as Atom<ListQueryState<unknown>>)
+        // When a custom workflowListAtom is provided, use it directly (it handles its own filtering).
+        // Otherwise, apply flags/filterWorkflows on top of the default workflows list.
+        const resolvedWorkflowsListAtom = workflowListAtom
+            ? workflowListAtom
+            : (() => {
+                  const needsFiltering = !!flags || !!filterWorkflows
+                  return needsFiltering
+                      ? atom<ListQueryState<unknown>>((get) => {
+                            const state = get(
+                                workflowsListQueryStateAtom as Atom<ListQueryState<unknown>>,
+                            )
+                            const filtered = (state.data ?? []).filter((w) => {
+                                if (flags) {
+                                    const wf = w as {flags?: Record<string, boolean> | null}
+                                    if (!wf.flags) return false
+                                    const flagsMatch = Object.entries(flags).every(
+                                        ([key, val]) => wf.flags?.[key] === val,
+                                    )
+                                    if (!flagsMatch) return false
+                                }
+                                if (filterWorkflows && !filterWorkflows(w)) return false
+                                return true
+                            })
+                            return {...state, data: filtered}
+                        })
+                      : (workflowsListQueryStateAtom as Atom<ListQueryState<unknown>>)
+              })()
 
         return createTwoLevelAdapter<WorkflowRevisionSelectionResult>({
             name: "workflowRevision",
             parentType: "workflow",
             parentLabel: "Evaluator",
-            parentListAtom: filteredWorkflowsListAtom,
+            parentListAtom: resolvedWorkflowsListAtom,
             parentOverrides: {
                 getId: (entity: unknown) => (entity as {id: string}).id,
-                getLabel: (entity: unknown) => (entity as {name?: string}).name ?? "Unnamed",
+                getLabel: getWorkflowDisplayName,
                 getLabelNode: grandparentOverrides.getLabelNode ?? renderWorkflowLabelNode,
                 hasChildren: true,
                 isSelectable: false,
+                getGroupKey: grandparentOverrides.getGroupKey,
+                getGroupLabel: grandparentOverrides.getGroupLabel,
+                buildTabs: grandparentOverrides.buildTabs,
             },
             childType: "workflowRevision",
             childLabel: "Revision",
@@ -522,15 +552,14 @@ export function createWorkflowRevisionAdapter(
             parentListAtom: resolvedVariantsListAtom,
             parentOverrides: {
                 getId: variantOverrides.getId ?? ((v: unknown) => (v as {id: string}).id ?? ""),
-                getLabel:
-                    variantOverrides.getLabel ??
-                    ((v: unknown) => (v as {name?: string}).name ?? "Unnamed"),
+                getLabel: variantOverrides.getLabel ?? ((v: unknown) => getWorkflowDisplayName(v)),
                 getLabelNode:
                     variantOverrides.getLabelNode ??
                     ((entity: unknown) => {
                         const v = entity as {name?: string}
                         return React.createElement(EntityListItemLabel, {
-                            label: v.name ?? "Unnamed",
+                            label:
+                                v.name?.trim() || (v as {slug?: string}).slug?.trim() || "Unnamed",
                             subtitle: getWorkflowVariantSubtitle(entity),
                         })
                     }),
@@ -578,6 +607,84 @@ export function createWorkflowRevisionAdapter(
         })
     }
 
+    // 2-level mode (skip variant): Workflow → Revision
+    // Uses workflowToRevisionRelation to go directly from workflow to revisions
+    if (skipVariantLevel) {
+        // Client-side filtered workflow list atom (applies flags + filterWorkflows)
+        const needsFiltering = !!flags || !!filterWorkflows
+        const filteredWorkflowsListAtom = needsFiltering
+            ? atom<ListQueryState<unknown>>((get) => {
+                  const state = get(workflowsListQueryStateAtom as Atom<ListQueryState<unknown>>)
+                  const filtered = (state.data ?? []).filter((w) => {
+                      if (flags) {
+                          const wf = w as {flags?: Record<string, boolean> | null}
+                          if (!wf.flags) return false
+                          const flagsMatch = Object.entries(flags).every(
+                              ([key, val]) => wf.flags?.[key] === val,
+                          )
+                          if (!flagsMatch) return false
+                      }
+                      if (filterWorkflows && !filterWorkflows(w)) return false
+                      return true
+                  })
+                  return {...state, data: filtered}
+              })
+            : (workflowsListQueryStateAtom as Atom<ListQueryState<unknown>>)
+
+        return createTwoLevelAdapter<WorkflowRevisionSelectionResult>({
+            name: "workflowRevision",
+            parentType: "workflow",
+            parentLabel: "Workflow",
+            parentListAtom: filteredWorkflowsListAtom,
+            parentOverrides: {
+                getId: (entity: unknown) => (entity as {id: string}).id,
+                getLabel: getWorkflowDisplayName,
+                getLabelNode: grandparentOverrides.getLabelNode ?? renderWorkflowLabelNode,
+                getGroupKey: grandparentOverrides.getGroupKey ?? getWorkflowGroupKey,
+                getGroupLabel: grandparentOverrides.getGroupLabel ?? getWorkflowGroupLabel,
+                hasChildren: true,
+                isSelectable: false,
+            },
+            childType: "workflowRevision",
+            childLabel: "Revision",
+            childRelation: workflowToRevisionRelation as EntityRelation<unknown, unknown>,
+            childOverrides: {
+                autoSelectSingle: true,
+                getId: revisionOverrides.getId ?? workflowRevisionLevel.getId,
+                getLabel: revisionOverrides.getLabel ?? workflowRevisionLevel.getLabel,
+                getLabelNode: revisionOverrides.getLabelNode ?? workflowRevisionLevel.getLabelNode,
+                getPlaceholderNode: workflowRevisionLevel.getPlaceholderNode,
+                filterItems: excludeRevisionZero
+                    ? (r: unknown) => (r as {version?: number}).version !== 0
+                    : undefined,
+            },
+            selectionType: "workflowRevision",
+            toSelection:
+                toSelection ??
+                ((path, leafEntity) => {
+                    const revision = leafEntity as {id: string; version?: number}
+                    const workflow = path[0]
+                    const revisionItem = path[1]
+
+                    return {
+                        type: "workflowRevision",
+                        id: revision.id,
+                        label: `${workflow?.label ?? "Workflow"} / ${revisionItem?.label ?? "Revision"}`,
+                        path,
+                        metadata: {
+                            workflowId: workflow?.id ?? "",
+                            workflowName: workflow?.label ?? "",
+                            variantId: "",
+                            variantName: "",
+                            revision: revision.version ?? 0,
+                        },
+                    }
+                }),
+            emptyMessage: emptyMessage ?? "No workflows found",
+            loadingMessage: loadingMessage ?? "Loading workflows...",
+        })
+    }
+
     // 3-level mode: Workflow → Variant → Revision
     // When no customizations are needed, return the default adapter
     const hasGrandparentOverrides = Object.keys(grandparentOverrides).length > 0
@@ -613,7 +720,7 @@ export function createWorkflowRevisionAdapter(
         grandparentListAtom: filteredWorkflowsListAtom,
         grandparentOverrides: {
             getId: (entity: unknown) => (entity as {id: string}).id,
-            getLabel: (entity: unknown) => (entity as {name?: string}).name ?? "Unnamed",
+            getLabel: (entity: unknown) => getWorkflowDisplayName(entity),
             getLabelNode: grandparentOverrides.getLabelNode ?? renderWorkflowLabelNode,
             getGroupKey: grandparentOverrides.getGroupKey ?? getWorkflowGroupKey,
             getGroupLabel: grandparentOverrides.getGroupLabel ?? getWorkflowGroupLabel,
@@ -626,11 +733,11 @@ export function createWorkflowRevisionAdapter(
         parentOverrides: {
             autoSelectSingle: true,
             getId: (entity: unknown) => (entity as {id: string}).id ?? "",
-            getLabel: (entity: unknown) => (entity as {name?: string}).name ?? "Unnamed",
+            getLabel: (entity: unknown) => getWorkflowDisplayName(entity),
             getLabelNode: (entity: unknown) => {
                 const v = entity as {name?: string}
                 return React.createElement(EntityListItemLabel, {
-                    label: v.name ?? "Unnamed",
+                    label: v.name?.trim() || (v as {slug?: string}).slug?.trim() || "Unnamed",
                     subtitle: getWorkflowVariantSubtitle(entity),
                     reserveSubtitleSpace: true,
                 })

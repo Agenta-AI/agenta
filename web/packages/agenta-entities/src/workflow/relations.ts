@@ -26,17 +26,19 @@
  */
 
 import {atom} from "jotai"
+import {atomFamily} from "jotai/utils"
 
 import type {EntityRelation} from "../shared/molecule/types"
 import type {ListQueryState} from "../shared/molecule/types"
 import {entityRelationRegistry} from "../shared/relations/registry"
 
 import type {Workflow, WorkflowVariant} from "./core"
+import {workflowsListQueryStateAtom} from "./state/allWorkflows"
 import {
-    workflowsListQueryAtom,
     workflowRevisionsByWorkflowQueryAtomFamily,
     workflowVariantsListQueryStateAtomFamily,
     workflowRevisionsListQueryStateAtomFamily,
+    workflowBaseEntityAtomFamily,
 } from "./state/store"
 
 // ============================================================================
@@ -44,26 +46,11 @@ import {
 // ============================================================================
 
 /**
- * Wraps the workflows query to provide a ListQueryState for the root level.
- * This is a static atom (no parent ID) since workflows are at the root.
- *
+ * All workflows (app + evaluator) as ListQueryState for the root level.
  * Filters out archived workflows for selection UI.
+ * Delegates to the union atom from allWorkflows.ts.
  */
-export const workflowsListAtom = atom<ListQueryState<Workflow>>((get) => {
-    const query = get(workflowsListQueryAtom)
-
-    const data = (query.data?.workflows ?? []).filter((w) => !w.deleted_at)
-    const isPending = query.isPending ?? false
-    const isError = query.isError ?? false
-    const error = query.error ?? null
-
-    return {
-        data,
-        isPending,
-        isError,
-        error,
-    }
-})
+export const workflowsListAtom = workflowsListQueryStateAtom
 
 // ============================================================================
 // WORKFLOW → REVISION RELATION (2-Level, skips Variant)
@@ -74,23 +61,43 @@ export const workflowsListAtom = atom<ListQueryState<Workflow>>((get) => {
  * Adapts the existing workflowRevisionsByWorkflowQueryAtomFamily
  * to the ListQueryState interface required by selection adapters.
  */
-const revisionByWorkflowListAtomFamily = (workflowId: string) =>
+const revisionByWorkflowListAtomFamily = atomFamily((workflowId: string) =>
     atom<ListQueryState<Workflow>>((get) => {
         const query = get(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
 
-        const revisions = query.data?.workflow_revisions ?? []
-        const data = [...revisions].sort((a, b) => (b.version ?? 0) - (a.version ?? 0))
+        // Build a variant ID → name map to enrich revisions with variant names
+        const variantsState = get(workflowVariantsListQueryStateAtomFamily(workflowId))
+        const variantNameMap = new Map<string, string>(
+            (variantsState.data ?? [])
+                .filter((v) => v.id && v.name)
+                .map((v) => [v.id, v.name as string]),
+        )
+
+        // Resolve thin refs to full entities through the molecule
+        const refs = query.data?.refs ?? []
+        const data = refs
+            .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
+            .filter((w): w is Workflow => w !== null)
+            .sort((a, b) => (b.version ?? 0) - (a.version ?? 0))
+            .map((revision) => ({
+                ...revision,
+                variant_name: revision.workflow_variant_id
+                    ? (variantNameMap.get(revision.workflow_variant_id) ?? undefined)
+                    : undefined,
+            }))
+
         const isPending = query.isPending ?? false
         const isError = query.isError ?? false
         const error = query.error ?? null
 
         return {
-            data,
+            data: data as Workflow[],
             isPending,
             isError,
             error,
         }
-    })
+    }),
+)
 
 /**
  * Relation from workflow to its revisions (2-level, skipping variants).

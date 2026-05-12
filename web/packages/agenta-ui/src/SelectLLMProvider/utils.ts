@@ -31,6 +31,7 @@ export const PROVIDER_ICON_MAP: Record<string, string> = {
     azure: "Azure OpenAI",
     fireworks: "Fireworks",
     lepton: "Lepton",
+    minimax: "MiniMax",
     replicate: "Replicate",
     xai: "xAI",
 }

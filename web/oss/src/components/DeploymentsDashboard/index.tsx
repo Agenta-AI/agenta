@@ -1,174 +1,165 @@
-import {type FC, useEffect} from "react"
+import {type FC, useCallback, useMemo} from "react"
 
-import {appRevisionsWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
-import {publishMutationAtom} from "@agenta/entities/legacyAppRevision"
+import {publishMutationAtom} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {CloudArrowUpIcon, CodeSimpleIcon} from "@phosphor-icons/react"
-import {Button, Input, Space, Typography} from "antd"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
-import {createUseStyles} from "react-jss"
+import {Button, Space} from "antd"
+import {useAtomValue, useSetAtom} from "jotai"
 
-import {openDeploymentsDrawerAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentDrawerStore"
+import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
+import {useQueryParamState} from "@/oss/state/appState"
+
+import {openDeploymentsDrawerAtom} from "./modals/store/deploymentDrawerStore"
 import {
     openDeploymentConfirmationModalAtom,
     openSelectDeployVariantModalAtom,
-} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
-import {DeploymentRevisions} from "@/oss/lib/Types"
-import {JSSTheme} from "@/oss/lib/Types"
-import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
-
-import {
-    deploymentSearchAtom,
-    selectedRevisionRowAtom,
-    selectedVariantRevisionIdToRevertAtom,
-    envRevisionsAtom,
-    filteredDeploymentRevisionsAtom,
-    selectedVariantToRevertAtom,
-} from "./atoms"
-import DeploymentTable from "./components/Table"
-import {type OnOpenUseApiPayload} from "./components/Table/assets/getDeploymentColumns"
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    title: {
-        fontSize: theme.fontSizeHeading4,
-        fontWeight: theme.fontWeightMedium,
-        lineHeight: theme.lineHeightHeading4,
-        textTransform: "capitalize",
-    },
-    subTitle: {
-        fontSize: theme.fontSizeHeading5,
-        fontWeight: theme.fontWeightMedium,
-        lineHeight: theme.lineHeightHeading5,
-    },
-}))
+} from "./modals/store/deploymentModalsStore"
+import type {DeploymentRevisionRow} from "./store/deploymentStore"
+import type {DeploymentColumnActions} from "./Table/assets/deploymentColumns"
+import DeploymentsTable from "./Table/DeploymentsTable"
 
 interface DeploymentsDashboardProps {
-    envRevisions: DeploymentRevisions | undefined
-    isLoading: boolean
-    selectedEnvName: string
+    environmentId: string | null
+    environmentName: string
+    /** The currently deployed app revision ID (for disabling revert on current deploy) */
+    currentDeployedRevisionId?: string | null
 }
 
 const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
-    envRevisions,
-    selectedEnvName,
-    isLoading,
+    environmentId,
+    environmentName,
+    currentDeployedRevisionId,
 }) => {
     const {mutateAsync: publish} = useAtomValue(publishMutationAtom)
-    const classes = useStyles()
+    const {goToPlayground} = usePlaygroundNavigation()
 
-    // Sync envRevisions prop with atom
-    const setEnvRevisions = useSetAtom(envRevisionsAtom)
-    useEffect(() => {
-        setEnvRevisions(envRevisions)
-    }, [envRevisions, setEnvRevisions])
+    const [, setQueryVariant] = useQueryParamState("revisionId")
 
-    const rawAppId = useAtomValue(selectedAppIdAtom)
-    const appId = typeof rawAppId === "string" ? rawAppId : null
-    const variants = useAtomValue(appRevisionsWithDraftsAtomFamily(appId || "")) || []
+    const openDeploymentsDrawer = useSetAtom(openDeploymentsDrawerAtom)
+    const openDeploymentConfirmationModal = useSetAtom(openDeploymentConfirmationModalAtom)
+    const openSelectDeployVariantModal = useSetAtom(openSelectDeployVariantModalAtom)
 
-    // Optimized state management with atoms
-    const [searchTerm, setSearchTerm] = useAtom(deploymentSearchAtom)
-    // Keep some local state for now to avoid breaking existing functionality
-    const [, setSelectedRevisionRow] = useAtom(selectedRevisionRowAtom)
-    const [selectedVariantRevisionIdToRevert, setSelectedVariantRevisionIdToRevert] = useAtom(
-        selectedVariantRevisionIdToRevertAtom,
+    // Row click → opens drawer via query param
+    const handleRowClick = useCallback(
+        (record: DeploymentRevisionRow) => {
+            const targetId = record.deployedRevisionId
+            if (targetId) {
+                setQueryVariant(targetId, {shallow: true})
+            }
+        },
+        [setQueryVariant],
     )
 
-    // Global modal openers
-    const openSelectDeployVariantModal = useSetAtom(openSelectDeployVariantModalAtom)
-    const openDeploymentConfirmationModal = useSetAtom(openDeploymentConfirmationModalAtom)
-    const openDeploymentsDrawer = useSetAtom(openDeploymentsDrawerAtom)
+    // Column action handlers
+    const handleOpenDetails = useCallback(
+        (record: DeploymentRevisionRow) => {
+            const targetId = record.deployedRevisionId
+            if (targetId) {
+                setQueryVariant(targetId, {shallow: true})
+            }
+        },
+        [setQueryVariant],
+    )
 
-    // Atom-based computed values
-    const selectedVariantToRevert = useAtomValue(selectedVariantToRevertAtom)
-    const revisions = useAtomValue(filteredDeploymentRevisionsAtom)
+    const handleOpenInPlayground = useCallback(
+        (record: DeploymentRevisionRow) => {
+            if (record.deployedRevisionId) {
+                goToPlayground(record.deployedRevisionId)
+            }
+        },
+        [goToPlayground],
+    )
 
-    // Deep-link handling moved to DeploymentsDrawerWrapper
+    const handleUseApi = useCallback(
+        (record: DeploymentRevisionRow) => {
+            openDeploymentsDrawer({
+                initialWidth: 720,
+                revisionId: record.deployedRevisionId ?? undefined,
+                deploymentRevisionId: record.envRevisionId,
+                envRevisionVersion: record.version,
+                envName: environmentName,
+                mode: "deployment",
+            })
+        },
+        [environmentName, openDeploymentsDrawer],
+    )
+
+    const handleRevert = useCallback(
+        (record: DeploymentRevisionRow) => {
+            if (!record.deployedRevisionId) return
+            const workflowData = workflowMolecule.get.data(record.deployedRevisionId!)
+            openDeploymentConfirmationModal({
+                envName: environmentName,
+                actionType: "revert",
+                onConfirm: async (noteValue) => {
+                    await publish({
+                        revisionId: record.deployedRevisionId!,
+                        environmentSlug: environmentName,
+                        applicationId: workflowData?.workflow_id || "",
+                        workflowVariantId: workflowData?.workflow_variant_id ?? undefined,
+                        variantSlug: workflowData?.slug ?? undefined,
+                        revisionVersion: workflowData?.version ?? undefined,
+                        note: noteValue,
+                    })
+                },
+            })
+        },
+        [environmentName, openDeploymentConfirmationModal, publish],
+    )
+
+    const columnActions = useMemo<DeploymentColumnActions>(
+        () => ({
+            handleOpenDetails,
+            handleOpenInPlayground,
+            handleUseApi,
+            handleRevert,
+            currentDeployedRevisionId,
+        }),
+        [
+            handleOpenDetails,
+            handleOpenInPlayground,
+            handleUseApi,
+            handleRevert,
+            currentDeployedRevisionId,
+        ],
+    )
+
+    const actionsNode = useMemo(
+        () => (
+            <Space>
+                <Button
+                    icon={<CloudArrowUpIcon size={14} />}
+                    onClick={() => openSelectDeployVariantModal({envName: environmentName})}
+                >
+                    Deploy
+                </Button>
+                <Button
+                    type="primary"
+                    icon={<CodeSimpleIcon size={14} />}
+                    onClick={() =>
+                        openDeploymentsDrawer({
+                            initialWidth: 720,
+                            mode: "deployment",
+                            envName: environmentName,
+                        })
+                    }
+                >
+                    Use API
+                </Button>
+            </Space>
+        ),
+        [environmentName, openDeploymentsDrawer, openSelectDeployVariantModal],
+    )
 
     return (
-        <Space orientation="vertical" size={8}>
-            <Typography.Text className={classes.title}>
-                {envRevisions?.name || selectedEnvName}
-            </Typography.Text>
-
-            <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                    <Input.Search
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder="Search"
-                        allowClear
-                        className="w-[400px]"
-                    />
-
-                    <Space>
-                        <Button
-                            icon={<CloudArrowUpIcon />}
-                            onClick={() =>
-                                openSelectDeployVariantModal({variants, envRevisions: envRevisions})
-                            }
-                        >
-                            Deploy
-                        </Button>
-                        <Button
-                            type="primary"
-                            icon={<CodeSimpleIcon size={14} />}
-                            onClick={() =>
-                                envRevisions &&
-                                openDeploymentsDrawer({
-                                    initialWidth: 720,
-                                    mode: "deployment",
-                                    envName: envRevisions.name,
-                                })
-                            }
-                        >
-                            Use API
-                        </Button>
-                    </Space>
-                </div>
-
-                <DeploymentTable
-                    revisions={revisions}
-                    setSelectedRevisionRow={setSelectedRevisionRow}
-                    setIsRevertModalOpen={(isOpen) => {
-                        if (!isOpen) return
-                        const envName = envRevisions?.name || ""
-                        openDeploymentConfirmationModal({
-                            envName,
-                            actionType: "revert",
-                            variant: selectedVariantToRevert || undefined,
-                            onConfirm: async (noteValue) => {
-                                await publish({
-                                    type: "revision",
-                                    note: noteValue,
-                                    revision_id: selectedVariantRevisionIdToRevert,
-                                    environment_ref: envName,
-                                })
-                            },
-                        })
-                    }}
-                    setSelectedVariantRevisionIdToRevert={setSelectedVariantRevisionIdToRevert}
-                    envRevisions={envRevisions}
-                    setIsSelectDeployVariantModalOpen={() =>
-                        openSelectDeployVariantModal({variants, envRevisions: envRevisions})
-                    }
-                    onOpenUseApi={({
-                        revisionId,
-                        deploymentRevisionId,
-                    }: OnOpenUseApiPayload = {}) => {
-                        if (envRevisions) {
-                            openDeploymentsDrawer({
-                                initialWidth: 720,
-                                revisionId,
-                                deploymentRevisionId,
-                                envName: envRevisions.name,
-                                mode: "deployment",
-                            })
-                        }
-                    }}
-                    isLoading={isLoading}
-                />
-            </div>
-        </Space>
+        <div className="flex flex-col h-full min-h-0 grow">
+            <DeploymentsTable
+                onRowClick={handleRowClick}
+                actions={columnActions}
+                searchDeps={[environmentId]}
+                primaryActions={actionsNode}
+            />
+        </div>
     )
 }
 

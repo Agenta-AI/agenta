@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from oss.src.core.otel.dtos import (
     OTelStatusCode,
@@ -41,6 +41,8 @@ class LinkData(BaseModel):
 class CanonicalAttributes(BaseModel):
     """A normalized and structured container for all attributes and metadata from an OpenTelemetry span."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     # Core span identifiers and metadata
     span_name: str
     trace_id: str
@@ -66,9 +68,6 @@ class CanonicalAttributes(BaseModel):
     # Helper methods (can be added if common access patterns emerge for adapters)
     # For example, a method to get all 'ag.*' prefixed attributes from span_attributes
     # or resource_attributes. For now, adapters will access these dicts directly.
-
-    class Config:
-        arbitrary_types_allowed = True  # For OTelSpanKind and OTelStatusCode enums
 
     def get_attributes_in_namespace(
         self, prefix: str, source: str = "span"

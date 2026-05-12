@@ -1,0 +1,1 @@
+{"parameters":[{"name":"project_id","in":"path","required":true,"schema":{"type":"string","title":"Project Id"}},{"name":"membership_id","in":"path","required":true,"schema":{"type":"string","title":"Membership Id"}}]}

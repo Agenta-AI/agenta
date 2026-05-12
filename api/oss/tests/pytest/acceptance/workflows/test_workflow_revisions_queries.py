@@ -15,9 +15,9 @@ def mock_data(authed_api):
         "name": f"Workflow {workflow_slug}",
         "description": "Workflow Description",
         "flags": {
-            "is_custom": False,
+            "is_application": True,
             "is_evaluator": False,
-            "is_human": False,
+            "is_snippet": False,
         },
         "tags": {
             "tag1": "value1",
@@ -33,7 +33,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/",
+        "/workflows/",
         json={"workflow": workflow},
     )
 
@@ -45,16 +45,16 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/variants/",
+        "/workflows/variants/",
         json={
             "workflow_variant": {
                 "slug": f"workflow-variant-{workflow_variant_slug}",
                 "name": f"Workflow Variant {workflow_variant_slug}",
                 "description": "Workflow Variant Description",
                 "flags": {
-                    "is_custom": False,
+                    "is_application": True,
                     "is_evaluator": False,
-                    "is_human": False,
+                    "is_snippet": False,
                 },
                 "tags": {
                     "tag1": "value1",
@@ -79,17 +79,30 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/workflows/revisions/commit",
+        json={
+            "workflow_revision": {
+                "slug": f"workflow-revision-{workflow_revision_slug}-initial",
+                "name": f"Workflow Revision Initial {workflow_revision_slug}",
+                "description": "Workflow Revision Initial Description",
+                "workflow_id": workflow_id,
+                "workflow_variant_id": workflow_variant_id,
+            }
+        },
+    )
+
+    assert response.status_code == 200
+
+    workflow_revision_slug = uuid4()
+
+    response = authed_api(
+        "POST",
+        "/workflows/revisions/commit",
         json={
             "workflow_revision": {
                 "slug": f"workflow-revision-{workflow_revision_slug}",
                 "name": f"Workflow Revision {workflow_revision_slug}",
                 "description": "Workflow Revision Description",
-                "flags": {
-                    "is_custom": False,
-                    "is_evaluator": False,
-                    "is_human": False,
-                },
                 "tags": {
                     "tag1": "value1",
                     "tag2": "value2",
@@ -101,6 +114,9 @@ def mock_data(authed_api):
                     "meta2": "value2",
                     "meta3": "value3",
                     "_marker": unique_marker,
+                },
+                "data": {
+                    "uri": "agenta:custom:feedback:v0",
                 },
                 "workflow_id": workflow_id,
                 "workflow_variant_id": workflow_variant_id,
@@ -116,17 +132,12 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/",
+        "/workflows/revisions/commit",
         json={
             "workflow_revision": {
                 "slug": f"workflow-Revision-{workflow_revision_slug}",
                 "name": f"Workflow Revision {workflow_revision_slug}",
                 "description": "Workflow Revision Description",
-                "flags": {
-                    "is_custom": False,
-                    "is_evaluator": False,
-                    "is_human": False,
-                },
                 "tags": {
                     "tag1": "value3",
                     "tag2": "value2",
@@ -138,6 +149,9 @@ def mock_data(authed_api):
                     "meta2": "value2",
                     "meta3": "value1",
                     "_marker": unique_marker,
+                },
+                "data": {
+                    "uri": "agenta:builtin:chat:v0",
                 },
                 "workflow_id": workflow_id,
                 "workflow_variant_id": workflow_variant_id,
@@ -151,14 +165,14 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        f"/preview/workflows/revisions/{workflow_revision_1['id']}/archive",
+        f"/workflows/revisions/{workflow_revision_1['id']}/archive",
     )
 
     assert response.status_code == 200
 
     response = authed_api(
         "POST",
-        "/preview/workflows/revisions/query",
+        "/workflows/revisions/query",
         json={
             "include_archived": True,
             "workflow_revision": {"tags": {"_marker": unique_marker}},
@@ -191,7 +205,7 @@ class TestWorkflowRevisionsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/query",
+            "/workflows/revisions/query",
             json={
                 "workflow_revision": {"tags": {"_marker": mock_data["_marker"]}},
             },
@@ -216,7 +230,7 @@ class TestWorkflowRevisionsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/query",
+            "/workflows/revisions/query",
             json={
                 "include_archived": True,
                 "workflow_revision": {"tags": {"_marker": mock_data["_marker"]}},
@@ -244,7 +258,7 @@ class TestWorkflowRevisionsQueries:
         # ACT — page 1 --------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/query",
+            "/workflows/revisions/query",
             json={
                 "include_archived": True,
                 "workflow_revision": {"tags": {"_marker": marker}},
@@ -263,7 +277,7 @@ class TestWorkflowRevisionsQueries:
         # ACT — page 2 --------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/query",
+            "/workflows/revisions/query",
             json={
                 "include_archived": True,
                 "workflow_revision": {"tags": {"_marker": marker}},
@@ -286,7 +300,7 @@ class TestWorkflowRevisionsQueries:
         # ACT — page 3 (empty) ------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/query",
+            "/workflows/revisions/query",
             json={
                 "include_archived": True,
                 "workflow_revision": {"tags": {"_marker": marker}},
@@ -314,10 +328,10 @@ class TestWorkflowRevisionsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/query",
+            "/workflows/revisions/query",
             json={
                 "workflow_revision": {
-                    "flags": mock_data["workflow_revisions"][0]["flags"],
+                    "flags": {"is_custom": True},
                     "tags": {"_marker": marker},
                 },
             },
@@ -337,10 +351,10 @@ class TestWorkflowRevisionsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/query",
+            "/workflows/revisions/query",
             json={
                 "workflow_revision": {
-                    "flags": {"is_custom": True},
+                    "flags": {"is_snippet": True},
                     "tags": {"_marker": marker},
                 },
             },
@@ -361,7 +375,7 @@ class TestWorkflowRevisionsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/query",
+            "/workflows/revisions/query",
             json={
                 "workflow_revision": {
                     "tags": mock_data["workflow_revisions"][0]["tags"],
@@ -383,7 +397,7 @@ class TestWorkflowRevisionsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/workflows/revisions/query",
+            "/workflows/revisions/query",
             json={
                 "workflow_revision": {
                     "tags": {"tag1": "nonexistent_value"},

@@ -6,11 +6,11 @@ from pydantic import BaseModel, Field
 
 class WorkspaceRole(str, Enum):
     OWNER = "owner"
-    VIEWER = "viewer"
+    ADMIN = "admin"
+    DEVELOPER = "developer"
     EDITOR = "editor"
-    EVALUATOR = "evaluator"
-    WORKSPACE_ADMIN = "workspace_admin"
-    DEPLOYMENT_MANAGER = "deployment_manager"
+    ANNOTATOR = "annotator"
+    VIEWER = "viewer"
 
     @classmethod
     def is_valid_role(cls, role: str) -> bool:
@@ -20,11 +20,11 @@ class WorkspaceRole(str, Enum):
     def get_description(cls, role):
         descriptions = {
             cls.OWNER: "Can fully manage the workspace, including adding and removing members.",
+            cls.ADMIN: "Can manage workspace settings and members but cannot delete the workspace.",
+            cls.DEVELOPER: "Can deploy, export, and manage API keys and environments.",
+            cls.EDITOR: "Can edit prompts, testsets, evaluators, and workflows.",
+            cls.ANNOTATOR: "Can run evaluations and annotate traces.",
             cls.VIEWER: "Can view the workspace content but cannot make changes.",
-            cls.EDITOR: "Can edit workspace content, but cannot manage members or roles.",
-            cls.EVALUATOR: "Can evaluate models and provide feedback within the workspace.",
-            cls.WORKSPACE_ADMIN: "Can manage workspace settings and members but cannot delete the workspace.",
-            cls.DEPLOYMENT_MANAGER: "Can manage model deployments within the workspace.",
         }
         return descriptions.get(role, "Description not available, Role not found")
 
@@ -170,7 +170,6 @@ class Permission(str, Enum):
             cls.VIEW_EVALUATION,
             cls.RUN_SERVICE,
             cls.VIEW_BILLING,
-            #
             cls.VIEW_WORKFLOWS,
             cls.VIEW_EVALUATORS,
             cls.VIEW_QUERIES,
@@ -179,55 +178,72 @@ class Permission(str, Enum):
             cls.VIEW_INVOCATIONS,
             cls.VIEW_SPANS,
             cls.VIEW_FOLDERS,
-            cls.VIEW_API_KEYS,
             cls.VIEW_ENVIRONMENTS,
             cls.VIEW_EVALUATION_RUNS,
             cls.VIEW_EVALUATION_SCENARIOS,
             cls.VIEW_EVALUATION_RESULTS,
             cls.VIEW_EVALUATION_METRICS,
             cls.VIEW_EVALUATION_QUEUES,
-            #
             cls.VIEW_TOOLS,
+        ]
+        ANNOTATOR_PERMISSIONS = VIEWER_PERMISSIONS + [
+            cls.CREATE_EVALUATION,
+            cls.RUN_EVALUATIONS,
+            cls.EDIT_EVALUATION,
+            cls.EDIT_ANNOTATIONS,
+            cls.EDIT_EVALUATION_RUNS,
+            cls.EDIT_EVALUATION_SCENARIOS,
+            cls.EDIT_EVALUATION_RESULTS,
+            cls.EDIT_EVALUATION_METRICS,
+            cls.EDIT_EVALUATION_QUEUES,
+            cls.EDIT_SPANS,
+            cls.RUN_TOOLS,
+        ]
+        EDITOR_PERMISSIONS = ANNOTATOR_PERMISSIONS + [
+            cls.EDIT_APPLICATIONS,
+            cls.CREATE_APP_VARIANT,
+            cls.DELETE_APP_VARIANT,
+            cls.MODIFY_VARIANT_CONFIGURATIONS,
+            cls.EDIT_APPLICATIONS_VARIANT,
+            cls.EDIT_WEBHOOKS,
+            cls.EDIT_SECRET,
+            cls.EDIT_FOLDERS,
+            cls.EDIT_TESTSET,
+            cls.CREATE_TESTSET,
+            cls.DELETE_TESTSET,
+            cls.DELETE_EVALUATION,
+            cls.EDIT_WORKFLOWS,
+            cls.RUN_WORKFLOWS,
+            cls.EDIT_EVALUATORS,
+            cls.EDIT_QUERIES,
+            cls.EDIT_TESTSETS,
+            cls.EDIT_INVOCATIONS,
+            cls.EDIT_TOOLS,
+        ]
+        DEVELOPER_PERMISSIONS = EDITOR_PERMISSIONS + [
+            cls.VIEW_API_KEYS,
+            cls.EDIT_API_KEYS,
+            cls.DEPLOY_APPLICATION,
+            cls.DEPLOY_ENVIRONMENTS,
+            cls.EDIT_ENVIRONMENTS,
+            cls.EDIT_APP_ENVIRONMENT_DEPLOYMENT,
+            cls.CREATE_APP_ENVIRONMENT_DEPLOYMENT,
+        ]
+        ADMIN_PERMISSIONS = DEVELOPER_PERMISSIONS + [
+            cls.EDIT_WORKSPACE,
+            cls.CREATE_WORKSPACE,
+            cls.MODIFY_USER_ROLES,
+            cls.ADD_USER_TO_WORKSPACE,
+            cls.RESET_PASSWORD,
+            cls.VIEW_WORKSPACE,
         ]
         defaults = {
             WorkspaceRole.OWNER: [p for p in cls],
+            WorkspaceRole.ADMIN: ADMIN_PERMISSIONS,
+            WorkspaceRole.DEVELOPER: DEVELOPER_PERMISSIONS,
+            WorkspaceRole.EDITOR: EDITOR_PERMISSIONS,
+            WorkspaceRole.ANNOTATOR: ANNOTATOR_PERMISSIONS,
             WorkspaceRole.VIEWER: VIEWER_PERMISSIONS,
-            WorkspaceRole.EDITOR: [
-                p
-                for p in cls
-                if p
-                not in [
-                    cls.RESET_PASSWORD,
-                    cls.DELETE_TESTSET,
-                    cls.DELETE_WORKSPACE,
-                    cls.CREATE_WORKSPACE,
-                    cls.EDIT_ORGANIZATION,
-                    cls.DELETE_EVALUATION,
-                    cls.MODIFY_USER_ROLES,
-                    cls.EDIT_APPLICATIONS,
-                    cls.DELETE_ORGANIZATION,
-                    cls.ADD_USER_TO_WORKSPACE,
-                    cls.ADD_USER_TO_ORGANIZATION,
-                    cls.EDIT_BILLING,
-                    cls.DEPLOY_ENVIRONMENTS,
-                ]
-            ],
-            WorkspaceRole.DEPLOYMENT_MANAGER: VIEWER_PERMISSIONS
-            + [cls.DEPLOY_APPLICATION, cls.DEPLOY_ENVIRONMENTS, cls.EDIT_ENVIRONMENTS],
-            WorkspaceRole.WORKSPACE_ADMIN: [
-                p
-                for p in cls
-                if p
-                not in [
-                    cls.DELETE_WORKSPACE,
-                    cls.DELETE_ORGANIZATION,
-                    cls.EDIT_ORGANIZATION,
-                    cls.ADD_USER_TO_ORGANIZATION,
-                    cls.EDIT_BILLING,
-                ]
-            ],
-            WorkspaceRole.EVALUATOR: VIEWER_PERMISSIONS
-            + [cls.CREATE_EVALUATION, cls.RUN_EVALUATIONS],
         }
 
         return defaults.get(role, [])

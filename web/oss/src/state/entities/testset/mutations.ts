@@ -41,7 +41,7 @@ export interface SaveTestsetParams {
     projectId: string
     testsetId: string
     revisionId?: string | null
-    commitMessage?: string
+    commitMessage?: string | null
 }
 
 /**

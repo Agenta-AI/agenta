@@ -3,12 +3,9 @@
  *
  * Molecule-first drill-in navigation for entities.
  *
- * This module provides:
- * - React components for drill-in navigation
- * - Types for molecule-level drillIn configuration
- * - ClassNames API for styling customization
- * - Context for component state management
- * - Slot types for custom rendering
+ * Core framework (types, renderers, utilities, context) lives in @agenta/ui/drill-in.
+ * This module provides entity-specific wrappers (MoleculeDrillIn*, SchemaControls)
+ * and re-exports the core framework for convenience.
  *
  * @example
  * ```tsx
@@ -35,7 +32,7 @@
  */
 
 // ============================================================================
-// COMPONENTS
+// COMPONENTS (entity-specific, local)
 // ============================================================================
 
 export {
@@ -51,13 +48,15 @@ export type {
     MoleculeDrillInProviderProps,
     PlaygroundConfigSectionProps,
     ConfigSectionMoleculeAdapter,
+    ConfigViewMode,
     EvaluatorPresetConfig,
 } from "./components"
 
 // ============================================================================
-// TYPES
+// RE-EXPORTS FROM @agenta/ui/drill-in (core framework)
 // ============================================================================
 
+// Types
 export type {
     // Molecule-level config
     DrillInMoleculeConfig,
@@ -79,12 +78,9 @@ export type {
     // Component props
     MoleculeDrillInViewProps,
     MoleculeDrillInAdapter,
-} from "./types"
+} from "@agenta/ui/drill-in"
 
-// ============================================================================
-// UTILS
-// ============================================================================
-
+// Utils
 export {
     // ClassNames
     drillInPrefixCls,
@@ -100,24 +96,22 @@ export {
     createEditableDrillInAdapter,
     type AdaptableMolecule,
     type CreateAdapterOptions,
-} from "./utils"
+} from "@agenta/ui/drill-in"
 
-// ============================================================================
-// CONTEXT
-// ============================================================================
+// Context
+export type {DrillInContextValue, DrillInProviderProps} from "@agenta/ui/drill-in"
 
-export type {DrillInContextValue, DrillInProviderProps} from "./context"
-
-export {defaultFieldBehaviors} from "./context"
+export {defaultFieldBehaviors} from "@agenta/ui/drill-in"
 
 // UI Injection Context (for OSS component injection)
-export {DrillInUIProvider, useDrillInUI, defaultShowMessage} from "./context"
-export type {DrillInUIComponents, DrillInUIProviderProps, GatewayToolsBridge} from "./context"
+export {DrillInUIProvider, useDrillInUI, defaultShowMessage} from "@agenta/ui/drill-in"
+export type {
+    DrillInUIComponents,
+    DrillInUIProviderProps,
+    GatewayToolsBridge,
+} from "@agenta/ui/drill-in"
 
-// ============================================================================
-// CORE TYPES (for DrillInContent-based implementations)
-// ============================================================================
-
+// Core Types
 export type {
     // Data types
     PropertyType,
@@ -128,7 +122,7 @@ export type {
     PathItem,
     SchemaInfo,
     // Renderer interfaces (for dependency injection)
-    FieldRendererProps as CoreFieldRendererProps,
+    CoreFieldRendererProps,
     FieldRendererComponent,
     SchemaRendererProps,
     SchemaRendererComponent,
@@ -140,24 +134,23 @@ export type {
     EntityDrillInAPI,
     EntityControllerAPI,
     EntityDualViewEditorProps,
-} from "./coreTypes"
+} from "@agenta/ui/drill-in"
 
-// ============================================================================
-// CORE COMPONENTS (dependency-free framework)
-// ============================================================================
-
-export {DrillInBreadcrumb, DrillInControls, DrillInFieldHeader, DrillInContent} from "./core"
+// Core Components
+export {
+    DrillInBreadcrumb,
+    DrillInControls,
+    DrillInFieldHeader,
+    DrillInContent,
+} from "@agenta/ui/drill-in"
 export type {
     DrillInBreadcrumbProps,
     DrillInControlsProps,
     DrillInFieldHeaderProps,
     DrillInContentWithRenderersProps,
-} from "./core"
+} from "@agenta/ui/drill-in"
 
-// ============================================================================
-// CORE UTILITIES (pure functions)
-// ============================================================================
-
+// Core Utilities
 export {
     // Value utilities
     getDefaultValue,
@@ -173,12 +166,9 @@ export {
     formatLabel,
     canToggleRawMode,
     detectDataType,
-} from "./utils"
+} from "@agenta/ui/drill-in"
 
-// ============================================================================
-// FIELD RENDERERS (with context injection)
-// ============================================================================
-
+// Field Renderers
 export {
     // Field components
     BooleanField,
@@ -205,7 +195,7 @@ export {
     formatForJsonDisplay,
     parseFromJsonDisplay,
     MAX_NESTED_DEPTH,
-} from "./FieldRenderers"
+} from "@agenta/ui/drill-in"
 
 // NOTE: For tryParseAsObject, tryParseAsArray, SimpleChatMessage, import from @agenta/shared
 
@@ -216,10 +206,10 @@ export type {
     JsonObjectFieldProps,
     RawModeDisplayProps,
     TextFieldProps,
-} from "./FieldRenderers"
+} from "@agenta/ui/drill-in"
 
 // ============================================================================
-// SCHEMA CONTROLS (schema-driven UI)
+// SCHEMA CONTROLS (entity-specific, local)
 // ============================================================================
 
 export {
@@ -247,6 +237,9 @@ export {
     ObjectSchemaControl,
     CollapsibleObjectControl,
     SchemaPropertyRenderer,
+    // Context providers
+    FieldsDetectionProvider,
+    useFieldsDetection,
     // Utilities
     resolveAnyOfSchema,
     hasGroupedChoices,
@@ -283,4 +276,5 @@ export type {
     ToolFunction,
     ObjectSchemaControlProps,
     SchemaPropertyRendererProps,
+    FieldsDetectionContextValue,
 } from "./SchemaControls"

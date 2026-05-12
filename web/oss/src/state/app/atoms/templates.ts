@@ -1,29 +1,31 @@
+import {
+    fetchWorkflowCatalogTemplates,
+    type WorkflowCatalogTemplate,
+} from "@agenta/entities/workflow"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
-
-import {fetchAllTemplates} from "@/oss/services/app-selector/api"
 
 import {projectIdAtom} from "../../project/selectors/project"
 
 /**
- * Atom for fetching container templates
+ * Atom for fetching workflow catalog templates (application type only).
+ * Replaces the old container templates fetch.
  */
-export const templatesQueryAtom = atomWithQuery<any[]>((get) => {
+export const templatesQueryAtom = atomWithQuery<WorkflowCatalogTemplate[]>((get) => {
     const projectId = get(projectIdAtom)
 
     return {
-        queryKey: ["templates", projectId],
+        queryKey: ["workflow-catalog-templates", "application", projectId],
         queryFn: async () => {
-            const data = await fetchAllTemplates()
-            return data
+            const response = await fetchWorkflowCatalogTemplates({isApplication: true})
+            return response.templates
         },
-        staleTime: 1000 * 60 * 5, // 5 minutes - templates don't change often
+        staleTime: 1000 * 60 * 5,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: false,
         enabled: !!projectId,
         retry: (failureCount, error) => {
-            // Don't retry if it's a 404 or similar client error
             if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {
                 return false
             }
@@ -38,25 +40,14 @@ export const templatesQueryAtom = atomWithQuery<any[]>((get) => {
 export const noTemplateMessageAtom = atom<string>("")
 
 /**
- * Derived atom that handles the templates data and error states
+ * Derived atom that provides templates data and loading states.
  */
 export const templatesDataAtom = atom((get) => {
     const queryResult = get(templatesQueryAtom)
 
-    // Handle the case where data is a string (error message)
-    if (typeof queryResult.data === "string") {
-        return {
-            templates: [],
-            noTemplateMessage: queryResult.data,
-            isLoading: queryResult.isPending,
-            error: queryResult.error,
-            refetch: queryResult.refetch,
-        }
-    }
-
     return {
         templates: queryResult.data ?? [],
-        noTemplateMessage: "",
+        noTemplateMessage: queryResult.data?.length === 0 ? "No templates available" : "",
         isLoading: queryResult.isPending,
         error: queryResult.error,
         refetch: queryResult.refetch,

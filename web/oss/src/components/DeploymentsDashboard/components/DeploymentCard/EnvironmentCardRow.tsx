@@ -1,16 +1,15 @@
+import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
 import clsx from "clsx"
-
-import type {Environment} from "@/oss/lib/Types"
 
 import DeploymentCardSkeleton, {DEPLOYMENT_SKELETON_ENVIRONMENTS} from "./skeleton"
 
 import DeploymentCard from "./index"
 
 interface EnvironmentCardRowProps {
-    environments?: Environment[]
+    environments?: AppEnvironmentDeployment[]
     isLoading: boolean
     selectedEnvName?: string
-    onCardClick?: (environment: Environment) => void
+    onCardClick?: (environment: AppEnvironmentDeployment) => void
     className?: string
 }
 
@@ -35,7 +34,7 @@ const EnvironmentCardRow = ({
                   ))
                 : dataset.map((env, index) => (
                       <DeploymentCard
-                          key={env.id ?? env.name ?? index}
+                          key={env.name ?? index}
                           env={env}
                           selectedEnv={selectedEnvName}
                           onClick={() => onCardClick?.(env)}

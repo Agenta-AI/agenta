@@ -4,15 +4,18 @@ from uuid import UUID
 
 import pytest
 
+from agenta.sdk.models.tracing import OTelLink
 from oss.src.core.shared.dtos import Trace
-from oss.src.core.tracing.dtos import OTelFlatSpan, OTelSpan, SpanType
+from oss.src.core.tracing.dtos import OTelFlatSpan, OTelSpan, SpanType, TraceType
 from oss.src.core.tracing.utils.trees import (
     calculate_and_propagate_metrics,
     calculate_costs,
     connect_children,
     cumulate_costs,
+    cumulate_errors,
     cumulate_tokens,
     get_span_from_trace,
+    infer_and_propagate_trace_type_by_trace,
     parse_span_dtos_to_span_idx,
     parse_span_idx_to_span_id_tree,
     trace_map_to_traces,
@@ -31,42 +34,50 @@ def _span(
     span_id: str,
     parent_id: str | None = None,
     span_name: str,
+    trace_id: str = TRACE_UUID,
+    links=None,
     prompt_tokens: float = 0.0,
     completion_tokens: float = 0.0,
     prompt_cost: float = 0.0,
     completion_cost: float = 0.0,
+    errors: int = 0,
     start_offset_s: int = 0,
     span_type: SpanType = SpanType.TASK,
 ) -> OTelFlatSpan:
     total_tokens = prompt_tokens + completion_tokens
     total_cost = prompt_cost + completion_cost
+    metrics = {
+        "tokens": {
+            "incremental": {
+                "prompt": prompt_tokens,
+                "completion": completion_tokens,
+                "total": total_tokens,
+            }
+        },
+        "costs": {
+            "incremental": {
+                "prompt": prompt_cost,
+                "completion": completion_cost,
+                "total": total_cost,
+            }
+        },
+    }
+    if errors:
+        metrics["errors"] = {"incremental": errors}
+
     return OTelFlatSpan(
-        trace_id=TRACE_UUID,
+        trace_id=trace_id,
         span_id=span_id,
         parent_id=parent_id,
         span_name=span_name,
         span_type=span_type,
         start_time=datetime(2024, 1, 1, 0, 0, start_offset_s, tzinfo=timezone.utc),
+        links=links,
         attributes={
             "ag": {
                 "data": {"parameters": {"model": "gpt-4o-mini"}},
                 "meta": {"response": {"model": "gpt-4o-mini"}},
-                "metrics": {
-                    "tokens": {
-                        "incremental": {
-                            "prompt": prompt_tokens,
-                            "completion": completion_tokens,
-                            "total": total_tokens,
-                        }
-                    },
-                    "costs": {
-                        "incremental": {
-                            "prompt": prompt_cost,
-                            "completion": completion_cost,
-                            "total": total_cost,
-                        }
-                    },
-                },
+                "metrics": metrics,
             }
         },
     )
@@ -128,6 +139,34 @@ def test_cumulate_tokens_and_costs_propagate_from_children_to_parent():
     assert root_costs["prompt"] == pytest.approx(0.5)
     assert root_costs["completion"] == pytest.approx(0.7)
     assert root_costs["total"] == pytest.approx(1.2)
+
+
+def test_cumulate_errors_propagates_scalar_counts_from_children_to_parent():
+    root = _span(
+        span_id=ROOT_UUID,
+        span_name="root",
+        errors=1,
+    )
+    child = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="child",
+        errors=2,
+        start_offset_s=1,
+    )
+
+    span_idx = parse_span_dtos_to_span_idx([root, child])
+    tree = parse_span_idx_to_span_id_tree(span_idx)
+
+    cumulate_errors(tree, span_idx)
+
+    root_errors = span_idx[ROOT_UUID].attributes["ag"]["metrics"]["errors"]
+    child_errors = span_idx[CHILD_A_UUID].attributes["ag"]["metrics"]["errors"]
+
+    assert root_errors["incremental"] == 1
+    assert root_errors["cumulative"] == 3
+    assert child_errors["incremental"] == 2
+    assert child_errors["cumulative"] == 2
 
 
 def test_connect_children_groups_duplicate_child_names_into_lists():
@@ -217,6 +256,7 @@ def test_calculate_and_propagate_metrics_runs_full_pipeline(monkeypatch):
         span_name="child",
         prompt_tokens=2,
         completion_tokens=3,
+        errors=1,
         span_type=SpanType.CHAT,
         start_offset_s=1,
     )
@@ -234,11 +274,45 @@ def test_calculate_and_propagate_metrics_runs_full_pipeline(monkeypatch):
 
     root_tokens = out_idx[ROOT_UUID].attributes["ag"]["metrics"]["tokens"]["cumulative"]
     root_costs = out_idx[ROOT_UUID].attributes["ag"]["metrics"]["costs"]["cumulative"]
+    root_errors = out_idx[ROOT_UUID].attributes["ag"]["metrics"]["errors"]["cumulative"]
 
     assert root_tokens["total"] == 7
     assert round(root_costs["total"], 6) == round(
         (1 * 0.01 + 1 * 0.02) + (2 * 0.01 + 3 * 0.02), 6
     )
+    assert root_errors == 1
+
+
+def test_infer_and_propagate_trace_type_by_trace_preserves_input_order():
+    trace_a = "trace-a"
+    trace_b = "trace-b"
+    spans = [
+        _span(span_id="span-a1", span_name="a1", trace_id=trace_a, start_offset_s=0),
+        _span(
+            span_id="span-b1",
+            span_name="b1",
+            trace_id=trace_b,
+            start_offset_s=1,
+            links=[OTelLink(trace_id=trace_a, span_id="span-a1")],
+        ),
+        _span(span_id="span-a2", span_name="a2", trace_id=trace_a, start_offset_s=2),
+        _span(span_id="span-b2", span_name="b2", trace_id=trace_b, start_offset_s=3),
+    ]
+
+    out = infer_and_propagate_trace_type_by_trace(spans)
+
+    assert [span.span_id for span in out] == [
+        "span-a1",
+        "span-b1",
+        "span-a2",
+        "span-b2",
+    ]
+    assert out[0].trace_type == TraceType.INVOCATION
+    assert out[1].trace_type == TraceType.ANNOTATION
+    assert out[2].trace_type == TraceType.INVOCATION
+    assert out[3].trace_type == TraceType.ANNOTATION
+    assert out[0].attributes["ag"]["type"]["trace"] == TraceType.INVOCATION.value
+    assert out[1].attributes["ag"]["type"]["trace"] == TraceType.ANNOTATION.value
 
 
 def test_trace_map_to_traces_and_back_and_get_span_helpers():

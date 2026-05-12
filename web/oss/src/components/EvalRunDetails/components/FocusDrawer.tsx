@@ -2,6 +2,10 @@ import type {KeyboardEvent, ReactNode} from "react"
 import {memo, useCallback, useMemo, useRef, useState} from "react"
 import {isValidElement} from "react"
 
+import {
+    formatMetricDisplay,
+    METRIC_PLACEHOLDER as METRIC_EMPTY_PLACEHOLDER,
+} from "@agenta/ui/cell-renderers"
 import {DownOutlined} from "@ant-design/icons"
 import {Button, Popover, Skeleton, Typography} from "antd"
 import clsx from "clsx"
@@ -45,7 +49,6 @@ import {
 } from "../state/focusDrawerAtom"
 import {clearFocusDrawerQueryParams} from "../state/urlFocusDrawer"
 import {renderScenarioChatMessages} from "../utils/chatMessages"
-import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../utils/metricFormatter"
 
 import EvaluationRunTag from "./EvaluationRunTag"
 import FocusDrawerHeader from "./FocusDrawerHeader"
@@ -248,6 +251,7 @@ const useFocusDrawerSections = (runId: string | null) => {
 interface InvocationRefs {
     applicationId: string | null
     applicationVariantId: string | null
+    revisionId: string | null
     variantRevision: string | number | null
 }
 
@@ -270,6 +274,12 @@ const useInvocationRefs = (
         runIdentifiers.variantId ??
         runIdentifiers.applicationVariantId ??
         null
+    const revisionId =
+        (group?.meta?.refs?.application_revision?.id as string | undefined) ??
+        (group?.meta?.refs?.applicationRevision?.id as string | undefined) ??
+        (runIdentifiers.rawRefs?.applicationRevision?.id as string | undefined) ??
+        (runIdentifiers.rawRefs?.application_revision?.id as string | undefined) ??
+        null
     const variantRevision =
         (group?.meta?.refs?.variant?.revision as string | number | undefined) ??
         (group?.meta?.refs?.variant?.version as string | number | undefined) ??
@@ -281,7 +291,7 @@ const useInvocationRefs = (
         (runIdentifiers.rawRefs?.applicationVariant?.version as string | number | undefined) ??
         null
 
-    return {applicationId, applicationVariantId, variantRevision}
+    return {applicationId, applicationVariantId, revisionId, variantRevision}
 }
 
 const FocusGroupLabel = ({
@@ -297,6 +307,7 @@ const FocusGroupLabel = ({
     const {
         applicationId,
         applicationVariantId,
+        revisionId,
         variantRevision: _variantRevision,
     } = useInvocationRefs(group, runId)
 
@@ -306,10 +317,11 @@ const FocusGroupLabel = ({
     const testsetQuery = useAtomValue(
         useMemo(() => testsetReferenceQueryAtomFamily(testsetId ?? null), [testsetId]),
     )
+    // Prefer revisionId because workflowMolecule is keyed by revision ID
     const _variantQuery = useAtomValue(
         useMemo(
-            () => variantReferenceQueryAtomFamily(applicationVariantId ?? null),
-            [applicationVariantId],
+            () => variantReferenceQueryAtomFamily(revisionId ?? applicationVariantId ?? null),
+            [revisionId, applicationVariantId],
         ),
     )
 
@@ -898,10 +910,8 @@ FocusDrawerSectionCard.displayName = "FocusDrawerSectionCard"
 
 const InvocationMetaChips = memo(
     ({group, runId}: {group: EvaluationTableColumnGroup | null; runId: string | null}) => {
-        const {applicationId, applicationVariantId, variantRevision} = useInvocationRefs(
-            group,
-            runId,
-        )
+        const {applicationId, applicationVariantId, revisionId, variantRevision} =
+            useInvocationRefs(group, runId)
 
         const appQuery = useAtomValue(
             useMemo(
@@ -909,10 +919,11 @@ const InvocationMetaChips = memo(
                 [applicationId],
             ),
         )
+        // Prefer revisionId because workflowMolecule is keyed by revision ID
         const variantQuery = useAtomValue(
             useMemo(
-                () => variantReferenceQueryAtomFamily(applicationVariantId ?? null),
-                [applicationVariantId],
+                () => variantReferenceQueryAtomFamily(revisionId ?? applicationVariantId ?? null),
+                [revisionId, applicationVariantId],
             ),
         )
 

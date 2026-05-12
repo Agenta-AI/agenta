@@ -1,7 +1,6 @@
+import {stringStorage} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomFamily, atomWithStorage} from "jotai/utils"
-
-import {stringStorage} from "@/oss/state/utils/stringStorage"
 
 import type {CurrentStepState} from "./types"
 

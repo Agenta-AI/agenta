@@ -1,6 +1,6 @@
 import {Key, useEffect, useMemo, useState} from "react"
 
-import {InfiniteVirtualTableRowSelection} from "@/oss/components/InfiniteVirtualTable"
+import type {InfiniteVirtualTableRowSelection} from "@agenta/ui/table"
 
 import {FolderTreeItem} from "../assets/utils"
 import {PromptsTableRow} from "../types"

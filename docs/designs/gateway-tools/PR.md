@@ -20,9 +20,9 @@ Introduces a **Gateway Tools** system that lets users connect external tool prov
 | **Migration** | `databases/postgres/migrations/…/e5f6a1b2c3d4` | Creates `tool_connections` table (OSS + EE) |
 | **Crons** | `crons/tools.sh` + `tools.txt` | Background status-sync cron |
 
-**Wiring:** `api/entrypoints/routers.py` — `ToolsDAO`, `ComposioAdapter`, `GatewayAdapterRegistry`, and `ToolsRouter` are instantiated and mounted under `/preview/tools`.
+**Wiring:** `api/entrypoints/routers.py` — `ToolsDAO`, `ComposioAdapter`, `GatewayAdapterRegistry`, and `ToolsRouter` are instantiated and mounted under `/tools`.
 
-### API Endpoints (prefix `/preview/tools`)
+### API Endpoints (prefix `/tools`)
 
 ```
 GET  /catalog/providers/
@@ -77,7 +77,7 @@ created_at / updated_at / deleted_at + …_by_id columns
 ## Architecture Decisions
 
 1. **Adapter pattern** — `GatewayAdapterInterface` + `GatewayAdapterRegistry` make it easy to add new providers without touching service or router code.
-2. **`/preview/*` mount** — ships behind the preview prefix; stable endpoints can be promoted later without breaking existing clients.
+2. **`/*` mount** — ships behind the preview prefix; stable endpoints can be promoted later without breaking existing clients.
 3. **OpenAI-compatible tool call envelope** — `ToolCall` / `ToolResult` mirror the OpenAI `tool_calls` array format so results are dropped verbatim into the LLM message history.
 4. **No Composio SDK dependency** — uses raw `httpx` against the Composio V3 REST API to avoid pinning a third-party SDK that is still evolving rapidly.
 5. **OAuth callback returns HTML** — the `/connections/callback` endpoint returns a self-contained HTML status card so the OAuth redirect lands in a friendly browser page rather than raw JSON.

@@ -1,0 +1,35 @@
+{{- if .Values.postgresql.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-postgresql-initdb" .Release.Name }}
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+data:
+  init-db.sql: |
+    \c postgres
+
+    SELECT 'CREATE DATABASE {{ include "agenta.postgresDbCore" . }}'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{{ include "agenta.postgresDbCore" . }}')\gexec
+
+    SELECT 'CREATE DATABASE {{ include "agenta.postgresDbTracing" . }}'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{{ include "agenta.postgresDbTracing" . }}')\gexec
+
+    SELECT 'CREATE DATABASE {{ include "agenta.postgresDbSupertokens" . }}'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{{ include "agenta.postgresDbSupertokens" . }}')\gexec
+
+    GRANT ALL PRIVILEGES ON DATABASE {{ include "agenta.postgresDbCore" . }} TO {{ include "agenta.postgresUsername" . }};
+    GRANT ALL PRIVILEGES ON DATABASE {{ include "agenta.postgresDbTracing" . }} TO {{ include "agenta.postgresUsername" . }};
+    GRANT ALL PRIVILEGES ON DATABASE {{ include "agenta.postgresDbSupertokens" . }} TO {{ include "agenta.postgresUsername" . }};
+
+    \c {{ include "agenta.postgresDbCore" . }}
+    GRANT ALL ON SCHEMA public TO {{ include "agenta.postgresUsername" . }};
+
+    \c {{ include "agenta.postgresDbTracing" . }}
+    GRANT ALL ON SCHEMA public TO {{ include "agenta.postgresUsername" . }};
+
+    \c {{ include "agenta.postgresDbSupertokens" . }}
+    GRANT ALL ON SCHEMA public TO {{ include "agenta.postgresUsername" . }};
+
+    \c postgres
+{{- end }}

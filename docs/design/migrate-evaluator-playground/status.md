@@ -34,7 +34,7 @@ See [plan.md](./plan.md) for detailed implementation steps.
 
 - [x] Investigate native evaluator execution path
   - Confirmed `/evaluators/{key}/run` now resolves `agenta:builtin:{key}:v0` via SDK handler registry
-  - Confirmed native workflow execution endpoint exists: `POST /preview/workflows/invoke`
+  - Confirmed native workflow execution endpoint exists: `POST /workflows/invoke`
   - Documented request structure used by batch evaluation tasks
 
 - [x] Compare old vs new endpoints
@@ -82,7 +82,7 @@ PR #3527 refactored the legacy run endpoint to use the native handler registry i
 ### 2. Native workflow invoke path exists
 
 There's a fully native way to run evaluators:
-- Endpoint: `POST /preview/workflows/invoke`
+- Endpoint: `POST /workflows/invoke`
 - Uses `WorkflowServiceRequest` with URI in interface
 - Same mechanism used by batch evaluations
 
@@ -106,7 +106,7 @@ The SDK maintains a `HANDLER_REGISTRY` that maps URIs to handler functions:
 Legacy config creation (`/evaluators/configs`) called `build_evaluator_data`, which generated
 `data.schemas.outputs` and `data.service.format` for builtin evaluators.
 
-The migrated frontend CRUD path uses `/preview/simple/evaluators` and initially sent only
+The migrated frontend CRUD path uses `/simple/evaluators` and initially sent only
 `data.uri` plus `data.parameters`. That can create revisions without output schemas.
 
 Frontend now receives `outputs_schema` in the evaluator template payload (`GET /evaluators`) and

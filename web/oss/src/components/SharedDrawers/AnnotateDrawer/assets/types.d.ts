@@ -2,7 +2,7 @@ import {DrawerProps} from "antd"
 
 import {TooltipButtonProps} from "@/oss/components/EnhancedUIs/Button"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
+import {EvaluatorPreviewDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
 import {AnnotateDrawerSteps} from "./enum"
 
@@ -45,6 +45,7 @@ export interface AnnotateDrawerTitleProps {
     onCaptureError?: (error: string[], addPrevVal?: boolean) => void
     showOnly?: ShowOnlyType
     queryKey?: string
+    createEvaluatorMode?: "create" | "edit"
 }
 
 export interface AnnotateDrawerButtonProps extends TooltipButtonProps {
