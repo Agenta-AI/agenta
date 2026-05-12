@@ -47,6 +47,7 @@ import {
 } from "./decodedJsonHelpers"
 import type {DrillInContentProps} from "./DrillInContent"
 import {EntityDrillInView} from "./EntityDrillInView"
+import {getDefaultJsonViewMode} from "./viewModes"
 const ImagePreview = dynamic(() => import("@agenta/ui").then((mod) => mod.ImagePreview), {
     ssr: false,
 })
@@ -113,9 +114,9 @@ type RawSpanViewMode = "json" | "yaml"
  * Summary:
  * - `json` / `yaml`: faithful — data as stored, no cleanup.
  * - `decoded-json`: JSON editor, cleaned (unwrap nested stringified JSON,
- *   decode escaped newlines). Default for non-message data.
+ *   decode escaped newlines).
  * - `beautified-json`: custom component tree (chat bubbles, per-key fields,
- *   envelope unwrap, noise stripping). Default for `viewModePreset="message"`.
+ *   envelope unwrap, noise stripping). Default for structured JSON data.
  * - `text` / `markdown`: prose editor.
  */
 type RawSpanDisplayMode = RawSpanViewMode | "decoded-json" | "beautified-json" | "text" | "markdown"
@@ -127,15 +128,6 @@ const RAW_SPAN_VIEW_MODE_LABELS: Record<RawSpanDisplayMode, string> = {
     "beautified-json": "Beautified JSON",
     text: "Text",
     markdown: "Markdown",
-}
-
-const getDefaultRawSpanViewMode = (
-    availableModes: RawSpanDisplayMode[],
-    {preferBeautified = false}: {preferBeautified?: boolean} = {},
-): RawSpanDisplayMode => {
-    if (preferBeautified && availableModes.includes("beautified-json")) return "beautified-json"
-    if (availableModes.includes("decoded-json")) return "decoded-json"
-    return availableModes[0] ?? "json"
 }
 
 // Value-simplification and beautified rendering live in ./BeautifiedJsonView.
@@ -394,9 +386,7 @@ export const TraceSpanDrillInView = memo(
             return ["json", "yaml", "decoded-json", "beautified-json"] as RawSpanDisplayMode[]
         }, [viewModePreset, isStringValue, hasStructuredValue, parsedStructuredString])
         const [viewMode, setViewMode] = useState<RawSpanDisplayMode>(() =>
-            getDefaultRawSpanViewMode(availableViewModes, {
-                preferBeautified: viewModePreset === "message",
-            }),
+            getDefaultJsonViewMode(availableViewModes),
         )
 
         const isCodeMode = viewMode === "json" || viewMode === "yaml" || viewMode === "decoded-json"
@@ -441,13 +431,9 @@ export const TraceSpanDrillInView = memo(
 
         useEffect(() => {
             if (!availableViewModes.includes(viewMode)) {
-                setViewMode(
-                    getDefaultRawSpanViewMode(availableViewModes, {
-                        preferBeautified: viewModePreset === "message",
-                    }),
-                )
+                setViewMode(getDefaultJsonViewMode(availableViewModes))
             }
-        }, [availableViewModes, viewMode, viewModePreset])
+        }, [availableViewModes, viewMode])
 
         useEffect(() => {
             closeSearch()

@@ -275,7 +275,6 @@ export const executeCommitAtom = atom(null, async (get, set) => {
 
         // Close modal on success
         set(commitModalOpenAtom, false)
-        set(resetCommitModalAtom)
 
         return {success: true}
     } catch (error) {

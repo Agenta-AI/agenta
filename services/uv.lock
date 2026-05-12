@@ -2256,7 +2256,7 @@ wheels = [
 
 [[package]]
 name = "services"
-version = "0.99.5"
+version = "0.99.6"
 source = { virtual = "." }
 dependencies = [
     { name = "agenta" },

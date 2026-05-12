@@ -1,6 +1,6 @@
 [project]
 name = "agenta-client"
-version = "0.99.5"
+version = "0.99.6"
 description = "Fern-generated Python client for the Agenta API."
 requires-python = ">=3.11,<3.14"
 authors = [

@@ -420,6 +420,10 @@ export const appWorkflowCountAtom = atom((get) => {
     return query.data ?? 0
 })
 
+// ============================================================================
+// ARCHIVED STORE
+// ============================================================================
+
 const archivedAppWorkflowSearchTermAtom = atom("")
 
 const archivedAppWorkflowMetaAtom = atom<AppWorkflowQueryMeta>((get) => ({
@@ -431,14 +435,18 @@ const archivedAppWorkflowMetaAtom = atom<AppWorkflowQueryMeta>((get) => ({
 
 const archivedAppWorkflowPaginatedStore = createPaginatedEntityStore<
     AppWorkflowRow,
-    Workflow,
+    EnrichedWorkflow,
     AppWorkflowQueryMeta
 >({
     entityName: "archivedAppWorkflow",
     metaAtom: archivedAppWorkflowMetaAtom,
-    fetchPage: async ({meta, limit, cursor}): Promise<InfiniteTableFetchResult<Workflow>> => {
+    fetchPage: async ({
+        meta,
+        limit,
+        cursor,
+    }): Promise<InfiniteTableFetchResult<EnrichedWorkflow>> => {
         if (!meta.projectId) {
-            return emptyFetchResult<Workflow>()
+            return emptyFetchResult<EnrichedWorkflow>()
         }
 
         const archivedWorkflows = await fetchArchivedAppWorkflows(meta)
@@ -569,5 +577,3 @@ export async function invalidateAppManagementWorkflowQueries() {
         queryClient.invalidateQueries({queryKey: ["archivedAppWorkflowCount"], exact: false}),
     ])
 }
-
-export {appWorkflowSearchTermAtom}

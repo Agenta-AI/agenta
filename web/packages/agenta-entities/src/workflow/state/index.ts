@@ -63,6 +63,8 @@ export {
     // Ephemeral workflows (from trace data)
     createEphemeralWorkflow,
     type CreateEphemeralWorkflowParams,
+    // Cross-context ephemeral cleanup (drawer-create flows)
+    discardLocalServerDataAtom,
     // Latest revision (derived from already-fetched data)
     workflowLatestRevisionIdAtomFamily,
     workflowAppTypeAtomFamily,
@@ -191,3 +193,17 @@ export {
     evaluatorSelectionConfig,
     type EvaluatorSelectionConfig,
 } from "./evaluatorUtils"
+
+// ============================================================================
+// APP UTILITIES (for application-type workflows)
+// ============================================================================
+
+export {
+    // Templates
+    appTemplatesQueryAtom,
+    appTemplatesDataAtom,
+    // Create ephemeral app from template (entity lifecycle)
+    createEphemeralAppFromTemplate,
+    type AppType,
+    type CreateEphemeralAppFromTemplateParams,
+} from "./appUtils"

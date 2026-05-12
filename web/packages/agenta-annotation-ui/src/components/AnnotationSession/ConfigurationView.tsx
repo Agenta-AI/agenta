@@ -648,7 +648,7 @@ const DeleteSection = memo(function DeleteSection({
 
     const handleDeleteSuccess = useCallback(() => {
         setDeleteModalOpen(false)
-        navigation.navigateToQueueList()
+        navigation.navigateToQueueList?.()
     }, [navigation])
 
     return (

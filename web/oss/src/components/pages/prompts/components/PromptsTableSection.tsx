@@ -1,5 +1,6 @@
 import {useMemo} from "react"
 
+import type {AppType} from "@agenta/entities/workflow"
 import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
 import type {
     InfiniteVirtualTableRowSelection,
@@ -11,6 +12,7 @@ import {Button, Dropdown, Input, Space} from "antd"
 import type {MenuProps} from "antd"
 import type {ColumnsType, TableProps} from "antd/es/table"
 
+import {getAppTypeIcon} from "../assets/iconHelpers"
 import type {FolderTreeItem} from "../assets/utils"
 import type {PromptsTableRow} from "../types"
 
@@ -26,7 +28,7 @@ interface PromptsTableSectionProps {
     searchTerm: string
     onSearchChange: (value: string) => void
     onDeleteSelected: () => void
-    onOpenNewPrompt: () => void
+    onOpenNewPrompt: (type: AppType) => void
     onOpenNewFolder: () => void
     onSetupWorkflow: () => void
     selectedRow: FolderTreeItem | null
@@ -55,10 +57,42 @@ export const PromptsTableSection = ({
                 key: "new_prompt",
                 icon: <SquaresFourIcon size={16} />,
                 label: "New prompt",
-                onClick: ({domEvent}: {domEvent: React.MouseEvent | React.KeyboardEvent}) => {
-                    domEvent.stopPropagation()
-                    onOpenNewPrompt()
-                },
+                children: [
+                    {
+                        key: "new_prompt_chat",
+                        label: (
+                            <span className="inline-flex items-center gap-2">
+                                {getAppTypeIcon("chat")}
+                                <span>Chat</span>
+                            </span>
+                        ),
+                        onClick: ({
+                            domEvent,
+                        }: {
+                            domEvent: React.MouseEvent | React.KeyboardEvent
+                        }) => {
+                            domEvent.stopPropagation()
+                            onOpenNewPrompt("chat")
+                        },
+                    },
+                    {
+                        key: "new_prompt_completion",
+                        label: (
+                            <span className="inline-flex items-center gap-2">
+                                {getAppTypeIcon("completion")}
+                                <span>Completion</span>
+                            </span>
+                        ),
+                        onClick: ({
+                            domEvent,
+                        }: {
+                            domEvent: React.MouseEvent | React.KeyboardEvent
+                        }) => {
+                            domEvent.stopPropagation()
+                            onOpenNewPrompt("completion")
+                        },
+                    },
+                ],
             },
             {
                 key: "new_folder",

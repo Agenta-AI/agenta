@@ -13,7 +13,7 @@ import deepEqual from "fast-deep-equal"
 import {useSetAtom} from "jotai"
 import {useDebounceValue} from "usehooks-ts"
 
-import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
+import {isSlugInputValid} from "@/oss/lib/helpers/utils"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {EvaluatorPreviewDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
@@ -326,7 +326,7 @@ const CreateEvaluator = ({
                             validator(_, value) {
                                 if (!value) {
                                     return Promise.resolve()
-                                } else if (!isAppNameInputValid(value)) {
+                                } else if (!isSlugInputValid(value)) {
                                     return Promise.reject(
                                         "Slug must contain only letters, numbers, underscore, or dash without any spaces.",
                                     )

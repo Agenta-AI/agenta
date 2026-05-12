@@ -403,7 +403,6 @@ export function EntityCommitModal({
                 } else {
                     closeModal()
                 }
-                resetModal()
 
                 if (successMessage) {
                     message.success(successMessage)
