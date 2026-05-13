@@ -4,32 +4,52 @@ Ordered for minimal-friction execution. Each task is independently testable.
 
 ## 1. Pre-flight verification
 
-- [ ] Grep every `@suppress_exceptions(...)` handler under
-      `api/oss/src/apis/fastapi/` and confirm each takes `request: Request`
-      as a parameter. List any that don't.
 - [ ] Grep `support_id` and `support_ts` across `web/` and EE code to
       confirm no client reads them from a response body today.
 - [ ] Grep `: Support` and `(Support)` across `api/ee/` to confirm no EE
       response models inherit from `Support`.
+- [ ] Decide on import direction for the new ContextVar (see
+      [gap.md](./gap.md) assumption #1): either type as
+      `ContextVar[Optional[Any]]`, move `Support` into `context.py`, or
+      introduce `utils/support.py`. Pick the option that compiles
+      without a cycle.
 
-## 2. Core util changes
+## 2. ContextVar wiring
+
+- [ ] In `api/oss/src/utils/context.py`, add:
+
+      ```python
+      support_ctx: ContextVar[Optional[Support]] = ContextVar(
+          "support", default=None
+      )
+      ```
+
+      Resolve the `Support` import per task 1.
+
+## 3. Core util changes
 
 - [ ] In `api/oss/src/utils/exceptions.py`:
-  - [ ] Rewrite `attach_support` to take `(request, support)` and mutate
-        `request.state.support`. Returns `None`.
-  - [ ] In `suppress_exceptions`: `kwargs.get("request")` (not pop),
-        call `attach_support(request, support)`, return bare `default`.
-  - [ ] In `intercept_exceptions`: same — grab request, call
-        `attach_support` for the side-effect, leave the `detail` payload
-        unchanged for back-compat. Apply to both the
-        `EntityCreationConflict` branch and the generic-exception branch.
+  - [ ] Rewrite `attach_support(support)` to call
+        `support_ctx.set(support)`. Returns `None`. No FastAPI types in
+        the signature.
+  - [ ] In `suppress_exceptions`: drop the `request` lookup, call
+        `attach_support(support)`, return bare `default`.
+  - [ ] In `intercept_exceptions`: same — call `attach_support(support)`
+        for the side-effect, leave the `detail` payload unchanged for
+        back-compat. Apply to both the `EntityCreationConflict` branch
+        and the generic-exception branch. Keep the existing
+        `kwargs.pop("request", None)` block that extracts `user_id`,
+        `project_id`, etc. for logging — it's unrelated.
 
-## 3. Middleware
+## 4. Middleware
 
 - [ ] In `api/entrypoints/routers.py`, define
-      `support_headers_middleware(request, call_next)` that reads
-      `request.state.support` and sets `x-ag-support-id` /
-      `x-ag-support-ts` on the response when present.
+      `support_headers_middleware(request, call_next)` that:
+  - [ ] Calls `token = support_ctx.set(None)` on entry.
+  - [ ] Wraps `call_next(request)` in a try/finally; in the finally,
+        reads `support_ctx.get()` and calls `support_ctx.reset(token)`.
+  - [ ] If support is present, sets `x-ag-support-id` and
+        `x-ag-support-ts` on the response.
 - [ ] Register it via `app.middleware("http")(support_headers_middleware)`
       next to the existing `authentication_middleware` /
       `analytics_middleware` registrations.
@@ -63,10 +83,12 @@ After this batch, `Support` should only be imported by
 - [ ] In `api/oss/tests/pytest/unit/utils/test_exceptions.py`:
   - [ ] Delete `test_support_fields_exist_on_api_response_model`.
   - [ ] Rewrite `test_suppress_exceptions_attaches_support_to_response`
-        to assert `request.state.support` is populated and the returned
-        payload is the bare default (no support fields on it).
+        to assert `support_ctx.get()` is populated after the decorated
+        call and that the returned payload is the bare default (no
+        support fields on it).
   - [ ] Keep `test_intercept_exceptions_includes_support_metadata` as-is
-        (the `detail` payload is unchanged).
+        (the `detail` payload is unchanged); optionally extend it to
+        also assert `support_ctx.get()` is set.
 - [ ] Add `test_support_headers_middleware_emits_headers` —
       integration-style with a `TestClient`, hit a suppress-decorated
       route that raises, assert `x-ag-support-id` / `x-ag-support-ts`

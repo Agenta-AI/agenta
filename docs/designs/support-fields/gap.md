@@ -37,35 +37,38 @@
 ### Files to change
 
 | File | Change |
-|---|---|
-| `api/oss/src/utils/exceptions.py` | Rewrite `attach_support` (now mutates `request.state`), update both decorators to grab `request` from `kwargs` and stash support there. Keep `detail` payload in `intercept_exceptions` for back-compat. |
-| `api/entrypoints/routers.py` | Add `support_headers_middleware`, register it. |
+| --- | --- |
+| `api/oss/src/utils/context.py` | Add `support_ctx: ContextVar[Optional[Support]]` next to the existing `request_id_ctx`. If a circular import appears, move `Support` here or into a small `utils/support.py`. |
+| `api/oss/src/utils/exceptions.py` | Rewrite `attach_support(support)` to call `support_ctx.set(support)`. Both decorators call `attach_support` instead of fishing `request` from kwargs. Keep `detail` payload in `intercept_exceptions` for back-compat. |
+| `api/entrypoints/routers.py` | Add `support_headers_middleware` that reads `support_ctx` and emits headers; register it. |
 | `api/oss/src/apis/fastapi/{annotations,applications,environments,evaluations,evaluators,folders,invocations,otlp,queries,testcases,testsets,traces,tracing,workflows}/models.py` | Remove `Support` inheritance and the `Support` import. (15 files) |
-| `api/oss/tests/pytest/unit/utils/test_exceptions.py` | Drop the schema-presence test, rewrite the suppress test, add two header tests. |
+| `api/oss/tests/pytest/unit/utils/test_exceptions.py` | Drop the schema-presence test, rewrite the suppress test to assert `support_ctx.get()`, add two header tests. |
 
 ### Files that do **not** change
 
-- Any router file. Handlers already take `request: Request`. The
-  decorator change is invisible to them.
-- Any service / DAO / core layer file. Support is an API-layer concern.
+- Any router file. The decorator no longer requires `request: Request`;
+  handlers that already take one keep it for other reasons (auth /
+  project scoping).
+- Any service / DAO / core layer file. Support is still set in the API
+  layer; the ContextVar just means it could be set from elsewhere too
+  in the future.
 - `intercept_exceptions`'s `detail` body shape — kept for back-compat.
 - EE-side code. PR #4212 only touched OSS.
 
 ### Assumptions to verify before edit
 
-1. **Every `suppress_exceptions`-decorated handler takes `request: Request`.**
-   Spot-checked folders, workflows, tracing. Need to confirm across all
-   21 router files. Quick check:
+1. **Import direction.** `exceptions.py` will need to import
+   `support_ctx` from `context.py`, and `context.py` will reference the
+   `Support` type. If `context.py` imports `Support` from
+   `exceptions.py`, that's a cycle. Resolution options, in order of
+   preference:
+   - Type the ContextVar as `ContextVar[Optional[Any]]` and skip the
+     import in `context.py` (loses type info, simplest).
+   - Move `Support` (and only that class) into `context.py`.
+   - Move `Support` into a new `utils/support.py` and have both
+     `context.py` and `exceptions.py` import from there.
 
-   ```
-   ag -A 5 '@suppress_exceptions' api/oss/src/apis/fastapi/ | rg -B5 'request: Request'
-   ```
-
-   If any handler is missing it, that handler's suppressed path will
-   silently lose support headers (the decorator won't have a request to
-   stash state on). The fallback is harmless (no header) but worth
-   knowing — we should either add `request: Request` to those handlers
-   or accept the gap.
+   Pick at code time based on what actually trips.
 
 2. **Middleware ordering doesn't interfere.** GZip is registered after
    the auth/analytics middlewares; our header middleware should be fine
@@ -75,12 +78,18 @@
 3. **No EE code reads `response.support_id` from a suppressed default
    response.** Grep:
 
-   ```
+   ```sh
    ag 'support_id' web/ ee/
    ```
 
    If any frontend code reads it, it needs to switch to reading the
    header.
+
+4. **ContextVar isolation across requests.** The middleware does
+   `set(None)` on entry and `reset(token)` on exit. Quick mental check
+   in code review: confirm no other code path could leave `support_ctx`
+   populated such that a later request without a failure would still
+   emit headers. The middleware-driven reset should prevent this.
 
 ## Migration cost
 

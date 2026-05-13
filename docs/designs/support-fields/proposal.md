@@ -12,11 +12,35 @@ On the happy path: no headers, no body fields, no schema entries.
 
 ## Code shape
 
-### 1. `Support` model stays; `attach_support` is rewritten
+### 1. `Support` model + `support_ctx` ContextVar
+
+[api/oss/src/utils/context.py](../../../api/oss/src/utils/context.py) gets
+a new ContextVar alongside the existing `request_id_ctx`:
+
+```python
+from contextvars import ContextVar
+from typing import Optional
+
+from oss.src.utils.exceptions import Support  # or move Support here if a cycle appears
+
+request_id_ctx: ContextVar[Optional[str]] = ContextVar("request_id", default=None)
+support_ctx: ContextVar[Optional[Support]] = ContextVar("support", default=None)
+```
+
+If importing `Support` from `exceptions.py` creates a cycle (very likely,
+since `exceptions.py` will import `support_ctx`), the cleanest fix is to
+move `Support` into `context.py` itself, or into a tiny new
+`utils/support.py` that both `context.py` and `exceptions.py` import.
+This is a trivial implementation detail to settle at code time.
+
+### 2. `attach_support` becomes a thin ContextVar setter
 
 [api/oss/src/utils/exceptions.py](../../../api/oss/src/utils/exceptions.py)
 
 ```python
+from oss.src.utils.context import support_ctx
+
+
 class Support(BaseModel):
     support_id: Optional[str] = None
     support_ts: Optional[datetime] = None
@@ -29,16 +53,17 @@ def build_support() -> Support:
     )
 
 
-def attach_support(request: Optional[Request], support: Support) -> None:
-    """Stash support metadata on request.state; a middleware emits the headers."""
-    if request is not None:
-        request.state.support = support
+def attach_support(support: Support) -> None:
+    """Stash support metadata in the request-scoped ContextVar.
+    A middleware reads it on the way out and emits the headers."""
+    support_ctx.set(support)
 ```
 
-The function no longer returns the payload — it mutates `request.state`.
-Callers just `return default` after invoking it.
+Returns nothing. No FastAPI types in the signature. Callable from
+anywhere in the async call stack — routes, services, future workers —
+because `ContextVar` propagates with `asyncio` automatically.
 
-### 2. `suppress_exceptions` no longer needs the response model to carry fields
+### 3. `suppress_exceptions` — no more `request` fishing
 
 ```python
 def suppress_exceptions(default=None, message="", verbose=True, exclude=None):
@@ -53,8 +78,6 @@ def suppress_exceptions(default=None, message="", verbose=True, exclude=None):
 
                 support = build_support()
                 operation_id = getattr(func, "__name__", None)
-                request = kwargs.get("request")
-                request = request if isinstance(request, Request) else None
 
                 if verbose:
                     log.warn(
@@ -64,7 +87,7 @@ def suppress_exceptions(default=None, message="", verbose=True, exclude=None):
                         operation_id=operation_id,
                     )
 
-                attach_support(request, support)
+                attach_support(support)
                 return default
 
         return wrapper
@@ -73,17 +96,19 @@ def suppress_exceptions(default=None, message="", verbose=True, exclude=None):
 
 Key differences vs. today:
 
-- `kwargs.get("request")` (not `pop`) — handler still needs it.
-- `attach_support` is called for side effects only.
+- No `kwargs.pop("request")` or `isinstance(..., Request)` check.
+- The handler no longer needs to take `request: Request` for support
+  headers to work (it still takes one for other reasons, but the
+  dependency is gone).
 - `return default` returns the bare payload — no `model_copy`, no field
   patching.
 
-### 3. `intercept_exceptions` also stashes support on `request.state`
+### 4. `intercept_exceptions` also calls `attach_support`
 
 ```python
 # inside intercept_exceptions wrapper, on the unexpected-exception branch:
 support = build_support()
-attach_support(request, support)
+attach_support(support)
 # ... existing logging ...
 raise HTTPException(
     status_code=500,
@@ -96,6 +121,11 @@ raise HTTPException(
 ) from e
 ```
 
+The existing `kwargs.pop("request", None)` block in
+`intercept_exceptions` (used to extract `user_id`, `project_id`, etc.
+for logging) stays as-is — it's serving a different purpose and isn't
+about support metadata.
+
 We keep `support_id` / `support_ts` inside `detail` for the 5xx case —
 that's where they live today, no schema pollution (errors aren't typed
 response models), and a client parsing the error body gets them
@@ -104,14 +134,22 @@ header-aware and body-aware clients work.
 
 The `EntityCreationConflict` branch gets the same treatment.
 
-### 4. Middleware emits the headers
+### 5. Middleware reads the ContextVar, emits the headers
 
 [api/entrypoints/routers.py](../../../api/entrypoints/routers.py) — alongside the existing `authentication_middleware`, `analytics_middleware`:
 
 ```python
+from oss.src.utils.context import support_ctx
+
+
 async def support_headers_middleware(request: Request, call_next):
-    response = await call_next(request)
-    support = getattr(request.state, "support", None)
+    token = support_ctx.set(None)
+    try:
+        response = await call_next(request)
+    finally:
+        support = support_ctx.get()
+        support_ctx.reset(token)
+
     if support is not None:
         if support.support_id:
             response.headers["x-ag-support-id"] = support.support_id
@@ -119,13 +157,24 @@ async def support_headers_middleware(request: Request, call_next):
             response.headers["x-ag-support-ts"] = support.support_ts.isoformat()
     return response
 
+
 app.middleware("http")(support_headers_middleware)
 ```
 
-Registered early enough that it sees state set by the route handler.
-Starlette runs middlewares in reverse-registration order on the way out,
-so the registration position relative to auth/analytics doesn't change
-behavior here — it just needs to wrap the route.
+Why the `set(None)` + `reset(token)` dance:
+
+- `ContextVar` defaults propagate across `asyncio` tasks, but the same
+  variable is shared by all middleware/handler code running in a given
+  request task.
+- Setting `None` at request entry ensures we don't inherit stale state
+  from a previous request that ran on the same worker.
+- `reset(token)` is good hygiene — guarantees the variable is restored
+  even if something downstream sets it without resetting.
+
+Registration position relative to auth/analytics doesn't change behavior
+— Starlette runs middlewares in reverse-registration order on the way
+out, and this middleware doesn't depend on auth state. Register it
+adjacent to the other `app.middleware("http")(...)` calls.
 
 ### 5. Response models drop `Support` inheritance
 
@@ -180,7 +229,7 @@ After this, `Support` is only imported by `exceptions.py` itself
 ## What changes for clients
 
 | Path | Today | After |
-|---|---|---|
+| --- | --- | --- |
 | Success | Body: `{count, folder}` (nulls dropped). Schema: `{count, folder, support_id?, support_ts?}` | Body: `{count, folder}`. Schema: `{count, folder}`. No headers. |
 | Suppressed failure | Body: `{count: 0, folder: null, support_id, support_ts}` | Body: `{count: 0, folder: null}`. Headers: `x-ag-support-id`, `x-ag-support-ts`. |
 | Intercepted 5xx | Body: `{detail: {message, support_id, support_ts, operation_id}}` | Body: same. Headers: `x-ag-support-id`, `x-ag-support-ts` added. |
