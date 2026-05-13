@@ -1,18 +1,21 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {
+    ColumnVisibilityMenuTrigger,
+    defaultHeaderVariant,
+    InfiniteVirtualTableFeatureShell,
+    type TableScopeConfig,
+    type TypeChipConfig,
+    useTypeChipFeature,
+} from "@agenta/ui/table"
+import {TypeChip} from "@agenta/ui/type-chip"
 import {PlusOutlined} from "@ant-design/icons"
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
 import {Button, Input, Skeleton, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import type {ColumnType, ColumnsType} from "antd/es/table"
 import clsx from "clsx"
 import {getDefaultStore} from "jotai/vanilla"
 
-import {
-    ColumnVisibilityMenuTrigger,
-    InfiniteVirtualTableFeatureShell,
-    type TableScopeConfig,
-} from "@/oss/components/InfiniteVirtualTable"
 import type {Column} from "@/oss/state/entities/testcase/columnState"
 
 import {testcasesDatasetStore, type TestcaseTableRow} from "../atoms/tableStore"
@@ -24,6 +27,59 @@ import {TestcaseCell} from "./TestcaseCell"
 import TestcaseCellContent from "./TestcaseCellContent"
 import TestcaseRowActionsDropdown from "./TestcaseRowActionsDropdown"
 import TestcaseSelectionCell from "./TestcaseSelectionCell"
+
+function GroupToggleButton({
+    isCollapsed,
+    groupPath,
+    onToggle,
+}: {
+    isCollapsed: boolean
+    groupPath: string
+    onToggle: () => void
+}) {
+    return (
+        <button
+            type="button"
+            onClick={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+                onToggle()
+            }}
+            aria-label={isCollapsed ? `Expand ${groupPath} group` : `Collapse ${groupPath} group`}
+            style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 20,
+                height: 20,
+                padding: 0,
+                borderRadius: 4,
+                border: "1px solid rgba(5, 23, 41, 0.18)",
+                background: "#f5f5f5",
+                color: "#051729",
+                fontSize: 14,
+                fontWeight: 700,
+                lineHeight: 1,
+                cursor: "pointer",
+                userSelect: "none",
+                flexShrink: 0,
+                transition: "background 0.12s ease, border-color 0.12s ease, color 0.12s ease",
+            }}
+            onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#e6f4ff"
+                e.currentTarget.style.borderColor = "#1677ff"
+                e.currentTarget.style.color = "#1677ff"
+            }}
+            onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#f5f5f5"
+                e.currentTarget.style.borderColor = "rgba(5, 23, 41, 0.18)"
+                e.currentTarget.style.color = "#051729"
+            }}
+        >
+            {isCollapsed ? "+" : "−"}
+        </button>
+    )
+}
 
 /**
  * Props for TestcasesTableShell component
@@ -62,6 +118,7 @@ export interface TestcasesTableShellProps {
     dataSource?: TestcaseTableRow[]
     /** Callback when add column button is clicked (shown in actions column header) */
     onAddColumn?: () => void
+    typeChips?: TypeChipConfig<TestcaseTableRow>
 }
 
 /**
@@ -102,6 +159,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         maxRows,
         dataSource,
         onAddColumn,
+        typeChips,
     } = props
 
     // Collapsed groups state (using useState for simplicity - persists only during session)
@@ -132,6 +190,46 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
 
     // Get the global Jotai store so entity atoms are accessible inside the table
     const globalStore = useMemo(() => getDefaultStore(), [])
+
+    const parentColumnKeys = useMemo(() => {
+        const parents = new Set<string>()
+
+        for (const col of table.columns) {
+            const parts = col.key.split(".")
+            for (let depth = 1; depth < parts.length; depth += 1) {
+                parents.add(parts.slice(0, depth).join("."))
+            }
+        }
+
+        return parents
+    }, [table.columns])
+
+    const tableTypeChipsConfig = useMemo<TypeChipConfig<TestcaseTableRow> | undefined>(() => {
+        if (!typeChips) return undefined
+
+        return {
+            ...typeChips,
+            resolveHeaderVariant: (columnKey, typeInfo) => {
+                if (parentColumnKeys.has(columnKey)) return undefined
+                return typeChips.resolveHeaderVariant
+                    ? typeChips.resolveHeaderVariant(columnKey, typeInfo)
+                    : defaultHeaderVariant(columnKey, typeInfo)
+            },
+        }
+    }, [parentColumnKeys, typeChips])
+
+    const typeChipFeature = useTypeChipFeature(tableTypeChipsConfig)
+    const showTypeChips = typeChipFeature.enabled
+
+    const settingsMenuItems = useMemo<MenuProps["items"]>(() => {
+        const chipItems = typeChipFeature.menuItems ?? []
+        const rowHeightItems = rowHeight.menuItems ?? []
+
+        if (!chipItems.length) return rowHeightItems
+        if (!rowHeightItems.length) return chipItems
+
+        return [...chipItems, {type: "divider" as const}, ...rowHeightItems]
+    }, [rowHeight.menuItems, typeChipFeature.menuItems])
 
     // Row selection configuration with dirty indicator
     const rowSelection = useMemo(
@@ -383,17 +481,12 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                 key: groupPath,
                 dataIndex: groupPath,
                 title: (
-                    <div className="flex items-center gap-1 w-full max-w-full overflow-hidden">
-                        <span
-                            className="flex-shrink-0 cursor-pointer"
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                e.preventDefault()
-                                toggleGroupCollapse(groupPath)
-                            }}
-                        >
-                            <CaretRight size={12} />
-                        </span>
+                    <div className="flex items-center gap-1.5 w-full max-w-full overflow-hidden">
+                        <GroupToggleButton
+                            isCollapsed
+                            groupPath={groupPath}
+                            onToggle={() => toggleGroupCollapse(groupPath)}
+                        />
                         <div className="flex-1 min-w-0">
                             <EditableColumnHeader
                                 columnKey={groupPath}
@@ -404,6 +497,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                                 inlineActionsMinWidth={80}
                             />
                         </div>
+                        {showTypeChips && <TypeChip variant="json-object" />}
                     </div>
                 ),
                 width: 200,
@@ -453,25 +547,12 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                 : groupPath
 
             return (
-                <div className="flex items-center gap-1 w-full max-w-full overflow-hidden">
-                    <span
-                        className="flex-shrink-0 cursor-pointer"
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            e.preventDefault()
-                            toggleGroupCollapse(groupPath)
-                        }}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault()
-                                toggleGroupCollapse(groupPath)
-                            }
-                        }}
-                    >
-                        {isCollapsed ? <CaretRight size={12} /> : <CaretDown size={12} />}
-                    </span>
+                <div className="flex items-center gap-1.5 w-full max-w-full overflow-hidden">
+                    <GroupToggleButton
+                        isCollapsed={isCollapsed}
+                        groupPath={groupPath}
+                        onToggle={() => toggleGroupCollapse(groupPath)}
+                    />
                     <div className="flex-1 min-w-0">
                         <EditableColumnHeader
                             columnKey={groupPath}
@@ -482,6 +563,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                             inlineActionsMinWidth={80}
                         />
                     </div>
+                    {showTypeChips && <TypeChip variant="json-object" />}
                     <span className="text-gray-400 text-xs flex-shrink-0">({childCount})</span>
                 </div>
             )
@@ -569,6 +651,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         onAddColumn,
         handleGroupRename,
         handleGroupDelete,
+        showTypeChips,
     ])
 
     // Delete action
@@ -634,9 +717,10 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
             tableProps={tableProps}
             rowSelection={rowSelection}
             useSettingsDropdown={!hideControls}
-            settingsDropdownMenuItems={hideControls ? undefined : rowHeight.menuItems}
+            settingsDropdownMenuItems={hideControls ? undefined : settingsMenuItems}
             dataSource={dataSource}
             store={globalStore}
+            typeChips={typeChipFeature.typeChips}
         />
     )
 }

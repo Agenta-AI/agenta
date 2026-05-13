@@ -30,7 +30,7 @@ A small monospace `TypeChip` primitive appears next to field names and column he
 - `TypeChip` primitive (Axis 1 — type primitive) extracted to `@agenta/ui`
 - Type detection utilities (`detectDataType`, `inferRenderHint`, `getViewOptions`) in `@agenta/ui/drill-in`
 - Axis 2 (render hints) and Axis 3 (state/correctness) chips — implemented but **hidden behind flags** (off by default)
-- Testset table column headers: type chips + button-style ±-toggle (Mahmoud's proposal)
+- Testset table column headers: type chips + button-style ±-toggle based on the table mockup reference
 - Testcase drawer: new sub-header toolbar, per-field "View as" dropdown, TypeChip on field headers, Form view with flag gate
 - Playground: compact variable list with TypeChip, flag-gated nested rendering
 
@@ -111,7 +111,7 @@ Domain-specific signals that stack alongside type + render-hint chips. Amber for
 
 Single presentational primitive used verbatim across all surfaces. Source of truth for styles, labels, and the three-axis vocabulary.
 
-**Mockup source:** `web/apps/design-mockups/src/components/proposed/TypeChip.tsx` — port this file directly; the `STYLES` map, `AMBIGUOUS_HIDE` set, `inferVariant()`, `inferRenderHint()`, and `BadgeKeyframes` are all production-ready as written.
+**Mockup source:** `web/apps/design-mockups/src/components/proposed/TypeChip.tsx` — reference only. Production `TypeChip` owns the final `STYLES` map.
 
 ```typescript
 interface TypeChipProps {
@@ -126,6 +126,8 @@ interface TypeChipProps {
 ```
 
 **Forward-compatibility contract:** when `onClick` is undefined the chip renders as a static `<span>`. When `onClick` is provided it renders as a `<button>` with hover lift (`translateY(-1px)`) and focus ring. Adding `ChipConversionPopover` later requires: wrap `<TypeChip onClick={openPopover} />` in a popover at the call site. Zero changes to `TypeChip` internals or any existing call site.
+
+**Axis 1 colors:** primitive colors are defined once in `TypeChip`: string = green, number = purple, boolean = orange, null = muted gray, object = blue, array = teal.
 
 **`ChipVariant` type** is exported separately so surfaces can type their chip props without importing the full component:
 ```typescript
@@ -163,15 +165,18 @@ Flags live on the surface-level components, not on `TypeChip` itself. `TypeChip`
 
 **Design mockup references:**
 - `web/apps/design-mockups/src/components/proposed/TypeChip.tsx` — chip component (already ported)
-- `web/apps/design-mockups/src/pages/solutions-tables.tsx` — `mahmoudColumns`, `renderMahmoudToggleButton()`
+- `web/apps/design-mockups/src/pages/solutions-tables.tsx` — table layout and toggle-button visual references
 - `web/apps/design-mockups/src/components/proposed/testsetTableHelpers.ts` → `detectColumnTypes()`
 
-**Architecture decision:** Type chip rendering is a generic `InfiniteVirtualTable` feature, not testcase-table-specific. Any table can opt in by passing `typeChips={{ enabled: true, getRowValue, resolveHeaderVariant }}`. The testcase table is the first consumer.
+**Architecture decision:** Type chip rendering is a generic `InfiniteVirtualTable` feature, not testcase-table-specific. Any table can opt in by passing `typeChips={{ storageKey, defaultEnabled, getRowValue, resolveHeaderVariant }}`. The testcase table is the first consumer.
 
 **`typeChips` prop on `InfiniteVirtualTable`:**
 ```typescript
 interface TypeChipConfig<RecordType> {
-    enabled: boolean
+    enabled?: boolean
+    onEnabledChange?: (enabled: boolean) => void
+    defaultEnabled?: boolean
+    storageKey?: string
     getRowValue: (record: RecordType, columnKey: string) => unknown  // must be stable (useCallback)
     resolveHeaderVariant?: (key: string, info: ColumnTypeInfo | undefined) => ChipVariant | undefined
     enableRenderHints?: boolean   // default false
@@ -179,30 +184,30 @@ interface TypeChipConfig<RecordType> {
 }
 ```
 
-**Column header chip rules (Mahmoud's simplified set — encoded in `mahmoudHeaderVariant`):**
-- Top-level leaf columns: `string` / `boolean` / `object` only. Everything else (number, null, array) collapses to `object`
-- Nested leaf columns: full primitive set (`string` / `number` / `boolean` / `null` / `object`)
+**Column header chip rules (encoded in `defaultHeaderVariant`):**
+- Leaf columns render the detected primitive type (`string` / `number` / `boolean` / `null` / `object` / `array`)
+- Nested leaf columns use the same detected primitive type set
 - Group headers: always `object` — rendered by the consumer (`TestcasesTableShell`), not by `InfiniteVirtualTable`
+- Collapsed group columns are parent keys and do not receive an extra leaf chip; `TestcasesTableShell` returns `undefined` from `resolveHeaderVariant` for those keys so parent and child chips stay visually separate
 
 **Group toggle:**
 - `GroupToggleButton` component in `TestcasesTableShell` — `20×20px`, `1px solid rgba(5,23,41,0.18)` border, `#f5f5f5` background, hover → `#e6f4ff` background + `#1677ff` border + `#1677ff` text
 - Shows `+` on collapsed groups, `−` on expanded groups
 - Group header title = `[±-button] [group name] [object chip]` — consumer-owned layout
 
-**`chipMode` persistence:** `atomWithStorage<"all" | "none">` at key `"agenta:testcase-table:chip-mode"`, default `"all"`. Passed as `typeChips.enabled = chipMode !== "none"` to InfiniteVirtualTable. No `"ambiguous-only"` mode.
+**Type chip visibility persistence:** `useTypeChipFeature()` in `@agenta/ui/table` owns the persisted show/hide state when `typeChips.storageKey` is provided. The settings dropdown renders a "Show type chips" / "Hide type chips" item. The testcase table uses key `"agenta:testcase-table:type-chips-enabled"` with `defaultEnabled: true`.
 
 **Detection:** `useTypeChipColumns` hook inside `InfiniteVirtualTable` — samples first 30 rows of `dataSource` via `getRowValue`, runs `detectColumnTypes`, enhances leaf column titles with `TypeChip` nodes. Group column titles are not touched by the hook.
 
 **Files:**
-- `web/packages/agenta-ui/src/InfiniteVirtualTable/utils/detectColumnTypes.ts` — moved from `TestcasesTableNew/utils/`; exports `detectColumnTypes`, `mahmoudHeaderVariant`, `ColumnTypeInfo`
+- `web/packages/agenta-ui/src/InfiniteVirtualTable/utils/detectColumnTypes.ts` — new; exports `detectColumnTypes`, `defaultHeaderVariant`, `ColumnTypeInfo`
 - `web/packages/agenta-ui/src/InfiniteVirtualTable/types.ts` — adds `TypeChipConfig<RecordType>` + `typeChips` prop
-- `web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipColumns.ts` — new hook
+- `web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipColumns.tsx` — new hook (`.tsx` — renders JSX)
 - `web/packages/agenta-ui/src/InfiniteVirtualTable/components/InfiniteVirtualTableInner.tsx` — wires the hook
-- `web/packages/agenta-ui/src/InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx` — threads `typeChips` prop
-- `web/oss/src/components/TestcasesTableNew/state/chipMode.ts` — simplified to `"all" | "none"`
-- `web/oss/src/components/TestcasesTableNew/state/columnTypeInfo.ts` — deleted (detection inside InfiniteVirtualTable now)
-- `web/oss/src/components/TestcasesTableNew/components/TestcasesTableShell.tsx` — removes leaf column chip rendering; keeps group header chips + ±-button
-- `web/oss/src/components/TestcasesTableNew/index.tsx` — creates `getRowValue`; passes `typeChips`; removes `columnTypeInfoAtom`
+- `web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipFeature.tsx` — generic persisted visibility + settings menu item
+- `web/packages/agenta-ui/src/InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx` — resolves `typeChips` visibility and adds settings UI
+- `web/oss/src/components/TestcasesTableNew/components/TestcasesTableShell.tsx` — adds `GroupToggleButton` (replaces caret spans) + `[object]` TypeChip on group headers; uses generic type chip feature state
+- `web/oss/src/components/TestcasesTableNew/index.tsx` — creates `getRowValue`; passes `typeChips.storageKey` + `defaultEnabled` to shell
 - Cell components untouched: `TestcaseCellContent`, `JsonCellContent`, `ChatMessagesCellContent`
 
 ---
@@ -294,7 +299,8 @@ Threshold for "long string" matches `inferRenderHint`: length > 100 or contains 
 - `web/packages/agenta-ui/src/drill-in/core/DrillInFieldHeader.tsx` — add `typeChip?: ReactNode`
 - `web/packages/agenta-ui/src/drill-in/FieldRenderers/JsonObjectField.tsx` — Form view rail style, gated
 - `web/packages/agenta-ui/src/drill-in/index.ts` — export `DrillInRootToolbar`
-- `web/oss/src/components/TestcaseEditDrawer/index.tsx` — remove Fields/JSON toggle from chrome, mount `DrillInRootToolbar`, pass `typeChip` to field headers, wire per-field "View as" via `getViewOptions`
+- `web/packages/agenta-entity-ui/src/testcase/TestcaseDrawer.tsx` — remove Fields/JSON toggle from chrome, add `rootViewMode` state, mount `DrillInRootToolbar`, extend `TestcaseDrawerContentRenderProps` with `rootViewMode`/`fieldViewModes`/`onFieldViewModeChange`
+- `web/oss/src/components/TestcasesTableNew/components/TestcaseEditDrawer/index.tsx` — consume `rootViewMode` from render props, pass `typeChip` to `DrillInFieldHeader`, wire per-field "View as" via `getViewOptions`
 
 ---
 
@@ -346,15 +352,15 @@ Threshold for "long string" matches `inferRenderHint`: length > 100 or contains 
 **Phase 1 — already done:** `TypeChip`, `inferRenderHint`, `getViewOptions` in `@agenta/ui`.
 
 **Phase 2 — table integration (full detail in plan doc):**
-- [ ] Remove intermediate testcase-table chip implementation (chipMode, columnTypeInfo, detectColumnTypes in `TestcasesTableNew`)
-- [ ] Create `web/packages/agenta-ui/src/InfiniteVirtualTable/utils/detectColumnTypes.ts` — `detectColumnTypes()` + `mahmoudHeaderVariant()`
+- [ ] Verify testcase table has no intermediate chip code (clean baseline — no files to remove)
+- [ ] Create `web/packages/agenta-ui/src/InfiniteVirtualTable/utils/detectColumnTypes.ts` — `detectColumnTypes()` + `defaultHeaderVariant()`
 - [ ] Add `TypeChipConfig<RecordType>` type + `typeChips?` prop to `InfiniteVirtualTableProps`
-- [ ] Create `web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipColumns.ts` — samples rows via `getRowValue`, detects types, enhances leaf column titles
+- [ ] Create `web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipColumns.tsx` — samples rows via `getRowValue`, detects types, enhances leaf column titles (`.tsx` — renders JSX)
 - [ ] Wire `useTypeChipColumns` in `InfiniteVirtualTableInner.tsx`
 - [ ] Thread `typeChips` through `InfiniteVirtualTableFeatureShell`
-- [ ] Create fresh `chipMode.ts` atom (`"all" | "none"`)
-- [ ] Update `TestcasesTableShell.tsx` — group header `±-button` + `[object]` chip; accept + forward `typeChips` prop
-- [ ] Update `TestcasesTableNew/index.tsx` — create `getRowValue`, pass `typeChips` to shell
+- [ ] Create `useTypeChipFeature()` in `@agenta/ui/table` for persisted visibility and settings menu UI
+- [ ] Update `TestcasesTableShell.tsx` — replace caret spans with `GroupToggleButton`, add `[object]` TypeChip to group headers, forward `typeChips` prop
+- [ ] Update `TestcasesTableNew/index.tsx` — import `testcaseMolecule` from `@agenta/entities/testcase`, create `getRowValue`, pass `typeChips` to shell
 - [ ] Verify cell components (`TestcaseCellContent`, `JsonCellContent`, `ChatMessagesCellContent`) are untouched
 - [ ] Run `pnpm lint-fix` in `web/`
 
@@ -365,9 +371,12 @@ Threshold for "long string" matches `inferRenderHint`: length > 100 or contains 
 - [ ] Add `typeChip?: ReactNode` prop to `DrillInFieldHeader` — render between collapse toggle and field name
 - [ ] Add `featureFlags?: { enableFormView?: boolean }` to `DrillInUIComponents` in `web/packages/agenta-ui/src/drill-in/context/DrillInUIContext.tsx`
 - [ ] Update `JsonObjectField.tsx` — read `useDrillInUI().featureFlags?.enableFormView`; when true, render indent + 2px left border rail instead of card wrapper
-- [ ] Update `web/oss/src/components/TestcaseEditDrawer/index.tsx`:
+- [ ] Update `web/packages/agenta-entity-ui/src/testcase/TestcaseDrawer.tsx` (shell):
   - Remove Fields/JSON toggle from main chrome header
-  - Mount `DrillInRootToolbar` as sub-header below chrome
+  - Add `rootViewMode` state + `DrillInRootToolbar` sub-header below chrome
+  - Extend `TestcaseDrawerContentRenderProps` with `rootViewMode`, `fieldViewModes`, `onFieldViewModeChange`
+- [ ] Update `web/oss/src/components/TestcasesTableNew/components/TestcaseEditDrawer/index.tsx` (content):
+  - Consume `rootViewMode`/`fieldViewModes`/`onFieldViewModeChange` from render props
   - Pass `typeChip={<TypeChip value={fieldValue} />}` to each `DrillInFieldHeader`
   - Wire per-field "View as" dropdown using `getViewOptions(value)` — reference `ProposalV2DrillIn.tsx` + `ProposalV2ViewTypeSelect.tsx`
 - [ ] Run `pnpm lint-fix` in `web/`
