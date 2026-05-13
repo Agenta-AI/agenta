@@ -26,8 +26,11 @@ from oss.src.models.db_models import ProjectDB
 from ee.src.models.extended.deprecated_models import DeprecatedOrganizationDB
 from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
 from ee.src.dbs.postgres.meters.dbes import MeterDBE
-from ee.src.core.subscriptions.types import FREE_PLAN
 from ee.src.core.entitlements.types import Gauge
+
+# Point-in-time literal; the runtime free-plan slug is now resolved via
+# `ee.src.core.subscriptions.settings.get_free_plan()`.
+FREE_PLAN = "cloud_v0_hobby"
 
 stripe.api_key = env.stripe.api_key
 
@@ -143,7 +146,7 @@ def upgrade() -> None:
                         organization_id=organization_id,
                         subscription_id=subscription_id,
                         customer_id=customer_id,
-                        plan=plan.value,
+                        plan=plan,
                         active=active,
                         anchor=anchor,
                     )
@@ -158,7 +161,7 @@ def upgrade() -> None:
                         .values(
                             subscription_id=subscription_id,
                             customer_id=customer_id,
-                            plan=plan.value,
+                            plan=plan,
                             active=active,
                             anchor=anchor,
                         )

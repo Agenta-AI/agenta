@@ -374,23 +374,84 @@ class StripeConfig(BaseModel):
     )
     webhook_secret: str | None = os.getenv("STRIPE_WEBHOOK_SECRET")
 
-    pricing: dict | None = None
-
-    def __init__(self, **data):
-        super().__init__(**data)
-        try:
-            self.pricing = loads(
-                os.getenv("STRIPE_PRICING") or os.getenv("AGENTA_PRICING") or "{}"
-            )
-        except Exception:
-            self.pricing = {}
-
     model_config = ConfigDict(extra="ignore")
 
     @property
     def enabled(self) -> bool:
         """Stripe enabled if API key present"""
         return bool(self.api_key)
+
+
+def _load_json_env_raw(name: str) -> object | None:
+    raw = os.getenv(name)
+    if raw is None:
+        return None
+    raw = raw.strip()
+    if not raw:
+        return None
+    try:
+        return loads(raw)
+    except Exception as e:
+        raise ValueError(f"{name} is not valid JSON: {e}") from e
+
+
+def _load_json_env_dict(name: str) -> dict | None:
+    """Parse `name` as a JSON object, or return None if unset/empty."""
+    value = _load_json_env_raw(name)
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError(f"{name} must be a JSON object, got {type(value).__name__}")
+    return value
+
+
+def _load_json_env_list(name: str) -> list | None:
+    """Parse `name` as a JSON array, or return None if unset/empty."""
+    value = _load_json_env_raw(name)
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise ValueError(f"{name} must be a JSON array, got {type(value).__name__}")
+    return value
+
+
+def _load_int_env(name: str) -> int | None:
+    """Parse `name` as an integer, or return None if unset/empty."""
+    raw = os.getenv(name)
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except ValueError as e:
+        raise ValueError(f"{name} must be an integer, got {raw!r}") from e
+
+
+class AccessControls(BaseModel):
+    """Access controls configuration (plans + roles).
+
+    JSON env vars are parsed here at startup. Schema validation happens in
+    ``ee.src.core.entitlements.controls``.
+    """
+
+    plans: dict | None = _load_json_env_dict("AGENTA_ACCESS_PLANS")
+    roles: dict | None = _load_json_env_dict("AGENTA_ACCESS_ROLES")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class BillingSettings(BaseModel):
+    """Billing settings configuration (catalog + Stripe pricing + trial).
+
+    JSON env vars are parsed here at startup. Schema validation happens in
+    ``ee.src.core.subscriptions.settings``.
+    """
+
+    catalog: list | None = _load_json_env_list("AGENTA_BILLING_CATALOG")
+    pricing: dict | None = _load_json_env_dict("AGENTA_BILLING_PRICING")
+    trial_plan: str | None = os.getenv("AGENTA_BILLING_TRIAL_PLAN") or None
+    trial_days: int | None = _load_int_env("AGENTA_BILLING_TRIAL_DAYS")
+
+    model_config = ConfigDict(extra="ignore")
 
 
 class SendgridConfig(BaseModel):
@@ -753,6 +814,8 @@ class EnvironSettings(BaseModel):
     postgres: PostgresConfig = PostgresConfig()
     alembic: AlembicConfig = AlembicConfig()
     composio: ComposioConfig = ComposioConfig()
+    access_controls: AccessControls = AccessControls()
+    billing: BillingSettings = BillingSettings()
 
     model_config = ConfigDict(extra="ignore")
 

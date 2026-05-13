@@ -1,9 +1,7 @@
-export type Plan =
-    | "cloud_v0_hobby"
-    | "cloud_v0_pro"
-    | "cloud_v0_business"
-    | "cloud_v0_enterprise"
-    | "self_hosted_enterprise"
+// Plan slugs are dynamic at runtime (env-overridable via AGENTA_ACCESS_PLANS).
+// API responses carry plain strings; the `DefaultPlan` enum in `@/oss/lib/Types`
+// holds the known default slug constants for use in conditional checks.
+export type Plan = string
 
 export interface SubscriptionType {
     plan: Plan

@@ -24,8 +24,14 @@ from oss.src.services.db_manager import (
 from ee.src.services import db_manager_ee
 from ee.src.utils.permissions import check_action_access
 from ee.src.models.shared_models import Permission
-from ee.src.core.entitlements.types import ENTITLEMENTS, CATALOG, Tracker, Quota
-from ee.src.core.subscriptions.types import Event, Plan
+from ee.src.core.entitlements.types import Tracker, Quota
+from ee.src.core.entitlements.controls import get_plan_entitlements, get_plans
+from ee.src.core.subscriptions.settings import (
+    get_catalog,
+    get_stripe_line_items,
+    get_free_plan,
+)
+from ee.src.core.subscriptions.types import Event
 from ee.src.core.meters.service import MetersService
 from ee.src.core.tracing.service import TracingService
 from ee.src.core.subscriptions.service import (
@@ -378,7 +384,20 @@ class BillingRouter:
                         },
                     )
 
-                plan = Plan(_stripe_get(metadata, "plan"))
+                plan = _stripe_get(metadata, "plan")
+                if plan not in get_plans():
+                    log.warn(
+                        "Skipping stripe event: %s (unknown plan %s)",
+                        stripe_event.type,
+                        plan,
+                    )
+                    return JSONResponse(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        content={
+                            "status": "error",
+                            "message": f"Unknown plan '{plan}'",
+                        },
+                    )
 
                 if not _stripe_has(stripe_event.data.object, "billing_cycle_anchor"):
                     log.warn("Skipping stripe event: %s (no anchor)", stripe_event.type)
@@ -471,7 +490,7 @@ class BillingRouter:
     async def create_checkout(
         self,
         organization_id: str,
-        plan: Plan,
+        plan: str,
         success_url: str,
     ):
         # No-op if Stripe is disabled
@@ -481,10 +500,17 @@ class BillingRouter:
                 content={"status": "ok", "message": "Stripe not configured"},
             )
 
-        if plan.name not in Plan.__members__.keys():
+        if plan not in get_plans():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid plan",
+            )
+
+        line_items = get_stripe_line_items(plan)
+        if not line_items:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Plan '{plan}' is not available for purchase (no Stripe line items configured).",
             )
 
         subscription = await self.subscription_service.read(
@@ -558,13 +584,13 @@ class BillingRouter:
             tax_id_collection={"enabled": True},
             #
             customer=subscription.customer_id,
-            line_items=list(env.stripe.pricing[plan].values()),
+            line_items=line_items,
             #
             subscription_data={
                 # "billing_cycle_anchor": anchor,
                 "metadata": {
                     "organization_id": organization_id,
-                    "plan": plan.value,
+                    "plan": plan,
                     "target": env.stripe.webhook_target,
                 },
             },
@@ -588,12 +614,12 @@ class BillingRouter:
         if not subscription:
             key = None
         else:
-            key = subscription.plan.value
+            key = subscription.plan
 
-        for plan in CATALOG:
-            if plan["type"] == "standard":
+        for plan in get_catalog():
+            if plan.get("type") == "standard":
                 plans.append(plan)
-            elif plan["type"] == "custom" and plan["plan"] == key:
+            elif plan.get("type") == "custom" and plan.get("plan") == key:
                 plans.append(plan)
 
         return plans
@@ -601,10 +627,10 @@ class BillingRouter:
     async def switch_plans(
         self,
         organization_id: str,
-        plan: Plan,
+        plan: str,
         # force: bool,
     ):
-        if plan.name not in Plan.__members__.keys():
+        if plan not in get_plans():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid plan",
@@ -614,7 +640,7 @@ class BillingRouter:
             subscription = await self.subscription_service.process_event(
                 organization_id=organization_id,
                 event=Event.SUBSCRIPTION_SWITCHED,
-                plan=plan.value,
+                plan=plan,
                 # force=force,
             )
 
@@ -667,11 +693,11 @@ class BillingRouter:
         anchor = subscription.anchor
 
         _status: Dict[str, Any] = dict(
-            plan=plan.value,
+            plan=plan,
             type="standard",
         )
 
-        if plan == Plan.CLOUD_V0_HOBBY:
+        if plan == get_free_plan():
             return _status
 
         # Self-hosted / non-Stripe plans still need a subscription status shape
@@ -869,7 +895,7 @@ class BillingRouter:
         anchor_day = subscription.anchor
         anchor_year, anchor_month = compute_billing_period(now=now, anchor=anchor_day)
 
-        entitlements = ENTITLEMENTS.get(plan)
+        entitlements = get_plan_entitlements(plan)
 
         if not entitlements:
             return JSONResponse(
@@ -884,8 +910,9 @@ class BillingRouter:
         usage = {}
 
         for tracker in [Tracker.COUNTERS, Tracker.GAUGES]:
-            for key in list(entitlements[tracker].keys()):
-                quota: Quota = entitlements[tracker][key]
+            tracker_entries = entitlements.get(tracker) or {}
+            for key in list(tracker_entries.keys()):
+                quota: Quota = tracker_entries[key]
                 value = 0
 
                 for meter in meters:
@@ -1110,7 +1137,7 @@ class BillingRouter:
     async def create_checkout_user_route(
         self,
         request: Request,
-        plan: Plan = Query(...),
+        plan: str = Query(...),
         success_url: str = Query(...),  # find a way to make this optional or moot
     ):
         if is_ee():
@@ -1131,7 +1158,7 @@ class BillingRouter:
     async def create_checkout_admin_route(
         self,
         organization_id: str = Query(...),
-        plan: Plan = Query(...),
+        plan: str = Query(...),
         success_url: str = Query(...),  # find a way to make this optional or moot
     ):
         return await self.create_checkout(
@@ -1161,7 +1188,7 @@ class BillingRouter:
     async def switch_plans_user_route(
         self,
         request: Request,
-        plan: Plan = Query(...),
+        plan: str = Query(...),
     ):
         if is_ee():
             if not await check_action_access(
@@ -1180,7 +1207,7 @@ class BillingRouter:
     async def switch_plans_admin_route(
         self,
         organization_id: str = Query(...),
-        plan: Plan = Query(...),
+        plan: str = Query(...),
     ):
         return await self.switch_plans(
             organization_id=organization_id,

@@ -88,7 +88,7 @@ class ProjectRequest(BaseModel):
 
 OrganizationRole = Literal[
     "owner",
-    "member",
+    "viewer",
 ]
 
 

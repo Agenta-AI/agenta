@@ -6,7 +6,7 @@ import {BannerConfig} from "@/oss/components/SidebarBanners/types"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {isBillingEnabled} from "@/oss/lib/helpers/isEE"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {Plan} from "@/oss/lib/Types"
+import {DefaultPlan} from "@/oss/lib/Types"
 import {urlAtom, URLState} from "@/oss/state/url"
 
 import {subscriptionQueryAtom} from "../../../state/billing/atoms"
@@ -81,7 +81,7 @@ export const eeBannersAtom = atom((get): BannerConfig[] => {
         })
     }
     // Upgrade banner (dismissible) - only if NOT on trial AND on Hobby plan
-    else if (subscription.plan === Plan.Hobby) {
+    else if (subscription.plan === DefaultPlan.Hobby) {
         banners.push({
             id: "upgrade-banner-v1",
             type: "upgrade",

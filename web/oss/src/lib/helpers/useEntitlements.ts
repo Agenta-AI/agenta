@@ -1,13 +1,13 @@
 import {useMemo} from "react"
 
+import {DefaultPlan} from "@/oss/lib/Types"
+
 import {useSubscriptionDataWrapper} from "./useSubscriptionDataWrapper"
 
-type Plan =
-    | "cloud_v0_hobby"
-    | "cloud_v0_pro"
-    | "cloud_v0_business"
-    | "cloud_v0_enterprise"
-    | "self_hosted_enterprise"
+// Runtime plan slugs are dynamic (env-overridable via AGENTA_ACCESS_PLANS).
+// API responses carry plain strings; the `DefaultPlan` enum in `@/oss/lib/Types`
+// is used as a labeled set of known default slug constants.
+type Plan = string
 
 export enum Feature {
     ACCESS = "access",
@@ -24,15 +24,15 @@ const isFeatureEntitled = (plan: Plan | undefined, feature: Feature): boolean =>
     if (!plan) return false
 
     // Hobby and Pro plans have no access to ACCESS, DOMAINS, or SSO
-    if (plan === "cloud_v0_hobby" || plan === "cloud_v0_pro") {
+    if (plan === DefaultPlan.Hobby || plan === DefaultPlan.Pro) {
         return false
     }
 
     // Business, Enterprise, and self-hosted enterprise have access to all features
     if (
-        plan === "cloud_v0_business" ||
-        plan === "cloud_v0_enterprise" ||
-        plan === "self_hosted_enterprise"
+        plan === DefaultPlan.Business ||
+        plan === DefaultPlan.Enterprise ||
+        plan === DefaultPlan.SelfHostedEnterprise
     ) {
         return true
     }

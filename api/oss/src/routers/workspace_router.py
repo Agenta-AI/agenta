@@ -13,6 +13,7 @@ if is_ee():
     from ee.src.models.api.workspace_models import WorkspaceRole
     from ee.src.services.selectors import get_user_org_and_workspace_id
     from ee.src.services import db_manager_ee, workspace_manager
+    from ee.src.core.entitlements.controls import get_roles
 
     from ee.src.utils.entitlements import (
         check_entitlements,
@@ -69,15 +70,14 @@ async def get_all_workspace_roles(request: Request) -> List[Dict[str, str]]:
     """
 
     if is_ee():
-        workspace_roles_with_description = []
-        workspace_roles = await workspace_manager.get_all_workspace_roles()
-        for role in workspace_roles:
-            workspace_roles_with_description.append(
-                {
-                    "role_name": role,
-                    "role_description": WorkspaceRole.get_description(role),
-                }
-            )
+        # Resolve via access-controls (env-overridable via AGENTA_ACCESS_ROLES).
+        workspace_roles_with_description = [
+            {
+                "role_name": role["role"],
+                "role_description": role.get("description") or "",
+            }
+            for role in get_roles("workspace")
+        ]
 
     else:
         workspace_roles_with_description = [

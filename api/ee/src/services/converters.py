@@ -1,12 +1,20 @@
-from typing import List, Dict, Any
+from typing import List, Any
 from datetime import datetime, timezone
 
 from oss.src.services import db_manager
 from ee.src.services import db_manager_ee
 from ee.src.core.workspaces.types import WorkspaceResponse
+from ee.src.core.entitlements.controls import (
+    get_role_description,
+    get_role_permissions,
+)
 from ee.src.models.shared_models import Permission
-from ee.src.models.shared_models import WorkspaceRole
 from oss.src.models.db_models import WorkspaceDB
+
+
+def _role_slug(role: Any) -> str:
+    """Normalize an enum or string role to its slug form."""
+    return role.value if hasattr(role, "value") else str(role)
 
 
 async def get_workspace_in_format(
@@ -70,8 +78,8 @@ async def get_workspace_in_format(
                         "roles": [
                             {
                                 "role_name": invitation.role,
-                                "role_description": WorkspaceRole.get_description(
-                                    invitation.role
+                                "role_description": get_role_description(
+                                    "workspace", _role_slug(invitation.role)
                                 ),
                             }
                         ],
@@ -92,10 +100,12 @@ async def get_workspace_in_format(
                     [
                         {
                             "role_name": member_role,
-                            "role_description": WorkspaceRole.get_description(
-                                member_role
+                            "role_description": get_role_description(
+                                "project", _role_slug(member_role)
                             ),
-                            "permissions": Permission.default_permissions(member_role),
+                            "permissions": get_role_permissions(
+                                "project", _role_slug(member_role)
+                            ),
                         }
                     ]
                     if member_role
@@ -128,14 +138,9 @@ async def get_all_workspace_permissions() -> List[Permission]:
     return workspace_permissions
 
 
-def get_all_workspace_permissions_by_role(role_name: str) -> Dict[str, List[Any]]:
-    """
-    Retrieve all workspace permissions.
+def get_all_workspace_permissions_by_role(role_name: str) -> List[str]:
+    """Retrieve all permissions assigned to a workspace role.
 
-    Returns:
-        List[Permission]: A list of all workspace permissions in the DB.
+    Resolved via access-controls (env-overridable via AGENTA_ACCESS_ROLES).
     """
-    workspace_permissions = Permission.default_permissions(
-        getattr(WorkspaceRole, role_name.upper())
-    )
-    return workspace_permissions
+    return get_role_permissions("workspace", role_name)

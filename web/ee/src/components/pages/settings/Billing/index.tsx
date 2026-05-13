@@ -6,7 +6,7 @@ import dayjs from "dayjs"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
-import {Plan} from "@/oss/lib/Types"
+import {DefaultPlan} from "@/oss/lib/Types"
 import {editSubscriptionInfo, useSubscriptionData, useUsageData} from "@/oss/services/billing"
 
 import UsageProgressBar from "./assets/UsageProgressBar"
@@ -114,7 +114,7 @@ const Billing = () => {
                     <Typography.Text className="text-lg font-bold capitalize">
                         <SubscriptionPlanDetails subscription={subscription} />
                     </Typography.Text>
-                    {subscription?.plan !== Plan.Hobby && (
+                    {subscription?.plan !== DefaultPlan.Hobby && (
                         <Typography.Text className="text-[#586673]">
                             {subscription?.free_trial
                                 ? "Trial period will end on "
@@ -125,14 +125,15 @@ const Billing = () => {
                         </Typography.Text>
                     )}
 
-                    {subscription?.plan === Plan.Enterprise ? (
+                    {subscription?.plan === DefaultPlan.Enterprise ? (
                         <Typography.Text className="text-[#586673]">
                             For queries regarding your plan,{" "}
                             <a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo" target="_blank">
                                 click here to contact us
                             </a>
                         </Typography.Text>
-                    ) : subscription?.plan === Plan.Pro || subscription?.plan === Plan.Business ? (
+                    ) : subscription?.plan === DefaultPlan.Pro ||
+                      subscription?.plan === DefaultPlan.Business ? (
                         <div className="flex items-center gap-2">
                             <Button type="primary" onClick={() => setIsOpenPricingModal(true)}>
                                 Upgrade plan

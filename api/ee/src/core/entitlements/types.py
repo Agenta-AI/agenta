@@ -2,7 +2,53 @@ from typing import Optional
 from enum import Enum
 from pydantic import BaseModel
 
-from ee.src.core.subscriptions.types import Plan
+
+class DefaultPlan(str, Enum):
+    """Code-default plan slugs.
+
+    Runtime plan slugs come from `ee.src.core.entitlements.controls.get_plans()`
+    (env-overridable). This enum is only the default-fallback identifier set,
+    used as keys for `DEFAULT_ENTITLEMENTS` / `DEFAULT_CATALOG` and as fallback
+    in `get_default_plan()` / `get_free_plan()` / `get_trial_plan()`.
+    """
+
+    CLOUD_V0_HOBBY = "cloud_v0_hobby"
+    CLOUD_V0_PRO = "cloud_v0_pro"
+    CLOUD_V0_BUSINESS = "cloud_v0_business"
+    #
+    CLOUD_V0_HUMANITY_LABS = "cloud_v0_humanity_labs"
+    CLOUD_V0_X_LABS = "cloud_v0_x_labs"
+    #
+    CLOUD_V0_AGENTA_AI = "cloud_v0_agenta_ai"
+    #
+    SELF_HOSTED_ENTERPRISE = "self_hosted_enterprise"
+
+
+class DefaultRole(str, Enum):
+    """Required role slugs per scope.
+
+    `owner` and `viewer` must exist in every scope (organization, workspace,
+    project) — they are merged in by the access-controls builder regardless of
+    `AGENTA_ACCESS_ROLES` content, so application code can depend on these
+    two slugs being valid in any scope.
+
+    Env overrides may customize the permissions of these roles or add
+    additional roles, but cannot remove them.
+    """
+
+    OWNER = "owner"
+    VIEWER = "viewer"
+
+
+# Permission slugs that the OWNER role always implies. `"*"` is the wildcard
+# permission recognized by `permissions.py`.
+OWNER_PERMISSIONS: list[str] = ["*"]
+
+
+# Scope identifiers the access-controls layer knows about. Today only
+# `project` permissions are enforced at runtime; organization/workspace
+# scopes get the same minima for forward-compat.
+SCOPES: tuple[str, ...] = ("organization", "workspace", "project")
 
 
 class Tracker(str, Enum):
@@ -39,7 +85,7 @@ class Constraint(str, Enum):
     READ_ONLY = "read_only"
 
 
-class Periods(str, Enum):
+class Period(str, Enum):
     EPHEMERAL = 0  # instant
     HOURLY = 60  # 1 hour = 60 minutes
     DAILY = 1440  # 24 hours = 1 day = 1440 minutes
@@ -133,13 +179,13 @@ ENDPOINTS = {
 }
 
 
-CATALOG = [
+DEFAULT_CATALOG = [
     {
         "title": "Hobby",
         "description": "Great for hobby projects and POCs.",
         "type": "standard",
-        "plan": Plan.CLOUD_V0_HOBBY.value,
-        "retention": Periods.MONTHLY.value,
+        "plan": DefaultPlan.CLOUD_V0_HOBBY.value,
+        "retention": Period.MONTHLY.value,
         "price": {
             "base": {
                 "type": "flat",
@@ -160,8 +206,8 @@ CATALOG = [
         "title": "Pro",
         "description": "For production projects.",
         "type": "standard",
-        "plan": Plan.CLOUD_V0_PRO.value,
-        "retention": Periods.QUARTERLY.value,
+        "plan": DefaultPlan.CLOUD_V0_PRO.value,
+        "retention": Period.QUARTERLY.value,
         "price": {
             "base": {
                 "type": "flat",
@@ -211,8 +257,8 @@ CATALOG = [
         "title": "Business",
         "description": "For scale, security, and support.",
         "type": "standard",
-        "plan": Plan.CLOUD_V0_BUSINESS.value,
-        "retention": Periods.YEARLY.value,
+        "plan": DefaultPlan.CLOUD_V0_BUSINESS.value,
+        "retention": Period.YEARLY.value,
         "price": {
             "base": {
                 "type": "flat",
@@ -268,7 +314,7 @@ CATALOG = [
     {
         "title": "Humanity Labs",
         "description": "For Humanity Labs.",
-        "plan": Plan.CLOUD_V0_HUMANITY_LABS.value,
+        "plan": DefaultPlan.CLOUD_V0_HUMANITY_LABS.value,
         "type": "custom",
         "features": [
             "Everything in Enterprise",
@@ -277,7 +323,7 @@ CATALOG = [
     {
         "title": "X Labs",
         "description": "For X Labs.",
-        "plan": Plan.CLOUD_V0_X_LABS.value,
+        "plan": DefaultPlan.CLOUD_V0_X_LABS.value,
         "type": "custom",
         "features": [
             "Everything in Enterprise",
@@ -286,7 +332,7 @@ CATALOG = [
     {
         "title": "Agenta",
         "description": "For Agenta.",
-        "plan": Plan.CLOUD_V0_AGENTA_AI.value,
+        "plan": DefaultPlan.CLOUD_V0_AGENTA_AI.value,
         "type": "custom",
         "features": [
             "Everything in Enterprise",
@@ -294,8 +340,8 @@ CATALOG = [
     },
 ]
 
-ENTITLEMENTS = {
-    Plan.CLOUD_V0_HOBBY: {
+DEFAULT_ENTITLEMENTS = {
+    DefaultPlan.CLOUD_V0_HOBBY: {
         Tracker.FLAGS: {
             Flag.HOOKS: False,
             Flag.RBAC: False,
@@ -308,7 +354,7 @@ ENTITLEMENTS = {
                 limit=5_000,
                 monthly=True,
                 free=5_000,
-                retention=Periods.MONTHLY.value,
+                retention=Period.MONTHLY.value,
             ),
             Counter.EVALUATIONS: Quota(
                 limit=20,
@@ -380,7 +426,7 @@ ENTITLEMENTS = {
             ),
         ],
     },
-    Plan.CLOUD_V0_PRO: {
+    DefaultPlan.CLOUD_V0_PRO: {
         Tracker.FLAGS: {
             Flag.HOOKS: True,
             Flag.RBAC: False,
@@ -392,7 +438,7 @@ ENTITLEMENTS = {
             Counter.TRACES: Quota(
                 monthly=True,
                 free=10_000,
-                retention=Periods.QUARTERLY.value,
+                retention=Period.QUARTERLY.value,
             ),
             Counter.EVALUATIONS: Quota(
                 monthly=True,
@@ -462,7 +508,7 @@ ENTITLEMENTS = {
             ),
         ],
     },
-    Plan.CLOUD_V0_BUSINESS: {
+    DefaultPlan.CLOUD_V0_BUSINESS: {
         Tracker.FLAGS: {
             Flag.HOOKS: True,
             Flag.RBAC: True,
@@ -474,7 +520,7 @@ ENTITLEMENTS = {
             Counter.TRACES: Quota(
                 monthly=True,
                 free=1_000_000,
-                retention=Periods.YEARLY.value,
+                retention=Period.YEARLY.value,
             ),
             Counter.EVALUATIONS: Quota(
                 monthly=True,
@@ -542,7 +588,7 @@ ENTITLEMENTS = {
             ),
         ],
     },
-    Plan.CLOUD_V0_HUMANITY_LABS: {
+    DefaultPlan.CLOUD_V0_HUMANITY_LABS: {
         Tracker.FLAGS: {
             Flag.HOOKS: True,
             Flag.RBAC: True,
@@ -568,7 +614,7 @@ ENTITLEMENTS = {
             ),
         },
     },
-    Plan.CLOUD_V0_X_LABS: {
+    DefaultPlan.CLOUD_V0_X_LABS: {
         Tracker.FLAGS: {
             Flag.HOOKS: False,
             Flag.RBAC: False,
@@ -594,7 +640,7 @@ ENTITLEMENTS = {
             ),
         },
     },
-    Plan.CLOUD_V0_AGENTA_AI: {
+    DefaultPlan.CLOUD_V0_AGENTA_AI: {
         Tracker.FLAGS: {
             Flag.HOOKS: True,
             Flag.RBAC: True,
@@ -626,7 +672,7 @@ ENTITLEMENTS = {
             ),
         },
     },
-    Plan.SELF_HOSTED_ENTERPRISE: {
+    DefaultPlan.SELF_HOSTED_ENTERPRISE: {
         Tracker.FLAGS: {
             Flag.HOOKS: True,
             Flag.RBAC: True,

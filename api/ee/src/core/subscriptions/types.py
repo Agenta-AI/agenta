@@ -7,18 +7,7 @@ from enum import Enum
 from oss.src.utils.env import env
 from pydantic import BaseModel
 
-
-class Plan(str, Enum):
-    CLOUD_V0_HOBBY = "cloud_v0_hobby"
-    CLOUD_V0_PRO = "cloud_v0_pro"
-    CLOUD_V0_BUSINESS = "cloud_v0_business"
-    #
-    CLOUD_V0_HUMANITY_LABS = "cloud_v0_humanity_labs"
-    CLOUD_V0_X_LABS = "cloud_v0_x_labs"
-    #
-    CLOUD_V0_AGENTA_AI = "cloud_v0_agenta_ai"
-    #
-    SELF_HOSTED_ENTERPRISE = "self_hosted_enterprise"
+from ee.src.core.entitlements.types import DefaultPlan
 
 
 class Event(str, Enum):
@@ -33,18 +22,13 @@ class SubscriptionDTO(BaseModel):
     organization_id: UUID
     customer_id: Optional[str] = None
     subscription_id: Optional[str] = None
-    plan: Optional[Plan] = None
+    plan: Optional[str] = None
     active: Optional[bool] = None
     anchor: Optional[int] = None
 
 
-FREE_PLAN = Plan.CLOUD_V0_HOBBY  # Move to ENV FILE
-REVERSE_TRIAL_PLAN = Plan.CLOUD_V0_PRO  # move to ENV FILE
-REVERSE_TRIAL_DAYS = 14  # move to ENV FILE
-
-
-def get_default_plan() -> Plan:
-    """Returns the default plan for new organizations.
+def get_default_plan() -> str:
+    """Returns the default plan slug for new organizations.
 
     Reads from AGENTA_DEFAULT_PLAN env var. If not set, defaults to:
     - self_hosted_enterprise when Stripe is disabled
@@ -52,9 +36,9 @@ def get_default_plan() -> Plan:
     """
     raw = env.agenta.default_plan
     if raw:
-        return Plan(raw)
+        return raw
 
     if env.stripe.enabled:
-        return Plan.CLOUD_V0_HOBBY
+        return DefaultPlan.CLOUD_V0_HOBBY.value
 
-    return Plan.SELF_HOSTED_ENTERPRISE
+    return DefaultPlan.SELF_HOSTED_ENTERPRISE.value

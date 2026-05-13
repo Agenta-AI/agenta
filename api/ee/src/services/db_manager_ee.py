@@ -1678,7 +1678,7 @@ async def get_all_workspace_roles() -> List[WorkspaceRole]:
 async def add_user_to_organization(
     organization_id: str,
     user_id: str,
-    role: str = "member",
+    role: str = "viewer",
     # is_demo: bool = False,
 ) -> None:
     async with engine.core_session() as session:

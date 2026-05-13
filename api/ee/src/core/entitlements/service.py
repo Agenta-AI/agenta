@@ -3,11 +3,10 @@ from typing import Optional, Dict, List
 from ee.src.core.entitlements.types import (
     Tracker,
     Constraint,
-    ENTITLEMENTS,
     CONSTRAINTS,
 )
 from ee.src.core.entitlements.types import Quota, Gauge
-from ee.src.core.subscriptions.types import Plan
+from ee.src.core.entitlements.controls import get_plan_entitlements
 from ee.src.core.meters.service import MetersService
 from ee.src.core.meters.types import MeterDTO
 
@@ -50,12 +49,14 @@ class EntitlementsService:
         self,
         *,
         organization_id: str,
-        plan: Plan,
+        plan: str,
     ) -> Dict[Gauge, int]:
         issues = {}
 
+        entitlements = get_plan_entitlements(plan) or {}
+
         for key in CONSTRAINTS[Constraint.BLOCKED][Tracker.GAUGES]:
-            quotas: List[Quota] = ENTITLEMENTS[plan][Tracker.GAUGES]
+            quotas: List[Quota] = entitlements.get(Tracker.GAUGES) or {}
 
             if key in quotas:
                 meter = MeterDTO(

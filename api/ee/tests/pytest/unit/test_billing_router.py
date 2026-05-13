@@ -6,7 +6,8 @@ import pytest
 
 from ee.src.apis.fastapi.billing import router as billing_router_module
 from ee.src.apis.fastapi.billing.router import BillingRouter
-from ee.src.core.subscriptions.types import Event, Plan
+from ee.src.core.entitlements.types import DefaultPlan
+from ee.src.core.subscriptions.types import Event
 
 
 @pytest.mark.asyncio
@@ -14,7 +15,7 @@ async def test_fetch_subscription_reads_periods_from_stripe_objects(monkeypatch)
     subscription_service = SimpleNamespace(
         read=AsyncMock(
             return_value=SimpleNamespace(
-                plan=Plan.CLOUD_V0_PRO,
+                plan=DefaultPlan.CLOUD_V0_PRO.value,
                 anchor=12,
                 subscription_id="sub_123",
             )
@@ -48,7 +49,7 @@ async def test_fetch_subscription_reads_periods_from_stripe_objects(monkeypatch)
     )
 
     assert result == {
-        "plan": Plan.CLOUD_V0_PRO.value,
+        "plan": DefaultPlan.CLOUD_V0_PRO.value,
         "type": "standard",
         "period_start": 1710000000,
         "period_end": 1712592000,
@@ -93,7 +94,7 @@ async def test_handle_events_reads_subscription_created_metadata_from_stripe_obj
                     metadata=SimpleNamespace(
                         target=billing_router_module.env.stripe.webhook_target,
                         organization_id="org_123",
-                        plan=Plan.CLOUD_V0_PRO.value,
+                        plan=DefaultPlan.CLOUD_V0_PRO.value,
                     ),
                 )
             ),
@@ -108,7 +109,7 @@ async def test_handle_events_reads_subscription_created_metadata_from_stripe_obj
         organization_id="org_123",
         event=Event.SUBSCRIPTION_CREATED,
         subscription_id="sub_123",
-        plan=Plan.CLOUD_V0_PRO,
+        plan=DefaultPlan.CLOUD_V0_PRO.value,
         anchor=9,
     )
 

@@ -1,0 +1,214 @@
+---
+title: Dynamic Access Controls
+sidebar_label: Access Controls
+description: Override the built-in plans, entitlements, and role catalogs at runtime via environment variables.
+---
+
+# Dynamic access controls
+
+Agenta EE ships with code-default plans, entitlements, and role catalogs.
+Operators can override any of these at runtime by setting JSON environment
+variables. This page documents the **access** layer:
+
+- `AGENTA_ACCESS_PLANS` — plan slugs and per-plan entitlement controls
+  (flags, counters, gauges, throttles).
+- `AGENTA_ACCESS_ROLES` — custom roles per scope on top of the platform
+  minima (`owner` / `viewer`).
+
+The companion [Dynamic billing settings](./05-dynamic-billing-settings.mdx)
+page covers the catalog, Stripe pricing, free plan and trial flow.
+
+:::warning Restart required
+Both env vars are parsed once at process startup. After changing them,
+restart **all** API and worker processes — they each load the controls into
+memory and will otherwise enforce different limits.
+:::
+
+:::tip Validation is strict
+If either var is set, validation runs at startup:
+
+- invalid JSON → fail
+- unknown flag / counter / gauge / permission slug → fail
+- `AGENTA_ACCESS_PLANS` empty object → fail
+- plan entry with no entitlement info (no `flags`/`counters`/`gauges`/`throttles`) → fail
+- `AGENTA_ACCESS_ROLES` redefining the reserved `owner` or `viewer` slug → fail
+- empty scope list → fail
+- duplicate role slug within a scope → fail
+
+Run staging deploys with the new values before pushing to production.
+:::
+
+## `AGENTA_ACCESS_PLANS`
+
+JSON **object** keyed by plan slug. The set of keys is the **effective plan
+set** — every other plan reference (billing catalog, billing pricing, trial
+plan, default plan, subscription rows in the DB) must point to one of these
+slugs.
+
+### Top-level shape
+
+```text
+{
+  "<plan_slug>": <PlanEntry>,
+  ...
+}
+```
+
+### `PlanEntry` fields
+
+Every entry must define at least one of `flags`, `counters`, `gauges`, or
+`throttles`. `description` is optional.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `description` | string | no | Operator-facing description (not shown to users). |
+| `flags` | object | one-of | Map of flag slug → bool. See [flag keys](#flag-keys). |
+| `counters` | object | one-of | Map of counter slug → `Quota`. See [counter keys](#counter-keys). |
+| `gauges` | object | one-of | Map of gauge slug → `Quota`. See [gauge keys](#gauge-keys). |
+| `throttles` | array | no | List of `Throttle` entries. See [throttles](#throttles). |
+
+### `Quota` shape
+
+Used by `counters` and `gauges` map values.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `free` | integer \| null | `null` | Free-tier allowance before metered billing kicks in. |
+| `limit` | integer \| null | `null` | Hard cap; `null` = unlimited. |
+| `monthly` | boolean | `null` | True if the counter resets monthly. Counters only. |
+| `strict` | boolean | `false` | If true, requests exceeding the limit are blocked instead of metered. |
+| `retention` | integer | `null` | Retention period in **minutes**. Used by `counters.traces` for span flush. |
+
+### Flag keys
+
+`hooks`, `rbac`, `access`, `domains`, `sso`. Values are booleans.
+
+### Counter keys
+
+`traces`, `evaluations`, `evaluators`, `annotations`, `credits`.
+
+### Gauge keys
+
+`users`, `applications`.
+
+### `Throttle` shape
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `bucket.capacity` | integer | Max tokens in the bucket. |
+| `bucket.rate` | integer | Tokens added per minute. |
+| `bucket.algorithm` | string \| null | Optional algorithm tag. |
+| `mode` | string | `"include"` or `"exclude"`. |
+| `categories` | array \| null | Endpoint categories the throttle applies to. |
+| `endpoints` | array \| null | Explicit `[method, path]` pairs. |
+
+### Example
+
+```json
+{
+  "cloud_v0_hobby": {
+    "description": "Hobby — operator-facing description.",
+    "flags": {
+      "hooks": false,
+      "rbac": false,
+      "access": false,
+      "domains": false,
+      "sso": false
+    },
+    "counters": {
+      "traces": {"limit": 5000, "free": 5000, "monthly": true, "retention": 44640},
+      "evaluations": {"limit": 20, "free": 20, "monthly": true, "strict": true}
+    },
+    "gauges": {
+      "users": {"limit": 2, "free": 2, "strict": true},
+      "applications": {"strict": true}
+    }
+  },
+  "cloud_v0_pro": {
+    "description": "Production team plan.",
+    "flags": {"hooks": true, "rbac": false, "access": false, "domains": false, "sso": false},
+    "counters": {
+      "traces": {"free": 10000, "monthly": true, "retention": 131040},
+      "evaluations": {"monthly": true, "strict": true}
+    },
+    "gauges": {
+      "users": {"limit": 10, "free": 3, "strict": true}
+    }
+  }
+}
+```
+
+## `AGENTA_ACCESS_ROLES`
+
+JSON **object** keyed by scope. Scope values are non-empty arrays of custom
+role entries. The `owner` and `viewer` minima are platform-managed and
+always synthesized for every scope — env can only **add** roles, never
+redefine the minima.
+
+### Top-level shape
+
+```text
+{
+  "<scope>": [<RoleEntry>, ...],
+  ...
+}
+```
+
+Recognized scopes: `organization`, `workspace`, `project`. Unknown scopes
+fail startup. Omitted scopes keep their full code defaults.
+
+### `RoleEntry` fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `role` | string | yes | Slug; cannot be `owner` or `viewer` (reserved). |
+| `description` | string | no | Human-readable description for UIs. |
+| `permissions` | string[] | yes | `Permission` enum slugs, or `"*"` for full access. |
+
+### Platform minima (always present)
+
+The platform always synthesizes `owner` and `viewer` in every scope. Their
+permission sets are code-defined:
+
+| Scope | `owner` | `viewer` |
+|-------|---------|----------|
+| `organization` | `["*"]` | `[]` (membership marker, no permissions) |
+| `workspace` | `["*"]` | Read-only set (sourced from the legacy `WorkspaceRole.VIEWER`) |
+| `project` | `["*"]` | Same read-only set |
+
+Org-scope `viewer` having no permissions is intentional: organizations don't
+have a permission concept today — `viewer` is purely a membership marker.
+
+### Example
+
+Add a `reviewer` role at the project scope:
+
+```json
+{
+  "project": [
+    {
+      "role": "reviewer",
+      "description": "Can inspect runs and annotate traces.",
+      "permissions": ["read_system", "view_evaluation_runs", "edit_annotations"]
+    }
+  ]
+}
+```
+
+After applying that override, `/workspace/roles/` and member serialization
+return `owner`, `viewer`, and `reviewer` for the project scope. Workspace
+and organization scopes are untouched.
+
+The `permissions` array entries must be valid `Permission` enum members or
+the wildcard `"*"`. Unknown permissions fail startup.
+
+## Operational guidance
+
+- Store these JSON values in your deployment's secrets manager. They affect
+  runtime enforcement; don't keep them in source-controlled plain env files.
+- Validate every change in staging before pushing to production.
+- After changing either env var, restart all API workers and background
+  workers — each process loads controls into memory once.
+- Logs at startup show the resolved source (`defaults` vs `env`) and a short
+  hash of the effective controls; grep API logs for `[access-controls]` to
+  verify all processes see the same configuration.

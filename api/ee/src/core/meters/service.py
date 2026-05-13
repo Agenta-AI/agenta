@@ -8,6 +8,7 @@ from oss.src.utils.env import env
 
 from ee.src.core.entitlements.types import Quota
 from ee.src.core.entitlements.types import Counter, Gauge, REPORTS
+from ee.src.core.subscriptions.settings import get_stripe_meter_price
 from ee.src.core.meters.types import MeterDTO
 from ee.src.core.meters.interfaces import MetersDAOInterface
 
@@ -170,10 +171,9 @@ class MetersService:
 
                     if meter.key.name in Gauge.__members__.keys():
                         try:
-                            price_id = (
-                                env.stripe.pricing.get(meter.subscription.plan, {})
-                                .get("users", {})
-                                .get("price")
+                            price_id = get_stripe_meter_price(
+                                meter.subscription.plan,
+                                meter.key.value,
                             )
 
                             if not price_id:
