@@ -3,7 +3,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from oss.src.utils.exceptions import Support
 
 from oss.src.core.otel.dtos import (
     OTelSpanDTO,
@@ -14,11 +13,11 @@ from oss.src.core.otel.dtos import (
 )
 
 
-class CollectStatusResponse(Support):
+class CollectStatusResponse(BaseModel):
     status: str
 
 
-class OTelTracingResponse(Support):
+class OTelTracingResponse(BaseModel):
     count: Optional[int] = None
     spans: List[OTelSpanDTO]
 
@@ -93,6 +92,6 @@ class LegacyAnalyticsResponse(LegacySummary):
     data: List[LegacyDataPoint]
 
 
-class OldAnalyticsResponse(Support):
+class OldAnalyticsResponse(BaseModel):
     count: Optional[int] = None
     buckets: List[BucketDTO]

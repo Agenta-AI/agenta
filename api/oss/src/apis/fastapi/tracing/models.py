@@ -2,7 +2,6 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
-from oss.src.utils.exceptions import Support
 
 from oss.src.core.shared.dtos import (
     Windowing,
@@ -51,64 +50,64 @@ class SpanRequest(BaseModel):
     span: Optional[Span] = None
 
 
-class OTelLinksResponse(Support):
+class OTelLinksResponse(BaseModel):
     count: int = 0
     links: Optional[OTelLinks] = None
     dropped: Optional[OTelLinks] = None
 
 
-class LinkResponse(Support):
+class LinkResponse(BaseModel):
     count: int = 0
     link: Optional[Link] = None
 
 
-class LinksResponse(Support):
+class LinksResponse(BaseModel):
     count: int = 0
     links: Optional[Links] = None
 
 
-class TraceIdResponse(Support):
+class TraceIdResponse(BaseModel):
     count: int = 0
     trace_id: Optional[str] = None
 
 
-class TraceIdsResponse(Support):
+class TraceIdsResponse(BaseModel):
     count: int = 0
     trace_ids: List[str] = []
 
 
-class SpanIdResponse(Support):
+class SpanIdResponse(BaseModel):
     count: int = 0
     span_id: Optional[str] = None
 
 
-class SpanIdsResponse(Support):
+class SpanIdsResponse(BaseModel):
     count: int = 0
     span_ids: List[str] = []
 
 
-class OTelTracingResponse(Support):
+class OTelTracingResponse(BaseModel):
     count: int = 0
     spans: Optional[OTelFlatSpans] = None
     traces: Optional[OTelTraceTree] = None
 
 
-class TraceResponse(Support):
+class TraceResponse(BaseModel):
     count: int = 0
     trace: Optional[Trace] = None
 
 
-class TracesResponse(Support):
+class TracesResponse(BaseModel):
     count: int = 0
     traces: Optional[Traces] = None
 
 
-class SpanResponse(Support):
+class SpanResponse(BaseModel):
     count: int = 0
     span: Optional[Span] = None
 
 
-class SpansResponse(Support):
+class SpansResponse(BaseModel):
     count: int = 0
     spans: Optional[Spans] = None
 
@@ -131,12 +130,12 @@ class SpansQueryRequest(BaseModel):
     query_revision_ref: Optional[Reference] = None
 
 
-class OldAnalyticsResponse(Support):
+class OldAnalyticsResponse(BaseModel):
     count: int = 0
     buckets: List[Bucket] = []
 
 
-class AnalyticsResponse(Support):
+class AnalyticsResponse(BaseModel):
     count: int = 0
     buckets: List[MetricsBucket] = []
     #
@@ -150,7 +149,7 @@ class SessionsQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class SessionIdsResponse(Support):
+class SessionIdsResponse(BaseModel):
     count: int = 0
     session_ids: List[str] = []
     windowing: Optional[Windowing] = None
@@ -162,7 +161,7 @@ class UsersQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class UserIdsResponse(Support):
+class UserIdsResponse(BaseModel):
     count: int = 0
     user_ids: List[str] = []
     windowing: Optional[Windowing] = None

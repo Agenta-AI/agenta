@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+
 from supertokens_python import get_all_cors_headers as get_all_supertokens_cors_headers
 from supertokens_python.framework.fastapi import (
     get_middleware as get_supertokens_middleware,
@@ -127,6 +128,7 @@ from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
 from oss.src.apis.fastapi.tools.router import ToolsRouter
+from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 
 
 from oss.src.routers import (
@@ -324,11 +326,11 @@ if is_ee():
 app.middleware("http")(authentication_middleware)
 app.middleware("http")(analytics_middleware)
 
+app.add_middleware(SupportHeadersMiddleware)
+
 app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 
-app.add_middleware(
-    get_supertokens_middleware(),
-)
+app.add_middleware(get_supertokens_middleware())
 
 app.add_middleware(
     CORSMiddleware,

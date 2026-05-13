@@ -2,7 +2,6 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
-from oss.src.utils.exceptions import Support
 
 from oss.src.core.shared.dtos import Link, Windowing
 from oss.src.core.tracing.dtos import (
@@ -29,16 +28,16 @@ class SimpleTraceQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class SimpleTraceResponse(Support):
+class SimpleTraceResponse(BaseModel):
     count: int = 0
     trace: Optional[SimpleTrace] = None
 
 
-class SimpleTracesResponse(Support):
+class SimpleTracesResponse(BaseModel):
     count: int = 0
     traces: List[SimpleTrace] = []
 
 
-class SimpleTraceLinkResponse(Support):
+class SimpleTraceLinkResponse(BaseModel):
     count: int = 0
     link: Optional[Link] = None

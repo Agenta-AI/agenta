@@ -3,7 +3,6 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from oss.src.utils.exceptions import Support
 
 from oss.src.core.shared.dtos import (
     Windowing,
@@ -29,12 +28,12 @@ class TestcasesQueryRequest(BaseModel):
     windowing: Optional[Windowing] = None
 
 
-class TestcaseResponse(Support):
+class TestcaseResponse(BaseModel):
     count: int = 0
     testcase: Optional[Testcase] = None
 
 
-class TestcasesResponse(Support):
+class TestcasesResponse(BaseModel):
     count: int = 0
     testcases: List[Testcase] = []
     windowing: Optional[Windowing] = None

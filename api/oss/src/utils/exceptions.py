@@ -7,18 +7,13 @@ from contextlib import AbstractContextManager
 
 from fastapi import Request, HTTPException
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel
 
+from oss.src.utils.context import Support, support_ctx
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.shared.exceptions import EntityCreationConflict
 
 
 log = get_module_logger(__name__)
-
-
-class Support(BaseModel):
-    support_id: Optional[str] = None
-    support_ts: Optional[datetime] = None
 
 
 def build_support() -> Support:
@@ -28,19 +23,12 @@ def build_support() -> Support:
     )
 
 
-def attach_support(payload: Any, support: Support) -> Any:
-    if (
-        isinstance(payload, BaseModel)
-        and "support_id" in payload.__class__.model_fields
-    ):
-        return payload.model_copy(
-            update={
-                "support_id": support.support_id,
-                "support_ts": support.support_ts,
-            }
-        )
+def attach_support(support: Support) -> None:
+    """Stash support metadata in the request-scoped ContextVar.
 
-    return payload
+    A middleware reads it on the way out and emits the headers.
+    """
+    support_ctx.set(support)
 
 
 def build_entity_creation_conflict_message(
@@ -121,7 +109,8 @@ def suppress_exceptions(
                         operation_id=operation_id,
                     )
 
-                return attach_support(default, support)
+                attach_support(support)
+                return default
 
         return wrapper
 
@@ -145,6 +134,7 @@ def intercept_exceptions(
                     e: EntityCreationConflict
 
                     support = build_support()
+                    attach_support(support)
                     raise ConflictException(
                         message=build_entity_creation_conflict_message(
                             conflict=e.conflict,
@@ -156,6 +146,7 @@ def intercept_exceptions(
                     ) from e
 
                 support = build_support()
+                attach_support(support)
                 operation_id = func.__name__ if hasattr(func, "__name__") else None
 
                 user_id = None
