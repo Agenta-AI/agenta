@@ -98,14 +98,22 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   build-and-push:
-    name: build (${{ matrix.image_name }})
+    name: build-image
     needs: prepare
     if: needs.prepare.outputs.build_images == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
+        image_name:
+          - agenta-api
+          - agenta-web
+          - agenta-services
+        arch:
+          - amd64
+          - arm64
         include:
+          # Per-service config (build context, Dockerfile, SDK injection)
           - image_name: agenta-api
             context: api
             dockerfile: api/oss/docker/Dockerfile.gh
@@ -118,6 +126,13 @@ jobs:
             context: services
             dockerfile: services/oss/docker/Dockerfile.gh
             needs_sdk: true
+          # Per-arch config (runner + platform string)
+          - arch: amd64
+            runner: ubuntu-24.04
+            platform: linux/amd64
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
     steps:
       - uses: actions/checkout@v6
 
@@ -139,24 +154,32 @@ jobs:
           rm -rf "${{ matrix.context }}/clients"
           cp -R clients "${{ matrix.context }}/clients"
 
-      - name: Build and push image
+      - name: Build and push per-arch image
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
-          tags: ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}
+          platforms: ${{ matrix.platform }}
+          # Skip SLSA provenance + SBOM attestations. They produce extra
+          # `unknown/unknown` entries in the manifest list and we don't consume
+          # them for preview images. Re-enable if signed/verifiable releases
+          # become a requirement.
+          provenance: false
+          sbom: false
+          tags: ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}
+          # Per-arch cache refs so amd64 and arm64 don't clobber each other.
           cache-from: |
-            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-shared
-            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-${{ needs.prepare.outputs.cache_scope }}
+            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-shared-${{ matrix.arch }}
+            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-${{ needs.prepare.outputs.cache_scope }}-${{ matrix.arch }}
           cache-to: |
-            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-shared,mode=max
-            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-${{ needs.prepare.outputs.cache_scope }},mode=max
+            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-shared-${{ matrix.arch }},mode=max
+            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-${{ needs.prepare.outputs.cache_scope }}-${{ matrix.arch }},mode=max
 
       - name: Verify SDK source path in image
         if: matrix.image_name == 'agenta-api' || matrix.image_name == 'agenta-services'
         run: |
-          IMAGE="ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}"
+          IMAGE="ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}"
           docker pull "$IMAGE"
           # Redirect stderr and take only the last stdout line so that
           # third-party import noise (e.g. litellm >=1.82 prints a
@@ -174,15 +197,51 @@ jobs:
 
       - name: Verify image runs as non-root
         run: |
-          IMAGE="ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}"
+          IMAGE="ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}"
           docker pull "$IMAGE"
           USER=$(docker inspect --format='{{.Config.User}}' "$IMAGE")
           if [ -z "$USER" ] || [ "$USER" = "root" ] || [ "$USER" = "0" ]; then
-            echo "::error::${{ matrix.image_name }} runs as root (User='${USER}')"
+            echo "::error::${{ matrix.image_name }} (${{ matrix.arch }}) runs as root (User='${USER}')"
             exit 1
           fi
-          echo "PASS: ${{ matrix.image_name }} runs as User='${USER}'"
+          echo "PASS: ${{ matrix.image_name }} (${{ matrix.arch }}) runs as User='${USER}'"
 
       - name: Summary
         run: |
-          echo "- Built \`${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Built \`${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  merge-manifests:
+    name: merge-manifest
+    needs: [prepare, build-and-push]
+    if: needs.prepare.outputs.build_images == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image_name:
+          - agenta-api
+          - agenta-web
+          - agenta-services
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Stitch per-arch tags into manifest list
+        env:
+          IMAGE: ghcr.io/agenta-ai/${{ matrix.image_name }}
+          TAG: ${{ needs.prepare.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          echo "🔹 Merging ${IMAGE}:${TAG}-{amd64,arm64} into ${IMAGE}:${TAG}"
+          docker buildx imagetools create \
+            -t "${IMAGE}:${TAG}" \
+            "${IMAGE}:${TAG}-amd64" \
+            "${IMAGE}:${TAG}-arm64"
+          echo "- Merged \`${{ matrix.image_name }}:${TAG}\` (linux/amd64 + linux/arm64)" >> "$GITHUB_STEP_SUMMARY"

@@ -71,6 +71,7 @@ export const expectText = async (
     }
 
     if (options.multiple) {
+        await expect(locator.first()).toBeVisible()
         const count = await locator.count()
         expect(count).toBeGreaterThan(0)
     } else {
