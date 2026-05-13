@@ -61,35 +61,44 @@ This is the closest existing pattern to reuse, but it meters writes, not reads.
 
 Tracing reads are exposed through multiple routers, and none of them currently increment a meter.
 
-Legacy tracing router:
+Router mounting (see `api/entrypoints/routers.py:720-774`):
 
-- `POST /tracing/spans/query` calls `TracingService.query_spans_or_traces()`. See `api/oss/src/apis/fastapi/tracing/router.py:217-282`.
-- `POST /tracing/analytics/query` and `POST /tracing/spans/analytics` call analytics paths only. See `api/oss/src/apis/fastapi/tracing/router.py:284-383`.
-- `GET /tracing/traces/{trace_id}` calls `TracingService.fetch_trace()`. See `api/oss/src/apis/fastapi/tracing/router.py:422-452`.
-- `POST /tracing/sessions/query` and `POST /tracing/users/query` list IDs, not spans. See `api/oss/src/apis/fastapi/tracing/router.py:561-635`.
+- The full `TracingRouter` (the old monolithic router defined at the top of `api/oss/src/apis/fastapi/tracing/router.py`) is mounted at both `/tracing` and `/preview/tracing` and tagged **Deprecated**. The `/preview/tracing` mount is hidden from the schema (`include_in_schema=False`). Its `legacy_router` is still mounted at `/tracing` and tagged **Legacy** (it exposes only `POST /tracing/spans/analytics`).
+- `SpansRouter` is mounted at `/spans` (current, **Traces** tag) and at `/preview/spans` (deprecated, hidden from schema).
+- `TracesRouter` is mounted at `/traces` (current, **Traces** tag) and at `/preview/traces` (deprecated, hidden from schema). Its `deprecated_router` is mounted at `/traces` and exposes the deprecated `POST /traces/ingest`.
 
-Preview spans router:
+Current, non-deprecated, non-legacy read endpoints — these are the ones the limit must cover:
 
-- `POST /preview/spans/query` resolves an optional saved query revision, then calls `TracingService.query_spans()`. See `api/oss/src/apis/fastapi/tracing/router.py:813-881`.
-- `GET /preview/spans/` calls `TracingService.fetch_spans()`. See `api/oss/src/apis/fastapi/tracing/router.py:883-925`.
-- `GET /preview/spans/{trace_id}/{span_id}` calls `TracingService.fetch_span()`. See `api/oss/src/apis/fastapi/tracing/router.py:927-956`.
+Spans router (`SpansRouter`, prefix `/spans`, `api/oss/src/apis/fastapi/tracing/router.py:710-768`):
 
-Preview traces router:
+- `GET /spans/` → `fetch_spans()` → `TracingService.fetch_spans()` (`router.py:881-924`).
+- `POST /spans/query` → `query_spans()` → resolves an optional saved query revision, then `TracingService.query_spans()` (`router.py:811-877`).
+- `POST /spans/analytics/query` → `query_analytics()` (analytics only — out of scope).
+- `POST /spans/sessions/query`, `POST /spans/users/query` (return IDs, not spans — out of scope).
+- `GET /spans/{trace_id}/{span_id}` → `fetch_span()` → `TracingService.fetch_span()`.
 
-- `POST /preview/traces/query` resolves an optional saved query revision, then calls `TracingService.query_traces()`. See `api/oss/src/apis/fastapi/tracing/router.py:1049-1114`.
-- `GET /preview/traces/` calls `TracingService.fetch_traces()`. See `api/oss/src/apis/fastapi/tracing/router.py:1191-1229`.
-- `GET /preview/traces/{trace_id}` calls `TracingService.fetch_trace()`. See `api/oss/src/apis/fastapi/tracing/router.py:1231-1264`.
+Traces router (`TracesRouter`, prefix `/traces`, `api/oss/src/apis/fastapi/tracing/router.py:1074-1143`):
+
+- `GET /traces/` → `fetch_traces()` → `TracingService.fetch_traces()`.
+- `POST /traces/query` → `query_traces()` → resolves an optional saved query revision, then `TracingService.query_traces()` (`router.py:1174-1237`).
+- `GET /traces/{trace_id}` → `fetch_trace()` → `TracingService.fetch_trace()`.
+- The rest of the routes on `TracesRouter` (`POST /traces/`, `PUT /traces/{trace_id}`, `DELETE /traces/{trace_id}`) are mutations and out of scope.
+
+Deprecated / legacy duplicates that resolve to the same service methods (still callable, should remain in sync if the limit is enforced at the service layer):
+
+- Everything mounted under `/preview/spans/*` and `/preview/traces/*` (deprecated, schema-hidden but reachable).
+- The old `TracingRouter` at `/tracing/*` (deprecated) — including `POST /tracing/spans/query` which calls `TracingService.query_spans_or_traces()`, and `GET /tracing/traces/{trace_id}` which calls `TracingService.fetch_trace()`.
 
 At the service layer:
 
-- `query_spans_or_traces()` runs a query and formats the result; it does not meter. See `api/oss/src/core/tracing/service.py:577-602`.
-- `query_spans()`, `query_traces()`, `fetch_spans()`, `fetch_span()`, `fetch_traces()`, and `fetch_trace()` do not meter. See `api/oss/src/core/tracing/service.py:604-784`.
+- `query_spans_or_traces()` runs a query and formats the result; it does not meter. See `api/oss/src/core/tracing/service.py:584-609`.
+- `query_spans()`, `fetch_spans()`, `fetch_span()`, `query_traces()`, `fetch_traces()`, and `fetch_trace()` do not meter. See `api/oss/src/core/tracing/service.py:611-784`.
 
 ## Existing enforcement on tracing reads
 
 Tracing reads are protected by permissions and throttling, but not by usage limits.
 
-- Read endpoints consistently check `Permission.VIEW_SPANS` and sometimes `Permission.VIEW_QUERIES` for saved query refs. See `api/oss/src/apis/fastapi/tracing/router.py:217-282`, `813-881`, and `1049-1114`.
+- Read endpoints consistently check `Permission.VIEW_SPANS` and sometimes `Permission.VIEW_QUERIES` for saved query refs. See `api/oss/src/apis/fastapi/tracing/router.py:811-877` (spans `query`) and `1174-1237` (traces `query`); the deprecated `TracingRouter.query_spans` at `247-...` performs the same check.
 - Throttling middleware classifies tracing query endpoints under `TRACING_SLOW`, which is request-rate based only. See `api/ee/src/core/entitlements/types.py:112-119` and `api/ee/src/services/throttling_service.py:1-220`.
 - No read endpoint currently calls `check_entitlements()` for a tracing-read counter.
 

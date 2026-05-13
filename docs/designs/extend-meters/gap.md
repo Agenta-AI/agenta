@@ -42,10 +42,13 @@ Implication: to make the new entitlement optional, the entitlement catalog likel
 
 ### 5. No tracing read endpoint increments usage
 
-- None of the tracing fetch/query endpoints call `check_entitlements()` or otherwise adjust a read counter. See `api/oss/src/apis/fastapi/tracing/router.py:217-282`, `422-452`, `813-956`, `1049-1264`.
-- None of the corresponding service methods meter their results. See `api/oss/src/core/tracing/service.py:577-784`.
+- None of the tracing fetch/query endpoints call `check_entitlements()` or otherwise adjust a read counter. The non-deprecated read surface is:
+  - `SpansRouter` (`/spans`) — `GET /`, `POST /query`, `GET /{trace_id}/{span_id}`. See `api/oss/src/apis/fastapi/tracing/router.py:710-768` and the handlers at `811-877`, `881-924`, and the `fetch_span` handler that follows.
+  - `TracesRouter` (`/traces`) — `GET /`, `POST /query`, `GET /{trace_id}`. See `api/oss/src/apis/fastapi/tracing/router.py:1074-1143` and the handlers at `1174-1237`.
+- Deprecated mounts still resolve to the same handlers and the same service methods: `/preview/spans/*`, `/preview/traces/*`, and the old `TracingRouter` at `/tracing/*` (e.g. `POST /tracing/spans/query`, `GET /tracing/traces/{trace_id}`). See `api/entrypoints/routers.py:720-774`.
+- None of the corresponding service methods meter their results. See `api/oss/src/core/tracing/service.py:584-784`.
 
-Implication: adding read metering only at router level would be repetitive and easy to miss. A service-layer or cross-cutting helper is missing.
+Implication: adding read metering only at router level would be repetitive (and now also has to cover both the current and the deprecated mounts), so a service-layer or cross-cutting helper is the right place to enforce this.
 
 ### 6. The system does not yet define what "delta" means for each read path
 
