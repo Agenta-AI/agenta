@@ -1,8 +1,8 @@
-# Tracing Query Event - Research
+# Extend Events Beyond Deployments - Research
 
 ## Scope Restatement
 
-The requested event is a new internal event for tracing reads. It should be emitted when spans are fetched or queried, recorded in the existing events pipeline, and explicitly remain non-subscribable by webhooks.
+The requested work extends the existing event system beyond deployment events. New read, log, and commit events should be recorded in the existing events pipeline and made subscribable by webhooks.
 
 This document captures the current codebase state only. It does not assume implementation details that do not already exist.
 
@@ -55,10 +55,10 @@ This document captures the current codebase state only. It does not assume imple
   - `environments.revisions.committed`
   - `webhooks.subscriptions.tested`
 
-### Important implication for the new tracing read event
+### Important implication for the new events
 
-- A new event can exist in `EventType` without being added to `WebhookEventType`.
-- That is the correct mechanism for "logged in events, but not subscribable by webhooks".
+- A new event can exist in `EventType` without being added to `WebhookEventType`, but this proposal intentionally makes the new events subscribable.
+- New event values should therefore be added to both `EventType` and `WebhookEventType`.
 
 ## Current Event Producers
 
@@ -69,6 +69,8 @@ Only two real producers currently emit events:
 - Implemented in `api/oss/src/core/environments/service.py`.
 - Builds an `Event` inline and publishes it with `publish_event(...)`.
 - Stores `user_id` inside `attributes`.
+- Stores environment revision `references`, normalized committed `state`, and a references `diff` inside `attributes`.
+- The diff shape is `{created, updated, deleted}` with `old`/`new` values as applicable.
 - Uses:
   - generated `request_id`
   - generated `event_id`
@@ -93,13 +95,83 @@ Only two real producers currently emit events:
 - Existing event payloads are small and stored in `attributes`.
 - Existing producers publish through the shared `publish_event(...)` utility rather than through `EventsService`.
 
+## Current Revision Entity APIs
+
+The current domain-style Git pattern exposes revision retrieve/query/commit operations for several major entities.
+
+Stable mounted revision APIs:
+
+- Applications are mounted at `/applications` and expose:
+  - `POST /applications/revisions/retrieve`
+  - `GET /applications/revisions/{application_revision_id}`
+  - `POST /applications/revisions/query`
+  - `POST /applications/revisions/log`
+  - `POST /applications/revisions/commit`
+- Workflows are mounted at `/workflows` and expose:
+  - `POST /workflows/revisions/retrieve`
+  - `GET /workflows/revisions/{workflow_revision_id}`
+  - `POST /workflows/revisions/query`
+  - `POST /workflows/revisions/log`
+  - `POST /workflows/revisions/commit`
+- Queries are mounted at `/queries` and expose:
+  - `POST /queries/revisions/retrieve`
+  - `GET /queries/revisions/{query_revision_id}`
+  - `POST /queries/revisions/query`
+  - `POST /queries/revisions/log`
+  - `POST /queries/revisions/commit`
+- Testsets are mounted at `/testsets` and expose:
+  - `POST /testsets/revisions/retrieve`
+  - `GET /testsets/revisions/{testset_revision_id}`
+  - `POST /testsets/revisions/query`
+  - `POST /testsets/revisions/log`
+  - `POST /testsets/revisions/commit`
+- Evaluators are mounted at `/evaluators` and expose:
+  - `POST /evaluators/revisions/retrieve`
+  - `GET /evaluators/revisions/{evaluator_revision_id}`
+  - `POST /evaluators/revisions/query`
+  - `POST /evaluators/revisions/log`
+  - `POST /evaluators/revisions/commit`
+- Environments are in scope with the same intended stable shape:
+  - `POST /environments/revisions/retrieve`
+  - `GET /environments/revisions/{environment_revision_id}`
+  - `POST /environments/revisions/query`
+  - `POST /environments/revisions/log`
+  - `POST /environments/revisions/commit`
+
+Environment caveat:
+
+- The domain-style environments router with revision retrieve/query/commit is mounted at `/preview/environments`.
+- A separate legacy environments router is mounted at `/environments`; it does not expose revision retrieve/fetch/query/commit endpoints.
+- `environments.revisions.committed` is already emitted from `core/environments/service.py`, even though the domain-style router is preview-mounted.
+- Environments remain in scope as a major entity. The current preview-only mount should be treated as a mounting gap; tracking should target non-preview `/environments/revisions/*`.
+
+Create route caveat:
+
+- The direct revision create handlers call `create_*_revision(...)`, which calls DAO `create_revision(...)` or delegates to another domain's `create_*_revision(...)`.
+- They do not call `commit_revision(...)` in the direct workflow/application/query/testset/evaluator/environment revision create paths reviewed here.
+- Some higher-level create/import/update compatibility paths do call `commit_*_revision(...)` internally.
+- Commit events should be emitted from successful commit service/helper paths, regardless of which route initiated them.
+
+Notable exclusions for broad tracking:
+
+- Workflow revision APIs exist, but workflow events are intentionally skipped for now because workflows may stop being a durable exposed product entity.
+- Artifact reads such as `query_workflows`, `query_applications`, and `query_testsets` should not be tracked by revision read events.
+- Variant reads such as `query_workflow_variants` and `fetch_workflow_variant` should not be tracked by revision read events.
+- Preview duplicate mounts should not double-emit for routers also mounted at stable paths.
+
+## Current Testcase APIs
+
+Testcases are mounted at `/testcases` and also duplicated at `/preview/testcases`. Stable testcase read endpoints are in scope for testcase read events; preview testcase endpoints are out of scope.
+
 ## Current Tracing Read Paths
 
-The prompt refers to "whenever a span is fetched, it's read, or spans like a query with spans". In the current codebase, span reads happen through multiple routes and helper paths.
+The prompt originally considered both span-level and trace-level read event names. Current scope keeps only trace read event names.
 
-### Preview spans API
+Query revision endpoints are query entity reads and should emit query revision events, even when query data is later used to fetch traces or spans. Loadable workflows should not emit trace events unless they call stable trace endpoints that return traces.
 
-Primary current read endpoints:
+### Observed preview spans API
+
+Observed preview read endpoints:
 
 - `GET /preview/spans/` -> `SpansRouter.fetch_spans`
 - `GET /preview/spans/{trace_id}/{span_id}` -> `SpansRouter.fetch_span`
@@ -107,7 +179,9 @@ Primary current read endpoints:
 
 These are implemented in `api/oss/src/apis/fastapi/tracing/router.py`.
 
-### Preview traces API
+These routes are not tracking targets for this event because `/preview/*` is deprecated or legacy surface.
+
+### Observed preview traces API
 
 Trace reads can also result in span fetch/query work:
 
@@ -117,14 +191,27 @@ Trace reads can also result in span fetch/query work:
 
 These call `TracingService.fetch_traces`, `fetch_trace`, or `query_traces`, which internally operate on spans before formatting trace responses.
 
-### Deprecated tracing API
+These routes are not tracking targets for this event because `/preview/*` is deprecated or legacy surface.
+
+### Observed legacy tracing API
 
 There is also an older router still mounted at:
 
 - `POST /tracing/spans/query`
 - `GET /tracing/traces/{trace_id}`
 
-This router lives in the same file and still performs tracing reads. If the goal is "emit whenever spans are fetched/read", the deprecated router is in scope unless the design explicitly excludes it.
+This router lives in the same file and still performs tracing reads. It is not a tracking target for this event because `/tracing/*` is legacy surface.
+
+### Stable tracing read API
+
+No stable non-preview span or trace read router was found in the current tree during this review.
+
+Implementation implication:
+
+- Do not instrument `/preview/*`.
+- Do not instrument `/tracing/*`.
+- Do not instrument deprecated or legacy routers just to emit this event.
+- Wire emission only when the current stable tracing read API surface is identified.
 
 ### Service methods involved
 
@@ -205,6 +292,8 @@ Relevant current coverage includes:
 
 There does not appear to be any current test asserting that tracing reads emit events.
 
+Because the currently observed tracing read routes are preview or legacy routes, new event-emission acceptance tests should target stable endpoints only. Add negative coverage for preview and legacy routes if those routes continue to exist during implementation.
+
 ## Constraints Implied by the Current Codebase
 
 ### What already fits the prompt
@@ -220,7 +309,7 @@ There does not appear to be any current test asserting that tracing reads emit e
 
 - No tracing read event type exists.
 - No tracing read code path emits an event.
-- No explicit internal-only event classification exists beyond "present in `EventType`, absent from `WebhookEventType`".
+- Subscribability is controlled by presence in `WebhookEventType`.
 - No typed event payload schema exists beyond generic `attributes`.
 - No stable, propagated request metadata exists for tracing read events.
 
@@ -228,12 +317,8 @@ There does not appear to be any current test asserting that tracing reads emit e
 
 1. The codebase already supports internal-only events. The new event should be added to `EventType` only, not `WebhookEventType`.
 2. The existing event model stores event-specific data in generic `attributes`, so the first implementation will likely follow that pattern unless the broader event system is refactored.
-3. The largest design choice is not naming; it is where to emit so reads are captured exactly once across:
-   - `GET /preview/spans/`
-   - `GET /preview/spans/{trace_id}/{span_id}`
-   - `POST /preview/spans/query`
-   - trace read/query endpoints that internally fetch spans
-   - deprecated `/tracing/*` endpoints
-4. Emitting in low-level helpers like `fetch(...)` and `query(...)` risks duplicate or overly broad events unless the event explicitly models all read modes.
-5. The intended semantics are now clearer: emit one event per endpoint response when spans or traces are actually returned through the API, not when spans are only read internally inside service logic.
-6. Router-level emission is the correct fit for that requirement because routers have both the auth context and the final response shape.
+3. The largest design choice is not naming; it is identifying the stable, non-preview, non-legacy tracing read API surface where reads should be captured exactly once.
+4. The currently observed `/preview/*` and `/tracing/*` trace read routes are useful implementation references but should not emit this event.
+5. Emitting in low-level helpers like `fetch(...)` and `query(...)` risks duplicate or overly broad events, including accidental emission from deprecated or legacy routes.
+6. The intended semantics are now clearer: emit one event per stable endpoint response when traces are actually returned through the API, not when spans are only read internally inside service logic.
+7. Router-level emission is the correct fit for that requirement because routers have both the auth context and the final response shape.

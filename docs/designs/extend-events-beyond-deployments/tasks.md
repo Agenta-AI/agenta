@@ -1,0 +1,93 @@
+# Extend Events Beyond Deployments - Tasks
+
+- [ ] Add trace read event types: `traces.fetched` and `traces.queried`.
+- [ ] Add testcase read event types: `testcases.fetched` and `testcases.queried`.
+- [ ] Add split revision read event types for stable major entities: `<domain>.revisions.retrieved`, `<domain>.revisions.fetched`, `<domain>.revisions.queried`, and `<domain>.revisions.logged`.
+- [ ] Add missing revision commit event types for stable major entities, using `environments.revisions.committed` as the existing precedent.
+- [ ] Do not add workflow revision event types until workflows are confirmed as a durable exposed entity.
+- [ ] Do not add span read event types for now.
+- [ ] Add all new trace, testcase, revision read, revision log, and revision commit event types to `WebhookEventType`.
+- [ ] Add a core tracing/testcase event helper near the relevant core event helpers.
+- [ ] Add a shared revision event helper in the events/core layer so each domain does not copy inline event construction.
+- [ ] Make the revision helper accept domain, action, request scope, and one revision DTO or a revision list response.
+- [ ] Make the revision helper build domain-specific `references` for single revision events and capped domain-specific `references` arrays for list revision events.
+- [ ] Treat revision `references` as partial identity objects; include artifact, variant, and revision fields only when the response exposes them.
+- [ ] Normalize the existing environment commit producer to the shared revision event helper where practical.
+- [ ] Preserve the existing `environments.revisions.committed` `references`, `state`, and `diff` attributes.
+- [ ] Add optional `message` to `environments.revisions.committed` for commit-event uniformity.
+- [ ] For new application, query, testset, and evaluator commit events, include domain-specific `references` and optional `message`.
+- [ ] Do not add `state` or `diff` to the new application, query, testset, or evaluator commit events in the first version.
+- [ ] Make trace events derive `trace_id` for single trace responses and capped `trace_ids` for list responses.
+- [ ] Make testcase events derive `testcase_id` for single testcase responses and capped `testcase_ids` for list responses.
+- [ ] Cap event-specific result lists at 1000 while preserving the uncapped `count`.
+- [ ] Suppress publishing when `count == 0`.
+- [ ] Build events with generated `request_id`, generated `event_id`, `RequestType.UNKNOWN`, and the appropriate event type.
+- [ ] Publish through `publish_event(...)` with `organization_id` and `project_id` in the envelope.
+- [ ] Store `user_id`, `count`, and event-specific fields in event `attributes`.
+- [ ] Log publish failures and still return the API response normally.
+- [ ] Identify the current stable, non-preview, non-legacy trace read endpoints before wiring router emission.
+- [ ] Exclude every route mounted under `/preview/*` from emission.
+- [ ] Exclude every route mounted under `/tracing/*` from emission.
+- [ ] Exclude `TracingRouter` from emission.
+- [ ] Exclude `TracesRouter` while it is mounted only under `/preview/traces`.
+- [ ] Do not emit from span endpoints for now.
+- [ ] Emit `traces.fetched` from stable trace fetch endpoints after the final response object is created.
+- [ ] Emit `traces.queried` from stable trace query endpoints after the final response object is created.
+- [ ] Ensure trace endpoints that internally read spans emit only trace events.
+- [ ] Ensure query revision endpoints emit query revision events, not trace events.
+- [ ] Ensure loadable workflows do not emit trace events unless they call stable trace endpoints.
+- [ ] Emit `testcases.fetched` from stable `GET /testcases/` and `GET /testcases/{testcase_id}`.
+- [ ] Emit `testcases.queried` from stable `POST /testcases/query`.
+- [ ] Do not emit testcase read events from `/preview/testcases/*`.
+- [ ] Emit `applications.revisions.retrieved` from stable `/applications/revisions/retrieve`.
+- [ ] Emit `applications.revisions.fetched` from stable `/applications/revisions/{application_revision_id}`.
+- [ ] Emit `applications.revisions.queried` from stable `/applications/revisions/query`.
+- [ ] Emit `applications.revisions.logged` from stable `/applications/revisions/log`.
+- [ ] Emit revision commit events from stable `/applications/revisions/commit`.
+- [ ] Do not emit workflow revision events from `/workflows/revisions/*` yet.
+- [ ] Emit `queries.revisions.retrieved` from stable `/queries/revisions/retrieve`.
+- [ ] Emit `queries.revisions.fetched` from stable `/queries/revisions/{query_revision_id}`.
+- [ ] Emit `queries.revisions.queried` from stable `/queries/revisions/query`.
+- [ ] Emit `queries.revisions.logged` from stable `/queries/revisions/log`.
+- [ ] Emit revision commit events from stable `/queries/revisions/commit`.
+- [ ] Emit `testsets.revisions.retrieved` from stable `/testsets/revisions/retrieve`.
+- [ ] Emit `testsets.revisions.fetched` from stable `/testsets/revisions/{testset_revision_id}`.
+- [ ] Emit `testsets.revisions.queried` from stable `/testsets/revisions/query`.
+- [ ] Emit `testsets.revisions.logged` from stable `/testsets/revisions/log`.
+- [ ] Emit revision commit events from stable `/testsets/revisions/commit`.
+- [ ] Emit `evaluators.revisions.retrieved` from stable `/evaluators/revisions/retrieve`.
+- [ ] Emit `evaluators.revisions.fetched` from stable `/evaluators/revisions/{evaluator_revision_id}`.
+- [ ] Emit `evaluators.revisions.queried` from stable `/evaluators/revisions/query`.
+- [ ] Emit `evaluators.revisions.logged` from stable `/evaluators/revisions/log`.
+- [ ] Emit revision commit events from stable `/evaluators/revisions/commit`.
+- [ ] Do not emit revision read events from `/preview/environments` or any other preview endpoint.
+- [ ] Mount or use the domain-style environments revision API at non-preview `/environments/revisions/*`.
+- [ ] Emit `environments.revisions.retrieved`, `environments.revisions.fetched`, `environments.revisions.queried`, and `environments.revisions.logged` from non-preview `/environments/revisions/*`.
+- [ ] Preserve the existing `environments.revisions.committed` behavior, plus optional `message`.
+- [ ] Emit commit events from any successful code path that reaches `commit_*_revision(...)`.
+- [ ] Do not infer commit events from HTTP `POST` alone.
+- [ ] If a compatibility route delegates to a commit service, emit from the commit helper/service path only once.
+- [ ] Do not emit for artifact query/fetch routes such as `/workflows/query` or `/workflows/{workflow_id}`.
+- [ ] Do not emit for variant query/fetch routes such as `/workflows/variants/query` or `/workflows/variants/{workflow_variant_id}`.
+- [ ] Do not emit from preview duplicate mounts for domains that also have stable mounts.
+- [ ] Add unit tests for event construction.
+- [ ] Add unit tests for revision event construction across all supported domains, including incomplete references.
+- [ ] Add unit tests mapping retrieve, fetch, query, log, and commit actions to distinct event types.
+- [ ] Add unit tests for stable trace and traces response counting.
+- [ ] Add unit tests for stable testcase and testcases response counting.
+- [ ] Add unit tests proving event-specific result lists are capped and `count` remains accurate.
+- [ ] Add unit tests proving zero-count responses do not publish.
+- [ ] Add unit tests proving publish failures are swallowed after logging.
+- [ ] Add tests proving trace and testcase read events are accepted by `EventType`.
+- [ ] Add tests proving all new event types are present in `WebhookEventType`.
+- [ ] Add acceptance coverage showing trace fetch emits exactly one `traces.fetched` event.
+- [ ] Add acceptance coverage showing trace query emits exactly one `traces.queried` event.
+- [ ] Add acceptance coverage showing testcase fetch emits exactly one `testcases.fetched` event.
+- [ ] Add acceptance coverage showing testcase query emits exactly one `testcases.queried` event.
+- [ ] Add coverage proving preview and legacy tracing routes do not emit trace read events.
+- [ ] Add acceptance coverage proving the event appears in `POST /events/query`.
+- [ ] Add coverage proving internal service-only reads do not emit the event.
+- [ ] Add acceptance coverage proving stable revision retrieve/fetch/query/log routes emit their distinct read event types exactly once.
+- [ ] Add acceptance coverage proving stable revision commit routes emit commit events exactly once.
+- [ ] Add coverage proving artifact and variant reads do not emit revision read events.
+- [ ] Update external/reference docs only after implementation semantics are verified.
