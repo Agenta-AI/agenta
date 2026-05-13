@@ -1,4 +1,4 @@
-# Query Limits Tasks
+# Extend Meters Tasks
 
 Scope of this PR:
 

@@ -1,4 +1,4 @@
-# Query Limits Proposal
+# Extend Meters Proposal
 
 ## Proposed direction
 
@@ -92,7 +92,7 @@ Removing all three keeps the catalog honest. If any of these counters needs to c
 
 This PR drops `APPLICATIONS` — every plan declares it as `Quota(strict=True)` with no limit, no enforcement, and the value is tracked but never consulted by any product surface. Cleanup, not a feature change.
 
-**`Throttle`** — token-bucket rate limits, declared per-plan and applied per `Category` of endpoints. Distinct mechanism from `Quota`. Tracing reads are already in `Category.TRACING_SLOW`. The query-limits feature is cumulative usage, not rate-per-minute, so this is orthogonal and untouched by this PR.
+**`Throttle`** — token-bucket rate limits, declared per-plan and applied per `Category` of endpoints. Distinct mechanism from `Quota`. Tracing reads are already in `Category.TRACING_SLOW`. Cumulative trace-retrieval metering (what `Counter.TRACES_RETRIEVED` adds) is orthogonal to per-minute rate limiting; throttles are untouched by this PR.
 
 **`REPORTS`** — the existing allowlist `[Counter.TRACES.value, Gauge.USERS.value]` today, becoming `[Counter.TRACES_INGESTED.value, Gauge.USERS.value]` after the rename. `Counter.TRACES_RETRIEVED` simply does not appear in `REPORTS`. That is the entire "keep internal-only" mechanism.
 

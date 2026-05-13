@@ -1,4 +1,4 @@
-# Query Limits Research
+# Extend Meters Research
 
 ## Scope of this research
 
