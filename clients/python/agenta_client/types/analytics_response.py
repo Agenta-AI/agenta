@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime as dt
 import typing
 
 import pydantic
@@ -13,8 +12,6 @@ from .tracing_query import TracingQuery
 
 
 class AnalyticsResponse(UniversalBaseModel):
-    support_id: typing.Optional[str] = None
-    support_ts: typing.Optional[dt.datetime] = None
     count: typing.Optional[int] = None
     buckets: typing.Optional[typing.List[MetricsBucket]] = None
     query: typing.Optional[TracingQuery] = None

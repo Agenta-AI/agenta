@@ -3,8 +3,6 @@
 import type * as AgentaApi from "../index.js";
 
 export interface WorkflowRevisionResponse {
-    support_id?: (string | null) | undefined;
-    support_ts?: (string | null) | undefined;
     count?: number | undefined;
     workflow_revision?: (AgentaApi.WorkflowRevisionOutput | null) | undefined;
     resolution_info?: (AgentaApi.ResolutionInfo | null) | undefined;

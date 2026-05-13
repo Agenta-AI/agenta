@@ -96,10 +96,15 @@ def suppress_exceptions(default=None, message="", verbose=True, exclude=None):
 
 Key differences vs. today:
 
-- No `kwargs.pop("request")` or `isinstance(..., Request)` check.
-- The handler no longer needs to take `request: Request` for support
-  headers to work (it still takes one for other reasons, but the
-  dependency is gone).
+- In `suppress_exceptions`, no `kwargs.pop("request")` or
+  `isinstance(..., Request)` check. Handlers under this decorator no
+  longer need `request: Request` for support headers to work (they may
+  still take one for other reasons — auth, project scoping — but the
+  dependency from *this* decorator is gone).
+- `intercept_exceptions` still pops `request` from kwargs, but only to
+  enrich the `[INTERCEPTED]` log line with `user_id` / `project_id` /
+  `request_path`. That block is unrelated to support metadata and is
+  intentionally left alone (see also `tasks.md §3`).
 - `return default` returns the bare payload — no `model_copy`, no field
   patching.
 
@@ -114,8 +119,6 @@ raise HTTPException(
     status_code=500,
     detail=jsonable_encoder({
         "message": message,
-        "support_id": support.support_id,   # kept in detail for clients
-        "support_ts": support.support_ts,   # who parse the error body
         "operation_id": operation_id,
     }),
 ) from e
@@ -126,13 +129,13 @@ The existing `kwargs.pop("request", None)` block in
 for logging) stays as-is — it's serving a different purpose and isn't
 about support metadata.
 
-We keep `support_id` / `support_ts` inside `detail` for the 5xx case —
-that's where they live today, no schema pollution (errors aren't typed
-response models), and a client parsing the error body gets them
-immediately. The header is added on top, redundantly, so both
-header-aware and body-aware clients work.
-
-The `EntityCreationConflict` branch gets the same treatment.
+Support metadata is **headers-only** for both intercepted branches —
+the generic 5xx path and the `EntityCreationConflict` (409) path. Neither
+the response body nor the `detail` dict carries `support_id` /
+`support_ts` anymore. Clients that need the correlation id read it from
+`x-ag-support-id` / `x-ag-support-ts`. This is a wire-shape change for
+intercepted error bodies; the field shipped 3 weeks ago and there's no
+documented client guidance to read it.
 
 ### 5. Middleware reads the ContextVar, emits the headers
 
@@ -232,7 +235,8 @@ After this, `Support` is only imported by `exceptions.py` itself
 | --- | --- | --- |
 | Success | Body: `{count, folder}` (nulls dropped). Schema: `{count, folder, support_id?, support_ts?}` | Body: `{count, folder}`. Schema: `{count, folder}`. No headers. |
 | Suppressed failure | Body: `{count: 0, folder: null, support_id, support_ts}` | Body: `{count: 0, folder: null}`. Headers: `x-ag-support-id`, `x-ag-support-ts`. |
-| Intercepted 5xx | Body: `{detail: {message, support_id, support_ts, operation_id}}` | Body: same. Headers: `x-ag-support-id`, `x-ag-support-ts` added. |
+| Intercepted 5xx | Body: `{detail: {message, support_id, support_ts, operation_id}}` | Body: `{detail: {message, operation_id}}`. Headers: `x-ag-support-id`, `x-ag-support-ts`. |
+| Intercepted 409 (conflict) | Body: `{detail: {message, conflict, support_id, support_ts}}` | Body: `{detail: {message, conflict}}`. Headers: `x-ag-support-id`, `x-ag-support-ts`. |
 
 The schema for success responses becomes clean. Customers reading
 [fetch-folder](https://agenta.ai/docs/reference/api/fetch-folder) no

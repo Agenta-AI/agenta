@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime as dt
 import typing
 
 import pydantic
@@ -11,8 +10,6 @@ from .query_revision import QueryRevision
 
 
 class QueryRevisionResponse(UniversalBaseModel):
-    support_id: typing.Optional[str] = None
-    support_ts: typing.Optional[dt.datetime] = None
     count: typing.Optional[int] = None
     query_revision: typing.Optional[QueryRevision] = None
     

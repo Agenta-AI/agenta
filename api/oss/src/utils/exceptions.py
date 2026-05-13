@@ -141,8 +141,6 @@ def intercept_exceptions(
                             default_message=e.message,
                         ),
                         conflict=e.conflict,
-                        support_id=support.support_id,
-                        support_ts=support.support_ts,
                     ) from e
 
                 support = build_support()
@@ -179,8 +177,6 @@ def intercept_exceptions(
                 status_code = 500
                 detail = {
                     "message": message,
-                    "support_id": support.support_id,
-                    "support_ts": support.support_ts,
                     "operation_id": operation_id,
                 }
                 detail = jsonable_encoder(detail)

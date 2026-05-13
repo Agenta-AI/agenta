@@ -3,8 +3,6 @@
 import type * as AgentaApi from "../index.js";
 
 export interface SpansResponse {
-    support_id?: (string | null) | undefined;
-    support_ts?: (string | null) | undefined;
     count?: number | undefined;
     spans?: (AgentaApi.SpanOutput[] | null) | undefined;
 }

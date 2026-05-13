@@ -3,8 +3,6 @@
 import type * as AgentaApi from "../index.js";
 
 export interface SimpleWorkflowsResponse {
-    support_id?: (string | null) | undefined;
-    support_ts?: (string | null) | undefined;
     count?: number | undefined;
     workflows?: AgentaApi.SimpleWorkflow[] | undefined;
 }

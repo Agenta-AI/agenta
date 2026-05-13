@@ -5,12 +5,18 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
 
 from oss.src.apis.fastapi.workflows.models import WorkflowResponse
-from oss.src.utils.context import support_ctx
+from oss.src.utils.context import Support, support_ctx
 from oss.src.utils.exceptions import (
     build_support,
     intercept_exceptions,
     suppress_exceptions,
 )
+
+
+def test_support_model_has_expected_fields():
+    # Header middleware reads `support.support_id` / `support.support_ts`;
+    # if either field is renamed or dropped, headers silently disappear.
+    assert set(Support.model_fields) >= {"support_id", "support_ts"}
 
 
 def test_support_helper_uses_utc_timestamp():
@@ -46,7 +52,7 @@ async def test_suppress_exceptions_attaches_support_to_context():
 
 
 @pytest.mark.asyncio
-async def test_intercept_exceptions_includes_support_metadata():
+async def test_intercept_exceptions_attaches_support_to_context():
     @intercept_exceptions(verbose=False)
     async def raise_error():
         raise RuntimeError("boom")
@@ -57,13 +63,16 @@ async def test_intercept_exceptions_includes_support_metadata():
             await raise_error()
 
         detail = exc_info.value.detail
-        assert detail["support_id"]
-        assert isinstance(detail["support_ts"], str)
-        assert datetime.fromisoformat(detail["support_ts"]).tzinfo == timezone.utc
+        # Support metadata is no longer in the response body — headers only.
+        assert "support_id" not in detail
+        assert "support_ts" not in detail
+        assert detail["message"]
+        assert detail["operation_id"] == "raise_error"
 
         support = support_ctx.get()
         assert support is not None
-        assert support.support_id == detail["support_id"]
+        assert support.support_id
+        assert support.support_ts.tzinfo == timezone.utc
     finally:
         support_ctx.reset(token)
 
@@ -156,3 +165,41 @@ def test_support_headers_absent_on_success():
     assert response.status_code == 200
     assert "x-ag-support-id" not in response.headers
     assert "x-ag-support-ts" not in response.headers
+
+
+def _build_test_app_with_base_http_middleware() -> FastAPI:
+    # Mirrors the production stack: BaseHTTPMiddleware-style middleware
+    # (registered via `app.middleware("http")`) wraps the support middleware
+    # from the outside. SupportHeadersMiddleware must be registered FIRST
+    # so it lands innermost (closest to the handler) — see the comment in
+    # `api/entrypoints/routers.py` for why.
+    #
+    # BaseHTTPMiddleware runs the downstream in a child task and does not
+    # propagate ContextVar mutations back to the outer task; if support
+    # middleware ever drifts outside a BaseHTTPMiddleware, the handler's
+    # `support_ctx.set(...)` becomes invisible and headers silently vanish.
+    app = FastAPI()
+
+    app.add_middleware(_SupportHeadersMiddleware)
+
+    async def passthrough_middleware(request: Request, call_next):
+        return await call_next(request)
+
+    app.middleware("http")(passthrough_middleware)
+
+    @app.get("/fail")
+    @suppress_exceptions(default={"count": 0}, verbose=False)
+    async def fail(request: Request):
+        raise RuntimeError("boom")
+
+    return app
+
+
+def test_support_headers_survive_base_http_middleware():
+    client = TestClient(_build_test_app_with_base_http_middleware())
+
+    response = client.get("/fail")
+
+    assert response.status_code == 200
+    assert "x-ag-support-id" in response.headers
+    assert "x-ag-support-ts" in response.headers
