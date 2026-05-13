@@ -4,7 +4,7 @@
 
 **Goal:** Implement the ProposalV2 drill-in direction on the testcase drawer: remove the Fields/JSON toggle from the main chrome header, add `DrillInRootToolbar` as a sub-header (label + filter + collapse-all + view-mode select + copy), add a `typeChip` slot to `DrillInFieldHeader`, and wire per-field "View as ▾" dropdowns driven by `getViewOptions`.
 
-**Architecture:** `DrillInRootToolbar` is a new reusable component in `@agenta/ui/drill-in`. `DrillInUIContext` gains a `featureFlags.enableFormView` field so `JsonObjectField` can opt into the rail-style form view without prop drilling. The drawer (`TestcaseEditDrawer/index.tsx`) orchestrates the sub-header state and passes `typeChip` down to each field header.
+**Architecture:** `DrillInRootToolbar` is a new reusable component in `@agenta/ui/drill-in`. `DrillInUIContext` gains a `featureFlags.enableFormView` field so `JsonObjectField` can opt into the rail-style form view without prop drilling. The drawer shell (`TestcaseDrawer.tsx` in `@agenta/entity-ui`) owns the chrome changes: removing the Fields/JSON toggle, mounting `DrillInRootToolbar`, and adding `rootViewMode` to `TestcaseDrawerContentRenderProps`. The OSS content renderer (`TestcaseEditDrawer/index.tsx`) receives `rootViewMode` via render props and wires `typeChip` + per-field "View as" into `DrillInFieldHeader`.
 
 **Tech Stack:** React, TypeScript, `@agenta/ui/drill-in`, `@agenta/ui/type-chip`, Ant Design (Select for view-mode dropdown)
 
@@ -29,7 +29,8 @@
 | Modify | `web/packages/agenta-ui/src/drill-in/index.ts` | Export `DrillInRootToolbar` |
 | Modify | `web/packages/agenta-ui/src/drill-in/core/DrillInFieldHeader.tsx` | Add `typeChip?: ReactNode` slot |
 | Modify | `web/packages/agenta-ui/src/drill-in/FieldRenderers/JsonObjectField.tsx` | Rail-style form view, gated behind `featureFlags.enableFormView` |
-| Modify | `web/oss/src/components/TestcasesTableNew/components/TestcaseEditDrawer/index.tsx` | Remove Fields/JSON toggle, mount `DrillInRootToolbar`, pass `typeChip` + per-field view options |
+| Modify | `web/packages/agenta-entity-ui/src/testcase/TestcaseDrawer.tsx` | Remove Fields/JSON toggle from chrome, add `rootViewMode` state, mount `DrillInRootToolbar`, extend `TestcaseDrawerContentRenderProps` |
+| Modify | `web/oss/src/components/TestcasesTableNew/components/TestcaseEditDrawer/index.tsx` | Consume `rootViewMode` from render props, pass `typeChip` + per-field view options to `DrillInFieldHeader` |
 
 ---
 
@@ -421,65 +422,150 @@ git commit -m "feat(@agenta/ui): add flag-gated rail-style form view to JsonObje
 
 ---
 
-## Task 5: Wire everything in `TestcaseEditDrawer/index.tsx`
+## Task 5: Wire everything — shell + content
+
+The drawer is now split across two layers:
+- **Shell** (`@agenta/entity-ui` — `TestcaseDrawer.tsx`): chrome, nav, session state, view mode
+- **Content** (OSS — `TestcaseEditDrawer/index.tsx`): field rendering, `DrillInFieldHeader`, TypeChip
+
+The chrome changes (remove old toggle, add sub-header toolbar) go in the package shell. The TypeChip + per-field view mode wiring goes in the OSS content renderer, which receives state via `TestcaseDrawerContentRenderProps`.
+
+---
+
+### Task 5a: Update `TestcaseDrawer.tsx` (shell chrome)
 
 **Files:**
-- Modify: `web/oss/src/components/TestcasesTableNew/components/TestcaseEditDrawer/index.tsx`
+- Modify: `web/packages/agenta-entity-ui/src/testcase/TestcaseDrawer.tsx`
 
 - [ ] **Add imports**
 
 ```typescript
 import {useState, useCallback} from "react"
 import {Button, Select, Tooltip} from "antd"
-import {DrillInRootToolbar, type RootViewMode, getViewOptions} from "@agenta/ui/drill-in"
-import {TypeChip} from "@agenta/ui/type-chip"
+import {DrillInRootToolbar, type RootViewMode} from "@agenta/ui/drill-in"
+```
+
+- [ ] **Extend `TestcaseDrawerContentRenderProps`** — add `rootViewMode` and the two state-management callbacks so the content renderer can read and override the mode:
+
+```typescript
+export interface TestcaseDrawerContentRenderProps {
+    editMode: EditMode
+    onEditModeChange: (mode: EditMode) => void
+    initialPath: string[]
+    onPathChange: (path: string[]) => void
+    // Added for Phase 3:
+    rootViewMode: RootViewMode
+    fieldViewModes: Record<string, RootViewMode>
+    onFieldViewModeChange: (fieldKey: string, mode: RootViewMode) => void
+}
 ```
 
 - [ ] **Add view-mode state** in the component function body:
 
 ```typescript
 const [rootViewMode, setRootViewMode] = useState<RootViewMode>("text")
-
-// Per-field view mode overrides. Key = field name, value = the chosen mode.
-// Reset when rootViewMode changes.
 const [fieldViewModes, setFieldViewModes] = useState<Record<string, RootViewMode>>({})
 
 const handleRootViewModeChange = useCallback((mode: RootViewMode) => {
     setRootViewMode(mode)
-    setFieldViewModes({}) // reset all per-field overrides
+    setFieldViewModes({})
 }, [])
 
 const handleCollapseAll = useCallback(() => {
-    // DrillIn exposes a collapseAllSignal pattern — increment to trigger
     setCollapseSignal((s) => s + 1)
 }, [])
 ```
 
-If a `collapseSignal` state doesn't already exist in this component, add it:
+If `collapseSignal` state doesn't already exist, add it:
 
 ```typescript
 const [collapseSignal, setCollapseSignal] = useState(0)
 ```
 
-- [ ] **Remove the Fields/JSON toggle from the main chrome header** — search for the `Segmented` or toggle that currently switches between Fields/JSON mode in the drawer header and delete it. The view mode now lives in `DrillInRootToolbar`.
+- [ ] **Remove the Fields/JSON `Segmented` toggle** from the chrome header — search for the `Segmented` or similar toggle in the header JSX and delete it. View mode is now controlled by `DrillInRootToolbar`.
 
-- [ ] **Mount `DrillInRootToolbar` below the main chrome header** — insert it just above the scrollable drawer body:
+- [ ] **Mount `DrillInRootToolbar` below the chrome header** — insert it just above the scrollable body:
 
 ```tsx
 <DrillInRootToolbar
-    label={testcaseLabel}   // the testcase's display label
+    label={testcaseLabel}
     viewMode={rootViewMode}
     onViewModeChange={handleRootViewModeChange}
     onCollapseAll={handleCollapseAll}
-    onCopy={handleCopy}     // existing copy handler
-    enableFormView={false}  // keep Form hidden until stable
+    onCopy={handleCopy}
+    enableFormView={false}
     Select={Select}
     Tooltip={Tooltip}
     Button={Button}
 />
 ```
 
-- [ ] **Pass `typeChip` to each `DrillInFieldHeader`** — in the field renderer loop (wherever `DrillInFieldHeader` is called), add:
+- [ ] **Pass new render props to `renderContent`** — in the `renderContent(...)` call site, add the new fields:
+
+```typescript
+renderContent({
+    editMode,
+    onEditModeChange: setEditMode,
+    initialPath,
+    onPathChange: setInitialPath,
+    rootViewMode,
+    fieldViewModes,
+    onFieldViewModeChange: (key, mode) =>
+        setFieldViewModes((prev) => ({...prev, [key]: mode})),
+})
+```
+
+- [ ] **Verify TypeScript compiles**
+
+```bash
+cd web && pnpm --filter @agenta/entity-ui types:check 2>/dev/null || cd web && pnpm lint-fix
+```
+
+- [ ] **Commit**
+
+```bash
+git add web/packages/agenta-entity-ui/src/testcase/TestcaseDrawer.tsx
+git commit -m "feat(@agenta/entity-ui): add DrillInRootToolbar sub-header and rootViewMode to TestcaseDrawer"
+```
+
+---
+
+### Task 5b: Wire TypeChip + view mode in `TestcaseEditDrawer/index.tsx` (OSS content)
+
+**Files:**
+- Modify: `web/oss/src/components/TestcasesTableNew/components/TestcaseEditDrawer/index.tsx`
+
+This is `TestcaseEditDrawerContent` — the content injected via `renderContent`. It now receives `rootViewMode`, `fieldViewModes`, `onFieldViewModeChange` from `TestcaseDrawerContentRenderProps`.
+
+- [ ] **Add imports**
+
+```typescript
+import {getViewOptions, type RootViewMode} from "@agenta/ui/drill-in"
+import {TypeChip} from "@agenta/ui/type-chip"
+```
+
+- [ ] **Destructure new render props** — update the component signature to receive the new fields:
+
+```typescript
+const TestcaseEditDrawerContent = forwardRef<
+    TestcaseEditDrawerContentRef,
+    TestcaseEditDrawerContentProps
+>(({
+    testcaseId,
+    columns,
+    isNewRow,
+    onClose,
+    editMode,
+    onEditModeChange,
+    initialPath,
+    onPathChange,
+    rootViewMode,          // ← new
+    fieldViewModes,        // ← new
+    onFieldViewModeChange, // ← new
+}, ref) => {
+```
+
+- [ ] **Pass `typeChip` to each `DrillInFieldHeader`** — in the field renderer loop, add:
 
 ```tsx
 <DrillInFieldHeader
@@ -488,17 +574,15 @@ const [collapseSignal, setCollapseSignal] = useState(0)
 />
 ```
 
-- [ ] **Wire per-field "View as ▾"** — wherever the per-field view mode is controlled (in `DrillInFieldHeader`'s `viewModeOptions` / `viewMode` / `onViewModeChange` props), supply options from `getViewOptions`:
+- [ ] **Wire per-field "View as ▾"** — add view mode props to each `DrillInFieldHeader`:
 
 ```tsx
 <DrillInFieldHeader
     {/* ...existing props... */}
     typeChip={<TypeChip value={fieldValue} />}
-    viewModeOptions={getViewOptions(fieldValue).map(o => ({value: o.value, label: o.label}))}
+    viewModeOptions={getViewOptions(fieldValue).map((o) => ({value: o.value, label: o.label}))}
     viewMode={fieldViewModes[fieldKey] ?? rootViewMode}
-    onViewModeChange={(mode) =>
-        setFieldViewModes((prev) => ({...prev, [fieldKey]: mode as RootViewMode}))
-    }
+    onViewModeChange={(mode) => onFieldViewModeChange(fieldKey, mode as RootViewMode)}
 />
 ```
 
@@ -511,17 +595,17 @@ cd web && pnpm lint-fix
 - [ ] **Visual verification** — open the testcase drawer in the browser:
 
 Expected:
-- Main chrome header: navigation arrows, testcase title, Add to queue — no Fields/JSON toggle
+- Main chrome: navigation arrows, testcase title, Add to queue — no Fields/JSON toggle
 - Sub-header: testcase label on left, filter + collapse + `[ Text ▾ ]` + copy on right
-- Each field header: TypeChip (e.g. `[string]`, `[object]`) between the caret and field name
+- Each field header: TypeChip between the caret and field name
 - Changing root view mode resets all per-field overrides
-- Per-field "View as ▾" shows the options from `getViewOptions` for that field's value type
+- Per-field "View as ▾" shows options from `getViewOptions` for that value type
 
 - [ ] **Commit**
 
 ```bash
 git add web/oss/src/components/TestcasesTableNew/components/TestcaseEditDrawer/index.tsx
-git commit -m "feat(testcase-drawer): add DrillInRootToolbar sub-header and TypeChip on field headers"
+git commit -m "feat(testcase-drawer): wire TypeChip and per-field view mode in TestcaseEditDrawerContent"
 ```
 
 ---

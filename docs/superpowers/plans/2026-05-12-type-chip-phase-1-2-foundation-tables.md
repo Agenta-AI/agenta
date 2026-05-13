@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Wire Mahmoud's chip-on-column-header proposal as a generic `InfiniteVirtualTable` feature — so any table can opt in via a `typeChips` prop — then wire the testcase table as the first consumer.
+**Goal:** Wire the chip-on-column-header proposal as a generic `InfiniteVirtualTable` feature — so any table can opt in via a `typeChips` prop — then wire the testcase table as the first consumer.
 
 **Current state:** Phase 1 utilities (`TypeChip`, `inferRenderHint`, `getViewOptions`) are already implemented in `@agenta/ui`. The testcase table has no chip wiring yet — this plan adds it at the `InfiniteVirtualTable` level so any table can opt in.
 
-**Architecture:** Type detection runs inside `InfiniteVirtualTable` via a new `useTypeChipColumns` hook. The hook receives a `getRowValue` callback (consumer-provided), samples the first 30 rows, runs `detectColumnTypes`, and enhances leaf column titles with `TypeChip` nodes. Group headers keep their `[object]` chip + `±-button` in `TestcasesTableShell` (complex consumer-owned layout). `chipMode` is `"all"` | `"none"` — no `"ambiguous-only"`.
+**Architecture:** Type detection runs inside `InfiniteVirtualTable` via a new `useTypeChipColumns` hook. The hook receives a `getRowValue` callback (consumer-provided), samples the first 30 rows, runs `detectColumnTypes`, and enhances leaf column titles with `TypeChip` nodes. Group headers keep their `[object]` chip + `±-button` in `TestcasesTableShell` (complex consumer-owned layout), and parent/collapsed group keys opt out of the leaf-chip enhancer by returning `undefined` from `resolveHeaderVariant`. Persisted show/hide state is generic via `typeChips.storageKey` and appears in the table settings dropdown.
 
 **Tech Stack:** React, TypeScript, `@agenta/ui`, Jotai (`atomWithStorage`)
 
@@ -15,7 +15,7 @@
 **Mockup sources:**
 - `web/apps/design-mockups/src/components/proposed/TypeChip.tsx`
 - `web/apps/design-mockups/src/components/proposed/testsetTableHelpers.ts` → `detectColumnTypes()`
-- `web/apps/design-mockups/src/pages/solutions-tables.tsx` → `mahmoudColumns`, `renderMahmoudToggleButton()`
+- `web/apps/design-mockups/src/pages/solutions-tables.tsx` → table layout and toggle-button visual references
 
 ---
 
@@ -23,15 +23,15 @@
 
 | Action | File | Responsibility |
 |---|---|---|
-| Create | `web/packages/agenta-ui/src/InfiniteVirtualTable/utils/detectColumnTypes.ts` | Pure function: rows + columns → Map of type info; exports `mahmoudHeaderVariant` |
-| Modify | `web/packages/agenta-ui/src/InfiniteVirtualTable/index.ts` | Export `detectColumnTypes`, `mahmoudHeaderVariant`, `ColumnTypeInfo` |
+| Create | `web/packages/agenta-ui/src/InfiniteVirtualTable/utils/detectColumnTypes.ts` | Pure function: rows + columns → Map of type info; exports `defaultHeaderVariant` |
+| Modify | `web/packages/agenta-ui/src/InfiniteVirtualTable/index.ts` | Export `detectColumnTypes`, `defaultHeaderVariant`, `ColumnTypeInfo` |
 | Modify | `web/packages/agenta-ui/src/InfiniteVirtualTable/types.ts` | Add `TypeChipConfig<RecordType>` interface; add `typeChips?` prop to `InfiniteVirtualTableProps` |
 | Create | `web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipColumns.tsx` | Hook: samples rows via `getRowValue`, detects types, returns enhanced columns (`.tsx` — renders JSX) |
+| Create | `web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipFeature.tsx` | Generic persisted type-chip visibility state + settings menu item |
 | Modify | `web/packages/agenta-ui/src/InfiniteVirtualTable/components/InfiniteVirtualTableInner.tsx` | Call `useTypeChipColumns`; replace `finalColumns` with enhanced result |
-| Modify | `web/packages/agenta-ui/src/InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx` | Add `typeChips?` to `InfiniteVirtualTableFeatureProps`; thread to inner table |
-| Create | `web/oss/src/components/TestcasesTableNew/state/chipMode.ts` | Fresh `atomWithStorage<"all" \| "none">` |
+| Modify | `web/packages/agenta-ui/src/InfiniteVirtualTable/features/InfiniteVirtualTableFeatureShell.tsx` | Add `typeChips?` to `InfiniteVirtualTableFeatureProps`; resolve visibility and add settings UI |
 | Modify | `web/oss/src/components/TestcasesTableNew/components/TestcasesTableShell.tsx` | Replace caret spans with `GroupToggleButton`; add `[object]` TypeChip to group headers; forward `typeChips` prop |
-| Modify | `web/oss/src/components/TestcasesTableNew/index.tsx` | Create `getRowValue`; pass `typeChips`; wire chipMode atom |
+| Modify | `web/oss/src/components/TestcasesTableNew/index.tsx` | Create `getRowValue`; pass `typeChips.storageKey` + `defaultEnabled` |
 
 ---
 
@@ -42,13 +42,13 @@ The TypeChip utilities (`TypeChip`, `inferRenderHint`, `getViewOptions`) in `@ag
 **Files:**
 - `web/oss/src/components/TestcasesTableNew/state/` — should contain only `collapsedGroups.ts`, `rowHeight.ts`, `groupColumns.ts`
 - `web/oss/src/components/TestcasesTableNew/utils/` — should contain only `groupColumns.ts`
-- `web/oss/src/components/TestcasesTableNew/components/TestcasesTableShell.tsx` — should contain no `TypeChip`, `ChipMode`, or `mahmoud` imports
+- `web/oss/src/components/TestcasesTableNew/components/TestcasesTableShell.tsx` — should contain no `TypeChip`, `ChipMode`, or chip resolver imports
 - `web/oss/src/components/TestcasesTableNew/index.tsx` — should contain no chip atom imports
 
 - [ ] **Confirm the testcase table has no chip code**
 
 ```bash
-grep -rn "TypeChip\|ChipMode\|mahmoud\|chipMode\|columnTypeInfo" \
+grep -rn "TypeChip\|columnTypeInfo" \
   web/oss/src/components/TestcasesTableNew/ 2>/dev/null
 ```
 
@@ -73,7 +73,7 @@ Clean slate confirmed — proceed to Task 2.
 - Create: `web/packages/agenta-ui/src/InfiniteVirtualTable/utils/detectColumnTypes.ts`
 - Modify: `web/packages/agenta-ui/src/InfiniteVirtualTable/index.ts`
 
-- [ ] **Create the file** — ported from `web/apps/design-mockups/src/components/proposed/testsetTableHelpers.ts` → `detectColumnTypes()`, with `mahmoudHeaderVariant` added:
+- [ ] **Create the file** — ported from `web/apps/design-mockups/src/components/proposed/testsetTableHelpers.ts` → `detectColumnTypes()`, with `defaultHeaderVariant` added:
 
 ```typescript
 // web/packages/agenta-ui/src/InfiniteVirtualTable/utils/detectColumnTypes.ts
@@ -210,21 +210,13 @@ export function detectColumnTypes(
 }
 
 /**
- * Applies Mahmoud's simplified top-level chip rule for table column headers:
- *   - Top-level columns: string → string, boolean → boolean, everything else → json-object
- *   - Nested columns (key contains "."): return the raw detected type
- *
  * Returns undefined when typeInfo is undefined (no data detected for column — skip chip).
  */
-export function mahmoudHeaderVariant(
-    colKey: string,
+export function defaultHeaderVariant(
+    _colKey: string,
     typeInfo: ColumnTypeInfo | undefined,
 ): ColumnTypePrimitive | undefined {
-    if (!typeInfo) return undefined
-    const isTopLevel = !colKey.includes(".")
-    if (!isTopLevel) return typeInfo.type
-    if (typeInfo.type === "string" || typeInfo.type === "boolean") return typeInfo.type
-    return "json-object"
+    return typeInfo?.type
 }
 ```
 
@@ -235,7 +227,7 @@ export function mahmoudHeaderVariant(
 // TYPE CHIP UTILITIES
 // ============================================================================
 
-export {detectColumnTypes, mahmoudHeaderVariant} from "./utils/detectColumnTypes"
+export {defaultHeaderVariant, detectColumnTypes} from "./utils/detectColumnTypes"
 export type {ColumnTypeInfo, ColumnTypePrimitive, ColumnRenderHint} from "./utils/detectColumnTypes"
 ```
 
@@ -252,7 +244,7 @@ Expected: no errors
 ```bash
 git add web/packages/agenta-ui/src/InfiniteVirtualTable/utils/detectColumnTypes.ts \
         web/packages/agenta-ui/src/InfiniteVirtualTable/index.ts
-git commit -m "feat(@agenta/ui): add detectColumnTypes and mahmoudHeaderVariant to InfiniteVirtualTable"
+git commit -m "feat(@agenta/ui): add detectColumnTypes to InfiniteVirtualTable"
 ```
 
 ---
@@ -278,11 +270,14 @@ import type {ChipVariant} from "../type-chip/TypeChip"
  * `getRowValue` MUST be stable (useCallback) to prevent re-detection on every render.
  */
 export interface TypeChipConfig<RecordType> {
-    /**
-     * When false (default), getRowValue is never called and no chips render.
-     * Set to true to enable.
-     */
-    enabled: boolean
+    /** Controlled visibility. When omitted, visibility is managed internally. */
+    enabled?: boolean
+    /** Callback fired when the built-in settings menu toggles chip visibility. */
+    onEnabledChange?: (enabled: boolean) => void
+    /** Initial visibility for uncontrolled mode. Defaults to true when typeChips is provided. */
+    defaultEnabled?: boolean
+    /** LocalStorage key for persisting uncontrolled visibility. */
+    storageKey?: string
     /**
      * Returns the raw value for a cell given a row record and column key.
      * Called on the first 30 rows to detect column types.
@@ -294,8 +289,7 @@ export interface TypeChipConfig<RecordType> {
      * Receives the column key and detected ColumnTypeInfo (or undefined for undetected columns).
      * Return undefined to skip chip for that column.
      *
-     * Default: `mahmoudHeaderVariant` — testset table simplified rules.
-     * Import from "@agenta/ui/table": string/boolean → direct; number/null/array/object → "json-object".
+     * Default: `defaultHeaderVariant` — renders the detected primitive type.
      */
     resolveHeaderVariant?: (columnKey: string, typeInfo: ColumnTypeInfo | undefined) => ChipVariant | undefined
     /** Show Axis 2 render-hint chips alongside Axis 1. Default false. */
@@ -352,7 +346,7 @@ import type {ReactNode} from "react"
 import type {ColumnGroupType, ColumnType, ColumnsType} from "antd/es/table"
 
 import {TypeChip} from "../../type-chip/TypeChip"
-import {detectColumnTypes, mahmoudHeaderVariant, type ColumnTypeInfo} from "../utils/detectColumnTypes"
+import {defaultHeaderVariant, detectColumnTypes, type ColumnTypeInfo} from "../utils/detectColumnTypes"
 import type {TypeChipConfig} from "../types"
 
 // Collect all leaf column keys from an antd column tree (depth-first)
@@ -447,7 +441,7 @@ export function useTypeChipColumns<R extends object>(
 
     return useMemo((): ColumnsType<R> => {
         if (!typeChips?.enabled || !columnTypes) return columns
-        const resolveVariant = typeChips.resolveHeaderVariant ?? mahmoudHeaderVariant
+        const resolveVariant = typeChips.resolveHeaderVariant ?? defaultHeaderVariant
         return enhanceLeafColumns(columns, columnTypes, resolveVariant)
     }, [columns, columnTypes, typeChips?.enabled, typeChips?.resolveHeaderVariant])
 }
@@ -551,45 +545,34 @@ git commit -m "feat(@agenta/ui): thread typeChips prop through InfiniteVirtualTa
 
 ---
 
-## Task 7: Create `chipMode` atom
+## Task 7: Create generic type chip visibility feature
 
-Create the `chipMode` atom — it did not exist before; this is new code.
+Create the generic persisted visibility helper in `@agenta/ui`; do not add testcase-scoped chip atoms.
 
 **Files:**
-- Create: `web/oss/src/components/TestcasesTableNew/state/chipMode.ts`
+- Create: `web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipFeature.tsx`
+- Modify: `web/packages/agenta-ui/src/InfiniteVirtualTable/index.ts`
 
 - [ ] **Create the file**
 
 ```typescript
-// web/oss/src/components/TestcasesTableNew/state/chipMode.ts
-
-import {atomWithStorage} from "jotai/utils"
-
-export type ChipMode = "all" | "none"
-
-/**
- * Persisted user preference for type chip visibility on testcase table column headers.
- * "all" — show chips on every column header (default).
- * "none" — hide all chips.
- * Stored in localStorage: "agenta:testcase-table:chip-mode".
- */
-export const testcaseChipModeAtom = atomWithStorage<ChipMode>(
-    "agenta:testcase-table:chip-mode",
-    "all",
-)
+// web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipFeature.tsx
+// Owns persisted visibility via `typeChips.storageKey` and exposes settings menu items.
 ```
 
-- [ ] **Verify lint passes** (this file is in the OSS package, not @agenta/ui)
+- [ ] **Export the hook from `@agenta/ui/table`**
+
+- [ ] **Verify typecheck passes**
 
 ```bash
-cd web && pnpm lint-fix
+cd web && pnpm --filter @agenta/ui types:check
 ```
 
 - [ ] **Commit**
 
 ```bash
-git add web/oss/src/components/TestcasesTableNew/state/chipMode.ts
-git commit -m "feat(testcases-table): add chipMode atom (all/none)"
+git add web/packages/agenta-ui/src/InfiniteVirtualTable/hooks/useTypeChipFeature.tsx web/packages/agenta-ui/src/InfiniteVirtualTable/index.ts
+git commit -m "feat(@agenta/ui): add type chip visibility settings feature"
 ```
 
 ---
@@ -757,36 +740,30 @@ git commit -m "feat(testcases-table): add group header ±-button and TypeChip, f
 **Files:**
 - Modify: `web/oss/src/components/TestcasesTableNew/index.tsx`
 
-The `testcase` object already imported from `@/oss/state/entities/testcase` does **not** have a `.get` imperative API. The imperative getter lives on `testcaseMolecule` from `@agenta/entities/testcase`. That is the import needed here.
+Use the same OSS testcase controller that powers table cells so header detection samples the same values users see in cells.
 
 - [ ] **Add imports**
 
 ```typescript
 import {useCallback} from "react"
-import {testcaseMolecule} from "@agenta/entities/testcase"
-import {mahmoudHeaderVariant} from "@agenta/ui/table"
+import {getDefaultStore} from "jotai/vanilla"
+import {testcase} from "@/oss/state/entities/testcase"
 import type {TestcaseTableRow} from "@/oss/state/entities/testcase"
-import {testcaseChipModeAtom} from "./state/chipMode"
 ```
 
-Check `index.tsx` for existing `useAtomValue` import — add `useAtomValue` to the existing `jotai` import line if it isn't there already.
-
-- [ ] **Read `chipMode` atom and create `getRowValue`** — add in the component body:
+- [ ] **Create `getRowValue`** — add in the component body:
 
 ```typescript
-const chipMode = useAtomValue(testcaseChipModeAtom)
-
 const getRowValue = useCallback(
     (record: TestcaseTableRow, columnKey: string): unknown => {
         const id = record.id ?? String(record.key)
-        const data = testcaseMolecule.get.data(id)
-        return (data as Record<string, unknown> | null)?.[columnKey]
+        return getDefaultStore().get(testcase.selectors.cell({id, column: columnKey}))
     },
     [],
 )
 ```
 
-`testcaseMolecule.get.data(id)` is the imperative snapshot getter — it reads directly from the Jotai store without subscribing. Returns `null` for skeleton rows (which have no `id` and fall back to `String(record.key)`, which won't match any loaded entity — so all values come back `undefined` for those rows, which `detectColumnTypes` skips).
+`testcase.selectors.cell(...)` is the same selector used by `TestcaseCell`, so detection follows dot-path columns and local drafts consistently with cell rendering.
 
 - [ ] **Pass `typeChips` to `TestcasesTableShell`**
 
@@ -794,9 +771,9 @@ const getRowValue = useCallback(
 <TestcasesTableShell
     {/* ...existing props... */}
     typeChips={{
-        enabled: chipMode !== "none",
+        defaultEnabled: true,
+        storageKey: "agenta:testcase-table:type-chips-enabled",
         getRowValue,
-        resolveHeaderVariant: mahmoudHeaderVariant,
     }}
 />
 ```
@@ -811,7 +788,7 @@ cd web && pnpm lint-fix
 
 ```bash
 git add web/oss/src/components/TestcasesTableNew/index.tsx
-git commit -m "feat(testcases-table): wire typeChips prop — getRowValue + mahmoudHeaderVariant + chipMode"
+git commit -m "feat(testcases-table): wire typeChips prop with testcase cell sampling"
 ```
 
 ---
@@ -834,7 +811,7 @@ cd web && pnpm --filter @agenta/ui types:check
 
 Expected: no errors
 
-- [ ] **Visual verification** — temporarily set `chipMode` to `"all"` in localStorage and open the testset table in the browser:
+- [ ] **Visual verification** — open the testset table and use the table settings menu to show/hide type chips:
 
 ```bash
 cd web && pnpm dev
